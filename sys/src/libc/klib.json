@@ -1,0 +1,10 @@
+[
+	{
+		"Name": "klibc",
+		"Install": "/$ARCH/lib/",
+		"Library": "klibc.a",
+		"Include": [
+			"$ARCH.json"
+		]
+	}
+]

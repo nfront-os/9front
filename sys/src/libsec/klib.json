@@ -1,0 +1,10 @@
+[
+	{
+		"Name": "klibsec",
+		"Install": "/$ARCH/lib/",
+		"Library": "klibsec.a",
+		"Include": [
+			"$ARCH.json"
+		]
+	}
+]

@@ -1,0 +1,19 @@
+[
+	{
+		"Name": "klibfis-386",
+		"Cflags": [
+			"-m32",
+			"-fno-pic",
+			"-fno-builtin",
+			"-fno-asynchronous-unwind-tables",
+			"-fno-stack-protector",
+			"-fno-omit-frame-pointer",
+			"-fno-zero-initialized-in-bss",
+			"-Os",
+			"-gdwarf-2"
+		],
+		"SourceFiles": [
+			"fis.c"
+		]
+	}
+]

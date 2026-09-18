@@ -1,0 +1,10 @@
+[
+	{
+		"Name": "klibaml",
+		"Install": "/$ARCH/lib/",
+		"Library": "klibaml.a",
+		"Include": [
+			"$ARCH.json"
+		]
+	}
+]

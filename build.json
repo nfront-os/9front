@@ -2,6 +2,16 @@
 	{
 		"Name": "all",
 		"Projects": [
+			"/sys/src/libc/klib.json",
+			"/sys/src/libmemlayer/klib.json",
+			"/sys/src/libmemdraw/klib.json",
+			"/sys/src/libdraw/klib.json",
+			"/sys/src/libip/klib.json",
+			"/sys/src/libsec/klib.json",
+			"/sys/src/libmp/klib.json",
+			"/sys/src/libfis/klib.json",
+			"/sys/src/libaml/klib.json",
+			"/sys/src/libdtracy/klib.json",
 			"/sys/src/9/pc",
 			"/sys/src/9/pc64"
 		]

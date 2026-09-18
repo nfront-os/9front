@@ -1,0 +1,10 @@
+[
+	{
+		"Name": "klibdraw",
+		"Install": "/$ARCH/lib/",
+		"Library": "klibdraw.a",
+		"Include": [
+			"$ARCH.json"
+		]
+	}
+]

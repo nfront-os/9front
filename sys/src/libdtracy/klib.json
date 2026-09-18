@@ -1,0 +1,10 @@
+[
+	{
+		"Name": "klibdtracy",
+		"Install": "/$ARCH/lib/",
+		"Library": "klibdtracy.a",
+		"Include": [
+			"$ARCH.json"
+		]
+	}
+]

@@ -1,0 +1,10 @@
+[
+	{
+		"Name": "klibfis",
+		"Install": "/$ARCH/lib/",
+		"Library": "klibfis.a",
+		"Include": [
+			"$ARCH.json"
+		]
+	}
+]

@@ -1,0 +1,36 @@
+[
+	{
+		"Name": "klibmemlayer-amd64",
+		"Cflags": [
+			"-m64",
+			"-fno-pic",
+			"-mcmodel=kernel",
+			"-mno-red-zone",
+			"-mno-sse",
+			"-mno-sse2",
+			"-mno-mmx",
+			"-fno-builtin",
+			"-fno-asynchronous-unwind-tables",
+			"-fno-stack-protector",
+			"-fno-omit-frame-pointer",
+			"-fno-zero-initialized-in-bss",
+			"-Os",
+			"-gdwarf-2"
+		],
+		"SourceFiles": [
+			"draw.c",
+			"lalloc.c",
+			"layerop.c",
+			"ldelete.c",
+			"lhide.c",
+			"line.c",
+			"load.c",
+			"lorigin.c",
+			"lsetrefresh.c",
+			"ltofront.c",
+			"ltorear.c",
+			"unload.c",
+			"warp.c"
+		]
+	}
+]

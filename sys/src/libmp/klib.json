@@ -1,0 +1,10 @@
+[
+	{
+		"Name": "klibmp",
+		"Install": "/$ARCH/lib/",
+		"Library": "klibmp.a",
+		"Include": [
+			"$ARCH.json"
+		]
+	}
+]

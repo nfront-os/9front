@@ -1,0 +1,29 @@
+[
+	{
+		"Name": "klibdtracy-amd64",
+		"Cflags": [
+			"-m64",
+			"-fno-pic",
+			"-mcmodel=kernel",
+			"-mno-red-zone",
+			"-mno-sse",
+			"-mno-sse2",
+			"-mno-mmx",
+			"-fno-builtin",
+			"-fno-asynchronous-unwind-tables",
+			"-fno-stack-protector",
+			"-fno-omit-frame-pointer",
+			"-fno-zero-initialized-in-bss",
+			"-Os",
+			"-gdwarf-2"
+		],
+		"SourceFiles": [
+			"agg.c",
+			"chan.c",
+			"dtefmt.c",
+			"pack.c",
+			"prog.c",
+			"prov.c"
+		]
+	}
+]

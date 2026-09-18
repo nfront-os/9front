@@ -1,0 +1,29 @@
+[
+	{
+		"Name": "klibaml-amd64",
+		"Cflags": [
+			"-m64",
+			"-fno-pic",
+			"-mcmodel=kernel",
+			"-mno-red-zone",
+			"-mno-sse",
+			"-mno-sse2",
+			"-mno-mmx",
+			"-fno-builtin",
+			"-fno-asynchronous-unwind-tables",
+			"-fno-stack-protector",
+			"-fno-omit-frame-pointer",
+			"-fno-zero-initialized-in-bss",
+			"-Os",
+			"-gdwarf-2"
+		],
+		"SourceFiles": [
+			"aml.c",
+			"amlalloc.c",
+			"amldelay.c",
+			"amlmapio.c",
+			"amltime.c",
+			"amlunmapio.c"
+		]
+	}
+]

@@ -1,0 +1,10 @@
+[
+	{
+		"Name": "klibmemdraw",
+		"Install": "/$ARCH/lib/",
+		"Library": "klibmemdraw.a",
+		"Include": [
+			"$ARCH.json"
+		]
+	}
+]

@@ -1,0 +1,10 @@
+[
+	{
+		"Name": "klibmemlayer",
+		"Install": "/$ARCH/lib/",
+		"Library": "klibmemlayer.a",
+		"Include": [
+			"$ARCH.json"
+		]
+	}
+]
