@@ -1,0 +1,9 @@
+[
+	{
+		"Name": "all",
+		"Projects": [
+			"/sys/src/9/pc",
+			"/sys/src/9/pc64"
+		]
+	}
+]

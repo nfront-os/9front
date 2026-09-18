@@ -1,0 +1,31 @@
+[
+	{
+		"Name": "ip",
+		"SourceFiles": [
+			"arp.c",
+			"chandial.c",
+			"devip.c",
+			"ethermedium.c",
+			"gre.c",
+			"icmp.c",
+			"icmp6.c",
+			"igmp.c",
+			"il.c",
+			"inferno.c",
+			"ip.c",
+			"ipaux.c",
+			"ipifc.c",
+			"ipmux.c",
+			"iproute.c",
+			"ipv6.c",
+			"loopbackmedium.c",
+			"netdevmedium.c",
+			"netlog.c",
+			"nullmedium.c",
+			"pktmedium.c",
+			"rudp.c",
+			"tcp.c",
+			"udp.c"
+		]
+	}
+]
