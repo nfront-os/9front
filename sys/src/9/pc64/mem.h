@@ -181,5 +181,12 @@
 /* PAT entry used for write combining */
 #define PATWC	7
 
+#ifdef __ASSEMBLER__
+/* GCC port: GAS register names, for hand-written .S kernel assembly */
+#define RMACH	%r15			/* m-> */
+#define RUSER	%r14			/* up-> */
+#define RARG	%rbp			/* Plan9 6c amd64: 1st-argument register */
+#else
 #define RMACH		R15			/* m-> */
 #define RUSER		R14			/* up-> */
+#endif
