@@ -542,6 +542,18 @@ _cycles:					/* time stamp counter */
 	movl	%edx, 4(%rdi)			/* hi */
 	ret
 
+/*
+ * GCC port: amd64 port of pc/l.s's lcycles -- low-order 32 bits of the
+ * cycle counter, returned directly (not via an out-pointer like _cycles
+ * above); rdtsc already leaves that in %eax, which is also the System V
+ * 32-bit return register, so this is a straight RDTSC;RET like the 386
+ * original.
+ */
+.globl lcycles
+lcycles:
+	rdtsc
+	ret
+
 .globl rdmsr
 rdmsr:						/* Model-Specific Register */
 	movl	%edi, %ecx			/* index (arg1) */
