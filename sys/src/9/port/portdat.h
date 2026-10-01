@@ -457,6 +457,23 @@ struct Segment
 	int	segno;		/* last attached proc->seg[segno] number */
 };
 
+/*
+ * One classified PT_LOAD (or PT_LOAD zero-fill tail) from an ELF64
+ * image, ready to hand to newseg()/attachseg() -- see sysexecelf.c.
+ */
+enum {
+	MAXELFSEG	= 32,	/* generous cap on PT_LOAD count * 2 (bss tail) */
+};
+typedef struct ElfSeg ElfSeg;
+struct ElfSeg
+{
+	uintptr	va;		/* page-aligned load address */
+	ulong	pages;		/* size in pages */
+	ulong	fileoff;	/* file offset to demand-load from (0 if flen==0) */
+	ulong	flen;		/* file-backed byte length; rest of the segment is zero-fill */
+	int	type;		/* SG_TEXT|SG_RONLY[|SG_NOEXEC], SG_DATA, or SG_BSS */
+};
+
 struct Segio
 {
 	QLock;

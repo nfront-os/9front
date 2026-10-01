@@ -306,7 +306,7 @@ sysexec(uchar *list)
 	} u;
 	char *progarg[32+1], **argv, **argp;
 	char *file, *elem, *args, *charp, *a, *e;
-	int i, n, indir, nargs, argc;
+	int i, n, indir, nargs, argc, iself, nelfseg;
 	ulong magic, ssize, nbytes;
 	uintptr entry, text, data, bss, adata, abss, ebss, tstk, align;
 	Segment *s, *ts;
@@ -314,6 +314,9 @@ sysexec(uchar *list)
 	Tos *tos;
 	Chan *tc;
 	Fgrp *f;
+	ElfSeg elfseg[MAXELFSEG];
+
+	iself = 0;
 
 	file = ARG(list, char*);
 	validaddr((uintptr)file, 1, 0);
@@ -385,13 +388,17 @@ sysexec(uchar *list)
 	charp = (char*)tos;
 	argc = 0;
 
-	/* Read a.out(6) header */
+	/* Read a.out(6) or ELF64 header */
 	for(indir=0;;indir++){
 		n = devtab[tc->type]->read(tc, u.buf, sizeof(u.buf), 0);
 		if(n >= sizeof(Exec)) {
 			magic = beswal(u.ehdr.Exec.magic);
 			if(magic == AOUT_MAGIC)
 				break; /* for binary */
+		}
+		if(n > 0 && elf64magic((uchar*)u.buf)){
+			iself = 1;
+			break; /* for binary */
 		}
 
 		/* Process #! /bin/sh args ... */
@@ -436,6 +443,11 @@ sysexec(uchar *list)
 		}
 	}
 
+	if(iself){
+		/* Process ELF64 header + program headers */
+		nelfseg = elf64load(tc, (uchar*)u.buf, n, &entry, elfseg, MAXELFSEG);
+		text = data = bss = adata = abss = ebss = 0;	/* unused in this path */
+	} else {
 	/* Process a.out(6) header */
 	if(magic & HDR_MAGIC) {
 		if(n < sizeof(u.ehdr))
@@ -472,11 +484,12 @@ sysexec(uchar *list)
 	data = beswal(u.ehdr.Exec.data);
 	bss = beswal(u.ehdr.Exec.bss);
 	align = BY2PG-1;
-	
+
 	abss = (adata + data + align) & ~align;
 	ebss = (adata + data + bss + align) & ~align;
 	if(adata >= (USTKTOP-USTKSIZE) || abss >= (USTKTOP-USTKSIZE) || ebss >= (USTKTOP-USTKSIZE))
 		error(Ebadexec);
+	}
 
 	/* Replace argv[0] with script name */
 	if(indir){
@@ -573,6 +586,95 @@ sysexec(uchar *list)
 		nargs = i+1;
 	}
 
+	if(iself){
+		Segment *builtseg[MAXELFSEG];
+		ulong totpages;
+		int elfnext;
+
+		totpages = 0;
+		for(i = 0; i < nelfseg; i++)
+			totpages += elfseg[i].pages;
+
+		/* attachimage returns a locked cache image; ELF binaries
+		 * always take the cold (build fresh segments) path -- no
+		 * ts->flen==text-style cache-hit reuse across execs, unlike
+		 * a.out below (a documented simplification, not a bug) */
+		img = attachimage(tc, totpages);
+		if(waserror()){
+			putimage(img);
+			nexterror();
+		}
+		for(i = 0; i < nelfseg; i++){
+			s = newseg(elfseg[i].type, elfseg[i].va, elfseg[i].pages);
+			s->image = img;
+			s->fstart = elfseg[i].fileoff;
+			s->flen = elfseg[i].flen;
+			if(i == 0)
+				img->s = s;
+			else
+				incref(&img->Ref);
+			builtseg[i] = s;
+		}
+		unlock(&img->Lock);
+		poperror();	/* img */
+
+		/*
+		 * Committed.
+		 * Free old memory. (in reverse order)
+		 * Special segments are maintained across exec
+		 */
+		qlock(&up->seglock);
+		if(waserror()){
+			qunlock(&up->seglock);
+			nexterror();
+		}
+
+		for(i = NSEG-1; i > ESEG; i--) {
+			s = up->seg[i];
+			if(s != nil && (s->type&SG_CEXEC) != 0)
+				putseg(detachseg(up, i));
+		}
+		for(i = ESEG-1; i >= 0; i--)
+			putseg(detachseg(up, i));
+
+		/* first TEXT -> TSEG, first DATA -> DSEG, first BSS -> BSEG
+		 * (mirrors a.out's fixed triad); anything beyond that first
+		 * RX/RW(+bss) group -> SEG1..SEG4 in encounter order */
+		elfnext = SEG1;
+		for(i = 0; i < nelfseg; i++){
+			s = builtseg[i];
+			switch(s->type & SG_TYPE){
+			case SG_TEXT:
+				if(up->seg[TSEG] == nil){
+					attachseg(up, TSEG, s);
+					continue;
+				}
+				break;
+			case SG_DATA:
+				if(up->seg[DSEG] == nil){
+					attachseg(up, DSEG, s);
+					continue;
+				}
+				break;
+			case SG_BSS:
+				if(up->seg[BSEG] == nil){
+					attachseg(up, BSEG, s);
+					continue;
+				}
+				break;
+			}
+			if(elfnext > SEG4)
+				error(Ebadexec);
+			attachseg(up, elfnext++, s);
+		}
+
+		/* Move the stack */
+		s = detachseg(up, ESEG);
+		relocateseg(s, USTKTOP-USTKSIZE);
+		attachseg(up, SSEG, s);
+
+		qunlock(&up->seglock);
+	} else {
 	/* Attach text segment */
 	/* attachimage returns a locked cache image */
 	img = attachimage(tc, (PGROUND(text)+PGROUND(data))>>PGSHIFT);
@@ -634,6 +736,7 @@ sysexec(uchar *list)
 	attachseg(up, SSEG, s);
 
 	qunlock(&up->seglock);
+	}
 
 	poperror();	/* up->seglock */
 	poperror();	/* args */

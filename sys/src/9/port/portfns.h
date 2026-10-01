@@ -114,6 +114,8 @@ int		eqqid(Qid, Qid);
 _Noreturn void	error(char*);
 void		eqlock(QLock*);
 uintptr		execregs(uintptr, int, char**, Tos*);
+int		elf64magic(uchar*);
+long		elf64load(Chan*, uchar*, int, uintptr*, ElfSeg*, long);
 void		exhausted(char*);
 void		exit(int);
 uvlong		fastticks(uvlong*);
