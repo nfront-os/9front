@@ -99,6 +99,11 @@ func systab(b *build) {
 
 	write("#include \"%s\"\n\n", src)
 	write("typedef uintptr Syscall(va_list);\n\n")
+	write("enum {\n")
+	for _, n := range names {
+		write("\tSYS_%s = %s,\n", strings.ToLower(n), strings.ToUpper(n))
+	}
+	write("};\n\n")
 	for _, n := range names {
 		write("Syscall %s;\n", sysname(n))
 	}
@@ -106,7 +111,9 @@ func systab(b *build) {
 
 	write("Syscall *systab[]={\n")
 	for _, n := range names {
-		l := strings.ToLower(fmt.Sprintf("\t[%s]\tSYS%s,\n", n, n))
+		lower := strings.ToLower(n)
+		fn := sysname(n)
+		l := fmt.Sprintf("\t[SYS_%s]\t%s,\n", lower, fn)
 		switch {
 		case strings.Contains(l, "syssysr1"):
 			l = "sysr1\n"
@@ -126,7 +133,7 @@ func systab(b *build) {
 
 	write("char *sysctab[]={\n")
 	for _, n := range names {
-		l := strings.ToLower(fmt.Sprintf("\t[%s]\t\"%s\",\n", n, n))
+		l := fmt.Sprintf("\t[SYS_%s]\t\"%s\",\n", strings.ToLower(n), n)
 		if strings.Contains(l, `_"`) {
 			continue
 		}

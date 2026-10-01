@@ -255,6 +255,7 @@ func fromRoot(p string) string {
 func include(f string, targ string, b *build) {
 	debug("include(%s, %s, %v)", f, targ, b)
 
+	f = fromRoot(f)
 	if b.includedJson(f) {
 		return
 	}
@@ -514,13 +515,16 @@ func compile(b *build) {
 
 	// N.B. Plan 9 has a very well defined include structure, just three things:
 	// /$ARCH/include, /sys/include, .
-	args := []string{
-		"-std=c11",
-		"-c",
+	incArgs := []string{
 		"-I", fromRoot("/$ARCH/include"),
 		"-I", fromRoot("/sys/include"),
 		"-I", ".",
 	}
+	args := []string{
+		"-std=c11",
+		"-c",
+	}
+	args = append(args, incArgs...)
 
 	ccCommand := tools["cc"]
 	command := ccCommand
@@ -537,9 +541,39 @@ func compile(b *build) {
 		}
 		return
 	}
-	args = append(args, b.SourceFiles...)
-	cmd := exec.Command(command, args...)
-	run(b, *shellhack, cmd)
+
+	// Separate .s/.S (assembly) and .c (C) source files
+	var asmFiles []string
+	var cFiles []string
+	for _, f := range b.SourceFiles {
+		if strings.HasSuffix(f, ".s") || strings.HasSuffix(f, ".S") {
+			asmFiles = append(asmFiles, f)
+		} else {
+			cFiles = append(cFiles, f)
+		}
+	}
+
+	// Assemble .s/.S files with gcc (uses gas)
+	if len(asmFiles) > 0 {
+		asmArgs := []string{"-c"}
+		// Same include structure as C so #include works in assembly.
+		asmArgs = append(asmArgs, incArgs...)
+		// Pass architecture/model flags that the C compiler would use
+		for _, flag := range b.Cflags {
+			if strings.HasPrefix(flag, "-m") || strings.HasPrefix(flag, "-fzero") || strings.HasPrefix(flag, "-fcommon") || flag == "-fno-pie" {
+				asmArgs = append(asmArgs, flag)
+			}
+		}
+		asmArgs = append(asmArgs, asmFiles...)
+		cmd := exec.Command(ccCommand, asmArgs...)
+		run(b, *shellhack, cmd)
+	}
+
+	// Compile .c files
+	if len(cFiles) > 0 {
+		cmd := exec.Command(command, append(args, cFiles...)...)
+		run(b, *shellhack, cmd)
+	}
 }
 
 func link(b *build) {
