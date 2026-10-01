@@ -1,0 +1,17 @@
+[
+	{
+		"Name": "Libs",
+		"Include": [
+			"../$ARCH/cflags.json"
+		],
+		"Oflags": [
+			"-static"
+		],
+		"Post": [
+			"rm -f *.o"
+		],
+		"Pre": [
+			"rm -f *.o *.tag.*"
+		]
+	}
+]
