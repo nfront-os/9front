@@ -162,10 +162,10 @@ dmacount(int chan)
  
 	dp = &dma[(chan>>2)&1];
 	chan = chan & 3;
-	ilock(dp);
-	retval = inb(dp->count[chan]);
-	retval |= inb(dp->count[chan]) << 8;
-	iunlock(dp);
+	ilock(&dp->Lock);
+	retval = inb(dp->DMAport.count[chan]);
+	retval |= inb(dp->DMAport.count[chan]) << 8;
+	iunlock(&dp->Lock);
 	return ((retval<<dp->shift)+1) & 0xFFFF;
 }
 
@@ -219,16 +219,16 @@ dmasetup(int chan, void *va, long len, int flags)
 	/*
 	 * this setup must be atomic
 	 */
-	ilock(dp);
-	outb(dp->mode, mode);
-	outb(dp->page[chan], pa>>16);
-	outb(dp->cbp, 0);		/* set count & address to their first byte */
-	outb(dp->addr[chan], pa>>dp->shift);		/* set address */
-	outb(dp->addr[chan], pa>>(8+dp->shift));
-	outb(dp->count[chan], (len>>dp->shift)-1);		/* set count */
-	outb(dp->count[chan], ((len>>dp->shift)-1)>>8);
-	outb(dp->sbm, chan);		/* enable the channel */
-	iunlock(dp);
+	ilock(&dp->Lock);
+	outb(dp->DMAport.mode, mode);
+	outb(dp->DMAport.page[chan], pa>>16);
+	outb(dp->DMAport.cbp, 0);		/* set count & address to their first byte */
+	outb(dp->DMAport.addr[chan], pa>>dp->shift);		/* set address */
+	outb(dp->DMAport.addr[chan], pa>>(8+dp->shift));
+	outb(dp->DMAport.count[chan], (len>>dp->shift)-1);		/* set count */
+	outb(dp->DMAport.count[chan], ((len>>dp->shift)-1)>>8);
+	outb(dp->DMAport.sbm, chan);		/* enable the channel */
+	iunlock(&dp->Lock);
 
 	return len;
 }
@@ -241,7 +241,7 @@ dmadone(int chan)
 	dp = &dma[(chan>>2)&1];
 	chan = chan & 3;
 
-	return inb(dp->cmd) & (1<<chan);
+	return inb(dp->DMAport.cmd) & (1<<chan);
 }
 
 /*
@@ -263,9 +263,9 @@ dmaend(int chan)
 	/*
 	 *  disable the channel
 	 */
-	ilock(dp);
-	outb(dp->sbm, 4|chan);
-	iunlock(dp);
+	ilock(&dp->Lock);
+	outb(dp->DMAport.sbm, 4|chan);
+	iunlock(&dp->Lock);
 
 	xp = &dp->x[chan];
 	if(xp->len == 0 || !(xp->flags & DMAREAD))

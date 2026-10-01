@@ -24,7 +24,7 @@ ctl(Ether *ether, void *buf, long n)
 	&& parseether(ea, cb->f[1]) == 0){
 		free(cb);
 		memmove(ether->ea, ea, Eaddrlen);
-		memmove(ether->addr, ether->ea, Eaddrlen);
+		memmove(ether->Netif.addr, ether->ea, Eaddrlen);
 		return 0;
 	}
 	free(cb);
@@ -52,15 +52,15 @@ promiscuous(void *, int)
 static int
 reset(Ether* ether)
 {
-	if(ether->type==nil)
+	if(ether->ISAConf.type==nil)
 		return -1;
-	ether->link = 0;
-	ether->mbps = 1000;
+	ether->Netif.link = 0;
+	ether->Netif.mbps = 1000;
 	ether->attach = attach;
-	ether->multicast = multicast;
-	ether->promiscuous = promiscuous;
+	ether->Netif.multicast = multicast;
+	ether->Netif.promiscuous = promiscuous;
 	ether->ctl = ctl;
-	ether->arg = ether;
+	ether->Netif.arg = ether;
 	return 0;
 }
 

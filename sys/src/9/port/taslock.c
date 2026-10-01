@@ -118,7 +118,7 @@ ilock(Lock *l)
 		}
 	}
 acquire:
-	m->ilockdepth++;
+	m->PMach.ilockdepth++;
 	if(up)
 		up->lastilock = l;
 	l->sr = x;
@@ -217,7 +217,7 @@ iunlock(Lock *l)
 	l->m = nil;
 	coherence();
 	l->key = 0;
-	m->ilockdepth--;
+	m->PMach.ilockdepth--;
 	if(up)
 		up->lastilock = nil;
 	splx(sr);

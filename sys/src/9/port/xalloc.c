@@ -118,7 +118,7 @@ xallocz(ulong size, int zero)
 	size += BY2V + offsetof(Xhdr, data[0]);
 	size &= ~(BY2V-1);
 
-	ilock(&xlists);
+	ilock(&xlists.Lock);
 	l = &xlists.table;
 	for(h = *l; h; h = h->link) {
 		if(h->size >= size) {
@@ -130,7 +130,7 @@ xallocz(ulong size, int zero)
 				h->link = xlists.flist;
 				xlists.flist = h;
 			}
-			iunlock(&xlists);
+			iunlock(&xlists.Lock);
 			if(zero)
 				memset(p, 0, size);
 			p->magix = Magichole;
@@ -139,7 +139,7 @@ xallocz(ulong size, int zero)
 		}
 		l = &h->link;
 	}
-	iunlock(&xlists);
+	iunlock(&xlists.Lock);
 	return nil;
 }
 
@@ -204,7 +204,7 @@ xhole(uintptr addr, uintptr size)
 		return;
 
 	top = addr + size;
-	ilock(&xlists);
+	ilock(&xlists.Lock);
 	l = &xlists.table;
 	for(h = *l; h; h = h->link) {
 		if(h->top == addr) {
@@ -218,7 +218,7 @@ xhole(uintptr addr, uintptr size)
 				c->link = xlists.flist;
 				xlists.flist = c;
 			}
-			iunlock(&xlists);
+			iunlock(&xlists.Lock);
 			return;
 		}
 		if(h->addr > addr)
@@ -228,12 +228,12 @@ xhole(uintptr addr, uintptr size)
 	if(h && top == h->addr) {
 		h->addr -= size;
 		h->size += size;
-		iunlock(&xlists);
+		iunlock(&xlists.Lock);
 		return;
 	}
 
 	if(xlists.flist == nil) {
-		iunlock(&xlists);
+		iunlock(&xlists.Lock);
 		print("xfree: no free holes, leaked %llud bytes\n", (uvlong)size);
 		return;
 	}
@@ -245,7 +245,7 @@ xhole(uintptr addr, uintptr size)
 	h->size = size;
 	h->link = *l;
 	*l = h;
-	iunlock(&xlists);
+	iunlock(&xlists.Lock);
 }
 
 void

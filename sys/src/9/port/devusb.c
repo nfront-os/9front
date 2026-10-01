@@ -309,9 +309,9 @@ seprintep(char *s, char *se, Ep *ep, int all)
 
 	d = ep->dev;
 
-	eqlock(ep);
+	eqlock(&ep->QLock);
 	if(waserror()){
-		qunlock(ep);
+		qunlock(&ep->QLock);
 		nexterror();
 	}
 	di = ep->dev->nb;
@@ -338,7 +338,7 @@ seprintep(char *s, char *se, Ep *ep, int all)
 		s = seprint(s, se, " idle");
 	if(all){
 		s = seprint(s, se, " load %uld", ep->load);
-		s = seprint(s, se, " ref %ld addr %#p", ep->ref, ep);
+		s = seprint(s, se, " ref %ld addr %#p", ep->Ref.ref, ep);
 		s = seprint(s, se, " idx %d", ep->idx);
 		if(ep->name != nil)
 			s = seprint(s, se, " name '%s'", ep->name);
@@ -353,10 +353,10 @@ seprintep(char *s, char *se, Ep *ep, int all)
 		}
 	}
 	if(ep->info != nil)
-		s = seprint(s, se, "\n%s %s\n", ep->info, ep->hp->type);
+		s = seprint(s, se, "\n%s %s\n", ep->info, ep->hp->ISAConf.type);
 	else
 		s = seprint(s, se, "\n");
-	qunlock(ep);
+	qunlock(&ep->QLock);
 	poperror();
 	return s;
 }
@@ -376,7 +376,7 @@ epalloc(Hci *hp)
 	ep = malloc(sizeof(Ep));
 	if(ep == nil)
 		error(Enomem);
-	ep->ref = 1;
+	ep->Ref.ref = 1;
 	ep->idx = i;
 	if(epmax <= i)
 		epmax = i+1;
@@ -398,9 +398,9 @@ getep(int i)
 		return nil;
 	qlock(&epslck);
 	ep = eps[i];
-	if(ep != nil && incref(ep) == 1){
+	if(ep != nil && incref(&ep->Ref) == 1){
 		/* race with putep() below, its dead. */
-		decref(ep);
+		decref(&ep->Ref);
 		ep = nil;
 	}
 	qunlock(&epslck);
@@ -414,12 +414,12 @@ putep(Ep *ep)
 	Ep *next;
 
 	for(; ep != nil; ep = next){
-		if(decref(ep) > 0)
+		if(decref(&ep->Ref) > 0)
 			return;
 		assert(ep->inuse == 0);
 		d = ep->dev;
 		deprint("usb: ep%d.%d %#p released\n", d->nb, ep->nb, ep);
-		qlock(ep->ep0);
+		qlock(&ep->ep0->QLock);
 		qlock(&epslck);
 		assert(d->eps[ep->nb] == ep);
 		d->eps[ep->nb] = nil;
@@ -430,13 +430,13 @@ putep(Ep *ep)
 				epmax--;
 		}
 		qunlock(&epslck);
-		qunlock(ep->ep0);
+		qunlock(&ep->ep0->QLock);
 		if(ep->ep0 != ep)
 			next = ep->ep0;
 		else {
 			next = d->hub != nil? d->hub->eps[0]: nil;
-			if(ep->hp->devclose != nil)
-				(*ep->hp->devclose)(d);
+			if(ep->hp->Hciimpl.devclose != nil)
+				(*ep->hp->Hciimpl.devclose)(d);
 			free(d);
 		}
 		free(ep->info);
@@ -558,8 +558,8 @@ newdev(Hci *hp, Ep *hub, int port, int speed)
 	ep->dev = d;
 	d->eps[0] = ep;
 	if(hub != nil)
-		incref(hub);
-	incref(ep);
+		incref(&hub->Ref);
+	incref(&ep->Ref);
 	qunlock(&epslck);
 	poperror();
 	poperror();
@@ -608,8 +608,8 @@ newdevep(Ep *ep0, int nb, int tt, int mode)
 	ep->ep0 = ep0;
 	ep->dev = d;
 	d->eps[nb] = ep;
-	incref(ep0);
-	incref(ep);
+	incref(&ep0->Ref);
+	incref(&ep->Ref);
 	qunlock(&epslck);
 	poperror();
 
@@ -771,14 +771,14 @@ hciprobe(int cardno, int ctlrno)
 	hp->tbdf = BUSUNKNOWN;
 
 	if(cardno < 0){
-		if(isaconfig("usb", ctlrno, hp) == 0){
+		if(isaconfig("usb",ctlrno,&hp->ISAConf) == 0){
 			free(hp);
 			return nil;
 		}
 		for(cardno = 0; cardno < Nhcis; cardno++){
 			if(hcitypes[cardno].type == nil)
 				break;
-			type = hp->type;
+			type = hp->ISAConf.type;
 			if(type==nil || *type==0)
 				type = "uhci";
 			if(cistrcmp(hcitypes[cardno].type, type) == 0)
@@ -849,12 +849,12 @@ usbinit(void)
 		if(hp == nil)
 			continue;
 
-		if(hp->init != nil){
+		if(hp->Hciimpl.init != nil){
 			if(waserror()){
-				print("usbinit: %s %d: %s\n", hp->type, ctlrno, up->errstr);
+				print("usbinit: %s %d: %s\n", hp->ISAConf.type, ctlrno, up->errstr);
 				continue;
 			}
-			(*hp->init)(hp);
+			(*hp->Hciimpl.init)(hp);
 			poperror();
 		}
 
@@ -1003,9 +1003,9 @@ usbopen(Chan *c, int omode)
 		putep(ep);
 		nexterror();
 	}
-	eqlock(ep);
+	eqlock(&ep->QLock);
 	if(waserror()){
-		qunlock(ep);
+		qunlock(&ep->QLock);
 		nexterror();
 	}
 	if(ep->ttype == Tnone)
@@ -1025,9 +1025,9 @@ usbopen(Chan *c, int omode)
 		isotiming(ep);
 	if(ep->load == 0 && ep->dev->speed != Superspeed)
 		ep->load = usbload(ep->dev->speed, ep->maxpkt);
-	(*ep->hp->epopen)(ep);
+	(*ep->hp->Hciimpl.epopen)(ep);
 	ep->inuse = 1;
-	qunlock(ep);
+	qunlock(&ep->QLock);
 	poperror();	/* ep */
 	poperror();	/* don't putep(): ref kept for fid using the ep. */
 
@@ -1059,21 +1059,21 @@ usbclose(Chan *c)
 	if(ep == nil)
 		return;
 
-	deprint("usbclose q %#x fid %d ref %ld\n", q, c->fid, ep->ref);
-	qlock(ep);
+	deprint("usbclose q %#x fid %d ref %ld\n", q, c->fid, ep->Ref.ref);
+	qlock(&ep->QLock);
 	if(!ep->inuse)
-		qunlock(ep);
+		qunlock(&ep->QLock);
 	else {
 		if(!waserror()){
-			if(ep->hp->epstop != nil)
-				(*ep->hp->epstop)(ep);
-			if(ep->hp->epclose != nil)
-				(*ep->hp->epclose)(ep);
+			if(ep->hp->Hciimpl.epstop != nil)
+				(*ep->hp->Hciimpl.epstop)(ep);
+			if(ep->hp->Hciimpl.epclose != nil)
+				(*ep->hp->Hciimpl.epclose)(ep);
 			poperror();
 		}
 		ep->inuse = 0;
 		ep->aux = nil;
-		qunlock(ep);
+		qunlock(&ep->QLock);
 		putep(ep);	/* release ref from usbopen() */
 	}
 	putep(ep);		/* release ref of getep() above */
@@ -1193,12 +1193,12 @@ rhubwrite(Ep *ep, void *a, long n)
 		 * The delay between clearing reset and setting enable must
 		 * not exceed 3ms as this makes devices suspend themselfs.
 		 */
-		if(hp->portreset != nil){
-			(*hp->portreset)(hp, port, 0);
+		if(hp->Hciimpl.portreset != nil){
+			(*hp->Hciimpl.portreset)(hp, port, 0);
 			tsleep(&up->sleep, return0, nil, 2);
 		}
-		if(hp->portenable != nil){
-			(*hp->portenable)(hp, port, 1);
+		if(hp->Hciimpl.portenable != nil){
+			(*hp->Hciimpl.portenable)(hp, port, 1);
 			tsleep(&up->sleep, return0, nil, 2);
 		}
 	}
@@ -1212,31 +1212,31 @@ rhubwrite(Ep *ep, void *a, long n)
 	dev->rhrepl = 0;
 	switch(feature){
 	case Rportpower:
-		if(hp->portpower == nil)
+		if(hp->Hciimpl.portpower == nil)
 			break;
-		(*hp->portpower)(hp, port, cmd == Rsetfeature);
+		(*hp->Hciimpl.portpower)(hp, port, cmd == Rsetfeature);
 		break;
 	case Rportenable:
-		if(cmd != Rclearfeature || hp->portenable == nil)
+		if(cmd != Rclearfeature || hp->Hciimpl.portenable == nil)
 			break;
-		(*hp->portenable)(hp, port, 0);
+		(*hp->Hciimpl.portenable)(hp, port, 0);
 		break;
 	case Rbhportreset:
-		if(cmd != Rsetfeature || hp->bhportreset == nil)
+		if(cmd != Rsetfeature || hp->Hciimpl.bhportreset == nil)
 			break;
-		(*hp->bhportreset)(hp, port, 1);
+		(*hp->Hciimpl.bhportreset)(hp, port, 1);
 		break;
 	case Rportreset:
-		if(cmd != Rsetfeature || hp->portreset == nil)
+		if(cmd != Rsetfeature || hp->Hciimpl.portreset == nil)
 			break;
-		(*hp->portreset)(hp, port, 1);
+		(*hp->Hciimpl.portreset)(hp, port, 1);
 		/* port reset in progress */
 		dev->rhresetport = port;
 		break;
 	case Rgetstatus:
-		if(hp->portstatus == nil)
+		if(hp->Hciimpl.portstatus == nil)
 			break;
-		dev->rhrepl = (*hp->portstatus)(hp, port);
+		dev->rhrepl = (*hp->Hciimpl.portstatus)(hp, port);
 		break;
 	}
 	return n;
@@ -1280,7 +1280,7 @@ usbread(Chan *c, void *a, long n, vlong offset)
 	default:
 		ddeprint("\nusbread q %#x fid %d cnt %ld off %lld\n",q,c->fid,n,offset);
 	Again:
-		nr = (*ep->hp->epread)(ep, a, n);
+		nr = (*ep->hp->Hciimpl.epread)(ep, a, n);
 		if(nr == 0 && ep->ttype == Tiso && ep->dev->state != Ddetach){
 			tsleep(&up->sleep, return0, nil, 2*ep->pollival);
 			goto Again;
@@ -1318,9 +1318,9 @@ epctl(Ep *ep, Chan *c, void *a, long n)
 	if(i == CMnew || i == CMnewdev || i == CMhub || i == CMpreset || i == CMaddress)
 		if(ep != ep->ep0)
 			error("allowed only on a setup endpoint");
-	eqlock(ep);
+	eqlock(&ep->QLock);
 	if(waserror()){
-		qunlock(ep);
+		qunlock(&ep->QLock);
 		nexterror();
 	}
 	d = ep->dev;
@@ -1368,24 +1368,24 @@ epctl(Ep *ep, Chan *c, void *a, long n)
 		 * the name for the new endpoint
 		 */
 		snprint(up->genbuf, sizeof(up->genbuf), "ep%d.%d", nep->dev->nb, nep->nb);
-		kstrdup(&c->aux, up->genbuf);
+		kstrdup((char**)&c->aux, up->genbuf);
 		putep(nep);
 		break;
 	case CMdetach:
 		if(d->depth < 0)
 			error("can't detach a root hub");
 		d->state = Ddetach;
-		qunlock(ep);
+		qunlock(&ep->QLock);
 		poperror();
 		for(i = 0; i < nelem(d->eps); i++){
 			ep = d->eps[i];
 			if(ep != nil){
-				qlock(ep);
-				if(ep->inuse && ep->hp->epstop != nil && !waserror()){
-					(*ep->hp->epstop)(ep);
+				qlock(&ep->QLock);
+				if(ep->inuse && ep->hp->Hciimpl.epstop != nil && !waserror()){
+					(*ep->hp->Hciimpl.epstop)(ep);
 					poperror();
 				}
-				qunlock(ep);
+				qunlock(&ep->QLock);
 				putep(ep);
 			}
 		}
@@ -1545,7 +1545,7 @@ epctl(Ep *ep, Chan *c, void *a, long n)
 	default:
 		error(Ebadctl);
 	}
-	qunlock(ep);
+	qunlock(&ep->QLock);
 	poperror();
 Unlocked:
 	free(cb);
@@ -1578,8 +1578,8 @@ usbctl(void *a, long n)
 			debug = strtol(cb->f[1], nil, 0);
 		for(i = 0; i < epmax; i++)
 			if((ep = getep(i)) != nil){
-				if(ep->hp->debug != nil)
-					(*ep->hp->debug)(ep->hp, debug);
+				if(ep->hp->Hciimpl.debug != nil)
+					(*ep->hp->Hciimpl.debug)(ep->hp, debug);
 				putep(ep);
 			}
 		break;
@@ -1659,7 +1659,7 @@ usbwrite(Chan *c, void *a, long n, vlong off)
 		/* else fall */
 	default:
 		ddeprint("\nusbwrite q %#x fid %d cnt %ld off %lld\n",q, c->fid, n, off);
-		(*ep->hp->epwrite)(ep, a, n);
+		(*ep->hp->Hciimpl.epwrite)(ep, a, n);
 	}
 	putep(ep);
 	poperror();
@@ -1676,10 +1676,10 @@ usbshutdown(void)
 		hp = hcis[i];
 		if(hp == nil)
 			continue;
-		if(hp->shutdown == nil)
-			print("#u: no shutdown function for %s\n", hp->type);
+		if(hp->Hciimpl.shutdown == nil)
+			print("#u: no shutdown function for %s\n", hp->ISAConf.type);
 		else
-			(*hp->shutdown)(hp);
+			(*hp->Hciimpl.shutdown)(hp);
 	}
 }
 

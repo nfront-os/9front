@@ -172,6 +172,7 @@ void	writeconf(void);
 int	wrmsr(int, vlong);
 int	xchgw(ushort*, int);
 void	rdrandbuf(void*, ulong);
+void*	mmuuncache(void*, usize);
 
 #define	userureg(ur)	(((ur)->cs & 3) == 3)
 #define	KADDR(a)	kaddr(a)

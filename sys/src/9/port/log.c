@@ -10,9 +10,9 @@ static char Ebadlogctl[] = "unknown log ctl message";
 void
 logopen(Log *alog)
 {
-	lock(alog);
+	lock(&alog->Lock);
 	if(waserror()){
-		unlock(alog);
+		unlock(&alog->Lock);
 		nexterror();
 	}
 	if(alog->opens == 0){
@@ -27,20 +27,20 @@ logopen(Log *alog)
 		alog->len = 0;
 	}
 	alog->opens++;
-	unlock(alog);
+	unlock(&alog->Lock);
 	poperror();
 }
 
 void
 logclose(Log *alog)
 {
-	lock(alog);
+	lock(&alog->Lock);
 	alog->opens--;
 	if(alog->opens == 0){
 		free(alog->buf);
 		alog->buf = nil;
 	}
-	unlock(alog);
+	unlock(&alog->Lock);
 }
 
 static int
@@ -64,7 +64,7 @@ logread(Log *alog, void *a, ulong, long n)
 	}
 
 	for(;;){
-		lock(alog);
+		lock(&alog->Lock);
 		if(alog->len >= alog->minread || alog->len >= n){
 			if(n > alog->len)
 				n = alog->len;
@@ -76,7 +76,7 @@ logread(Log *alog, void *a, ulong, long n)
 				alog->rptr = alog->buf + d;
 			}
 			alog->len -= n;
-			unlock(alog);
+			unlock(&alog->Lock);
 
 			i = n-d;
 			p = a;
@@ -85,7 +85,7 @@ logread(Log *alog, void *a, ulong, long n)
 			break;
 		}
 		else
-			unlock(alog);
+			unlock(&alog->Lock);
 
 		sleep(&alog->readr, logready, alog);
 	}
@@ -142,7 +142,7 @@ logn(Log *alog, int mask, void *buf, int n)
 	if(n > alog->nlog)
 		return;
 
-	lock(alog);
+	lock(&alog->Lock);
 	i = alog->len + n - alog->nlog;
 	if(i > 0){
 		alog->len -= i;
@@ -159,7 +159,7 @@ logn(Log *alog, int mask, void *buf, int n)
 		*t++ = *fp++;
 	}
 	dowake = alog->len >= alog->minread;
-	unlock(alog);
+	unlock(&alog->Lock);
 
 	if(dowake)
 		wakeup(&alog->readr);

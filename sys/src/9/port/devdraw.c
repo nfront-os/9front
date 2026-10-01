@@ -191,12 +191,6 @@ dlock(void)
 	qlock(&drawlock);
 }
 
-static int
-candlock(void)
-{
-	return canqlock(&drawlock);
-}
-
 static void
 dunlock(void)
 {
@@ -1411,7 +1405,7 @@ printmesg(char *fmt, uchar *a, int plsprnt)
 	int s;
 
 	if(1|| plsprnt==0){
-		SET(s,q,p);
+		s = (int)(uintptr)p;
 		USED(fmt, a, buf, p, q, s);
 		return;
 	}

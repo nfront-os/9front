@@ -114,7 +114,7 @@ struct Aoem {
 	uchar	mcnt;
 };
 
-typedef struct Aoerr {
+struct Aoerr {
 	uchar	rcmd;
 	uchar	nea;
 	uchar	ea0[];

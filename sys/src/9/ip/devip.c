@@ -55,8 +55,6 @@ enum
 static char network[] = "network";
 
 static Fs	*ipfs[Nfs];	/* attached fs's */
-static Queue	*qlog;
-
 extern	void nullmediumlink(void);
 extern	void pktmediumlink(void);
 
@@ -432,9 +430,9 @@ ipopen(Chan* c, int omode)
 		break;
 	case Qclone:
 		p = f->p[PROTO(c->qid)];
-		qlock(p);
+		qlock(&p->QLock);
 		cv = Fsprotoclone(p, ATTACHER(c));
-		qunlock(p);
+		qunlock(&p->QLock);
 		if(cv == nil) {
 			error(Enodev);
 			break;
@@ -445,12 +443,12 @@ ipopen(Chan* c, int omode)
 	case Qctl:
 	case Qerr:
 		p = f->p[PROTO(c->qid)];
-		qlock(p);
+		qlock(&p->QLock);
 		cv = p->conv[CONV(c->qid)];
-		qlock(cv);
+		qlock(&cv->QLock);
 		if(waserror()) {
-			qunlock(cv);
-			qunlock(p);
+			qunlock(&cv->QLock);
+			qunlock(&p->QLock);
 			nexterror();
 		}
 		if(strcmp(ATTACHER(c), cv->owner) == 0)
@@ -462,15 +460,15 @@ ipopen(Chan* c, int omode)
 			kstrdup(&cv->owner, ATTACHER(c));
 			cv->perm = 0660;
 		}
-		qunlock(cv);
-		qunlock(p);
+		qunlock(&cv->QLock);
+		qunlock(&p->QLock);
 		poperror();
 		break;
 	case Qlisten:
 		cv = f->p[PROTO(c->qid)]->conv[CONV(c->qid)];
-		qlock(cv);
+		qlock(&cv->QLock);
 		if(waserror()){
-			qunlock(cv);
+			qunlock(&cv->QLock);
 			nexterror();
 		}
 		if(strcmp(ATTACHER(c), cv->owner) == 0)
@@ -482,7 +480,7 @@ ipopen(Chan* c, int omode)
 			error("not announced");
 
 		cv->inuse++;
-		qunlock(cv);
+		qunlock(&cv->QLock);
 		poperror();
 		if(waserror()){
 			closeconv(cv);
@@ -504,13 +502,13 @@ ipopen(Chan* c, int omode)
 			/* wait for a connect */
 			sleep(&cv->listenr, incoming, cv);
 
-			qlock(cv);
+			qlock(&cv->QLock);
 			nc = cv->incall;
 			if(nc != nil){
 				cv->incall = nc->next;
 				mkqid(&c->qid, QID(PROTO(c->qid), nc->x, Qctl), 0, QTFILE);
 			}
-			qunlock(cv);
+			qunlock(&cv->QLock);
 
 			qunlock(&cv->listenq);
 			poperror();
@@ -564,9 +562,9 @@ ipwstat(Chan *c, uchar *dp, int n)
 		error(Eshortstat);
 
 	cv = f->p[PROTO(c->qid)]->conv[CONV(c->qid)];
-	qlock(cv);
+	qlock(&cv->QLock);
 	if(waserror()){
-		qunlock(cv);
+		qunlock(&cv->QLock);
 		nexterror();
 	}
 	if(strcmp(ATTACHER(c), cv->owner) != 0 && !iseve())
@@ -578,7 +576,7 @@ ipwstat(Chan *c, uchar *dp, int n)
 	}
 	if(dir->mode != ~0UL)
 		cv->perm = dir->mode & 0666;
-	qunlock(cv);
+	qunlock(&cv->QLock);
 	poperror();
 
 	free(dir);
@@ -593,10 +591,10 @@ closeconv(Conv *cv)
 	Conv *nc;
 	Ipmulti *mp;
 
-	qlock(cv);
+	qlock(&cv->QLock);
 
 	if(--cv->inuse > 0) {
-		qunlock(cv);
+		qunlock(&cv->QLock);
 		return;
 	}
 
@@ -617,7 +615,7 @@ closeconv(Conv *cv)
 		(*cv->p->close)(cv);
 
 	cv->state = Idle;
-	qunlock(cv);
+	qunlock(&cv->QLock);
 }
 
 static void
@@ -708,7 +706,7 @@ ipread(Chan *ch, void *a, long n, vlong off)
 		x = f->p[PROTO(ch->qid)];
 		c = x->conv[CONV(ch->qid)];
 		if(x->remote == nil) {
-			snprint(buf, Maxstring, "%I!%d\n", c->raddr, c->rport);
+			snprint(buf, Maxstring, "%I!%d\n", c->Iphash.raddr, c->Iphash.rport);
 		} else {
 			(*x->remote)(c, buf, Maxstring);
 		}
@@ -731,7 +729,7 @@ ipread(Chan *ch, void *a, long n, vlong off)
 			nexterror();
 		}
 		if(x->local == nil) {
-			snprint(buf, Maxstring, "%I!%d\n", c->laddr, c->lport);
+			snprint(buf, Maxstring, "%I!%d\n", c->Iphash.laddr, c->Iphash.lport);
 		} else {
 			(*x->local)(c, buf, Maxstring);
 		}
@@ -795,7 +793,7 @@ ipbread(Chan* ch, long n, ulong offset)
 static void
 setladdr(Conv* c)
 {
-	findlocalip(c->p->f, c->laddr, c->raddr);
+	findlocalip(c->p->f, c->Iphash.laddr, c->Iphash.raddr);
 }
 
 /*
@@ -811,7 +809,7 @@ setluniqueport(Conv* c, int lport)
 
 	p = c->p;
 
-	qlock(p);
+	qlock(&p->QLock);
 	for(x = 0; x < p->nc; x++){
 		xp = p->conv[x];
 		if(xp == nil)
@@ -819,24 +817,24 @@ setluniqueport(Conv* c, int lport)
 		if(xp == c)
 			continue;
 		if((xp->state == Connected || xp->state == Announced)
-		&& xp->lport == lport
-		&& xp->rport == c->rport
-		&& ipcmp(xp->raddr, c->raddr) == 0
-		&& ipcmp(xp->laddr, c->laddr) == 0)
+		&& xp->Iphash.lport == lport
+		&& xp->Iphash.rport == c->Iphash.rport
+		&& ipcmp(xp->Iphash.raddr, c->Iphash.raddr) == 0
+		&& ipcmp(xp->Iphash.laddr, c->Iphash.laddr) == 0)
 			goto Inuse;
 	}
 	for(q = p->translations; q != nil; q = q->next){
 		if(q->backward.lport == lport
-		&& q->backward.rport == c->rport
-		&& ipcmp(q->backward.raddr, c->raddr) == 0
-		&& ipcmp(q->backward.laddr, c->laddr) == 0)
+		&& q->backward.rport == c->Iphash.rport
+		&& ipcmp(q->backward.raddr, c->Iphash.raddr) == 0
+		&& ipcmp(q->backward.laddr, c->Iphash.laddr) == 0)
 			goto Inuse;
 	}
-	c->lport = lport;
-	qunlock(p);
+	c->Iphash.lport = lport;
+	qunlock(&p->QLock);
 	return nil;
 Inuse:
-	qunlock(p);
+	qunlock(&p->QLock);
 	return "address in use";
 }
 
@@ -850,7 +848,7 @@ lportinuse(Proto *p, ushort lport)
 	int x;
 
 	for(x = 0; x < p->nc && p->conv[x]; x++)
-		if(p->conv[x]->lport == lport)
+		if(p->conv[x]->Iphash.lport == lport)
 			return 1;
 	for(q = p->translations; q != nil; q = q->next)
 		if(q->backward.lport == lport)
@@ -897,7 +895,7 @@ setlport(Conv* c)
 	int i, port;
 
 	p = c->p;
-	qlock(p);
+	qlock(&p->QLock);
 	if(c->restricted){
 		/* Restricted ports cycle between 600 and 1024. */
 		for(i=0; i<1024-600; i++){
@@ -912,12 +910,12 @@ setlport(Conv* c)
 		if(port > 0)
 			goto chosen;
 	}
-	qunlock(p);
+	qunlock(&p->QLock);
 	return "no ports available";
 
 chosen:
-	c->lport = port;
-	qunlock(p);
+	c->Iphash.lport = port;
+	qunlock(&p->QLock);
 	return nil;
 }
 
@@ -944,21 +942,21 @@ setladdrport(Conv* c, char* str, int announcing)
 			p = nil;
 	}
 
-	c->lport = 0;
+	c->Iphash.lport = 0;
 	if(p == nil){
 		if(announcing)
-			ipmove(c->laddr, IPnoaddr);
+			ipmove(c->Iphash.laddr, IPnoaddr);
 		else
 			setladdr(c);
 		p = str;
 	} else {
 		if(strcmp(str, "*") == 0)
-			ipmove(c->laddr, IPnoaddr);
+			ipmove(c->Iphash.laddr, IPnoaddr);
 		else {
 			if(parseip(addr, str) == -1)
 				return Ebadip;
 			if(ipforme(c->p->f, addr) != 0 || ipismulticast(addr))
-				ipmove(c->laddr, addr);
+				ipmove(c->Iphash.laddr, addr);
 			else
 				return "not a local IP address";
 		}
@@ -992,11 +990,11 @@ setraddrport(Conv* c, char* str)
 	if(p == nil)
 		return "malformed address";
 	*p++ = 0;
-	if(parseip(c->raddr, str) == -1)
+	if(parseip(c->Iphash.raddr, str) == -1)
 		return Ebadip;
 
 	str = p;
-	c->rport = strtol(str, &p, 10);
+	c->Iphash.rport = strtol(str, &p, 10);
 	if(p <= str || strchr("!", *p) == nil)
 		return "bad numeric port";
 
@@ -1063,13 +1061,13 @@ connectctlmsg(Proto *x, Conv *c, Cmdbuf *cb)
 		c->state = Idle;
 		error(p);
 	}
-	qunlock(c);
+	qunlock(&c->QLock);
 	if(waserror()){
-		qlock(c);
+		qlock(&c->QLock);
 		nexterror();
 	}
 	sleep(&c->cr, connected, c);
-	qlock(c);
+	qlock(&c->QLock);
 	poperror();
 
 	if(c->cerr[0] != '\0')
@@ -1082,8 +1080,8 @@ connectctlmsg(Proto *x, Conv *c, Cmdbuf *cb)
 char*
 Fsstdannounce(Conv* c, char* argv[], int argc)
 {
-	memset(c->raddr, 0, sizeof(c->raddr));
-	c->rport = 0;
+	memset(c->Iphash.raddr, 0, sizeof(c->Iphash.raddr));
+	c->Iphash.rport = 0;
 	switch(argc){
 	default:
 		break;
@@ -1117,13 +1115,13 @@ announcectlmsg(Proto *x, Conv *c, Cmdbuf *cb)
 		c->state = Idle;
 		error(p);
 	}
-	qunlock(c);
+	qunlock(&c->QLock);
 	if(waserror()){
-		qlock(c);
+		qlock(&c->QLock);
 		nexterror();
 	}
 	sleep(&c->cr, announced, c);
-	qlock(c);
+	qlock(&c->QLock);
 	poperror();
 
 	if(c->cerr[0] != '\0')
@@ -1220,9 +1218,9 @@ ipwrite(Chan* ch, void *v, long n, vlong off)
 		c = x->conv[CONV(ch->qid)];
 		cb = parsecmd(a, n);
 
-		qlock(c);
+		qlock(&c->QLock);
 		if(waserror()) {
-			qunlock(c);
+			qunlock(&c->QLock);
 			free(cb);
 			nexterror();
 		}
@@ -1246,10 +1244,10 @@ ipwrite(Chan* ch, void *v, long n, vlong off)
 			if(cb->nf == 2){
 				if (parseip(ia, cb->f[1]) == -1)
 					error(Ebadip);
-				if(ipcmp(c->raddr, IPnoaddr) == 0 || ipismulticast(c->laddr))
-					ipifcaddmulti(c, c->laddr, ia);
+				if(ipcmp(c->Iphash.raddr, IPnoaddr) == 0 || ipismulticast(c->Iphash.laddr))
+					ipifcaddmulti(c, c->Iphash.laddr, ia);
 				else
-					ipifcaddmulti(c, c->raddr, ia);
+					ipifcaddmulti(c, c->Iphash.raddr, ia);
 			} else {
 				if (parseip(ia, cb->f[1]) == -1 ||
 				    parseip(ma, cb->f[2]) == -1)
@@ -1262,17 +1260,17 @@ ipwrite(Chan* ch, void *v, long n, vlong off)
 				error("delmulti needs interface address");
 			if (parseip(ia, cb->f[1]) == -1)
 				error(Ebadip);
-			if(ipcmp(c->raddr, IPnoaddr) == 0 || ipismulticast(c->laddr))
-				ipifcdelmulti(c, c->laddr, ia);
+			if(ipcmp(c->Iphash.raddr, IPnoaddr) == 0 || ipismulticast(c->Iphash.laddr))
+				ipifcdelmulti(c, c->Iphash.laddr, ia);
 			else
-				ipifcdelmulti(c, c->raddr, ia);
+				ipifcdelmulti(c, c->Iphash.raddr, ia);
 		} else if(x->ctl != nil) {
 			p = (*x->ctl)(c, cb->f, cb->nf);
 			if(p != nil)
 				error(p);
 		} else
 			error("unknown control request");
-		qunlock(c);
+		qunlock(&c->QLock);
 		free(cb);
 		poperror();
 	}
@@ -1403,12 +1401,12 @@ retry:
 			if(c->rq == nil || c->wq == nil)
 				error(Enomem);
 			poperror();
-			qlock(c);
+			qlock(&c->QLock);
 			*pp = c;
 			p->ac++;
 			break;
 		}
-		if(canqlock(c)){
+		if(canqlock(&c->QLock)){
 			/*
 			 *  make sure both processes and protocol
 			 *  are done with this Conv
@@ -1416,7 +1414,7 @@ retry:
 			if(c->inuse == 0 && (p->inuse == nil || (*p->inuse)(c) == 0))
 				break;
 
-			qunlock(c);
+			qunlock(&c->QLock);
 		}
 	}
 	if(pp >= ep) {
@@ -1432,13 +1430,13 @@ retry:
 	kstrdup(&c->owner, user);
 	c->perm = 0660;
 	c->state = Idle;
-	ipmove(c->laddr, IPnoaddr);
-	ipmove(c->raddr, IPnoaddr);
-	c->a = nil;
-	c->r = nil;
-	c->rgen = 0;
-	c->lport = 0;
-	c->rport = 0;
+	ipmove(c->Iphash.laddr, IPnoaddr);
+	ipmove(c->Iphash.raddr, IPnoaddr);
+	c->Routehint.a = nil;
+	c->Routehint.r = nil;
+	c->Routehint.rgen = 0;
+	c->Iphash.lport = 0;
+	c->Iphash.rport = 0;
 	c->restricted = 0;
 	c->ignoreadvice = 0;
 	c->ttl = MAXTTL;
@@ -1448,7 +1446,7 @@ retry:
 	qreopen(c->wq);
 	qreopen(c->eq);
 
-	qunlock(c);
+	qunlock(&c->QLock);
 	return c;
 }
 
@@ -1498,18 +1496,18 @@ Fsnewcall(Conv *c, uchar *raddr, ushort rport, uchar *laddr, ushort lport, uchar
 	Conv **l;
 	int i;
 
-	qlock(c);
+	qlock(&c->QLock);
 	i = 0;
 	for(l = &c->incall; *l; l = &(*l)->next)
 		i++;
 	if(i >= Maxincall) {
 		static int beenhere;
 
-		qunlock(c);
+		qunlock(&c->QLock);
 		if (!beenhere) {
 			beenhere = 1;
 			print("Fsnewcall: incall queue full (%d) on port %d\n",
-				i, c->lport);
+				i, c->Iphash.lport);
 		}
 		return nil;
 	}
@@ -1517,19 +1515,19 @@ Fsnewcall(Conv *c, uchar *raddr, ushort rport, uchar *laddr, ushort lport, uchar
 	/* find a free conversation */
 	nc = Fsprotoclone(c->p, c->owner);
 	if(nc == nil) {
-		qunlock(c);
+		qunlock(&c->QLock);
 		return nil;
 	}
-	ipmove(nc->raddr, raddr);
-	nc->rport = rport;
-	ipmove(nc->laddr, laddr);
-	nc->lport = lport;
+	ipmove(nc->Iphash.raddr, raddr);
+	nc->Iphash.rport = rport;
+	ipmove(nc->Iphash.laddr, laddr);
+	nc->Iphash.lport = lport;
 	nc->next = nil;
 	*l = nc;
 	nc->state = Connected;
 	nc->ipversion = version;
 
-	qunlock(c);
+	qunlock(&c->QLock);
 
 	wakeup(&c->listenr);
 
@@ -1548,22 +1546,22 @@ ndbopen(Ndb *ndb, int omode)
 		error(Eperm);
 
 	if(trunc){
-		qlock(ndb);
+		qlock(&ndb->QLock);
 		free(ndb->buf);
 		ndb->buf = nil;
 		ndb->len = 0;
 		ndb->vers++;
 		ndb->mtime = seconds();
-		qunlock(ndb);
+		qunlock(&ndb->QLock);
 	}
 }
 
 static long
 ndbwrite(Ndb *ndb, char *a, ulong off, int n)
 {
-	qlock(ndb);
+	qlock(&ndb->QLock);
 	if(waserror()){
-		qunlock(ndb);
+		qunlock(&ndb->QLock);
 		nexterror();
 	}
 	if(off > ndb->len || off+n >= 32*1024)
@@ -1580,7 +1578,7 @@ ndbwrite(Ndb *ndb, char *a, ulong off, int n)
 		ndb->vers++;
 		ndb->mtime = seconds();
 	}
-	qunlock(ndb);
+	qunlock(&ndb->QLock);
 	poperror();
 	return n;
 }
@@ -1588,9 +1586,9 @@ ndbwrite(Ndb *ndb, char *a, ulong off, int n)
 static long
 ndbread(Ndb *ndb, char *a, ulong off, int n)
 {
-	qlock(ndb);
+	qlock(&ndb->QLock);
 	if(waserror()){
-		qunlock(ndb);
+		qunlock(&ndb->QLock);
 		nexterror();
 	}
 	if(off >= ndb->len)
@@ -1600,7 +1598,7 @@ ndbread(Ndb *ndb, char *a, ulong off, int n)
 			n = ndb->len - off;
 		memmove(a, ndb->buf+off, n);
 	}
-	qunlock(ndb);
+	qunlock(&ndb->QLock);
 	poperror();
 	return n;
 }

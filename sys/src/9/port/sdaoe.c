@@ -38,7 +38,7 @@ struct Ctlr {
 
 	ulong	vers;
 	uchar	drivechange;
-	Sfis;
+	Sfis Sfis;	/* gcc port: named to avoid clashing with Ctlr's own Chan *c under -fplan9-extensions */
 
 	uvlong	sectors;
 	char	serial[20+1];
@@ -61,9 +61,9 @@ identify(Ctlr *c, ushort *id)
 
 	osectors = c->sectors;
 	memmove(oserial, c->serial, sizeof c->serial);
-	s = idfeat(c, id);
+	s = idfeat(&c->Sfis,id);
 	if(s == -1){
-		uprint("%s: identify fails", c->unit->name);
+		uprint("%s: identify fails", c->unit->SDperm.name);
 		print("%s\n", up->genbuf);
 		error(up->genbuf);
 	}
@@ -114,7 +114,7 @@ aoeidentify(Ctlr *d, SDunit *u)
 	cclose(c);
 	poperror();
 
-	d->feat = 0;
+	d->Sfis.feat = 0;
 	identify(d, (ushort*)d->ident);
 
 	memset(u->inquiry, 0, sizeof u->inquiry);
@@ -341,9 +341,9 @@ aoeverify(SDunit *u)
 static int
 aoeconnect(SDunit *u, Ctlr *c)
 {
-	qlock(c);
+	qlock(&c->QLock);
 	if(waserror()){
-		qunlock(c);
+		qunlock(&c->QLock);
 		return -1;
 	}
 
@@ -353,7 +353,7 @@ aoeconnect(SDunit *u, Ctlr *c)
 	c->c = 0;
 	uprint("%s/data", c->path);
 	c->c = namec(up->genbuf, Aopen, ORDWR, 0);
-	qunlock(c);
+	qunlock(&c->QLock);
 	poperror();
 
 	return 0;
@@ -424,9 +424,9 @@ aoerio(SDreq *r)
 	c = u->dev->ctlr;
 
 	if(r->cmd[0] == 0x35 || r->cmd[0] == 0x91){
-		qlock(c);
+		qlock(&c->QLock);
 		i = flushcache(c);
-		qunlock(c);
+		qunlock(&c->QLock);
 		if(i == 0)
 			return sdsetsense(r, SDok, 0, 0, 0);
 		return sdsetsense(r, SDcheck, 3, 0xc, 2);
@@ -454,7 +454,7 @@ aoerctl(SDunit *u, char *p, char *e)
 	p = seprint(p, e, "serial\t%s\n", c->serial);
 	p = seprint(p, e, "firm	%s\n", c->firmware);
 	p = seprint(p, e, "flag	");
-	p = pflag(p, e, c);
+	p = pflag(p,e,&c->Sfis);
 	p = seprint(p, e, "geometry %llud %d\n", c->sectors, Aoesectsz);
 	return p;
 }

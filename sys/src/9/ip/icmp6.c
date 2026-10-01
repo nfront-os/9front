@@ -235,9 +235,9 @@ icmpadvise6(Proto *icmp, Block *bp, Ipifc *, char *msg)
 	recid = nhgets(p->icmpid);
 
 	for(c = icmp->conv; (s = *c) != nil; c++){
-		if(s->lport == recid)
-		if(ipcmp(s->laddr, p->src) == 0)
-		if(ipcmp(s->raddr, p->dst) == 0){
+		if(s->Iphash.lport == recid)
+		if(ipcmp(s->Iphash.laddr, p->src) == 0)
+		if(ipcmp(s->Iphash.raddr, p->dst) == 0){
 			if(s->ignoreadvice)
 				break;
 			qhangup(s->rq, msg);
@@ -282,9 +282,9 @@ icmpkick6(void *x, Block *bp)
 		ipmove(p->dst, raddr);
 		ipmove(p->src, laddr);
 	} else {
-		ipmove(p->dst, c->raddr);
-		ipmove(p->src, c->laddr);
-		hnputs(p->icmpid, c->lport);
+		ipmove(p->dst, c->Iphash.raddr);
+		ipmove(p->src, c->Iphash.laddr);
+		hnputs(p->icmpid, c->Iphash.lport);
 	}
 
 	set_cksum(bp);
@@ -322,9 +322,9 @@ goticmpkt6(Proto *icmp, Ipifc *ifc, Block *bp, int muxkey)
 		addr = p->dst;
 	}
 	for(c = icmp->conv; (s = *c) != nil; c++){
-		if(s->lport == recid)
-		if(ipcmp(s->laddr, p->dst) == 0 || ipcmp(s->raddr, addr) == 0)
-		if(!islinklocal(s->laddr) || iplocalonifc(ifc, s->laddr) != nil)
+		if(s->Iphash.lport == recid)
+		if(ipcmp(s->Iphash.laddr, p->dst) == 0 || ipcmp(s->Iphash.raddr, addr) == 0)
+		if(!islinklocal(s->Iphash.laddr) || iplocalonifc(ifc, s->Iphash.laddr) != nil)
 			qpass(s->rq, copyblock(bp, blocklen(bp)));
 	}
 	freeblist(bp);
@@ -467,7 +467,7 @@ icmpsend6(Fs *f, Ipifc *ifc, Block *bp, int type, int code, int arg, Routehint *
 	icmp = f->t2p[ICMPv6];
 	((Icmppriv6*)icmp->priv)->out[type]++;
 
-	if(rh != nil && rh->r != nil && (rh->r->type & Runi) != 0){
+	if(rh != nil && rh->r != nil && (rh->r->RouteTree.type & Runi) != 0){
 		np = (IPICMP *)nbp->rp;
 		np->vcf[0] = IP_VER6 | DFLTTOS>>4;
 		np->vcf[1] = DFLTTOS<<4;

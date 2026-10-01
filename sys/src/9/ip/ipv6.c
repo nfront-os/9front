@@ -64,30 +64,30 @@ ipoput6(Fs *f, Block *bp, Ipifc *gating, int ttl, int tos, Routehint *rh)
 	}
 
 	r = v6lookup(f, eh->dst, eh->src, rh);
-	if(r == nil || (r->type & Rv4) != 0 || (ifc = r->ifc) == nil){
+	if(r == nil || (r->RouteTree.type & Rv4) != 0 || (ifc = r->RouteTree.ifc) == nil){
 		ip->stats[OutNoRoutes]++;
 		netlog(f, Logip, "%I -> %I: no interface\n", eh->src, eh->dst);
 		rv = -1;
 		goto free;
 	}
 
-	if(r->type & (Rifc|Runi|Rbcast|Rmulti))
+	if(r->RouteTree.type & (Rifc|Runi|Rbcast|Rmulti))
 		gate = eh->dst;
 	else
 		gate = r->v6.gate;
 
-	if(!canrlock(ifc)){
+	if(!canrlock(&ifc->RWLock)){
 		ip->stats[OutDiscards]++;
 		goto free;
 	}
 	if(waserror()){
 		ifc->outerr++;
-		runlock(ifc);
+		runlock(&ifc->RWLock);
 		/* bp is freed by m->bwrite() called from ipifcoput() */
 		return -1;
 	}
 
-	if(ifc->m == nil || r->ifcid != ifc->ifcid){
+	if(ifc->m == nil || r->RouteTree.ifcid != ifc->ifcid){
 		rv = -1;
 		goto raise;
 	}
@@ -104,11 +104,11 @@ ipoput6(Fs *f, Block *bp, Ipifc *gating, int ttl, int tos, Routehint *rh)
 		eh->vcf[1]  = tos << 4;
 
 		/* bypass for loopback */
-		if(r->type & Runi){
+		if(r->RouteTree.type & Runi){
 			eh->ttl = ttl;
 			hnputs(eh->ploadlen, len - IP6HDR);
 			(*loopbackmedium.bwrite)(ifc, concatblock(bp), V6, gate, rh);
-			runlock(ifc);
+			runlock(&ifc->RWLock);
 			poperror();
 			return 0;
 		}
@@ -119,7 +119,7 @@ ipoput6(Fs *f, Block *bp, Ipifc *gating, int ttl, int tos, Routehint *rh)
 	if(len <= medialen) {
 		hnputs(eh->ploadlen, len - IP6HDR);
 		ipifcoput(ifc, bp, V6, gate, rh);
-		runlock(ifc);
+		runlock(&ifc->RWLock);
 		poperror();
 		return 0;
 	}
@@ -220,7 +220,7 @@ ipoput6(Fs *f, Block *bp, Ipifc *gating, int ttl, int tos, Routehint *rh)
 	ip->stats[FragOKs]++;
 
 raise:
-	runlock(ifc);
+	runlock(&ifc->RWLock);
 	poperror();
 free:
 	freeblist(bp);
@@ -294,7 +294,7 @@ ipiput6(Fs *f, Ipifc *ifc, Block *bp)
 		rh.r = nil;
 		rh.a = nil;
 		r  = v6lookup(f, h->dst, h->src, &rh);
-		if(r == nil || (nifc = r->ifc) == nil || (r->type & Rv4) != 0
+		if(r == nil || (nifc = r->RouteTree.ifc) == nil || (r->RouteTree.type & Rv4) != 0
 		|| (nifc == ifc && !ifc->reflect)){
 			ip->stats[OutDiscards]++;
 			goto drop;

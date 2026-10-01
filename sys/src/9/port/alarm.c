@@ -17,8 +17,8 @@ alarmkproc(void*)
 		;
 
 	for(;;){
-		now = MACHP(0)->ticks;
-		qlock(&alarms);
+		now = MACHP(0)->PMach.ticks;
+		qlock(&alarms.QLock);
 		for(rp = alarms.head; rp != nil; rp = rp->palarm){
 			if((when = rp->alarm) == 0)
 				continue;
@@ -32,14 +32,14 @@ alarmkproc(void*)
 					NUser,
 					1,
 				};
-				incref(&alarm);
+				incref(&alarm.Ref);
 				pushnote(rp, &alarm);
 				rp->alarm = 0;
 			}
 			qunlock(&rp->debug);
 		}
 		alarms.head = rp;
-		qunlock(&alarms);
+		qunlock(&alarms.QLock);
 
 		sleep(&alarmr, return0, 0);
 	}
@@ -56,7 +56,7 @@ checkalarms(void)
 
 	p = alarms.head;
 	if(p != nil){
-		now = MACHP(0)->ticks;
+		now = MACHP(0)->PMach.ticks;
 		when = p->alarm;
 		if(when == 0 || (long)(now - when) >= 0)
 			wakeup(&alarmr);
@@ -69,7 +69,7 @@ procalarm(ulong time)
 	Proc **l, *f;
 	ulong when, old;
 
-	when = MACHP(0)->ticks;
+	when = MACHP(0)->PMach.ticks;
 	old = up->alarm;
 	if(old) {
 		old -= when;
@@ -86,7 +86,7 @@ procalarm(ulong time)
 	if(when == 0)
 		when = 1;
 
-	qlock(&alarms);
+	qlock(&alarms.QLock);
 	l = &alarms.head;
 	for(f = *l; f; f = f->palarm) {
 		if(up == f){
@@ -105,7 +105,7 @@ procalarm(ulong time)
 	up->palarm = f;
 	*l = up;
 	up->alarm = when;
-	qunlock(&alarms);
+	qunlock(&alarms.QLock);
 
 	return old;
 }

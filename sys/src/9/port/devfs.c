@@ -362,7 +362,7 @@ mdeldev(Fsdev *mp)
 	Inner	*in;
 	Tree	*t;
 
-	dprint("deldev %s gone %d ref %uld\n", mp->name, mp->gone, mp->ref);
+	dprint("deldev %s gone %d ref %uld\n", mp->name, mp->gone, mp->Ref.ref);
 
 	mp->gone = 1;
 	mp->vers = ++qidvers;
@@ -425,8 +425,8 @@ Again:
 			 */
 			some++;
 			mp->gone = 1;
-			if(mp->ref == 0){
-				incref(mp);	/* keep it there */
+			if(mp->Ref.ref == 0){
+				incref(&mp->Ref);	/* keep it there */
 				wunlock(&lck);
 				mdeldev(mp);
 				goto Again;	/* tree can change */
@@ -977,7 +977,7 @@ mopen(Chan *c, int omode)
 		mp = path2dev(q);
 		if(mp->gone)
 			error(Egone);
-		incref(mp);
+		incref(&mp->Ref);
 		poperror();
 		runlock(&lck);
 	}
@@ -1016,10 +1016,10 @@ mclose(Chan *c)
 		sectorsz = Sectorsz;
 	}else{
 		mp = path2dev(q);
-		if(mp->gone != 0 && mp->ref == 1)
+		if(mp->gone != 0 && mp->Ref.ref == 1)
 			mustdel = 1;
 		else
-			decref(mp);
+			decref(&mp->Ref);
 	}
 	poperror();
 	runlock(&lck);

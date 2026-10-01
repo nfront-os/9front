@@ -89,22 +89,22 @@ ramdiskinit0(Ramdisk *rd, uvlong base, uvlong size, ulong ss)
 	base &= ~(BY2PG-1);
 
 	if(size == 0 || size != (uintptr)size){
-		print("%s: invalid parameters\n", rd->name);
+		print("%s: invalid parameters\n", rd->Physseg.name);
 		return;
 	}
 
 	base = ramdiskalloc(base, size/BY2PG);
 	if(base == 0){
-		print("%s: allocation failed\n", rd->name);
+		print("%s: allocation failed\n", rd->Physseg.name);
 		return;
 	}
 	rd->nb = nb;
 	rd->ss = ss;
 	rd->off = off;
 
-	rd->pa = base;
-	rd->size = size;
-	rd->attr = SG_PHYSICAL | SG_CACHED | SG_NOEXEC;
+	rd->Physseg.pa = base;
+	rd->Physseg.size = size;
+	rd->Physseg.attr = SG_PHYSICAL | SG_CACHED | SG_NOEXEC;
 }
 
 static vlong
@@ -134,8 +134,8 @@ ramdiskinit(void)
 		if(rd->nb != 0)
 			continue;
 
-		snprint(rd->name = rd->buf, sizeof(rd->buf), "ramdisk%d", subno);
-		if((p = getconf(rd->name)) == nil)
+		snprint(rd->Physseg.name = rd->buf, sizeof(rd->buf), "ramdisk%d", subno);
+		if((p = getconf(rd->Physseg.name)) == nil)
 			continue;
 
 		for(n = 0; n < nelem(a); n++){
@@ -191,7 +191,7 @@ ramverify(SDunit *unit)
 	unit->inquiry[0] = 0;
 	unit->inquiry[1] = 0;
 	unit->inquiry[4] = sizeof unit->inquiry - 4;
-	strcpy((char*)unit->inquiry+8, rd->name);
+	strcpy((char*)unit->inquiry+8, rd->Physseg.name);
 
 	return 1;
 }
@@ -204,10 +204,10 @@ ramonline(SDunit *unit)
 	if(unit->sectors != 0)
 		return 1;
 
-	rd->seg = newseg(rd->attr, UTZERO, rd->size/BY2PG);
+	rd->seg = newseg(rd->Physseg.attr, UTZERO, rd->Physseg.size/BY2PG);
 	if(rd->seg == nil)
 		return 0;
-	rd->seg->pseg = rd;
+	rd->seg->pseg = (Physseg*)rd;
 	unit->sectors = rd->nb;
 	unit->secsize = rd->ss;
 

@@ -1018,7 +1018,7 @@ i82563rxinit(Ctlr *ctlr)
 	 */
 	csr32w(ctlr, Rxcsum, Tuofl | Ipofl | ETHERHDRSIZE);
 
-	i82563promiscuous(edev, edev->prom);
+	i82563promiscuous(edev, edev->Netif.prom);
 
 	csr32w(ctlr, Rctl, csr32r(ctlr, Rctl) | Ren);
 
@@ -1160,7 +1160,7 @@ miw(Mii *mii, int phyno, int reg, int val)
 static void
 phyerrata(Ctlr *c, MiiPhy *p)
 {
-	if(c->edev->mbps == 0){
+	if(c->edev->Netif.mbps == 0){
 		if(c->phyerrata == 0){
 			c->phyerrata++;
 
@@ -2309,7 +2309,7 @@ pnp(Ether *edev, int type)
 			continue;
 		if(type != -1 && ctlr->type != type)
 			continue;
-		if(edev->port == 0 || edev->port == ctlr->port){
+		if(edev->ISAConf.port == 0 || edev->ISAConf.port == ctlr->port){
 			ctlr->edev = edev;
 			memmove(ctlr->ra, edev->ea, Eaddrlen);
 			if(setup(ctlr) == 0)
@@ -2317,16 +2317,16 @@ pnp(Ether *edev, int type)
 		}
 	}
 
-	ctlr->mii.name = edev->name;
+	ctlr->mii.name = edev->Netif.name;
 	ctlr->mii.ctlr = ctlr;
 	ctlr->mii.mir = mir;
 	ctlr->mii.miw = miw;
 
 	edev->ctlr = ctlr;
-	edev->port = ctlr->port;
-	edev->irq = ctlr->pcidev->intl;
+	edev->ISAConf.port = ctlr->port;
+	edev->ISAConf.irq = ctlr->pcidev->intl;
 	edev->tbdf = ctlr->pcidev->tbdf;
-	edev->mbps = 1000;
+	edev->Netif.mbps = 1000;
 	edev->maxmtu = cttab[ctlr->type].mtu;
 	memmove(edev->ea, ctlr->ra, Eaddrlen);
 
@@ -2334,15 +2334,15 @@ pnp(Ether *edev, int type)
 	 * Linkage to the generic ethernet driver.
 	 */
 	edev->attach = i82563attach;
-	edev->ifstat = i82563ifstat;
+	edev->Netif.ifstat = i82563ifstat;
 	edev->ctl = i82563ctl;
 
-	edev->arg = edev;
-	edev->promiscuous = i82563promiscuous;
+	edev->Netif.arg = edev;
+	edev->Netif.promiscuous = i82563promiscuous;
 	edev->shutdown = i82563shutdown;
-	edev->multicast = i82563multicast;
+	edev->Netif.multicast = i82563multicast;
 
-	intrenable(edev->irq, i82563interrupt, edev, edev->tbdf, edev->name);
+	intrenable(edev->ISAConf.irq, i82563interrupt, edev, edev->tbdf, edev->Netif.name);
 
 	return 0;
 }

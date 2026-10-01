@@ -315,10 +315,10 @@ ifstat(void *arg, char* p, char* e)
 	Ctlr *ctlr = ether->ctlr;
 	int i;
 
-	ether->crcs = ctlr->ce;
-	ether->frames = ctlr->rf+ctlr->cs;
-	ether->buffs = ctlr->de+ctlr->tl;
-	ether->overflows = ctlr->of;
+	ether->Netif.crcs = ctlr->ce;
+	ether->Netif.frames = ctlr->rf+ctlr->cs;
+	ether->Netif.buffs = ctlr->de+ctlr->tl;
+	ether->Netif.overflows = ctlr->of;
 
 	if(p >= e)
 		return p;
@@ -533,7 +533,7 @@ interrupt(Ureg*, void* arg)
 					ctlr->lo++;
 				if(des[Dstatus] & To)
 					ctlr->to++;
-				ether->oerrs++;
+				ether->Netif.oerrs++;
 			}
 			des[Dcontrol] &= Er;
 			coherence();
@@ -1749,7 +1749,7 @@ reset(Ether* ether)
 	for(ctlr = ctlrhead; ctlr != nil; ctlr = ctlr->next){
 		if(ctlr->active)
 			continue;
-		if(ether->port == 0 || ether->port == ctlr->port){
+		if(ether->ISAConf.port == 0 || ether->ISAConf.port == ctlr->port){
 			ctlr->active = 1;
 			break;
 		}
@@ -1758,8 +1758,8 @@ reset(Ether* ether)
 		return -1;
 
 	ether->ctlr = ctlr;
-	ether->port = ctlr->port;
-	ether->irq = ctlr->pcidev->intl;
+	ether->ISAConf.port = ctlr->port;
+	ether->ISAConf.irq = ctlr->pcidev->intl;
 	ether->tbdf = ctlr->pcidev->tbdf;
 
 	/*
@@ -1775,17 +1775,17 @@ reset(Ether* ether)
 	 * Look for a medium override in case there's no autonegotiation
 	 * (no MII) or the autonegotiation fails.
 	 */
-	for(i = 0; i < ether->nopt; i++){
-		if(cistrcmp(ether->opt[i], "HD") == 0){
+	for(i = 0; i < ether->ISAConf.nopt; i++){
+		if(cistrcmp(ether->ISAConf.opt[i], "HD") == 0){
 			ctlr->fd = 0;
 			continue;
 		}
-		if(cistrcmp(ether->opt[i], "FD") == 0){
+		if(cistrcmp(ether->ISAConf.opt[i], "FD") == 0){
 			ctlr->fd = 1;
 			continue;
 		}
 		for(x = 0; x < nelem(mediatable); x++){
-			if(cistrcmp(mediatable[x], ether->opt[i]))
+			if(cistrcmp(mediatable[x], ether->ISAConf.opt[i]))
 				continue;
 			ctlr->medium = x;
 	
@@ -1804,8 +1804,8 @@ reset(Ether* ether)
 		}
 	}
 
-	ether->mbps = media(ether, 1);
-	ether->link = ether->mbps != 0;
+	ether->Netif.mbps = media(ether, 1);
+	ether->Netif.link = ether->Netif.mbps != 0;
 
 	/*
 	 * Initialise descriptor rings, ethernet address.
@@ -1821,13 +1821,13 @@ reset(Ether* ether)
 	ether->attach = attach;
 	ether->transmit = transmit;
 
-	ether->arg = ether;
+	ether->Netif.arg = ether;
 	ether->shutdown = shutdown;
-	ether->multicast = multicast;
-	ether->promiscuous = promiscuous;
-	ether->ifstat = ifstat;
+	ether->Netif.multicast = multicast;
+	ether->Netif.promiscuous = promiscuous;
+	ether->Netif.ifstat = ifstat;
 
-	intrenable(ether->irq, interrupt, ether, ether->tbdf, ether->name);
+	intrenable(ether->ISAConf.irq, interrupt, ether, ether->tbdf, ether->Netif.name);
 
 	return 0;
 }

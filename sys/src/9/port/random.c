@@ -13,7 +13,7 @@ void (*hwrandbuf)(void*, ulong) = nil;
 static struct
 {
 	QLock;
-	Chachastate;
+	Chachastate cs;
 } *rs;
 
 typedef struct Seedbuf Seedbuf;
@@ -54,23 +54,23 @@ randomseed(void*)
 		(*hwrandbuf)(s->buf, sizeof(s->buf));
 
 	/* Frequency close but not equal to HZ */
-	up->tns = (vlong)(MS2HZ+3)*1000000LL;
-	up->tmode = Tperiodic;
-	up->tt = nil;
-	up->ta = s;
-	up->tf = randomsample;
-	timeradd(up);
+	up->Timer.tns = (vlong)(MS2HZ+3)*1000000LL;
+	up->Timer.tmode = Tperiodic;
+	up->Timer.tt = nil;
+	up->Timer.ta = s;
+	up->Timer.tf = randomsample;
+	timeradd(&up->Timer);
 	while(s->nbuf < sizeof(s->buf)){
 		if(++s->randomcount <= 100000)
 			continue;
 		if(anyhigher())
 			sched();
 	}
-	timerdel(up);
+	timerdel(&up->Timer);
 
 	sha2_512(s->buf, sizeof(s->buf), s->buf, &s->ds);
-	setupChachastate(rs, s->buf, 32, s->buf+32, 12, 20);
-	qunlock(rs);
+	setupChachastate(&rs->cs, s->buf, 32, s->buf+32, 12, 20);
+	qunlock(&rs->QLock);
 
 	secfree(s);
 
@@ -81,7 +81,7 @@ void
 randominit(void)
 {
 	rs = secalloc(sizeof(*rs));
-	qlock(rs);	/* randomseed() unlocks once seeded */
+	qlock(&rs->QLock);	/* randomseed() unlocks once seeded */
 	kproc("randomseed", randomseed, nil);
 }
 
@@ -97,13 +97,13 @@ randomread(void *p, ulong n)
 		(*hwrandbuf)(p, n);
 
 	/* copy chacha state, rekey and increment iv */
-	qlock(rs);
-	c = *rs;
-	chacha_encrypt((uchar*)&rs->input[4], 32, &c);
-	if(++rs->input[13] == 0)
-		if(++rs->input[14] == 0)
-			++rs->input[15];
-	qunlock(rs);
+	qlock(&rs->QLock);
+	c = rs->cs;
+	chacha_encrypt((uchar*)&rs->cs.input[4], 32, &c);
+	if(++rs->cs.input[13] == 0)
+		if(++rs->cs.input[14] == 0)
+			++rs->cs.input[15];
+	qunlock(&rs->QLock);
 
 	/* encrypt the buffer, can fault */
 	chacha_encrypt((uchar*)p, n, &c);

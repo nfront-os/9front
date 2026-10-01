@@ -84,24 +84,24 @@ freepages(Page *head, Page *tail, ulong np)
 	if(tail == nil){
 		tail = head;
 		for(np = 1;; np++){
-			tail->ref = 0;
+			tail->Ref.ref = 0;
 			if(tail->next == nil)
 				break;
 			tail = tail->next;
 		}
 	}
-	lock(&palloc);
+	lock(&palloc.Lock);
 	tail->next = palloc.head;
 	palloc.head = head;
 	if(palloc.freecount <= swapalloc.highwater){
 		palloc.freecount += np;
 		if(palloc.freecount > swapalloc.highwater)
-			wakeup(&palloc.pwait[1]);
-		wakeup(&palloc.pwait[0]);
+			wakeup(&palloc.pwait[1].Rendez);
+		wakeup(&palloc.pwait[0].Rendez);
 	} else {
 		palloc.freecount += np;
 	}
-	unlock(&palloc);
+	unlock(&palloc.Lock);
 }
 
 ulong
@@ -114,10 +114,10 @@ pagereclaim(Image *i)
 	if(i == nil)
 		return 0;
 
-	lock(i);
+	lock(&i->Lock);
 	mp = i->pgref;
 	if(mp == 0){
-		unlock(i);
+		unlock(&i->Lock);
 		return 0;
 	}
 	np = 0;
@@ -127,7 +127,7 @@ pagereclaim(Image *i)
 		l = h;
 		x = nil;
 		for(p = *l; p != nil; p = p->next){
-			if(p->ref == 0)
+			if(p->Ref.ref == 0)
 				x = l;
 			l = &p->next;
 		}
@@ -151,9 +151,9 @@ pagereclaim(Image *i)
 			putimage(i);
 			goto Done;
 		}
-		decref(i);
+		decref(&i->Ref);
 	}
-	unlock(i);
+	unlock(&i->Lock);
 Done:
 	freepages(fh, ft, np);
 	return np;
@@ -177,9 +177,9 @@ newpage(uintptr va, QLock *locked)
 	Page *p, **l;
 	int color;
 
-	lock(&palloc);
+	lock(&palloc.Lock);
 	while(!havepages(nil)){
-		unlock(&palloc);
+		unlock(&palloc.Lock);
 		if(locked)
 			qunlock(locked);
 
@@ -187,12 +187,12 @@ newpage(uintptr va, QLock *locked)
 			Rendezq *q;
 
 			q = &palloc.pwait[!up->noswap];
-			eqlock(q);
+			eqlock(&q->QLock);
 			if(!waserror()){
-				sleep(q, havepages, nil);
+				sleep(&q->Rendez,havepages,nil);
 				poperror();
 			}
-			qunlock(q);
+			qunlock(&q->QLock);
 			poperror();
 		}
 
@@ -205,7 +205,7 @@ newpage(uintptr va, QLock *locked)
 		if(locked)
 			return nil;
 
-		lock(&palloc);
+		lock(&palloc.Lock);
 	}
 
 	/* First try for our colour */
@@ -225,13 +225,13 @@ newpage(uintptr va, QLock *locked)
 	*l = p->next;
 	p->next = nil;
 	if(--palloc.freecount <= swapalloc.highwater){
-		unlock(&palloc);
+		unlock(&palloc.Lock);
 		kickpager();
 	} else {
-		unlock(&palloc);
+		unlock(&palloc.Lock);
 	}
 
-	p->ref = 1;
+	p->Ref.ref = 1;
 	p->va = va;
 	p->modref = 0;
 	inittxtflush(p);
@@ -247,10 +247,10 @@ Page*
 deadpage(Page *p)
 {
 	if(p->image != nil){
-		decref(p);
+		decref(&p->Ref);
 		return nil;
 	}
-	if(decref(p) != 0)
+	if(decref(&p->Ref) != 0)
 		return nil;
 	return p;
 }
@@ -296,7 +296,7 @@ cachepage(Page *p, Image *i)
 
 	daddr = p->daddr;
 	h = &PGHASH(i, daddr);
-	lock(i);
+	lock(&i->Lock);
 	for(x = *h; x != nil; x = x->next)
 		if(x->daddr == daddr)
 			goto done;
@@ -305,10 +305,10 @@ cachepage(Page *p, Image *i)
 	p->image = i;
 	p->next = *h;
 	*h = p;
-	incref(i);
+	incref(&i->Ref);
 	i->pgref++;
 done:
-	unlock(i);
+	unlock(&i->Lock);
 }
 
 void
@@ -321,7 +321,7 @@ uncachepage(Page *p)
 	if(i == nil)
 		return;
 	l = &PGHASH(i, p->daddr);
-	lock(i);
+	lock(&i->Lock);
 	if(p->image != i)
 		goto done;
 	for(x = *l; x != nil; x = x->next) {
@@ -337,7 +337,7 @@ uncachepage(Page *p)
 		l = &x->next;
 	}
 done:
-	unlock(i);
+	unlock(&i->Lock);
 }
 
 Page*
@@ -346,19 +346,19 @@ lookpage(Image *i, uintptr daddr)
 	Page *p, **h, **l;
 
 	l = h = &PGHASH(i, daddr);
-	lock(i);
+	lock(&i->Lock);
 	for(p = *l; p != nil; p = p->next){
 		if(p->daddr == daddr){
 			*l = p->next;
 			p->next = *h;
 			*h = p;
-			incref(p);
-			unlock(i);
+			incref(&p->Ref);
+			unlock(&i->Lock);
 			return p;
 		}
 		l = &p->next;
 	}
-	unlock(i);
+	unlock(&i->Lock);
 
 	return nil;
 }
@@ -388,14 +388,14 @@ zeroprivatepages(void)
 		return;
 	}
 
-	lock(&palloc);
+	lock(&palloc.Lock);
 	pe = palloc.pages + palloc.user;
 	for(p = palloc.pages; p != pe; p++) {
 		if(p->modref & PG_PRIV){
-			incref(p);
+			incref(&p->Ref);
 			fillpage(p, 0);
-			decref(p);
+			decref(&p->Ref);
 		}
 	}
-	unlock(&palloc);
+	unlock(&palloc.Lock);
 }

@@ -111,29 +111,29 @@ ipoput4(Fs *f, Block *bp, Ipifc *gating, int ttl, int tos, Routehint *rh)
 	}
 
 	r = v4lookup(f, eh->dst, eh->src, rh);
-	if(r == nil || (ifc = r->ifc) == nil){
+	if(r == nil || (ifc = r->RouteTree.ifc) == nil){
 		ip->stats[OutNoRoutes]++;
 		netlog(f, Logip, "%V -> %V: no interface\n", eh->src, eh->dst);
 		rv = -1;
 		goto free;
 	}
 
-	if(r->type & (Rifc|Runi|Rbcast|Rmulti))
+	if(r->RouteTree.type & (Rifc|Runi|Rbcast|Rmulti))
 		gate = eh->dst;
 	else
 		gate = r->v4.gate;
 
-	if(!canrlock(ifc)){
+	if(!canrlock(&ifc->RWLock)){
 		ip->stats[OutDiscards]++;
 		goto free;
 	}
 	if(waserror()){
 		ifc->outerr++;
-		runlock(ifc);
+		runlock(&ifc->RWLock);
 		/* bp is freed by m->bwrite() called from ipifcoput() */
 		return -1;
 	}
-	if(ifc->m == nil || ifc->ifcid != r->ifcid){
+	if(ifc->m == nil || ifc->ifcid != r->RouteTree.ifcid){
 		rv = -1;
 		goto raise;
 	}
@@ -149,7 +149,7 @@ ipoput4(Fs *f, Block *bp, Ipifc *gating, int ttl, int tos, Routehint *rh)
 		eh->tos = tos;
 
 		/* bypass for loopback */
-		if(r->type & Runi){
+		if(r->RouteTree.type & Runi){
 			eh->ttl = ttl;
 			hnputs(eh->length, len);
 			hnputs(eh->id, incref(&ip->id4));
@@ -160,7 +160,7 @@ ipoput4(Fs *f, Block *bp, Ipifc *gating, int ttl, int tos, Routehint *rh)
 			hnputs(eh->cksum, ipcsum(&eh->vihl));
 			bp->flag |= Bipck;
 			(*loopbackmedium.bwrite)(ifc, concatblock(bp), V4, gate, rh);
-			runlock(ifc);
+			runlock(&ifc->RWLock);
 			poperror();
 			return 0;
 		}
@@ -179,7 +179,7 @@ ipoput4(Fs *f, Block *bp, Ipifc *gating, int ttl, int tos, Routehint *rh)
 		eh->cksum[1] = 0;
 		hnputs(eh->cksum, ipcsum(&eh->vihl));
 		ipifcoput(ifc, bp, V4, gate, rh);
-		runlock(ifc);
+		runlock(&ifc->RWLock);
 		poperror();
 		return 0;
 	}
@@ -266,7 +266,7 @@ ipoput4(Fs *f, Block *bp, Ipifc *gating, int ttl, int tos, Routehint *rh)
 	}
 	ip->stats[FragOKs]++;
 raise:
-	runlock(ifc);
+	runlock(&ifc->RWLock);
 	poperror();
 free:
 	freeblist(bp);
@@ -348,7 +348,7 @@ ipiput4(Fs *f, Ipifc *ifc, Block *bp)
 		rh.r = nil;
 		rh.a = nil;
 		r = v4lookup(f, h->dst, h->src, &rh);
-		if(r == nil || (nifc = r->ifc) == nil
+		if(r == nil || (nifc = r->RouteTree.ifc) == nil
 		|| (nifc == ifc && !ifc->reflect)){
 			ip->stats[OutDiscards]++;
 			goto drop;
@@ -362,7 +362,7 @@ ipiput4(Fs *f, Ipifc *ifc, Block *bp)
 			goto drop;
 		}
 
-		if(r->type & Rtrans) {
+		if(r->RouteTree.type & Rtrans) {
 			p = Fsrcvpcolx(f, h->proto);
 			if(p == nil || p->forward == nil){
 				ip->stats[OutDiscards]++;

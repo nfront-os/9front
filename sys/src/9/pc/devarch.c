@@ -306,12 +306,6 @@ Dev archdevtab = {
  *  architecture specific stuff
  */
 
-static int
-unimplemented(int)
-{
-	return 0;
-}
-
 static void
 nop(void)
 {
@@ -469,7 +463,7 @@ void	_cycles(uvlong*);	/* in l.s */
 static void
 simplecycles(uvlong*x)
 {
-	*x = m->ticks;
+	*x = m->PMach.ticks;
 }
 
 void
@@ -1080,7 +1074,7 @@ setupwatchpts(Proc *pr, Watchpt *wp, int nwp)
 	if(nwp > 4)
 		error("there are four watchpoints.");
 	if(nwp == 0){
-		memset(pr->dr, 0, sizeof(pr->dr));
+		memset(pr->PMMU.dr, 0, sizeof(pr->PMMU.dr));
 		return;
 	}
 	for(p = wp; p < wp + nwp; p++){
@@ -1106,10 +1100,10 @@ setupwatchpts(Proc *pr, Watchpt *wp, int nwp)
 			error("address must be aligned according to length");
 	}
 	
-	memset(pr->dr, 0, sizeof(pr->dr));
-	pr->dr[6] = 0xffff8ff0;
+	memset(pr->PMMU.dr, 0, sizeof(pr->PMMU.dr));
+	pr->PMMU.dr[6] = 0xffff8ff0;
 	for(i = 0; i < nwp; i++){
-		pr->dr[i] = wp[i].addr;
+		pr->PMMU.dr[i] = wp[i].addr;
 		switch(wp[i].type){
 			case WATCHRD|WATCHWR: cfg = 3; break;
 			case WATCHWR: cfg = 1; break;
@@ -1123,7 +1117,7 @@ setupwatchpts(Proc *pr, Watchpt *wp, int nwp)
 			case 8: cfg |= 8; break;
 			default: continue;
 		}
-		pr->dr[7] |= cfg << 16 + 4 * i;
-		pr->dr[7] |= 1 << 2 * i + 1;
+		pr->PMMU.dr[7] |= cfg << 16 + 4 * i;
+		pr->PMMU.dr[7] |= 1 << 2 * i + 1;
 	}
 }

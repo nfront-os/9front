@@ -219,7 +219,7 @@ igmpproc(void *a)
 	for(;;){
 		sleep(&priv->r, isreport, priv);
 		for(;;){
-			qlock(priv);
+			qlock(&priv->QLock);
 			if(priv->nreports == 0)
 				break;
 	
@@ -239,7 +239,7 @@ igmpproc(void *a)
 					priv->nreports--;
 				}
 			}
-			qunlock(priv);
+			qunlock(&priv->QLock);
 
 			/* send all timed out reports */
 			while((rp = list) != nil){
@@ -256,7 +256,7 @@ igmpproc(void *a)
 
 			tsleep(&up->sleep, return0, 0, MSPTICK);
 		}
-		qunlock(priv);
+		qunlock(&priv->QLock);
 	}
 }
 
@@ -277,7 +277,7 @@ queuereport(Proto *pr, Ipifc *ifc, uchar *group, int timeout)
 		mp->next = nil;
 
 		h = hashipa(group);
-		qlock(priv);
+		qlock(&priv->QLock);
 		for(rp = priv->reports[h]; rp != nil; rp = rp->next){
 			if(rp->proto == pr
 			&& rp->ifc == ifc && rp->ifcid == ifc->ifcid
@@ -292,7 +292,7 @@ queuereport(Proto *pr, Ipifc *ifc, uchar *group, int timeout)
 			if(timeout < rp->timeout)
 				rp->timeout = timeout;
 		Skip:
-			qunlock(priv);
+			qunlock(&priv->QLock);
 			free(mp);
 			continue;
 		}
@@ -310,7 +310,7 @@ queuereport(Proto *pr, Ipifc *ifc, uchar *group, int timeout)
 		priv->reports[h] = rp;
 		if(priv->nreports++ == 0)
 			wakeup(&priv->r);
-		qunlock(priv);
+		qunlock(&priv->QLock);
 	}
 }
 
@@ -322,7 +322,7 @@ purgereport(Proto *pr, Ipifc *ifc, uchar *group)
 	uint h;
 
 	h = hashipa(group);
-	qlock(priv);
+	qlock(&priv->QLock);
 	for(lrp = &priv->reports[h]; (rp = *lrp) != nil; lrp = &rp->next){
 		if(rp->proto == pr
 		&& rp->ifc == ifc && rp->ifcid == ifc->ifcid
@@ -334,7 +334,7 @@ purgereport(Proto *pr, Ipifc *ifc, uchar *group)
 			break;
 		}
 	}
-	qunlock(priv);
+	qunlock(&priv->QLock);
 
 	if(rp == nil)
 		return;

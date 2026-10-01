@@ -32,7 +32,7 @@ proc0(void*)
 
 	up->pgrp = newpgrp();
 	up->egrp = smalloc(sizeof(Egrp));
-	up->egrp->ref = 1;
+	up->egrp->Ref.ref = 1;
 	up->fgrp = dupfgrp(nil);
 	up->rgrp = newrgrp();
 

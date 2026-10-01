@@ -196,10 +196,10 @@ ifstat(void *arg, char *p, char *e)
 	Ether *ether = arg;
 	Ctlr *ctlr = ether->ctlr;
 
-	ether->crcs = ctlr->crc;
-	ether->frames = ctlr->fram;
-	ether->buffs = ctlr->rxbuff+ctlr->txbuff;
-	ether->overflows = ctlr->oflo;
+	ether->Netif.crcs = ctlr->crc;
+	ether->Netif.frames = ctlr->fram;
+	ether->Netif.buffs = ctlr->rxbuff+ctlr->txbuff;
+	ether->Netif.overflows = ctlr->oflo;
 
 	if(p >= e)
 		return p;
@@ -277,13 +277,13 @@ promiscuous(void* arg, int on)
 	 * base addresses when Strt is set (unlike the older Lance chip),
 	 * so the rings must be re-initialised.
 	 */
-	ilock(ctlr);
+	ilock(&ctlr->Lock);
 	if(ctlr->init){
-		iunlock(ctlr);
+		iunlock(&ctlr->Lock);
 		return;
 	}
 	ctlr->init = 1;
-	iunlock(ctlr);
+	iunlock(&ctlr->Lock);
 
 	while(ctlr->ntq)
 		;
@@ -292,24 +292,24 @@ promiscuous(void* arg, int on)
 
 	ctlr->iow(ctlr, Rap, 15);
 	x = ctlr->ior(ctlr, Rdp) & ~Prom;
-	if(on || ether->nmaddr > 0)
+	if(on || ether->Netif.nmaddr > 0)
 		x |= Prom;
 	ctlr->iow(ctlr, Rdp, x);
 	ctlr->iow(ctlr, Rap, 0);
 
 	ringinit(ctlr);
 
-	ilock(ctlr);
+	ilock(&ctlr->Lock);
 	ctlr->init = 0;
 	ctlr->iow(ctlr, Rdp, Iena|Strt);
-	iunlock(ctlr);
+	iunlock(&ctlr->Lock);
 }
 
 static void
 multicast(void* arg, uchar*, int)
 {
 	Ether *ether = arg;
-	promiscuous(arg, ether->prom);
+	promiscuous(arg, ether->Netif.prom);
 }
 
 static void
@@ -357,9 +357,9 @@ transmit(Ether* ether)
 	Ctlr *ctlr;
 
 	ctlr = ether->ctlr;
-	ilock(ctlr);
+	ilock(&ctlr->Lock);
 	txstart(ether);
-	iunlock(ctlr);
+	iunlock(&ctlr->Lock);
 }
 
 static void
@@ -398,7 +398,7 @@ intrloop:
 	 * until a descriptor is encountered still owned by the chip.
 	 */
 	if(csr0 & Rint){
-		ilock(ctlr);
+		ilock(&ctlr->Lock);
 		i = ctlr->rdrx;
 		dre = &ctlr->rdr[i];
 		while(!(dre->md1 & Own)){
@@ -433,14 +433,14 @@ intrloop:
 			i = ctlr->rdrx = NEXT(ctlr->rdrx, Nrdre);
 			dre = &ctlr->rdr[i];
 		}
-		iunlock(ctlr);
+		iunlock(&ctlr->Lock);
 	}
 
 	/*
 	 * Transmitter interrupt: wakeup anyone waiting for a free descriptor.
 	 */
 	if(csr0 & Tint){
-		ilock(ctlr);
+		ilock(&ctlr->Lock);
 		while(ctlr->ntq){
 			i = ctlr->tdri;
 			dre = &ctlr->tdr[i];
@@ -458,7 +458,7 @@ intrloop:
 					ctlr->uflo++;
 				if(dre->md2 & TxBuff)
 					ctlr->txbuff++;
-				ether->oerrs++;
+				ether->Netif.oerrs++;
 			}
 			bp = ctlr->tb[i];
 			if(bp != nil){
@@ -470,7 +470,7 @@ intrloop:
 			ctlr->tdri = NEXT(ctlr->tdri, Ntdre);
 		}
 		txstart(ether);
-		iunlock(ctlr);
+		iunlock(&ctlr->Lock);
 	}
 	goto intrloop;
 }
@@ -523,7 +523,7 @@ reset(Ether* ether)
 	for(ctlr = ctlrhead; ctlr != nil; ctlr = ctlr->next){
 		if(ctlr->active)
 			continue;
-		if(ether->port == 0 || ether->port == ctlr->port){
+		if(ether->ISAConf.port == 0 || ether->ISAConf.port == ctlr->port){
 			ctlr->active = 1;
 			break;
 		}
@@ -535,10 +535,10 @@ reset(Ether* ether)
 	 * Allocate a controller structure and start to initialise it.
 	 */
 	ether->ctlr = ctlr;
-	ether->port = ctlr->port;
-	ether->irq = ctlr->pcidev->intl;
+	ether->ISAConf.port = ctlr->port;
+	ether->ISAConf.irq = ctlr->pcidev->intl;
 	ether->tbdf = ctlr->pcidev->tbdf;
-	ilock(ctlr);
+	ilock(&ctlr->Lock);
 	ctlr->init = 1;
 	pcienable(ctlr->pcidev);
 	pcisetbme(ctlr->pcidev);
@@ -554,7 +554,7 @@ reset(Ether* ether)
 		ctlr->iow = io32w;
 	}else{
 		print("#l%d: card doesn't talk right\n", ether->ctlrno);
-		iunlock(ctlr);
+		iunlock(&ctlr->Lock);
 		return -1;
 	}
 
@@ -566,15 +566,15 @@ reset(Ether* ether)
 	switch(x&0xFFFFFFF){
 	case 0x2420003:	/* PCnet/PCI 79C970 */
 	case 0x2621003:	/* PCnet/PCI II 79C970A */
-		ether->mbps = 10;
+		ether->Netif.mbps = 10;
 		break;
 	case 0x2625003:	/* PCnet-FAST III 79C973 */
-		ether->mbps = 100;
+		ether->Netif.mbps = 100;
 		break;
 	default:
 		print("#l%d: unknown PCnet card version 0x%.7ux\n",
 			ether->ctlrno, x&0xFFFFFFF);
-		iunlock(ctlr);
+		iunlock(&ctlr->Lock);
 		return -1;
 	}
 
@@ -618,7 +618,7 @@ reset(Ether* ether)
 	case 0x0569:
 	case 0x0C29:
 	case 0x5056:
-		ether->mbps = 1000;
+		ether->Netif.mbps = 1000;
 	}
 
 	/*
@@ -659,7 +659,7 @@ reset(Ether* ether)
 	 */
 	ctlr->iow(ctlr, Rdp, Iena|Strt);
 	ctlr->init = 0;
-	iunlock(ctlr);
+	iunlock(&ctlr->Lock);
 
 	/*
 	 * Linkage to the generic ethernet driver.
@@ -667,13 +667,13 @@ reset(Ether* ether)
 	ether->attach = attach;
 	ether->transmit = transmit;
 
-	ether->arg = ether;
-	ether->promiscuous = promiscuous;
-	ether->multicast = multicast;
+	ether->Netif.arg = ether;
+	ether->Netif.promiscuous = promiscuous;
+	ether->Netif.multicast = multicast;
 //	ether->shutdown = shutdown;
-	ether->ifstat = ifstat;
+	ether->Netif.ifstat = ifstat;
 
-	intrenable(ether->irq, interrupt, ether, ether->tbdf, ether->name);
+	intrenable(ether->ISAConf.irq, interrupt, ether, ether->tbdf, ether->Netif.name);
 
 	return 0;
 }

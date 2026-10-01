@@ -221,7 +221,7 @@ txproc(void *v)
 
 			/* ring full, wait and retry */
 			if(!vhasroom(q))
-				sleep(q, vhasroom, q);
+				sleep(&q->Rendez,vhasroom,q);
 		}
 
 		/* slot is free, fill in descriptor */
@@ -297,7 +297,7 @@ rxproc(void *v)
 
 		/* wait for any packets to complete */
 		if(!vhasroom(q))
-			sleep(q, vhasroom, q);
+			sleep(&q->Rendez,vhasroom,q);
 
 		/* retire completed packets */
 		while((i = q->lastused) != q->used->idx) {
@@ -360,7 +360,7 @@ vctlcmd(Ether *edev, uchar class, uchar cmd, uchar *data, int ndata)
 	q->avail->idx++;
 	vqnotify(ctlr, Vctlq);
 	while(!vhasroom(q))
-		sleep(q, vhasroom, q);
+		sleep(&q->Rendez,vhasroom,q);
 	q->lastused = q->used->idx;
 	q->avail->flags |= Rnointerrupt;
 
@@ -388,7 +388,7 @@ interrupt(Ureg*, void* arg)
 			q = &ctlr->queue[i];
 			if(vhasroom(q)){
 				q->nintr++;
-				wakeup(q);
+				wakeup(&q->Rendez);
 			}
 		}
 	}
@@ -402,9 +402,9 @@ attach(Ether* edev)
 	int i;
 
 	ctlr = edev->ctlr;
-	ilock(ctlr);
+	ilock(&ctlr->Lock);
 	if(ctlr->attached){
-		iunlock(ctlr);
+		iunlock(&ctlr->Lock);
 		return;
 	}
 	ctlr->attached = 1;
@@ -418,7 +418,7 @@ attach(Ether* edev)
 	/* driver is ready */
 	vout8(&ctlr->cfg, Vconf_status, vin8(&ctlr->cfg, Vconf_status) | Sdriverok);
 
-	iunlock(ctlr);
+	iunlock(&ctlr->Lock);
 
 	/* start kprocs */
 	snprint(name, sizeof name, "#l%drx", edev->ctlrno);
@@ -486,7 +486,7 @@ multicast(void *arg, uchar*, int)
     if((ctlr->feat[0] & (Fctrlvq|Fctrlrx)) != (Fctrlvq|Fctrlrx))
 		return;
 
-	b[0] = edev->nmaddr > 0;
+	b[0] = edev->Netif.nmaddr > 0;
 	vctlcmd(edev, CtrlRx, CmdAllmulti, b, sizeof(b));
 }
 
@@ -671,7 +671,7 @@ reset(Ether* edev)
 	for(ctlr = ctlrhead; ctlr != nil; ctlr = ctlr->next){
 		if(ctlr->active)
 			continue;
-		if(edev->port == 0 || edev->port == ctlr->port){
+		if(edev->ISAConf.port == 0 || edev->ISAConf.port == ctlr->port){
 			ctlr->active = 1;
 			break;
 		}
@@ -681,11 +681,11 @@ reset(Ether* edev)
 		return -1;
 
 	edev->ctlr = ctlr;
-	edev->port = ctlr->port;
-	edev->irq = ctlr->pcidev->intl;
+	edev->ISAConf.port = ctlr->port;
+	edev->ISAConf.irq = ctlr->pcidev->intl;
 	edev->tbdf = ctlr->pcidev->tbdf;
-	edev->mbps = 1000;
-	edev->link = 1;
+	edev->Netif.mbps = 1000;
+	edev->Netif.link = 1;
 
 	if((ctlr->feat[0] & Fmac) != 0 && memcmp(edev->ea, zeros, Eaddrlen) == 0){
 		for(i = 0; i < Eaddrlen; i++)
@@ -695,16 +695,16 @@ reset(Ether* edev)
 			vout8(&ctlr->dev, Vnet_mac0+i, edev->ea[i]);
 	}
 
-	edev->arg = edev;
+	edev->Netif.arg = edev;
 
 	edev->attach = attach;
 	edev->shutdown = shutdown;
-	edev->ifstat = ifstat;
-	edev->multicast = multicast;
-	edev->promiscuous = promiscuous;
+	edev->Netif.ifstat = ifstat;
+	edev->Netif.multicast = multicast;
+	edev->Netif.promiscuous = promiscuous;
 
 	pcisetbme(ctlr->pcidev);
-	intrenable(edev->irq, interrupt, edev, edev->tbdf, edev->name);
+	intrenable(edev->ISAConf.irq, interrupt, edev, edev->tbdf, edev->Netif.name);
 
 	return 0;
 }

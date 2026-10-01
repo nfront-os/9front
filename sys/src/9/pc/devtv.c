@@ -348,8 +348,8 @@ struct Frame {
 
 typedef struct Tv Tv;
 struct Tv {
-	Lock;
-	Rendez;
+	Lock Lock;	/* gcc port: named, Rendez below also named (it has its own Lock member now) to avoid collision under -fplan9-extensions */
+	Rendez Rendez;
 	Bt848	*bt848;
 	Bt848	*bt878;		/* Really only audio control registers */
 	Variant	*variant;

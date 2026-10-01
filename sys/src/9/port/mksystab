@@ -3,7 +3,7 @@
 file=/sys/src/libc/9syscall/sys.h
 
 cat <<'!'
-#include "/sys/src/libc/9syscall/sys.h"
+#include "../../libc/9syscall/sys.h"
 
 typedef uintptr Syscall(va_list);
 

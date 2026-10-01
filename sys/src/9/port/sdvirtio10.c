@@ -316,7 +316,7 @@ vqinterrupt(Vqueue *q)
 
 	m = q->size-1;
 
-	ilock(q);
+	ilock(&q->Lock);
 	while((q->lastused ^ q->used->idx) & m){
 		id = q->usedent[q->lastused++ & m].id;
 		if(r = q->rock[id]){
@@ -334,7 +334,7 @@ vqinterrupt(Vqueue *q)
 			q->nfree++;
 		} while(q->desc[free].flags & Next);
 	}
-	iunlock(q);
+	iunlock(&q->Lock);
 }
 
 static void
@@ -363,7 +363,7 @@ vqio(Vqueue *q, int head)
 	q->availent[q->avail->idx & (q->size-1)] = head;
 	coherence();
 	q->avail->idx++;
-	iunlock(q);
+	iunlock(&q->Lock);
 	if((q->used->flags & 1) == 0)
 		vout16(&q->notify, 0, q->idx);
 	while(!rock.done){
@@ -401,15 +401,15 @@ vioblkreq(Vdev *vd, int typ, void *a, long count, long secsize, uvlong lba)
 	req.lba = lba;
 
 	q = vd->queue[0];
-	ilock(q);
+	ilock(&q->Lock);
 	while(q->nfree < need){
-		iunlock(q);
+		iunlock(&q->Lock);
 
 		if(!waserror())
 			tsleep(&up->sleep, return0, 0, 500);
 		poperror();
 
-		ilock(q);
+		ilock(&q->Lock);
 	}
 
 	head = free = q->free;
@@ -466,15 +466,15 @@ vioscsireq(SDreq *r)
 	memmove(&req[8+8+3], r->cmd, r->clen);
 
 	q = vd->queue[2];
-	ilock(q);
+	ilock(&q->Lock);
 	while(q->nfree < 3){
-		iunlock(q);
+		iunlock(&q->Lock);
 
 		if(!waserror())
 			tsleep(&up->sleep, return0, 0, 500);
 		poperror();
 
-		ilock(q);
+		ilock(&q->Lock);
 	}
 
 	head = free = q->free;

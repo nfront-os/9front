@@ -243,7 +243,6 @@ static void
 _dumpstack(Ureg *ureg)
 {
 	uintptr l, v, i, estack;
-	extern ulong etext;
 	int x;
 	char *s;
 
@@ -269,7 +268,7 @@ _dumpstack(Ureg *ureg)
 
 	for(l = (uintptr)&l; l < estack; l += sizeof(uintptr)){
 		v = *(uintptr*)l;
-		if((KTZERO < v && v < (uintptr)&etext) || estack-l < 32){
+		if((KTZERO < v && v < (uintptr)etext) || estack-l < 32){
 			/*
 			 * Could Pick off general CALL (((uchar*)v)[-5] == 0xE8)
 			 * and CALL indirect through AX

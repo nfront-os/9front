@@ -184,7 +184,7 @@ findcsn(int csn, int create, int dolock)
 	Card *c, *nc, **l;
 
 	if(dolock)
-		qlock(&pnp);
+		qlock(&pnp.QLock);
 	l = &pnp.cards;
 	for(c = *l; c != nil; c = *l) {
 		if(c->csn == csn)
@@ -203,7 +203,7 @@ findcsn(int csn, int create, int dolock)
 	}
 done:
 	if(dolock)
-		qunlock(&pnp);
+		qunlock(&pnp.QLock);
 	return c;
 }
 
@@ -405,13 +405,13 @@ pnpgen(Chan *c, char *, Dirtab*, int, int s, Dir *dp)
 		if(s < nelem(pnpdir)-1)
 			return devgen(c, nil, pnpdir, nelem(pnpdir), s, dp);
 		s -= nelem(pnpdir)-1;
-		qlock(&pnp);
+		qlock(&pnp.QLock);
 		cp = pnp.cards;
 		while(s >= 2 && cp != nil) {
 			s -= 2;
 			cp = cp->next;
 		}
-		qunlock(&pnp);
+		qunlock(&pnp.QLock);
 		if(cp == nil)
 			return -1;
 		return csngen(c, s+Qcsnctl, cp->csn, cp, dp);
@@ -515,7 +515,7 @@ pnpread(Chan *c, void *va, long n, vlong offset)
 			error(Egreg);
 		if(offset+n > cp->ncfg)
 			n = cp->ncfg - offset;
-		qlock(&pnp);
+		qlock(&pnp.QLock);
 		initiation();
 		cmd(0x03, csn);				/* Wake up the card */
 		for(i = 0; i < offset+9; i++)		/* 9 == skip serial + csum */
@@ -524,7 +524,7 @@ pnpread(Chan *c, void *va, long n, vlong offset)
 			a[i] = getresbyte(pnp.rddata);
 		cmd(0x03, 0);					/* Wake all cards with a CSN of 0, putting this card to sleep */
 		cmd(0x02, 0x02);				/* return cards to Wait for Key state */
-		qunlock(&pnp);
+		qunlock(&pnp.QLock);
 		break;
 	case Qcsnctl:
 		csn = CSN(c->qid);
@@ -606,16 +606,16 @@ pnpwrite(Chan *c, void *va, long n, vlong offset)
 			port = strtoul(buf+5, 0, 0);
 			if(port < 0x203 || port > 0x3ff)
 				error("bad value for rddata port");
-			qlock(&pnp);
+			qlock(&pnp.QLock);
 			if(waserror()) {
-				qunlock(&pnp);
+				qunlock(&pnp.QLock);
 				nexterror();
 			}
 			if(pnp.rddata > 0)
 				error("pnp port already set");
 			if(!pnpscan(port, 0))
 				error("no cards found");
-			qunlock(&pnp);
+			qunlock(&pnp.QLock);
 			poperror();
 		}
 		else if(strncmp(buf, "debug ", 6) == 0)

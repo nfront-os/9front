@@ -28,12 +28,12 @@ intrtime(Mach*, int vno)
 	ulong x;
 
 	x = perfticks();
-	diff = x - m->perf.intrts;
-	m->perf.intrts = x;
+	diff = x - m->PMach.perf.intrts;
+	m->PMach.perf.intrts = x;
 
-	m->perf.inintr += diff;
-	if(up == nil && m->perf.inidle > diff)
-		m->perf.inidle -= diff;
+	m->PMach.perf.inintr += diff;
+	if(up == nil && m->PMach.perf.inidle > diff)
+		m->PMach.perf.inidle -= diff;
 
 	diff /= m->cpumhz*100;		/* quantum = 100µsec */
 	if(diff >= Ntimevec)
@@ -54,8 +54,8 @@ irqhandled(Ureg *ureg, int vno)
 			return 1;
 		}
 
-		m->perf.intrts = perfticks();
-		m->intr++;
+		m->PMach.perf.intrts = perfticks();
+		m->PMach.intr++;
 		m->lastintr = ctl->irq;
 		if(ctl->isr != nil)
 			(*ctl->isr)(vno);

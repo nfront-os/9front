@@ -161,7 +161,7 @@ wifitx(Wifi *wifi, Wnode *wn, Block *b)
 	Wifipkt *w;
 	uint seq;
 
-	wn->lastsend = MACHP(0)->ticks;
+	wn->lastsend = MACHP(0)->PMach.ticks;
 
 	seq = incref(&wifi->txseq);
 	seq <<= 4;
@@ -196,7 +196,7 @@ nodelookup(Wifi *wifi, uchar *bssid, int new)
 {
 	Wnode *wn, *nn;
 
-	if(memcmp(bssid, wifi->ether->bcast, Eaddrlen) == 0)
+	if(memcmp(bssid, wifi->ether->Netif.bcast, Eaddrlen) == 0)
 		return nil;
 	if((wn = wifi->bss) != nil){
 		if(memcmp(wn->bssid, bssid, Eaddrlen) == 0)
@@ -322,9 +322,9 @@ wifiprobe(Wifi *wifi, Wnode *wn)
 
 	w->fc[0] = 0x40;	/* probe request */
 	w->fc[1] = 0x00;	/* STA->STA */
-	memmove(w->a1, wifi->ether->bcast, Eaddrlen);	/* ??? */
+	memmove(w->a1, wifi->ether->Netif.bcast, Eaddrlen);	/* ??? */
 	memmove(w->a2, wifi->ether->ea, Eaddrlen);
-	memmove(w->a3, wifi->ether->bcast, Eaddrlen);
+	memmove(w->a3, wifi->ether->Netif.bcast, Eaddrlen);
 	b->wp += WIFIHDRSIZE;
 	p = b->wp;
 
@@ -431,7 +431,7 @@ setstatus(Wifi *wifi, Wnode *wn, char *new)
 		print("#l%d: status %E: %.12ld %.12ld: %s -> %s (from pc=%#p)\n",
 			wifi->ether->ctlrno, 
 			wn->bssid, 
-			TK2MS(MACHP(0)->ticks), TK2MS(MACHP(0)->ticks - wn->lastsend),
+			TK2MS(MACHP(0)->PMach.ticks), TK2MS(MACHP(0)->PMach.ticks - wn->lastsend),
 			old, new,
 			getcallerpc(&wifi));
 }
@@ -588,8 +588,8 @@ wifideauth(Wifi *wifi, Wnode *wn)
 
 	/* notify aux/wpa with a zero length packet that we got deassociated from the ap */
 	ether = wifi->ether;
-	for(i=0; i<ether->nfile; i++){
-		f = ether->f[i];
+	for(i=0; i<ether->Netif.nfile; i++){
+		f = ether->Netif.f[i];
 		if(f == nil || !f->inuse || f->type != 0x888e || waserror())
 			continue;
 		qflush(f->in);
@@ -603,9 +603,9 @@ wifideauth(Wifi *wifi, Wnode *wn)
 static int
 goodbss(Wifi *wifi, Wnode *wn)
 {
-	if(wifi->ether->bypass)
+	if(wifi->ether->Netif.bypass)
 		return 0;	/* we'r bypassed, dont try to associate */ 
-	if(memcmp(wifi->bssid, wifi->ether->bcast, Eaddrlen) != 0){
+	if(memcmp(wifi->bssid, wifi->ether->Netif.bcast, Eaddrlen) != 0){
 		if(memcmp(wifi->bssid, wn->bssid, Eaddrlen) != 0)
 			return 0;	/* bssid doesnt match */
 	} else if(wifi->essid[0] == 0)
@@ -640,7 +640,7 @@ wifiproc(void *arg)
 			/* encrypted */
 			if((wn = nodelookup(wifi, w->a2, 0)) == nil)
 				continue;
-			wn->lastseen = MACHP(0)->ticks;
+			wn->lastseen = MACHP(0)->PMach.ticks;
 			if((b = wifidecrypt(wifi, wn, b)) != nil){
 				w = (Wifipkt*)b->rp;
 				if(w->fc[1] & 0x40)
@@ -663,14 +663,14 @@ wifiproc(void *arg)
 		case 0x80:	/* beacon */
 			if((wn = nodelookup(wifi, w->a3, 1)) == nil)
 				continue;
-			wn->lastseen = MACHP(0)->ticks;
+			wn->lastseen = MACHP(0)->PMach.ticks;
 			if(b->flag & Btimestamp)
 				wn->rs = getts(b->rp - 8);
 			b->rp += wifihdrlen(w);
 			recvbeacon(wifi, wn, b->rp, BLEN(b));
 
 			if(wifi->bss == nil
-			&& TK2MS(MACHP(0)->ticks - wn->lastsend) > 1000
+			&& TK2MS(MACHP(0)->PMach.ticks - wn->lastsend) > 1000
 			&& goodbss(wifi, wn)){
 				setstatus(wifi, wn, Sconn);
 				sendauth(wifi, wn);
@@ -683,7 +683,7 @@ wifiproc(void *arg)
 			continue;
 		if((wn = nodelookup(wifi, w->a3, 0)) == nil)
 			continue;
-		wn->lastseen = MACHP(0)->ticks;
+		wn->lastseen = MACHP(0)->PMach.ticks;
 		if(b->flag & Btimestamp)
 			wn->rs = getts(b->rp - 8);
 		switch(w->fc[0] & 0xf0){
@@ -800,7 +800,7 @@ wifsproc(void *arg)
 
 	wn = &wnscan;
 	memset(wn, 0, sizeof(*wn));
-	memmove(wn->bssid, ether->bcast, Eaddrlen);
+	memmove(wn->bssid, ether->Netif.bcast, Eaddrlen);
 
 	while(waserror())
 		;
@@ -812,7 +812,7 @@ Scan:
 		wifiprobe(wifi, &wnscan);
 		do {
 			tsleep(&up->sleep, return0, 0, 200);
-			now = MACHP(0)->ticks;
+			now = MACHP(0)->PMach.ticks;
 		} while(TK2MS(now-wifi->lastauth) < 1000);
 	}
 
@@ -824,7 +824,7 @@ Scan:
 				ethersetspeed(ether, ((*rate & 0x7f)+3)/4);
 			ethersetlink(ether, 1);
 		}
-		now = MACHP(0)->ticks;
+		now = MACHP(0)->PMach.ticks;
 		if(wn->status != Sneedauth && TK2SEC(now - wn->lastseen) > 20
 		|| goodbss(wifi, wn) == 0){
 			wifideauth(wifi, wn);
@@ -853,7 +853,7 @@ wifiattach(Ether *ether, void (*transmit)(Wifi*, Wnode*, Block*))
 	wifi = malloc(sizeof(Wifi));
 	if(wifi == nil)
 		error(Enomem);
-	wifi->iq = qopen(ether->limit, 0, 0, 0);
+	wifi->iq = qopen(ether->Netif.limit, 0, 0, 0);
 	if(wifi->iq == nil){
 		free(wifi);
 		error(Enomem);
@@ -866,9 +866,9 @@ wifiattach(Ether *ether, void (*transmit)(Wifi*, Wnode*, Block*))
 	wifi->rates = basicrates;
 
 	wifi->essid[0] = 0;
-	memmove(wifi->bssid, ether->bcast, Eaddrlen);
+	memmove(wifi->bssid, ether->Netif.bcast, Eaddrlen);
 
-	wifi->lastauth = MACHP(0)->ticks;
+	wifi->lastauth = MACHP(0)->PMach.ticks;
 
 	snprint(name, sizeof(name), "#l%dwifi", ether->ctlrno);
 	kproc(name, wifiproc, wifi);
@@ -1006,7 +1006,7 @@ wifictl(Wifi *wifi, void *buf, long n)
 	}
 	if(wifi->debug)
 		print("#l%d: wifictl: %.*s\n", wifi->ether->ctlrno, utfnlen(buf, n), buf);
-	memmove(addr, wifi->ether->bcast, Eaddrlen);
+	memmove(addr, wifi->ether->Netif.bcast, Eaddrlen);
 	wn = wifi->bss;
 	cb = parsecmd(buf, n);
 	ct = lookupcmd(cb, wifictlmsg, nelem(wifictlmsg));
@@ -1042,7 +1042,7 @@ wifictl(Wifi *wifi, void *buf, long n)
 			wifideauth(wifi, wn);
 		}
 		wifi->bss = nil;
-		if(wifi->essid[0] == 0 && memcmp(wifi->bssid, wifi->ether->bcast, Eaddrlen) == 0)
+		if(wifi->essid[0] == 0 && memcmp(wifi->bssid, wifi->ether->Netif.bcast, Eaddrlen) == 0)
 			break;
 		for(wn = wifi->node; wn != &wifi->node[nelem(wifi->node)]; wn++)
 			if(goodbss(wifi, wn)){
@@ -1137,7 +1137,7 @@ wifistat(Wifi *wifi, char *p, char *e)
 		p = seprint(p, e, "bssid: %E\n", wifi->bssid);
 	}
 
-	now = MACHP(0)->ticks;
+	now = MACHP(0)->PMach.ticks;
 	for(wn = wifi->node; wn != &wifi->node[nelem(wifi->node)]; wn++){
 		if(wn->lastseen == 0)
 			continue;

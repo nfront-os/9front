@@ -922,8 +922,8 @@ struct Pool
 };
 
 struct Ctlr {
-	Lock;
-	QLock;
+	Lock Lock;	/* gcc port: named, QLock also named (shares pc field) under -fplan9-extensions */
+	QLock QLock;
 
 	Ctlr *link;
 	uvlong port;
@@ -1302,8 +1302,8 @@ setoptions(Ether *edev)
 	int i;
 
 	ctlr = edev->ctlr;
-	for(i = 0; i < edev->nopt; i++)
-		wificfg(ctlr->wifi, edev->opt[i]);
+	for(i = 0; i < edev->ISAConf.nopt; i++)
+		wificfg(ctlr->wifi, edev->ISAConf.opt[i]);
 }
 
 static void
@@ -1328,7 +1328,7 @@ rxon(Ether *edev, Wnode *bss)
 			ctlr->bcastnodeid = -1;
 	}else{
 		cap = 0;
-		memmove(ctlr->bssid, edev->bcast, Eaddrlen);
+		memmove(ctlr->bssid, edev->Netif.bcast, Eaddrlen);
 		ctlr->aid = 0;
 		ctlr->bcastnodeid = -1;
 		ctlr->bssnodeid = -1;
@@ -1364,7 +1364,7 @@ rxon(Ether *edev, Wnode *bss)
 	    OFDM(0));		/*  6-> 6 */
 
 	csr32w(ctlr, LgFbkCfg1,
-	    CCK(2) << 12 |	/* 11->5.5 */
+	    CCK(2) << 12 |	/* 11->5 */
 	    CCK(1) <<  8 |	/* 5.5-> 2 */
 	    CCK(0) <<  4 |	/*   2-> 1 */
 	    CCK(0));		/*   1-> 1 */
@@ -1393,7 +1393,7 @@ rxon(Ether *edev, Wnode *bss)
 
 	if(ctlr->bcastnodeid == -1){
 		ctlr->bcastnodeid = 0xff;
-		memwrite(ctlr, WcidEntry(ctlr->bcastnodeid), edev->bcast, Eaddrlen);
+		memwrite(ctlr, WcidEntry(ctlr->bcastnodeid), edev->Netif.bcast, Eaddrlen);
 	}
 	if(ctlr->bssnodeid == -1 && bss != nil && ctlr->aid != 0){
 		ctlr->bssnodeid = 0;
@@ -1411,10 +1411,10 @@ rt2860promiscuous(void *arg, int on)
 	ctlr = edev->ctlr;
 	if(ctlr->attached == 0)
 		return;
-	qlock(ctlr);
+	qlock(&ctlr->QLock);
 	ctlr->prom = on;
 	rxon(edev, ctlr->wifi->bss);
-	qunlock(ctlr);
+	qunlock(&ctlr->QLock);
 }
 
 static void
@@ -2571,9 +2571,9 @@ transmit(Wifi *wifi, Wnode *wn, Block *b)
 	edev = wifi->ether;
 	ctlr = edev->ctlr;
 
-	qlock(ctlr);
+	qlock(&ctlr->QLock);
 	if(ctlr->attached == 0 || ctlr->broken){
-		qunlock(ctlr);
+		qunlock(&ctlr->QLock);
 		freeb(b);
 		return;
 	}
@@ -2583,7 +2583,7 @@ transmit(Wifi *wifi, Wnode *wn, Block *b)
 
 	if(b == nil){
 		/* association note has no data to transmit */
-		qunlock(ctlr);
+		qunlock(&ctlr->QLock);
 		return;
 	}
 
@@ -2664,7 +2664,7 @@ transmit(Wifi *wifi, Wnode *wn, Block *b)
 	/* kick Tx */
 	csr32w(ctlr, TxCtxIdx(qid), ctlr->tx[qid].i);
 
-	qunlock(ctlr);
+	qunlock(&ctlr->QLock);
 	return;
 }
 
@@ -2676,12 +2676,12 @@ rt2860attach(Ether *edev)
 	char *err;
 
 	ctlr = edev->ctlr;
-	eqlock(ctlr);
+	eqlock(&ctlr->QLock);
 	if(waserror()){
 		print("#l%d: %s\n", edev->ctlrno, up->errstr);
 		/*if(ctlr->power)
 			poweroff(ctlr);*/
-		qunlock(ctlr);
+		qunlock(&ctlr->QLock);
 		nexterror();
 	}
 	if(ctlr->attached == 0){
@@ -2705,7 +2705,7 @@ rt2860attach(Ether *edev)
 
 		ctlr->attached = 1;
 	}
-	qunlock(ctlr);
+	qunlock(&ctlr->QLock);
 	poperror();
 }
 
@@ -2833,17 +2833,17 @@ rt2860interrupt(Ureg*, void *arg)
 
 	edev = arg;
 	ctlr = edev->ctlr;
-	ilock(ctlr);
+	ilock(&ctlr->Lock);
 
 	debug = ctlr->wifi->debug;
 
 	r = csr32r(ctlr, IntStatus);
 	if(r == 0xffffffff){
-		iunlock(ctlr);
+		iunlock(&ctlr->Lock);
 		return;
 	}
 	if(r == 0){
-		iunlock(ctlr);
+		iunlock(&ctlr->Lock);
 		return;
 	}
 
@@ -2887,7 +2887,7 @@ rt2860interrupt(Ureg*, void *arg)
 	if(r & TxDoneInt0)
 		rt2860tx(ctlr, 0);
 
-	iunlock(ctlr);
+	iunlock(&ctlr->Lock);
 }
 
 static void
@@ -3522,7 +3522,7 @@ again:
 	for(ctlr = rt2860head; ctlr != nil; ctlr = ctlr->link){
 		if(ctlr->active)
 			continue;
-		if(edev->port == 0 || edev->port == ctlr->port){
+		if(edev->ISAConf.port == 0 || edev->ISAConf.port == ctlr->port){
 			ctlr->active = 1;
 			break;
 		}
@@ -3535,23 +3535,23 @@ again:
 	pcisetbme(ctlr->pdev);
 
 	edev->ctlr = ctlr;
-	edev->port = ctlr->port;
-	edev->irq = ctlr->pdev->intl;
+	edev->ISAConf.port = ctlr->port;
+	edev->ISAConf.irq = ctlr->pdev->intl;
 	edev->tbdf = ctlr->pdev->tbdf;
-	edev->arg = edev;
+	edev->Netif.arg = edev;
 	edev->attach = rt2860attach;
 	edev->ctl = rt2860ctl;
-	edev->ifstat = rt2860ifstat;
-	edev->promiscuous = rt2860promiscuous;
-	edev->multicast = rt2860multicast;
-	edev->mbps = 10;
+	edev->Netif.ifstat = rt2860ifstat;
+	edev->Netif.promiscuous = rt2860promiscuous;
+	edev->Netif.multicast = rt2860multicast;
+	edev->Netif.mbps = 10;
 
 	if(rt2860init(edev) < 0){
 		edev->ctlr = nil;
 		goto again;
 	}
 
-	intrenable(edev->irq, rt2860interrupt, edev, edev->tbdf, edev->name);
+	intrenable(edev->ISAConf.irq, rt2860interrupt, edev, edev->tbdf, edev->Netif.name);
 
 	return 0;
 }

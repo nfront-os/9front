@@ -59,7 +59,7 @@ ehcireset(Ctlr *ctlr)
 	Eopio *opio;
 	int i;
 
-	ilock(ctlr);
+	ilock(&ctlr->Lock);
 	dprint("ehci %#p reset\n", ctlr->capio);
 	opio = ctlr->opio;
 
@@ -113,7 +113,7 @@ ehcireset(Ctlr *ctlr)
 	}
 	dprint("ehci: %d frames\n", ctlr->nframes);
 
-	iunlock(ctlr);
+	iunlock(&ctlr->Lock);
 }
 
 static void
@@ -129,8 +129,8 @@ shutdown(Hci *hp)
 	Ctlr *ctlr;
 	Eopio *opio;
 
-	ctlr = hp->aux;
-	ilock(ctlr);
+	ctlr = hp->Hciimpl.aux;
+	ilock(&ctlr->Lock);
 	opio = ctlr->opio;
 
 	/* disable interrupts */
@@ -149,7 +149,7 @@ shutdown(Hci *hp)
 	delay(100);
 	ehcirun(ctlr, 0);
 	opio->frbase = 0;
-	iunlock(ctlr);
+	iunlock(&ctlr->Lock);
 }
 
 static Ctlr*
@@ -227,7 +227,7 @@ reset(Hci *hp)
 	 */
 	for(ctlr = scanpci(); ctlr != nil; ctlr = ctlr->next){
 		if(ctlr->active == 0)
-		if(hp->port == 0 || hp->port == ctlr->base){
+		if(hp->ISAConf.port == 0 || hp->ISAConf.port == ctlr->base){
 			ctlr->active = 1;
 			break;
 		}
@@ -238,9 +238,9 @@ reset(Hci *hp)
 	p = ctlr->pcidev;
 	pcienable(p);
 
-	hp->aux = ctlr;
-	hp->port = ctlr->base;
-	hp->irq = p->intl;
+	hp->Hciimpl.aux = ctlr;
+	hp->ISAConf.port = ctlr->base;
+	hp->ISAConf.irq = p->intl;
 	hp->tbdf = p->tbdf;
 
 	capio = ctlr->capio;
@@ -263,9 +263,9 @@ reset(Hci *hp)
 	 * Linkage to the generic HCI driver.
 	 */
 	ehcilinkage(hp);
-	hp->shutdown = shutdown;
-	hp->debug = setdebug;
-	intrenable(hp->irq, hp->interrupt, hp, hp->tbdf, hp->type);
+	hp->Hciimpl.shutdown = shutdown;
+	hp->Hciimpl.debug = setdebug;
+	intrenable(hp->ISAConf.irq, hp->Hciimpl.interrupt, hp, hp->tbdf, hp->ISAConf.type);
 
 	return 0;
 }

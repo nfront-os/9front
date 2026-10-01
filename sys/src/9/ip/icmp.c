@@ -154,9 +154,9 @@ icmpclose(Conv *c)
 {
 	qclose(c->rq);
 	qclose(c->wq);
-	ipmove(c->laddr, IPnoaddr);
-	ipmove(c->raddr, IPnoaddr);
-	c->lport = 0;
+	ipmove(c->Iphash.laddr, IPnoaddr);
+	ipmove(c->Iphash.raddr, IPnoaddr);
+	c->Iphash.lport = 0;
 }
 
 static void
@@ -178,10 +178,10 @@ icmpkick(void *x, Block *bp)
 	if(p->type <= Maxtype)	
 		ipriv->out[p->type]++;
 	
-	v6tov4(p->dst, c->raddr);
-	v6tov4(p->src, c->laddr);
+	v6tov4(p->dst, c->Iphash.raddr);
+	v6tov4(p->src, c->Iphash.laddr);
 	p->proto = IP_ICMPPROTO;
-	hnputs(p->icmpid, c->lport);
+	hnputs(p->icmpid, c->Iphash.lport);
 	memset(p->cksum, 0, sizeof(p->cksum));
 	hnputs(p->cksum, ptclcsum(bp, ICMP_IPSIZE, blocklen(bp) - ICMP_IPSIZE));
 	ipriv->stats[OutMsgs]++;
@@ -257,7 +257,7 @@ icmpsend(Fs *f, Ipifc *ifc, Block *bp, int type, int code, int arg, Routehint *r
 	icmp = f->t2p[IP_ICMPPROTO];
 	((Icmppriv*)icmp->priv)->out[type]++;
 
-	if(rh != nil && rh->r != nil && (rh->r->type & Runi) != 0){
+	if(rh != nil && rh->r != nil && (rh->r->RouteTree.type & Runi) != 0){
 		np = (Icmp *)nbp->rp;
 		np->vihl = IP_VER4|IP_HLEN4;
 		np->tos = DFLTTOS;
@@ -308,7 +308,7 @@ goticmpkt(Proto *icmp, Block *bp, Ipifc *ifc)
 	v4tov6(src, p->src);
 	recid = nhgets(p->icmpid);
 
-	qlock(icmp);
+	qlock(&icmp->QLock);
 	iph = iphtlook(icmp->ht, src, recid, dst, recid);
 	if(iph != nil){
 		Routehint *rh;
@@ -322,21 +322,21 @@ goticmpkt(Proto *icmp, Block *bp, Ipifc *ifc)
 
 		/* only use route-hint when from original desination */
 		if(memcmp(p->src, q->forward.laddr+IPv4off, IPv4addrlen) == 0)
-			rh = q;
+			rh = (Routehint*)q;
 		else
 			rh = nil;
-		qunlock(icmp);
+		qunlock(&icmp->QLock);
 
 		ipoput4(icmp->f, bp, ifc, hop - 1, p->tos, rh);
 		return;
 	}
 	for(c = icmp->conv; (s = *c) != nil; c++){
-		if(s->lport == recid)
-		if(ipcmp(s->laddr, dst) == 0 || ipcmp(s->raddr, src) == 0)
+		if(s->Iphash.lport == recid)
+		if(ipcmp(s->Iphash.laddr, dst) == 0 || ipcmp(s->Iphash.raddr, src) == 0)
 			qpass(s->rq, copyblock(bp, blocklen(bp)));
 	}
 raise:
-	qunlock(icmp);
+	qunlock(&icmp->QLock);
 	freeblist(bp);
 }
 
@@ -525,7 +525,7 @@ icmpadvise(Proto *icmp, Block *bp, Ipifc *ifc, char *msg)
 	v4tov6(src, p->src);
 	recid = nhgets(p->icmpid);
 
-	qlock(icmp);
+	qlock(&icmp->QLock);
 	iph = iphtlook(icmp->ht, dst, recid, src, recid);
 	if(iph != nil){
 		Translation *q;
@@ -537,15 +537,15 @@ icmpadvise(Proto *icmp, Block *bp, Ipifc *ifc, char *msg)
 		hnputs_csum(p->src+2, nhgets(q->forward.raddr+IPv4off+2), p->ipcksum);
 
 		hnputs_csum(p->icmpid, q->forward.rport, p->cksum);
-		qunlock(icmp);
+		qunlock(&icmp->QLock);
 
 		icmpproxyadvice(icmp->f, ifc, bp, p->src);
 		return;
 	}
 	for(c = icmp->conv; (s = *c) != nil; c++){
-		if(s->lport == recid)
-		if(ipcmp(s->laddr, src) == 0)
-		if(ipcmp(s->raddr, dst) == 0){
+		if(s->Iphash.lport == recid)
+		if(ipcmp(s->Iphash.laddr, src) == 0)
+		if(ipcmp(s->Iphash.raddr, dst) == 0){
 			if(s->ignoreadvice)
 				break;
 			qhangup(s->rq, msg);
@@ -554,7 +554,7 @@ icmpadvise(Proto *icmp, Block *bp, Ipifc *ifc, char *msg)
 		}
 	}
 raise:
-	qunlock(icmp);
+	qunlock(&icmp->QLock);
 	freeblist(bp);
 }
 
@@ -587,16 +587,16 @@ icmpforward(Proto *icmp, Block *bp, Route *r)
 	v4tov6(da, p->dst);
 	id = nhgets(p->icmpid);
 
-	qlock(icmp);
+	qlock(&icmp->QLock);
 	q = transforward(icmp, sa, id, da, id, r);
 	if(q == nil){
-		qunlock(icmp);
+		qunlock(&icmp->QLock);
 		freeblist(bp);
 		return nil;
 	}
 	memmove(p->src, q->backward.laddr+IPv4off, IPv4addrlen);
 	hnputs_csum(p->icmpid, q->backward.lport, p->cksum);
-	qunlock(icmp);
+	qunlock(&icmp->QLock);
 
 	return bp;
 }

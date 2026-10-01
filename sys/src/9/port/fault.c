@@ -79,7 +79,7 @@ retry:
 		vaddr = addr;
 		ask = BY2PG;
 	}
-	qunlock(s);
+	qunlock(&s->QLock);
 
 	c = image->c;
 	if(waserror()) {
@@ -144,10 +144,10 @@ retry:
 	}
 	poperror();
 
-	qlock(s);
+	qlock(&s->QLock);
 	pg = segmap(s, addr);
 	if(pg == nil){
-		qunlock(s);
+		qunlock(&s->QLock);
 		return nil;
 	}
 
@@ -170,7 +170,7 @@ fixfault(Segment *s, uintptr addr, int read)
 	addr &= ~(BY2PG-1);
 	pg = segmap(s, addr);
 	if(pg == nil){
-		qunlock(s);
+		qunlock(&s->QLock);
 		if(!waserror()){
 			resrcwait("no memory for segmap");
 			poperror();
@@ -197,7 +197,7 @@ fixfault(Segment *s, uintptr addr, int read)
 	case SG_SHARED:			/* fill on demand */
 	case SG_STACK:
 		if(*pg == nil) {
-			new = newpage(addr, s);
+			new = newpage(addr,&s->QLock);
 			if(new == nil)
 				return -1;
 			*pg = fillpage(new, (s->type&SG_TYPE)==SG_STACK? 0xfe: 0);
@@ -215,7 +215,7 @@ fixfault(Segment *s, uintptr addr, int read)
 		 *  It's only possible to copy on write if
 		 *  we're the only user of the segment.
 		 */
-		if(read && conf.copymode == 0 && s->ref == 1) {
+		if(read && conf.copymode == 0 && s->Ref.ref == 1) {
 			new = *pg;
 			mmuphys = PPN(new->pa) | PTERONLY | PTECACHED | PTEVALID;
 			new->modref |= PG_REF;
@@ -223,10 +223,10 @@ fixfault(Segment *s, uintptr addr, int read)
 		}
 
 		old = *pg;
-		if(swapimage != nil && old->image == swapimage && (old->ref + swapcount(old->daddr)) == 1)
+		if(swapimage != nil && old->image == swapimage && (old->Ref.ref + swapcount(old->daddr)) == 1)
 			uncachepage(old);
-		if(old->ref > 1 || old->image != nil) {
-			new = newpage(addr, s);
+		if(old->Ref.ref > 1 || old->image != nil) {
+			new = newpage(addr,&s->QLock);
 			if(new == nil)
 				return -1;
 			copypage(old, new);
@@ -254,7 +254,7 @@ fixfault(Segment *s, uintptr addr, int read)
 		mmuphys |= PTENOEXEC;
 #endif
 
-	qunlock(s);
+	qunlock(&s->QLock);
 
 	putmmu(addr, mmuphys, new);
 
@@ -268,7 +268,7 @@ mapphys(Segment *s, uintptr addr, int attr)
 	Page pg = {0};
 
 	addr &= ~(BY2PG-1);
-	pg.ref = 1;
+	pg.Ref.ref = 1;
 	pg.va = addr;
 	pg.pa = s->pseg->pa+(addr-s->base);
 	settxtflush(&pg, s->flushme);
@@ -294,7 +294,7 @@ mapphys(Segment *s, uintptr addr, int attr)
 	else
 		mmuphys |= PTECACHED;
 
-	qunlock(s);
+	qunlock(&s->QLock);
 
 	putmmu(addr, mmuphys, &pg);
 }
@@ -321,7 +321,7 @@ fault(uintptr addr, uintptr pc, int read)
 	sps = up->psstate;
 	up->psstate = "Fault";
 
-	m->pfault++;
+	m->PMach.pfault++;
 
 	for(;;) {
 		ulong lastflush = up->tlbflush;
@@ -341,7 +341,7 @@ fault(uintptr addr, uintptr pc, int read)
 		if((attr & SG_FAULT) != 0
 		|| read? ((attr & SG_NOEXEC) != 0 || s->flushme == 0) && (addr & -BY2PG) == (pc & -BY2PG):
 			 (attr & SG_RONLY) != 0) {
-			qunlock(s);
+			qunlock(&s->QLock);
 			up->psstate = sps;
 			up->insyscall = ins;
 			if(up->kp && up->nerrlab)	/* for segio */
@@ -462,10 +462,10 @@ seg(Proc *p, uintptr addr, int dolock)
 			if(dolock == 0)
 				return s;
 
-			qlock(s);
+			qlock(&s->QLock);
 			if(addr >= s->base && addr < s->top)
 				return s;
-			qunlock(s);
+			qunlock(&s->QLock);
 		}
 	}
 
@@ -488,7 +488,7 @@ checkpages(void)
 	for(i = 0; i < NSEG; i++) {
 		if((s = up->seg[i]) == nil)
 			continue;
-		qlock(s);
+		qlock(&s->QLock);
 		if(s->mapsize > 0 && !up->newtlb){
 			for(addr=s->base; addr<s->top; addr+=BY2PG){
 				p = segpeek(s, addr);
@@ -496,6 +496,6 @@ checkpages(void)
 					checkmmu(addr, p->pa);
 			}
 		}
-		qunlock(s);
+		qunlock(&s->QLock);
 	}
 }

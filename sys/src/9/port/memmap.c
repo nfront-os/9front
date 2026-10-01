@@ -17,7 +17,7 @@ struct Mapent
 };
 
 static struct {
-	Lock;
+	Lock Lock;	/* gcc port: named to avoid clashing with mapalloc's own m under -fplan9-extensions */
 	int	n;
 	int	m;
 	Mapent	a[256];
@@ -145,11 +145,11 @@ memmapdump(void)
 {
 	int i;
 
-	lock(&mapalloc);
+	lock(&mapalloc.Lock);
 	sort();
 	for(i = 0; i < mapalloc.n; i++)
 		dump1(&mapalloc.a[i]);
-	unlock(&mapalloc);
+	unlock(&mapalloc.Lock);
 }
 
 uvlong
@@ -157,17 +157,17 @@ memmapnext(uvlong addr, ulong type)
 {
 	Mapent *i, *e;
 
-	lock(&mapalloc);
+	lock(&mapalloc.Lock);
 	sort();
 	for(i = mapalloc.a, e = i+mapalloc.n; i < e; i++){
 		if(((i->type ^ type) & ~Allocated) == 0
 		&& (addr == -1 || i->addr > addr)){
 			addr = i->addr;
-			unlock(&mapalloc);
+			unlock(&mapalloc.Lock);
 			return addr;
 		}
 	}
-	unlock(&mapalloc);
+	unlock(&mapalloc.Lock);
 	return -1;
 }
 
@@ -178,7 +178,7 @@ memmapsize(uvlong addr, uvlong align)
 	uvlong size;
 
 	size = 0;
-	lock(&mapalloc);
+	lock(&mapalloc.Lock);
 	sort();
 	if((i = lookup(addr)) != nil){
 		if(align){
@@ -188,7 +188,7 @@ memmapsize(uvlong addr, uvlong align)
 		if(addr - i->addr < i->size)
 			size = i->size - (addr - i->addr);
 	}
-	unlock(&mapalloc);
+	unlock(&mapalloc.Lock);
 	return size;
 }
 
@@ -196,11 +196,11 @@ void
 memmapadd(uvlong addr, uvlong size, ulong type)
 {
 	type &= ~Allocated;
-	lock(&mapalloc);
+	lock(&mapalloc.Lock);
 	if(insert(addr, size, type))
 		if(mapalloc.n+mapalloc.m >= nelem(mapalloc.a)-1)
 			sort();
-	unlock(&mapalloc);
+	unlock(&mapalloc.Lock);
 }
 
 uvlong
@@ -209,7 +209,7 @@ memmapalloc(uvlong addr, uvlong size, uvlong align, ulong type)
 	Mapent *i, *e;
 
 	type &= ~Allocated;
-	lock(&mapalloc);
+	lock(&mapalloc.Lock);
 	sort();
 	if(addr != -1){
 		i = lookup(addr);
@@ -226,7 +226,7 @@ memmapalloc(uvlong addr, uvlong size, uvlong align, ulong type)
 Alloc:
 		if(size > 0 && !insert(addr, size, type|Allocated))
 			goto Fail;
-		unlock(&mapalloc);
+		unlock(&mapalloc.Lock);
 		return addr;
 	}
 	e = mapalloc.a + mapalloc.n;
@@ -244,7 +244,7 @@ Alloc:
 			goto Alloc;
 	}
 Fail:
-	unlock(&mapalloc);
+	unlock(&mapalloc.Lock);
 	return -1;
 }
 
@@ -253,13 +253,13 @@ memmapfree(uvlong addr, uvlong size, ulong type)
 {
 	Mapent *i;
 
-	lock(&mapalloc);
+	lock(&mapalloc.Lock);
 	sort();
 	i = lookup(addr);
 	if(i == nil
 	|| i->type != (type|Allocated)
 	|| addr - i->addr + size > i->size){
-		unlock(&mapalloc);
+		unlock(&mapalloc.Lock);
 		return;
 	}
 	if(i->addr < addr)
@@ -267,5 +267,5 @@ memmapfree(uvlong addr, uvlong size, ulong type)
 	if(addr - i->addr + size < i->size)
 		insert(addr+size, addr - i->addr + i->size - size, i->type);
 	i->type &= ~Allocated;
-	unlock(&mapalloc);
+	unlock(&mapalloc.Lock);
 }

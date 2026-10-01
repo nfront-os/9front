@@ -17,7 +17,7 @@ newpgrp(void)
 	p = malloc(sizeof(Pgrp));
 	if(p == nil)
 		error(Enomem);
-	p->ref = 1;
+	p->Ref.ref = 1;
 	p->mntordertail = &p->mntorder;
 	return p;
 }
@@ -30,14 +30,14 @@ newrgrp(void)
 	r = malloc(sizeof(Rgrp));
 	if(r == nil)
 		error(Enomem);
-	r->ref = 1;
+	r->Ref.ref = 1;
 	return r;
 }
 
 void
 closergrp(Rgrp *r)
 {
-	if(decref(r) == 0)
+	if(decref(&r->Ref) == 0)
 		free(r);
 }
 
@@ -47,7 +47,7 @@ closepgrp(Pgrp *p)
 	Mhead **h, **e, *f;
 	Mount *m;
 
-	if(decref(p))
+	if(decref(&p->Ref))
 		return;
 
 	e = &p->mnthash[MNTHASH];
@@ -196,7 +196,7 @@ dupfgrp(Fgrp *f)
 	new = malloc(sizeof(Fgrp));
 	if(new == nil)
 		error(Enomem);
-	new->ref = 1;
+	new->Ref.ref = 1;
 	if(f == nil){
 		new->nfd = DELTAFD;
 		new->fd = malloc(DELTAFD*sizeof(new->fd[0]));
@@ -210,7 +210,7 @@ dupfgrp(Fgrp *f)
 		return new;
 	}
 
-	lock(f);
+	lock(&f->Lock);
 	/* Make new fd list shorter if possible, preserving quantization */
 	new->nfd = f->maxfd+1;
 	i = new->nfd%DELTAFD;
@@ -219,7 +219,7 @@ dupfgrp(Fgrp *f)
 	new->fd = malloc(new->nfd*sizeof(new->fd[0]));
 	new->flag = malloc(new->nfd*sizeof(new->flag[0]));
 	if(new->fd == nil || new->flag == nil){
-		unlock(f);
+		unlock(&f->Lock);
 		free(new->flag);
 		free(new->fd);
 		free(new);
@@ -230,10 +230,10 @@ dupfgrp(Fgrp *f)
 		if((c = f->fd[i]) != nil){
 			new->fd[i] = c;
 			new->flag[i] = f->flag[i];
-			incref(c);
+			incref(&c->Ref);
 		}
 	}
-	unlock(f);
+	unlock(&f->Lock);
 
 	return new;
 }
@@ -244,7 +244,7 @@ closefgrp(Fgrp *f)
 	int i;
 	Chan *c;
 
-	if(f == nil || decref(f))
+	if(f == nil || decref(&f->Ref))
 		return;
 
 	/*
@@ -306,7 +306,7 @@ newmount(Chan *to, int flag, char *spec)
 	if(m == nil)
 		error(Enomem);
 	m->to = to;
-	incref(to);
+	incref(&to->Ref);
 	m->mflag = flag;
 	strcpy(m->spec, spec);
 	setmalloctag(m, getcallerpc(&to));

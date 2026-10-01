@@ -277,7 +277,6 @@ static void
 _dumpstack(Ureg *ureg)
 {
 	uintptr l, v, i, estack;
-	extern ulong etext;
 	int x;
 	char *s;
 

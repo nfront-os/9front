@@ -218,7 +218,7 @@ rudpconnect(Conv *c, char **argv, int argc)
 	Fsconnected(c, e);
 	if(e != nil)
 		return e;
-	iphtadd(&upriv->ht, c);
+	iphtadd(&upriv->ht,&c->Iphash);
 	return nil;
 }
 
@@ -232,11 +232,11 @@ rudpstate(Conv *c, char *state, int n)
 
 	m = snprint(state, n, "%s", c->inuse?"Open":"Closed");
 	ucb = (Rudpcb*)c->ptcl;
-	qlock(ucb);
+	qlock(&ucb->QLock);
 	for(r = ucb->r; r; r = r->next)
 		m += snprint(state+m, n-m, " %I/%ld", r->addr, UNACKED(r));
 	m += snprint(state+m, n-m, "\n");
-	qunlock(ucb);
+	qunlock(&ucb->QLock);
 	return m;
 }
 
@@ -252,7 +252,7 @@ rudpannounce(Conv *c, char** argv, int argc)
 	if(e != nil)
 		return e;
 	Fsconnected(c, nil);
-	iphtadd(&upriv->ht, c);
+	iphtadd(&upriv->ht,&c->Iphash);
 	return nil;
 }
 
@@ -271,29 +271,29 @@ rudpclose(Conv *c)
 	Rudppriv *upriv;
 
 	upriv = c->p->priv;
-	iphtrem(&upriv->ht, c);
+	iphtrem(&upriv->ht,&c->Iphash);
 
 	/* force out any delayed acks */
 	ucb = (Rudpcb*)c->ptcl;
-	qlock(ucb);
+	qlock(&ucb->QLock);
 	for(r = ucb->r; r != nil; r = r->next){
 		if(r->acksent != r->rcvseq)
 			relsendack(c, r, 0);
 	}
-	qunlock(ucb);
+	qunlock(&ucb->QLock);
 
 	qclose(c->rq);
 	qclose(c->wq);
 	qclose(c->eq);
 
-	c->lport = 0;
-	ipmove(c->laddr, IPnoaddr);
-	c->rport = 0;
-	ipmove(c->raddr, IPnoaddr);
+	c->Iphash.lport = 0;
+	ipmove(c->Iphash.laddr, IPnoaddr);
+	c->Iphash.rport = 0;
+	ipmove(c->Iphash.raddr, IPnoaddr);
 
 	ucb->headers = 0;
 	ucb->randdrop = 0;
-	qlock(ucb);
+	qlock(&ucb->QLock);
 	for(r = ucb->r; r; r = nr){
 		if(r->acksent != r->rcvseq)
 			relsendack(c, r, 0);
@@ -303,7 +303,7 @@ rudpclose(Conv *c)
 	}
 	ucb->r = 0;
 
-	qunlock(ucb);
+	qunlock(&ucb->QLock);
 }
 
 /*
@@ -384,9 +384,9 @@ rudpkick(void *x)
 		bp->rp += 2+2;			/* Ignore local port */
 		break;
 	default:
-		ipmove(raddr, c->raddr);
-		ipmove(laddr, c->laddr);
-		rport = c->rport;
+		ipmove(raddr, c->Iphash.raddr);
+		ipmove(laddr, c->Iphash.laddr);
+		rport = c->Iphash.rport;
 		break;
 	}
 
@@ -412,19 +412,19 @@ rudpkick(void *x)
 		v6tov4(uh->udpsrc, laddr);
 		break;
 	default:
-		v6tov4(uh->udpdst, c->raddr);
-		hnputs(uh->udpdport, c->rport);
-		if(ipcmp(c->laddr, IPnoaddr) == 0)
-			findlocalip(f, c->laddr, c->raddr);
-		v6tov4(uh->udpsrc, c->laddr);
+		v6tov4(uh->udpdst, c->Iphash.raddr);
+		hnputs(uh->udpdport, c->Iphash.rport);
+		if(ipcmp(c->Iphash.laddr, IPnoaddr) == 0)
+			findlocalip(f, c->Iphash.laddr, c->Iphash.raddr);
+		v6tov4(uh->udpsrc, c->Iphash.laddr);
 		break;
 	}
-	hnputs(uh->udpsport, c->lport);
+	hnputs(uh->udpsport, c->Iphash.lport);
 	hnputs(uh->udplen, ptcllen);
 	uh->udpcksum[0] = 0;
 	uh->udpcksum[1] = 0;
 
-	qlock(ucb);
+	qlock(&ucb->QLock);
 	r = relstate(ucb, raddr, rport, "kick");
 	r->sndseq = NEXTSEQ(r->sndseq);
 	hnputl(rh->relseq, r->sndseq);
@@ -439,7 +439,7 @@ rudpkick(void *x)
 	hnputs(uh->udpcksum, ptclcsum(bp, UDP_IPHDR, dlen+UDP_RHDRSIZE));
 
 	relackq(r, bp);
-	qunlock(ucb);
+	qunlock(&ucb->QLock);
 
 	upriv->ustats.rudpOutDatagrams++;
 
@@ -520,12 +520,12 @@ rudpiput(Proto *rudp, Ipifc *ifc, Block *bp)
 		}
 	}
 
-	qlock(rudp);
+	qlock(&rudp->QLock);
 	iph = iphtlook(&upriv->ht, raddr, rport, laddr, lport);
 	if(iph == nil){
 		/* no conversation found */
 		upriv->ustats.rudpNoPorts++;
-		qunlock(rudp);
+		qunlock(&rudp->QLock);
 		netlog(f, Logudp, "udp: no conv %I!%d -> %I!%d\n", raddr, rport,
 			laddr, lport);
 		uh->Unused = ottl;
@@ -536,11 +536,11 @@ rudpiput(Proto *rudp, Ipifc *ifc, Block *bp)
 	}
 	c = iphconv(iph);
 	ucb = (Rudpcb*)c->ptcl;
-	qlock(ucb);
-	qunlock(rudp);
+	qlock(&ucb->QLock);
+	qunlock(&rudp->QLock);
 
 	if(reliput(c, bp, raddr, rport) < 0){
-		qunlock(ucb);
+		qunlock(&ucb->QLock);
 		freeblist(bp);
 		return;
 	}
@@ -551,7 +551,7 @@ rudpiput(Proto *rudp, Ipifc *ifc, Block *bp)
 	len -= (UDP_RHDRSIZE-UDP_PHDRSIZE);
 	bp = trimblock(bp, UDP_IPHDR+UDP_RHDRSIZE, len);
 	if(bp == nil) {
-		qunlock(ucb);
+		qunlock(&ucb->QLock);
 		netlog(f, Logrudp, "rudp: len err %I.%d -> %I.%d\n", 
 			raddr, rport, laddr, lport);
 		DPRINT("rudp: len err %I.%d -> %I.%d\n", 
@@ -578,13 +578,13 @@ rudpiput(Proto *rudp, Ipifc *ifc, Block *bp)
 		break;
 	default:
 		/* connection oriented rudp */
-		if(ipcmp(c->raddr, IPnoaddr) == 0){
+		if(ipcmp(c->Iphash.raddr, IPnoaddr) == 0){
 			/* reply with the same ip address (if not broadcast) */
 			if(ipforme(f, laddr) != Runi)
 				ipv6local(ifc, laddr, 0, raddr);
-			ipmove(c->laddr, laddr);
-		 	ipmove(c->raddr, raddr);
-			c->rport = rport;
+			ipmove(c->Iphash.laddr, laddr);
+		 	ipmove(c->Iphash.raddr, raddr);
+			c->Iphash.rport = rport;
 		}
 		break;
 	}
@@ -596,7 +596,7 @@ rudpiput(Proto *rudp, Ipifc *ifc, Block *bp)
 	} else {
 		qpass(c->rq, concatblock(bp));
 	}
-	qunlock(ucb);
+	qunlock(&ucb->QLock);
 }
 
 static char *rudpunknown = "unknown rudp ctl request";
@@ -621,9 +621,9 @@ rudpctl(Conv *c, char **f, int n)
 		if (parseip(ip, f[1]) == -1)
 			return Ebadip;
 		x = atoi(f[2]);
-		qlock(ucb);
+		qlock(&ucb->QLock);
 		relforget(c, ip, x, 1);
-		qunlock(ucb);
+		qunlock(&ucb->QLock);
 		return nil;
 	} else if(strcmp(f[0], "randdrop") == 0){
 		x = 10;			/* default is 10% */
@@ -654,10 +654,10 @@ rudpadvise(Proto *rudp, Block *bp, Ipifc *, char *msg)
 
 	/* Look for a connection */
 	for(p = rudp->conv; (s = *p) != nil; p++) {
-		if(s->rport == pdest)
-		if(s->lport == psource)
-		if(ipcmp(s->raddr, dest) == 0)
-		if(ipcmp(s->laddr, source) == 0){
+		if(s->Iphash.rport == pdest)
+		if(s->Iphash.lport == psource)
+		if(ipcmp(s->Iphash.raddr, dest) == 0)
+		if(ipcmp(s->Iphash.laddr, source) == 0){
 			if(s->ignoreadvice)
 				break;
 			qhangup(s->rq, msg);
@@ -753,7 +753,7 @@ loop:
 	for(s = rudp->conv; *s; s++) {
 		c = *s;
 		ucb = (Rudpcb*)c->ptcl;
-		qlock(ucb);
+		qlock(&ucb->QLock);
 
 		for(r = ucb->r; r; r = r->next) {
 			if(r->unacked != nil){
@@ -764,7 +764,7 @@ loop:
 			if(r->acksent != r->rcvseq)
 				relsendack(c, r, 0);
 		}
-		qunlock(ucb);
+		qunlock(&ucb->QLock);
 	}
 	goto loop;
 }
@@ -809,8 +809,8 @@ relstate(Rudpcb *ucb, uchar *addr, ushort port, char *from)
 		r->acksent = 0;
 		r->xmits = 0;
 		r->timeout = 0;
-		r->ref = 0;
-		incref(r);	/* one reference for being in the list */
+		r->Ref.ref = 0;
+		incref(&r->Ref);	/* one reference for being in the list */
 
 		DPRINT("from %s new state %lud for %I!%ud\n", 
 		        from, r->sndgen, r->addr, r->port);
@@ -818,14 +818,14 @@ relstate(Rudpcb *ucb, uchar *addr, ushort port, char *from)
 		*l = r;
 	}
 
-	incref(r);
+	incref(&r->Ref);
 	return r;
 }
 
 static void
 relput(Reliable *r)
 {
-	if(decref(r) == 0)
+	if(decref(&r->Ref) == 0)
 		free(r);
 }
 
@@ -986,10 +986,10 @@ relsendack(Conv *c, Reliable *r, int hangup)
 
 	v6tov4(uh->udpdst, r->addr);
 	hnputs(uh->udpdport, r->port);
-	hnputs(uh->udpsport, c->lport);
-	if(ipcmp(c->laddr, IPnoaddr) == 0)
-		findlocalip(f, c->laddr, c->raddr);
-	v6tov4(uh->udpsrc, c->laddr);
+	hnputs(uh->udpsport, c->Iphash.lport);
+	if(ipcmp(c->Iphash.laddr, IPnoaddr) == 0)
+		findlocalip(f, c->Iphash.laddr, c->Iphash.raddr);
+	v6tov4(uh->udpsrc, c->Iphash.laddr);
 	hnputs(uh->udplen, ptcllen);
 
 	if(hangup)

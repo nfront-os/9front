@@ -302,8 +302,8 @@ struct Ctlr {
 	Ctlr *next;
 	int no;
 
-	Lock;			/* interrupt lock */
-	QLock;			/* command lock */
+	Lock Lock;		/* interrupt lock; gcc port: named, QLock also named (shares pc field) under -fplan9-extensions */
+	QLock QLock;		/* command lock */
 
 	Audio *adev;
 
@@ -1553,7 +1553,7 @@ hdainterrupt(Ureg *, void *arg)
 	ctlr = adev->ctlr;
 	if(ctlr == nil || ctlr->adev != adev)
 		return;
-	ilock(ctlr);
+	ilock(&ctlr->Lock);
 	sts = csr32(ctlr, Intsts);
 	if(sts & ctlr->sout.sdintr){
 		csr8(ctlr, Sdsts+ctlr->sout.sdctl) |= Scompl;
@@ -1580,7 +1580,7 @@ hdainterrupt(Ureg *, void *arg)
 	if(sts & Cis){
 		csr8(ctlr, Rirbsts) = Rirbrover|Rirbrint;
 	}
-	iunlock(ctlr);
+	iunlock(&ctlr->Lock);
 }
 
 static long
@@ -1846,7 +1846,7 @@ hdacmdwrite(Chan *, void *a, long n, vlong)
 	if(n & 3)
 		error(Ebadarg);
 	lp = a;
-	qlock(ctlr);
+	qlock(&ctlr->QLock);
 	for(i=0; i<n/4; i++){
 		if(hdacmd(ctlr, lp[i], w) <= 0){
 			w[0] = 0;
@@ -1854,7 +1854,7 @@ hdacmdwrite(Chan *, void *a, long n, vlong)
 		}
 		qproduce(ctlr->q, w, sizeof(w));
 	}
-	qunlock(ctlr);
+	qunlock(&ctlr->QLock);
 	return n;
 }
 

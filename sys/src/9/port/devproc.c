@@ -171,7 +171,7 @@ static Traceevent *tevents;
 static Lock tlock;
 static int topens;
 static int tproduced, tconsumed;
-void (*proctrace)(Proc*, int, vlong);
+void (*proctrace)(Proc*, Tevent, vlong);
 
 static int lenwatchpt(Proc *);
 
@@ -725,7 +725,7 @@ readfd1(Chan *c, Proc *p, char *buf, int nbuf)
 		return snprint(buf, nbuf, "%s\n", p->dot->path->s);
 	}
 
-	lock(fg);
+	lock(&fg->Lock);
 	n = 0;
 	for(;;){
 		i = c->nrock-1;
@@ -737,7 +737,7 @@ readfd1(Chan *c, Proc *p, char *buf, int nbuf)
 			break;
 		}
 	}
-	unlock(fg);
+	unlock(&fg->Lock);
 
 	return n;
 }
@@ -980,9 +980,9 @@ procread(Chan *c, void *va, long n, vlong off)
 		goto regread;
 #ifdef KFPSTATE
 	case Qkfpregs:
-		if(p->kfpstate < FPinactive)
+		if(p->PFPU.kfpstate < FPinactive)
 			error(Enoreg);
-		rptr = (uchar*)p->kfpsave;
+		rptr = (uchar*)p->PFPU.kfpsave;
 		goto fpregread;
 #endif
 	case Qnotefpregs:
@@ -993,9 +993,9 @@ procread(Chan *c, void *va, long n, vlong off)
 			goto fpregread;
 		/* wet floor */
 	case Qfpregs:
-		if((p->fpstate & ~FPnotify) < FPinactive)
+		if((p->PFPU.fpstate & ~FPnotify) < FPinactive)
 			error(Enoreg);
-		rptr = (uchar*)p->fpsave;
+		rptr = (uchar*)p->PFPU.fpsave;
 	fpregread:
 		rsize = sizeof(FPsave);
 	regread:
@@ -1020,7 +1020,7 @@ procread(Chan *c, void *va, long n, vlong off)
 			p->text, p->user, sps,
 			tk2ms(p->time[TUser]),
 			tk2ms(p->time[TSys]),
-			tk2ms(MACHP(0)->ticks - p->time[TReal]),
+			tk2ms(MACHP(0)->PMach.ticks - p->time[TReal]),
 			tk2ms(p->time[TCUser]),
 			tk2ms(p->time[TCSys]),
 			tk2ms(p->time[TCReal]),
@@ -1045,7 +1045,7 @@ procread(Chan *c, void *va, long n, vlong off)
 				sname[s->type&SG_TYPE],
 				s->type&SG_FAULT ? 'F' : (s->type&SG_RONLY ? 'R' : ' '),
 				s->profile ? 'P' : ' ',
-				s->base, s->top, s->ref);
+				s->base, s->top, s->Ref.ref);
 		}
 		goto statbufread;
 
@@ -1240,9 +1240,9 @@ procwrite(Chan *c, void *va, long n, vlong off)
 			if(p->notified)
 				notefpsave(p);
 		}
-		if((p->fpstate & ~FPnotify) < FPinactive)
+		if((p->PFPU.fpstate & ~FPnotify) < FPinactive)
 			error(Enoreg);
-		rptr = (uchar*)p->fpsave;
+		rptr = (uchar*)p->PFPU.fpsave;
 	fpregwrite:
 		if(rptr == nil)
 			error(Enoreg);
@@ -1326,14 +1326,14 @@ proctext(Chan *c, Proc *p)
 		error(Enonexist);
 	if((i = s->image) == nil)
 		error(Enonexist);
-	lock(i);
+	lock(&i->Lock);
 	tc = i->c;
 	if(i->notext || tc == nil || (tc->flag&COPEN) == 0 || tc->mode != OREAD){
-		unlock(i);
+		unlock(&i->Lock);
 		error(Enonexist);
 	}
-	incref(tc);
-	unlock(i);
+	incref(&tc->Ref);
+	unlock(&i->Lock);
 	qunlock(&p->seglock);
 	poperror();
 
@@ -1388,23 +1388,23 @@ procctlclosefiles(Proc *p, int all, int fd)
 	if(f == nil)
 		error(Eprocdied);
 
-	incref(f);
-	lock(f);
+	incref(&f->Ref);
+	lock(&f->Lock);
 	while(fd <= f->maxfd){
 		c = f->fd[fd];
 		if(c != nil){
 			f->fd[fd] = nil;
-			unlock(f);
+			unlock(&f->Lock);
 			qunlock(&p->debug);
 			cclose(c);
 			qlock(&p->debug);
-			lock(f);
+			lock(&f->Lock);
 		}
 		if(!all)
 			break;
 		fd++;
 	}
-	unlock(f);
+	unlock(&f->Lock);
 	closefgrp(f);
 }
 
@@ -1451,7 +1451,7 @@ procctlreq(Proc *p, char *va, int n)
 	Cmdtab *ct;
 	vlong time;
 	char *e;
-	void (*pt)(Proc*, int, vlong);
+	void (*pt)(Proc*, Tevent, vlong);
 
 	cb = parsecmd(va, n);
 	if(waserror()){
@@ -1507,18 +1507,18 @@ procctlreq(Proc *p, char *va, int n)
 		s = p->seg[TSEG];
 		if(s == nil || (s->type&SG_TYPE) != SG_TEXT)	/* won't expand */
 			error(Egreg);
-		eqlock(s);
+		eqlock(&s->QLock);
 		npc = (s->top-s->base)>>LRESPROF;
 		if(s->profile == nil){
 			s->profile = malloc(npc*sizeof(*s->profile));
 			if(s->profile == nil){
-				qunlock(s);
+				qunlock(&s->QLock);
 				error(Enomem);
 			}
 		} else {
 			memset(s->profile, 0, npc*sizeof(*s->profile));
 		}
-		qunlock(s);
+		qunlock(&s->QLock);
 		break;
 	case CMstart:
 		if(p->state != Stopped)
@@ -1654,7 +1654,7 @@ procctlmemio(Chan *c, Proc *p, uintptr offset, void *a, long n, int read)
 	if(s == nil)
 		error(Ebadarg);
 	if(waserror()){
-		qunlock(s);
+		qunlock(&s->QLock);
 		nexterror();
 	}
 	i = segno(p, s);
@@ -1667,11 +1667,11 @@ procctlmemio(Chan *c, Proc *p, uintptr offset, void *a, long n, int read)
 			error(Egreg);
 		}
 		attachseg(p, i, n);
-		qunlock(s);
+		qunlock(&s->QLock);
 		putseg(s);
 		s = n;
 	} else {
-		qunlock(s);
+		qunlock(&s->QLock);
 	}
 	poperror();
 	sio = c->aux;
@@ -1679,7 +1679,7 @@ procctlmemio(Chan *c, Proc *p, uintptr offset, void *a, long n, int read)
 		sio = smalloc(sizeof(Segio));
 		c->aux = sio;
 	}
-	incref(s);		/* for us while we copy */
+	incref(&s->Ref);		/* for us while we copy */
 	qunlock(&p->seglock);
 	poperror();
 

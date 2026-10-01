@@ -52,7 +52,7 @@ newseg(int type, uintptr base, ulong size)
 	if(s == nil)
 		error(Enomem);
 
-	s->ref = 1;
+	s->Ref.ref = 1;
 	s->type = type;
 	s->size = size;
 	s->base = base;
@@ -102,13 +102,13 @@ attachseg(Proc *p, int segno, Segment *s)
 {
 	int i = p->index;
 
-	qlock(s);
+	qlock(&s->QLock);
 	if(i < s->firstproc)
 		s->firstproc = i;
 	if(i > s->lastproc)
 		s->lastproc = i;
 	s->segno = segno;
-	qunlock(s);
+	qunlock(&s->QLock);
 
 	p->seg[segno] = s;
 }
@@ -157,15 +157,15 @@ putseg(Segment *s)
 		 *  freeing segment. By the time we hold image lock,
 		 *  the segment would be freed from under us.
 		 */
-		lock(i);
-		if(decref(s) != 0){
-			unlock(i);
+		lock(&i->Lock);
+		if(decref(&s->Ref) != 0){
+			unlock(&i->Lock);
 			return;
 		}
 		if(i->s == s)
 			i->s = nil;
 		putimage(i);
-	} else if(decref(s) != 0)
+	} else if(decref(&s->Ref) != 0)
 		return;
 
 	assert(s->sema.prev == &s->sema);
@@ -249,7 +249,7 @@ ptecpy(Pte *new, Pte *old)
 		if(onswap(entry))
 			dupswap(entry);
 		else
-			incref(entry);
+			incref(&entry->Ref);
 		new->last = dst;
 		*dst = entry;
 	}
@@ -267,9 +267,9 @@ dupseg(int segno, int share)
 	if(s == nil || segno == ESEG)
 		return nil;
 
-	qlock(s);
+	qlock(&s->QLock);
 	if(waserror()){
-		qunlock(s);
+		qunlock(&s->QLock);
 		nexterror();
 	}
 	switch(s->type&SG_TYPE) {
@@ -280,8 +280,8 @@ dupseg(int segno, int share)
 	case SG_STICKY:
 	default:
 	sameseg:
-		incref(s);
-		qunlock(s);
+		incref(&s->Ref);
+		qunlock(&s->QLock);
 		poperror();
 		return s;
 
@@ -298,7 +298,7 @@ dupseg(int segno, int share)
 	case SG_DATA:		/* Copy on write plus demand load info */
 		if(segno == TSEG){
 			n = data2txt(s);
-			qunlock(s);
+			qunlock(&s->QLock);
 			poperror();
 			return n;
 		}
@@ -308,14 +308,14 @@ dupseg(int segno, int share)
 		n->image = s->image;
 		n->fstart = s->fstart;
 		n->flen = s->flen;
-		incref(s->image);
+		incref(&s->image->Ref);
 		break;
 	}
 	for(i = 0; i < s->mapsize; i++){
 		if(s->map[i] != nil){
 			pte = ptealloc(n);
 			if(pte == nil){
-				qunlock(s);
+				qunlock(&s->QLock);
 				poperror();
 				putseg(n);
 				error(Enomem);
@@ -326,9 +326,9 @@ dupseg(int segno, int share)
 	n->used = s->used;
 	n->swapped = s->swapped;
 	n->flushme = s->flushme;
-	if(s->ref > 1)
+	if(s->Ref.ref > 1)
 		procflushseg(s);
-	qunlock(s);
+	qunlock(&s->QLock);
 	poperror();
 	return n;
 }
@@ -387,9 +387,9 @@ segpage(Segment *s, Page *new)
 {
 	Page **pg;
 
-	qlock(s);
+	qlock(&s->QLock);
 	if((pg = segmap(s, new->va)) == nil) {
-		qunlock(s);
+		qunlock(&s->QLock);
 		putpage(new);
 		error(Enomem);
 	}
@@ -397,7 +397,7 @@ segpage(Segment *s, Page *new)
 	assert(*pg == nil);
 	*pg = new;
 	s->used++;
-	qunlock(s);
+	qunlock(&s->QLock);
 }
 
 void
@@ -410,7 +410,7 @@ relocateseg(Segment *s, uintptr base)
 
 	assert((base & (BY2PG-1)) == 0);
 
-	qlock(s);
+	qlock(&s->QLock);
 	offset = base - s->base;
 	for(i = 0; i < s->mapsize; i++) {
 		if((pte = s->map[i]) == nil)
@@ -422,7 +422,7 @@ relocateseg(Segment *s, uintptr base)
 	}
 	s->base += offset;
 	s->top += offset;
-	qunlock(s);
+	qunlock(&s->QLock);
 }
 
 Image*
@@ -447,7 +447,7 @@ newimage(ulong pages)
 	if(i == nil)
 		return nil;
 
-	i->ref = 1;
+	i->Ref.ref = 1;
 	i->pghsize = pghsize;
 
 	return i;
@@ -475,7 +475,7 @@ attachimage(Chan *c, ulong pages)
 	Image *i, **l;
 
 retry:
-	lock(&imagealloc);
+	lock(&imagealloc.Lock);
 
 	/*
 	 * Search the image cache for remains of the text from a previous
@@ -483,14 +483,14 @@ retry:
 	 */
 	for(i = ihash(c->qid.path); i != nil; i = i->hash){
 		if(eqchantdqid(c, i->type, i->dev, i->qid, 0)){
-			incref(i);
+			incref(&i->Ref);
 			busyimage(i);
 			goto found;
 		}
 	}
 	if(imagealloc.nidle > conf.nimage
 	|| (i = newimage(pages)) == nil) {
-		unlock(&imagealloc);
+		unlock(&imagealloc.Lock);
 		if(imagealloc.nidle == 0)
 			error(Enomem);
 		if(imagereclaim(0) == 0)
@@ -505,11 +505,11 @@ retry:
 	*l = i;
 found:
 	i->nattach++;
-	unlock(&imagealloc);
-	lock(i);
+	unlock(&imagealloc.Lock);
+	lock(&i->Lock);
 	if(i->c == nil){
 		i->c = c;
-		incref(c);
+		incref(&c->Ref);
 	}
 	return i;
 }
@@ -550,17 +550,17 @@ putimage(Image *i)
 	Chan *c;
 	long r;
 
-	r = decref(i);
+	r = decref(&i->Ref);
 	if(i->notext){
-		unlock(i);
+		unlock(&i->Lock);
 		return;
 	}
 	c = nil;
 	if(r == 0){
 		assert(i->pgref == 0);
 		assert(i->s == nil);
-		lock(&imagealloc);
-		r = i->ref;
+		lock(&imagealloc.Lock);
+		r = i->Ref.ref;
 		if(r == 0){
 			Image *f, **l;
 
@@ -577,7 +577,7 @@ putimage(Image *i)
 				l = &f->hash;
 			}
 		}
-		unlock(&imagealloc);
+		unlock(&imagealloc.Lock);
 	} else if(r == i->pgref) {
 		assert(i->pgref > 0);
 		assert(i->s == nil);
@@ -585,12 +585,12 @@ putimage(Image *i)
 			c = i->c;
 			i->c = nil;
 
-			lock(&imagealloc);
+			lock(&imagealloc.Lock);
 			idleimage(i);
-			unlock(&imagealloc);
+			unlock(&imagealloc.Lock);
 		}
 	}
-	unlock(i);
+	unlock(&i->Lock);
 
 	if(r == 0)
 		free(i);
@@ -613,24 +613,24 @@ imagereclaim(ulong pages)
 
 	eqlock(&imagealloc.ireclaim);
 	
-	lock(&imagealloc);
+	lock(&imagealloc.Lock);
 	np = 0;
 	while(np < pages || imagealloc.nidle > conf.nimage) {
 		i = imagealloc.idle;
 		if(i == nil)
 			break;
-		incref(i);
+		incref(&i->Ref);
 		busyimage(i);
-		unlock(&imagealloc);
+		unlock(&imagealloc.Lock);
 
 		np += pagereclaim(i);
 
-		lock(i);
+		lock(&i->Lock);
 		putimage(i);
 
-		lock(&imagealloc);
+		lock(&imagealloc.Lock);
 	}
-	unlock(&imagealloc);
+	unlock(&imagealloc.Lock);
 
 	qunlock(&imagealloc.ireclaim);
 
@@ -720,7 +720,7 @@ done:
 	 * we have to make sure other processors flush the
 	 * entries from their TLBs before any pages are freed.
 	 */
-	if(s->ref > 1)
+	if(s->Ref.ref > 1)
 		procflushseg(s);
 
 	freepages(fh, ft, np);
@@ -744,12 +744,12 @@ ibrk(int segno, uintptr newtop)
 	if(newtop == 0)
 		return s->base;
 
-	qlock(s);
+	qlock(&s->QLock);
 
 	/* We may start with the bss overlapping the data */
 	if(newtop < s->base) {
 		if(segno != BSEG || up->seg[DSEG] == nil || newtop < up->seg[DSEG]->base) {
-			qunlock(s);
+			qunlock(&s->QLock);
 			error(Enovmem);
 		}
 		newtop = s->base;
@@ -763,33 +763,33 @@ ibrk(int segno, uintptr newtop)
 		 * to-be-freed address space may have been passed to the kernel
 		 * already by another proc and is past the validaddr stage.
 		 */
-		if(s->ref > 1){
-			qunlock(s);
+		if(s->Ref.ref > 1){
+			qunlock(&s->QLock);
 			error(Einuse);
 		}
 		if(!segfreemap(s, newtop, s->top))
 			goto done;	/* skip flushmmu() */
 		s->top = newtop;
 		s->size = newsize;
-		qunlock(s);
+		qunlock(&s->QLock);
 		flushmmu();
 		return 0;
 	}
 
 	if(isoverlap(s->top, newtop - s->top) != nil){
-		qunlock(s);
+		qunlock(&s->QLock);
 		error(Esoverlap);
 	}
 
 	if(newsize > (SEGMAPSIZE*PTEPERTAB)) {
-		qunlock(s);
+		qunlock(&s->QLock);
 		error(Enovmem);
 	}
 	mapsize = ROUND(newsize, PTEPERTAB)/PTEPERTAB;
 	if(mapsize > s->mapsize) {
 		map = malloc(mapsize*sizeof(Pte*));
 		if(map == nil){
-			qunlock(s);
+			qunlock(&s->QLock);
 			error(Enomem);
 		}
 		memmove(map, s->map, s->mapsize*sizeof(Pte*));
@@ -801,7 +801,7 @@ ibrk(int segno, uintptr newtop)
 done:
 	s->top = newtop;
 	s->size = newsize;
-	qunlock(s);
+	qunlock(&s->QLock);
 	return 0;
 }
 
@@ -975,7 +975,7 @@ segflush1(Segment *s, uintptr from, uintptr to)
 		return 0;
 
 	s->flushme = 1;
-	if(s->ref > 1)
+	if(s->Ref.ref > 1)
 		procflushseg(s);
 
 	if(s->mapsize == 0)
@@ -1009,12 +1009,12 @@ segfree1(Segment *s, uintptr from, uintptr to)
 	switch(s->type&SG_TYPE){
 	case SG_FIXED:
 	case SG_STICKY:
-		qunlock(s);
+		qunlock(&s->QLock);
 		if(!waserror()){
 			memset((uchar*)from, fill, to-from);
 			poperror();
 		}
-		qlock(s);
+		qlock(&s->QLock);
 		/* wet floor */
 	case SG_PHYSICAL:
 	case SG_TEXT:
@@ -1033,20 +1033,20 @@ segfree1(Segment *s, uintptr from, uintptr to)
 		if(afrom > to)
 			afrom = ato = to;
 		if(from < afrom && segpeek(s, from) != nil){
-			qunlock(s);
+			qunlock(&s->QLock);
 			if(!waserror()){
 				memset((uchar*)from, fill, afrom-from);
 				poperror();
 			}
-			qlock(s);
+			qlock(&s->QLock);
 		}
 		if(ato < to && ato >= from && segpeek(s, ato) != nil){
-			qunlock(s);
+			qunlock(&s->QLock);
 			if(!waserror()){
 				memset((uchar*)ato, fill, to-ato);
 				poperror();
 			}
-			qlock(s);
+			qlock(&s->QLock);
 		}
 		return segfreemap(s, afrom, ato);
 
@@ -1059,7 +1059,7 @@ segfree1(Segment *s, uintptr from, uintptr to)
 			afrom = ato = to;
 		if(from < afrom && segpeek(s, from) != nil
 		&& (p = lookpage(s->image, s->fstart + (from & ~(BY2PG-1)) - s->base)) != nil){
-			qunlock(s);
+			qunlock(&s->QLock);
 			k = kmap(p);
 			if(!waserror()){
 				memmove((uchar*)from, (uchar*)VA(k) + (from & (BY2PG-1)), afrom-from);
@@ -1067,11 +1067,11 @@ segfree1(Segment *s, uintptr from, uintptr to)
 			}
 			kunmap(k);
 			putpage(p);
-			qlock(s);
+			qlock(&s->QLock);
 		}
 		if(ato < to && ato >= from && segpeek(s, ato) != nil
 		&& (p = lookpage(s->image, s->fstart + ato - s->base)) != nil){
-			qunlock(s);
+			qunlock(&s->QLock);
 			k = kmap(p);
 			if(!waserror()){
 				memmove((uchar*)ato, (uchar*)VA(k), to-ato);
@@ -1079,7 +1079,7 @@ segfree1(Segment *s, uintptr from, uintptr to)
 			}
 			kunmap(k);
 			putpage(p);
-			qlock(s);
+			qlock(&s->QLock);
 		}
 		return segfreemap(s, afrom, ato);
 	}
@@ -1108,11 +1108,11 @@ withsegrange(void *va, uintptr len, int (*fun)(Segment*, uintptr, uintptr))
 		top = s->top;
 		if(to <= top){
 			flush |= (*fun)(s, from, to);
-			qunlock(s);
+			qunlock(&s->QLock);
 			break;
 		}
 		flush |= (*fun)(s, from, top);
-		qunlock(s);
+		qunlock(&s->QLock);
 		from = top;
 	}
 
@@ -1159,7 +1159,7 @@ txt2data(Segment *s)
 	ps->fstart = s->fstart;
 	ps->flen = s->flen;
 	ps->flushme = 1;
-	incref(s->image);
+	incref(&s->image->Ref);
 	return ps;
 }
 
@@ -1170,15 +1170,15 @@ data2txt(Segment *s)
 	Image *i;
 
 	i = s->image;
-	lock(i);
+	lock(&i->Lock);
 	if((ps = i->s) != nil && ps->flen == s->flen){
 		assert(ps->image == i);
-		incref(ps);	
-		unlock(i);
+		incref(&ps->Ref);	
+		unlock(&i->Lock);
 		return ps;
 	}
 	if(waserror()){
-		unlock(i);
+		unlock(&i->Lock);
 		nexterror();
 	}
 	ps = newseg(SG_TEXT | SG_RONLY, s->base, s->size);
@@ -1187,8 +1187,8 @@ data2txt(Segment *s)
 	ps->flen = s->flen;
 	if(i->s == nil)
 		i->s = ps;
-	incref(i);
-	unlock(i);
+	incref(&i->Ref);
+	unlock(&i->Lock);
 	poperror();
 	return ps;
 }
@@ -1239,7 +1239,7 @@ segmentioproc(void *arg)
 
 	qlock(&up->seglock);
 	sio->p = up;
-	incref(sio->s);
+	incref(&sio->s->Ref);
 	segno = unusedsegno(sio->s->segno);
 	attachseg(up, segno, sio->s);
 	qunlock(&up->seglock);
@@ -1256,7 +1256,7 @@ segmentioproc(void *arg)
 
 				qlock(&up->seglock);
 				tmp = detachseg(up, segno);
-				incref(sio->s);
+				incref(&sio->s->Ref);
 				segno = unusedsegno(sio->s->segno);
 				attachseg(up, segno, sio->s);
 				qunlock(&up->seglock);
@@ -1317,9 +1317,9 @@ segio(Segio *sio, Segment *s, void *a, long n, vlong off, int read)
 		}
 	}
 
-	eqlock(sio);
+	eqlock(&sio->QLock);
 	if(waserror()){
-		qunlock(sio);
+		qunlock(&sio->QLock);
 		nexterror();
 	}
 	sio->s = s;
@@ -1328,7 +1328,7 @@ segio(Segio *sio, Segment *s, void *a, long n, vlong off, int read)
 			docmd(sio, Cdie);
 			sio->p = nil;
 		}
-		qunlock(sio);
+		qunlock(&sio->QLock);
 		poperror();
 		return 0;
 	}
@@ -1340,7 +1340,7 @@ segio(Segio *sio, Segment *s, void *a, long n, vlong off, int read)
 	sio->data = b;
 	sio->dlen = n;
 	docmd(sio, read ? Cread : Cwrite);
-	qunlock(sio);
+	qunlock(&sio->QLock);
 	poperror();
 
 	if(a != b){

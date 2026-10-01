@@ -251,7 +251,7 @@ ipismulticast(uchar *ip)
 int
 convipvers(Conv *c)
 {
-	if(isv4(c->raddr) && isv4(c->laddr) || ipcmp(c->raddr, IPnoaddr) == 0)
+	if(isv4(c->Iphash.raddr) && isv4(c->Iphash.laddr) || ipcmp(c->Iphash.raddr, IPnoaddr) == 0)
 		return V4;
 	else
 		return V6;
@@ -286,11 +286,11 @@ iphtadd(Ipht *ht, Iphash *h)
 				h->match = IPmatchport;
 		}
 	}
-	lock(ht);
+	lock(&ht->Lock);
 	hv = iphash(h->raddr, h->rport, h->laddr, h->lport);
 	h->nextiphash = ht->tab[hv];
 	ht->tab[hv] = h;
-	unlock(ht);
+	unlock(&ht->Lock);
 }
 
 void
@@ -299,7 +299,7 @@ iphtrem(Ipht *ht, Iphash *h)
 	ulong hv;
 	Iphash **l;
 
-	lock(ht);
+	lock(&ht->Lock);
 	hv = iphash(h->raddr, h->rport, h->laddr, h->lport);
 	for(l = &ht->tab[hv]; (*l) != nil; l = &(*l)->nextiphash)
 		if(*l == h){
@@ -307,7 +307,7 @@ iphtrem(Ipht *ht, Iphash *h)
 			h->nextiphash = nil;
 			break;
 		}
-	unlock(ht);
+	unlock(&ht->Lock);
 }
 
 /* look for a matching iphash with the following precedence
@@ -323,7 +323,7 @@ iphtlook(Ipht *ht, uchar *sa, ushort sp, uchar *da, ushort dp)
 	ulong hv;
 	Iphash *h;
 
-	lock(ht);
+	lock(&ht->Lock);
 	/* exact 4 pair match (connection) */
 	hv = iphash(sa, sp, da, dp);
 	for(h = ht->tab[hv]; h != nil; h = h->nextiphash){
@@ -331,7 +331,7 @@ iphtlook(Ipht *ht, uchar *sa, ushort sp, uchar *da, ushort dp)
 			continue;
 		if(sp == h->rport && dp == h->lport
 		&& ipcmp(sa, h->raddr) == 0 && ipcmp(da, h->laddr) == 0){
-			unlock(ht);
+			unlock(&ht->Lock);
 			return h;
 		}
 	}
@@ -342,7 +342,7 @@ iphtlook(Ipht *ht, uchar *sa, ushort sp, uchar *da, ushort dp)
 		if(h->match != IPmatchpa)
 			continue;
 		if(dp == h->lport && ipcmp(da, h->laddr) == 0){
-			unlock(ht);
+			unlock(&ht->Lock);
 			return h;
 		}
 	}
@@ -353,7 +353,7 @@ iphtlook(Ipht *ht, uchar *sa, ushort sp, uchar *da, ushort dp)
 		if(h->match != IPmatchport)
 			continue;
 		if(dp == h->lport){
-			unlock(ht);
+			unlock(&ht->Lock);
 			return h;
 		}
 	}
@@ -364,7 +364,7 @@ iphtlook(Ipht *ht, uchar *sa, ushort sp, uchar *da, ushort dp)
 		if(h->match != IPmatchaddr)
 			continue;
 		if(ipcmp(da, h->laddr) == 0){
-			unlock(ht);
+			unlock(&ht->Lock);
 			return h;
 		}
 	}
@@ -374,10 +374,10 @@ iphtlook(Ipht *ht, uchar *sa, ushort sp, uchar *da, ushort dp)
 	for(h = ht->tab[hv]; h != nil; h = h->nextiphash){
 		if(h->match != IPmatchany)
 			continue;
-		unlock(ht);
+		unlock(&ht->Lock);
 		return h;
 	}
-	unlock(ht);
+	unlock(&ht->Lock);
 	return nil;
 }
 
@@ -527,7 +527,7 @@ transforward(Proto *p, uchar *sa, int sp, uchar *da, int dp, Route *r)
 		return nil;
 
 	/* Bad forward route? */
-	if((ifc = r->ifc) == nil){
+	if((ifc = r->RouteTree.ifc) == nil){
 		netlog(p->f, Logtrans, "trans: no interface: %s!%I!%d -> %I!%d\n",
 			p->name, sa, sp, da, dp);
 		return nil;
@@ -541,15 +541,15 @@ transforward(Proto *p, uchar *sa, int sp, uchar *da, int dp, Route *r)
 	}
 
 	/* Find a source address on the destination interface */
-	rlock(ifc);
+	rlock(&ifc->RWLock);
 	memmove(la, v4prefix, IPv4off);
-	if(!ipv4local(ifc, la+IPv4off, 0, (r->type & (Rifc|Runi|Rbcast|Rmulti))? da+IPv4off: r->v4.gate)){
-		runlock(ifc);
+	if(!ipv4local(ifc, la+IPv4off, 0, (r->RouteTree.type & (Rifc|Runi|Rbcast|Rmulti))? da+IPv4off: r->v4.gate)){
+		runlock(&ifc->RWLock);
 		netlog(p->f, Logtrans, "trans: no source ip: %s!%I!%d -> %I!%d\n",
 			p->name, sa, sp, da, dp);
 		return nil;
 	}
-	runlock(ifc);
+	runlock(&ifc->RWLock);
 
 	/* Check backward route */
 	rh.a = nil;
@@ -558,7 +558,7 @@ transforward(Proto *p, uchar *sa, int sp, uchar *da, int dp, Route *r)
 		r = v4lookup(p->f, sa+IPv4off, la+IPv4off, nil);
 	else
 		r = v4lookup(p->f, sa+IPv4off, da+IPv4off, &rh);
-	if(r == nil || (r->ifc == ifc && !ifc->reflect)){
+	if(r == nil || (r->RouteTree.ifc == ifc && !ifc->reflect)){
 		netlog(p->f, Logtrans, "trans: bad backward route: %s!%I!%d <- %I <- %I!%d\n",
 			p->name, sa, sp, la, da, dp);
 		return nil;
@@ -602,10 +602,10 @@ transfsize(Proto *p)
 	if(p->ht == nil || p->forward == nil)
 		return -1;
 
-	qlock(p);
+	qlock(&p->QLock);
 	for(q = p->translations; q != nil; q = q->next)
 		n += Transfmtsize;
-	qunlock(p);
+	qunlock(&p->QLock);
 
 	return n;
 }
@@ -623,7 +623,7 @@ transread(Proto *p, char *a, ulong off, int n)
 	if((b = s = malloc(n+1)) == nil)
 		error(Enomem);
 
-	qlock(p);
+	qlock(&p->QLock);
 	for(q = p->translations; q != nil; q = q->next){
 		if(n < Transfmtsize)
 			break;
@@ -641,7 +641,7 @@ transread(Proto *p, char *a, ulong off, int n)
 		s += m;
 		n -= m;
 	}
-	qunlock(p);
+	qunlock(&p->QLock);
 
 	/* copy outside of lock */
 	if(waserror()){
@@ -690,9 +690,9 @@ transwrite(Proto *p, char *a, ulong off, int n)
 		error("protocol does not support translations");
 
 	if(n == 0 && off == 0){
-		qlock(p);
+		qlock(&p->QLock);
 		flushtrans(p);
-		qunlock(p);
+		qunlock(&p->QLock);
 		return n;
 	}
 	if((uint)n >= sizeof(buf))
@@ -723,7 +723,7 @@ transwrite(Proto *p, char *a, ulong off, int n)
 
 	/* check forward route */
 	r = v4lookup(p->f, da+IPv4off, sa+IPv4off, nil);
-	if(r == nil || (r->type & Rtrans) == 0)
+	if(r == nil || (r->RouteTree.type & Rtrans) == 0)
 		error("no translating route to desination");
 
 	/* check backward route */
@@ -736,15 +736,15 @@ transwrite(Proto *p, char *a, ulong off, int n)
 	if(r == nil)
 		error("no route to soruce address");
 
-	qlock(p);
+	qlock(&p->QLock);
 	if(waserror()){
-		qunlock(p);
+		qunlock(&p->QLock);
 		nexterror();
 	}
 	if(lportinuse(p, lp))
 		error("local port in use");
 	addtrans(p, da, dp, sa, sp, la, lp, rh);
-	qunlock(p);
+	qunlock(&p->QLock);
 	poperror();
 
 	return n;

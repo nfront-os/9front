@@ -2007,7 +2007,7 @@ igbepnp(Ether* edev)
 	for(ctlr = igbectlrhead; ctlr != nil; ctlr = ctlr->next){
 		if(ctlr->active)
 			continue;
-		if(edev->port == 0 || edev->port == ctlr->port){
+		if(edev->ISAConf.port == 0 || edev->ISAConf.port == ctlr->port){
 			ctlr->active = 1;
 			break;
 		}
@@ -2016,10 +2016,10 @@ igbepnp(Ether* edev)
 		return -1;
 
 	edev->ctlr = ctlr;
-	edev->port = ctlr->port;
-	edev->irq = ctlr->pcidev->intl;
+	edev->ISAConf.port = ctlr->port;
+	edev->ISAConf.irq = ctlr->pcidev->intl;
 	edev->tbdf = ctlr->pcidev->tbdf;
-	edev->mbps = 1000;
+	edev->Netif.mbps = 1000;
 	memmove(edev->ea, ctlr->ra, Eaddrlen);
 
 	/*
@@ -2029,13 +2029,13 @@ igbepnp(Ether* edev)
 	edev->transmit = igbetransmit;
 	edev->ctl = igbectl;
 
-	edev->arg = edev;
-	edev->promiscuous = igbepromiscuous;
+	edev->Netif.arg = edev;
+	edev->Netif.promiscuous = igbepromiscuous;
 	edev->shutdown = igbeshutdown;
-	edev->multicast = igbemulticast;
-	edev->ifstat = igbeifstat;
+	edev->Netif.multicast = igbemulticast;
+	edev->Netif.ifstat = igbeifstat;
 
-	intrenable(edev->irq, igbeinterrupt, edev, edev->tbdf, edev->name);
+	intrenable(edev->ISAConf.irq, igbeinterrupt, edev, edev->tbdf, edev->Netif.name);
 
 	return 0;
 }

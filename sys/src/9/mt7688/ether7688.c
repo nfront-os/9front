@@ -124,8 +124,8 @@ struct Ctlr
 	struct {
 		Block	*b[Nrd];
 		Desc	*d;
-		Rendez;
-		Lock;
+		Rendez Rendez;	/* gcc port: named, along with Lock below (Rendez has its own Lock member now), to avoid collision under -fplan9-extensions */
+		Lock Lock;
 	}	rx[1];
 
 	struct {

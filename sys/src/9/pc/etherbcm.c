@@ -915,7 +915,7 @@ again:
 		if(ctlr->active)
 			continue;
 		
-		if(edev->port == 0 || edev->port == ctlr->port) {
+		if(edev->ISAConf.port == 0 || edev->ISAConf.port == ctlr->port) {
 			ctlr->active = 1;
 			break;
 		}
@@ -928,21 +928,21 @@ again:
 	pcisetbme(ctlr->pdev);
 
 	edev->ctlr = ctlr;
-	edev->port = ctlr->port;
-	edev->irq = ctlr->pdev->intl;
+	edev->ISAConf.port = ctlr->port;
+	edev->ISAConf.irq = ctlr->pdev->intl;
 	edev->tbdf = ctlr->pdev->tbdf;
 	edev->transmit = bcmtransmit;
-	edev->multicast = bcmmulticast;
-	edev->promiscuous = bcmpromiscuous;
-	edev->arg = edev;
-	edev->mbps = 1000;
+	edev->Netif.multicast = bcmmulticast;
+	edev->Netif.promiscuous = bcmpromiscuous;
+	edev->Netif.arg = edev;
+	edev->Netif.mbps = 1000;
 	
 	if(bcminit(edev) < 0){
 		edev->ctlr = nil;
 		goto again;
 	}
 
-	intrenable(edev->irq, bcminterrupt, edev, edev->tbdf, edev->name);
+	intrenable(edev->ISAConf.irq, bcminterrupt, edev, edev->tbdf, edev->Netif.name);
 
 	return 0;
 }

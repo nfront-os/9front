@@ -58,7 +58,7 @@ typedef struct Bus {
 	Bus*	next;
 } Bus;
 
-typedef struct Aintr {
+struct Aintr {
 	int	type;			/* interrupt type */
 	int	flags;			/* interrupt flag */
 	int	irq;			/* source bus irq */
@@ -163,3 +163,5 @@ extern int mpeisabus;
 extern Bus *mpbus, **mpbusp;
 extern Apic *mpioapic, **mpioapicp;
 extern Apic *mplapic, **mplapicp;
+extern void i8259init(void);
+extern int i8259isr(int);

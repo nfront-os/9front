@@ -78,9 +78,9 @@ pipeattach(char *spec)
 	}
 	poperror();
 
-	lock(&pipealloc);
+	lock(&pipealloc.Lock);
 	path = ++pipealloc.path;
-	unlock(&pipealloc);
+	unlock(&pipealloc.Lock);
 
 	mkqid(&c->qid, NETQID(path, Qdir), 0, QTDIR);
 	c->aux = p;
@@ -131,9 +131,9 @@ pipewalk(Chan *c, Chan *nc, char **name, int nname)
 	wq = devwalk(c, nc, name, nname, pipedir, nelem(pipedir), pipegen);
 	if(wq != nil && wq->clone != nil && wq->clone != c){
 		p = c->aux;
-		qlock(p);
+		qlock(&p->QLock);
 		p->ref++;
-		qunlock(p);
+		qunlock(&p->QLock);
 	}
 	return wq;
 }
@@ -187,7 +187,7 @@ pipeopen(Chan *c, int omode)
 	}
 
 	p = c->aux;
-	qlock(p);
+	qlock(&p->QLock);
 	switch(NETTYPE(c->qid.path)){
 	case Qdata0:
 		p->qref[0]++;
@@ -196,7 +196,7 @@ pipeopen(Chan *c, int omode)
 		p->qref[1]++;
 		break;
 	}
-	qunlock(p);
+	qunlock(&p->QLock);
 
 	c->mode = openmode(omode);
 	c->flag |= COPEN;
@@ -211,7 +211,7 @@ pipeclose(Chan *c)
 	Pipe *p;
 
 	p = c->aux;
-	qlock(p);
+	qlock(&p->QLock);
 
 	if(c->flag & COPEN){
 		/*
@@ -249,12 +249,12 @@ pipeclose(Chan *c)
 	 */
 	p->ref--;
 	if(p->ref == 0){
-		qunlock(p);
+		qunlock(&p->QLock);
 		free(p->q[0]);
 		free(p->q[1]);
 		free(p);
 	} else
-		qunlock(p);
+		qunlock(&p->QLock);
 }
 
 static long

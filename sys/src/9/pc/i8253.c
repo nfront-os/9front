@@ -75,7 +75,7 @@ i8253reset(void)
 {
 	int loops, x;
 
-	ilock(&i8253);
+	ilock(&i8253.Lock);
 
 	i8253.last = 0;
 	i8253.period = Freq/HZ;
@@ -112,7 +112,7 @@ i8253reset(void)
 		x |= inb(T0cntr)<<8;
 	}
 
-	iunlock(&i8253);
+	iunlock(&i8253.Lock);
 }
 
 static uvlong
@@ -121,7 +121,7 @@ i8253cpufreq(void)
 	int loops, x, y;
 	uvlong a, b;
 
-	ilock(&i8253);
+	ilock(&i8253.Lock);
 	for(loops = 1000;;loops += 1000) {
 		/* measure time for the delayloop() */
 		outb(Tmode, Latch2);
@@ -141,7 +141,7 @@ i8253cpufreq(void)
 		if(x >= MaxPeriod || loops >= 1000000)
 			break;
 	}
-	iunlock(&i8253);
+	iunlock(&i8253.Lock);
 
 	/* avoid division by zero on vmware 7 */
 	if(x == 0)
@@ -149,10 +149,10 @@ i8253cpufreq(void)
 
 	if(m->havetsc && b > a){
 		b -= a;
-		m->cyclefreq = b * 2*Freq / x;
+		m->PMach.cyclefreq = b * 2*Freq / x;
 		m->delaylcycles = (b + loops-1) / loops;
 
-		return m->cyclefreq;
+		return m->PMach.cyclefreq;
 	}
 
 	return (vlong)loops*m->delaylcycles * 2*Freq / x;
@@ -166,7 +166,7 @@ i8253init(void)
 	if(m->machno != 0){
 		m->cpuhz = MACHP(0)->cpuhz;
 		m->cpumhz = MACHP(0)->cpumhz;
-		m->cyclefreq = MACHP(0)->cyclefreq;
+		m->PMach.cyclefreq = MACHP(0)->PMach.cyclefreq;
 		m->loopconst = MACHP(0)->loopconst;
 		return;
 	}
@@ -207,7 +207,7 @@ i8253timerset(uvlong next)
 
 	/* hysteresis */
 	if(i8253.period != period){
-		ilock(&i8253);
+		ilock(&i8253.Lock);
 		/* load new value */
 		outb(Tmode, Load0|Square);
 		outb(T0cntr, period);		/* low byte */
@@ -216,7 +216,7 @@ i8253timerset(uvlong next)
 		/* remember period */
 		i8253.period = period;
 		i8253.periodset++;
-		iunlock(&i8253);
+		iunlock(&i8253.Lock);
 	}
 }
 
@@ -246,7 +246,7 @@ i8253read(uvlong *hz)
 	if(hz)
 		*hz = Freq<<Tickshift;
 
-	ilock(&i8253);
+	ilock(&i8253.Lock);
 	outb(Tmode, Latch2);
 	y = inb(T2cntr);
 	y |= inb(T2cntr)<<8;
@@ -266,7 +266,7 @@ i8253read(uvlong *hz)
 	i8253.last = y;
 	i8253.ticks += x>>1;
 	ticks = i8253.ticks;
-	iunlock(&i8253);
+	iunlock(&i8253.Lock);
 
 	return ticks<<Tickshift;
 }

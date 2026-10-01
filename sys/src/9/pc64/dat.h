@@ -174,7 +174,7 @@ struct Mach
 	uintptr	splpc;			/* pc of last caller to splhi */
 	Proc*	proc;			/* current process on this processor */
 
-	PMach;
+	PMach PMach;	/* gcc port: named, matches existing explicit .PMach access (e.g. MACHP(0)->PMach.ticks); avoids -fplan9-extensions collision */
 
 	uvlong	tscticks;
 	ulong	spuriousintr;
@@ -327,8 +327,13 @@ Mach* machp[MAXMACH];
 	
 #define	MACHP(n)	(machp[n])
 
-extern register Mach* m;			/* R15 */
-extern register Proc* up;			/* R14 */
+#if defined(__GNUC__) && !defined(__clang__)
+register Mach *m __asm__("r15");			/* R15 */
+register Proc *up __asm__("r14");			/* R14 */
+#else
+extern Mach *m;				/* current machine */
+extern Proc *up;			/* current process */
+#endif
 
 /*
  *  hardware info about a device

@@ -129,7 +129,7 @@ igfxcurload(VGAscr* scr, Cursor* curs)
 		if(i & 1)
 			p += 64-16;
 	}
-	scr->offset = curs->offset;
+	scr->Cursor.offset = curs->offset;
 }
 
 enum {
@@ -191,9 +191,9 @@ igfxcurmove(VGAscr* scr, Point p)
 
 	for(i=0; i<NPIPE; i++){
 		if((r = igfxcurregs(scr, i)) != nil){
-			x = p.x + scr->offset.x;
+			x = p.x + scr->Cursor.offset.x;
 			if(x < 0) x = -x | 0x8000;
-			y = p.y + scr->offset.y;
+			y = p.y + scr->Cursor.offset.y;
 			if(y < 0) y = -y | 0x8000;
 			r[CURPOS] = (y << 16) | x;
 		}

@@ -197,7 +197,7 @@ struct Mach
 	Proc*	proc;			/* current process on this processor */
 	Proc*	externup;		/* extern register Proc *up */
 
-	PMach;
+	PMach PMach;	/* gcc port: named, matches existing explicit .PMach access (e.g. MACHP(0)->PMach.ticks); avoids -fplan9-extensions collision */
 
 	uvlong	tscticks;
 	ulong	spuriousintr;

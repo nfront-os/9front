@@ -69,7 +69,7 @@ ecread(uchar addr)
 	int r;
 
 	r = -1;
-	lock(&ec);
+	lock(&ec.Lock);
 	if(!ec.init)
 		goto out;
 	if(ecwait(IBF, 0))
@@ -83,7 +83,7 @@ ecread(uchar addr)
 	r = ecrr(EC_DATA);
 	ecwait(OBF, 0);
 out:
-	unlock(&ec);
+	unlock(&ec.Lock);
 	return r;
 }
 
@@ -93,7 +93,7 @@ ecwrite(uchar addr, uchar val)
 	int r;
 
 	r = -1;
-	lock(&ec);
+	lock(&ec.Lock);
 	if(!ec.init)
 		goto out;
 	if(ecwait(IBF, 0))
@@ -109,7 +109,7 @@ ecwrite(uchar addr, uchar val)
 		goto out;
 	r = 0;
 out:
-	unlock(&ec);
+	unlock(&ec.Lock);
 	return r;
 }
 
@@ -162,11 +162,11 @@ ecinit(int cmdport, int dataport)
 		return -1;
 	}
 
-	lock(&ec);
+	lock(&ec.Lock);
 	ec.port[EC_SC] = cmdport;
 	ec.port[EC_DATA] = dataport;
 	ec.init = 1;
-	unlock(&ec);
+	unlock(&ec.Lock);
 
 	addarchfile("ec", 0660, ecarchread, ecarchwrite);
 

@@ -183,27 +183,27 @@ newchan(void)
 {
 	Chan *c;
 
-	lock(&chanalloc);
+	lock(&chanalloc.Lock);
 	c = chanalloc.free;
 	if(c != nil){
 		chanalloc.free = c->next;
 		c->next = nil;
 	} else {
-		unlock(&chanalloc);
+		unlock(&chanalloc.Lock);
 		c = smalloc(sizeof(Chan));
-		lock(&chanalloc);
+		lock(&chanalloc.Lock);
 		c->link = chanalloc.list;
 		chanalloc.list = c;
 	}
 	if(c->fid == 0)
 		c->fid = ++chanalloc.fid;
-	unlock(&chanalloc);
+	unlock(&chanalloc.Lock);
 
 	/* if you get an error before associating with a dev,
 	   close calls rootclose, a nop */
 	c->type = 0;
 	c->flag = 0;
-	c->ref = 1;
+	c->Ref.ref = 1;
 	c->dev = 0;
 	c->offset = 0;
 	c->devoffset = 0;
@@ -239,7 +239,7 @@ newpath(char *s)
 	p->alen = i+PATHSLOP;
 	p->s = smalloc(p->alen);
 	memmove(p->s, s, i+1);
-	p->ref = 1;
+	p->Ref.ref = 1;
 
 	/*
 	 * Cannot use newpath for arbitrary names because the mtpt 
@@ -262,7 +262,7 @@ copypath(Path *p)
 	Path *pp;
 	
 	pp = smalloc(sizeof(Path));
-	pp->ref = 1;
+	pp->Ref.ref = 1;
 	
 	pp->len = p->len;
 	pp->alen = p->alen;
@@ -275,7 +275,7 @@ copypath(Path *p)
 	for(i=0; i<pp->mlen; i++){
 		pp->mtpt[i] = p->mtpt[i];
 		if(pp->mtpt[i] != nil)
-			incref(pp->mtpt[i]);
+			incref(&pp->mtpt[i]->Ref);
 	}
 
 	return pp;
@@ -286,7 +286,7 @@ pathclose(Path *p)
 {
 	int i;
 
-	if(p == nil || decref(p))
+	if(p == nil || decref(&p->Ref))
 		return;
 	for(i=0; i<p->mlen; i++)
 		if(p->mtpt[i] != nil)
@@ -328,7 +328,7 @@ uniquepath(Path *p)
 {
 	Path *new;
 	
-	if(p->ref > 1){
+	if(p->Ref.ref > 1){
 		/* copy on write */
 		new = copypath(p);
 		pathclose(p);
@@ -380,7 +380,7 @@ addelem(Path *p, char *s, Chan *from)
 		}
 		p->mtpt[p->mlen++] = from;
 		if(from != nil)
-			incref(from);
+			incref(&from->Ref);
 	}
 	return p;
 }
@@ -420,10 +420,10 @@ chanfree(Chan *c)
 	pathclose(c->path);
 	c->path = nil;
 
-	lock(&chanalloc);
+	lock(&chanalloc.Lock);
 	c->next = chanalloc.free;
 	chanalloc.free = c;
-	unlock(&chanalloc);
+	unlock(&chanalloc.Lock);
 }
 
 /*
@@ -490,14 +490,14 @@ closeproc(void *)
 			}
 			c = closechandeq();
 			if(c == nil) {
-				if(clunkq.q.head != nil) {
+				if(clunkq.head != nil) {
 					qunlock(&clunkq.q);
 					pexit("no work", 1);
 				}
 				qunlock(&clunkq.q);
 				continue;
 			}
-			if(clunkq.q.head == nil) {
+			if(clunkq.head == nil) {
 				if(!waserror()) {
 					kproc("closeproc", closeproc, nil);
 					poperror();
@@ -516,10 +516,10 @@ closeproc(void *)
 void
 cclose(Chan *c)
 {
-	if(c == nil || c->ref < 1 || c->flag&CFREE)
+	if(c == nil || c->Ref.ref < 1 || c->flag&CFREE)
 		panic("cclose %#p", getcallerpc(&c));
 
-	if(decref(c))
+	if(decref(&c->Ref))
 		return;
 
 	if(devtab[c->type]->dc == L'M')
@@ -540,10 +540,10 @@ cclose(Chan *c)
 void
 ccloseq(Chan *c)
 {
-	if(c == nil || c->ref < 1 || c->flag&CFREE)
+	if(c == nil || c->Ref.ref < 1 || c->flag&CFREE)
 		panic("ccloseq %#p", getcallerpc(&c));
 
-	if(decref(c) == 0)
+	if(decref(&c->Ref) == 0)
 		closechanq(c);
 }
 
@@ -555,7 +555,7 @@ cunique(Chan *c)
 {
 	Chan *nc;
 
-	if(c->ref != 1){
+	if(c->Ref.ref != 1){
 		nc = cclone(c);
 		cclose(c);
 		c = nc;
@@ -612,9 +612,9 @@ newmhead(Chan *from)
 	mh = malloc(sizeof(Mhead));
 	if(mh == nil)
 		error(Enomem);
-	mh->ref = 1;
+	mh->Ref.ref = 1;
 	mh->from = from;
-	incref(from);
+	incref(&from->Ref);
 	setmalloctag(mh, getcallerpc(&from));
 	return mh;
 }
@@ -643,7 +643,7 @@ putmhead(Mhead *m)
 {
 	if(m == nil)
 		return;
-	if(decref(m))
+	if(decref(&m->Ref))
 		return;
 	assert(m->mount == nil);
 	cclose(m->from);
@@ -861,7 +861,7 @@ cclone(Chan *c)
 	Chan *nc;
 	Walkqid *wq;
 
-	if(c == nil || c->ref < 1 || c->flag&CFREE)
+	if(c == nil || c->Ref.ref < 1 || c->flag&CFREE)
 		panic("cclone: %#p", getcallerpc(&c));
 	wq = devtab[c->type]->walk(c, nil, nil, 0);
 	if(wq == nil)
@@ -869,7 +869,7 @@ cclone(Chan *c)
 	nc = wq->clone;
 	free(wq);
 	if((nc->path = c->path) != nil)
-		incref(c->path);
+		incref(&c->path->Ref);
 	return nc;
 }
 
@@ -886,10 +886,10 @@ findmount(Chan **cp, Mhead **mp, int type, int dev, Qid qid)
 	for(m = MOUNTH(pg, qid); m != nil; m = m->hash){
 		if(eqchantdqid(m->from, type, dev, qid, 1)){
 			if(mp != nil)
-				incref(m);
+				incref(&m->Ref);
 			rlock(&m->lock);
 			to = m->mount->to;
-			incref(to);
+			incref(&to->Ref);
 			runlock(&m->lock);
 			runlock(&pg->ns);
 			if(mp != nil){
@@ -925,7 +925,7 @@ domount(Chan **cp, Mhead **mp, Path **path)
 			print("domount: path %s has mlen==%d\n", p->s, p->mlen);
 		else{
 			from = (*mp)->from;
-			incref(from);
+			incref(&from->Ref);
 			lc = &p->mtpt[p->mlen-1];
 			if(*lc != nil)
 				cclose(*lc);
@@ -946,9 +946,9 @@ undomount(Chan *c, Path *path)
 {
 	Chan *nc;
 
-	if(path->ref != 1 || path->mlen == 0)
+	if(path->Ref.ref != 1 || path->mlen == 0)
 		print("undomount: path %s ref %ld mlen %d caller %#p\n",
-			path->s, path->ref, path->mlen, getcallerpc(&c));
+			path->s, path->Ref.ref, path->mlen, getcallerpc(&c));
 
 	if(path->mlen > 0 && (nc = path->mtpt[path->mlen-1]) != nil){
 		cclose(c);
@@ -988,9 +988,9 @@ walk(Chan **cp, char **names, int nnames, int nomount, int *nerror)
 	Walkqid *wq;
 
 	c = *cp;
-	incref(c);
+	incref(&c->Ref);
 	path = c->path;
-	incref(path);
+	incref(&path->Ref);
 	mh = nil;
 
 	/*
@@ -1323,7 +1323,7 @@ namec(char *aname, int amode, int omode, ulong perm)
 	switch(name[0]){
 	case '/':
 		c = up->slash;
-		incref(c);
+		incref(&c->Ref);
 		break;
 	
 	case '#':
@@ -1354,7 +1354,7 @@ namec(char *aname, int amode, int omode, ulong perm)
 
 	default:
 		c = up->dot;
-		incref(c);
+		incref(&c->Ref);
 		break;
 	}
 
@@ -1449,7 +1449,7 @@ namec(char *aname, int amode, int omode, ulong perm)
 	Open:
 		/* save&update the name; domount might change c */
 		path = c->path;
-		incref(path);
+		incref(&path->Ref);
 		if(waserror()){
 			pathclose(path);
 			nexterror();
@@ -1583,7 +1583,7 @@ namec(char *aname, int amode, int omode, ulong perm)
 				cnew = createdir(cnew, m);
 			else{
 				cnew = c;
-				incref(cnew);
+				incref(&cnew->Ref);
 			}
 
 			/*
@@ -1595,7 +1595,7 @@ namec(char *aname, int amode, int omode, ulong perm)
 			cnew = cunique(cnew);
 			pathclose(cnew->path);
 			cnew->path = c->path;
-			incref(cnew->path);
+			incref(&cnew->path->Ref);
 
 			cnew = devtab[cnew->type]->create(cnew, e.elems[e.nelems-1], omode&~(OEXCL|OCEXEC), perm);
 			if(omode & ORCLOSE)

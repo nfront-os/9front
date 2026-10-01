@@ -555,7 +555,7 @@ tcpkick(void *arg)
 	Conv *s = (Conv*)arg;
 	Tcpctl *tcb = (Tcpctl*)s->ptcl;
 
-	qlock(s);
+	qlock(&s->QLock);
 	switch(tcb->state) {
 	case Established:
 		if(tcb->bypass != nil)
@@ -573,7 +573,7 @@ tcpkick(void *arg)
 		localclose(s, "Hangup");
 		break;
 	}
-	qunlock(s);
+	qunlock(&s->QLock);
 }
 
 static int
@@ -615,13 +615,13 @@ tcprcvwin(Conv *s)				/* Call with tcb locked */
 
 	w = tcb->window - qlen(s->rq);
 
-	/* RFC 1122 § 4.2.3.3 silly window syndrome avoidance */
+	/* RFC 1122 § 4.2.3 silly window syndrome avoidance */
 	if((int)w < tcb->rcv.wnd + tcb->mss)
 		w = 0;
 
 	w += tcb->rcv.nxt;
 
-	/* RFC 1122 § 4.2.2.16 do not move right edge of window left */
+	/* RFC 1122 § 4.2.16 do not move right edge of window left */
 	if(seq_lt(w, tcb->rcv.wptr))
 		w = tcb->rcv.wptr;
 
@@ -639,12 +639,12 @@ tcpacktimer(void *arg)
 	if(tcb->bypass != nil)
 		return;
 
-	qlock(s);
+	qlock(&s->QLock);
 	if(tcb->state != Closed && tcb->bypass == nil){
 		tcb->flags |= FORCE;
 		tcpoutput(s);
 	}
-	qunlock(s);
+	qunlock(&s->QLock);
 }
 
 static void
@@ -796,7 +796,7 @@ localclose(Conv *s, char *reason)	/* called with c locked */
 	Tcpctl *tcb = (Tcpctl*)s->ptcl;
 	Tcppriv *tpriv = (Tcppriv*)s->p->priv;
 
-	iphtrem(&tpriv->ht, s);
+	iphtrem(&tpriv->ht,&s->Iphash);
 
 	tcphalt(tpriv, &tcb->timer);
 	tcphalt(tpriv, &tcb->acktimer);
@@ -832,12 +832,12 @@ tcpmtu(Route *r, uchar *scale, int version)
 	 * otherwise, we use the default MSS which assumes a
 	 * safe minimum MTU of 1280 bytes for V6.
 	 */  
-	if(r != nil && (ifc = r->ifc) != nil){
+	if(r != nil && (ifc = r->RouteTree.ifc) != nil){
 		mtu = ifc->maxtu - ifc->m->hsize;
 		if(version == V4)
 			return mtu - (TCP4_PKT + TCP4_HDRSIZE);
 		mtu -= TCP6_PKT + TCP6_HDRSIZE;
-		if((r->type & (Rifc|Runi)) != 0 || mtu <= DEF_MSS6)
+		if((r->RouteTree.type & (Rifc|Runi)) != 0 || mtu <= DEF_MSS6)
 			return mtu;
 	}
 	if(version == V6)
@@ -874,8 +874,8 @@ inittcpctl(Conv *s, int mode)
 	if(mode == TCP_LISTEN)
 		return;
 
-	if(ipcmp(s->laddr, IPnoaddr) == 0)
-		findlocalip(s->p->f, s->laddr, s->raddr);
+	if(ipcmp(s->Iphash.laddr, IPnoaddr) == 0)
+		findlocalip(s->p->f, s->Iphash.laddr, s->Iphash.raddr);
 
 	/* create a prototype(pseudo) header */
 	switch(s->ipversion){
@@ -884,10 +884,10 @@ inittcpctl(Conv *s, int mode)
 		memset(h4, 0, sizeof(*h4));
 		h4->vihl = IP_VER4;
 		h4->proto = IP_TCPPROTO;
-		hnputs(h4->tcpsport, s->lport);
-		hnputs(h4->tcpdport, s->rport);
-		v6tov4(h4->tcpsrc, s->laddr);
-		v6tov4(h4->tcpdst, s->raddr);
+		hnputs(h4->tcpsport, s->Iphash.lport);
+		hnputs(h4->tcpdport, s->Iphash.rport);
+		v6tov4(h4->tcpsrc, s->Iphash.laddr);
+		v6tov4(h4->tcpdst, s->Iphash.raddr);
 
 		tcb->mss = DEF_MSS;
 		break;
@@ -895,10 +895,10 @@ inittcpctl(Conv *s, int mode)
 		h6 = &tcb->protohdr.tcp6hdr;
 		memset(h6, 0, sizeof(*h6));
 		h6->proto = IP_TCPPROTO;
-		hnputs(h6->tcpsport, s->lport);
-		hnputs(h6->tcpdport, s->rport);
-		ipmove(h6->tcpsrc, s->laddr);
-		ipmove(h6->tcpdst, s->raddr);
+		hnputs(h6->tcpsport, s->Iphash.lport);
+		hnputs(h6->tcpdport, s->Iphash.rport);
+		ipmove(h6->tcpsrc, s->Iphash.laddr);
+		ipmove(h6->tcpdst, s->Iphash.raddr);
 
 		tcb->mss = DEF_MSS6;
 		break;
@@ -930,7 +930,7 @@ tcpstart(Conv *s, int mode)
 
 	inittcpctl(s, mode);
 
-	iphtadd(&tpriv->ht, s);
+	iphtadd(&tpriv->ht,&s->Iphash);
 	switch(mode) {
 	case TCP_LISTEN:
 		tpriv->stats[PassiveOpens]++;
@@ -1264,7 +1264,7 @@ tcpsndsyn(Conv *s)
 	tcb->rttime = 0;	/* set in tcpoutput() */
 
 	/* set desired mss and scale */
-	tcb->mss = tcpmtu(v6lookup(s->p->f, s->raddr, s->laddr, s), &tcb->scale, s->ipversion);
+	tcb->mss = tcpmtu(v6lookup(s->p->f,s->Iphash.raddr,s->Iphash.laddr,&s->Routehint), &tcb->scale, s->ipversion);
 }
 
 static int
@@ -1350,7 +1350,7 @@ tcphangup(Conv *s)
 {
 	Tcpctl *tcb = (Tcpctl*)s->ptcl;
 
-	if(ipcmp(s->raddr, IPnoaddr) != 0 && tcb->state != Closed && tcb->bypass == nil) {
+	if(ipcmp(s->Iphash.raddr, IPnoaddr) != 0 && tcb->state != Closed && tcb->bypass == nil) {
 		Block *bp;
 		Tcp seg;
 
@@ -1364,18 +1364,18 @@ tcphangup(Conv *s)
 		switch(s->ipversion) {
 		case V4:
 			bp = htontcp4(&seg, nil, &tcb->protohdr.tcp4hdr);
-			qunlock(s);
-			ipoput4(s->p->f, bp, nil, s->ttl, s->tos, s);
+			qunlock(&s->QLock);
+			ipoput4(s->p->f,bp,nil,s->ttl,s->tos,&s->Routehint);
 			break;
 		case V6:
 			bp = htontcp6(&seg, nil, &tcb->protohdr.tcp6hdr);
-			qunlock(s);
-			ipoput6(s->p->f, bp, nil, s->ttl, s->tos, s);
+			qunlock(&s->QLock);
+			ipoput6(s->p->f,bp,nil,s->ttl,s->tos,&s->Routehint);
 			break;
 		default:
 			panic("tcphangup: version %d", s->ipversion);
 		}
-		qlock(s);
+		qlock(&s->QLock);
 	}
 	localclose(s, nil);
 	return nil;
@@ -1535,7 +1535,7 @@ limborexmit(Proto *tcp)
 	ulong now;
 	int h;
 
-	if(!canqlock(tcp))
+	if(!canqlock(&tcp->QLock))
 		return;
 
 	now = NOW;
@@ -1553,7 +1553,7 @@ limborexmit(Proto *tcp)
 			l = &lp->next;
 		}
 	}
-	qunlock(tcp);
+	qunlock(&tcp->QLock);
 }
 
 /*
@@ -1709,7 +1709,7 @@ tcpincoming(Conv *s, Tcp *seg, uchar *src, uchar *dst, int version)
 	tcpsynackrtt(tcb);
 
 	/* the same as what we sent in SYN,ACK */
-	rp = v6lookup(s->p->f, src, dst, new);
+	rp = v6lookup(s->p->f,src,dst,&new->Routehint);
 	tcb->mss = tcpmtu(rp, &tcb->scale, version);
 
 	tcpsetmss(new, lp->mss);
@@ -1728,8 +1728,8 @@ tcpincoming(Conv *s, Tcp *seg, uchar *src, uchar *dst, int version)
 		memset(h4, 0, sizeof(*h4));
 		h4->vihl = IP_VER4;
 		h4->proto = IP_TCPPROTO;
-		hnputs(h4->tcpsport, new->lport);
-		hnputs(h4->tcpdport, new->rport);
+		hnputs(h4->tcpsport, new->Iphash.lport);
+		hnputs(h4->tcpdport, new->Iphash.rport);
 		v6tov4(h4->tcpsrc, dst);
 		v6tov4(h4->tcpdst, src);
 		break;
@@ -1737,8 +1737,8 @@ tcpincoming(Conv *s, Tcp *seg, uchar *src, uchar *dst, int version)
 		h6 = &tcb->protohdr.tcp6hdr;
 		memset(h6, 0, sizeof(*h6));
 		h6->proto = IP_TCPPROTO;
-		hnputs(h6->tcpsport, new->lport);
-		hnputs(h6->tcpdport, new->rport);
+		hnputs(h6->tcpsport, new->Iphash.lport);
+		hnputs(h6->tcpdport, new->Iphash.rport);
 		ipmove(h6->tcpsrc, dst);
 		ipmove(h6->tcpdst, src);
 		break;
@@ -1746,22 +1746,22 @@ tcpincoming(Conv *s, Tcp *seg, uchar *src, uchar *dst, int version)
 		panic("tcpincoming: version %d", new->ipversion);
 	}
 
-	qlock(new);
+	qlock(&new->QLock);
 	tcpsetstate(new, Established);
-	iphtadd(&tpriv->ht, new);
-	if(rp != nil && (rp->type & Runi) != 0){
+	iphtadd(&tpriv->ht,&new->Iphash);
+	if(rp != nil && (rp->RouteTree.type & Runi) != 0){
 		/* see if we can find the local conversation and splice them together */
-		Iphash *iph = iphtlook(&tpriv->ht, new->laddr, new->lport, new->raddr, new->rport);
+		Iphash *iph = iphtlook(&tpriv->ht, new->Iphash.laddr, new->Iphash.lport, new->Iphash.raddr, new->Iphash.rport);
 		if(iph != nil && iph->trans == 0){
 			Conv *old = iphconv(iph);
 			if(old != new){
-				qlock(old);
+				qlock(&old->QLock);
 				tcpsplice(new, old);
-				qunlock(old);
+				qunlock(&old->QLock);
 			}
 		}
 	}
-	qunlock(new);
+	qunlock(&new->QLock);
 
 	return new;
 }
@@ -2036,7 +2036,7 @@ badhdr:
 	}
 
 	/* lock protocol while searching for a conversation */
-	qlock(tcp);
+	qlock(&tcp->QLock);
 
 	/* Look for a matching conversation */
 	iph = iphtlook(&tpriv->ht, source, seg.source, dest, seg.dest);
@@ -2044,7 +2044,7 @@ badhdr:
 		netlog(f, Logtcp, "iphtlook(src %I!%d, dst %I!%d) failed\n",
 			source, seg.source, dest, seg.dest);
 reset:
-		qunlock(tcp);
+		qunlock(&tcp->QLock);
 		freeblist(bp);
 		sndrst(tcp, source, dest, length, &seg, version, "no conversation", nil);
 		return;
@@ -2057,8 +2057,8 @@ reset:
 		hnputs_csum(h4->tcpdst+0, nhgets(q->forward.raddr+IPv4off+0), h4->tcpcksum);
 		hnputs_csum(h4->tcpdst+2, nhgets(q->forward.raddr+IPv4off+2), h4->tcpcksum);
 		hnputs_csum(h4->tcpdport, q->forward.rport, h4->tcpcksum);
-		qunlock(tcp);
-		ipoput4(f, bp, ifc, ttl - 1, h4->tos, q);
+		qunlock(&tcp->QLock);
+		ipoput4(f,bp,ifc,ttl - 1,h4->tos,&q->Routehint);
 		return;
 	}
 	s = iphconv(iph);
@@ -2069,7 +2069,7 @@ reset:
 		tpriv->stats[LenErrs]++;
 		tpriv->stats[InErrs]++;
 		netlog(f, Logtcp, "tcp bad length after header trim off\n");
-		qunlock(tcp);
+		qunlock(&tcp->QLock);
 		return;
 	}
 
@@ -2078,7 +2078,7 @@ reset:
 	if(tcb->state == Listen){
 		if(seg.flags & RST){
 			limborst(s, &seg, source, dest, version);
-			qunlock(tcp);
+			qunlock(&tcp->QLock);
 			freeblist(bp);
 			return;
 		}
@@ -2086,7 +2086,7 @@ reset:
 		/* if this is a new SYN, put the call into limbo */
 		if((seg.flags & SYN) && (seg.flags & ACK) == 0){
 			limbo(s, &seg, source, dest, version);
-			qunlock(tcp);
+			qunlock(&tcp->QLock);
 			freeblist(bp);
 			return;
 		}
@@ -2105,8 +2105,8 @@ reset:
 	 * Out-of-band data is ignored - it was always a bad idea.
 	 */
 	tcb = (Tcpctl*)s->ptcl;
-	qlock(s);
-	qunlock(tcp);
+	qlock(&s->QLock);
+	qunlock(&tcp->QLock);
 
 	/* fix up window */
 	seg.wnd <<= tcb->snd.scale;
@@ -2119,9 +2119,9 @@ reset:
 	closed:
 		reason = "sending to Closed";
 	reset2:
-		qunlock(s);
+		qunlock(&s->QLock);
 		freeblist(bp);
-		sndrst(tcp, source, dest, length, &seg, version, reason, s);
+		sndrst(tcp,source,dest,length,&seg,version,reason,&s->Routehint);
 		return;
 	case Syn_sent:
 		if(seg.flags & ACK) {
@@ -2169,7 +2169,7 @@ reset:
 		netlog(f, Logtcp, "tcp: trim: !inwind: seq %lud-%lud (%d) win %lud-%lud (%lud) from %I!%d -> %I!%d\n", 
 			seg.seq, seg.seq+length, length,
 			tcb->rcv.nxt, tcb->rcv.wptr, tcb->rcv.wnd,
-			s->raddr, s->rport, s->laddr, s->lport);
+			s->Iphash.raddr, s->Iphash.rport, s->Iphash.laddr, s->Iphash.lport);
 		tcb->flags |= FORCE;
 		update(s, &seg);
 		if(tcb->state == Closing)
@@ -2206,7 +2206,7 @@ reset:
 		tcb->flags |= FORCE;
 		update(s, &seg);
 		if(addreseq(f, tcb, tpriv, &seg, &bp, length) < 0)
-			print("tcp: reseq: %I!%d -> %I!%d\n", s->raddr, s->rport, s->laddr, s->lport);
+			print("tcp: reseq: %I!%d -> %I!%d\n", s->Iphash.raddr, s->Iphash.rport, s->Iphash.laddr, s->Iphash.lport);
 		goto output;
 	}
 
@@ -2220,7 +2220,7 @@ reset:
 				tpriv->stats[EstabResets]++;
 				if(tcb->rcv.nxt != seg.seq)
 					print("out of order RST rcvd: %I.%d -> %I.%d, rcv.nxt %lux seq %lux\n",
-						s->raddr, s->rport, s->laddr, s->lport, tcb->rcv.nxt, seg.seq);
+						s->Iphash.raddr, s->Iphash.rport, s->Iphash.laddr, s->Iphash.lport, tcb->rcv.nxt, seg.seq);
 			}
 			localclose(s, Econrefused);
 			goto raise;
@@ -2379,10 +2379,10 @@ output:
 	if(tcb->acktimer.state != TcptimerON)
 		tcpgo(tpriv, &tcb->acktimer);
 
-	qunlock(s);
+	qunlock(&s->QLock);
 	return;
 raise:
-	qunlock(s);
+	qunlock(&s->QLock);
 	freeblist(bp);
 }
 
@@ -2465,8 +2465,8 @@ tcpoutput(Conv *s)
 		tcb->flags &= ~FORCE;
 
 		/* By default we will generate an ack */
-		seg.source = s->lport;
-		seg.dest = s->rport;
+		seg.source = s->Iphash.lport;
+		seg.dest = s->Iphash.rport;
 		seg.flags = ACK;
 		seg.mss = 0;
 		seg.ws = 0;
@@ -2534,23 +2534,23 @@ tcpoutput(Conv *s)
 		switch(s->ipversion){
 		case V4:
 			bp = htontcp4(&seg, bp, &tcb->protohdr.tcp4hdr);
-			qunlock(s);
-			sent = ipoput4(f, bp, nil, s->ttl, s->tos, s);
+			qunlock(&s->QLock);
+			sent = ipoput4(f,bp,nil,s->ttl,s->tos,&s->Routehint);
 			break;
 		case V6:
 			bp = htontcp6(&seg, bp, &tcb->protohdr.tcp6hdr);
-			qunlock(s);
-			sent = ipoput6(f, bp, nil, s->ttl, s->tos, s);
+			qunlock(&s->QLock);
+			sent = ipoput6(f,bp,nil,s->ttl,s->tos,&s->Routehint);
 			break;
 		default:
 			panic("tcpoutput: version %d", s->ipversion);
 		}
 		if(sent < 0){
-			qlock(s);
+			qlock(&s->QLock);
 			localclose(s, Enoroute);
 			return;
 		}
-		qlock(s);
+		qlock(&s->QLock);
 	}
 }
 
@@ -2566,8 +2566,8 @@ tcpsendka(Conv *s)
 	int ret;
 
 	memset(&seg, 0, sizeof seg);
-	seg.source = s->lport;
-	seg.dest = s->rport;
+	seg.source = s->Iphash.lport;
+	seg.dest = s->Iphash.rport;
 	seg.flags = ACK|PSH;
 	seg.mss = 0;
 	seg.ws = 0;
@@ -2588,18 +2588,18 @@ tcpsendka(Conv *s)
 	switch(s->ipversion){
 	case V4:
 		bp = htontcp4(&seg, bp, &tcb->protohdr.tcp4hdr);
-		qunlock(s);
-		ret = ipoput4(s->p->f, bp, nil, s->ttl, s->tos, s);
+		qunlock(&s->QLock);
+		ret = ipoput4(s->p->f,bp,nil,s->ttl,s->tos,&s->Routehint);
 		break;
 	case V6:
 		bp = htontcp6(&seg, bp, &tcb->protohdr.tcp6hdr);
-		qunlock(s);
-		ret = ipoput6(s->p->f, bp, nil, s->ttl, s->tos, s);
+		qunlock(&s->QLock);
+		ret = ipoput6(s->p->f,bp,nil,s->ttl,s->tos,&s->Routehint);
 		break;
 	default:
 		panic("tcpsendka: version %d", s->ipversion);
 	}
-	qlock(s);
+	qlock(&s->QLock);
 	return ret;
 }
 
@@ -2613,7 +2613,7 @@ tcpkeepalive(void *arg)
 	Conv *s = (Conv*)arg;
 	Tcpctl *tcb = (Tcpctl*)s->ptcl;
 
-	qlock(s);
+	qlock(&s->QLock);
 	if(tcb->state != Closed && tcb->bypass == nil){
 		if(++(tcb->kato) > MAX_KAT) {
 			localclose(s, Etimedout);
@@ -2623,7 +2623,7 @@ tcpkeepalive(void *arg)
 			tcpgo(s->p->priv, &tcb->katimer);
 		}
 	}
-	qunlock(s);
+	qunlock(&s->QLock);
 }
 
 /*
@@ -2699,7 +2699,7 @@ tcptimeout(void *arg)
 	Tcppriv *tpriv = (Tcppriv*)s->p->priv;
 	int maxback;
 
-	qlock(s);
+	qlock(&s->QLock);
 	switch(tcb->state){
 	default:
 		if(tcb->backoff < 8)
@@ -2740,7 +2740,7 @@ tcptimeout(void *arg)
 	case Closed:
 		break;
 	}
-	qunlock(s);
+	qunlock(&s->QLock);
 }
 
 /*
@@ -2938,7 +2938,7 @@ tcpadvise(Proto *tcp, Block *bp, Ipifc *ifc, char *msg)
 	}
 
 	/* Look for a connection (source/dest reversed; this is the original packet we sent) */
-	qlock(tcp);
+	qlock(&tcp->QLock);
 	iph = iphtlook(tcp->ht, dest, pdest, source, psource);
 	if(iph == nil || iph->match != IPmatchexact)
 		goto raise;
@@ -2954,7 +2954,7 @@ tcpadvise(Proto *tcp, Block *bp, Ipifc *ifc, char *msg)
 
 		/* dont bother fixing tcp checksum, packet is most likely truncated */
 		hnputs(h4->tcpsport, q->forward.rport);
-		qunlock(tcp);
+		qunlock(&tcp->QLock);
 
 		icmpproxyadvice(tcp->f, ifc, bp, h4->tcpsrc);
 		return;
@@ -2963,15 +2963,15 @@ tcpadvise(Proto *tcp, Block *bp, Ipifc *ifc, char *msg)
 	if(s->ignoreadvice || s->state == Announced || s->state == Closed)
 		goto raise;
 	tcb = (Tcpctl*)s->ptcl;
-	qlock(s);
-	qunlock(tcp);
+	qlock(&s->QLock);
+	qunlock(&tcp->QLock);
 	if(tcb->state == Syn_sent)
 		localclose(s, msg);
-	qunlock(s);
+	qunlock(&s->QLock);
 	freeblist(bp);
 	return;
 raise:
-	qunlock(tcp);
+	qunlock(&tcp->QLock);
 	freeblist(bp);
 }
 
@@ -2998,17 +2998,17 @@ tcpforward(Proto *tcp, Block *bp, Route *r)
 	if((h4->tcpflag[1] & (ACK|RST|SYN|FIN)) != SYN)
 		r = nil;
 
-	qlock(tcp);
+	qlock(&tcp->QLock);
 	q = transforward(tcp, sa, sp, da, dp, r);
 	if(q == nil){
-		qunlock(tcp);
+		qunlock(&tcp->QLock);
 		freeblist(bp);
 		return nil;
 	}
 	hnputs_csum(h4->tcpsrc+0, nhgets(q->backward.laddr+IPv4off+0), h4->tcpcksum);
 	hnputs_csum(h4->tcpsrc+2, nhgets(q->backward.laddr+IPv4off+2), h4->tcpcksum);
 	hnputs_csum(h4->tcpsport, q->backward.lport, h4->tcpcksum);
-	qunlock(tcp);
+	qunlock(&tcp->QLock);
 
 	return bp;
 }
@@ -3130,7 +3130,7 @@ tcpgc(Proto *tcp)
 		c = *pp;
 		if(c == nil)
 			break;
-		if(!canqlock(c))
+		if(!canqlock(&c->QLock))
 			continue;
 		tcb = (Tcpctl*)c->ptcl;
 		switch(tcb->state){
@@ -3147,7 +3147,7 @@ tcpgc(Proto *tcp)
 			}
 			break;
 		}
-		qunlock(c);
+		qunlock(&c->QLock);
 	}
 	return n;
 }

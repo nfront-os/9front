@@ -26,8 +26,8 @@ void
 rebootcmd(int argc, char *argv[])
 {
 	struct {
-		Exec;
-		uvlong	hdr[1];
+		Exec hdr;
+		uvlong	hdr2[1];
 	} ehdr;
 	Chan *c;
 	ulong magic, text, rtext, entry, data, size, align;
@@ -53,10 +53,10 @@ rebootcmd(int argc, char *argv[])
 	}
 
 	readn(c, &ehdr, sizeof(Exec));
-	magic = beswal(ehdr.magic);
-	entry = beswal(ehdr.entry);
-	text = beswal(ehdr.text);
-	data = beswal(ehdr.data);
+	magic = beswal(ehdr.hdr.magic);
+	entry = beswal(ehdr.hdr.entry);
+	text = beswal(ehdr.hdr.text);
+	data = beswal(ehdr.hdr.data);
 
 	if(!(magic == AOUT_MAGIC)){
 		switch(magic){
@@ -69,7 +69,7 @@ rebootcmd(int argc, char *argv[])
 		}
 	}
 	if(magic & HDR_MAGIC)
-		readn(c, ehdr.hdr, sizeof(ehdr.hdr));
+		readn(c, (void *)&ehdr.hdr, sizeof(ehdr.hdr));
 
 	switch(magic){
 	case R_MAGIC:
@@ -98,6 +98,6 @@ rebootcmd(int argc, char *argv[])
 
 	ksetenv("bootfile", argv[0], 1);
 
-	reboot((void*)entry, p, size);
+	reboot((void*)(uintptr)entry, p, size);
 	error(Egreg);
 }

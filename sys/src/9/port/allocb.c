@@ -49,7 +49,7 @@ allocb(int size)
 	if(up == nil)
 		panic("allocb without up: %#p", getcallerpc(&size));
 	while((b = _allocb(size, BLOCKALIGN)) == nil){
-		if(up->nlocks || m->ilockdepth || !islo()){
+		if(up->nlocks || m->PMach.ilockdepth || !islo()){
 			xsummary();
 			mallocsummary();
 			panic("allocb: no memory for %d bytes", size);
@@ -100,10 +100,10 @@ freeb(Block *b)
 		b->next = nil;
 		b->rp = b->wp = b->lim - ROUND(p->size+Tlrspc, p->align);
 		b->flag = BINTR;
-		ilock(p);
+		ilock(&p->Lock);
 		b->list = p->head;
 		p->head = b;
-		iunlock(p);
+		iunlock(&p->Lock);
 		return;
 	}
 
@@ -142,13 +142,13 @@ iallocbp(Bpool *p)
 {
 	Block *b;
 
-	ilock(p);
+	ilock(&p->Lock);
 	if((b = p->head) != nil){
 		p->head = b->list;
 		b->list = nil;
-		iunlock(p);
+		iunlock(&p->Lock);
 	} else {
-		iunlock(p);
+		iunlock(&p->Lock);
 		p->align = _alignment(p->align);
 		b = _allocb(p->size, p->align);
 		if(b == nil)

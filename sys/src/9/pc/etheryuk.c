@@ -820,13 +820,13 @@ static void
 unstarve(Kproc *k)
 {
 	k->event = 1;
-	wakeup(k);
+	wakeup(&k->Rendez);
 }
 
 static void
 starve(Kproc *k)
 {
-	sleep(k, icansleep, k);
+	sleep(&k->Rendez,icansleep,k);
 	k->event = 0;
 }
 
@@ -2234,7 +2234,7 @@ pnp(Ether *e)
 		c = ctlrtab[i];
 		if(c == nil || c->flag&Fprobe)
 			continue;
-		if(e->port != 0 && e->port != (ulong)(uintptr)c->reg)
+		if(e->ISAConf.port != 0 && e->ISAConf.port != (ulong)(uintptr)c->reg)
 			continue;
 		c->flag |= Fprobe;
 		if(setup(c) != 0)
@@ -2242,22 +2242,22 @@ pnp(Ether *e)
 		break;
 	}
 	e->ctlr = c;
-	e->port = c->io;
-	e->irq = c->p->intl;
+	e->ISAConf.port = c->io;
+	e->ISAConf.irq = c->p->intl;
 	e->tbdf = c->p->tbdf;
-	e->mbps = 1000;
+	e->Netif.mbps = 1000;
 	e->maxmtu = c->rbsz;
 	memmove(e->ea, c->ra, Eaddrlen);
-	e->arg = e;
+	e->Netif.arg = e;
 	e->attach = attach;
 	e->ctl = ctl;
-	e->ifstat = ifstat;
-	e->multicast = multicast;
-	e->promiscuous = promiscuous;
+	e->Netif.ifstat = ifstat;
+	e->Netif.multicast = multicast;
+	e->Netif.promiscuous = promiscuous;
 	e->shutdown = shutdown;
 	e->transmit = nil;
 
-	intrenable(e->irq, interrupt, e, e->tbdf, e->name);
+	intrenable(e->ISAConf.irq, interrupt, e, e->tbdf, e->Netif.name);
 
 	return 0;
 }

@@ -30,7 +30,7 @@ typedef struct Board Board;
 struct Board
 {
 	Link;
-	Ref;
+	Ref Ref;	/* gcc port: named to avoid clashing with Link's own ref field under -fplan9-extensions */
 
 	int 	closed;	
 	Srv 	*srv;
@@ -90,7 +90,7 @@ remove(Link **l, char *name, ulong qidpath)
 			break;
 		if(name != nil && strcmp(lp->name, name) == 0)
 			break;
-		last = &lp->link;
+		last = (Link**)&lp->link;
 	}
 	if(lp == nil)
 		return nil;
@@ -118,7 +118,7 @@ boardclunk(Board *b)
 	if(b == &srvroot)
 		return;
 
-	if(decref(b))
+	if(decref(&b->Ref))
 		return;
 
 	/*
@@ -132,7 +132,7 @@ boardclunk(Board *b)
 		assert(b->parent != nil);
 
 		/* unlink from parent board */
-		ch = remove((Link**)&b->parent->child, b->name, ~0UL);
+		ch = remove((Link**)&b->parent->child, b->Link.name, ~0UL);
 		assert(ch == b);
 
 		/* unlink from all boards list */
@@ -140,7 +140,7 @@ boardclunk(Board *b)
 		ch->next->prev = ch->prev;
 
 		b = ch->parent;
-		freelink(ch);
+		freelink(&ch->Link);
 	}
 }
 
@@ -176,32 +176,32 @@ srvgen(Chan *c, char *name, Dirtab*, int, int s, Dir *dp)
 		if(strcmp(name, clone) == 0)
 			goto Clone;
 
-		sp = lookup(b->srv, name, ~0UL);
+		sp = lookup(&b->srv->Link,name,~0UL);
 		if(sp == nil)
-			ch = lookup(b->child, name, ~0UL);
+			ch = lookup(&b->child->Link,name,~0UL);
 	} else {
 		if(s == 0)
 			goto Clone;
 		s--;
-		for(sp = b->srv; sp != nil && s > 0; sp = sp->link)
+		for(sp = b->srv; sp != nil && s > 0; sp = sp->Link.link)
 			s--;
-		for(ch = b->child; ch != nil && s > 0; ch = ch->link)
+		for(ch = b->child; ch != nil && s > 0; ch = ch->Link.link)
 			s--;
 	}
 	if(sp != nil){
-		kstrcpy(up->genbuf, sp->name, sizeof up->genbuf);
-		q.path = SRVQID(sp->path, Qsrv);
-		devdir(c, q, up->genbuf, 0, sp->owner, sp->perm, dp);
+		kstrcpy(up->genbuf, sp->Link.name, sizeof up->genbuf);
+		q.path = SRVQID(sp->Link.path, Qsrv);
+		devdir(c, q, up->genbuf, 0, sp->Link.owner, sp->Link.perm, dp);
 	} else if(ch != nil){
 Child:
 		if(name != nil || s == DEVDOTDOT){
-			devpermcheck(ch->owner, ch->perm, OEXEC);
+			devpermcheck(ch->Link.owner, ch->Link.perm, OEXEC);
 			c->aux = ch;
 		}
-		kstrcpy(up->genbuf, ch->name, sizeof up->genbuf);
-		q.path = SRVQID(ch->path, Qsrv);
+		kstrcpy(up->genbuf, ch->Link.name, sizeof up->genbuf);
+		q.path = SRVQID(ch->Link.path, Qsrv);
 		q.type = QTDIR;
-		devdir(c, q, up->genbuf, 0, ch->owner, ch->perm|DMDIR, dp);
+		devdir(c, q, up->genbuf, 0, ch->Link.owner, ch->Link.perm|DMDIR, dp);
 	} else if(0){
 Clone:
 		q.path = SRVQID(SRVPATH(c->qid.path), Qclone);
@@ -222,10 +222,10 @@ srvinit(void)
 {
 	srvroot.next = &srvroot;
 	srvroot.prev = &srvroot;
-	srvroot.path = srvpath++;
-	srvroot.name = "#s";
-	srvroot.perm = 0777;
-	kstrdup(&srvroot.owner, eve);
+	srvroot.Link.path = srvpath++;
+	srvroot.Link.name = "#s";
+	srvroot.Link.perm = 0777;
+	kstrdup(&srvroot.Link.owner, eve);
 }
 
 static Chan*
@@ -252,7 +252,7 @@ srvwalk(Chan *c, Chan *nc, char **name, int nname)
 	if(b == &srvroot)
 		return wq;
 
-	incref(b);
+	incref(&b->Ref);
 	return wq;
 }
 
@@ -298,14 +298,14 @@ srvopen(Chan *c, int omode)
 		if(b->closed)
 			error(Eshutdown);
 		ch = smalloc(sizeof *ch);
-		ch->ref = 1;
-		ch->perm = 0770;
+		ch->Ref.ref = 1;
+		ch->Link.perm = 0770;
 		do {
-			ch->path = srvpath++;
-			snprint(buf, sizeof buf, "%ld", ch->path);
-		} while(lookup(b->srv, buf, ~0UL) != nil);
-		kstrdup(&ch->name, buf);
-		kstrdup(&ch->owner, up->user);
+			ch->Link.path = srvpath++;
+			snprint(buf, sizeof buf, "%ld", ch->Link.path);
+		} while(lookup(&b->srv->Link,buf,~0UL) != nil);
+		kstrdup(&ch->Link.name, buf);
+		kstrdup(&ch->Link.owner, up->user);
 
 		/* link to all boards list */
 		ch->next = &srvroot;
@@ -315,11 +315,11 @@ srvopen(Chan *c, int omode)
 
 		/* link to parent board */
 		ch->parent = b;
-		ch->link = b->child;
+		ch->Link.link = b->child;
 		b->child = ch;
 
 		c->aux = ch;
-		c->qid.path = SRVQID(ch->path, Qlease);
+		c->qid.path = SRVQID(ch->Link.path, Qlease);
 		c->mode = mode;
 		boardclunk(b);
 		wunlock(&srvlk);
@@ -335,7 +335,7 @@ srvopen(Chan *c, int omode)
 	if(c->qid.type == QTDIR){
 		if(omode != OREAD)
 			error(Eisdir);
-		devpermcheck(b->owner, b->perm, omode);
+		devpermcheck(b->Link.owner, b->Link.perm, omode);
 		c->mode = mode;
 		c->flag |= COPEN;
 		c->offset = 0;
@@ -346,7 +346,7 @@ srvopen(Chan *c, int omode)
 	if(b->closed)
 		error(Eshutdown);
 
-	sp = lookup(b->srv, nil, c->qid.path);
+	sp = lookup(&b->srv->Link,nil,c->qid.path);
 	if(sp == nil)
 		error(Eshutdown);
 	nc = sp->chan;
@@ -354,9 +354,9 @@ srvopen(Chan *c, int omode)
 		error(Eshutdown);
 	if(mode != nc->mode && nc->mode != ORDWR)
 		error(Eperm);
-	devpermcheck(sp->owner, sp->perm, omode);
+	devpermcheck(sp->Link.owner, sp->Link.perm, omode);
 
-	incref(nc);
+	incref(&nc->Ref);
 
 	runlock(&srvlk);
 	poperror();
@@ -381,31 +381,31 @@ srvcreate(Chan *c, char *name, int omode, ulong perm)
 		error(Eexist);
 
 	sp = smalloc(sizeof *sp);
-	kstrdup(&sp->name, name);
-	kstrdup(&sp->owner, up->user);
+	kstrdup(&sp->Link.name, name);
+	kstrdup(&sp->Link.owner, up->user);
 
 	b = c->aux;
 	wlock(&srvlk);
 	if(waserror()){
 		wunlock(&srvlk);
-		freelink(sp);
+		freelink(&sp->Link);
 		nexterror();
 	}
 	if(b->closed)
 		error(Eshutdown);
-	devpermcheck(b->owner, b->perm, OWRITE);
-	if(lookup(b->srv, name, ~0UL) != nil)
+	devpermcheck(b->Link.owner, b->Link.perm, OWRITE);
+	if(lookup(&b->srv->Link,name,~0UL) != nil)
 		error(Eexist);
-	if(lookup(b->child, name, ~0UL) != nil)
+	if(lookup(&b->child->Link,name,~0UL) != nil)
 		error(Eexist);
 
-	sp->perm = perm&0777;
-	sp->path = srvpath++;
+	sp->Link.perm = perm&0777;
+	sp->Link.path = srvpath++;
 
-	c->qid.path = SRVQID(sp->path, Qsrv);
+	c->qid.path = SRVQID(sp->Link.path, Qsrv);
 	c->qid.type = QTFILE;
 
-	sp->link = b->srv;
+	sp->Link.link = b->srv;
 	b->srv = sp;
 
 	wunlock(&srvlk);
@@ -438,11 +438,11 @@ srvremove(Chan *c)
 		error(Eperm);
 	}
 
-	sp = lookup(b->srv, nil, c->qid.path);
+	sp = lookup(&b->srv->Link,nil,c->qid.path);
 	if(sp == nil)
 		error(Enonexist);
 
-	if(strcmp(sp->owner, up->user) != 0 && !iseve())
+	if(strcmp(sp->Link.owner, up->user) != 0 && !iseve())
 		error(Eperm);
 
 	remove((Link**)&b->srv, nil, c->qid.path);
@@ -453,7 +453,7 @@ srvremove(Chan *c)
 
 	if(sp->chan != nil)
 		cclose(sp->chan);
-	freelink(sp);
+	freelink(&sp->Link);
 }
 
 static int
@@ -491,9 +491,9 @@ srvwstat(Chan *c, uchar *dp, int n)
 		error(Eshutdown);
 
 	if(c->qid.type == QTDIR)
-		lp = b;
+		lp = &b->Link;
 	else
-		lp = lookup(b->srv, nil, c->qid.path);
+		lp = lookup(&b->srv->Link,nil,c->qid.path);
 	if(lp == nil)
 		error(Enonexist);
 
@@ -513,9 +513,9 @@ srvwstat(Chan *c, uchar *dp, int n)
 			s = b->parent;
 		else
 			s = b;
-		if(lookup(s->srv, d.name, ~0UL) != nil)
+		if(lookup(&s->srv->Link,d.name,~0UL) != nil)
 			error(Eexist);
-		if(lookup(s->child, d.name, ~0UL) != nil)
+		if(lookup(&s->child->Link,d.name,~0UL) != nil)
 			error(Eexist);
 		kstrdup(&lp->name, d.name);
 	}
@@ -571,10 +571,10 @@ srvclose(Chan *c)
 	wunlock(&srvlk);
 
 	for(; sp != nil; sp = link){
-		link = sp->link;
+		link = sp->Link.link;
 		if(sp->chan != nil)
 			ccloseq(sp->chan);
-		freelink(sp);
+		freelink(&sp->Link);
 	}
 }
 
@@ -590,7 +590,7 @@ srvread(Chan *c, void *va, long n, vlong off)
 			runlock(&srvlk);
 			nexterror();
 		}
-		n = readstr((ulong)off, va, n, b->name);
+		n = readstr((ulong)off, va, n, b->Link.name);
 		runlock(&srvlk);
 		poperror();
 		return n;
@@ -630,7 +630,7 @@ srvwrite(Chan *c, void *va, long n, vlong)
 		error(Eshutdown);
 	if(c1->qid.type & QTAUTH)
 		error("cannot post auth file in srv");
-	sp = lookup(b->srv, nil, c->qid.path);
+	sp = lookup(&b->srv->Link,nil,c->qid.path);
 	if(sp == nil)
 		error(Enonexist);
 
@@ -677,11 +677,11 @@ srvrenameuser(char *old, char *new)
 	wlock(&srvlk);
 	b = &srvroot;
 	do {
-		if(strcmp(b->owner, old) == 0)
-			kstrdup(&b->owner, new);
-		for(sp = b->srv; sp != nil; sp = sp->link)
-			if(strcmp(sp->owner, old) == 0)
-				kstrdup(&sp->owner, new);
+		if(strcmp(b->Link.owner, old) == 0)
+			kstrdup(&b->Link.owner, new);
+		for(sp = b->srv; sp != nil; sp = sp->Link.link)
+			if(strcmp(sp->Link.owner, old) == 0)
+				kstrdup(&sp->Link.owner, new);
 		b = b->next;
 	} while(b != &srvroot);
 	wunlock(&srvlk);

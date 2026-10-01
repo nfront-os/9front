@@ -87,22 +87,22 @@ shrinit(void)
 static void
 putmpt(Mpt *mpt)
 {
-	if(decref(mpt))
+	if(decref(&mpt->Ent.Ref))
 		return;
 	if(mpt->m.to != nil)
 		cclose(mpt->m.to);
-	free(mpt->name);
-	free(mpt->owner);
+	free(mpt->Ent.name);
+	free(mpt->Ent.owner);
 	free(mpt);
 }
 
 static void
 putshr(Shr *shr)
 {
-	if(decref(shr))
+	if(decref(&shr->Ent.Ref))
 		return;
-	free(shr->name);
-	free(shr->owner);
+	free(shr->Ent.name);
+	free(shr->Ent.owner);
 	free(shr);
 }
 
@@ -149,9 +149,9 @@ shrclone(Chan *c)
 	sch = smalloc(sizeof(*sch));
 	memmove(sch, och, sizeof(*sch));
 	if(sch->shr != nil)
-		incref(sch->shr);
+		incref(&sch->shr->Ent.Ref);
 	if(sch->mpt != nil)
-		incref(sch->mpt);
+		incref(&sch->mpt->Ent.Ref);
 	sch->chan = nc;
 	nc->aux = sch;
 	return nc;
@@ -227,8 +227,8 @@ shrwalk(Chan *c, Chan *nc, char **name, int nname)
 		} else if(sch->level == Qcroot || sch->level == Qroot) {
 			qlock(&shrslk);
 			for(shr = shrs; shr != nil; shr = shr->next)
-				if(strcmp(nam, shr->name) == 0){
-					incref(shr);
+				if(strcmp(nam, shr->Ent.name) == 0){
+					incref(&shr->Ent.Ref);
 					break;
 				}
 			qunlock(&shrslk);
@@ -236,7 +236,7 @@ shrwalk(Chan *c, Chan *nc, char **name, int nname)
 				error(Enonexist);
 			sch->level = sch->level == Qcroot ? Qcshr : Qshr;
 			sch->shr = shr;
-			nc->qid = shrqid(sch->level, shr->id);
+			nc->qid = shrqid(sch->level, shr->Ent.id);
 		} else if(sch->level == Qcshr) {
 			mpt = nil;
 			shr = sch->shr;
@@ -244,8 +244,8 @@ shrwalk(Chan *c, Chan *nc, char **name, int nname)
 			rlock(&h->lock);
 			for(m = h->mount; m != nil; m = m->next){
 				mpt = tompt(m);
-				if(strcmp(nam, mpt->name) == 0){
-					incref(mpt);
+				if(strcmp(nam, mpt->Ent.name) == 0){
+					incref(&mpt->Ent.Ref);
 					break;
 				}
 			}
@@ -253,7 +253,7 @@ shrwalk(Chan *c, Chan *nc, char **name, int nname)
 			if(m == nil)
 				error(Enonexist);
 			sch->mpt = mpt;
-			nc->qid = shrqid(sch->level = Qcmpt, mpt->id);
+			nc->qid = shrqid(sch->level = Qcmpt, mpt->Ent.id);
 		} else if(sch->level == Qshr) {
 			shr = sch->shr;
 			h = &shr->umh;
@@ -308,13 +308,13 @@ shrgen(Chan *c, char*, Dirtab*, int, int s, Dir *dp)
 			qunlock(&shrslk);
 			return -1;
 		}
-		kstrcpy(up->genbuf, shr->name, sizeof up->genbuf);
+		kstrcpy(up->genbuf, shr->Ent.name, sizeof up->genbuf);
 		if(sch->level == Qroot)
-			devdir(c, shrqid(Qshr, shr->id), up->genbuf, 0, shr->owner,
-				shr->perm & ~0222, dp);
+			devdir(c, shrqid(Qshr, shr->Ent.id), up->genbuf, 0, shr->Ent.owner,
+				shr->Ent.perm & ~0222, dp);
 		else
-			devdir(c, shrqid(Qcshr, shr->id), up->genbuf, 0, shr->owner,
-				shr->perm, dp);
+			devdir(c, shrqid(Qcshr, shr->Ent.id), up->genbuf, 0, shr->Ent.owner,
+				shr->Ent.perm, dp);
 		qunlock(&shrslk);
 		return 1;
 	case Qcshr:
@@ -328,8 +328,8 @@ shrgen(Chan *c, char*, Dirtab*, int, int s, Dir *dp)
 			return -1;
 		}
 		mpt = tompt(m);
-		kstrcpy(up->genbuf, mpt->name, sizeof up->genbuf);
-		devdir(c, shrqid(Qcmpt, mpt->id), up->genbuf, 0, mpt->owner, mpt->perm, dp);
+		kstrcpy(up->genbuf, mpt->Ent.name, sizeof up->genbuf);
+		devdir(c, shrqid(Qcmpt, mpt->Ent.id), up->genbuf, 0, mpt->Ent.owner, mpt->Ent.perm, dp);
 		runlock(&h->lock);
 		return 1;
 	}
@@ -353,13 +353,13 @@ shrstat(Chan *c, uchar *db, int n)
 		devdir(c, c->qid, "#σc", 0, eve, 0777, &dir);
 		break;
 	case Qshr:
-		devdir(c, c->qid, sch->shr->name, 0, sch->shr->owner, sch->shr->perm & ~0222, &dir);
+		devdir(c, c->qid, sch->shr->Ent.name, 0, sch->shr->Ent.owner, sch->shr->Ent.perm & ~0222, &dir);
 		break;
 	case Qcshr:
-		devdir(c, c->qid, sch->shr->name, 0, sch->shr->owner, sch->shr->perm, &dir);
+		devdir(c, c->qid, sch->shr->Ent.name, 0, sch->shr->Ent.owner, sch->shr->Ent.perm, &dir);
 		break;
 	case Qcmpt:
-		devdir(c, c->qid, sch->mpt->name, 0, sch->mpt->owner, sch->mpt->perm, &dir);
+		devdir(c, c->qid, sch->mpt->Ent.name, 0, sch->mpt->Ent.owner, sch->mpt->Ent.perm, &dir);
 		break;
 	}
 	rc = convD2M(&dir, db, n);
@@ -391,7 +391,7 @@ shropen(Chan *c, int omode)
 	case Qshr:
 	case Qcshr:
 		shr = sch->shr;
-		devpermcheck(shr->owner, shr->perm, mode);
+		devpermcheck(shr->Ent.owner, shr->Ent.perm, mode);
 		break;
 	case Qcmpt:
 		if(omode&OTRUNC)
@@ -400,14 +400,14 @@ shropen(Chan *c, int omode)
 			error(Eperm);
 		shr = sch->shr;
 		mpt = sch->mpt;
-		devpermcheck(mpt->owner, mpt->perm, mode);
+		devpermcheck(mpt->Ent.owner, mpt->Ent.perm, mode);
 		rlock(&shr->umh.lock);
 		if(mpt->m.to == nil || mpt->m.to->mchan == nil){
 			runlock(&shr->umh.lock);
 			error(Eshutdown);
 		}
 		nc = mpt->m.to->mchan;
-		incref(nc);
+		incref(&nc->Ref);
 		runlock(&shr->umh.lock);
 		if(mode != nc->mode){
 			cclose(nc);
@@ -448,7 +448,7 @@ shrcreate(Chan *c, char *name, int omode, ulong perm)
 	default:
 		error(Eperm);
 	case Qshr:
-		incref(c);
+		incref(&c->Ref);
 		if(waserror()){
 			cclose(c);
 			nexterror();
@@ -476,25 +476,25 @@ shrcreate(Chan *c, char *name, int omode, ulong perm)
 			nexterror();
 		}
 		for(shr = shrs; shr != nil; shr = shr->next)
-			if(strcmp(name, shr->name) == 0)
+			if(strcmp(name, shr->Ent.name) == 0)
 				error(Eexist);
 
 		shr = smalloc(sizeof(*shr));
-		incref(shr);
-		shr->id = shrid++;
+		incref(&shr->Ent.Ref);
+		shr->Ent.id = shrid++;
 
-		kstrdup(&shr->name, name);
-		kstrdup(&shr->owner, up->user);
-		shr->perm = perm;
+		kstrdup(&shr->Ent.name, name);
+		kstrdup(&shr->Ent.owner, up->user);
+		shr->Ent.perm = perm;
 
-		incref(shr);
+		incref(&shr->Ent.Ref);
 		shr->next = shrs;
 		shrs = shr;
 
 		poperror();
 		qunlock(&shrslk);
 
-		c->qid = shrqid(sch->level = Qcshr, shr->id);
+		c->qid = shrqid(sch->level = Qcshr, shr->Ent.id);
 		sch->shr = shr;
 		break;
 	case Qcshr:
@@ -504,9 +504,9 @@ shrcreate(Chan *c, char *name, int omode, ulong perm)
 			error(Eperm);
 
 		shr = sch->shr;
-		if(strcmp(shr->owner, eve) == 0 && !iseve())
+		if(strcmp(shr->Ent.owner, eve) == 0 && !iseve())
 			error(Eperm);
-		devpermcheck(shr->owner, shr->perm, ORDWR);
+		devpermcheck(shr->Ent.owner, shr->Ent.perm, ORDWR);
 
 		if(strlen(name) >= sizeof(up->genbuf))
 			error(Etoolong);
@@ -519,19 +519,19 @@ shrcreate(Chan *c, char *name, int omode, ulong perm)
 		}
 		for(m = h->mount; m != nil; m = m->next){
 			mpt = tompt(m);
-			if(strcmp(name, mpt->name) == 0)
+			if(strcmp(name, mpt->Ent.name) == 0)
 				error(Eexist);
 		}
 
 		mpt = smalloc(sizeof(*mpt));
-		incref(mpt);
-		mpt->id = mptid++;
+		incref(&mpt->Ent.Ref);
+		mpt->Ent.id = mptid++;
 
-		kstrdup(&mpt->name, name);
-		kstrdup(&mpt->owner, up->user);
-		mpt->perm = perm;
+		kstrdup(&mpt->Ent.name, name);
+		kstrdup(&mpt->Ent.owner, up->user);
+		mpt->Ent.perm = perm;
 
-		incref(mpt);
+		incref(&mpt->Ent.Ref);
 		mpt->m.mflag = (h->mount == nil) ? MCREATE : 0;
 		mpt->m.next = h->mount;
 		h->mount = &mpt->m;
@@ -539,7 +539,7 @@ shrcreate(Chan *c, char *name, int omode, ulong perm)
 		poperror();
 		wunlock(&h->lock);
 
-		c->qid = shrqid(sch->level = Qcmpt, mpt->id);
+		c->qid = shrqid(sch->level = Qcmpt, mpt->Ent.id);
 		sch->mpt = mpt;
 		break;
 	}
@@ -570,9 +570,9 @@ shrremove(Chan *c)
 	case Qcmpt:
 		shr = sch->shr;
 		if(!iseve()){
-			if(strcmp(shr->owner, eve) == 0)
+			if(strcmp(shr->Ent.owner, eve) == 0)
 				error(Eperm);
-			devpermcheck(shr->owner, shr->perm, ORDWR);
+			devpermcheck(shr->Ent.owner, shr->Ent.perm, ORDWR);
 		}
 	}
 	switch(sch->level){
@@ -643,7 +643,7 @@ shrwstat(Chan *c, uchar *dp, int n)
 	default:
 		error(Eperm);
 	case Qcshr:
-		ent = sch->shr;
+		ent = &sch->shr->Ent;
 		qlock(&shrslk);
 		if(waserror()){
 			qunlock(&shrslk);
@@ -651,7 +651,7 @@ shrwstat(Chan *c, uchar *dp, int n)
 		}
 		break;
 	case Qcmpt:
-		ent = sch->mpt;
+		ent = &sch->mpt->Ent;
 		h = &sch->shr->umh;
 		wlock(&h->lock);
 		if(waserror()){
@@ -827,9 +827,9 @@ shrrenameuser(char *old, char *new)
 	for(shr = shrs; shr != nil; shr = shr->next){
 		wlock(&shr->umh.lock);
 		for(m = shr->umh.mount; m != nil; m = m->next)
-			chowner(tompt(m), old, new);
+			chowner(&tompt(m)->Ent, old, new);
 		wunlock(&shr->umh.lock);
-		chowner(shr, old, new);
+		chowner(&shr->Ent,old,new);
 	}
 	qunlock(&shrslk);
 }

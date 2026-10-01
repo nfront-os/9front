@@ -370,11 +370,11 @@ resetring(Ring *r)
 {
 	u64int pa;
 
-	ilock(r);
+	ilock(&r->Lock);
 	flushring(r);
 	r->rp = r->wp;
-	pa = (*r->ctlr->dmaaddr)(&r->base[4*(r->wp & r->mask)]) | ((~r->wp>>r->shift) & 1);
-	iunlock(r);
+	pa = (*r->ctlr->Xhci.dmaaddr)(&r->base[4*(r->wp & r->mask)]) | ((~r->wp>>r->shift) & 1);
+	iunlock(&r->Lock);
 
 	return pa;
 }
@@ -430,13 +430,13 @@ xhcihandoff(Xhci *ctlr)
 void
 xhcishutdown(Hci *hp)
 {
-	Ctlr *ctlr = hp->aux;
+	Ctlr *ctlr = hp->Hciimpl.aux;
 	int i;
 
 	ctlr->opr[USBCMD] &= USBCMD_PRES;
 	for(i=100; (ctlr->opr[USBSTS] & HCH) == 0 && i >= 0; i--)
 		delay(1);
-	intrdisable(hp->irq, hp->interrupt, hp, hp->tbdf, hp->type);
+	intrdisable(hp->ISAConf.irq, hp->Hciimpl.interrupt, hp, hp->tbdf, hp->ISAConf.type);
 }
 
 static void
@@ -472,49 +472,49 @@ xhciinit(Hci *hp)
 	uchar *p;
 	int i, j;
 
-	ctlr = hp->aux;
-	ctlr->opr = &ctlr->mmio[(ctlr->mmio[CAPLENGTH]&0xFF)/4];
-	ctlr->dba = &ctlr->mmio[ctlr->mmio[DBOFF]/4];
-	ctlr->rts = &ctlr->mmio[ctlr->mmio[RTSOFF]/4];
+	ctlr = hp->Hciimpl.aux;
+	ctlr->opr = &ctlr->Xhci.mmio[(ctlr->Xhci.mmio[CAPLENGTH]&0xFF)/4];
+	ctlr->dba = &ctlr->Xhci.mmio[ctlr->Xhci.mmio[DBOFF]/4];
+	ctlr->rts = &ctlr->Xhci.mmio[ctlr->Xhci.mmio[RTSOFF]/4];
 
 	for(i=500; ((u = ctlr->opr[USBSTS]) & CNR) != 0 && i>=0; i--)
 		tsleep(&up->sleep, return0, nil, 10);
-	if(i < 0) print("usbxhci %llux: timeout: not ready after handoff: %.8ux\n", ctlr->base, u);
+	if(i < 0) print("usbxhci %llux: timeout: not ready after handoff: %.8ux\n", ctlr->Xhci.base, u);
 
 	/* halt the controller */
 	ctlr->opr[USBCMD] &= USBCMD_PRES;
 	tsleep(&up->sleep, return0, nil, 1);
 	for(i=500; ((u = ctlr->opr[USBSTS]) & (CNR|HCH)) != HCH && i>=0; i--)
 		tsleep(&up->sleep, return0, nil, 10);
-	if(i < 0) print("usbxhci %llux: timeout: not halted before reset: %.8ux\n", ctlr->base, u);
+	if(i < 0) print("usbxhci %llux: timeout: not halted before reset: %.8ux\n", ctlr->Xhci.base, u);
 
 	/* reset the controller */
 	ctlr->opr[USBCMD] = HCRST | (ctlr->opr[USBCMD] & USBCMD_PRES);
 	tsleep(&up->sleep, return0, nil, 1);
 	for(i=100; ((u = ctlr->opr[USBCMD]) & HCRST) != 0 && i>=0; i--)
 		tsleep(&up->sleep, return0, nil, 10);
-	if(i < 0) print("usbxhci %llux: timeout: reset command didnt clear: %.8ux\n", ctlr->base, u);
+	if(i < 0) print("usbxhci %llux: timeout: reset command didnt clear: %.8ux\n", ctlr->Xhci.base, u);
 	for(i=500; ((u = ctlr->opr[USBSTS]) & (CNR|HCH)) != HCH && i>=0; i--)
 		tsleep(&up->sleep, return0, nil, 10);
-	if(i < 0) print("usbxhci %llux: timeout: not halted after reset: %.8ux\n", ctlr->base, u);
+	if(i < 0) print("usbxhci %llux: timeout: not halted after reset: %.8ux\n", ctlr->Xhci.base, u);
 
-	intrenable(hp->irq, hp->interrupt, hp, hp->tbdf, hp->type);
+	intrenable(hp->ISAConf.irq, hp->Hciimpl.interrupt, hp, hp->tbdf, hp->ISAConf.type);
 
 	if(waserror()){
-		(*hp->shutdown)(hp);
+		(*hp->Hciimpl.shutdown)(hp);
 		release(ctlr);
 		nexterror();
 	}
 
-	ctlr->csz = (ctlr->mmio[HCCPARAMS] & CSZ) != 0;
+	ctlr->csz = (ctlr->Xhci.mmio[HCCPARAMS] & CSZ) != 0;
 	ctlr->pagesize = (ctlr->opr[PAGESIZE] & 0xFFFF) << 12;
 
-	ctlr->nscratch = (ctlr->mmio[HCSPARAMS2] >> 27) & 0x1F | ((ctlr->mmio[HCSPARAMS2] >> 21) & 0x1F)<<5;
-	ctlr->nintrs = (ctlr->mmio[HCSPARAMS1] >> 8) & 0x7FF;
-	ctlr->nslots = (ctlr->mmio[HCSPARAMS1] >> 0) & 0xFF;
-	hp->nports = (ctlr->mmio[HCSPARAMS1] >> 24) & 0xFF;
+	ctlr->nscratch = (ctlr->Xhci.mmio[HCSPARAMS2] >> 27) & 0x1F | ((ctlr->Xhci.mmio[HCSPARAMS2] >> 21) & 0x1F)<<5;
+	ctlr->nintrs = (ctlr->Xhci.mmio[HCSPARAMS1] >> 8) & 0x7FF;
+	ctlr->nslots = (ctlr->Xhci.mmio[HCSPARAMS1] >> 0) & 0xFF;
+	hp->nports = (ctlr->Xhci.mmio[HCSPARAMS1] >> 24) & 0xFF;
 
-if(0)	print("usbxhci %llux: csz=%d pagesize=%d nscratch=%d nintrs=%d nslots=%d nports=%d\n", ctlr->base,
+if(0)	print("usbxhci %llux: csz=%d pagesize=%d nscratch=%d nintrs=%d nslots=%d nports=%d\n", ctlr->Xhci.base,
 		ctlr->csz, ctlr->pagesize, ctlr->nscratch, ctlr->nintrs, ctlr->nslots, hp->nports);
 
 	hp->highspeed = 1;
@@ -526,7 +526,7 @@ if(0)	print("usbxhci %llux: csz=%d pagesize=%d nscratch=%d nintrs=%d nslots=%d n
 		ctlr->port[i].reg = &ctlr->opr[0x400/4 + i*4];
 
 	x = nil;
-	while((x = xecp(ctlr, 2, x)) != nil){
+	while((x = xecp(&ctlr->Xhci,2,x)) != nil){
 		i = x[2]&255;
 		j = (x[2]>>8)&255;
 		while(j--){
@@ -552,11 +552,11 @@ if(0)	print("usbxhci %llux: csz=%d pagesize=%d nscratch=%d nintrs=%d nslots=%d n
 			error(Enomem);
 		for(i=0, p = ctlr->sbp; i<ctlr->nscratch; i++, p += ctlr->pagesize){
 			memset(p, 0, ctlr->pagesize);
-			ctlr->sba[i] = (*ctlr->dmaaddr)(p);
+			ctlr->sba[i] = (*ctlr->Xhci.dmaaddr)(p);
 		}
 		dmaflush(1, ctlr->sbp, ctlr->nscratch*ctlr->pagesize);
 		dmaflush(1, ctlr->sba, ctlr->nscratch*8);
-		ctlr->dcba[0] = (*ctlr->dmaaddr)(ctlr->sba);
+		ctlr->dcba[0] = (*ctlr->Xhci.dmaaddr)(ctlr->sba);
 	} else {
 		ctlr->dcba[0] = 0;
 	}
@@ -567,7 +567,7 @@ if(0)	print("usbxhci %llux: csz=%d pagesize=%d nscratch=%d nintrs=%d nslots=%d n
 	ctlr->opr[CONFIG] = ctlr->nslots | (ctlr->opr[CONFIG] & CONFIG_PRES);
 
 	dmaflush(1, ctlr->dcba, (1+ctlr->nslots)*sizeof(ctlr->dcba[0]));
-	setrptr(&ctlr->opr[DCBAAP], (*ctlr->dmaaddr)(ctlr->dcba));
+	setrptr(&ctlr->opr[DCBAAP], (*ctlr->Xhci.dmaaddr)(ctlr->dcba));
 
 	initring(ctlr, ctlr->cr, 8);		/* 256 entries */
 	ctlr->cr->id = 0;
@@ -593,15 +593,15 @@ if(0)	print("usbxhci %llux: csz=%d pagesize=%d nscratch=%d nintrs=%d nslots=%d n
 		ctlr->erst[i] = mallocalign(4*4, 64, 0, 0);
 		if(ctlr->erst[i] == nil)
 			error(Enomem);
-		*((u64int*)ctlr->erst[i]) = (*ctlr->dmaaddr)(ctlr->er[i].base);
+		*((u64int*)ctlr->erst[i]) = (*ctlr->Xhci.dmaaddr)(ctlr->er[i].base);
 		ctlr->erst[i][2] = ctlr->er[i].mask+1;
 		ctlr->erst[i][3] = 0;
 		dmaflush(1, ctlr->erst[i], 4*4);
 
 		/* just one segment */
 		irs[ERSTSZ] = 1 | (irs[ERSTSZ] & ERSTSZ_PRES);
-		setrptr(&irs[ERDP], (*ctlr->dmaaddr)(ctlr->er[i].base) | EHB);
-		setrptr(&irs[ERSTBA], (*ctlr->dmaaddr)(ctlr->erst[i]) |
+		setrptr(&irs[ERDP], (*ctlr->Xhci.dmaaddr)(ctlr->er[i].base) | EHB);
+		setrptr(&irs[ERSTBA], (*ctlr->Xhci.dmaaddr)(ctlr->erst[i]) |
 			(irs[ERSTBA] & ERSTBA_PRES));
 
 		/* enable interrupt */
@@ -619,13 +619,13 @@ if(0)	print("usbxhci %llux: csz=%d pagesize=%d nscratch=%d nintrs=%d nslots=%d n
 	ctlr->opr[USBCMD] = RUNSTOP|INTE|HSEE|EWE | (ctlr->opr[USBCMD] & USBCMD_PRES);
 	for(i=500; ((u = ctlr->opr[USBSTS]) & (CNR|HCH)) != 0 && i>=0; i--)
 		tsleep(&up->sleep, return0, nil, 10);
-	if(i < 0) print("usbxhci %llux: timeout: didnt enable: %.8ux\n", ctlr->base, u);
+	if(i < 0) print("usbxhci %llux: timeout: didnt enable: %.8ux\n", ctlr->Xhci.base, u);
 
 	/* wait a 100ms to see if we run into trouble */
 	for(i=10; i>=0; i--){
 		tsleep(&up->sleep, return0, nil, 10);
 		if((u = ctlr->opr[USBSTS]) & (HCH|HCE|HSE)){
-			print("usbxhci %llux: wedged after enable: %.8ux\n", ctlr->base, u);
+			print("usbxhci %llux: wedged after enable: %.8ux\n", ctlr->Xhci.base, u);
 			error("controller wedged");
 		}
 	}
@@ -646,7 +646,7 @@ static void
 recover(void *arg)
 {
 	Hci *hp = arg;
-	Ctlr *ctlr = hp->aux;
+	Ctlr *ctlr = hp->Hciimpl.aux;
 
 	while(waserror())
 		;
@@ -654,9 +654,9 @@ recover(void *arg)
 		tsleep(&ctlr->recover, needrecover, ctlr, 1000);
 
 	print("usbxhci %llux: need recover: USBSTS=%ux, er stopped=%d\n",
-		ctlr->base, ctlr->opr[USBSTS], ctlr->er->stopped);
+		ctlr->Xhci.base, ctlr->opr[USBSTS], ctlr->er->stopped);
 
-	(*hp->shutdown)(hp);
+	(*hp->Hciimpl.shutdown)(hp);
 
 	/*
 	 * flush all transactions and wait until all devices have
@@ -665,10 +665,10 @@ recover(void *arg)
 	for(;;){
 		int i, j, active;
 
-		ilock(ctlr->cr);
+		ilock(&ctlr->cr->Lock);
 		ctlr->cr->stopped = 1;
 		flushring(ctlr->cr);
-		iunlock(ctlr->cr);
+		iunlock(&ctlr->cr->Lock);
 
 		qlock(&ctlr->slotlock);
 		active = 0;
@@ -681,10 +681,10 @@ recover(void *arg)
 				Ring *ring = &slot->epr[j];
 				if(ring->base == nil)
 					continue;
-				ilock(ring);
+				ilock(&ring->Lock);
 				ring->stopped = 1;
 				flushring(ring);
-				iunlock(ring);
+				iunlock(&ring->Lock);
 			}
 		}
 		if(active == 0)
@@ -697,9 +697,9 @@ recover(void *arg)
 	qlock(&ctlr->cmdlock);
 	release(ctlr);
 	if(waserror()) {
-		print("usbxhci %llux: recovery failed: %s\n", ctlr->base, up->errstr);
+		print("usbxhci %llux: recovery failed: %s\n", ctlr->Xhci.base, up->errstr);
 	} else {
-		(*hp->init)(hp);
+		(*hp->Hciimpl.init)(hp);
 		poperror();
 	}
 	qunlock(&ctlr->cmdlock);
@@ -716,7 +716,7 @@ queuetd(Ring *r, u32int c, u32int s, u64int p, Wait *w)
 	x = r->wp++;
 	if((x & r->mask) == r->mask){
 		td = r->base + 4*(x & r->mask);
-		*(u64int*)td = (*r->ctlr->dmaaddr)(r->base);
+		*(u64int*)td = (*r->ctlr->Xhci.dmaaddr)(r->base);
 		td[2] = 0;
 		td[3] = ((~x>>r->shift)&1) | (1<<1) | TR_LINK;
 		dmaflush(1, td, 4*4);
@@ -729,10 +729,10 @@ queuetd(Ring *r, u32int c, u32int s, u64int p, Wait *w)
 		w->td = td;
 		w->z = &up->sleep;
 
-		ilock(r);
+		ilock(&r->Lock);
 		w->next = r->pending;
 		r->pending = w;
-		iunlock(r);
+		iunlock(&r->Lock);
 	}
 	if(r->residue != nil)
 		r->residue[x & r->mask] = s;
@@ -876,10 +876,10 @@ completering(Ctlr *ctlr, Ring *r, u32int *er)
 		return;
 
 	pa = (*(u64int*)er) & ~15ULL;
-	ilock(r);
+	ilock(&r->Lock);
 	for(x = r->rp; (int)(r->wp - x) > 0; x++){
 		td = &r->base[4*(x & r->mask)];
-		if((*ctlr->dmaaddr)(td) == pa){
+		if((*ctlr->Xhci.dmaaddr)(td) == pa){
 			if(r->residue != nil)
 				r->residue[x & r->mask] = er[2] & 0xFFFFFF;
 			r->rp = x+1;
@@ -889,7 +889,7 @@ completering(Ctlr *ctlr, Ring *r, u32int *er)
 
 	wp = &r->pending;
 	while(w = *wp){
-		if((*ctlr->dmaaddr)(w->td) == pa){
+		if((*ctlr->Xhci.dmaaddr)(w->td) == pa){
 			Rendez *z = w->z;
 
 			memmove(w->er, er, 4*4);
@@ -906,14 +906,14 @@ completering(Ctlr *ctlr, Ring *r, u32int *er)
 		}
 	}
 
-	iunlock(r);
+	iunlock(&r->Lock);
 }
 
 static void
 interrupt(Ureg*, void *arg)
 {
 	Hci *hp = arg;
-	Ctlr *ctlr = hp->aux;
+	Ctlr *ctlr = hp->Hciimpl.aux;
 	Ring *ring = ctlr->er;
 	Slot *slot;
 	u32int *irs, *td, x;
@@ -951,7 +951,7 @@ interrupt(Ureg*, void *arg)
 			break;
 		case ER_HCE:
 			iprint("usbxhci %llux: host controller error: %ux %ux %ux %ux\n",
-				ctlr->base, td[0], td[1], td[2], td[3]);
+				ctlr->Xhci.base, td[0], td[1], td[2], td[3]);
 			ctlr->er->stopped = 1;
 			wakeup(&ctlr->recover);
 			return;
@@ -962,11 +962,11 @@ interrupt(Ureg*, void *arg)
 		case ER_DEVNOTE:
 		default:
 			iprint("usbxhci %llux: event %ud: %ux %ux %ux %ux\n",
-				ctlr->base, x, td[0], td[1], td[2], td[3]);
+				ctlr->Xhci.base, x, td[0], td[1], td[2], td[3]);
 		}
 	}
 
-	setrptr(&irs[ERDP], (*ctlr->dmaaddr)(td) | EHB);
+	setrptr(&irs[ERDP], (*ctlr->Xhci.dmaaddr)(td) | EHB);
 }
 
 static void
@@ -1033,7 +1033,7 @@ allocslot(Ctlr *ctlr, Udev *dev)
 	poperror();
 
 	dmaflush(1, slot->obase, 32*32 << ctlr->csz);
-	ctlr->dcba[slot->id] = (*ctlr->dmaaddr)(slot->obase);
+	ctlr->dcba[slot->id] = (*ctlr->Xhci.dmaaddr)(slot->obase);
 	dmaflush(1, &ctlr->dcba[slot->id], sizeof(ctlr->dcba[0]));
 
 	ctlr->slot[slot->id] = slot;
@@ -1108,7 +1108,7 @@ epstop(Ep *ep)
 	if(io == nil)
 		return;
 
-	ctlr = ep->hp->aux;
+	ctlr = ep->hp->Hciimpl.aux;
 	slot = ep->dev->aux;
 
 	if((ring = io[OREAD].ring) != nil && ring->stopped == 0){
@@ -1138,7 +1138,7 @@ epclose(Ep *ep)
 		return;
 	ep->aux = nil;
 
-	ctlr = ep->hp->aux;
+	ctlr = ep->hp->Hciimpl.aux;
 	slot = ep->dev->aux;
 
 	if(ep->nb > 0 && (io[OREAD].ring != nil || io[OWRITE].ring != nil)){
@@ -1170,7 +1170,7 @@ epclose(Ep *ep)
 
 		dmaflush(1, slot->ibase, 32*33 << ctlr->csz);
 		ctlrcmd(ctlr, CR_CONFIGEP | (slot->id<<24), 0,
-			(*ctlr->dmaaddr)(slot->ibase), nil);
+			(*ctlr->Xhci.dmaaddr)(slot->ibase), nil);
 		dmaflush(0, slot->obase, 32*32 << ctlr->csz);
 
 		freering(io[OREAD].ring);
@@ -1198,7 +1198,7 @@ initepctx(Ctlr *ctlr, u32int *w, Ring *r, Ep *ep)
 	w[1] = ((ep->ttype-Tctl) | (r->id&1)<<2)<<3 | (ep->ntds-1)<<8 | ep->maxpkt<<16;
 	if(ep->ttype != Tiso)
 		w[1] |= 3<<1;
-	*((u64int*)&w[2]) = (*ctlr->dmaaddr)(r->base) | 1;
+	*((u64int*)&w[2]) = (*ctlr->Xhci.dmaaddr)(r->base) | 1;
 	w[4] = 2*ep->maxpkt;
 	if(ep->ttype == Tintr || ep->ttype == Tiso)
 		w[4] |= (ep->maxpkt*ep->ntds)<<16;
@@ -1234,7 +1234,7 @@ initep(Ep *ep)
 	char *err;
 
 	io = ep->aux;
-	ctlr = ep->hp->aux;
+	ctlr = ep->hp->Hciimpl.aux;
 	slot = ep->dev->aux;
 
 	/* (input) control context */
@@ -1260,7 +1260,7 @@ initep(Ep *ep)
 
 		dmaflush(1, slot->ibase, 32*33 << ctlr->csz);
 		err = ctlrcmd(ctlr, cmd | (slot->id<<24), 0,
-			(*ctlr->dmaaddr)(slot->ibase), nil);
+			(*ctlr->Xhci.dmaaddr)(slot->ibase), nil);
 		dmaflush(0, slot->obase, 32*32 << ctlr->csz);
 		if(err != nil)
 			error(err);
@@ -1309,7 +1309,7 @@ initep(Ep *ep)
 
 	dmaflush(1, slot->ibase, 32*33 << ctlr->csz);
 	err = ctlrcmd(ctlr, CR_CONFIGEP | (slot->id<<24), 0,
-		(*ctlr->dmaaddr)(slot->ibase), nil);
+		(*ctlr->Xhci.dmaaddr)(slot->ibase), nil);
 	dmaflush(0, slot->obase, 32*32 << ctlr->csz);
 	if(err != nil)
 		error(err);
@@ -1330,7 +1330,7 @@ devclose(Udev *dev)
 static void
 epopen(Ep *ep)
 {
-	Ctlr *ctlr = ep->hp->aux;
+	Ctlr *ctlr = ep->hp->Hciimpl.aux;
 	Slot *slot;
 	Ring *ring;
 	Epio *io;
@@ -1386,7 +1386,7 @@ epopen(Ep *ep)
 
 	dmaflush(1, slot->ibase, 32*33 << ctlr->csz);
 	err = ctlrcmd(ctlr, CR_ADDRESSDEV | (slot->id<<24), 0,
-		(*ctlr->dmaaddr)(slot->ibase), nil);
+		(*ctlr->Xhci.dmaaddr)(slot->ibase), nil);
 	dmaflush(0, slot->obase, 32*32 << ctlr->csz);
 	if(err != nil)
 		error(err);
@@ -1421,13 +1421,13 @@ isoread(Ep *ep, uchar *p, long n)
 	s = p;
 
 	io = (Epio*)ep->aux + OREAD;
-	qlock(io);
+	qlock(&io->QLock);
 	if(waserror()){
-		qunlock(io);
+		qunlock(&io->QLock);
 		nexterror();
 	}
 	µ = io->period;
-	ctlr = ep->hp->aux;
+	ctlr = ep->hp->Hciimpl.aux;
 	if(needrecover(ctlr))
 		error(Erecover);
 
@@ -1470,12 +1470,12 @@ isoread(Ep *ep, uchar *p, long n)
 		d = io->b->rp + (i&io->ring->mask)*io->tdsz;
 		dmaflush(1, d, m);
 		queuetd(io->ring, TR_ISOCH | (i*µ/8 & 0x7ff)<<20 | TR_IOC, m,
-			(*ctlr->dmaaddr)(d), nil);
+			(*ctlr->Xhci.dmaaddr)(d), nil);
 	}
 	io->frame = i;
 
 	*io->ring->doorbell = io->ring->id;
-	qunlock(io);
+	qunlock(&io->QLock);
 	poperror();
 
 	return p - s;
@@ -1492,13 +1492,13 @@ isowrite(Ep *ep, uchar *p, long n)
 
 	s = p;
 	io = (Epio*)ep->aux + OWRITE;
-	qlock(io);
+	qlock(&io->QLock);
 	if(waserror()){
-		qunlock(io);
+		qunlock(&io->QLock);
 		nexterror();
 	}
 	µ = io->period;
-	ctlr = ep->hp->aux;
+	ctlr = ep->hp->Hciimpl.aux;
 
 	for(i = io->frame;; i++){
 		for(;;){
@@ -1528,7 +1528,7 @@ isowrite(Ep *ep, uchar *p, long n)
 		io->nleft = 0;
 		dmaflush(1, d, m);
 		queuetd(io->ring, TR_ISOCH | (i*µ/8 & 0x7ff)<<20 | TR_IOC, m,
-			(*ctlr->dmaaddr)(d), nil);
+			(*ctlr->Xhci.dmaaddr)(d), nil);
 	}
 	io->frame = i;
 
@@ -1544,7 +1544,7 @@ isowrite(Ep *ep, uchar *p, long n)
 			error(Erecover);
 	}
 
-	qunlock(io);
+	qunlock(&io->QLock);
 	poperror();
 
 	return p - s;
@@ -1595,16 +1595,16 @@ epread(Ep *ep, void *va, long n)
 	p = va;
 	if(ep->ttype == Tctl){
 		io = (Epio*)ep->aux + OREAD;
-		qlock(io);
+		qlock(&io->QLock);
 		if(io->b == nil || BLEN(io->b) == 0){
-			qunlock(io);
+			qunlock(&io->QLock);
 			return 0;
 		}
 		if(n > BLEN(io->b))
 			n = BLEN(io->b);
 		memmove(p, io->b->rp, n);
 		io->b->rp += n;
-		qunlock(io);
+		qunlock(&io->QLock);
 		return n;
 	} else if(ep->ttype == Tiso)
 		return isoread(ep, p, n);
@@ -1624,12 +1624,12 @@ epread(Ep *ep, void *va, long n)
 		return n;
 	}
 
-	ctlr = (Ctlr*)ep->hp->aux;
+	ctlr = (Ctlr*)ep->hp->Hciimpl.aux;
 	io = (Epio*)ep->aux + OREAD;
-	qlock(io);
+	qlock(&io->QLock);
 	if(waserror()){
 		dmaflush(0, io->ring->ctx, 8*4 << ctlr->csz);
-		qunlock(io);
+		qunlock(&io->QLock);
 		nexterror();
 	}
 
@@ -1637,13 +1637,13 @@ epread(Ep *ep, void *va, long n)
 		error(err);
 
 	dmaflush(1, p, n);
-	queuetd(io->ring, TR_NORMAL | TR_IOC, n, (*ctlr->dmaaddr)(p), w);
+	queuetd(io->ring, TR_NORMAL | TR_IOC, n, (*ctlr->Xhci.dmaaddr)(p), w);
 	err = waittd(w, ep->tmout);
 	dmaflush(0, p, n);
 	if(err != nil)
 		error(err);
 
-	qunlock(io);
+	qunlock(&io->QLock);
 	poperror();
 
 	n -= (w->er[2] & 0xFFFFFF);
@@ -1676,16 +1676,16 @@ epwrite(Ep *ep, void *va, long n)
 		if(p[0] == 0x00 && p[1] == 0x05)
 			return n;
 
-		ctlr = (Ctlr*)ep->hp->aux;
+		ctlr = (Ctlr*)ep->hp->Hciimpl.aux;
 		io = (Epio*)ep->aux + OREAD;
 		ring = io[OWRITE-OREAD].ring;
-		qlock(io);
+		qlock(&io->QLock);
 		if(waserror()){
-			ilock(ring);
+			ilock(&ring->Lock);
 			ring->pending = nil;
-			iunlock(ring);
+			iunlock(&ring->Lock);
 			dmaflush(0, ring->ctx, 8*4 << ctlr->csz);
-			qunlock(io);
+			qunlock(&io->QLock);
 			nexterror();
 		}
 		if(io->b != nil){
@@ -1713,7 +1713,7 @@ epwrite(Ep *ep, void *va, long n)
 		if(len > 0){
 			dmaflush(1, io->b->rp, len);
 			queuetd(ring, TR_DATASTAGE | dir<<16 | TR_IOC, len,
-				(*ctlr->dmaaddr)(io->b->rp), &w[1]);
+				(*ctlr->Xhci.dmaaddr)(io->b->rp), &w[1]);
 		}
 		queuetd(ring, TR_STATUSSTAGE | (len == 0 || !dir)<<16 | TR_IOC, 0, 0, &w[2]);
 
@@ -1731,7 +1731,7 @@ epwrite(Ep *ep, void *va, long n)
 		}
 		if((err = waittd(&w[2], ep->tmout)) != nil)
 			error(err);
-		qunlock(io);
+		qunlock(&io->QLock);
 		poperror();
 
 		return n;
@@ -1753,12 +1753,12 @@ epwrite(Ep *ep, void *va, long n)
 		return n;
 	}
 
-	ctlr = (Ctlr*)ep->hp->aux;
+	ctlr = (Ctlr*)ep->hp->Hciimpl.aux;
 	io = (Epio*)ep->aux + OWRITE;
-	qlock(io);
+	qlock(&io->QLock);
 	if(waserror()){
 		dmaflush(0, io->ring->ctx, 8*4 << ctlr->csz);
-		qunlock(io);
+		qunlock(&io->QLock);
 		nexterror();
 	}
 
@@ -1766,11 +1766,11 @@ epwrite(Ep *ep, void *va, long n)
 		error(err);
 
 	dmaflush(1, p, n);
-	queuetd(io->ring, TR_NORMAL | TR_IOC, n, (*ctlr->dmaaddr)(p), w);
+	queuetd(io->ring, TR_NORMAL | TR_IOC, n, (*ctlr->Xhci.dmaaddr)(p), w);
 	if((err = waittd(w, ep->tmout)) != nil)
 		error(err);
 
-	qunlock(io);
+	qunlock(&io->QLock);
 	poperror();
 
 	return n;
@@ -1785,7 +1785,7 @@ seprintep(char *s, char*, Ep*)
 static int
 portstatus(Hci *hp, int port)
 {
-	Ctlr *ctlr = hp->aux;
+	Ctlr *ctlr = hp->Hciimpl.aux;
 	u32int psc, ps;
 
 	if(ctlr->port == nil || needrecover(ctlr))
@@ -1836,7 +1836,7 @@ enum {
 static void
 portenable(Hci *hp, int port, int on)
 {
-	Ctlr *ctlr = hp->aux;
+	Ctlr *ctlr = hp->Hciimpl.aux;
 	u32int *portsc;
 
 	if(on || ctlr->port == nil || needrecover(ctlr))
@@ -1848,7 +1848,7 @@ portenable(Hci *hp, int port, int on)
 static void
 portreset(Hci *hp, int port, int on)
 {
-	Ctlr *ctlr = hp->aux;
+	Ctlr *ctlr = hp->Hciimpl.aux;
 	u32int *portsc;
 
 	if(!on || ctlr->port == nil || needrecover(ctlr))
@@ -1860,7 +1860,7 @@ portreset(Hci *hp, int port, int on)
 static void
 bhportreset(Hci *hp, int port, int on)
 {
-	Ctlr *ctlr = hp->aux;
+	Ctlr *ctlr = hp->Hciimpl.aux;
 	u32int *portsc;
 
 	if(!on || ctlr->port == nil || needrecover(ctlr))
@@ -1872,7 +1872,7 @@ bhportreset(Hci *hp, int port, int on)
 static void
 portpower(Hci *hp, int port, int on)
 {
-	Ctlr *ctlr = hp->aux;
+	Ctlr *ctlr = hp->Hciimpl.aux;
 	u32int *portsc;
 
 	if(ctlr->port == nil || needrecover(ctlr))
@@ -1900,40 +1900,40 @@ xhcialloc(u32int *mmio, u64int base, u64int size)
 		print("usbxhci %llux: no memory for controller\n", base);
 		return nil;
 	}
-	ctlr->mmio = mmio;
-	ctlr->base = base;
-	ctlr->size = size;
+	ctlr->Xhci.mmio = mmio;
+	ctlr->Xhci.base = base;
+	ctlr->Xhci.size = size;
 
-	ctlr->dmaaddr = physaddr;
+	ctlr->Xhci.dmaaddr = physaddr;
 
-	return ctlr;
+	return (Xhci*)ctlr;
 }
 
 void
 xhcilinkage(Hci *hp, Xhci *ctlr)
 {
-	hp->port = ctlr->base;
-	hp->aux = ctlr;
+	hp->ISAConf.port = ctlr->base;
+	hp->Hciimpl.aux = ctlr;
 
-	hp->init = xhciinit;
-	hp->shutdown = xhcishutdown;
+	hp->Hciimpl.init = xhciinit;
+	hp->Hciimpl.shutdown = xhcishutdown;
 
-	hp->interrupt = interrupt;
-	hp->epopen = epopen;
-	hp->epstop = epstop;
-	hp->epclose = epclose;
-	hp->epread = epread;
-	hp->epwrite = epwrite;
-	hp->seprintep = seprintep;
-	hp->devclose = devclose;
-	hp->portenable = portenable;
-	hp->portreset = portreset;
-	hp->bhportreset = bhportreset;
-	hp->portpower = portpower;
-	hp->portstatus = portstatus;
+	hp->Hciimpl.interrupt = interrupt;
+	hp->Hciimpl.epopen = epopen;
+	hp->Hciimpl.epstop = epstop;
+	hp->Hciimpl.epclose = epclose;
+	hp->Hciimpl.epread = epread;
+	hp->Hciimpl.epwrite = epwrite;
+	hp->Hciimpl.seprintep = seprintep;
+	hp->Hciimpl.devclose = devclose;
+	hp->Hciimpl.portenable = portenable;
+	hp->Hciimpl.portreset = portreset;
+	hp->Hciimpl.bhportreset = bhportreset;
+	hp->Hciimpl.portpower = portpower;
+	hp->Hciimpl.portstatus = portstatus;
 
-	hp->debug = setdebug;
-	hp->type = "xhci";
+	hp->Hciimpl.debug = setdebug;
+	hp->ISAConf.type = "xhci";
 
 	ctlr->active = hp;
 }

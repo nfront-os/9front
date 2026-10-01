@@ -53,9 +53,9 @@ mii(Mii* mii, uint mask)
 	int oui, phyno;
 	uint bit, rmask, id;
 
-	qlock(mii);
+	qlock(&mii->QLock);
 	if(up != nil && waserror()){
-		qunlock(mii);
+		qunlock(&mii->QLock);
 		nexterror();
 	}
 
@@ -92,7 +92,7 @@ mii(Mii* mii, uint mask)
 		rmask |= bit;
 	}
 
-	qunlock(mii);
+	qunlock(&mii->QLock);
 	if(up != nil) poperror();
 
 	return rmask;
@@ -105,10 +105,10 @@ miiphy(Mii *mii, int phyno)
 
 	assert((uint)phyno < NMiiPhy);
 
-	qlock(mii);
+	qlock(&mii->QLock);
 	if((phy = mii->phy[phyno]) == nil)
 		phy = newphy(mii, phyno);
-	qunlock(mii);
+	qunlock(&mii->QLock);
 
 	return phy;
 }
@@ -141,14 +141,14 @@ miimir(MiiPhy *phy, int reg)
 	if(phy == nil || (mii = phy->mii) == nil)
 		return -1;
 
-	qlock(mii);
+	qlock(&mii->QLock);
 	if(up != nil && waserror()){
-		qunlock(mii);
+		qunlock(&mii->QLock);
 		nexterror();
 	}
 	if((ret = setpage(phy, reg)) >= 0)
 		ret = (*mii->mir)(mii, phy->phyno, reg & 0x1F);
-	qunlock(mii);
+	qunlock(&mii->QLock);
 	if(up != nil) poperror();
 	return ret;
 }
@@ -161,14 +161,14 @@ miimiw(MiiPhy *phy, int reg, int data)
 
 	if(phy == nil || (mii = phy->mii) == nil)
 		return -1;
-	qlock(mii);
+	qlock(&mii->QLock);
 	if(up != nil && waserror()){
-		qunlock(mii);
+		qunlock(&mii->QLock);
 		nexterror();
 	}
 	if((ret = setpage(phy, reg)) >= 0)
 		ret = (*mii->miw)(mii, phy->phyno, reg & 0x1F, data & 0xFFFF);
-	qunlock(mii);
+	qunlock(&mii->QLock);
 	if(up != nil) poperror();
 	return ret;
 }
@@ -392,9 +392,9 @@ miimmdr(MiiPhy *phy, int a, int r)
 
 	if(phy == nil || (mii = phy->mii) == nil)
 		return -1;
-	qlock(mii);
+	qlock(&mii->QLock);
 	if(up != nil && waserror()){
-		qunlock(mii);
+		qunlock(&mii->QLock);
 		nexterror();
 	}
 	a &= 0x1F;
@@ -408,7 +408,7 @@ miimmdr(MiiPhy *phy, int a, int r)
 		goto out;
 	ret = (*mii->mir)(mii, phy->phyno, Mmddata);
 out:
-	qunlock(mii);
+	qunlock(&mii->QLock);
 	if(up != nil) poperror();
 	return ret;
 }
@@ -421,9 +421,9 @@ miimmdw(MiiPhy *phy, int a, int r, int data)
 
 	if(phy == nil || (mii = phy->mii) == nil)
 		return -1;
-	qlock(mii);
+	qlock(&mii->QLock);
 	if(up != nil && waserror()){
-		qunlock(mii);
+		qunlock(&mii->QLock);
 		nexterror();
 	}
 	a &= 0x1F;
@@ -437,7 +437,7 @@ miimmdw(MiiPhy *phy, int a, int r, int data)
 		goto out;
 	ret = (*mii->miw)(mii, phy->phyno, Mmddata, data & 0xFFFF);
 out:
-	qunlock(mii);
+	qunlock(&mii->QLock);
 	if(up != nil) poperror();
 	return ret;
 }

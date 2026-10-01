@@ -285,16 +285,16 @@ typedef struct Ctlr {
 	Prd*	prdt;			/* physical region descriptor table */
 	void	(*irqack)(Ctlr*);
 
-	QLock;				/* current command */
+	QLock QLock;			/* current command; gcc port: named along with Rendez/Lock below to avoid -fplan9-extensions collisions (pc, and Rendez's own Lock member) */
 	Drive*	curdrive;
 	int	command;		/* last command issued (debugging) */
-	Rendez;
+	Rendez Rendez;
 	int	done;
 	uint	nrq;
 	uint	nildrive;
 	uint	bsy;
 
-	Lock;				/* register access */
+	Lock Lock;			/* register access */
 } Ctlr;
 
 typedef struct Drive {
@@ -543,7 +543,7 @@ atadmamode(SDunit *unit, Drive* drive)
 			drive->dma |= 'U'<<16;
 	}
 	if(unit != nil){
-		snprint(buf, sizeof buf, "*%sdma", unit->name);
+		snprint(buf, sizeof buf, "*%sdma", unit->SDperm.name);
 		s = getconf(buf);
 		if((s && !strcmp(s, "on")) || (!s && !getconf("*nodma")))
 			drive->dmactl = drive->dma;
@@ -634,9 +634,9 @@ retry:
 
 	memmove(drive->info, buf, sizeof(drive->info));
 
-	setfissig(drive, pkt ? 0xeb140000 : 0x0101);
-	drive->sectors = idfeat(drive, drive->info);
-	drive->secsize = idss(drive, drive->info);
+	setfissig(&drive->Sfis,pkt ? 0xeb140000 : 0x0101);
+	drive->sectors = idfeat(&drive->Sfis,drive->info);
+	drive->secsize = idss(&drive->Sfis,drive->info);
 
 	idmove(drive->serial, drive->info+10, 20);
 	idmove(drive->firmware, drive->info+23, 8);
@@ -651,11 +651,11 @@ retry:
 
 	if(pkt){
 		drive->pkt = 12;
-		if(drive->feat & Datapi16)
+		if(drive->Sfis.feat & Datapi16)
 			drive->pkt = 16;
 	}else{
 		drive->pkt = 0;
-		if(drive->feat & Dlba)
+		if(drive->Sfis.feat & Dlba)
 			drive->dev |= Lba;
 		atarwmmode(drive, cmdport, ctlport, dev);
 	}
@@ -672,7 +672,7 @@ retry:
 		if(drive->info[Ivalid] & 0x04)
 			print(" udma %4.4uX", drive->info[Iudma]);
 		print(" dma %8.8uX rwm %ud", drive->dma, drive->rwm);
-		if(drive->feat&Dllba)
+		if(drive->Sfis.feat&Dllba)
 			print("\tLLBA sectors %llud", drive->sectors);
 		print("\n");
 	}
@@ -831,7 +831,7 @@ iowait(Drive *drive, int ms, int interrupt)
 		while(waserror())
 			if(interrupt)
 				return -1;
-		tsleep(ctlr, atadone, ctlr, step);
+		tsleep(&ctlr->Rendez,atadone,ctlr,step);
 		poperror();
 		if(ctlr->done)
 			break;
@@ -887,15 +887,15 @@ ataabort(Drive* drive, int dolock)
 	 * must try a software reset.
 	 */
 	if(dolock)
-		ilock(drive->ctlr);
-	if(drive->feat & Dnop)
+		ilock(&drive->ctlr->Lock);
+	if(drive->Sfis.feat & Dnop)
 		atanop(drive, 0);
 	else{
 		atasrst(drive->ctlr->ctlport);
 		drive->error |= Abrt;
 	}
 	if(dolock)
-		iunlock(drive->ctlr);
+		iunlock(&drive->ctlr->Lock);
 }
 
 static int
@@ -1083,7 +1083,7 @@ atapktio0(Drive *drive, SDreq *r)
 	if(as < 0)
 		return SDnostatus;
 
-	ilock(ctlr);
+	ilock(&ctlr->Lock);
 	if(drive->dlen && drive->dmactl && !atadmasetup(drive, drive->dlen))
 		drive->pktdma = Dma;
 	else
@@ -1111,12 +1111,12 @@ atapktio0(Drive *drive, SDreq *r)
 		atapktinterrupt(drive);
 	if(drive->pktdma)
 		atadmastart(ctlr, drive->write);
-	iunlock(ctlr);
+	iunlock(&ctlr->Lock);
 
 	while(iowait(drive, 30*1000, 1) == 0)
 		;
 
-	ilock(ctlr);
+	ilock(&ctlr->Lock);
 	if(!ctlr->done){
 		rv = SDcheck;
 		ataabort(drive, 0);
@@ -1127,7 +1127,7 @@ atapktio0(Drive *drive, SDreq *r)
 		drive->status |= Chk;
 		ctlr->curdrive = nil;
 	}
-	iunlock(ctlr);
+	iunlock(&ctlr->Lock);
 
 	if(rv != SDcheck && drive->status & Chk){
 		rv = SDcheck;
@@ -1146,9 +1146,9 @@ atapktio(Drive* drive, SDreq *r)
 	Ctlr *ctlr;
 
 	ctlr = drive->ctlr;
-	qlock(ctlr);
+	qlock(&ctlr->QLock);
 	n = atapktio0(drive, r);
-	qunlock(ctlr);
+	qunlock(&ctlr->QLock);
 	return n;
 }
 
@@ -1174,7 +1174,7 @@ atageniostart(Drive* drive, uvlong lba)
 
 	use48 = 0;
 	if((drive->flags&Lba48always) || (lba+drive->count) > Last28 || drive->count > 256){
-		if((drive->feat & Dllba) == 0)
+		if((drive->Sfis.feat & Dllba) == 0)
 			return -1;
 		use48 = 1;
 		c = h = s = 0;
@@ -1183,13 +1183,13 @@ atageniostart(Drive* drive, uvlong lba)
 		h = (lba>>24) & 0x0F;
 		s = lba & 0xFF;
 	}else{
-		if (drive->s == 0 || drive->h == 0){
+		if (drive->Sfis.s == 0 || drive->Sfis.h == 0){
 			print("sdide: chs address botch");
 			return -1;
 		}
-		c = lba/(drive->s*drive->h);
-		h = (lba/drive->s) % drive->h;
-		s = (lba % drive->s) + 1;
+		c = lba/(drive->Sfis.s*drive->Sfis.h);
+		h = (lba/drive->Sfis.s) % drive->Sfis.h;
+		s = (lba % drive->Sfis.s) + 1;
 	}
 
 	ctlr = drive->ctlr;
@@ -1198,7 +1198,7 @@ atageniostart(Drive* drive, uvlong lba)
 	if(ataready(cmdport, ctlport, drive->dev, Bsy|Drq, Drdy, 101*1000) < 0)
 		return -1;
 
-	ilock(ctlr);
+	ilock(&ctlr->Lock);
 	if(drive->dmactl && !atadmasetup(drive, drive->count*drive->secsize)){
 		if(drive->write)
 			drive->command = Cwd;
@@ -1253,7 +1253,7 @@ atageniostart(Drive* drive, uvlong lba)
 		microdelay(1);
 		as = ataready(cmdport, ctlport, 0, Bsy, Drq|Err, 400*1000);
 		if(as < 0 || (as & Err)){
-			iunlock(ctlr);
+			iunlock(&ctlr->Lock);
 			return -1;
 		}
 		len = drive->block;
@@ -1267,7 +1267,7 @@ atageniostart(Drive* drive, uvlong lba)
 		atadmastart(ctlr, drive->write);
 		break;
 	}
-	iunlock(ctlr);
+	iunlock(&ctlr->Lock);
 
 	return 0;
 }
@@ -1313,10 +1313,10 @@ atagenio(Drive* drive, SDreq *r)
 		return SDok;
 	if(drive->dlen < count*drive->secsize)
 		count = drive->dlen/drive->secsize;
-	qlock(ctlr);
+	qlock(&ctlr->QLock);
 	if(ctlr->maxio)
 		maxio = ctlr->maxio;
-	else if(drive->feat & Dllba)
+	else if(drive->Sfis.feat & Dllba)
 		maxio = 65536;
 	else
 		maxio = 256;
@@ -1326,10 +1326,10 @@ atagenio(Drive* drive, SDreq *r)
 		else
 			drive->count = count;
 		if(atageniostart(drive, lba)){
-			ilock(ctlr);
+			ilock(&ctlr->Lock);
 			atanop(drive, 0);
-			iunlock(ctlr);
-			qunlock(ctlr);
+			iunlock(&ctlr->Lock);
+			qunlock(&ctlr->QLock);
 			return atagenioretry(drive, r, lba, count);
 		}
 		iowait(drive, 30*1000, 0);
@@ -1342,19 +1342,19 @@ atagenio(Drive* drive, SDreq *r)
 			 */
 			atadumpstate(drive, r, lba, count);
 			ataabort(drive, 1);
-			qunlock(ctlr);
+			qunlock(&ctlr->QLock);
 			return atagenioretry(drive, r, lba, count);
 		}
 
 		if(drive->status & Err){
-			qunlock(ctlr);
+			qunlock(&ctlr->QLock);
 			print("atagenio: %llud:%d\n", lba, drive->count);
 			return sdsetsense(r, SDcheck, 4, 8, drive->error);
 		}
 		count -= drive->count;
 		lba += drive->count;
 	}
-	qunlock(ctlr);
+	qunlock(&ctlr->QLock);
 
 	return SDok;
 }
@@ -1372,7 +1372,7 @@ atario(SDreq* r)
 	if((ctlr = unit->dev->ctlr) == nil || ctlr->drive[unit->subno] == nil)
 		return r->status = SDtimeout;
 	drive = ctlr->drive[unit->subno];
-	qlock(drive);
+	qlock(&drive->QLock);
 	for(;;){
 		drive->write = r->write;
 		drive->data = r->data;
@@ -1387,7 +1387,7 @@ atario(SDreq* r)
 			break;
 		if(DbgDEBUG)
 			print("%s: retry: dma %8.8uX rwm %4.4uX\n",
-				unit->name, drive->dmactl, drive->rwmctl);
+				unit->SDperm.name, drive->dmactl, drive->rwmctl);
 	}
 	if(status == SDok && r->rlen == 0 && (r->flags & SDvalidsense) == 0){
 		sdsetsense(r, SDok, 0, 0, 0);
@@ -1398,7 +1398,7 @@ atario(SDreq* r)
 		else
 			r->rlen = 0;
 	}
-	qunlock(drive);
+	qunlock(&drive->QLock);
 	return status;
 }
 
@@ -1432,13 +1432,13 @@ atagenatastart(Drive* d, SDreq *r)
 	if(ataready(cmdport, ctlport, d->dev, Bsy|Drq, d->pkt ? 0 : Drdy, 101*1000) < 0)
 		return -1;
 
-	ilock(ctlr);
+	ilock(&ctlr->Lock);
 	if(isdma && atadmasetup(d, d->block)){
-		iunlock(ctlr);
+		iunlock(&ctlr->Lock);
 		return -1;
 	
 	}
-	if(d->feat & Dllba && (r->ataproto & P28) == 0){
+	if(d->Sfis.feat & Dllba && (r->ataproto & P28) == 0){
 		outb(cmdport+Features, r->cmd[Ffeat8]);
 		outb(cmdport+Features, r->cmd[Ffeat]);
 		outb(cmdport+Count, r->cmd[Fsc8]);
@@ -1473,7 +1473,7 @@ atagenatastart(Drive* d, SDreq *r)
 		microdelay(1);
 		as = ataready(cmdport, ctlport, 0, Bsy, Drq|Err, 400*1000);
 		if(as < 0 || (as & Err)){
-			iunlock(ctlr);
+			iunlock(&ctlr->Lock);
 			return -1;
 		}
 		len = d->block;
@@ -1481,7 +1481,7 @@ atagenatastart(Drive* d, SDreq *r)
 			outss(cmdport+Data, d->data, len/2);
 	}else
 		atadmastart(ctlr, d->write);
-	iunlock(ctlr);
+	iunlock(&ctlr->Lock);
 	return 0;
 }
 
@@ -1496,10 +1496,10 @@ mkrfis(Drive *d, SDreq *r)
 	cmdport = ctlr->cmdport;
 	u = r->cmd;
 
-	ilock(ctlr);
+	ilock(&ctlr->Lock);
 	u[Ftype] = 0x34;
 	u[Fioport] = 0;
-	if((d->feat & Dllba) && (r->ataproto & P28) == 0){
+	if((d->Sfis.feat & Dllba) && (r->ataproto & P28) == 0){
 		u[Frerror] = inb(cmdport+Error);
 		u[Fsc8] = inb(cmdport+Count);
 		u[Fsc] = inb(cmdport+Count);
@@ -1520,7 +1520,7 @@ mkrfis(Drive *d, SDreq *r)
 		u[Fdev] = inb(cmdport+Dh);
 		u[Fstatus] = inb(cmdport+Status);
 	}
-	iunlock(ctlr);
+	iunlock(&ctlr->Lock);
 }
 
 static int
@@ -1564,7 +1564,7 @@ patasizeck(Drive *d, SDreq *r)
 	ctlr = d->ctlr;
 	if(ctlr->maxio)
 		maxio = ctlr->maxio;
-	else if((d->feat & Dllba) && (r->ataproto & P28) == 0)
+	else if((d->Sfis.feat & Dllba) && (r->ataproto & P28) == 0)
 		maxio = 65536;
 	else
 		maxio = 256;
@@ -1590,9 +1590,9 @@ atapataio(Drive *d, SDreq *r)
 	d->limit = d->data + r->dlen;
 
 	ctlr = d->ctlr;
-	qlock(ctlr);
+	qlock(&ctlr->QLock);
 	if(waserror()){
-		qunlock(ctlr);
+		qunlock(&ctlr->QLock);
 		nexterror();
 	}
 	rv = atagenatastart(d, r);
@@ -1600,10 +1600,10 @@ atapataio(Drive *d, SDreq *r)
 	if(rv){
 		if(DEBUG & DbgAtazz)
 			print("sdide: !atageatastart\n");
-		ilock(ctlr);
+		ilock(&ctlr->Lock);
 		atanop(d, 0);
-		iunlock(ctlr);
-		qunlock(ctlr);
+		iunlock(&ctlr->Lock);
+		qunlock(&ctlr->QLock);
 		return sdsetsense(r, SDcheck, 4, 8, d->error);
 	}
 
@@ -1618,17 +1618,17 @@ atapataio(Drive *d, SDreq *r)
 			atadumpstate(d, r, 0, d->count);
 		}
 		ataabort(d, 1);
-		qunlock(ctlr);
+		qunlock(&ctlr->QLock);
 		return sdsetsense(r, SDcheck, 11, 0, 6);	/* aborted; i/o process terminated */
 	}
 	mkrfis(d, r);
 	if(d->status & Err){
 		if(DEBUG & DbgAtazz)
 			print("sdide: status&Err\n");
-		qunlock(ctlr);
+		qunlock(&ctlr->QLock);
 		return sdsetsense(r, SDcheck, 4, 8, d->error);
 	}
-	qunlock(ctlr);
+	qunlock(&ctlr->QLock);
 	return SDok;
 }
 
@@ -1640,11 +1640,11 @@ ataataio0(Drive *d, SDreq *r)
 	if((r->ataproto & Pprotom) == Ppkt){
 		if(r->clen > d->pkt)
 			error(Eio);
-		qlock(d->ctlr);
+		qlock(&d->ctlr->QLock);
 		i = atapktio0(d, r);
 		d->block = d->data - (uchar*)r->data;
 		mkrfis(d, r);
-		qunlock(d->ctlr);
+		qunlock(&d->ctlr->QLock);
 		return i;
 	}else
 		return atapataio(d, r);
@@ -1705,13 +1705,13 @@ ataataio(SDreq *r)
 		r->status = SDtimeout;
 		return SDtimeout;
 	}
-	if((status = fisreqchk(d, r)) != SDnostatus)
+	if((status = fisreqchk(&d->Sfis,r)) != SDnostatus)
 		return status;
 	udm = isudm(r);
 
-	qlock(d);
+	qlock(&d->QLock);
 	if(waserror()){
-		qunlock(d);
+		qunlock(&d->QLock);
 		nexterror();
 	}
 retry:
@@ -1725,7 +1725,7 @@ retry:
 	case SDretry:
 		if(DbgDEBUG)
 			print("%s: retry: dma %.8ux rwm %.4ux\n",
-				u->name, d->dmactl, d->rwmctl);
+				u->SDperm.name, d->dmactl, d->rwmctl);
 		goto retry;
 	case SDok:
 		if(udm == 1)
@@ -1737,7 +1737,7 @@ retry:
 		break;
 	}
 	poperror();
-	qunlock(d);
+	qunlock(&d->QLock);
 	r->status = status;
 	return status;
 }
@@ -1761,7 +1761,7 @@ atainterrupt(Ureg*, void* arg)
 
 	ctlr = arg;
 
-	ilock(ctlr);
+	ilock(&ctlr->Lock);
 	ctlr->nrq++;
 	if(ctlr->curdrive)
 		ctlr->curdrive->irq++;
@@ -1769,7 +1769,7 @@ atainterrupt(Ureg*, void* arg)
 		ctlr->bsy++;
 		if(ctlr->curdrive)
 			ctlr->curdrive->bsy++;
-		iunlock(ctlr);
+		iunlock(&ctlr->Lock);
 		if(DEBUG & DbgBsy)
 			print("IBsy+");
 		return;
@@ -1780,7 +1780,7 @@ atainterrupt(Ureg*, void* arg)
 		ctlr->nildrive++;
 		if(ctlr->irqack != nil)
 			ctlr->irqack(ctlr);
-		iunlock(ctlr);
+		iunlock(&ctlr->Lock);
 		return;
 	}
 	if(status & Err)
@@ -1847,7 +1847,7 @@ atainterrupt(Ureg*, void* arg)
 	}
 	if(ctlr->irqack != nil)
 		ctlr->irqack(ctlr);
-	iunlock(ctlr);
+	iunlock(&ctlr->Lock);
 
 	if(drive->error){
 		status |= Err;
@@ -1857,7 +1857,7 @@ atainterrupt(Ureg*, void* arg)
 	if(ctlr->done){
 		ctlr->curdrive = nil;
 		drive->status = status;
-		wakeup(ctlr);
+		wakeup(&ctlr->Rendez);
 	}
 }
 
@@ -2309,7 +2309,7 @@ ataonline(SDunit *unit)
 		atadrive(unit, drive, ctlr->cmdport, ctlr->ctlport, drive->dev);
 		ret = 2;
 	}
-	if(drive->feat & Datapi){
+	if(drive->Sfis.feat & Datapi){
 		ulong dma;
 
 		dma = drive->dmactl;
@@ -2333,34 +2333,34 @@ atarctl(SDunit* unit, char *p, char *e)
 		return p;
 	drive = ctlr->drive[unit->subno];
 
-	qlock(drive);
+	qlock(&drive->QLock);
 	p = seprint(p, e, "config %4.4uX capabilities %4.4uX", drive->info[Iconfig], drive->info[Icapabilities]);
 	if(drive->dma)
 		p = seprint(p, e, " dma %8.8uX dmactl %8.8uX", drive->dma, drive->dmactl);
 	if(drive->rwm)
 		p = seprint(p, e, " rwm %ud rwmctl %ud", drive->rwm, drive->rwmctl);
-	if(drive->feat & Dllba)
+	if(drive->Sfis.feat & Dllba)
 		p = seprint(p, e, " lba48always %s", (drive->flags&Lba48always) ? "on" : "off");
 	p = seprint(p, e, "\n");
 	p = seprint(p, e, "model	%s\n", drive->model);
 	p = seprint(p, e, "serial	%s\n", drive->serial);
 	p = seprint(p, e, "firm	%s\n", drive->firmware);
 	p = seprint(p, e, "feat	");
-	p = pflag(p, e, drive);
+	p = pflag(p,e,&drive->Sfis);
 	if(drive->sectors){
 		p = seprint(p, e, "geometry %llud %d", drive->sectors, drive->secsize);
-		if(drive->pkt == 0 && (drive->feat & Dlba) == 0)
-			p = seprint(p, e, " %d %d %d", drive->c, drive->h, drive->s);
+		if(drive->pkt == 0 && (drive->Sfis.feat & Dlba) == 0)
+			p = seprint(p, e, " %d %d %d", drive->Sfis.c, drive->Sfis.h, drive->Sfis.s);
 		p = seprint(p, e, "\n");
 		p = seprint(p, e, "alignment %d %d\n",
-			drive->secsize<<drive->physshift, drive->physalign);
+			drive->secsize<<drive->Sfis.physshift, drive->Sfis.physalign);
 	}
 	p = seprint(p, e, "missirq	%ud\n", drive->missirq);
 	p = seprint(p, e, "sloop	%ud\n", drive->spurloop);
 	p = seprint(p, e, "irq	%ud %ud\n", ctlr->nrq, drive->irq);
 	p = seprint(p, e, "bsy	%ud %ud\n", ctlr->bsy, drive->bsy);
 	p = seprint(p, e, "nildrive	%ud\n", ctlr->nildrive);
-	qunlock(drive);
+	qunlock(&drive->QLock);
 
 	return p;
 }
@@ -2375,9 +2375,9 @@ atawctl(SDunit* unit, Cmdbuf* cb)
 		return 0;
 	drive = ctlr->drive[unit->subno];
 
-	qlock(drive);
+	qlock(&drive->QLock);
 	if(waserror()){
-		qunlock(drive);
+		qunlock(&drive->QLock);
 		nexterror();
 	}
 
@@ -2408,7 +2408,7 @@ atawctl(SDunit* unit, Cmdbuf* cb)
 			error(Ebadctl);
 	}
 	else if(strcmp(cb->f[0], "lba48always") == 0){
-		if(cb->nf != 2 || !(drive->feat & Dllba))
+		if(cb->nf != 2 || !(drive->Sfis.feat & Dllba))
 			error(Ebadctl);
 		if(strcmp(cb->f[1], "on") == 0)
 			drive->flags |= Lba48always;
@@ -2422,7 +2422,7 @@ atawctl(SDunit* unit, Cmdbuf* cb)
 	}
 	else
 		error(Ebadctl);
-	qunlock(drive);
+	qunlock(&drive->QLock);
 	poperror();
 
 	return 0;

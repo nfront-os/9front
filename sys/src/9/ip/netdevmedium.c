@@ -115,13 +115,13 @@ netdevread(void *a)
 			poperror();
 			break;
 		}
-		rlock(ifc);
+		rlock(&ifc->RWLock);
 		if(waserror()){
-			runlock(ifc);
+			runlock(&ifc->RWLock);
 			continue;
 		}
 		ipiput4(er->f, ifc, bp);
-		runlock(ifc);
+		runlock(&ifc->RWLock);
 		poperror();
 	}
 	if(mediumunbindifc(ifc) != nil)

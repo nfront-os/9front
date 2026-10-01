@@ -872,12 +872,12 @@ w_ifstat(void *arg, char *p, char *e)
 	if(ctlr->hascrypt){
 		PRINTSTR("Keys: ");
 		for (i = 0; i < WNKeys; i++){
-			if(ctlr->keys.keys[i].len == 0)
+			if(ctlr->keys[i].len == 0)
 				PRINTSTR("none ");
 			else if(SEEKEYS == 0)
 				PRINTSTR("set ");
 			else
-				PRINTSTAT("%s ", ctlr->keys.keys[i].dat);
+				PRINTSTAT("%s ", ctlr->keys[i].dat);
 		}
 		PRINTSTR("\n");
 	}
@@ -1068,7 +1068,7 @@ w_option(Ctlr* ctlr, char* buf, long n)
 	else if(cistrncmp(cb->f[0], "key", 3) == 0){
 		if((i = atoi(cb->f[0]+3)) >= 1 && i <= WNKeys){
 			ctlr->txkey = i-1;
-			if(parsekey(&ctlr->keys.keys[ctlr->txkey], cb->f[1]))
+			if(parsekey(&ctlr->keys[ctlr->txkey], cb->f[1]))
 				r = -1;
 		}
 		else

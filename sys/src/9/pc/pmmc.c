@@ -169,7 +169,7 @@ mmcinterrupt(Ureg*, void *arg)
 		return;		/* not for us */
 
 	CR16(c, Rnis) = nis;	/* ack */
-	ilock(c);
+	ilock(&c->Lock);
 	eis = 0;
 	if((nis & Seint) != 0){
 		eis = CR16(c, Reis);
@@ -182,7 +182,7 @@ mmcinterrupt(Ureg*, void *arg)
 	c->waitsts |= nis | (eis << 16);
 	if((c->waitsts & c->waitmsk) != 0)
 		wakeup(&c->r);
-	iunlock(c);
+	iunlock(&c->Lock);
 }
 
 static int
@@ -313,7 +313,7 @@ resetctlr(Ctlr *c)
 {
 	u32int m;
 
-	ilock(c);
+	ilock(&c->Lock);
 	CR16(c, Rnise) = 0;	/* interrupts off */
 
 	c->change = 0;
@@ -331,7 +331,7 @@ resetctlr(Ctlr *c)
 
 	setpower(c, 1);	
 	setclkfreq(c, 400000);
-	iunlock(c);
+	iunlock(&c->Lock);
 }
 
 static int
@@ -346,9 +346,9 @@ intrwait(Ctlr *c, u32int mask, int tmo)
 {
 	u32int status;
 
-	ilock(c);
+	ilock(&c->Lock);
 	c->waitmsk = Seint | mask;
-	iunlock(c);
+	iunlock(&c->Lock);
 	do {
 		if(!waserror()){
 			tsleep(&c->r, waitcond, c, 100);
@@ -359,7 +359,7 @@ intrwait(Ctlr *c, u32int mask, int tmo)
 			break;
 		tmo -= 100;
 	} while(tmo > 0);
-	ilock(c);
+	ilock(&c->Lock);
 	c->waitmsk = 0;
 	status = c->waitsts;
 	c->waitsts &= ~(status & mask);
@@ -369,7 +369,7 @@ intrwait(Ctlr *c, u32int mask, int tmo)
 		c->waitsts = 0;
 		status = 0;
 	}
-	iunlock(c);
+	iunlock(&c->Lock);
 
 	return status & mask;
 }
@@ -437,7 +437,7 @@ pmmccmd(SDio *io, SDiocmd *iocmd, u32int arg, u32int *resp)
 	if(i < 0)
 		error(Eio);
 
-	ilock(c);
+	ilock(&c->Lock);
 	if((mode & (Mcnt|Mblk)) == (Mcnt|Mblk)){
 		CR16(c, Rbsize)  = c->io.bsize;
 		CR16(c, Rbcount) = c->io.bcount;
@@ -445,7 +445,7 @@ pmmccmd(SDio *io, SDiocmd *iocmd, u32int arg, u32int *resp)
 	CR32(c, Rarg) = arg;
 	CR16(c, Rmode) = mode;
 	CR16(c, Rcmd) = cmd;
-	iunlock(c);
+	iunlock(&c->Lock);
 
 	if(!intrwait(c, Scmdc, 1000))
 		error(Eio);
@@ -535,7 +535,7 @@ pmmcbus(SDio *io, int width, int speed)
 {
 	Ctlr *c = io->aux;
 
-	ilock(c);
+	ilock(&c->Lock);
 	switch(width){
 	case 1:
 		CR8(c, Rhc) &= ~2;
@@ -546,7 +546,7 @@ pmmcbus(SDio *io, int width, int speed)
 	}
 	if(speed)
 		setclkfreq(c, speed);
-	iunlock(c);
+	iunlock(&c->Lock);
 }
 
 void

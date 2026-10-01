@@ -36,12 +36,12 @@ bypass(void *arg, Block *b)
 	Netfile *f;
 
 	ether = (Ether*)arg;
-	if((f = ether->bypass) == nil){
+	if((f = ether->Netif.bypass) == nil){
 		freeb(b);
 		return;
 	}
 	if(qpass(f->in, b) < 0)
-		ether->soverflows++;
+		ether->Netif.soverflows++;
 }
 
 Chan*
@@ -86,19 +86,19 @@ etherattach(char* spec)
 static Walkqid*
 etherwalk(Chan* chan, Chan* nchan, char** name, int nname)
 {
-	return netifwalk(etherxx[chan->dev], chan, nchan, name, nname);
+	return netifwalk(&etherxx[chan->dev]->Netif,chan,nchan,name,nname);
 }
 
 static int
 etherstat(Chan* chan, uchar* dp, int n)
 {
-	return netifstat(etherxx[chan->dev], chan, dp, n);
+	return netifstat(&etherxx[chan->dev]->Netif,chan,dp,n);
 }
 
 static Chan*
 etheropen(Chan* chan, int omode)
 {
-	return netifopen(etherxx[chan->dev], chan, omode);
+	return netifopen(&etherxx[chan->dev]->Netif,chan,omode);
 }
 
 static Chan*
@@ -114,33 +114,33 @@ etherclose(Chan* chan)
 	Netfile *f;
 
 	if(NETTYPE(chan->qid.path) == Ndataqid){
-		f = ether->f[NETID(chan->qid.path)];
+		f = ether->Netif.f[NETID(chan->qid.path)];
 		if(f->bridge || f->bypass)
 			memset(ether->mactab, 0, sizeof(ether->mactab));
 		if(f->bypass){
-			qsetbypass(ether->oq, ether->link? nil: drop);
+			qsetbypass(ether->oq, ether->Netif.link? nil: drop);
 			qsetlimit(ether->oq, etheroqsize(ether));
 		}
 	}
-	netifclose(ether, chan);
+	netifclose(&ether->Netif,chan);
 }
 
 static long
 etherread(Chan* chan, void* buf, long n, vlong off)
 {
-	return netifread(etherxx[chan->dev], chan, buf, n, (ulong)off);
+	return netifread(&etherxx[chan->dev]->Netif,chan,buf,n,(ulong)off);
 }
 
 static Block*
 etherbread(Chan* chan, long n, ulong offset)
 {
-	return netifbread(etherxx[chan->dev], chan, n, offset);
+	return netifbread(&etherxx[chan->dev]->Netif,chan,n,offset);
 }
 
 static int
 etherwstat(Chan* chan, uchar* dp, int n)
 {
-	return netifwstat(etherxx[chan->dev], chan, dp, n);
+	return netifwstat(&etherxx[chan->dev]->Netif,chan,dp,n);
 }
 
 static void
@@ -155,7 +155,7 @@ etherrtrace(Netfile* f, Etherpkt* pkt, int len)
 		return;
 	memmove(bp->wp, pkt, len < 64 ? len : 64);
 	if(f->type != -2){
-		u32int ms = TK2MS(MACHP(0)->ticks);
+		u32int ms = TK2MS(MACHP(0)->PMach.ticks);
 		bp->wp[58] = len>>8;
 		bp->wp[59] = len;
 		bp->wp[60] = ms>>24;
@@ -194,23 +194,23 @@ ethermux(Ether *ether, Block *bp, Netfile **from)
 
 	pkt = (Etherpkt*)bp->rp;
 	if(!(multi = pkt->d[0] & 1)){
-		if(from != nil && ether->prom == 0)
+		if(from != nil && ether->Netif.prom == 0)
 			return bp;
 		tome = (from == nil || (*from)->bridge) &&
 			memcmp(pkt->d, ether->ea, Eaddrlen) == 0;
 	} else {
-		if(from == nil && ether->prom == 0
-		&& memcmp(pkt->d, ether->bcast, Eaddrlen) != 0
-		&& !activemulti(ether, pkt->d, Eaddrlen))
+		if(from == nil && ether->Netif.prom == 0
+		&& memcmp(pkt->d, ether->Netif.bcast, Eaddrlen) != 0
+		&& !activemulti(&ether->Netif,pkt->d,Eaddrlen))
 			goto Drop;
 		tome = 0;
 	}
 
 	port = -1;
-	if(ether->prom){
+	if(ether->Netif.prom){
 		if((from == nil || (*from)->bridge) && (pkt->s[0] & 1) == 0){
 			Macent *t = macent(ether, pkt->s);
-			t->port = from == nil ? 0 : 1+(from - ether->f);
+			t->port = from == nil ? 0 : 1+(from - ether->Netif.f);
 			memmove(t->ea, pkt->s, Eaddrlen);
 		}
 		if(!tome && !multi){
@@ -224,7 +224,7 @@ ethermux(Ether *ether, Block *bp, Netfile **from)
 	type = (pkt->type[0]<<8)|pkt->type[1];
 	dispose = tome || from == nil || port > 0;
 
-	for(fp = ether->f; fp < &ether->f[Ntypes]; fp++){
+	for(fp = ether->Netif.f; fp < &ether->Netif.f[Ntypes]; fp++){
 		if((f = *fp) == nil)
 			continue;
 		if(f->type != type && f->type >= 0)
@@ -236,7 +236,7 @@ ethermux(Ether *ether, Block *bp, Netfile **from)
 		if(f->bridge){
 			if(tome || fp == from)
 				continue;
-			if(port >= 0 && port != 1+(fp - ether->f))
+			if(port >= 0 && port != 1+(fp - ether->Netif.f))
 				continue;
 		}
 		if(f->headersonly || f->type == -2){
@@ -258,11 +258,11 @@ ethermux(Ether *ether, Block *bp, Netfile **from)
 			if(qpass(f->in, xbp) >= 0)
 				continue;
 		}
-		ether->soverflows++;
+		ether->Netif.soverflows++;
 	}
 	if(x != nil){
 		if(qpass(x->in, bp) < 0)
-			ether->soverflows++;
+			ether->Netif.soverflows++;
 		return nil;
 	}
 
@@ -276,13 +276,13 @@ Drop:		freeb(bp);
 void
 etheriq(Ether* ether, Block* bp)
 {
-	if(ether->bypass != nil){
+	if(ether->Netif.bypass != nil){
 		freeb(bp);
 		return;
 	}
 	if(ether->dmat != nil)
 		dmatproxy(bp, 0, ether->ea, ether->dmat);
-	ether->inpackets++;
+	ether->Netif.inpackets++;
 	ethermux(ether, bp, nil);
 }
 
@@ -303,7 +303,7 @@ etheroq(Ether* ether, Block* bp, Netfile **from)
 		return;
 	if(ether->dmat != nil)
 		dmatproxy(bp, 1, ether->ea, ether->dmat);
-	ether->outpackets++;
+	ether->Netif.outpackets++;
 	qbwrite(ether->oq, bp);
 }
 
@@ -316,10 +316,10 @@ etherwrite(Chan* chan, void* buf, long n, vlong)
 	Cmdbuf *cb;
 
 	if(NETTYPE(chan->qid.path) != Ndataqid) {
-		nn = netifwrite(ether, chan, buf, n);
+		nn = netifwrite(&ether->Netif,chan,buf,n);
 		if(nn >= 0){
 			/* got bypassed? */
-			if(ether->f[NETID(chan->qid.path)]->bypass){
+			if(ether->Netif.f[NETID(chan->qid.path)]->bypass){
 				/* bypass output queue */
 				qsetbypass(ether->oq, bypass);
 			}
@@ -356,7 +356,7 @@ etherwrite(Chan* chan, void* buf, long n, vlong)
 	poperror();
 	bp->wp += n;
 
-	etheroq(ether, bp, &ether->f[NETID(chan->qid.path)]);
+	etheroq(ether, bp, &ether->Netif.f[NETID(chan->qid.path)]);
 	return n;
 }
 
@@ -386,7 +386,7 @@ etherbwrite(Chan* chan, Block* bp, ulong)
 		freeb(bp);
 		error(Etoosmall);
 	}
-	etheroq(ether, bp, &ether->f[NETID(chan->qid.path)]);
+	etheroq(ether, bp, &ether->Netif.f[NETID(chan->qid.path)]);
 	return n;
 }
 
@@ -412,7 +412,7 @@ etheroqsize(Ether *ether)
 {
 	int b, q;
 
-	b = ether->mbps * 2*125;	/* 2ms */
+	b = ether->Netif.mbps * 2*125;	/* 2ms */
 	for(q = 128*1024; q < b; q <<= 1)
 		;
 	if(mainmem->maxsize / 8 < q)
@@ -433,58 +433,58 @@ etherprobe(int cardno, int ctlrno, char *conf)
 	}
 	memset(ether, 0, sizeof(Ether));
 	ether->tbdf = BUSUNKNOWN;
-	ether->irq = -1;
+	ether->ISAConf.irq = -1;
 	ether->ctlrno = ctlrno;
-	ether->mbps = 10;
-	ether->link = -1;	/* unknown state */
+	ether->Netif.mbps = 10;
+	ether->Netif.link = -1;	/* unknown state */
 	ether->minmtu = ETHERMINTU;
 	ether->maxmtu = ETHERMAXTU;
 
 	if(cardno < 0){
 		if(conf != nil){
-			kstrdup(&ether->type, conf);
-			ether->nopt = tokenize(ether->type, ether->opt, nelem(ether->opt));
-			if(ether->nopt < 1)
+			kstrdup(&ether->ISAConf.type, conf);
+			ether->ISAConf.nopt = tokenize(ether->ISAConf.type, ether->ISAConf.opt, nelem(ether->ISAConf.opt));
+			if(ether->ISAConf.nopt < 1)
 				goto Nope;
-			memmove(&ether->opt[0], &ether->opt[1], --ether->nopt*sizeof(ether->opt[0]));
-		} else if(isaconfig("ether", ctlrno, ether) == 0)
+			memmove(&ether->ISAConf.opt[0], &ether->ISAConf.opt[1], --ether->ISAConf.nopt*sizeof(ether->ISAConf.opt[0]));
+		} else if(isaconfig("ether",ctlrno,&ether->ISAConf) == 0)
 			goto Nope;
-		for(i = 0; i < ether->nopt; i++){
-			if(strncmp(ether->opt[i], "ea=", 3) == 0){
-				if(parseether(ether->ea, &ether->opt[i][3]))
+		for(i = 0; i < ether->ISAConf.nopt; i++){
+			if(strncmp(ether->ISAConf.opt[i], "ea=", 3) == 0){
+				if(parseether(ether->ea, &ether->ISAConf.opt[i][3]))
 					memset(ether->ea, 0, Eaddrlen);
 			}
 		}
 		for(cardno = 0; cards[cardno].type != nil; cardno++)
-			if(cistrcmp(cards[cardno].type, ether->type) == 0)
+			if(cistrcmp(cards[cardno].type, ether->ISAConf.type) == 0)
 				break;
 	}
 	if(cardno >= MaxEther || cards[cardno].type == nil)
 		goto Nope;
-	snprint(ether->name, sizeof(ether->name), "ether%d", ctlrno);
+	snprint(ether->Netif.name, sizeof(ether->Netif.name), "ether%d", ctlrno);
 	if(cards[cardno].reset(ether) < 0){
 Nope:
-		if(conf != nil) free(ether->type);	/* see kstrdup() above */
+		if(conf != nil) free(ether->ISAConf.type);	/* see kstrdup() above */
 		free(ether);
 		return nil;
 	}
-	ether->type = cards[cardno].type;
+	ether->ISAConf.type = cards[cardno].type;
 
 	print("#l%d: %s: %dMbps port 0x%lluX irq %d ea %E\n",
-		ctlrno, ether->type, ether->mbps, (uvlong)ether->port, ether->irq, ether->ea);
+		ctlrno, ether->ISAConf.type, ether->Netif.mbps, (uvlong)ether->ISAConf.port, ether->ISAConf.irq, ether->ea);
 
 	q = etheroqsize(ether);
 	if(ether->oq == nil){
 		ether->oq = qopen(q, Qmsg|Qkick, (void (*)(void*))ether->transmit, ether);
 		if(ether->oq == nil)
-			panic("etherreset %s: can't allocate output queue", ether->name);
+			panic("etherreset %s: can't allocate output queue", ether->Netif.name);
 	} else {
 		qsetlimit(ether->oq, q);
 	}
-	netifinit(ether, ether->name, Ntypes, 8*MB);
-	ether->alen = Eaddrlen;
-	memmove(ether->addr, ether->ea, Eaddrlen);
-	memset(ether->bcast, 0xFF, Eaddrlen);
+	netifinit(&ether->Netif,ether->Netif.name,Ntypes,8*MB);
+	ether->Netif.alen = Eaddrlen;
+	memmove(ether->Netif.addr, ether->ea, Eaddrlen);
+	memset(ether->Netif.bcast, 0xFF, Eaddrlen);
 
 	return ether;
 }
@@ -492,10 +492,10 @@ Nope:
 void
 ethersetspeed(Ether *ether, int mbps)
 {
-	if(ether->mbps == mbps)
+	if(ether->Netif.mbps == mbps)
 		return;
-	ether->mbps = mbps;
-	if(mbps <= 0 || ether->f == nil || ether->oq == nil || ether->bypass)
+	ether->Netif.mbps = mbps;
+	if(mbps <= 0 || ether->Netif.f == nil || ether->oq == nil || ether->Netif.bypass)
 		return;
 	qsetlimit(ether->oq, etheroqsize(ether));
 }
@@ -503,26 +503,26 @@ ethersetspeed(Ether *ether, int mbps)
 void
 ethersetlink(Ether *ether, int new)
 {
-	int old = ether->link;
+	int old = ether->Netif.link;
 
 	new = !!new;
 	if(old == new)
 		return;
-	ether->link = new;
-	if(ether->f == nil || ether->bypass)
+	ether->Netif.link = new;
+	if(ether->Netif.f == nil || ether->Netif.bypass)
 		return;
 	memset(ether->mactab, 0, sizeof(ether->mactab));
-	qsetbypass(ether->oq, ether->link? nil: drop);
+	qsetbypass(ether->oq, ether->Netif.link? nil: drop);
 
 	if(up == nil || !islo())
 		return;	/* should not print from interrupt */
 
-	if(ether->link)
+	if(ether->Netif.link)
 		print("#l%d: %s: link up: %dMbps\n",
-			ether->ctlrno, ether->type, ether->mbps);
+			ether->ctlrno, ether->ISAConf.type, ether->Netif.mbps);
 	else if(old > 0)
 		print("#l%d: %s: link down\n",
-			ether->ctlrno, ether->type);
+			ether->ctlrno, ether->ISAConf.type);
 }
 
 static void netconsole(int);
@@ -638,10 +638,10 @@ netconsputc(Uart *, int c)
 	char *p;
 	u16int cs;
 
-	ilock(netcons);
+	ilock(&netcons->Lock);
 	netcons->buf[netcons->n++] = c;
 	if(c != '\n' && netcons->n < sizeof(netcons->buf)){
-		iunlock(netcons);
+		iunlock(&netcons->Lock);
 		return;
 	}
 	p = netcons->buf;
@@ -657,7 +657,7 @@ netconsputc(Uart *, int c)
 	memmove(p+Eaddrlen, netcons->ether->ea, Eaddrlen);
 	qiwrite(netcons->ether->oq, p, netcons->n);
 	netcons->n = PktHdr;
-	iunlock(netcons);
+	iunlock(&netcons->Lock);
 }
 
 static PhysUart netconsphys = { .putc = netconsputc };

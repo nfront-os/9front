@@ -101,6 +101,8 @@ static void	pushlink(Link *link, vlong now);
 static void	freelb(Loop *lb);
 static void	linkintr(Ureg*, Timer *ci);
 
+extern Dev	loopbackdevtab;
+
 static void
 loopbackinit(void)
 {
@@ -134,19 +136,19 @@ loopbackattach(char *spec)
 	}
 
 	lb = &loopbacks[dev];
-	qlock(lb);
+	qlock((QLock*)lb);
 	if(waserror()){
 		lb->ref--;
-		qunlock(lb);
+		qunlock((QLock*)lb);
 		nexterror();
 	}
 
 	lb->ref++;
 	if(lb->ref == 1){
 		for(chan = 0; chan < 2; chan++){
-			lb->link[chan].ci.mode = Trelative;
-			lb->link[chan].ci.a = &lb->link[chan];
-			lb->link[chan].ci.f = linkintr;
+			lb->link[chan].ci.tmode = Trelative;
+			lb->link[chan].ci.ta = &lb->link[chan];
+			lb->link[chan].ci.tf = linkintr;
 			lb->link[chan].limit = Loopqlim;
 			q = qopen(lb->link[chan].limit, 0, 0, 0);
 			lb->link[chan].iq = q;
@@ -167,7 +169,7 @@ loopbackattach(char *spec)
 		}
 	}
 	poperror();
-	qunlock(lb);
+	qunlock((QLock*)lb);
 
 	poperror();
 
@@ -251,11 +253,11 @@ loopbackwalk(Chan *c, Chan *nc, char **name, int nname)
 	wq = devwalk(c, nc, name, nname, nil, 0, loopbackgen);
 	if(wq != nil && wq->clone != nil && wq->clone != c){
 		lb = c->aux;
-		qlock(lb);
+		qlock((QLock*)lb);
 		lb->ref++;
 		if((c->flag & COPEN) && TYPE(c->qid.path) == Qdata)
 			lb->link[ID(c->qid.path)].ref++;
-		qunlock(lb);
+		qunlock((QLock*)lb);
 	}
 	return wq;
 }
@@ -284,15 +286,15 @@ loopbackopen(Chan *c, int omode)
 	}
 
 	lb = c->aux;
-	qlock(lb);
+	qlock((QLock*)lb);
 	if(TYPE(c->qid.path) == Qdata){
 		if(lb->link[ID(c->qid.path)].ref){
-			qunlock(lb);
+			qunlock((QLock*)lb);
 			error(Einuse);
 		}
 		lb->link[ID(c->qid.path)].ref++;
 	}
-	qunlock(lb);
+	qunlock((QLock*)lb);
 
 	c->mode = openmode(omode);
 	c->flag |= COPEN;
@@ -309,7 +311,7 @@ loopbackclose(Chan *c)
 
 	lb = c->aux;
 
-	qlock(lb);
+	qlock((QLock*)lb);
 
 	/*
 	 * closing either side hangs up the stream
@@ -338,7 +340,7 @@ loopbackclose(Chan *c)
 	ref = --lb->ref;
 	if(ref == 0)
 		freelb(lb);
-	qunlock(lb);
+	qunlock((QLock*)lb);
 }
 
 static void
@@ -360,7 +362,7 @@ closelink(Link *link, int dofree)
 	Queue *iq, *oq;
 	Block *bp;
 
-	ilock(link);
+	ilock((Lock*)link);
 	iq = link->iq;
 	oq = link->oq;
 	bp = link->tq;
@@ -369,23 +371,23 @@ closelink(Link *link, int dofree)
 	link->tout = 0;
 	link->tin = 0;
 	timerdel(&link->ci);
-	iunlock(link);
+	iunlock((Lock*)link);
 	if(iq != nil){
 		qclose(iq);
 		if(dofree){
-			ilock(link);
+			ilock((Lock*)link);
 			free(iq);
 			link->iq = nil;
-			iunlock(link);
+			iunlock((Lock*)link);
 		}
 	}
 	if(oq != nil){
 		qclose(oq);
 		if(dofree){
-			ilock(link);
+			ilock((Lock*)link);
 			free(oq);
 			link->oq = nil;
-			iunlock(link);
+			iunlock((Lock*)link);
 		}
 	}
 	freeblist(bp);
@@ -499,40 +501,40 @@ loopbackwrite(Chan *c, void *va, long n, vlong off)
 			 * to run pushlink; perhaps this should be accounted.
 			 */
 
-			ilock(link);
+		ilock((Lock*)link);
 			link->delay0ns = d0ns;
 			link->delaynns = dnns;
-			iunlock(link);
+		iunlock((Lock*)link);
 		}else if(strcmp(cb->f[0], "indrop") == 0){
 			if(cb->nf != 2)
 				error("usage: indrop [01]");
-			ilock(link);
+		ilock((Lock*)link);
 			link->indrop = strtol(cb->f[1], nil, 0) != 0;
-			iunlock(link);
+		iunlock((Lock*)link);
 		}else if(strcmp(cb->f[0], "droprate") == 0){
 			if(cb->nf != 2)
 				error("usage: droprate ofn");
-			ilock(link);
+		ilock((Lock*)link);
 			link->droprate = strtol(cb->f[1], nil, 0);
-			iunlock(link);
+		iunlock((Lock*)link);
 		}else if(strcmp(cb->f[0], "limit") == 0){
 			if(cb->nf != 2)
 				error("usage: limit maxqsize");
-			ilock(link);
+		ilock((Lock*)link);
 			link->limit = strtol(cb->f[1], nil, 0);
 			qsetlimit(link->oq, link->limit);
 			qsetlimit(link->iq, link->limit);
-			iunlock(link);
+		iunlock((Lock*)link);
 		}else if(strcmp(cb->f[0], "reset") == 0){
 			if(cb->nf != 1)
 				error("usage: reset");
-			ilock(link);
+		ilock((Lock*)link);
 			link->packets = 0;
 			link->bytes = 0;
 			link->indrop = 0;
 			link->soverflows = 0;
 			link->drops = 0;
-			iunlock(link);
+		iunlock((Lock*)link);
 		}else
 			error("unknown control request");
 		poperror();
@@ -580,8 +582,8 @@ linkintr(Ureg*, Timer *ci)
 {
 	Link *link;
 
-	link = ci->a;
-	pushlink(link, ci->ns);
+	link = ci->ta;
+	pushlink(link, ci->tns);
 }
 
 /*
@@ -599,9 +601,9 @@ pushlink(Link *link, vlong now)
 	/*
 	 * put another block in the link queue
 	 */
-	ilock(link);
+ilock((Lock*)link);
 	if(link->iq == nil || link->oq == nil){
-		iunlock(link);
+	iunlock((Lock*)link);
 		return;
 
 	}
@@ -630,7 +632,7 @@ pushlink(Link *link, vlong now)
 		tin = gtime(bp->rp);
 		if(tin > tout)
 			tout = tin;
-		tout = tout + (BLEN(bp) - Tmsize) * link->delayn;
+		tout = tout + (BLEN(bp) - Tmsize) * link->delaynns;
 
 		/*
 		 * drop packets
@@ -678,13 +680,13 @@ pushlink(Link *link, vlong now)
 	if(!tin || tin > tout && tout)
 		tin = tout;
 
-	link->ci.ns = tin - now;
+	link->ci.tns = tin - now;
 	if(tin){
 		if(tin < now)
 			panic("loopback unfinished business");
 		timeradd(&link->ci);
 	}
-	iunlock(link);
+iunlock((Lock*)link);
 }
 
 static void

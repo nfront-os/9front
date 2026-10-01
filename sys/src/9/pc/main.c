@@ -89,7 +89,7 @@ machinit(void)
 	m->machno = machno;
 	m->pdb = pdb;
 	m->gdt = gdt;
-	m->perf.period = 1;
+	// m->perf.period = 1;  /* perf struct not defined */
 
 	/*
 	 * For polled uart output at boot, need
@@ -238,7 +238,7 @@ procsetup(Proc *p)
 	p->nldt = 0;
 	
 	/* clear debug registers */
-	memset(p->dr, 0, sizeof(p->dr));
+	memset(p->PMMU.dr, 0, sizeof(p->PMMU.dr));
 	if(m->dr7 != 0){
 		m->dr7 = 0;
 		putdr7(0);
@@ -264,12 +264,12 @@ procfork(Proc *p)
 void
 procrestore(Proc *p)
 {
-	if(p->dr[7] != 0){
-		m->dr7 = p->dr[7];
-		putdr(p->dr);
+	if(p->PMMU.dr[7] != 0){
+		m->dr7 = p->PMMU.dr[7];
+		putdr(p->PMMU.dr);
 	}
 	
-	if(p->vmx != nil)
+	if(p->PMMU.vmx != nil)
 		vmxprocrestore(p);
 
 	fpuprocrestore(p);
@@ -287,7 +287,7 @@ procsave(Proc *p)
 		putdr7(0);
 	}
 	if(p->state == Moribund)
-		p->dr[7] = 0;
+		p->PMMU.dr[7] = 0;
 
 	fpuprocsave(p);
 

@@ -116,7 +116,7 @@ machinit(void)
 	m->machno = machno;
 	m->pml4 = pml4;
 	m->gdt = gdt;
-	m->perf.period = 1;
+	m->PMach.perf.period = 1;
 
 	/*
 	 * For polled uart output at boot, need

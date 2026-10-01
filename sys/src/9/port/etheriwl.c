@@ -527,8 +527,8 @@ struct Station
 };
 
 struct Ctlr {
-	Lock;
-	QLock;
+	Lock Lock;	/* gcc port: named, QLock also named (shares pc field) under -fplan9-extensions */
+	QLock QLock;
 
 	Ctlr *link;
 	uvlong port;
@@ -1661,21 +1661,21 @@ irqwait(Ctlr *ctlr, u32int mask, int timeout)
 {
 	u32int r;
 
-	ilock(ctlr);
+	ilock(&ctlr->Lock);
 	r = ctlr->wait.m & mask;
 	if(r == 0){
 		ctlr->wait.w = mask;
-		iunlock(ctlr);
+		iunlock(&ctlr->Lock);
 		if(!waserror()){
-			tsleep(&ctlr->wait, gotirq, ctlr, timeout);
+			tsleep(&ctlr->wait.Rendez,gotirq,ctlr,timeout);
 			poperror();
 		}
-		ilock(ctlr);
+		ilock(&ctlr->Lock);
 		ctlr->wait.w = 0;
 		r = ctlr->wait.m & mask;
 	}
 	ctlr->wait.m &= ~r;
-	iunlock(ctlr);
+	iunlock(&ctlr->Lock);
 	return r;
 }
 
@@ -2330,7 +2330,7 @@ readnvmconfig(Ctlr *ctlr)
 		ea[4] = buf[7];
 		ea[5] = buf[6];
 	}
-	memmove(ctlr->edev->addr, ea, Eaddrlen);
+	memmove(ctlr->edev->Netif.addr, ea, Eaddrlen);
 
 	return nil;
 }
@@ -2754,7 +2754,7 @@ settimeevent(Ctlr *ctlr, int amr, int ival)
 		ctlr->te.id = -1;
 		return nil;
 	}
-	tsleep(&ctlr->te, timeeventdone, ctlr, 100);
+	tsleep(&ctlr->te.Rendez,timeeventdone,ctlr,100);
 	return ctlr->te.active? nil: "timeevent did not start";
 }
 
@@ -3508,26 +3508,26 @@ qcmd(Ctlr *ctlr, uint qid, uint code, uchar *data, int size, Block *block)
 	else
 		bcmd = nil;
 
-	ilock(ctlr);
+	ilock(&ctlr->Lock);
 	q = &ctlr->tx[qid];
 	while(q->n >= Ntxqmax && !ctlr->broken){
-		iunlock(ctlr);
-		qlock(q);
+		iunlock(&ctlr->Lock);
+		qlock(&q->QLock);
 		if(!waserror()){
-			tsleep(q, txqready, q, 5);
+			tsleep(&q->Rendez,txqready,q,5);
 			poperror();
 		}
-		qunlock(q);
-		ilock(ctlr);
+		qunlock(&q->QLock);
+		ilock(&ctlr->Lock);
 	}
 	if(ctlr->broken){
-		iunlock(ctlr);
+		iunlock(&ctlr->Lock);
 		return "qcmd: broken";
 	}
 	/* wake up the nic (just needed for 7k) */
 	if(ctlr->family == 7000 && qid == 4 && q->n == 0)
 		if((err = niclock(ctlr)) != nil){
-			iunlock(ctlr);
+			iunlock(&ctlr->Lock);
 			return err;
 		}
 	q->n++;
@@ -3584,7 +3584,7 @@ qcmd(Ctlr *ctlr, uint qid, uint code, uchar *data, int size, Block *block)
 	q->i = (q->i+1) % Ntx;
 	csr32w(ctlr, HbusTargWptr, (qid<<8) | q->i);
 
-	iunlock(ctlr);
+	iunlock(&ctlr->Lock);
 
 	return nil;
 }
@@ -3603,18 +3603,18 @@ flushq(Ctlr *ctlr, uint qid)
 	int i;
 
 	q = &ctlr->tx[qid];
-	qlock(q);
+	qlock(&q->QLock);
 	for(i = 0; i < 200 && !ctlr->broken; i++){
 		if(txqempty(q)){
-			qunlock(q);
+			qunlock(&q->QLock);
 			return nil;
 		}
 		if(!waserror()){
-			tsleep(q, txqempty, q, 10);
+			tsleep(&q->Rendez,txqempty,q,10);
 			poperror();
 		}
 	}
-	qunlock(q);
+	qunlock(&q->QLock);
 	if(ctlr->broken)
 		return "flushq: broken";
 	ctlr->broken = 1;
@@ -3803,14 +3803,14 @@ rxon(Ether *edev, Wnode *bss)
 		}
 	} else {
 		ctlr->aid = 0;
-		memmove(ctlr->bssid, edev->bcast, sizeof(ctlr->bssid));
+		memmove(ctlr->bssid, edev->Netif.bcast, sizeof(ctlr->bssid));
 		ctlr->bcast.id = -1;
 		ctlr->bss.id = -1;
 	}
 
 	if(ctlr->aid != 0)
 		setled(ctlr, 2, 0, 1);		/* on when associated */
-	else if(memcmp(ctlr->bssid, edev->bcast, sizeof(ctlr->bssid)) != 0)
+	else if(memcmp(ctlr->bssid, edev->Netif.bcast, sizeof(ctlr->bssid)) != 0)
 		setled(ctlr, 2, 10, 10);	/* slow blink when connecting */
 	else
 		setled(ctlr, 2, 5, 5);		/* fast blink when scanning */
@@ -3830,7 +3830,7 @@ rxon(Ether *edev, Wnode *bss)
 		if((err = setstation(ctlr,
 			(ctlr->type != Type4965)? 15: 31,
 			StaTypeGeneralPurpose,
-			edev->bcast,
+			edev->Netif.bcast,
 			&ctlr->bcast)) != nil)
 			goto Out;
 	}
@@ -3864,10 +3864,10 @@ transmit(Wifi *wifi, Wnode *wn, Block *b)
 	edev = wifi->ether;
 	ctlr = edev->ctlr;
 
-	qlock(ctlr);
+	qlock(&ctlr->QLock);
 	if(ctlr->attached == 0 || ctlr->broken){
 Broken:
-		qunlock(ctlr);
+		qunlock(&ctlr->QLock);
 		freeb(b);
 		return;
 	}
@@ -3889,7 +3889,7 @@ Broken:
 
 	if(b == nil){
 		/* association note has no data to transmit */
-		qunlock(ctlr);
+		qunlock(&ctlr->QLock);
 		return;
 	}
 	flags = 0;
@@ -3965,7 +3965,7 @@ Broken:
 	put16(p, 0);	/* timeout */
 	p += 2;
 	p += 2;		/* txop */
-	qunlock(ctlr);
+	qunlock(&ctlr->QLock);
 
 	if((err = qcmd(ctlr, 0, 28, c, p - c, b)) != nil){
 		print("#l%d: transmit %s\n", edev->ctlrno, err);
@@ -4003,8 +4003,8 @@ setoptions(Ether *edev)
 	int i;
 
 	ctlr = edev->ctlr;
-	for(i = 0; i < edev->nopt; i++)
-		wificfg(ctlr->wifi, edev->opt[i]);
+	for(i = 0; i < edev->ISAConf.nopt; i++)
+		wificfg(ctlr->wifi, edev->ISAConf.opt[i]);
 }
 
 static void
@@ -4015,10 +4015,10 @@ iwlpromiscuous(void *arg, int on)
 
 	edev = arg;
 	ctlr = edev->ctlr;
-	qlock(ctlr);
+	qlock(&ctlr->QLock);
 	ctlr->prom = on;
 	rxon(edev, ctlr->wifi->bss);
-	qunlock(ctlr);
+	qunlock(&ctlr->QLock);
 }
 
 static void
@@ -4039,7 +4039,7 @@ iwlrecover(void *arg)
 	for(;;){
 		tsleep(&up->sleep, return0, 0, 4000);
 
-		qlock(ctlr);
+		qlock(&ctlr->QLock);
 		for(;;){
 			if(ctlr->broken == 0)
 				break;
@@ -4058,7 +4058,7 @@ iwlrecover(void *arg)
 			rxon(edev, ctlr->wifi->bss);
 			break;
 		}
-		qunlock(ctlr);
+		qunlock(&ctlr->QLock);
 	}
 }
 
@@ -4070,12 +4070,12 @@ iwlattach(Ether *edev)
 	char *err;
 
 	ctlr = edev->ctlr;
-	eqlock(ctlr);
+	eqlock(&ctlr->QLock);
 	if(waserror()){
 		print("#l%d: %s\n", edev->ctlrno, up->errstr);
 		if(ctlr->power)
 			poweroff(ctlr);
-		qunlock(ctlr);
+		qunlock(&ctlr->QLock);
 		nexterror();
 	}
 	if(ctlr->attached == 0){
@@ -4137,7 +4137,7 @@ iwlattach(Ether *edev)
 
 		kproc("iwlrecover", iwlrecover, edev);
 	}
-	qunlock(ctlr);
+	qunlock(&ctlr->QLock);
 	poperror();
 }
 
@@ -4227,12 +4227,12 @@ receive(Ctlr *ctlr)
 			switch(get32(d+16)){
 			case 1:
 				ctlr->te.active = 1;
-				wakeup(&ctlr->te);
+				wakeup(&ctlr->te.Rendez);
 				break;
 			case 2:
 				ctlr->te.active = 0;
 				ctlr->te.id = -1;
-				wakeup(&ctlr->te);
+				wakeup(&ctlr->te.Rendez);
 			}
 			break;
 		case 102:	/* calibration result (Type5000 only) */
@@ -4259,7 +4259,7 @@ receive(Ctlr *ctlr)
 		case 103:	/* calibration done (Type5000 only) */
 			ctlr->calib.done = 1;
 			if(ctlr->wait.w == Ierr)
-				wakeup(&ctlr->wait);
+				wakeup(&ctlr->wait.Rendez);
 			break;
 		case 107:	/* calibration result (>= 7000 family) */
 			if(ctlr->family < 7000)
@@ -4366,7 +4366,7 @@ receive(Ctlr *ctlr)
 		freeblist(bb);
 		if(tx != nil && tx->n > 0){
 			tx->n--;
-			wakeup(tx);
+			wakeup(&tx->Rendez);
 			/* unlock 7k family nics as the command is done */
 			if(ctlr->family == 7000 && qid == 4 && tx->n == 0)
 				nicunlock(ctlr);
@@ -4388,12 +4388,12 @@ iwlinterrupt(Ureg*, void *arg)
 
 	edev = arg;
 	ctlr = edev->ctlr;
-	ilock(ctlr);
+	ilock(&ctlr->Lock);
 	csr32w(ctlr, Imr, 0);
 	isr = csr32r(ctlr, Isr);
 	fhisr = csr32r(ctlr, FhIsr);
 	if(isr == 0xffffffff || (isr & 0xfffffff0) == 0xa5a5a5a0){
-		iunlock(ctlr);
+		iunlock(&ctlr->Lock);
 		return;
 	}
 	if(isr == 0 && fhisr == 0)
@@ -4410,10 +4410,10 @@ iwlinterrupt(Ureg*, void *arg)
 	}
 	ctlr->wait.m |= isr;
 	if(ctlr->wait.m & ctlr->wait.w)
-		wakeup(&ctlr->wait);
+		wakeup(&ctlr->wait.Rendez);
 done:
 	csr32w(ctlr, Imr, ctlr->ie);
-	iunlock(ctlr);
+	iunlock(&ctlr->Lock);
 }
 
 static void
@@ -4549,7 +4549,7 @@ again:
 	for(ctlr = iwlhead; ctlr != nil; ctlr = ctlr->link){
 		if(ctlr->edev != nil)
 			continue;
-		if(edev->port == 0 || edev->port == ctlr->port){
+		if(edev->ISAConf.port == 0 || edev->ISAConf.port == ctlr->port){
 			ctlr->edev = edev;
 			break;
 		}
@@ -4559,17 +4559,17 @@ again:
 		return -1;
 
 	edev->ctlr = ctlr;
-	edev->port = ctlr->port;
-	edev->irq = ctlr->pdev->intl;
+	edev->ISAConf.port = ctlr->port;
+	edev->ISAConf.irq = ctlr->pdev->intl;
 	edev->tbdf = ctlr->pdev->tbdf;
-	edev->arg = edev;
+	edev->Netif.arg = edev;
 	edev->attach = iwlattach;
 	edev->ctl = iwlctl;
 	edev->shutdown = iwlshutdown;
-	edev->promiscuous = iwlpromiscuous;
-	edev->multicast = iwlmulticast;
-	edev->ifstat = iwlifstat;
-	edev->mbps = 54;
+	edev->Netif.promiscuous = iwlpromiscuous;
+	edev->Netif.multicast = iwlmulticast;
+	edev->Netif.ifstat = iwlifstat;
+	edev->Netif.mbps = 54;
 
 	pcienable(ctlr->pdev);
 	if(iwlinit(edev) < 0){
@@ -4580,7 +4580,7 @@ again:
 	}
 
 	pcisetbme(ctlr->pdev);
-	intrenable(edev->irq, iwlinterrupt, edev, edev->tbdf, edev->name);
+	intrenable(edev->ISAConf.irq, iwlinterrupt, edev, edev->tbdf, edev->Netif.name);
 	
 	return 0;
 }

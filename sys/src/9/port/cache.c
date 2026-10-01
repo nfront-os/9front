@@ -28,7 +28,7 @@ struct Mntcache
 	int		dev;
 	int		type;
 
-	QLock;
+	QLock QLock;	/* gcc port: named to avoid clashing with Mntcache's own locked under -fplan9-extensions */
 	Proc		*locked;
 	ulong		nlocked;
 
@@ -144,7 +144,7 @@ clookup(Chan *c, int skipvers)
 static int
 cancachelock(Mntcache *m)
 {
-	if(m->locked == up || canqlock(m)){
+	if(m->locked == up || canqlock(&m->QLock)){
 		m->locked = up;
 		m->nlocked++;
 		return 1;
@@ -155,7 +155,7 @@ static void
 cachelock(Mntcache *m)
 {
 	if(m->locked != up){
-		qlock(m);
+		qlock(&m->QLock);
 		assert(m->nlocked == 0);
 		m->locked = up;
 	}
@@ -168,7 +168,7 @@ cacheunlock(Mntcache *m)
 	assert(m->locked == up);
 	if(--m->nlocked == 0){
 		m->locked = nil;
-		qunlock(m);
+		qunlock(&m->QLock);
 	}
 }
 
@@ -200,11 +200,11 @@ copen(Chan *c)
 		return 0;
 	}
 
-	lock(&cache);
+	lock(&cache.Lock);
 	m = clookup(c, 0);
 	if(m != nil){
 		ctail(m);
-		unlock(&cache);
+		unlock(&cache.Lock);
 		c->mcp = m;
 		return 1;
 	}
@@ -223,9 +223,9 @@ copen(Chan *c)
 	}
 
 	if(!cancachelock(m)){
-		unlock(&cache);
+		unlock(&cache.Lock);
 		cachelock(m);
-		lock(&cache);
+		lock(&cache.Lock);
 		f = clookup(c, 0);
 		if(f != nil) {
 			/*
@@ -234,7 +234,7 @@ copen(Chan *c)
 			 * for us. update LRU and use it.
 			 */
 			ctail(f);
-			unlock(&cache);
+			unlock(&cache.Lock);
 			cacheunlock(m);
 			c->mcp = f;
 			return 1;
@@ -249,7 +249,7 @@ copen(Chan *c)
 	m->hash = *l;
 	*l = m;
 
-	unlock(&cache);
+	unlock(&cache.Lock);
 
 	m->rah.vers = m->qid.vers;
 	mntrahinit(&m->rah);
@@ -495,9 +495,9 @@ ctrunc(Chan *c)
 		return;
 
 	if((c->flag&COPEN) == 0){
-		lock(&cache);
+		lock(&cache.Lock);
 		c->mcp = clookup(c, 0);
-		unlock(&cache);
+		unlock(&cache.Lock);
 	}
 
 	m = ccache(c);

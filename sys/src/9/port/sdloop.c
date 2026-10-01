@@ -245,13 +245,13 @@ loopverify(SDunit *u)
 static int
 connect(SDunit *u, Ctlr *c)
 {
-	qlock(c);
+	qlock(&c->QLock);
 	if(waserror()){
-		qunlock(c);
+		qunlock(&c->QLock);
 		return -1;
 	}
 	identify(u->dev->ctlr, u);
-	qunlock(c);
+	qunlock(&c->QLock);
 	poperror();
 	return 0;
 }

@@ -187,12 +187,12 @@ mouseopen(Chan *c, int omode)
 	case Qmouse:
 		if(tas(&mouse.open) != 0)
 			error(Einuse);
-		mouse.lastcounter = mouse.counter;
+		mouse.lastcounter = mouse.Mousestate.counter;
 		mouse.resize = 0;
 		mousetime = seconds();
 		/* wet floor */
 	case Qcursor:
-		incref(&mouse);
+		incref(&mouse.Ref);
 	}
 	c->mode = mode;
 	c->flag |= COPEN;
@@ -207,9 +207,9 @@ mouseclose(Chan *c)
 		return;
 	switch((ulong)c->qid.path){
 	case Qmousein:
-		ilock(&mouse);
+		ilock(&mouse.Lock);
 		mouse.inbuttons &= ~((Mousestate*)c->aux)->buttons;
-		iunlock(&mouse);
+		iunlock(&mouse.Lock);
 		free(c->aux);	/* Mousestate */
 		c->aux = nil;
 		return;
@@ -218,7 +218,7 @@ mouseclose(Chan *c)
 		mouseblankscreen(0);
 		/* wet floor */
 	case Qcursor:
-		if(decref(&mouse) != 0)
+		if(decref(&mouse.Ref) != 0)
 			return;
 		Cursortocursor(&arrow);
 	}
@@ -268,21 +268,21 @@ mouseread(Chan *c, void *va, long n, vlong off)
 		mousetime = seconds();
 		mouseblankscreen(0);
 
-		ilock(&mouse);
+		ilock(&mouse.Lock);
 		if(mouse.ri != mouse.wi)
 			m = mouse.queue[mouse.ri++ % nelem(mouse.queue)];
 		else
 			m = mouse.Mousestate;
-		iunlock(&mouse);
+		iunlock(&mouse.Lock);
 
 		if(0){
 	case Qmousein:
 			if(offset != 0)
 				return 0;
 
-			ilock(&mouse);
+			ilock(&mouse.Lock);
 			m = mouse.Mousestate;
-			iunlock(&mouse);
+			iunlock(&mouse.Lock);
 
 			t = 'm';
 		} else {
@@ -454,7 +454,7 @@ mousewrite(Chan *c, void *va, long n, vlong)
 		b = strtol(p, &p, 0);
 		msec = (ulong)strtoll(p, 0, 0);
 		if(msec == 0)
-			msec = TK2MS(MACHP(0)->ticks);
+			msec = TK2MS(MACHP(0)->PMach.ticks);
 
 		/* exclude wheel */
 		z = b & (8|16);
@@ -466,10 +466,10 @@ mousewrite(Chan *c, void *va, long n, vlong)
 		b ^= m->buttons;
 		m->buttons ^= b;
 
-		ilock(&mouse);
+		ilock(&mouse.Lock);
 		mouse.inbuttons = (m->buttons & b) | (mouse.inbuttons & ~b);
-		b = mouse.buttons & ~b;
-		iunlock(&mouse);
+		b = mouse.Mousestate.buttons & ~b;
+		iunlock(&mouse.Lock);
 
 		/* include wheel */
 		b &= ~(8|16);
@@ -493,7 +493,7 @@ mousewrite(Chan *c, void *va, long n, vlong)
 		if(*p == 0)
 			error(Eshort);
 		pt.y = strtol(p, 0, 0);
-		absmousetrack(pt.x, pt.y, mouse.buttons, TK2MS(MACHP(0)->ticks));
+		absmousetrack(pt.x, pt.y, mouse.Mousestate.buttons, TK2MS(MACHP(0)->PMach.ticks));
 		return n;
 	}
 
@@ -611,7 +611,7 @@ mousetrack(int dx, int dy, int b, ulong msec)
 		dx = scale(dx);
 		dy = scale(dy);
 	}
-	absmousetrack(mouse.xy.x + dx, mouse.xy.y + dy, b, msec);
+	absmousetrack(mouse.Mousestate.xy.x + dx, mouse.Mousestate.xy.y + dy, b, msec);
 }
 
 void
@@ -632,13 +632,13 @@ absmousetrack(int x, int y, int b, ulong msec)
 	if(y >= i->clipr.max.y)
 		y = i->clipr.max.y-1;
 
-	ilock(&mouse);
-	mouse.xy = Pt(x, y);
-	lastb = mouse.buttons;
+	ilock(&mouse.Lock);
+	mouse.Mousestate.xy = Pt(x, y);
+	lastb = mouse.Mousestate.buttons;
 	b |= mouse.inbuttons;
-	mouse.buttons = b;
-	mouse.msec = msec;
-	mouse.counter++;
+	mouse.Mousestate.buttons = b;
+	mouse.Mousestate.msec = msec;
+	mouse.Mousestate.counter++;
 
 	/*
 	 * if the queue fills, don't queue any more events until a
@@ -646,7 +646,7 @@ absmousetrack(int x, int y, int b, ulong msec)
 	 */
 	if(b != lastb && (mouse.wi-mouse.ri) < nelem(mouse.queue))
 		mouse.queue[mouse.wi++ % nelem(mouse.queue)] = mouse.Mousestate;
-	iunlock(&mouse);
+	iunlock(&mouse.Lock);
 
 	wakeup(&mouse.r);
 
@@ -676,7 +676,7 @@ lastmousems(void)
 	static ulong lasttick;
 	ulong t, d;
 
-	t = MACHP(0)->ticks;
+	t = MACHP(0)->PMach.ticks;
 	d = t - lasttick;
 	lasttick = t;
 	return TK2MS(d);
@@ -713,8 +713,8 @@ m3mouseputc(Queue*, int c)
 		if(c == 0x00 || c == 0x20){
 			/* an extra byte gets sent for the middle button */
 			middle = (c&0x20) ? 2 : 0;
-			newbuttons = (mouse.buttons & ~2) | middle;
-			mousetrack(0, 0, newbuttons, TK2MS(MACHP(0)->ticks));
+			newbuttons = (mouse.Mousestate.buttons & ~2) | middle;
+			mousetrack(0, 0, newbuttons, TK2MS(MACHP(0)->PMach.ticks));
 			return 0;
 		}
 	}
@@ -725,7 +725,7 @@ m3mouseputc(Queue*, int c)
 		dx = (x>>8) | msg[1];
 		x = (msg[0]&0xc)<<12;
 		dy = (x>>8) | msg[2];
-		mousetrack(dx, dy, newbuttons, TK2MS(MACHP(0)->ticks));
+		mousetrack(dx, dy, newbuttons, TK2MS(MACHP(0)->PMach.ticks));
 	}
 	return 0;
 }
@@ -764,7 +764,7 @@ m5mouseputc(Queue*, int c)
 			| ( msg[3] == 0x10 ? 0x02 :
 			    msg[3] == 0x0f ? ScrollUp :
 			    msg[3] == 0x01 ? ScrollDown : 0 );
-		mousetrack(dx, dy, newbuttons, TK2MS(MACHP(0)->ticks));
+		mousetrack(dx, dy, newbuttons, TK2MS(MACHP(0)->PMach.ticks));
 	}
 	return 0;
 }
@@ -792,7 +792,7 @@ mouseputc(Queue*, int c)
 		newbuttons = b[((msg[0]&7)^7)];
 		dx = msg[1]+msg[3];
 		dy = -(msg[2]+msg[4]);
-		mousetrack(dx, dy, newbuttons, TK2MS(MACHP(0)->ticks));
+		mousetrack(dx, dy, newbuttons, TK2MS(MACHP(0)->PMach.ticks));
 	}
 	return 0;
 }
@@ -800,13 +800,13 @@ mouseputc(Queue*, int c)
 int
 mousechanged(void*)
 {
-	return mouse.lastcounter != mouse.counter || mouse.resize != 0;
+	return mouse.lastcounter != mouse.Mousestate.counter || mouse.resize != 0;
 }
 
 Point
 mousexy(void)
 {
-	return mouse.xy;
+	return mouse.Mousestate.xy;
 }
 
 void

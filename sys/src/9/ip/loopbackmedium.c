@@ -17,13 +17,13 @@ readloopback(void *x)
 	while(waserror())
 		;
 	while((bp = qbread(ifc->loopback, IP_MAX)) != nil){
-		rlock(ifc);
+		rlock(&ifc->RWLock);
 		if(waserror()){
-			runlock(ifc);
+			runlock(&ifc->RWLock);
 			continue;
 		}
 		ipiput4(f, ifc, bp);
-		runlock(ifc);
+		runlock(&ifc->RWLock);
 		poperror();
 	}
 	pexit("hangup", 1);

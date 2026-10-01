@@ -94,19 +94,19 @@ timeradd(Timer *nt)
 	vlong when;
 
 	/* Must lock Timer struct before Timers struct */
-	ilock(nt);
+	ilock(&nt->Lock);
 	if(tt = nt->tt){
-		ilock(tt);
+		ilock(&tt->Lock);
 		tdel(nt);
-		iunlock(tt);
+		iunlock(&tt->Lock);
 	}
 	tt = &timers[m->machno];
-	ilock(tt);
+	ilock(&tt->Lock);
 	when = tadd(tt, nt);
 	if(when)
 		timerset(when);
-	iunlock(tt);
-	iunlock(nt);
+	iunlock(&tt->Lock);
+	iunlock(&nt->Lock);
 }
 
 
@@ -120,19 +120,19 @@ timerdel(Timer *dt)
 	/* avoid Tperiodic getting re-added */
 	dt->tmode = Trelative;
 
-	ilock(dt);
+	ilock(&dt->Lock);
 	if(tt = dt->tt){
-		ilock(tt);
+		ilock(&tt->Lock);
 		when = tdel(dt);
 		if(when && tt == &timers[m->machno])
 			timerset(tt->head->twhen);
-		iunlock(tt);
+		iunlock(&tt->Lock);
 	}
 	if((mp = dt->tactive) == nil || mp->machno == m->machno){
-		iunlock(dt);
+		iunlock(&dt->Lock);
 		return;
 	}
-	iunlock(dt);
+	iunlock(&dt->Lock);
 
 	/* rare, but tf can still be active on another cpu */
 	while(dt->tactive == mp && dt->tt == nil)
@@ -143,9 +143,9 @@ timerdel(Timer *dt)
 static void
 hzclock(Ureg *ur)
 {
-	m->ticks++;
+	m->PMach.ticks++;
 	if(m->proc)
-		m->proc->pc = ur->pc;
+		m->proc->Timer.Lock.pc = ur->pc;
 
 	if(up && up->newtlb)
 		flushmmu();
@@ -190,7 +190,7 @@ timerintr(Ureg *u, Tval)
 	callhzclock = 0;
 	tt = &timers[m->machno];
 	now = fastticks(nil);
-	ilock(tt);
+	ilock(&tt->Lock);
 	while(t = tt->head){
 		/*
 		 * No need to ilock t here: any manipulation of t
@@ -201,7 +201,7 @@ timerintr(Ureg *u, Tval)
 		when = t->twhen;
 		if(when > now){
 			timerset(when);
-			iunlock(tt);
+			iunlock(&tt->Lock);
 			if(callhzclock)
 				hzclock(u);
 			return;
@@ -211,17 +211,17 @@ timerintr(Ureg *u, Tval)
 		t->tt = nil;
 		t->tactive = MACHP(m->machno);
 		fcallcount[m->machno]++;
-		iunlock(tt);
+		iunlock(&tt->Lock);
 		if(t->tf)
 			(*t->tf)(u, t);
 		else
 			callhzclock++;
 		t->tactive = nil;
-		ilock(tt);
+		ilock(&tt->Lock);
 		if(t->tmode == Tperiodic)
 			tadd(tt, t);
 	}
-	iunlock(tt);
+	iunlock(&tt->Lock);
 }
 
 void
@@ -260,11 +260,11 @@ addclock0link(void (*f)(void), int ms)
 	nt->tt = nil;
 	nt->tf = (void (*)(Ureg*, Timer*))f;
 
-	ilock(&timers[0]);
+	ilock(&timers[0].Lock);
 	when = tadd(&timers[0], nt);
 	if(when)
 		timerset(when);
-	iunlock(&timers[0]);
+	iunlock(&timers[0].Lock);
 	return nt;
 }
 

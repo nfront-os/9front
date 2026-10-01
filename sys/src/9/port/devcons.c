@@ -66,9 +66,9 @@ prflush(void)
 {
 	ulong now;
 
-	now = m->ticks;
+	now = m->PMach.ticks;
 	while(consactive())
-		if(m->ticks - now >= HZ)
+		if(m->PMach.ticks - now >= HZ)
 			break;
 }
 
@@ -297,9 +297,9 @@ pprint(char *fmt, ...)
 	devtab[c->type]->write(c, buf, n, c->offset);
 	poperror();
 
-	lock(c);
+	lock(&c->Lock);
 	c->offset += n;
-	unlock(c);
+	unlock(&c->Lock);
 
 	return n;
 }
@@ -486,7 +486,7 @@ consread(Chan *c, void *buf, long n, vlong off)
 		for(i=0; i<6 && NUMSIZE*i<k+n; i++){
 			l = up->time[i];
 			if(i == TReal)
-				l = MACHP(0)->ticks - l;
+				l = MACHP(0)->PMach.ticks - l;
 			readnum(0, tmp+NUMSIZE*i, NUMSIZE, tk2ms(l), NUMSIZE);
 		}
 		memmove(buf, tmp+k, n);
@@ -546,28 +546,28 @@ consread(Chan *c, void *buf, long n, vlong off)
 				mp = MACHP(id);
 				readnum(0, bp, NUMSIZE, id, NUMSIZE);
 				bp += NUMSIZE;
-				readnum(0, bp, NUMSIZE, mp->cs, NUMSIZE);
+				readnum(0, bp, NUMSIZE, mp->PMach.cs, NUMSIZE);
 				bp += NUMSIZE;
-				readnum(0, bp, NUMSIZE, mp->intr, NUMSIZE);
+				readnum(0, bp, NUMSIZE, mp->PMach.intr, NUMSIZE);
 				bp += NUMSIZE;
-				readnum(0, bp, NUMSIZE, mp->syscall, NUMSIZE);
+				readnum(0, bp, NUMSIZE, mp->PMach.syscall, NUMSIZE);
 				bp += NUMSIZE;
-				readnum(0, bp, NUMSIZE, mp->pfault, NUMSIZE);
+				readnum(0, bp, NUMSIZE, mp->PMach.pfault, NUMSIZE);
 				bp += NUMSIZE;
-				readnum(0, bp, NUMSIZE, mp->tlbfault, NUMSIZE);
+				readnum(0, bp, NUMSIZE, mp->PMach.tlbfault, NUMSIZE);
 				bp += NUMSIZE;
-				readnum(0, bp, NUMSIZE, mp->tlbpurge, NUMSIZE);
+				readnum(0, bp, NUMSIZE, mp->PMach.tlbpurge, NUMSIZE);
 				bp += NUMSIZE;
-				readnum(0, bp, NUMSIZE, mp->load, NUMSIZE);
+				readnum(0, bp, NUMSIZE, mp->PMach.load, NUMSIZE);
 				bp += NUMSIZE;
-				l = mp->perf.period;
+				l = mp->PMach.perf.period;
 				if(l == 0)
 					l = 1;
 				readnum(0, bp, NUMSIZE,
-					(mp->perf.avg_inidle*100)/l, NUMSIZE);
+					(mp->PMach.perf.avg_inidle*100)/l, NUMSIZE);
 				bp += NUMSIZE;
 				readnum(0, bp, NUMSIZE,
-					(mp->perf.avg_inintr*100)/l, NUMSIZE);
+					(mp->PMach.perf.avg_inintr*100)/l, NUMSIZE);
 				bp += NUMSIZE;
 				*bp++ = '\n';
 			}
@@ -750,13 +750,13 @@ conswrite(Chan *c, void *va, long n, vlong off)
 		for(id = 0; id < MAXMACH; id++) {
 			if(active.machs[id]) {
 				mp = MACHP(id);
-				mp->cs = 0;
-				mp->intr = 0;
-				mp->syscall = 0;
-				mp->pfault = 0;
-				mp->tlbflush = 0;
-				mp->tlbfault = 0;
-				mp->tlbpurge = 0;
+				mp->PMach.cs = 0;
+				mp->PMach.intr = 0;
+				mp->PMach.syscall = 0;
+				mp->PMach.pfault = 0;
+				mp->PMach.tlbflush = 0;
+				mp->PMach.tlbfault = 0;
+				mp->PMach.tlbpurge = 0;
 			}
 		}
 		break;

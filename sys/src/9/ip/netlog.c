@@ -14,7 +14,7 @@ enum {
  *  action log
  */
 struct Netlog {
-	Lock;
+	Lock Lock;	/* gcc port: named, all three embeds accessed as .Lock/.QLock/.Rendez; bare embedding collides under -fplan9-extensions */
 	int	opens;
 	char*	buf;
 	char	*end;
@@ -25,8 +25,8 @@ struct Netlog {
 	uchar	iponly[IPaddrlen];		/* ip address to print debugging for */
 	int	iponlyset;
 
-	QLock;
-	Rendez;
+	QLock QLock;
+	Rendez Rendez;
 };
 
 typedef struct Netlogflag {
@@ -81,9 +81,9 @@ netloginit(Fs *f)
 void
 netlogopen(Fs *f)
 {
-	lock(f->alog);
+	lock(&f->alog->Lock);
 	if(waserror()){
-		unlock(f->alog);
+		unlock(&f->alog->Lock);
 		nexterror();
 	}
 	if(f->alog->opens == 0){
@@ -96,16 +96,16 @@ netlogopen(Fs *f)
 		f->alog->end = f->alog->buf + Nlog;
 	}
 	f->alog->opens++;
-	unlock(f->alog);
+	unlock(&f->alog->Lock);
 	poperror();
 }
 
 void
 netlogclose(Fs *f)
 {
-	lock(f->alog);
+	lock(&f->alog->Lock);
 	if(waserror()){
-		unlock(f->alog);
+		unlock(&f->alog->Lock);
 		nexterror();
 	}
 	f->alog->opens--;
@@ -113,7 +113,7 @@ netlogclose(Fs *f)
 		free(f->alog->buf);
 		f->alog->buf = nil;
 	}
-	unlock(f->alog);
+	unlock(&f->alog->Lock);
 	poperror();
 }
 
@@ -131,14 +131,14 @@ netlogread(Fs *f, void *a, ulong, long n)
 	int i, d;
 	char *p, *rptr;
 
-	qlock(f->alog);
+	qlock(&f->alog->QLock);
 	if(waserror()){
-		qunlock(f->alog);
+		qunlock(&f->alog->QLock);
 		nexterror();
 	}
 
 	for(;;){
-		lock(f->alog);
+		lock(&f->alog->Lock);
 		if(f->alog->len){
 			if(n > f->alog->len)
 				n = f->alog->len;
@@ -150,7 +150,7 @@ netlogread(Fs *f, void *a, ulong, long n)
 				f->alog->rptr = f->alog->buf + d;
 			}
 			f->alog->len -= n;
-			unlock(f->alog);
+			unlock(&f->alog->Lock);
 
 			i = n-d;
 			p = a;
@@ -159,12 +159,12 @@ netlogread(Fs *f, void *a, ulong, long n)
 			break;
 		}
 		else
-			unlock(f->alog);
+			unlock(&f->alog->Lock);
 
-		sleep(f->alog, netlogready, f);
+		sleep(&f->alog->Rendez,netlogready,f);
 	}
 
-	qunlock(f->alog);
+	qunlock(&f->alog->QLock);
 	poperror();
 
 	return n;
@@ -245,7 +245,7 @@ netlog(Fs *f, int mask, char *fmt, ...)
 	n = vseprint(buf, buf+sizeof(buf), fmt, arg) - buf;
 	va_end(arg);
 
-	lock(f->alog);
+	lock(&f->alog->Lock);
 	i = f->alog->len + n - Nlog;
 	if(i > 0){
 		f->alog->len -= i;
@@ -261,7 +261,7 @@ netlog(Fs *f, int mask, char *fmt, ...)
 			t = f->alog->buf + (t - f->alog->end);
 		*t++ = *fp++;
 	}
-	unlock(f->alog);
+	unlock(&f->alog->Lock);
 
-	wakeup(f->alog);
+	wakeup(&f->alog->Rendez);
 }

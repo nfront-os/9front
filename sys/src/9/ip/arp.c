@@ -217,21 +217,21 @@ arpget(Arp *arp, Block *bp, int version, Ipifc *ifc, uchar *ip, uchar *mac, Rout
 	&& arphit(a, mac, ifc->m->maclen, nil))
 		return nil;
 
-	rlock(arp);
+	rlock(&arp->RWLock);
 	if((a = arplookup(arp, ifc, ip)) != nil
 	&& arphit(a, mac, ifc->m->maclen, rh)){
-		runlock(arp);
+		runlock(&arp->RWLock);
 		return nil;
 	}
 	if(rh != nil)
 		rh->a = nil;
-	runlock(arp);
+	runlock(&arp->RWLock);
 
-	wlock(arp);
+	wlock(&arp->RWLock);
 	if((a = arplookup(arp, ifc, ip)) == nil)
 		a = newarpent(arp, ip, ifc);
 	else if(arphit(a, mac, ifc->m->maclen, rh)){
-		wunlock(arp);
+		wunlock(&arp->RWLock);
 		return nil;
 	}
 	a->state = AWAIT;
@@ -279,7 +279,7 @@ arpcontinue(Arp *arp, Arpent *a)
 	if(l == &arp->rxmt[0] || l == &arp->rxmt[1])
 		wakeup(&arp->rxmtq);
 
-	wunlock(arp);
+	wunlock(&arp->RWLock);
 }
 
 /*
@@ -288,7 +288,7 @@ arpcontinue(Arp *arp, Arpent *a)
 void
 arprelease(Arp *arp, Arpent*)
 {
-	wunlock(arp);
+	wunlock(&arp->RWLock);
 }
 
 
@@ -314,7 +314,7 @@ arpresolve(Arp *arp, Arpent *a, uchar *mac, Routehint *rh)
 	a->state = AOK;
 	if(rh != nil)
 		rh->a = a;
-	wunlock(arp);
+	wunlock(&arp->RWLock);
 
 	if(bp != nil){
 		freeblistchain(bp->list);
@@ -351,15 +351,15 @@ arpenter(Fs *fs, int version, uchar *ip, uchar *mac, int maclen, uchar *ia, Ipif
 		panic("arpenter: version %d", version);
 	}
 
-	if(r == nil || r->ifc != ifc || (r->type & (Rbcast|Rmulti)) != 0)
+	if(r == nil || r->RouteTree.ifc != ifc || (r->RouteTree.type & (Rbcast|Rmulti)) != 0)
 		return -1;
 
 	arp = fs->arp;
 
-	wlock(arp);
+	wlock(&arp->RWLock);
 	if((a = arplookup(arp, ifc, ip)) == nil){
 		if(refresh){
-			wunlock(arp);
+			wunlock(&arp->RWLock);
 			return 0;
 		}
 		a = newarpent(arp, ip, ifc);
@@ -411,9 +411,9 @@ arpforme(Fs *fs, int version, uchar *targ, uchar *src, Ipifc *ifc)
 	} else {
 		r = v6lookup(fs, targ, src, nil);
 	}
-	if(r == nil || r->ifc == ifc && r->ifcid == ifc->ifcid)
+	if(r == nil || r->RouteTree.ifc == ifc && r->RouteTree.ifcid == ifc->ifcid)
 		return 0;
-	return r->type & Rproxy;
+	return r->RouteTree.type & Rproxy;
 }
 
 int
@@ -440,7 +440,7 @@ arpwrite(Fs *fs, char *s, int len)
 
 	n = getfields(buf, f, nelem(f), 1, " ");
 	if(strcmp(f[0], "flush") == 0){
-		wlock(arp);
+		wlock(&arp->RWLock);
 		for(a = arp->cache; a < &arp->cache[NCACHE]; a++){
 			a->hash = nil;
 			a->nextrxt = nil;
@@ -457,7 +457,7 @@ arpwrite(Fs *fs, char *s, int len)
 		freeblistchain(arp->dropf);
 		arp->dropf = arp->dropl = nil;
 		arp->rxmt[0] = arp->rxmt[1] = nil;
-		wunlock(arp);
+		wunlock(&arp->RWLock);
 	} else if(strcmp(f[0], "add") == 0){
 		switch(n){
 		default:
@@ -494,22 +494,22 @@ arpwrite(Fs *fs, char *s, int len)
 		if((ifc = findipifc(fs, ia, ia, Runi)) == nil)
 			error("no interface");
 		if(!ipv6local(ifc, ia, 0, ip) || arpenter(fs, V6, ip, mac, n, ia, ifc, 0) < 0){
-			runlock(ifc);
+			runlock(&ifc->RWLock);
 			error("destination unreachable");
 		}
-		runlock(ifc);
+		runlock(&ifc->RWLock);
 	} else if(strcmp(f[0], "del") == 0){
 		if(n != 2)
 			error(Ebadarg);
 		if(parseip(ip, f[1]) == -1)
 			error(Ebadip);
-		wlock(arp);
+		wlock(&arp->RWLock);
 		for(a = arp->hash[hashipa(ip)]; a != nil; a = x){
 			x = a->hash;
 			if(ipcmp(ip, a->ip) == 0)
 				cleanarpent(arp, a);
 		}
-		wunlock(arp);
+		wunlock(&arp->RWLock);
 	} else if(strcmp(f[0], "garp") == 0){
 		Iplifc *lifc;
 
@@ -521,12 +521,12 @@ arpwrite(Fs *fs, char *s, int len)
 		if((ifc = findipifc(fs, ip, ip, Runi)) == nil)
 			error("no interface");
 		if(waserror()){
-			runlock(ifc);
+			runlock(&ifc->RWLock);
 			nexterror();
 		}
 		if(ifc->m != nil && ifc->m->areg != nil && (lifc = iplocalonifc(ifc, ip)) != nil)
 			(*ifc->m->areg)(fs, ifc, lifc, ip);
-		runlock(ifc);
+		runlock(&ifc->RWLock);
 		poperror();
 	} else
 		error(Ebadarp);
@@ -556,19 +556,19 @@ arpread(Arp *arp, char *s, ulong offset, int len)
 		if(a->state == 0 || (ifc = a->ifc) == nil)
 			continue;
 
-		rlock(ifc);
-		rlock(arp);
+		rlock(&ifc->RWLock);
+		rlock(&arp->RWLock);
 		ipmove(ip, a->ip);
 		if(ifc->m == nil || a->state == 0 || a->ifc != ifc || a->ifcid != ifc->ifcid || !ipv6local(ifc, ia, 0, ip)){
-			runlock(arp);
-			runlock(ifc);
+			runlock(&arp->RWLock);
+			runlock(&ifc->RWLock);
 			continue;
 		}
 		mname = ifc->m->name;
 		state = arpstate[a->state];
 		convmac(mac, a->mac, ifc->m->maclen);
-		runlock(arp);
-		runlock(ifc);
+		runlock(&arp->RWLock);
+		runlock(&ifc->RWLock);
 
 		n = snprint(up->genbuf, sizeof up->genbuf,
 			"%-6.6s %-4.4s %-40.40I %-16.16s %I\n",
@@ -623,19 +623,19 @@ rxmt(Arp *arp)
 	Block *bp;
 	Ipifc *ifc;
 
-	wlock(arp);
+	wlock(&arp->RWLock);
 
 	/* retransmit ipv6 solicitations */
 	while((a = arp->rxmt[0]) != nil && NOW - a->ctime > 3*RETRANS_TIMER/4){
-		if(a->rxtsrem > 0 && (ifc = a->ifc) != nil && canrlock(ifc)){
+		if(a->rxtsrem > 0 && (ifc = a->ifc) != nil && canrlock(&ifc->RWLock)){
 			if(a->ifcid == ifc->ifcid){
 				ndpsendsol(arp->f, a);	/* unlocks arp */
-				runlock(ifc);
+				runlock(&ifc->RWLock);
 
-				wlock(arp);
+				wlock(&arp->RWLock);
 				continue;
 			}
-			runlock(ifc);
+			runlock(&ifc->RWLock);
 		}
 		cleanarpent(arp, a);
 	}
@@ -647,7 +647,7 @@ rxmt(Arp *arp)
 	bp = arp->dropf;
 	arp->dropf = arp->dropl = nil;
 
-	wunlock(arp);
+	wunlock(&arp->RWLock);
 
 	return bp;
 }
@@ -670,15 +670,15 @@ drop(Fs *f, Block *bp)
 			r = v4lookup(f, ((Ip4hdr*)bp->rp)->src, ((Ip4hdr*)bp->rp)->dst, &rh);
 		else
 			r = v6lookup(f, ((Ip6hdr*)bp->rp)->src, ((Ip6hdr*)bp->rp)->dst, &rh);
-		if(r != nil && (ifc = r->ifc) != nil && canrlock(ifc)){
-			if(ifc->ifcid == r->ifcid && !waserror()){
+		if(r != nil && (ifc = r->RouteTree.ifc) != nil && canrlock(&ifc->RWLock)){
+			if(ifc->ifcid == r->RouteTree.ifcid && !waserror()){
 				if((bp->rp[0]&0xF0) == IP_VER4)
 					icmpnohost(f, ifc, bp, &rh);
 				else
 					icmpnohost6(f, ifc, bp, &rh);
 				poperror();
 			}
-			runlock(ifc);
+			runlock(&ifc->RWLock);
 		}
 		freeblist(bp);
 	}

@@ -109,10 +109,10 @@ static int
 enterbus(I2Cbus *bus)
 {
 	if(up != nil && islo()){
-		eqlock(bus);
+		eqlock((QLock*)bus);
 		return 1;
 	} else {
-		while(!canqlock(bus))
+		while(!canqlock((QLock*)bus))
 			;
 		return 0;
 	}
@@ -121,7 +121,7 @@ enterbus(I2Cbus *bus)
 static void
 leavebus(I2Cbus *bus)
 {
-	qunlock(bus);
+	qunlock((QLock*)bus);
 }
 
 int

@@ -116,8 +116,8 @@ udpconnect(Conv *c, char **argv, int argc)
 	Fsconnected(c, e);
 	if(e != nil)
 		return e;
-	ipmove(((Udpcb*)c->ptcl)->srcip, c->laddr);
-	iphtadd(&upriv->ht, c);
+	ipmove(((Udpcb*)c->ptcl)->srcip, c->Iphash.laddr);
+	iphtadd(&upriv->ht,&c->Iphash);
 	return nil;
 }
 
@@ -143,8 +143,8 @@ udpannounce(Conv *c, char** argv, int argc)
 	if(e != nil)
 		return e;
 	Fsconnected(c, nil);
-	ipmove(((Udpcb*)c->ptcl)->srcip, c->laddr);
-	iphtadd(&upriv->ht, c);
+	ipmove(((Udpcb*)c->ptcl)->srcip, c->Iphash.laddr);
+	iphtadd(&upriv->ht,&c->Iphash);
 	return nil;
 }
 
@@ -162,16 +162,16 @@ udpclose(Conv *c)
 	Udppriv *upriv;
 
 	upriv = c->p->priv;
-	iphtrem(&upriv->ht, c);
+	iphtrem(&upriv->ht,&c->Iphash);
 
 	c->state = 0;
 	qclose(c->rq);
 	qclose(c->wq);
 	qclose(c->eq);
-	c->lport = 0;
-	ipmove(c->laddr, IPnoaddr);
-	c->rport = 0;
-	ipmove(c->raddr, IPnoaddr);
+	c->Iphash.lport = 0;
+	ipmove(c->Iphash.laddr, IPnoaddr);
+	c->Iphash.rport = 0;
+	ipmove(c->Iphash.raddr, IPnoaddr);
 
 	ucb = (Udpcb*)c->ptcl;
 	ucb->headers = 0;
@@ -266,12 +266,12 @@ udpkick(void *x, Block *bp)
 			hnputs(uh4->udpdport, rport);
 			rh = nil;
 		} else {
-			v6tov4(uh4->udpdst, c->raddr);
-			hnputs(uh4->udpdport, c->rport);
-			rh = c;
+			v6tov4(uh4->udpdst, c->Iphash.raddr);
+			hnputs(uh4->udpdport, c->Iphash.rport);
+			rh = (Routehint*)c;
 		}
 		v6tov4(uh4->udpsrc, laddr);
-		hnputs(uh4->udpsport, c->lport);
+		hnputs(uh4->udpsport, c->Iphash.lport);
 		hnputs(uh4->udplen, ptcllen);
 		uh4->udpcksum[0] = 0;
 		uh4->udpcksum[1] = 0;
@@ -299,12 +299,12 @@ udpkick(void *x, Block *bp)
 			hnputs(uh6->udpdport, rport);
 			rh = nil;
 		} else {
-			ipmove(uh6->udpdst, c->raddr);
-			hnputs(uh6->udpdport, c->rport);
-			rh = c;
+			ipmove(uh6->udpdst, c->Iphash.raddr);
+			hnputs(uh6->udpdport, c->Iphash.rport);
+			rh = (Routehint*)c;
 		}
 		ipmove(uh6->udpsrc, laddr);
-		hnputs(uh6->udpsport, c->lport);
+		hnputs(uh6->udpsport, c->Iphash.lport);
 		hnputs(uh6->udplen, ptcllen);
 		uh6->udpcksum[0] = 0;
 		uh6->udpcksum[1] = 0;
@@ -410,13 +410,13 @@ Badcrc:
 		panic("udpiput: version %d", version);
 	}
 
-	qlock(udp);
+	qlock(&udp->QLock);
 	iph = iphtlook(udp->ht, raddr, rport, laddr, lport);
 	if(iph == nil){
 Noconv:
 		/* no conversation found */
 		upriv->ustats.udpNoPorts++;
-		qunlock(udp);
+		qunlock(&udp->QLock);
 		netlog(f, Logudp, "udp: no conv %I!%d -> %I!%d\n", raddr, rport,
 		       laddr, lport);
 
@@ -440,7 +440,7 @@ Noconv:
 
 		int hop = uh4->ttl;
 		if(hop <= 1 || (q = transbackward(udp, iph)) == nil){
-			qunlock(udp);
+			qunlock(&udp->QLock);
 			freeblist(bp);
 			return;
 		}
@@ -450,10 +450,10 @@ Noconv:
 
 		/* only use route-hint when from original desination */
 		if(memcmp(uh4->udpsrc, q->forward.laddr+IPv4off, IPv4addrlen) == 0)
-			rh = q;
+			rh = (Routehint*)q;
 		else
 			rh = nil;
-		qunlock(udp);
+		qunlock(&udp->QLock);
 		ipoput4(f, bp, ifc, hop - 1, uh4->tos, rh);
 		return;
 	}
@@ -481,18 +481,18 @@ Noconv:
 			}
 			c = Fsnewcall(c, raddr, rport, laddr, lport, version);
 			if(c == nil){
-				qunlock(udp);
+				qunlock(&udp->QLock);
 				freeblist(bp);
 				return;
 			}
 			ucb = (Udpcb*)c->ptcl;
 			ipmove(ucb->srcip, srcip);
-			iphtadd(&upriv->ht, c);
+			iphtadd(&upriv->ht,&c->Iphash);
 		}
 	}
 
-	qlock(c);
-	qunlock(udp);
+	qlock(&c->QLock);
+	qunlock(&udp->QLock);
 
 	/*
 	 * Trim the packet down to data size
@@ -509,7 +509,7 @@ Noconv:
 		panic("udpiput4: version %d", version);
 	}
 	if(bp == nil){
-		qunlock(c);
+		qunlock(&c->QLock);
 		netlog(f, Logudp, "udp: len err %I.%d -> %I.%d\n", raddr, rport,
 		       laddr, lport);
 		upriv->lenerr++;
@@ -541,7 +541,7 @@ Noconv:
 	} else {
 		qpass(c->rq, concatblock(bp));
 	}
-	qunlock(c);
+	qunlock(&c->QLock);
 }
 
 char*
@@ -590,7 +590,7 @@ udpadvise(Proto *udp, Block *bp, Ipifc *ifc, char *msg)
 	}
 
 	/* Look for a connection (source/dest reversed; this is the original packet we sent) */
-	qlock(udp);
+	qlock(&udp->QLock);
 	iph = iphtlook(udp->ht, dest, pdest, source, psource);
 	if(iph == nil || iph->match != IPmatchexact)
 		goto raise;
@@ -606,7 +606,7 @@ udpadvise(Proto *udp, Block *bp, Ipifc *ifc, char *msg)
 
 		/* dont bother fixing udp checksum, packet is most likely truncated */
 		hnputs(h4->udpsport, q->forward.rport);
-		qunlock(udp);
+		qunlock(&udp->QLock);
 
 		icmpproxyadvice(udp->f, ifc, bp, h4->udpsrc);
 		return;
@@ -614,15 +614,15 @@ udpadvise(Proto *udp, Block *bp, Ipifc *ifc, char *msg)
 	s = iphconv(iph);
 	if(s->ignoreadvice || s->state == Announced)
 		goto raise;
-	qlock(s);
-	qunlock(udp);
+	qlock(&s->QLock);
+	qunlock(&udp->QLock);
 	qhangup(s->rq, msg);
 	qhangup(s->wq, msg);
-	qunlock(s);
+	qunlock(&s->QLock);
 	freeblist(bp);
 	return;
 raise:
-	qunlock(udp);
+	qunlock(&udp->QLock);
 	freeblist(bp);
 }
 
@@ -645,17 +645,17 @@ udpforward(Proto *udp, Block *bp, Route *r)
 	dp = nhgets(uh4->udpdport);
 	sp = nhgets(uh4->udpsport);
 
-	qlock(udp);
+	qlock(&udp->QLock);
 	q = transforward(udp, sa, sp, da, dp, r);
 	if(q == nil){
-		qunlock(udp);
+		qunlock(&udp->QLock);
 		freeblist(bp);
 		return nil;
 	}
 	hnputs_csum(uh4->udpsrc+0, nhgets(q->backward.laddr+IPv4off+0), uh4->udpcksum);
 	hnputs_csum(uh4->udpsrc+2, nhgets(q->backward.laddr+IPv4off+2), uh4->udpcksum);
 	hnputs_csum(uh4->udpsport, q->backward.lport, uh4->udpcksum);
-	qunlock(udp);
+	qunlock(&udp->QLock);
 
 	return bp;
 }

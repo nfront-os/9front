@@ -181,7 +181,7 @@ greconnect(Conv *c, char **argv, int argc)
 
 	/* make sure noone's already connected to this other sys */
 	p = c->p;
-	qlock(p);
+	qlock(&p->QLock);
 	ecp = &p->conv[p->nc];
 	for(cp = p->conv; cp < ecp; cp++){
 		tc = *cp;
@@ -189,14 +189,14 @@ greconnect(Conv *c, char **argv, int argc)
 			break;
 		if(tc == c)
 			continue;
-		if(tc->rport == c->rport && ipcmp(tc->raddr, c->raddr) == 0){
+		if(tc->Iphash.rport && ipcmp(tc->Iphash.raddr, c->Iphash.raddr) == 0){
 			err = "already connected to that addr/proto";
-			ipmove(c->laddr, IPnoaddr);
-			ipmove(c->raddr, IPnoaddr);
+			ipmove(c->Iphash.laddr, IPnoaddr);
+			ipmove(c->Iphash.raddr, IPnoaddr);
 			break;
 		}
 	}
-	qunlock(p);
+	qunlock(&p->QLock);
 
 	if(err != nil)
 		return err;
@@ -276,9 +276,9 @@ greclose(Conv *c)
 	qhangup(c->rq, sessend);
 	qhangup(c->wq, sessend);
 	qhangup(c->eq, sessend);
-	ipmove(c->laddr, IPnoaddr);
-	ipmove(c->raddr, IPnoaddr);
-	c->lport = c->rport = 0;
+	ipmove(c->Iphash.laddr, IPnoaddr);
+	ipmove(c->Iphash.raddr, IPnoaddr);
+	c->Iphash.lport = c->Iphash.rport = 0;
 }
 
 static void
@@ -309,15 +309,15 @@ grekick(void *x, Block *bp)
 	if(grec->raw == 0){
 		v4tov6(raddr, gre->dst);
 		if(ipcmp(raddr, v4prefix) == 0)
-			memmove(gre->dst, c->raddr + IPv4off, IPv4addrlen);
+			memmove(gre->dst, c->Iphash.raddr + IPv4off, IPv4addrlen);
 		v4tov6(laddr, gre->src);
 		if(ipcmp(laddr, v4prefix) == 0){
-			if(ipcmp(c->laddr, IPnoaddr) == 0)
+			if(ipcmp(c->Iphash.laddr, IPnoaddr) == 0)
 				/* pick interface closest to dest */
-				findlocalip(c->p->f, c->laddr, raddr);
-			memmove(gre->src, c->laddr + IPv4off, sizeof gre->src);
+				findlocalip(c->p->f, c->Iphash.laddr, raddr);
+			memmove(gre->src, c->Iphash.laddr + IPv4off, sizeof gre->src);
 		}
-		hnputs(gre->eproto, c->rport);
+		hnputs(gre->eproto, c->Iphash.rport);
 	}
 
 	gre->proto = IP_GREPROTO;
@@ -558,7 +558,7 @@ greiput(Proto *proto, Ipifc *, Block *bp)
 	if(flags & GRE_seq)
 		hdrlen += 4;
 
-	qlock(proto);
+	qlock(&proto->QLock);
 
 	if(eproto == 0x0800 && BLEN(bp) - hdrlen >= sizeof(Ip4hdr)){
 		ip = (Ip4hdr *)(bp->rp + hdrlen);
@@ -582,7 +582,7 @@ greiput(Proto *proto, Ipifc *, Block *bp)
 				grepdin++;
 				grebdin += BLEN(bp);
 				gredownlink(c, bp);
-				qunlock(proto);
+				qunlock(&proto->QLock);
 				return;
 			}
 
@@ -590,7 +590,7 @@ greiput(Proto *proto, Ipifc *, Block *bp)
 				grepuin++;
 				grebuin += BLEN(bp);
 				greuplink(c, bp);
-				qunlock(proto);
+				qunlock(&proto->QLock);
 				return;
 			}
 		}
@@ -612,12 +612,12 @@ greiput(Proto *proto, Ipifc *, Block *bp)
 		 * implies that etherread is blocked.
 		 */
 		grec = c->ptcl;
-		if(c->rport == eproto &&
-		    (grec->raw || ipcmp(c->raddr, raddr) == 0))
+		if(c->Iphash.rport == eproto &&
+		    (grec->raw || ipcmp(c->Iphash.raddr, raddr) == 0))
 			break;
 	}
 
-	qunlock(proto);
+	qunlock(&proto->QLock);
 
 	if(*p == nil){
 		freeb(bp);

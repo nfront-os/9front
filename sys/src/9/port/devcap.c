@@ -111,7 +111,7 @@ trimcaps(void)
 	Caphash *t;
 
 	while((t = capalloc.first) != nil){
-		if(capalloc.nhash < Maxhash && TK2SEC(MACHP(0)->ticks - t->ticks) < Timeout)
+		if(capalloc.nhash < Maxhash && TK2SEC(MACHP(0)->PMach.ticks - t->ticks) < Timeout)
 			break;
 		capalloc.nhash--;
 		capalloc.first = t->next;
@@ -124,7 +124,7 @@ remcap(uchar *hash)
 {
 	Caphash *t, **l;
 
-	qlock(&capalloc);
+	qlock(&capalloc.QLock);
 
 	/* timeout old caps */
 	trimcaps();
@@ -141,7 +141,7 @@ remcap(uchar *hash)
 		capalloc.nhash--;
 		*l = t->next;
 	}
-	qunlock(&capalloc);
+	qunlock(&capalloc.QLock);
 
 	return t;
 }
@@ -155,9 +155,9 @@ addcap(uchar *hash)
 	p = secalloc(sizeof *p);
 	memmove(p->hash, hash, Hashlen);
 	p->next = nil;
-	p->ticks = MACHP(0)->ticks;
+	p->ticks = MACHP(0)->PMach.ticks;
 
-	qlock(&capalloc);
+	qlock(&capalloc.QLock);
 
 	/* make room for one extra */
 	trimcaps();
@@ -168,7 +168,7 @@ addcap(uchar *hash)
 	*l = p;
 	capalloc.nhash++;
 
-	qunlock(&capalloc);
+	qunlock(&capalloc.QLock);
 }
 
 static void

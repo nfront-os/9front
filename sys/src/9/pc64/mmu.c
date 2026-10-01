@@ -728,3 +728,16 @@ preallocpages(void)
 		}
 	}
 }
+
+/*
+ * Never implemented for x86 in the original source (only the ARM ports
+ * -- kw, omap, bcm, teg2 -- have a real mmuuncache()); the one caller
+ * (port/ucalloc.c's ucarena()) already handles a nil return by falling
+ * back to failing that allocation cleanly.
+ */
+void*
+mmuuncache(void *v, usize)
+{
+	USED(v);
+	return nil;
+}

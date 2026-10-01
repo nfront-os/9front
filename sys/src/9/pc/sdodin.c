@@ -490,7 +490,7 @@ typedef struct Drive Drive;
 typedef struct Ctlr Ctlr;
 
 struct Drive {
-	Lock;
+	Lock Lock;	/* gcc port: named to avoid clashing with QLock's pc under -fplan9-extensions */
 	QLock;
 	Ctlr	*ctlr;
 	SDunit	*unit;

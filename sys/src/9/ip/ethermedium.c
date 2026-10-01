@@ -334,9 +334,9 @@ etherread4(void *a)
 			poperror();
 			break;
 		}
-		rlock(ifc);
+		rlock(&ifc->RWLock);
 		if(waserror()){
-			runlock(ifc);
+			runlock(&ifc->RWLock);
 			continue;
 		}
 		if(BLEN(bp) <= ETHERHDRSIZE)
@@ -345,7 +345,7 @@ etherread4(void *a)
 			bp->rp += ETHERHDRSIZE;
 			ipiput4(er->f, ifc, bp);
 		}
-		runlock(ifc);
+		runlock(&ifc->RWLock);
 		poperror();
 	}
 	if(mediumunbindifc(ifc) != nil)
@@ -374,9 +374,9 @@ etherread6(void *a)
 			poperror();
 			break;
 		}
-		rlock(ifc);
+		rlock(&ifc->RWLock);
 		if(waserror()){
-			runlock(ifc);
+			runlock(&ifc->RWLock);
 			continue;
 		}
 		if(BLEN(bp) <= ETHERHDRSIZE)
@@ -385,7 +385,7 @@ etherread6(void *a)
 			bp->rp += ETHERHDRSIZE;
 			ipiput6(er->f, ifc, bp);
 		}
-		runlock(ifc);
+		runlock(&ifc->RWLock);
 		poperror();
 	}
 	if(mediumunbindifc(ifc) != nil)
@@ -526,7 +526,7 @@ recvarp(Ipifc *ifc)
 	if(ebp == nil)
 		error(Ehungup);
 
-	rlock(ifc);
+	rlock(&ifc->RWLock);
 
 	e = (Etherarp*)ebp->rp;
 	switch(nhgets(e->op)) {
@@ -597,14 +597,14 @@ recvarp(Ipifc *ifc)
 		memmove(r->d, e->sha, sizeof(r->d));
 		memmove(r->s, ifc->mac, sizeof(r->s));
 
-		runlock(ifc);
+		runlock(&ifc->RWLock);
 		freeb(ebp);
 
 		devtab[er->achan->type]->bwrite(er->achan, rbp, 0);
 		return;
 	}
 
-	runlock(ifc);
+	runlock(&ifc->RWLock);
 	freeb(ebp);
 }
 

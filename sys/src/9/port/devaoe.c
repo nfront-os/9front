@@ -43,7 +43,7 @@ enum {
 #define Q3(l, u, t)	((l)<<Typebits+Unitbits | QID(u, t))
 #define UP(d)		((d)->flag & Dup)
 
-#define	Ticks		MACHP(0)->ticks
+#define	Ticks		MACHP(0)->PMach.ticks
 #define	Ms2tk(t)	(((t)*HZ)/1000)
 #define	Tk2ms(t)	(((t)*1000)/HZ)
 
@@ -174,7 +174,7 @@ typedef struct {
 
 typedef struct Aoedev Aoedev;
 struct Aoedev {
-	QLock;
+	QLock QLock;	/* gcc port: named to avoid clashing with Aoedev's own head/tail under -fplan9-extensions */
 	Aoedev	*next;
 
 	ulong	vers;
@@ -218,9 +218,9 @@ struct Aoedev {
 #pragma	varargck type	"æ"	Aoedev*
 
 static struct {
-	Lock;
-	QLock;
-	Rendez;
+	Lock Lock;	/* gcc port: named, all three embeds already accessed as .Lock/.QLock/.Rendez below; bare embedding collides under -fplan9-extensions */
+	QLock QLock;
+	Rendez Rendez;
 	char	buf[Eventlen*Nevents];
 	char	*rp;
 	char	*wp;
@@ -245,7 +245,7 @@ static	Ref	drivevers;
 static	int	debug;
 static	int	autodiscover	= 1;
 static	int	rediscover;
-extern	char 	Enotup[] 	= "aoe device is down";
+char	Enotup[] 	= "aoe device is down";
 
 static Srb*
 srballoc(ulong sz)
@@ -296,7 +296,7 @@ srbwakeup(Srb *srb)
 {
 	if(srbready(srb)){
 		assert(srb->state == Alloc);
-		wakeup(srb);
+		wakeup(&srb->Rendez);
 		srb->state = Free;
 	}
 }
@@ -355,13 +355,13 @@ eventlogread(void *a, long n)
 	char *p, *buf;
 
 	buf = smalloc(Eventlen);
-	qlock(&events);
-	lock(&events);
+	qlock(&events.QLock);
+	lock(&events.Lock);
 	p = events.rp;
 	len = *p;
 	if(len == 0){
 		n = 0;
-		unlock(&events);
+		unlock(&events.Lock);
 	} else {
 		if(n > len)
 			n = len;
@@ -371,18 +371,18 @@ eventlogread(void *a, long n)
 		events.rp = p += Eventlen;
 		if(p >= events.buf + sizeof events.buf)
 			events.rp = events.buf;
-		unlock(&events);
+		unlock(&events.Lock);
 
 		/* the concern here is page faults in memmove below */
 		if(waserror()){
-			qunlock(&events);
+			qunlock(&events.QLock);
 			free(buf);
 			nexterror();
 		}
 		memmove(a, buf, n);
 		poperror();
 	}
-	qunlock(&events);
+	qunlock(&events.QLock);
 	free(buf);
 	return n;
 }
@@ -394,7 +394,7 @@ eventlog(char *fmt, ...)
 	char *p;
 	va_list arg;
 
-	lock(&events);
+	lock(&events.Lock);
 	p = events.wp;
 	dragrp = *p++;
 	va_start(arg, fmt);
@@ -405,8 +405,8 @@ eventlog(char *fmt, ...)
 		p = events.wp = events.buf;
 	if(dragrp)
 		events.rp = p;
-	unlock(&events);
-	wakeup(&events);
+	unlock(&events.Lock);
+	wakeup(&events.Rendez);
 	return n;
 }
 
@@ -415,12 +415,12 @@ eventcount(void)
 {
 	uint n;
 
-	lock(&events);
+	lock(&events.Lock);
 	if(*events.rp == 0)
 		n = 0;
 	else
 		n = events.wp - events.rp & Nevents - 1;
-	unlock(&events);
+	unlock(&events.Lock);
 	return n/Eventlen;
 }
 
@@ -652,12 +652,12 @@ loop:
 		nbc = Nbcms/Nms;
 	}
 	starttick = Ticks;
-	rlock(&devs);
+	rlock(&devs.RWLock);
 	for(d = devs.d; d != nil; d = d->next){
-		if(!canqlock(d))
+		if(!canqlock(&d->QLock))
 			continue;
 		if(!UP(d)){
-			qunlock(d);
+			qunlock(&d->QLock);
 			continue;
 		}
 		tx = 0;
@@ -697,9 +697,9 @@ loop:
 			d->maxout++;
 			d->lastwadj = Ticks;
 		}
-		qunlock(d);
+		qunlock(&d->QLock);
 	}
-	runlock(&devs);
+	runlock(&devs.RWLock);
 	i = Nms - TK2MS(Ticks - starttick);
 	if(i > 0 && !waserror()){
 		tsleep(&up->sleep, return0, 0, i);
@@ -789,7 +789,7 @@ unitseq(Chan *c, uint unit, Dir *dp)
 
 	i = 0;
 	rv = -1;
-	rlock(&devs);
+	rlock(&devs.RWLock);
 	for(d = devs.d; d != nil; d = d->next)
 		if(i++ == unit){
 			mkqid(&q, QID(d->unit, Qunitdir), 0, QTDIR);
@@ -797,7 +797,7 @@ unitseq(Chan *c, uint unit, Dir *dp)
 			rv = 1;
 			break;
 		}
-	runlock(&devs);
+	runlock(&devs.RWLock);
 	return rv;
 }
 
@@ -806,13 +806,13 @@ unit2dev(ulong unit)
 {
 	Aoedev *d;
 
-	rlock(&devs);
+	rlock(&devs.RWLock);
 	for(d = devs.d; d != nil; d = d->next)
 		if(d->unit == unit){
-			runlock(&devs);
+			runlock(&devs.RWLock);
 			return d;
 		}
-	runlock(&devs);
+	runlock(&devs.RWLock);
 	error("unit lookup failure");
 }
 
@@ -991,9 +991,9 @@ aoeopen(Chan *c, int omode)
 		return devopen(c, omode, 0, 0, aoegen);
 
 	d = unit2dev(UNIT(c->qid));
-	qlock(d);
+	qlock(&d->QLock);
 	if(waserror()){
-		qunlock(d);
+		qunlock(&d->QLock);
 		nexterror();
 	}
 	if(!UP(d))
@@ -1001,7 +1001,7 @@ aoeopen(Chan *c, int omode)
 	c = devopen(c, omode, 0, 0, aoegen);
 	d->nopen++;
 	poperror();
-	qunlock(d);
+	qunlock(&d->QLock);
 	return c;
 }
 
@@ -1014,12 +1014,12 @@ aoeclose(Chan *c)
 		return;
 
 	d = unit2dev(UNIT(c->qid));
-	qlock(d);
+	qlock(&d->QLock);
 	if(--d->nopen == 0 && !waserror()){
 		discover(d->major, d->minor);
 		poperror();
 	}
-	qunlock(d);
+	qunlock(&d->QLock);
 }
 
 static void
@@ -1053,7 +1053,7 @@ atarw(Aoedev *d, Frame *f)
 
 	ah->scnt = bcnt / Aoesectsz;
 	putlba(ah, f->lba);
-	if(d->feat & Dllba)
+	if(d->Sfis.feat & Dllba)
 		ah->aflag |= AAFext;
 	else {
 		extbit = 0;
@@ -1173,9 +1173,9 @@ work(Aoedev *d)
 static void
 strategy(Aoedev *d, Srb *srb)
 {
-	qlock(d);
+	qlock(&d->QLock);
 	if(waserror()){
-		qunlock(d);
+		qunlock(&d->QLock);
 		nexterror();
 	}
 	if(!UP(d))
@@ -1188,14 +1188,14 @@ strategy(Aoedev *d, Srb *srb)
 		d->head = srb;
 	work(d);
 	poperror();
-	qunlock(d);
+	qunlock(&d->QLock);
 
 	while(waserror()){
-		qlock(d);
+		qlock(&d->QLock);
 		srberror(d, srb, "interrupted");
-		qunlock(d);
+		qunlock(&d->QLock);
 	}
-	sleep(srb, srbready, srb);
+	sleep(&srb->Rendez,srbready,srb);
 	poperror();
 }
 
@@ -1294,7 +1294,7 @@ pstat(Aoedev *d, char *db, int len, int off)
 		d->fwver,
 		d->model, 	d->serial, 	d->firmware);
 	p = seprint(p, e, "flag: ");
-	p = pflag(p, e, d);
+	p = pflag(p,e,&d->Sfis);
 	p[-1] = ' ';	/* horrid */
 	p = aoeflag(p, e, d->flag);
 
@@ -1472,16 +1472,16 @@ configwrite(Aoedev *d, void *db, long len)
 		nexterror();
 	}
 	for (;;) {
-		qlock(d);
+		qlock(&d->QLock);
 		if(waserror()){
-			qunlock(d);
+			qunlock(&d->QLock);
 			nexterror();
 		}
 		f = freeframe(d);
 		if(f != nil)
 			break;
 		poperror();
-		qunlock(d);
+		qunlock(&d->QLock);
 		if(waserror())
 			nexterror();
 		tsleep(&up->sleep, return0, 0, 100);
@@ -1506,22 +1506,22 @@ configwrite(Aoedev *d, void *db, long len)
 	 * there's still the first waserror outstanding.
 	 */
 	poperror();
-	qunlock(d);
+	qunlock(&d->QLock);
 
 	devtab[f->nl->dc->type]->bwrite(f->nl->dc, allocfb(f), 0);
-	sleep(srb, srbready, srb);
+	sleep(&srb->Rendez,srbready,srb);
 	if(srb->error)
 		error(srb->error);
 
-	qlock(d);
+	qlock(&d->QLock);
 	if(waserror()){
-		qunlock(d);
+		qunlock(&d->QLock);
 		nexterror();
 	}
 	memmove(d->config, s, len);
 	d->nconfig = len;
 	poperror();
-	qunlock(d);
+	qunlock(&d->QLock);
 
 	poperror();			/* pop first waserror */
 
@@ -1601,9 +1601,9 @@ unitctlwrite(Aoedev *d, void *db, long n)
 	};
 
 	cb = parsecmd(db, n);
-	qlock(d);
+	qlock(&d->QLock);
 	if(waserror()){
-		qunlock(d);
+		qunlock(&d->QLock);
 		free(cb);
 		nexterror();
 	}
@@ -1655,7 +1655,7 @@ unitctlwrite(Aoedev *d, void *db, long n)
 		break;
 	}
 	poperror();
-	qunlock(d);
+	qunlock(&d->QLock);
 	free(cb);
 	return n;
 }
@@ -1699,9 +1699,9 @@ addnet(char *path, Chan *cc, Chan *dc, Chan *mtu, uchar *ea)
 {
 	Netlink *nl, *e;
 
-	lock(&netlinks);
+	lock(&netlinks.Lock);
 	if(waserror()){
-		unlock(&netlinks);
+		unlock(&netlinks.Lock);
 		nexterror();
 	}
 	nl = netlinks.nl;
@@ -1718,7 +1718,7 @@ addnet(char *path, Chan *cc, Chan *dc, Chan *mtu, uchar *ea)
 	memmove(nl->ea, ea, sizeof nl->ea);
 	poperror();
 	nl->flag |= Dup;
-	unlock(&netlinks);
+	unlock(&netlinks.Lock);
 	return nl;
 }
 
@@ -1782,13 +1782,13 @@ mm2dev(uint major, uint minor)
 {
 	Aoedev *d;
 
-	rlock(&devs);
+	rlock(&devs.RWLock);
 	for(d = devs.d; d; d = d->next)
 		if(d->major == major && d->minor == minor){
-			runlock(&devs);
+			runlock(&devs.RWLock);
 			return d;
 		}
-	runlock(&devs);
+	runlock(&devs.RWLock);
 	eventlog("mm2dev: %ud.%ud not found\n", major, minor);
 	return nil;
 }
@@ -1801,9 +1801,9 @@ getdev(uint major, uint minor, int n)
 
 	if(major == 0xffff || minor == 0xff)
 		return 0;
-	wlock(&devs);
+	wlock(&devs.RWLock);
 	if(waserror()){
-		wunlock(&devs);
+		wunlock(&devs.RWLock);
 		nexterror();
 	}
 	for(d = devs.d; d; d = d->next)
@@ -1815,7 +1815,7 @@ getdev(uint major, uint minor, int n)
 		devs.d = d;
 	}
 	poperror();
-	wunlock(&devs);
+	wunlock(&devs.RWLock);
 	return d;
 }
 
@@ -1941,17 +1941,17 @@ qcfgrsp(Block *b, Netlink *nl)
 		d = mm2dev(major, h->minor);
 		if(d == nil)
 			return;
-		qlock(d);
+		qlock(&d->QLock);
 		f = getframe(d, n);
 		if(f == nil){
-			qunlock(d);
+			qunlock(&d->QLock);
 			eventlog("%æ: unknown response tag %ux\n", d, n);
 			return;
 		}
 		h0 = (Aoehdr*)f->hdr;
 		cmd = h0->cmd;
 		if(cmd != ACconfig){
-			qunlock(d);
+			qunlock(&d->QLock);
 			eventlog("%æ: malicious server got ACconfig want %d; tag %ux\n", d, cmd, n);
 			return;
 		}
@@ -1975,7 +1975,7 @@ qcfgrsp(Block *b, Netlink *nl)
 			d->nout--;
 			f->tag = Tfree;
 		}
-		qunlock(d);
+		qunlock(&d->QLock);
 		return;
 	}
 
@@ -1997,10 +1997,10 @@ qcfgrsp(Block *b, Netlink *nl)
 	if(d == 0)
 		return;
 
-	qlock(d);
+	qlock(&d->QLock);
 	*up->errstr = 0;
 	if(waserror()){
-		qunlock(d);
+		qunlock(&d->QLock);
 		eventlog("%æ: %s\n", d, up->errstr);
 		nexterror();
 	}
@@ -2032,7 +2032,7 @@ qcfgrsp(Block *b, Netlink *nl)
 	if(d->nopen == 0)
 		ataident(d);
 	poperror();
-	qunlock(d);
+	qunlock(&d->QLock);
 }
 
 static vlong
@@ -2040,12 +2040,12 @@ aoeidentify(Aoedev *d, ushort *id)
 {
 	vlong s;
 
-	s = idfeat(d, id);
+	s = idfeat(&d->Sfis,id);
 	if(s == -1){
 		eventlog("%æ: idfeat returns -1\n", d);
 		return -1;
 	}
-	if((d->feat&Dlba) == 0){
+	if((d->Sfis.feat&Dlba) == 0){
 		eventlog("%æ: no lba support\n", d);
 		return -1;
 	}
@@ -2105,9 +2105,9 @@ atarsp(Block *b)
 	if(d == nil)
 		return;
 	ahin = (Aoeata*)(b->rp + Aoehsz);
-	qlock(d);
+	qlock(&d->QLock);
 	if(waserror()){
-		qunlock(d);
+		qunlock(&d->QLock);
 		nexterror();
 	}
 	n = nhgetl(h->tag);
@@ -2183,7 +2183,7 @@ atarsp(Block *b)
 	work(d);
 bail:
 	poperror();
-	qunlock(d);
+	qunlock(&d->QLock);
 }
 
 static void
@@ -2307,11 +2307,11 @@ netunbind(char *path)
 	n = netlinks.nl;
 	e = n + nelem(netlinks.nl);
 
-	lock(&netlinks);
+	lock(&netlinks.Lock);
 	for(; n < e; n++)
 		if(n->dc && strcmp(n->path, path) == 0)
 			break;
-	unlock(&netlinks);
+	unlock(&netlinks.Lock);
 	if(n == e)
 		error("device not bound");
 
@@ -2320,18 +2320,18 @@ netunbind(char *path)
 	 * this also terminates the reader.
 	 */
 	idx = n - netlinks.nl;
-	wlock(&devs);
+	wlock(&devs.RWLock);
 	for(d = devs.d; d; d = d->next){
-		qlock(d);
+		qlock(&d->QLock);
 		for(i = 0; i < d->ndl; i++){
 			l = d->dl + i;
 			if(l->nl == n)
 				l->flag &= ~Dup;
 		}
-		qunlock(d);
+		qunlock(&d->QLock);
 	}
 	n->flag &= ~Dup;
-	wunlock(&devs);
+	wunlock(&devs.RWLock);
 
 	/* confirm reader is down. */
 	while(waserror())
@@ -2340,54 +2340,54 @@ netunbind(char *path)
 	poperror();
 
 	/* reschedule packets. */
-	wlock(&devs);
+	wlock(&devs.RWLock);
 	for(d = devs.d; d != nil; d = d->next){
-		qlock(d);
+		qlock(&d->QLock);
 		for(i = 0; i < d->nframes; i++){
 			f = d->frames + i;
 			if(f->tag != Tfree && f->nl == n)
 				resend(d, f);
 		}
-		qunlock(d);
+		qunlock(&d->QLock);
 	}
-	wunlock(&devs);
+	wunlock(&devs.RWLock);
 
 	/* squeeze devlink pool.  (we assert nobody is using them now) */
-	wlock(&devs);
+	wlock(&devs.RWLock);
 	for(d = devs.d; d != nil; d = d->next){
-		qlock(d);
+		qlock(&d->QLock);
 		for(i = 0; i < d->ndl; i++){
 			l = d->dl + i;
 			if(l->nl == n)
 				memmove(l, l + 1, sizeof *l * (--d->ndl - i));
 		}
-		qunlock(d);
+		qunlock(&d->QLock);
 	}
-	wunlock(&devs);
+	wunlock(&devs.RWLock);
 
 	/* close device link. */
-	lock(&netlinks);
+	lock(&netlinks.Lock);
 	dc = n->dc;
 	cc = n->cc;
 	if(n->mtu != nil)
 		cclose(n->mtu);
 	memset(n, 0, sizeof *n);
-	unlock(&netlinks);
+	unlock(&netlinks.Lock);
 
 	cclose(dc);
 	cclose(cc);
 
 	/* squeeze orphan devices */
-	wlock(&devs);
+	wlock(&devs.RWLock);
 	for(p = d = devs.d; d != nil; d = next){
 		next = d->next;
 		if(d->ndl > 0){
 			p = d;
 			continue;
 		}
-		qlock(d);
+		qlock(&d->QLock);
 		downdev(d, "orphan");
-		qunlock(d);
+		qunlock(&d->QLock);
 		if(p != devs.d)
 			p->next = next;
 		else{
@@ -2398,7 +2398,7 @@ netunbind(char *path)
 		free(d);
 		dropunit();
 	}
-	wunlock(&devs);
+	wunlock(&devs.RWLock);
 }
 
 static void
@@ -2436,17 +2436,17 @@ removedev(Aoedev *d)
 	int i;
 	Aoedev *p;
 
-	wlock(&devs);
+	wlock(&devs.RWLock);
 	p = 0;
 	if(d != devs.d)
 	for(p = devs.d; p != nil; p = p->next)
 		if(p->next == d)
 			break;
-	qlock(d);
+	qlock(&d->QLock);
 	d->flag &= ~Dup;
 	newvers(d);
 	d->ndl = 0;
-	qunlock(d);
+	qunlock(&d->QLock);
 	for(i = 0; i < d->nframes; i++)
 		frameerror(d, d->frames+i, Enotup);
 
@@ -2457,7 +2457,7 @@ removedev(Aoedev *d)
 	free(d->frames);
 	free(d);
 	dropunit();
-	wunlock(&devs);
+	wunlock(&devs.RWLock);
 }
 
 
@@ -2488,14 +2488,14 @@ removestr(char *f)
 	Aoedev *d;
 
 	strtoss(f, &shelf, &slot);
-	wlock(&devs);
+	wlock(&devs.RWLock);
 	for(d = devs.d; d != nil; d = d->next)
 		if(shelf == d->major && slot == d->minor){
-			wunlock(&devs);	/* BOTCH */
+			wunlock(&devs.RWLock);	/* BOTCH */
 			removedev(d);
 			return;
 		}
-	wunlock(&devs);
+	wunlock(&devs.RWLock);
 	error("device not bound");
 }
 

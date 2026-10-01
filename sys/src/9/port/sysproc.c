@@ -137,7 +137,7 @@ sysrfork(va_list list)
 	p->s = up->s;
 	p->slash = up->slash;
 	p->dot = up->dot;
-	incref(p->dot);
+	incref(&p->dot->Ref);
 
 	p->nnote = 0;
  	p->notify = up->notify;
@@ -170,7 +170,7 @@ sysrfork(va_list list)
 
 	p->insyscall = 0;
 	memset(p->time, 0, sizeof(p->time));
-	p->time[TReal] = MACHP(0)->ticks;
+	p->time[TReal] = MACHP(0)->PMach.ticks;
 	p->kentry = up->kentry;
 	p->pcycles = -p->kentry;
 
@@ -211,7 +211,7 @@ sysrfork(va_list list)
 	}
 	else {
 		p->fgrp = up->fgrp;
-		incref(up->fgrp);
+		incref(&up->fgrp->Ref);
 	}
 
 	/* Process groups */
@@ -221,7 +221,7 @@ sysrfork(va_list list)
 	}
 	else {
 		p->pgrp = up->pgrp;
-		incref(up->pgrp);
+		incref(&up->pgrp->Ref);
 	}
 
 	/* Rendezvous group */
@@ -229,7 +229,7 @@ sysrfork(va_list list)
 		p->rgrp = newrgrp();
 	else {
 		p->rgrp = up->rgrp;
-		incref(up->rgrp);
+		incref(&up->rgrp->Ref);
 	}
 
 	/* Environment group */
@@ -240,7 +240,7 @@ sysrfork(va_list list)
 	}
 	else {
 		p->egrp = up->egrp;
-		incref(up->egrp);
+		incref(&up->egrp->Ref);
 	}
 
 	procfork(p);
@@ -379,7 +379,7 @@ sysexec(va_list list)
 	/* Setup TOS; paged in on demand */
 	tos = (Tos*)(tstk - sizeof(Tos));
 	memset(tos, 0, sizeof(Tos));
-	tos->cyclefreq = m->cyclefreq;
+	tos->cyclefreq = m->PMach.cyclefreq;
 
 	/* Stash interpreter args below TOS */
 	charp = (char*)tos;
@@ -389,7 +389,7 @@ sysexec(va_list list)
 	for(indir=0;;indir++){
 		n = devtab[tc->type]->read(tc, u.buf, sizeof(u.buf), 0);
 		if(n >= sizeof(Exec)) {
-			magic = beswal(u.ehdr.magic);
+			magic = beswal(u.ehdr.Exec.magic);
 			if(magic == AOUT_MAGIC)
 				break; /* for binary */
 		}
@@ -440,15 +440,15 @@ sysexec(va_list list)
 	if(magic & HDR_MAGIC) {
 		if(n < sizeof(u.ehdr))
 			error(Ebadexec);
-		entry = beswav(u.ehdr.hdr[0]);
+		entry = beswav(*(uvlong*)((uchar*)&u.ehdr.Exec));
 		text = UTZERO+sizeof(u.ehdr);
 	} else {
-		entry = beswal(u.ehdr.entry);
+		entry = beswal(u.ehdr.Exec.entry);
 		text = UTZERO+sizeof(Exec);
 	}
 	if(entry < text)
 		error(Ebadexec);
-	text += beswal(u.ehdr.text);
+	text += beswal(u.ehdr.Exec.text);
 	if(text <= entry || text >= (USTKTOP-USTKSIZE))
 		error(Ebadexec);
 
@@ -469,8 +469,8 @@ sysexec(va_list list)
 
 	adata = (text+align) & ~align;
 	text -= UTZERO;
-	data = beswal(u.ehdr.data);
-	bss = beswal(u.ehdr.bss);
+	data = beswal(u.ehdr.Exec.data);
+	bss = beswal(u.ehdr.Exec.bss);
 	align = BY2PG-1;
 	
 	abss = (adata + data + align) & ~align;
@@ -578,7 +578,7 @@ sysexec(va_list list)
 	img = attachimage(tc, (PGROUND(text)+PGROUND(data))>>PGSHIFT);
 	if((ts = img->s) != nil && ts->flen == text){
 		assert(ts->image == img);
-		incref(ts);
+		incref(&ts->Ref);
 		putimage(img);
 	} else {
 		if(waserror()){
@@ -590,7 +590,7 @@ sysexec(va_list list)
 		ts->fstart = 0;
 		ts->flen = text;
 		img->s = ts;
-		unlock(img);
+		unlock(&img->Lock);
 		poperror();	/* img */
 	}
 
@@ -614,7 +614,7 @@ sysexec(va_list list)
 		putseg(detachseg(up, i));
 
 	/* Text. Shared. */
-	assert(ts->ref > 0);
+	assert(ts->Ref.ref > 0);
 	attachseg(up, TSEG, ts);
 
 	/* Data. Shared. */
@@ -622,7 +622,7 @@ sysexec(va_list list)
 	s->image = img;
 	s->fstart = text;
 	s->flen = data;
-	incref(img);
+	incref(&img->Ref);
 	attachseg(up, DSEG, s);
 
 	/* BSS. Zero fill on demand */
@@ -802,6 +802,25 @@ werrstr(char *fmt, ...)
 	va_start(va, fmt);
 	vseprint(up->syserrstr, up->syserrstr+ERRMAX, fmt, va);
 	va_end(va);
+}
+
+/*
+ * kernel-internal equivalent of libc's rerrstr(): fmt.c's %r verb
+ * (errfmt -> rerrstr) is wired in unconditionally, so this must exist
+ * even though no in-tree kernel code currently prints %r. Unlike
+ * generrstr() below (a syscall implementation: validates and swaps a
+ * *userspace* buffer), this just copies the current process' error
+ * string for a kernel-internal caller -- no syscall, no up->errstr swap.
+ */
+void
+rerrstr(char *buf, uint nbuf)
+{
+	if(up == nil){
+		if(nbuf > 0)
+			buf[0] = 0;
+		return;
+	}
+	utfecpy(buf, buf+nbuf, up->syserrstr);
 }
 
 static int
@@ -1068,13 +1087,13 @@ sysrendezvous(va_list list)
 	new = va_arg(list, uintptr);
 	l = &REND(up->rgrp, tag);
 
-	lock(up->rgrp);
+	lock(&up->rgrp->Lock);
 	for(p = *l; p != nil; p = p->rendhash) {
 		if(p->rendtag == tag) {
 			*l = p->rendhash;
 			val = p->rendval;
 			p->rendval = new;
-			unlock(up->rgrp);
+			unlock(&up->rgrp->Lock);
 
 			ready(p);
 
@@ -1089,7 +1108,7 @@ sysrendezvous(va_list list)
 	up->rendhash = *l;
 	*l = up;
 	up->state = Rendezvous;
-	unlock(up->rgrp);
+	unlock(&up->rgrp->Lock);
 
 	sched();
 
@@ -1186,22 +1205,22 @@ semqueue(Segment *s, long *a, Sema *p)
 {
 	memset(p, 0, sizeof *p);
 	p->addr = a;
-	lock(&s->sema);	/* uses s->sema.Rendez.Lock, but no one else is */
+	lock(&s->sema.Rendez.Lock);	/* uses s->sema.Rendez.Lock, but no one else is */
 	p->next = &s->sema;
 	p->prev = s->sema.prev;
 	p->next->prev = p;
 	p->prev->next = p;
-	unlock(&s->sema);
+	unlock(&s->sema.Rendez.Lock);
 }
 
 /* Remove semaphore p from list in seg. */
 static void
 semdequeue(Segment *s, Sema *p)
 {
-	lock(&s->sema);
+	lock(&s->sema.Rendez.Lock);
 	p->next->prev = p->prev;
 	p->prev->next = p->next;
-	unlock(&s->sema);
+	unlock(&s->sema.Rendez.Lock);
 }
 
 /* Wake up n waiters with addr a on list in seg. */
@@ -1210,16 +1229,16 @@ semwakeup(Segment *s, long *a, long n)
 {
 	Sema *p;
 	
-	lock(&s->sema);
+	lock(&s->sema.Rendez.Lock);
 	for(p=s->sema.next; p!=&s->sema && n>0; p=p->next){
 		if(p->addr == a && p->waiting){
 			p->waiting = 0;
 			coherence();
-			wakeup(p);
+			wakeup(&p->Rendez);
 			n--;
 		}
 	}
-	unlock(&s->sema);
+	unlock(&s->sema.Rendez.Lock);
 }
 
 /* Add delta to semaphore and wake up waiters as appropriate. */
@@ -1273,7 +1292,7 @@ semacquire(Segment *s, long *addr, int block)
 			coherence();
 			if(canacquire(addr))
 				break;
-			sleep(&phore, semawoke, &phore);
+			sleep(&phore.Rendez,semawoke,&phore);
 		}
 		poperror();
 	}
@@ -1306,9 +1325,9 @@ tsemacquire(Segment *s, long *addr, ulong ms)
 			coherence();
 			if(canacquire(addr))
 				break;
-			t = MACHP(0)->ticks;
-			tsleep(&phore, semawoke, &phore, ms);
-			t = TK2MS(MACHP(0)->ticks - t);
+			t = MACHP(0)->PMach.ticks;
+			tsleep(&phore.Rendez,semawoke,&phore,ms);
+			t = TK2MS(MACHP(0)->PMach.ticks - t);
 			if(t >= ms){
 				timedout = 1;
 				break;
@@ -1388,7 +1407,7 @@ syssemrelease(va_list list)
 
 /* For binary compatibility */
 uintptr
-sys_nsec(va_list list)
+sysnsec(va_list list)
 {
 	vlong *v;
 
@@ -1405,6 +1424,21 @@ sys_nsec(va_list list)
 	return 0;
 }
 
+/* compatibility name: dtracysys.c's WRAP1(dtwrap_sys_nsec, ...) references
+ * this exact symbol, mirroring how sys_errstr coexists with syserrstr above */
+uintptr
+sys_nsec(va_list list)
+{
+	return sysnsec(list);
+}
+
+/* reserved/invalid syscall slot (SYS_r0 == 0); never legitimately called */
+uintptr
+sysr0(va_list)
+{
+	return -1;
+}
+
 #include "../port/systab.h"
 
 int
@@ -1416,7 +1450,7 @@ dosyscall(ulong scallnr, Sargs *args, uintptr *retp)
 	
 	SET(startns);
 
-	m->syscall++;
+	m->PMach.syscall++;
 
 	up->insyscall = 1;
 	s = spllo();
@@ -1429,7 +1463,7 @@ dosyscall(ulong scallnr, Sargs *args, uintptr *retp)
 		up->scallnr = scallnr;
 
 		if(up->procctl == Proc_tracesyscall){
-			syscallfmt(scallnr, userpc(), (va_list)up->s.args);
+			syscallfmt(scallnr, userpc(), (void*)up->s.args);
 			splhi();
 			up->procctl = Proc_stopme;
 			procctl();
@@ -1441,7 +1475,7 @@ dosyscall(ulong scallnr, Sargs *args, uintptr *retp)
 			error(Ebadarg);
 		}
 		up->psstate = sysctab[scallnr];
-		ret = systab[scallnr]((va_list)up->s.args);			
+		ret = systab[scallnr]((void*)up->s.args);
 		poperror();
 		if(scallnr == NOTED){
 			/* special case: noted() changes the ureg, return without setting *retp */
@@ -1468,7 +1502,7 @@ dosyscall(ulong scallnr, Sargs *args, uintptr *retp)
 	*retp = ret;
 	if(up->procctl == Proc_tracesyscall){
 		stopns = uptime();
-		sysretfmt(scallnr, (va_list)up->s.args, ret, startns, stopns);
+		sysretfmt(scallnr, (void*)up->s.args, ret, startns, stopns);
 		splhi();
 		up->procctl = Proc_stopme;
 		procctl();

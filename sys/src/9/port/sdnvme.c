@@ -104,9 +104,9 @@ qcmd(WS *ws, Ctlr *ctlr, int adm, u32int opc, u32int nsid, void *data, ulong len
 		splhi();
 		sq = &ctlr->sq[1+(m->machno % ctlr->nsq)];
 		if(conf.nmach > ctlr->nsq)
-			lock(sq);
+			lock(&sq->Lock);
 	} else {
-		qlock(ctlr);
+		qlock(&ctlr->QLock);
 		sq = &ctlr->sq[0];
 	}
 	ws->sleep = &up->sleep;
@@ -116,7 +116,7 @@ qcmd(WS *ws, Ctlr *ctlr, int adm, u32int opc, u32int nsid, void *data, ulong len
 		/* should be very rare */
 		if(!adm){
 			if(conf.nmach > ctlr->nsq)
-				unlock(sq);
+				unlock(&sq->Lock);
 			sched();
 			goto Retry;
 		}
@@ -216,10 +216,10 @@ wcmd(WS *ws, u32int *e)
 	if(sq > ctlr->sq) {
 		assert(sq == &ctlr->sq[1+(m->machno % ctlr->nsq)]);
 		if(conf.nmach > ctlr->nsq)
-			unlock(sq);
+			unlock(&sq->Lock);
 		spllo();
 	} else
-		qunlock(sq->ctlr);
+		qunlock(&sq->ctlr->QLock);
 	while(waserror())
 		;
 	tsleep(ws->sleep, wdone, ws, 5);

@@ -58,14 +58,14 @@ static void todfix(void);
 void
 todinit(void)
 {
-	ilock(&tod);
+	ilock(&tod.Lock);
 	if(tod.init){
-		iunlock(&tod);
+		iunlock(&tod.Lock);
 		return;
 	}
 	tod.init = 1;
 	tod.last = fastticks(&tod.hz);
-	iunlock(&tod);
+	iunlock(&tod.Lock);
 	todsetfreq(tod.hz);
 	addclock0link(todfix, 2000);
 }
@@ -94,7 +94,7 @@ todsetfreq(vlong f)
 {
 	if (f <= 0)
 		panic("todsetfreq: freq %lld <= 0", f);
-	ilock(&tod);
+	ilock(&tod.Lock);
 	tod.hz = f;
 
 	/* calculate multiplier for time conversion */
@@ -102,7 +102,7 @@ todsetfreq(vlong f)
 	tod.divider = mk64fract(f, TODFREQ) + 1;
 	tod.umultiplier = mk64fract(MicroFREQ, f);
 	tod.udivider = mk64fract(f, MicroFREQ) + 1;
-	iunlock(&tod);
+	iunlock(&tod.Lock);
 }
 
 /*
@@ -114,7 +114,7 @@ todset(vlong t, vlong delta, int n)
 	if(!tod.init)
 		todinit();
 
-	ilock(&tod);
+	ilock(&tod.Lock);
 	if(t >= 0){
 		uvlong ticks = fastticks(nil);
 		tod.bootoff += deltans(ticks);
@@ -136,11 +136,11 @@ todset(vlong t, vlong delta, int n)
 			delta = 0;
 		} else
 			delta /= n;
-		tod.sstart = MACHP(0)->ticks;
+		tod.sstart = MACHP(0)->PMach.ticks;
 		tod.send = tod.sstart + n;
 		tod.delta = delta;
 	}
-	iunlock(&tod);
+	iunlock(&tod.Lock);
 }
 
 /*
@@ -159,7 +159,7 @@ todget(vlong *nsecp, vlong *ticksp, vlong *tickshzp, vlong *uptimep)
 	 * and grabbing tod.last.  Also none of the vlongs are atomic so
 	 * we have to look at them inside the lock.
 	 */
-	ilock(&tod);
+	ilock(&tod.Lock);
 	ticks = fastticks(nil);
 	ns = deltans(ticks);
 
@@ -185,7 +185,7 @@ todget(vlong *nsecp, vlong *ticksp, vlong *tickshzp, vlong *uptimep)
 	if(nsecp != nil){
 		/* add in correction */
 		if(tod.sstart != tod.send){
-			ulong t = MACHP(0)->ticks;
+			ulong t = MACHP(0)->PMach.ticks;
 			if(t >= tod.send)
 				t = tod.send;
 			tod.off = (vlong)tod.off + (tod.delta*(t - tod.sstart));
@@ -203,7 +203,7 @@ todget(vlong *nsecp, vlong *ticksp, vlong *tickshzp, vlong *uptimep)
 
 		*nsecp = ns;
 	}
-	iunlock(&tod);
+	iunlock(&tod.Lock);
 }
 
 /*
@@ -214,7 +214,7 @@ todfix(void)
 {
 	uvlong ticks;
 
-	ilock(&tod);
+	ilock(&tod.Lock);
 	ticks = fastticks(nil);
 	if((vlong)(ticks - tod.last) > tod.hz){
 		uvlong ns = deltans(ticks);
@@ -222,7 +222,7 @@ todfix(void)
 		tod.bootoff += ns;
 		tod.off += ns;
 	}
-	iunlock(&tod);
+	iunlock(&tod.Lock);
 }
 
 vlong

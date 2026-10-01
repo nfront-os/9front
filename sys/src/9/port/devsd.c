@@ -96,15 +96,15 @@ freeunit(SDunit *unit)
 		return;
 
 	for(i = 0; i < unit->nefile; i++)
-		freeperm(&unit->efile[i]);
+		freeperm(&unit->efile[i].SDperm);
 
 	for(i = 0; i < unit->npart; i++)
-		freeperm(&unit->part[i]);
+		freeperm(&unit->part[i].SDperm);
 	free(unit->part);
 
 	freeperm(&unit->ctlperm);
 	freeperm(&unit->rawperm);
-	freeperm(unit);
+	freeperm(&unit->SDperm);
 
 	free(unit);
 }
@@ -142,7 +142,7 @@ sdaddpart(SDunit* unit, char* name, uvlong start, uvlong end)
 					partno = i;
 				break;
 			}
-			if(strcmp(name, pp->name) == 0){
+			if(strcmp(name, pp->SDperm.name) == 0){
 				if(pp->start == start && pp->end == end)
 					return;
 				error(Ebadctl);
@@ -180,9 +180,9 @@ sdaddpart(SDunit* unit, char* name, uvlong start, uvlong end)
 	pp = &unit->part[partno];
 	pp->start = start;
 	pp->end = end;
-	kstrdup(&pp->name, name);
-	kstrdup(&pp->user, eve);
-	pp->perm = 0640;
+	kstrdup(&pp->SDperm.name, name);
+	kstrdup(&pp->SDperm.user, eve);
+	pp->SDperm.perm = 0640;
 	pp->valid = 1;
 }
 
@@ -198,13 +198,13 @@ sddelpart(SDunit* unit, char* name)
 	 */
 	pp = unit->part;
 	for(i = 0; i < unit->npart; i++){
-		if(pp->valid && strcmp(name, pp->name) == 0)
+		if(pp->valid && strcmp(name, pp->SDperm.name) == 0)
 			break;
 		pp++;
 	}
 	if(i >= unit->npart)
 		error(Ebadctl);
-	if(strcmp(up->user, pp->user) && !iseve())
+	if(strcmp(up->user, pp->SDperm.user) && !iseve())
 		error(Eperm);
 	pp->valid = 0;
 	pp->vers++;
@@ -263,7 +263,7 @@ sdinitpart(SDunit* unit)
 		 * partitions will have the null-string for user.
 		 * The gen functions patch it up.
 		 */
-		snprint(buf, sizeof buf, "%spart", unit->name);
+		snprint(buf, sizeof buf, "%spart", unit->SDperm.name);
 		for(p = getconf(buf); p != nil; p = q){
 			if((q = strchr(p, '/')) != nil)
 				*q++ = '\0';
@@ -340,9 +340,9 @@ sdgetunit(SDev* sdev, int subno)
 
 		unit = smalloc(sizeof(SDunit));
 		snprint(buf, sizeof buf, "%s%x", sdev->name, subno);
-		kstrdup(&unit->name, buf);
-		kstrdup(&unit->user, eve);
-		unit->perm = 0555;
+		kstrdup(&unit->SDperm.name, buf);
+		kstrdup(&unit->SDperm.user, eve);
+		unit->SDperm.perm = 0555;
 		unit->subno = subno;
 		unit->dev = sdev;
 
@@ -466,9 +466,9 @@ sd2gen(Chan* c, SDunit *unit, int i, Dir* dp)
 		l = (pp->end - pp->start) * unit->secsize;
 		mkqid(&q, QID(DEV(c->qid), UNIT(c->qid), PART(c->qid), Qpart),
 			unit->vers+pp->vers, QTFILE);
-		if(emptystr(pp->user))
-			kstrdup(&pp->user, eve);
-		devdir(c, q, pp->name, l, pp->user, pp->perm, dp);
+		if(emptystr(pp->SDperm.user))
+			kstrdup(&pp->SDperm.user, eve);
+		devdir(c, q, pp->SDperm.name, l, pp->SDperm.user, pp->SDperm.perm, dp);
 		return 1;
 
 	case Qextra:
@@ -478,9 +478,9 @@ sd2gen(Chan* c, SDunit *unit, int i, Dir* dp)
 		mkqid(&q, QID(DEV(c->qid), UNIT(c->qid), PART(c->qid), Qextra),
 			unit->vers, QTFILE);
 		e = unit->efile + t;
-		if(emptystr(e->user))
-			kstrdup(&e->user, eve);
-		devdir(c, q, e->name, 0, e->user, e->perm, dp);
+		if(emptystr(e->SDperm.user))
+			kstrdup(&e->SDperm.user, eve);
+		devdir(c, q, e->SDperm.name, 0, e->SDperm.user, e->SDperm.perm, dp);
 		return 1;
 	}
 
@@ -522,11 +522,11 @@ efilegen(Chan *c, SDunit *unit, int i, Dir *dp)
 	if(i < 0)
 		return 0;
 	e = unit->efile + i;
-	if(emptystr(e->user))
-		kstrdup(&e->user, eve);
+	if(emptystr(e->SDperm.user))
+		kstrdup(&e->SDperm.user, eve);
 	mkqid(&q, QID(DEV(c->qid), UNIT(c->qid), i, Qextra),
 		unit->vers, QTFILE);
-	devdir(c, q, e->name, 0, e->user, e->perm, dp);
+	devdir(c, q, e->SDperm.name, 0, e->SDperm.user, e->SDperm.perm, dp);
 	return 1;
 }
 
@@ -582,9 +582,9 @@ sdgen(Chan* c, char*, Dirtab*, int, int s, Dir* dp)
 		}
 
 		mkqid(&q, QID(sdev->idno, s, 0, Qunitdir), 0, QTDIR);
-		if(emptystr(unit->user))
-			kstrdup(&unit->user, eve);
-		devdir(c, q, unit->name, 0, unit->user, unit->perm, dp);
+		if(emptystr(unit->SDperm.user))
+			kstrdup(&unit->SDperm.user, eve);
+		devdir(c, q, unit->SDperm.name, 0, unit->SDperm.user, unit->SDperm.perm, dp);
 		decref(&sdev->r);
 		return 1;
 
@@ -638,9 +638,9 @@ sdgen(Chan* c, char*, Dirtab*, int, int s, Dir* dp)
 		l = (pp->end - pp->start) * (uvlong)unit->secsize;
 		mkqid(&q, QID(DEV(c->qid), UNIT(c->qid), i, Qpart),
 			unit->vers+pp->vers, QTFILE);
-		if(emptystr(pp->user))
-			kstrdup(&pp->user, eve);
-		devdir(c, q, pp->name, l, pp->user, pp->perm, dp);
+		if(emptystr(pp->SDperm.user))
+			kstrdup(&pp->SDperm.user, eve);
+		devdir(c, q, pp->SDperm.name, l, pp->SDperm.user, pp->SDperm.perm, dp);
 		r = 1;
 		goto ReleaseUnit;
 	case Qraw:
@@ -1178,7 +1178,7 @@ sdfakescsirw(SDreq *r, uvlong *llba, int *nsec, int *rwp)
 		count = c[10]<<24 | c[11]<<16 | c[12]<<8 | c[13];
 		break;
 	default:
-		print("%s: bad cmd 0x%.2ux\n", r->unit->name, c[0]);
+		print("%s: bad cmd 0x%.2ux\n", r->unit->SDperm.name, c[0]);
 		r->status  = sdsetsense(r, SDcheck, 0x05, 0x20, 0);
 		return SDcheck;
 	}
@@ -1297,7 +1297,7 @@ sdread(Chan *c, void *a, long n, vlong off)
 				pp = &unit->part[i];
 				if(pp->valid)
 					p = seprint(p, e, "part %s %llud %llud\n",
-						pp->name, pp->start, pp->end);
+						pp->SDperm.name, pp->start, pp->end);
 			}
 		}
 		qunlock(&unit->ctl);
@@ -1689,7 +1689,7 @@ sdaddfile(SDunit *unit, char *s, int perm, char *u, SDrw *r, SDrw *w)
 		return -1;
 	lock(&lk);
 	for(i = 0; i < unit->nefile; i++)
-		if(strcmp(unit->efile[i].name, s) == 0)
+		if(strcmp(unit->efile[i].SDperm.name, s) == 0)
 			break;
 	if(i >= nelem(unit->efile)){
 		unlock(&lk);
@@ -1698,9 +1698,9 @@ sdaddfile(SDunit *unit, char *s, int perm, char *u, SDrw *r, SDrw *w)
 	if(i >= unit->nefile)
 		unit->nefile = i + 1;
 	e = unit->efile + i;
-	kstrdup(&e->name, s);
-	kstrdup(&e->user, u);
-	e->perm = perm;
+	kstrdup(&e->SDperm.name, s);
+	kstrdup(&e->SDperm.user, u);
+	e->SDperm.perm = perm;
 	e->r = r;
 	e->w = w;
 	unlock(&lk);

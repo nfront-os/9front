@@ -232,8 +232,8 @@ struct Powergrp
 };
 
 struct Ctlr {
-	Lock;
-	QLock;
+	Lock Lock;	/* gcc port: named, QLock also named (shares pc field) under -fplan9-extensions */
+	QLock QLock;
 
 	Ctlr *link;
 	uvlong port;
@@ -658,21 +658,21 @@ irqwait(Ctlr *ctlr, u32int mask, int timeout)
 {
 	u32int r;
 
-	ilock(ctlr);
+	ilock(&ctlr->Lock);
 	r = ctlr->wait.m & mask;
 	if(r == 0){
 		ctlr->wait.w = mask;
-		iunlock(ctlr);
+		iunlock(&ctlr->Lock);
 		if(!waserror()){
-			tsleep(&ctlr->wait, gotirq, ctlr, timeout);
+			tsleep(&ctlr->wait.Rendez,gotirq,ctlr,timeout);
 			poperror();
 		}
-		ilock(ctlr);
+		ilock(&ctlr->Lock);
 		ctlr->wait.w = 0;
 		r = ctlr->wait.m & mask;
 	}
 	ctlr->wait.m &= ~r;
-	iunlock(ctlr);
+	iunlock(&ctlr->Lock);
 	return r;
 }
 
@@ -974,20 +974,20 @@ qcmd(Ctlr *ctlr, uint qid, uint code, uchar *data, int size, Block *block)
 	assert(qid < nelem(ctlr->tx));
 	assert(size <= Tcmdsize-4);
 
-	ilock(ctlr);
+	ilock(&ctlr->Lock);
 	q = &ctlr->tx[qid];
 	while(q->n >= Ntxqmax && !ctlr->broken){
-		iunlock(ctlr);
-		qlock(q);
+		iunlock(&ctlr->Lock);
+		qlock(&q->QLock);
 		if(!waserror()){
-			tsleep(q, txqready, q, 5);
+			tsleep(&q->Rendez,txqready,q,5);
 			poperror();
 		}
-		qunlock(q);
-		ilock(ctlr);
+		qunlock(&q->QLock);
+		ilock(&ctlr->Lock);
 	}
 	if(ctlr->broken){
-		iunlock(ctlr);
+		iunlock(&ctlr->Lock);
 		return "qcmd: broken";
 	}
 	q->n++;
@@ -1031,7 +1031,7 @@ qcmd(Ctlr *ctlr, uint qid, uint code, uchar *data, int size, Block *block)
 	q->i = (q->i+1) % Ntx;
 	csr32w(ctlr, HbusTargWptr, (qid<<8) | q->i);
 
-	iunlock(ctlr);
+	iunlock(&ctlr->Lock);
 
 	return nil;
 }
@@ -1050,18 +1050,18 @@ flushq(Ctlr *ctlr, uint qid)
 	int i;
 
 	q = &ctlr->tx[qid];
-	qlock(q);
+	qlock(&q->QLock);
 	for(i = 0; i < 200 && !ctlr->broken; i++){
 		if(txqempty(q)){
-			qunlock(q);
+			qunlock(&q->QLock);
 			return nil;
 		}
 		if(islo() && !waserror()){
-			tsleep(q, txqempty, q, 10);
+			tsleep(&q->Rendez,txqempty,q,10);
 			poperror();
 		}
 	}
-	qunlock(q);
+	qunlock(&q->QLock);
 	if(ctlr->broken)
 		return "flushq: broken";
 	return "flushq: timeout";
@@ -1326,7 +1326,7 @@ rxon(Ether *edev, Wnode *bss)
 		}else
 			ctlr->bcastnodeid = -1;
 	}else{
-		memmove(ctlr->bssid, edev->bcast, Eaddrlen);
+		memmove(ctlr->bssid, edev->Netif.bcast, Eaddrlen);
 		ctlr->aid = 0;
 		ctlr->bcastnodeid = -1;
 		ctlr->bssnodeid = -1;
@@ -1334,7 +1334,7 @@ rxon(Ether *edev, Wnode *bss)
 
 	if(ctlr->aid != 0)
 		setled(ctlr, 2, 0, 1);		/* on when associated */
-	else if(memcmp(ctlr->bssid, edev->bcast, Eaddrlen) != 0)
+	else if(memcmp(ctlr->bssid, edev->Netif.bcast, Eaddrlen) != 0)
 		setled(ctlr, 2, 10, 10);	/* slow blink when connecting */
 	else
 		setled(ctlr, 2, 5, 5);		/* fast blink when scanning */
@@ -1378,7 +1378,7 @@ rxon(Ether *edev, Wnode *bss)
 
 	if(ctlr->bcastnodeid == -1){
 		ctlr->bcastnodeid = 24;
-		addnode(ctlr, ctlr->bcastnodeid, edev->bcast, ratetab[0].plcp, 3<<6);
+		addnode(ctlr, ctlr->bcastnodeid, edev->Netif.bcast, ratetab[0].plcp, 3<<6);
 	}
 	if(ctlr->bssnodeid == -1 && bss != nil && ctlr->aid != 0){
 		ctlr->bssnodeid = 0;
@@ -1409,9 +1409,9 @@ transmit(Wifi *wifi, Wnode *wn, Block *b)
 	edev = wifi->ether;
 	ctlr = edev->ctlr;
 
-	qlock(ctlr);
+	qlock(&ctlr->QLock);
 	if(ctlr->attached == 0 || ctlr->broken){
-		qunlock(ctlr);
+		qunlock(&ctlr->QLock);
 		freeb(b);
 		return;
 	}
@@ -1422,7 +1422,7 @@ transmit(Wifi *wifi, Wnode *wn, Block *b)
 
 	if(b == nil){
 		/* association note has no data to transmit */
-		qunlock(ctlr);
+		qunlock(&ctlr->QLock);
 		return;
 	}
 
@@ -1447,7 +1447,7 @@ transmit(Wifi *wifi, Wnode *wn, Block *b)
 		rate = p - wifi->rates;
 	else
 		rate = 0;
-	qunlock(ctlr);
+	qunlock(&ctlr->QLock);
 
 	memset(p = c, 0, sizeof(c));
 	put16(p, BLEN(b)), p += 2;
@@ -1503,8 +1503,8 @@ setoptions(Ether *edev)
 	int i;
 
 	ctlr = edev->ctlr;
-	for(i = 0; i < edev->nopt; i++)
-		wificfg(ctlr->wifi, edev->opt[i]);
+	for(i = 0; i < edev->ISAConf.nopt; i++)
+		wificfg(ctlr->wifi, edev->ISAConf.opt[i]);
 }
 
 static void
@@ -1515,10 +1515,10 @@ wpipromiscuous(void *arg, int on)
 
 	edev = arg;
 	ctlr = edev->ctlr;
-	qlock(ctlr);
+	qlock(&ctlr->QLock);
 	ctlr->prom = on;
 	rxon(edev, ctlr->wifi->bss);
-	qunlock(ctlr);
+	qunlock(&ctlr->QLock);
 }
 
 static void
@@ -1539,7 +1539,7 @@ wpirecover(void *arg)
 	for(;;){
 		tsleep(&up->sleep, return0, 0, 4000);
 
-		qlock(ctlr);
+		qlock(&ctlr->QLock);
 		for(;;){
 			if(ctlr->broken == 0)
 				break;
@@ -1561,7 +1561,7 @@ wpirecover(void *arg)
 			rxon(edev, ctlr->wifi->bss);
 			break;
 		}
-		qunlock(ctlr);
+		qunlock(&ctlr->QLock);
 	}
 }
 
@@ -1573,12 +1573,12 @@ wpiattach(Ether *edev)
 	char *err;
 
 	ctlr = edev->ctlr;
-	eqlock(ctlr);
+	eqlock(&ctlr->QLock);
 	if(waserror()){
 		print("#l%d: %s\n", edev->ctlrno, up->errstr);
 		if(ctlr->power)
 			poweroff(ctlr);
-		qunlock(ctlr);
+		qunlock(&ctlr->QLock);
 		nexterror();
 	}
 	if(ctlr->attached == 0){
@@ -1616,7 +1616,7 @@ wpiattach(Ether *edev)
 
 		kproc("wpirecover", wpirecover, edev);
 	}
-	qunlock(ctlr);
+	qunlock(&ctlr->QLock);
 	poperror();
 }
 
@@ -1664,7 +1664,7 @@ if(0) iprint("rxdesc[%d] type=%d len=%d idx=%d qid=%d\n", rx->i, type, len, idx,
 				bb = tx->b[idx];
 				tx->b[idx] = nil;
 				tx->n--;
-				wakeup(tx);
+				wakeup(&tx->Rendez);
 			}
 		}
 
@@ -1730,12 +1730,12 @@ wpiinterrupt(Ureg*, void *arg)
 
 	edev = arg;
 	ctlr = edev->ctlr;
-	ilock(ctlr);
+	ilock(&ctlr->Lock);
 	csr32w(ctlr, Imr, 0);
 	isr = csr32r(ctlr, Isr);
 	fhisr = csr32r(ctlr, FhIsr);
 	if(isr == 0xffffffff || (isr & 0xfffffff0) == 0xa5a5a5a0){
-		iunlock(ctlr);
+		iunlock(&ctlr->Lock);
 		return;
 	}
 	if(isr == 0 && fhisr == 0)
@@ -1750,10 +1750,10 @@ wpiinterrupt(Ureg*, void *arg)
 	}
 	ctlr->wait.m |= isr;
 	if(ctlr->wait.m & ctlr->wait.w)
-		wakeup(&ctlr->wait);
+		wakeup(&ctlr->wait.Rendez);
 done:
 	csr32w(ctlr, Imr, ctlr->ie);
-	iunlock(ctlr);
+	iunlock(&ctlr->Lock);
 }
 
 static void
@@ -1828,7 +1828,7 @@ again:
 	for(ctlr = wpihead; ctlr != nil; ctlr = ctlr->link){
 		if(ctlr->active)
 			continue;
-		if(edev->port == 0 || edev->port == ctlr->port){
+		if(edev->ISAConf.port == 0 || edev->ISAConf.port == ctlr->port){
 			ctlr->active = 1;
 			break;
 		}
@@ -1838,17 +1838,17 @@ again:
 		return -1;
 
 	edev->ctlr = ctlr;
-	edev->port = ctlr->port;
-	edev->irq = ctlr->pdev->intl;
+	edev->ISAConf.port = ctlr->port;
+	edev->ISAConf.irq = ctlr->pdev->intl;
 	edev->tbdf = ctlr->pdev->tbdf;
-	edev->arg = edev;
+	edev->Netif.arg = edev;
 	edev->attach = wpiattach;
 	edev->ctl = wpictl;
 	edev->shutdown = wpishutdown;
-	edev->promiscuous = wpipromiscuous;
-	edev->multicast = wpimulticast;
-	edev->ifstat = wpiifstat;
-	edev->mbps = 54;
+	edev->Netif.promiscuous = wpipromiscuous;
+	edev->Netif.multicast = wpimulticast;
+	edev->Netif.ifstat = wpiifstat;
+	edev->Netif.mbps = 54;
 
 	pcienable(ctlr->pdev);
 	if(wpiinit(edev) < 0){
@@ -1857,7 +1857,7 @@ again:
 		goto again;
 	}
 	pcisetbme(ctlr->pdev);
-	intrenable(edev->irq, wpiinterrupt, edev, edev->tbdf, edev->name);
+	intrenable(edev->ISAConf.irq, wpiinterrupt, edev, edev->tbdf, edev->Netif.name);
 
 	return 0;
 }

@@ -57,9 +57,9 @@ newswap(void)
 {
 	uchar *look;
 
-	lock(&swapalloc);
+	lock(&swapalloc.Lock);
 	if(swapalloc.free == 0) {
-		unlock(&swapalloc);
+		unlock(&swapalloc.Lock);
 		return ~0;
 	}
 	look = memchr(swapalloc.last, 0, swapalloc.top-swapalloc.last);
@@ -68,7 +68,7 @@ newswap(void)
 	*look = 2;	/* ref for pte + io transaction */
 	swapalloc.last = look;
 	swapalloc.free--;
-	unlock(&swapalloc);
+	unlock(&swapalloc.Lock);
 	return (look-swapalloc.swmap) * BY2PG;
 }
 
@@ -77,7 +77,7 @@ putswap(Page *p)
 {
 	uchar *idx;
 
-	lock(&swapalloc);
+	lock(&swapalloc.Lock);
 	idx = &swapalloc.swmap[((uintptr)p)/BY2PG];
 	if(*idx == 0)
 		panic("putswap %#p ref == 0", p);
@@ -98,7 +98,7 @@ putswap(Page *p)
 		if(--(*idx) == 0)
 			swapalloc.free++;
 	}
-	unlock(&swapalloc);
+	unlock(&swapalloc.Lock);
 }
 
 void
@@ -106,7 +106,7 @@ dupswap(Page *p)
 {
 	uchar *idx;
 
-	lock(&swapalloc);
+	lock(&swapalloc.Lock);
 	idx = &swapalloc.swmap[((uintptr)p)/BY2PG];
 	if(*idx == 255)
 		swapalloc.xref++;
@@ -114,7 +114,7 @@ dupswap(Page *p)
 		if(++(*idx) == 255)
 			swapalloc.xref += 255;
 	}
-	unlock(&swapalloc);
+	unlock(&swapalloc.Lock);
 }
 
 int
@@ -168,7 +168,7 @@ killbig(void)
 	s = kp->seg[BSEG];
 	killproc(kp, Proc_exitbig);
 	qunlock(&kp->debug);
-	if(s != nil && s->ref > 1){
+	if(s != nil && s->Ref.ref > 1){
 		for(i = 0; (p = proctab(i)) != nil; i++) {
 			if(p == kp || p->seg[BSEG] != s || !canqlock(&p->debug))
 				continue;
@@ -273,13 +273,13 @@ pageout(Proc *p, Segment *s)
 	Pte *pte;
 	Page **pg, *entry;
 
-	if(!canqlock(s))	/* We cannot afford to wait, we will surely deadlock */
+	if(!canqlock(&s->QLock))	/* We cannot afford to wait, we will surely deadlock */
 		return;
 
 	if(s->used<=s->swapped	/* Anyting to swap out */
 	|| !canflush(p, s)	/* Able to invalidate all tlbs with references */
 	|| waserror()) {
-		qunlock(s);
+		qunlock(&s->QLock);
 		return;
 	}
 
@@ -303,7 +303,7 @@ pageout(Proc *p, Segment *s)
 			pagepte(s, pg);
 		}
 	}
-	qunlock(s);
+	qunlock(&s->QLock);
 	poperror();
 }
 
@@ -312,7 +312,7 @@ canflush(Proc *p, Segment *s)
 {
 	int i;
 
-	if(s->ref == 1)		/* Easy if proc is the only user */
+	if(s->Ref.ref == 1)		/* Easy if proc is the only user */
 		return canpage(p);
 
 	/*
@@ -378,7 +378,7 @@ executeio(void)
 	for(i = j = 0; i < ioptr; i++) {
 		outp = iolist[i];
 
-		assert(outp->ref > 0);
+		assert(outp->Ref.ref > 0);
 		assert(outp->image == swapimage);
 		assert(outp->daddr != ~0);
 

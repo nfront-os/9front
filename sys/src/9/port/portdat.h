@@ -74,6 +74,7 @@ struct Lock
 	Proc	*p;
 	Mach	*m;
 	ushort	isilock;
+	ulong	lockcycles;
 };
 
 struct Ref
@@ -83,7 +84,7 @@ struct Ref
 
 struct Rendez
 {
-	Lock;
+	Lock Lock;	/* gcc port: named to avoid clashing with Rendez's own p below under -fplan9-extensions; Plan9 shadows, gcc errors */
 	Proc	*p;
 };
 
@@ -114,7 +115,7 @@ struct RWLock
 
 struct Alarms
 {
-	QLock;
+	QLock QLock;	/* gcc port: named to avoid clashing with Alarms' own head below under -fplan9-extensions */
 	Proc	*head;
 };
 
@@ -1047,6 +1048,10 @@ enum
 };
 
 #define DEVDOTDOT -1
+
+/* gcc port: USED and SET macros */
+#define USED(...) ((void)(0, ##__VA_ARGS__))
+#define SET(x) ((x)=0)
 
 #pragma	varargck	type	"I"	uchar*
 #pragma	varargck	type	"V"	uchar*

@@ -141,9 +141,9 @@ ipifcbind(Conv *c, char **argv, int argc)
 		return "unknown interface type";
 
 	ifc = (Ipifc*)c->ptcl;
-	wlock(ifc);
+	wlock(&ifc->RWLock);
 	if(ifc->m != nil){
-		wunlock(ifc);
+		wunlock(&ifc->RWLock);
 		return Ebound;
 	}
 	ifc->m = &unboundmedium;	/* fake until bound */
@@ -163,12 +163,12 @@ ipifcbind(Conv *c, char **argv, int argc)
 
 	/* default router paramters */
 	ifc->rp = c->p->f->v6p->rp;
-	wunlock(ifc);
+	wunlock(&ifc->RWLock);
 
 	if(waserror()){
-		wlock(ifc);
+		wlock(&ifc->RWLock);
 		ifc->m = nil;
-		wunlock(ifc);
+		wunlock(&ifc->RWLock);
 		nexterror();
 	}
 	if(m != &loopbackmedium)
@@ -176,7 +176,7 @@ ipifcbind(Conv *c, char **argv, int argc)
 	(*m->bind)(ifc, argc, argv);
 	poperror();
 
-	wlock(ifc);
+	wlock(&ifc->RWLock);
 	/* switch to real medium */
 	ifc->m = m;
 	if(m->unbindonclose == 0)
@@ -189,7 +189,7 @@ ipifcbind(Conv *c, char **argv, int argc)
 	qreopen(c->rq);
 	qreopen(c->eq);
 	qreopen(c->sq);
-	wunlock(ifc);
+	wunlock(&ifc->RWLock);
 
 	return nil;
 }
@@ -213,14 +213,14 @@ ipifcunbindmedium(Ipifc *ifc, Medium *m)
 	/* disassociate device */
 	if(m->unbind != nil){
 		ifc->m = &unboundmedium;	/* fake until unbound */
-		wunlock(ifc);
-		qunlock(c);
+		wunlock(&ifc->RWLock);
+		qunlock(&c->QLock);
 		if(!waserror()){
 			(*m->unbind)(ifc);
 			poperror();
 		}
-		qlock(c);
-		wlock(ifc);
+		qlock(&c->QLock);
+		wlock(&ifc->RWLock);
 	}
 
 	memset(ifc->dev, 0, sizeof(ifc->dev));
@@ -253,9 +253,9 @@ ipifcunbind(Ipifc *ifc)
 {
 	char *err;
 
-	wlock(ifc);
+	wlock(&ifc->RWLock);
 	err = ipifcunbindmedium(ifc, ifc->m);
-	wunlock(ifc);
+	wunlock(&ifc->RWLock);
 
 	return err;
 }
@@ -271,18 +271,18 @@ mediumunbindifc(Ipifc *ifc)
 	Medium *m;
 	char *err;
 
-	rlock(ifc);
+	rlock(&ifc->RWLock);
 	m = ifc->m;
-	runlock(ifc);
+	runlock(&ifc->RWLock);
 
 	err = Eunbound;
 	if(m != nil && m != &unboundmedium){
-		qlock(ifc->conv);
-		wlock(ifc);
+		qlock(&ifc->conv->QLock);
+		wlock(&ifc->RWLock);
 		if(ifc->m == m)
 			err = ipifcunbindmedium(ifc, m);
-		wunlock(ifc);
-		qunlock(ifc->conv);
+		wunlock(&ifc->RWLock);
+		qunlock(&ifc->conv->QLock);
 	}
 	return err;
 }
@@ -301,7 +301,7 @@ ipifcstate(Conv *c, char *state, int n)
 	int m;
 
 	ifc = (Ipifc*)c->ptcl;
-	rlock(ifc);
+	rlock(&ifc->RWLock);
 	m = snprint(state, n, sfixedformat,
 		ifc->dev, ifc->maxtu, ifc->sendra6, ifc->recvra6,
 		ifc->rp.mflag, ifc->rp.oflag, ifc->rp.maxraint,
@@ -315,7 +315,7 @@ ipifcstate(Conv *c, char *state, int n)
 			lifc->mask, lifc->remote, lifc->validlt, lifc->preflt);
 	if(ifc->lifc == nil)
 		m += snprint(state+m, n - m, "\n");
-	runlock(ifc);
+	runlock(&ifc->RWLock);
 	return m;
 }
 
@@ -328,7 +328,7 @@ ipifclocal(Conv *c, char *state, int n)
 	int m;
 
 	ifc = (Ipifc*)c->ptcl;
-	rlock(ifc);
+	rlock(&ifc->RWLock);
 	m = 0;
 	for(lifc = ifc->lifc; lifc != nil; lifc = lifc->next){
 		m += snprint(state+m, n - m, "%-40.40I ->", lifc->local);
@@ -336,7 +336,7 @@ ipifclocal(Conv *c, char *state, int n)
 			m += snprint(state+m, n - m, " %-40.40I", link->self->a);
 		m += snprint(state+m, n - m, "\n");
 	}
-	runlock(ifc);
+	runlock(&ifc->RWLock);
 	return m;
 }
 
@@ -407,7 +407,7 @@ void
 ipifcoput(Ipifc *ifc, Block *bp, int version, uchar *ip, Routehint *rh)
 {
 	if(ifc->speed){
-		ulong now = MACHP(0)->ticks;
+		ulong now = MACHP(0)->PMach.ticks;
 		int dt = TK2MS(now - ifc->ticks);
 		ifc->ticks = now;
 		ifc->load -= ((vlong)dt * ifc->speed) / 8000;
@@ -539,14 +539,14 @@ ipifcadd(Ipifc *ifc, char **argv, int argc, int tentative, Iplifc *lifcp)
 		tentative = 0;
 	}
 
-	wlock(ifc);
+	wlock(&ifc->RWLock);
 	if(ifc->m == nil || ifc->m == &unboundmedium){
-		wunlock(ifc);
+		wunlock(&ifc->RWLock);
 		return Eunbound;
 	}
 	f = ifc->conv->p->f;
 	if(waserror()){
-		wunlock(ifc);
+		wunlock(&ifc->RWLock);
 		return up->errstr;
 	}
 
@@ -573,7 +573,7 @@ ipifcadd(Ipifc *ifc, char **argv, int argc, int tentative, Iplifc *lifcp)
 			lifc->tentative = tentative;
 			goto done;
 		}
-		wunlock(ifc);
+		wunlock(&ifc->RWLock);
 		poperror();
 		return nil;
 	}
@@ -663,12 +663,12 @@ ipifcadd(Ipifc *ifc, char **argv, int argc, int tentative, Iplifc *lifcp)
 	}
 
 done:
-	wunlock(ifc);
+	wunlock(&ifc->RWLock);
 	poperror();
 
-	rlock(ifc);
+	rlock(&ifc->RWLock);
 	ipifcregisteraddr(f, ifc, lifc, ip);
-	runlock(ifc);
+	runlock(&ifc->RWLock);
 
 	return nil;
 }
@@ -754,7 +754,7 @@ ipifcdel(Ipifc *ifc, char **argv, int argc)
 	 *  for pt to pt we actually specify the remote address as the
 	 *  addresss to remove.
 	 */
-	wlock(ifc);
+	wlock(&ifc->RWLock);
 	l = &ifc->lifc;
 	for(lifc = ifc->lifc; lifc != nil; lifc = lifc->next) {
 		if(ipcmp(ip, lifc->local) == 0
@@ -764,7 +764,7 @@ ipifcdel(Ipifc *ifc, char **argv, int argc)
 		l = &lifc->next;
 	}
 	err = ipifcdellifc(ifc, l);
-	wunlock(ifc);
+	wunlock(&ifc->RWLock);
 	return err;
 }
 
@@ -779,10 +779,10 @@ ipifcconnect(Conv* c, char **argv, int argc)
 	Ipifc *ifc = (Ipifc*)c->ptcl;
 	char *err;
 
-	wlock(ifc);
+	wlock(&ifc->RWLock);
 	while(ifc->lifc != nil)
 		ipifcdellifc(ifc, &ifc->lifc);
-	wunlock(ifc);
+	wunlock(&ifc->RWLock);
 
 	/* when using dial(1), need to bind first */
 	if(ifc->m == nil){
@@ -882,9 +882,9 @@ ipifcctl(Conv* c, char **argv, int argc)
 	else if(strcmp(argv[0], "del6") == 0 || strcmp(argv[0], "remove6") == 0)
 		err = ipifcdel6(ifc, argv, argc);
 	else {
-		wlock(ifc);
+		wlock(&ifc->RWLock);
 		if(ifc->m == nil || ifc->m == &unboundmedium){
-			wunlock(ifc);
+			wunlock(&ifc->RWLock);
 			return Eunbound;
 		}
 		if(strcmp(argv[0], "mtu") == 0)
@@ -901,7 +901,7 @@ ipifcctl(Conv* c, char **argv, int argc)
 			err = ipifcra6(ifc, argv, argc);
 		else
 			err = "unsupported ctl";
-		wunlock(ifc);
+		wunlock(&ifc->RWLock);
 	}
 	return err;
 }
@@ -954,9 +954,9 @@ addselfcache(Fs *f, Ipifc *ifc, Iplifc *lifc, uchar *a, int type)
 	if(type == Runi) type |= (lifc->type & Rproxy);
 	type |= (lifc->type & Rv4);
 
-	qlock(f->self);
+	qlock(&f->self->QLock);
 	if(waserror()){
-		qunlock(f->self);
+		qunlock(&f->self->QLock);
 		nexterror();
 	}
 
@@ -1019,7 +1019,7 @@ addselfcache(Fs *f, Ipifc *ifc, Iplifc *lifc, uchar *a, int type)
 	} else
 		lp->ref++;
 
-	qunlock(f->self);
+	qunlock(&f->self->QLock);
 	poperror();
 }
 
@@ -1082,7 +1082,7 @@ delselfcache(Fs *f, Ipifc *ifc, Iplifc *lifc, uchar *a)
 	Ipself *p, **l;
 	Iplink *link, **l_self, **l_lifc;
 
-	qlock(f->self);
+	qlock(&f->self->QLock);
 
 	/* find the unique selftab entry */
 	l = &f->self->hash[hashipa(a)];
@@ -1165,7 +1165,7 @@ delselfcache(Fs *f, Ipifc *ifc, Iplifc *lifc, uchar *a)
 	ipselffree(p);
 
 out:
-	qunlock(f->self);
+	qunlock(&f->self->QLock);
 }
 
 long
@@ -1237,7 +1237,7 @@ findipifc(Fs *f, uchar *local, uchar *remote, int type)
 	xspec = 0;
 	for(cp = f->ipifc->conv; *cp != nil; cp++){
 		ifc = (Ipifc*)(*cp)->ptcl;
-		rlock(ifc);
+		rlock(&ifc->RWLock);
 		for(lifc = ifc->lifc; lifc != nil; lifc = lifc->next){
 			if(type & Runi){
 				if(ipcmp(remote, lifc->local) == 0)
@@ -1257,13 +1257,13 @@ findipifc(Fs *f, uchar *local, uchar *remote, int type)
 				}
 			}
 		}
-		runlock(ifc);
+		runlock(&ifc->RWLock);
 	}
 	if(x != nil){
-		rlock(x);
+		rlock(&x->RWLock);
 		if(x->ifcid == xifcid)
 			return x;
-		runlock(x);
+		runlock(&x->RWLock);
 	}
 	return nil;
 }
@@ -1280,12 +1280,12 @@ findipifcdev(Fs *f, char *dev)
 
 	for(cp = f->ipifc->conv; *cp != nil; cp++){
 		ifc = (Ipifc*)(*cp)->ptcl;
-		rlock(ifc);
+		rlock(&ifc->RWLock);
 		if(ifc->m != nil
 		&& ifc->m != &unboundmedium
 		&& strcmp(ifc->dev, dev) == 0)
 			return ifc;
-		runlock(ifc);
+		runlock(&ifc->RWLock);
 	}
 	return nil;
 }
@@ -1313,9 +1313,9 @@ findipifcstr(Fs *f, char *s)
 			return nil;
 		if(x < f->ipifc->nc && (c = f->ipifc->conv[x]) != nil){
 			ifc = (Ipifc*)c->ptcl;
-			rlock(ifc);
+			rlock(&ifc->RWLock);
 			if(ifc->m == nil || ifc->m == &unboundmedium){
-				runlock(ifc);
+				runlock(&ifc->RWLock);
 				ifc = nil;
 			}
 		}
@@ -1344,7 +1344,7 @@ findprimaryipv6(Fs *f, uchar *local)
 
 	for(cp = f->ipifc->conv; *cp != nil; cp++){
 		ifc = (Ipifc*)(*cp)->ptcl;
-		rlock(ifc);
+		rlock(&ifc->RWLock);
 		for(lifc = ifc->lifc; lifc != nil; lifc = lifc->next){
 			atypel = v6addrtype(lifc->local);
 			if(atypel > atype)
@@ -1352,12 +1352,12 @@ findprimaryipv6(Fs *f, uchar *local)
 				ipmove(local, lifc->local);
 				atype = atypel;
 				if(atype == globalv6){
-					runlock(ifc);
+					runlock(&ifc->RWLock);
 					return;
 				}
 			}
 		}
-		runlock(ifc);
+		runlock(&ifc->RWLock);
 	}
 }
 
@@ -1374,15 +1374,15 @@ findprimaryipv4(Fs *f, uchar *local)
 	/* find first ifc local address */
 	for(cp = f->ipifc->conv; *cp != nil; cp++){
 		ifc = (Ipifc*)(*cp)->ptcl;
-		rlock(ifc);
+		rlock(&ifc->RWLock);
 		for(lifc = ifc->lifc; lifc != nil; lifc = lifc->next){
 			if((lifc->type & Rv4) != 0){
 				ipmove(local, lifc->local);
-				runlock(ifc);
+				runlock(&ifc->RWLock);
 				return;
 			}
 		}
-		runlock(ifc);
+		runlock(&ifc->RWLock);
 	}
 	ipmove(local, IPnoaddr);
 }
@@ -1626,7 +1626,7 @@ ipifcaddmulti(Conv *c, uchar *ma, uchar *ia)
 	f = c->p->f;
 	if((ifc = findipifc(f, ia, ma, Rmulti)) != nil){
 		if(waserror()){
-			runlock(ifc);
+			runlock(&ifc->RWLock);
 			nexterror();
 		}
 		if((lifc = iplocalonifc(ifc, ia)) != nil)
@@ -1636,7 +1636,7 @@ ipifcaddmulti(Conv *c, uchar *ma, uchar *ia)
 		if(!isv4(ia) && !islinklocal(ia) && (lifc = iplinklocalifc(ifc)) != nil)
 			addselfcache(f, ifc, lifc, ma, Rmulti);
 
-		runlock(ifc);
+		runlock(&ifc->RWLock);
 		poperror();
 	}
 
@@ -1682,7 +1682,7 @@ ipifcdelmulti(Conv *c, uchar *ma, uchar *ia)
 				delselfcache(f, ifc, lifc, ma);
 			poperror();
 		}
-		runlock(ifc);
+		runlock(&ifc->RWLock);
 	}
 	free(multi);
 }
@@ -1711,14 +1711,14 @@ ipifcregisterproxy(Fs *f, Ipifc *ifc, uchar *ip, int add)
 	/* register the address on any interface that will proxy for the ip */
 	for(cp = f->ipifc->conv; *cp != nil; cp++){
 		nifc = (Ipifc*)(*cp)->ptcl;
-		if(nifc == ifc || !canrlock(nifc))
+		if(nifc == ifc || !canrlock(&nifc->RWLock))
 			continue;
 
 		if(nifc->m == nil || nifc->m == &unboundmedium
 		|| (lifc = ipremoteonifc(nifc, ip)) == nil
 		|| (lifc->type & Rptpt) != 0
 		|| waserror()){
-			runlock(nifc);
+			runlock(&nifc->RWLock);
 			continue;
 		}
 		if((lifc->type & Rv4) == 0){
@@ -1731,7 +1731,7 @@ ipifcregisterproxy(Fs *f, Ipifc *ifc, uchar *ip, int add)
 		}
 		if(add)
 			ipifcregisteraddr(f, nifc, lifc, ip);
-		runlock(nifc);
+		runlock(&nifc->RWLock);
 		poperror();
 	}
 }
@@ -1776,9 +1776,9 @@ ipifcadd6(Ipifc *ifc, char **argv, int argc)
 	    plen > 64 || islinklocal(prefix))
 		return Ebadarg;
 
-	rlock(ifc);
+	rlock(&ifc->RWLock);
 	if(ifc->m == nil || ifc->m == &unboundmedium){
-		runlock(ifc);
+		runlock(&ifc->RWLock);
 		return Eunbound;
 	}
 	if(ifc->m->pref2addr != nil && ifc->m->maclen > 0) {
@@ -1788,12 +1788,12 @@ ipifcadd6(Ipifc *ifc, char **argv, int argc)
 		/* copy from existing v6 link-local address */
 		Iplifc *llifc = iplinklocalifc(ifc);
 		if(llifc == nil){
-			runlock(ifc);
+			runlock(&ifc->RWLock);
 			return Eunbound;
 		}
 		memmove(prefix+8, llifc->local+8, 8);
 	}
-	runlock(ifc);
+	runlock(&ifc->RWLock);
 
 	/* issue "add" ctl msg for v6 link-local addr and prefix len */
 	snprint(addr, sizeof addr, "%I", prefix);
@@ -1814,7 +1814,7 @@ ipifcdel6(Ipifc *ifc, char**, int argc)
 	if(argc != 1)
 		return Ebadarg;
 
-	wlock(ifc);
+	wlock(&ifc->RWLock);
 	now = NOW/1000;
 	for(l = &ifc->lifc; (lifc = *l) != nil;) {
 		if((lifc->type & Rv4) == 0)
@@ -1823,7 +1823,7 @@ ipifcdel6(Ipifc *ifc, char**, int argc)
 				continue;
 		l = &lifc->next;
 	}
-	wunlock(ifc);
+	wunlock(&ifc->RWLock);
 
 	return nil;
 }

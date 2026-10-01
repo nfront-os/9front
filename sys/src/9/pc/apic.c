@@ -401,14 +401,14 @@ ioapicrdtr(Apic* apic, int sel, int* hi, int* lo)
 	iowin = apic->addr+(0x10/sizeof(ulong));
 	sel = IoapicRDT + 2*sel;
 
-	lock(apic);
+	lock(&apic->Lock);
 	*apic->addr = sel+1;
 	if(hi)
 		*hi = *iowin;
 	*apic->addr = sel;
 	if(lo)
 		*lo = *iowin;
-	unlock(apic);
+	unlock(&apic->Lock);
 }
 
 void
@@ -419,12 +419,12 @@ ioapicrdtw(Apic* apic, int sel, int hi, int lo)
 	iowin = apic->addr+(0x10/sizeof(ulong));
 	sel = IoapicRDT + 2*sel;
 
-	lock(apic);
+	lock(&apic->Lock);
 	*apic->addr = sel+1;
 	*iowin = hi;
 	*apic->addr = sel;
 	*iowin = lo;
-	unlock(apic);
+	unlock(&apic->Lock);
 }
 
 void
@@ -446,13 +446,13 @@ ioapicinit(Apic* apic)
 	 * Make sure interrupts are all masked off for now.
 	 */
 	iowin = apic->addr+(0x10/sizeof(ulong));
-	lock(apic);
+	lock(&apic->Lock);
 	*apic->addr = IoapicVER;
 	apic->mre = (*iowin>>16) & 0xFF;
 
 	*apic->addr = IoapicID;
 	*iowin = apic->apicno<<24;
-	unlock(apic);
+	unlock(&apic->Lock);
 
 	hi = 0;
 	lo = ApicIMASK;

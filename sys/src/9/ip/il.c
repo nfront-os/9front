@@ -307,9 +307,9 @@ illocalclose(Conv *c)
 	ipriv = c->p->priv;
 	ic = (Ilcb*)c->ptcl;
 	ic->state = Ilclosed;
-	iphtrem(&ipriv->ht, c);
-	c->lport = 0;
-	ipmove(c->laddr, IPnoaddr);
+	iphtrem(&ipriv->ht,&c->Iphash);
+	c->Iphash.lport = 0;
+	ipmove(c->Iphash.laddr, IPnoaddr);
 }
 
 static void
@@ -378,14 +378,14 @@ ilkick(void *x, Block *bp)
 	/* Ip fields */
 	ih->frag[0] = 0;
 	ih->frag[1] = 0;
-	v6tov4(ih->dst, c->raddr);
-	v6tov4(ih->src, c->laddr);
+	v6tov4(ih->dst, c->Iphash.raddr);
+	v6tov4(ih->src, c->Iphash.laddr);
 	ih->proto = IP_ILPROTO;
 
 	/* Il fields */
 	hnputs(ih->illen, dlen+IL_HDRSIZE);
-	hnputs(ih->ilsrc, c->lport);
-	hnputs(ih->ildst, c->rport);
+	hnputs(ih->ilsrc, c->Iphash.lport);
+	hnputs(ih->ildst, c->Iphash.rport);
 
 	qlock(&ic->ackq);
 	id = ic->next++;
@@ -415,7 +415,7 @@ ilkick(void *x, Block *bp)
 
 	if(later(NOW, ic->timeout, nil))
 		ilsettimeout(ic);
-	ipoput4(f, bp, nil, c->ttl, c->tos, c);
+	ipoput4(f,bp,nil,c->ttl,c->tos,&c->Routehint);
 	priv->stats[OutMsgs]++;
 }
 
@@ -584,19 +584,19 @@ iliput(Proto *il, Ipifc*, Block *bp)
 		goto raise;
 	}
 
-	qlock(il);
+	qlock(&il->QLock);
 	iph = iphtlook(&ipriv->ht, raddr, dp, laddr, sp);
 	if(iph == nil){
 		if(ih->iltype == Ilsync)
 			ilreject(il->f, ih);		/* no listener */
-		qunlock(il);
+		qunlock(&il->QLock);
 		goto raise;
 	}
 	s = iphconv(iph);
 	ic = (Ilcb*)s->ptcl;
 	if(ic->state == Illistening){
 		if(ih->iltype != Ilsync){
-			qunlock(il);
+			qunlock(&il->QLock);
 			if(ih->iltype > Ilclose)
 				st = "?";
 			else
@@ -609,7 +609,7 @@ iliput(Proto *il, Ipifc*, Block *bp)
 
 		new = Fsnewcall(s, raddr, dp, laddr, sp, V4);
 		if(new == nil){
-			qunlock(il);
+			qunlock(&il->QLock);
 			netlog(il->f, Logil, "il: bad newcall %I/%ud->%ud\n", raddr, sp, dp);
 			ilsendctl(s, ih, Ilclose, 0, nhgetl(ih->ilid), 0);
 			goto raise;
@@ -622,17 +622,17 @@ iliput(Proto *il, Ipifc*, Block *bp)
 		ic->state = Ilsyncee;
 		ilcbinit(ic);
 		ic->rstart = nhgetl(ih->ilid);
-		iphtadd(&ipriv->ht, s);
+		iphtadd(&ipriv->ht,&s->Iphash);
 	}
 
-	qlock(s);
-	qunlock(il);
+	qlock(&s->QLock);
+	qunlock(&il->QLock);
 	if(waserror()){
-		qunlock(s);
+		qunlock(&s->QLock);
 		nexterror();
 	}
 	ilprocess(s, ih, bp);
-	qunlock(s);
+	qunlock(&s->QLock);
 	poperror();
 	return;
 raise:
@@ -838,11 +838,11 @@ ilrexmit(Ilcb *ic)
 	id = nhgetl(h->ilid);
 	netlog(c->p->f, Logil, "il: rexmit %lud %lud: %d %lud: %I %d/%d\n", id, ic->recvd,
 		ic->rexmit, ic->timeout,
-		c->raddr, c->lport, c->rport);
+		c->Iphash.raddr, c->Iphash.lport, c->Iphash.rport);
 
 	ilbackoff(ic);
 
-	ipoput4(c->p->f, nb, nil, c->ttl, c->tos, c);
+	ipoput4(c->p->f,nb,nil,c->ttl,c->tos,&c->Routehint);
 
 	/* statistics */
 	ic->rxtot++;
@@ -875,8 +875,8 @@ ilhangup(Conv *s, char *msg)
 	Ilcb *ic;
 	int callout;
 
-	netlog(s->p->f, Logil, "il: hangup! %I %d/%d: %s\n", s->raddr,
-		s->lport, s->rport, msg?msg:"no reason");
+	netlog(s->p->f, Logil, "il: hangup! %I %d/%d: %s\n", s->Iphash.raddr,
+		s->Iphash.lport, s->Iphash.rport, msg?msg:"no reason");
 
 	ic = (Ilcb*)s->ptcl;
 	callout = ic->state == Ilsyncer;
@@ -951,7 +951,7 @@ iloutoforder(Conv *s, Ilhdr *h, Block *bp)
 	/* Window checks */
 	if(id <= ic->recvd || id > ic->recvd+ic->window) {
 		netlog(s->p->f, Logil, "il: message outside window %lud <%lud-%lud>: %I %d/%d\n",
-			id, ic->recvd, ic->recvd+ic->window, s->raddr, s->lport, s->rport);
+			id, ic->recvd, ic->recvd+ic->window, s->Iphash.raddr, s->Iphash.lport, s->Iphash.rport);
 		freeblist(bp);
 		return;
 	}
@@ -1015,10 +1015,10 @@ ilsendctl(Conv *ipc, Ilhdr *inih, int type, ulong id, ulong ack, int ilspec)
 		tos = DFLTTOS;
 	}
 	else {
-		v6tov4(ih->dst, ipc->raddr);
-		v6tov4(ih->src, ipc->laddr);
-		hnputs(ih->ilsrc, ipc->lport);
-		hnputs(ih->ildst, ipc->rport);
+		v6tov4(ih->dst, ipc->Iphash.raddr);
+		v6tov4(ih->src, ipc->Iphash.laddr);
+		hnputs(ih->ilsrc, ipc->Iphash.lport);
+		hnputs(ih->ildst, ipc->Iphash.rport);
 		hnputl(ih->ilid, id);
 		hnputl(ih->ilack, ack);
 		ic = (Ilcb*)ipc->ptcl;
@@ -1044,7 +1044,7 @@ if(ipc->p==nil)
 		iltype[ih->iltype], nhgetl(ih->ilid), nhgetl(ih->ilack), 
 		nhgets(ih->ilsrc), nhgets(ih->ildst));
 
-	return ipoput4(ipc->p->f, bp, nil, ttl, tos, ipc);
+	return ipoput4(ipc->p->f,bp,nil,ttl,tos,&ipc->Routehint);
 }
 
 void
@@ -1279,11 +1279,11 @@ ilstart(Conv *c, int type, int fasttimeout)
 		break;
 	case IL_LISTEN:
 		ic->state = Illistening;
-		iphtadd(&ipriv->ht, c);
+		iphtadd(&ipriv->ht,&c->Iphash);
 		break;
 	case IL_CONNECT:
 		ic->state = Ilsyncer;
-		iphtadd(&ipriv->ht, c);
+		iphtadd(&ipriv->ht,&c->Iphash);
 		if(ilsendctl(c, nil, Ilsync, ic->start, ic->recvd, 0) < 0)
 			ilhangup(c, "no route");
 		break;
@@ -1336,23 +1336,23 @@ iladvise(Proto *il, Block *bp, Ipifc*, char *msg)
 	psource = nhgets(h->ilsrc);
 
 	/* Look for a connection (source/dest reversed; this is the original packet we sent) */
-	qlock(il);
+	qlock(&il->QLock);
 	iph = iphtlook(&((Ilpriv*)il->priv)->ht, dest, pdest, source, psource);
 	if(iph == nil || iph->match != IPmatchexact)
 		goto raise;
 	s = iphconv(iph);
 	if(s->ignoreadvice || s->state == Announced)
 		goto raise;
-	qlock(s);
-	qunlock(il);
+	qlock(&s->QLock);
+	qunlock(&il->QLock);
 	ic = (Ilcb*)s->ptcl;
 	if(ic->state == Ilsyncer)
 		ilhangup(s, msg);
-	qunlock(s);
+	qunlock(&s->QLock);
 	freeblist(bp);
 	return;
 raise:
-	qunlock(il);
+	qunlock(&il->QLock);
 	freeblist(bp);
 }
 

@@ -287,12 +287,12 @@ bridgeopen(Chan* c, int omode)
 	default:
 		break;
 	case Qlog:
-		logopen(b);
+		logopen(&b->Log);
 		break;
 	case Qcache:
-		rlock(b);
+		rlock(&b->RWLock);
 		c->aux = cachedump(b);
-		runlock(b);
+		runlock(&b->RWLock);
 		if(c->aux == nil)
 			error(Enomem);
 		break;
@@ -315,7 +315,7 @@ bridgeclose(Chan* c)
 		break;
 	case Qlog:
 		if(c->flag & COPEN)
-			logclose(b);
+			logclose(&b->Log);
 		break;
 	}
 }
@@ -363,13 +363,13 @@ bridgeread(Chan *c, void *a, long n, vlong off)
 	case Qportdir:
 		return devdirread(c, a, n, 0, 0, bridgegen);
 	case Qlog:
-		return logread(b, a, off, n);
+		return logread(&b->Log,a,off,n);
 	case Qlocal:
 		return 0;	/* TO DO */
 	case Qstatus:
-		rlock(b);
+		rlock(&b->RWLock);
 		if(waserror()){
-			runlock(b);
+			runlock(&b->RWLock);
 			nexterror();
 		}
 		port = b->port[PORT(c->qid)];
@@ -392,7 +392,7 @@ bridgeread(Chan *c, void *a, long n, vlong off)
 			USED(i);
 		}
 		poperror();
-		runlock(b);
+		runlock(&b->RWLock);
 		return readstr(off, a, n, buf);
 	case Qbctl:
 		snprint(buf, sizeof(buf), "%s tcpmss\ndelay %ld %ld\n",
@@ -442,9 +442,9 @@ bridgewrite(Chan *c, void *a, long n, vlong off)
 		if(strcmp(arg0, "bind") == 0)
 			portbind(b, cb->nf-1, cb->f+1);
 		else {
-			wlock(b);
+			wlock(&b->RWLock);
 			if(waserror()) {
-				wunlock(b);
+				wunlock(&b->RWLock);
 				nexterror();
 			}
 			if(strcmp(arg0, "unbind") == 0) {
@@ -468,7 +468,7 @@ bridgewrite(Chan *c, void *a, long n, vlong off)
 				b->delayn = strtol(cb->f[2], nil, 10);
 			} else
 				error("unknown control request");
-			wunlock(b);
+			wunlock(&b->RWLock);
 			poperror();
 		}
 		free(cb);
@@ -476,7 +476,7 @@ bridgewrite(Chan *c, void *a, long n, vlong off)
 		return n;
 	case Qlog:
 		cb = parsecmd(a, n);
-		p = logctl(b, cb->nf, cb->f, logflags);
+		p = logctl(&b->Log,cb->nf,cb->f,logflags);
 		free(cb);
 		if(p != nil)
 			error(p);
@@ -716,7 +716,7 @@ portbind(Bridge *b, int argc, char *argv[])
 
 		/* open data port */
 		port->data[0] = namec(path, Aopen, ORDWR, 0);
-		incref(port->data[0]);
+		incref(&port->data[0]->Ref);
 		port->data[1] = port->data[0];
 
 		poperror();
@@ -730,9 +730,9 @@ portbind(Bridge *b, int argc, char *argv[])
 	}
 
 	/* try to insert port into the bridge */
-	wlock(b);
+	wlock(&b->RWLock);
 	if(waserror()){
-		wunlock(b);
+		wunlock(&b->RWLock);
 		nexterror();
 	}
 	for(i=0; i<b->nport; i++) {
@@ -756,7 +756,7 @@ portbind(Bridge *b, int argc, char *argv[])
 	b->port[i] = port;
 	if(i >= b->nport)
 		b->nport = i+1;
-	wunlock(b);
+	wunlock(&b->RWLock);
 
 	/* start the reader */
 	snprint(buf, sizeof(buf), "#%C%lud/bridge%lud/%d:%s",
@@ -860,7 +860,7 @@ cachelookup(Bridge *b, uchar d[Eaddrlen], ushort vid)
 
 	for(p = cacheent(b, d, vid), e = p+CacheLook; p < e; p++) {
 		if(p->vid == vid && memcmp(d, p->d, Eaddrlen) == 0) {
-			sec = TK2SEC(MACHP(0)->ticks);
+			sec = TK2SEC(MACHP(0)->PMach.ticks);
 			if(sec >= p->expire)
 				break;
 			p->expire = sec + CacheTimeout;
@@ -881,7 +881,7 @@ cacheenter(Bridge *b, uchar d[Eaddrlen], int portid, ushort vid)
 	for(p = pp, e = pp+CacheLook; p < e; p++) {
 		if(p->vid == vid && memcmp(d, p->d, Eaddrlen) == 0){
 			if(p->portid != portid)
-				log(b, Logcache, "NIC changed port: %E %ud %d->%d\n",
+				log(&b->Log, Logcache, "NIC changed port: %E %ud %d->%d\n",
 					d, vid, p->portid, portid);
 			pp = p;
 			goto Update;
@@ -892,10 +892,10 @@ cacheenter(Bridge *b, uchar d[Eaddrlen], int portid, ushort vid)
 		}
 	}
 	if(pp->expire != 0)
-		log(b, Logcache, "bumping from cache: %E %ud %d\n", pp->d, pp->vid, pp->portid);
+		log(&b->Log,Logcache,"bumping from cache: %E %ud %d\n",pp->d,pp->vid,pp->portid);
 Update:
-	log(b, Logcache, "adding to cache: %E %ud %d\n", d, vid, portid);
-	sec = TK2SEC(MACHP(0)->ticks);
+	log(&b->Log,Logcache,"adding to cache: %E %ud %d\n",d,vid,portid);
+	sec = TK2SEC(MACHP(0)->PMach.ticks);
 	pp->expire = sec + CacheTimeout;
 	pp->vid = vid;
 	pp->portid = portid;
@@ -909,14 +909,14 @@ cacheflushport(Bridge *b, int portid)
 {
 	Centry *p, *e;
 
-	log(b, Logcache, "cache flush: %d\n", portid);
+	log(&b->Log,Logcache,"cache flush: %d\n",portid);
 
 	e = &b->cache[CacheSize];
 	for(p = b->cache; p < e; p++){
 		if(p->expire == 0)
 			continue;
 		if(portid < 0 || p->portid == portid){
-			log(b, Logcache, "deleting from cache: %E %ud %d\n", p->d, p->vid, p->portid);
+			log(&b->Log,Logcache,"deleting from cache: %E %ud %d\n",p->d,p->vid,p->portid);
 			memset(p, 0, sizeof(Centry));
 		}
 	}
@@ -941,7 +941,7 @@ cachedump(Bridge *b)
 	p = buf;
 	ep = buf + n;
 
-	sec = TK2SEC(MACHP(0)->ticks);
+	sec = TK2SEC(MACHP(0)->PMach.ticks);
 	off = seconds() - sec;
 
 	for(c = b->cache; c < e; c++){
@@ -1041,7 +1041,7 @@ etherread(void *a)
 				microdelay(md);
 		}
 
-		rlock(b);
+		rlock(&b->RWLock);
 		if(port->bridge != b)
 			goto Drop;
 
@@ -1087,10 +1087,10 @@ etherread(void *a)
 			if(ce != nil && ce->portid == port->id)
 				ce->src++;
 			else {
-				runlock(b), wlock(b);
+				runlock(&b->RWLock), wlock(&b->RWLock);
 				if(port->bridge == b)
 					cacheenter(b, ep->s, port->id, VID(tag));
-				wunlock(b), rlock(b);
+				wunlock(&b->RWLock), rlock(&b->RWLock);
 				if(port->bridge != b)
 					goto Drop;
 			}
@@ -1099,7 +1099,7 @@ etherread(void *a)
 		/* forward to destination port(s) */
 		if(ep->d[0] & 1) {
 			port->inmulti++;
-			log(b, Logmcast, "multicast: port=%d tag=%#.4ux src=%E dst=%E type=%#.4ux\n",
+			log(&b->Log, Logmcast, "multicast: port=%d tag=%#.4ux src=%E dst=%E type=%#.4ux\n",
 				port->id, tag, ep->s, ep->d, type);
 			ethermultiwrite(b, bp, port->id, tag);
 		} else {
@@ -1115,19 +1115,19 @@ etherread(void *a)
 			} else{
 Drop:
 				b->drop++;
-				runlock(b);
+				runlock(&b->RWLock);
 				freeb(bp);
 				continue;
 			}
 		}
-		runlock(b);
+		runlock(&b->RWLock);
 	}
 Exit:
 	port->readp = nil;
 
-	wlock(b);
+	wlock(&b->RWLock);
 	unbindport(b, port);
-	wunlock(b);
+	wunlock(&b->RWLock);
 
 	print("%s: unbound\n", up->text);
 

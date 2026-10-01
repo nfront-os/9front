@@ -302,8 +302,8 @@ struct VmCmd {
 		CMDFPOSTP = 4,
 	} flags;
 	u8int scratched;
-	Rendez;
-	Lock;
+	Rendez Rendez;	/* gcc port: named, along with Lock below (Rendez has its own Lock member now), to avoid collision under -fplan9-extensions */
+	Lock Lock;
 	int (*cmd)(VmCmd *, va_list);
 	int retval;
 	char *errstr;
@@ -334,7 +334,7 @@ vmxprocrestore(Proc *p)
 	Vmx *vmx;
 	
 	s = splhi();
-	vmx = p->vmx;
+	vmx = p->PMMU.vmx;
 	if(vmxmach->active != vmx){
 		if(vmx != nil && vmptrld(PADDR(vmx->vmcs)) < 0)
 			panic("VMPTRLD(%p) failed", vmx->vmcs);
@@ -521,7 +521,7 @@ struct GuestReg {
 	char *(*read)(Vmx *, char *, char *);
 	int (*write)(Vmx *, char *);
 };
-#define VMXVAR(x) ~(ulong)&(((Vmx*)0)->x)
+#define VMXVAR(x) ~(ulong)(uintptr)&(((Vmx*)0)->x)
 #define UREG(x) VMXVAR(ureg.x)
 static GuestReg guestregs[] = {
 	{GUEST_RIP, 0, "pc"},
@@ -773,7 +773,7 @@ vmmemupdate(Vmx *vmx, VmMem *mp, uvlong end)
 		q = smalloc(sizeof(VmMem));
 		*q = *p;
 		if(p->seg != nil){
-			incref(q->seg);
+			incref(&q->seg->Ref);
 			kstrdup(&q->name, p->name);
 		}
 		vmmeminsert(p->next, q);
@@ -1172,9 +1172,9 @@ vmxstart(Vmx *vmx)
 		error("invalid CR4 value");
 	
 	rdmsr(VMX_BASIC_MSR, &x);
-	qlock(vmxmach);
+	qlock(&vmxmach->QLock);
 	if(waserror()){
-		qunlock(vmxmach);
+		qunlock(&vmxmach->QLock);
 		nexterror();
 	}
 	if(vmxmach->vms == 0){
@@ -1184,14 +1184,14 @@ vmxstart(Vmx *vmx)
 			error("vmxon failed");
 	}
 	vmxmach->vms++;
-	qunlock(vmxmach);
+	qunlock(&vmxmach->QLock);
 	poperror();
 
 	memset(vmx->vmcs, 0, sizeof(vmx->vmcs));
 	*(ulong*)vmx->vmcs = x;
 	if(vmclear(PADDR(vmx->vmcs)) < 0)
 		error("vmclear failed");
-	up->vmx = vmx;
+	up->PMMU.vmx = vmx;
 	vmxprocrestore(up);
 	vmcsinit(vmx);
 }
@@ -1199,10 +1199,10 @@ vmxstart(Vmx *vmx)
 static void
 cmdrelease(VmCmd *p, int f)
 {
-	lock(p);
+	lock(&p->Lock);
 	p->flags |= CMDFDONE | f;
-	wakeup(p);
-	unlock(p);
+	wakeup(&p->Rendez);
+	unlock(&p->Lock);
 }
 
 static void
@@ -1235,14 +1235,14 @@ cmdquit(VmCmd *p, va_list va)
 
 	cmdclearmeminfo(p, va);
 	
-	up->vmx = nil;
+	up->PMMU.vmx = nil;
 	vmxprocrestore(up);
 	vmclear(PADDR(vmx->vmcs));
 	
-	qlock(vmxmach);
+	qlock(&vmxmach->QLock);
 	if(--vmxmach->vms == 0)
 		vmxoff();
-	qunlock(vmxmach);
+	qunlock(&vmxmach->QLock);
 	
 	qlock(&vmxtablock);
 	if(moribund == vmx)
@@ -1939,11 +1939,11 @@ vmxcmd(Vmx *vmx, int (*f)(VmCmd *, va_list), ...)
 		cmd.scratched = 1;
 	wakeup(&vmx->cmdwait);
 	do
-		sleep(&cmd, iscmddone, &cmd);
+		sleep(&cmd.Rendez,iscmddone,&cmd);
 	while(!iscmddone(&cmd));
 	poperror();
-	lock(&cmd);
-	unlock(&cmd);
+	lock(&cmd.Lock);
+	unlock(&cmd.Lock);
 	if((cmd.flags & CMDFFAIL) != 0)
 		error(up->errstr);
 	return cmd.retval;

@@ -191,8 +191,8 @@ freecard(Card *card)
 
 	/* wait for retryproc() */
 	do {
-		qlock(card);
-		qunlock(card);
+		qlock(&card->QLock);
+		qunlock(&card->QLock);
 	} while(card->retry);
 
 	free(card);
@@ -368,13 +368,13 @@ mmcverify(SDunit *unit)
 	SDio *io = card->io;
 	int n;
 
-	eqlock(card);
+	eqlock(&card->QLock);
 	if(waserror()){
-		qunlock(card);
+		qunlock(&card->QLock);
 		nexterror();
 	}
 	n = (*io->inquiry)(io, (char*)&unit->inquiry[8], sizeof(unit->inquiry)-8);
-	qunlock(card);
+	qunlock(&card->QLock);
 	poperror();
 	if(n < 0)
 		return 0;
@@ -523,14 +523,14 @@ retryproc(void *arg)
 	Card *card = arg;
 	int i = 0;
 
-	qlock(card);
+	qlock(&card->QLock);
 	while(waserror())
 		;
 	if(i++ < card->retry)
 		cardinit(card);
 	USED(i);
 	card->retry = 0;
-	qunlock(card);
+	qunlock(&card->QLock);
 
 	pexit("", 1);
 }
@@ -545,29 +545,29 @@ mmconline(SDunit *unit)
 	if(card->retry)
 		return 0;
 
-	eqlock(card);
+	eqlock(&card->QLock);
 	if(waserror()){
 		unit->sectors = 0;
 		if(card->retry++ == 0)
-			kproc(unit->name, retryproc, card);
-		qunlock(card);
+			kproc(unit->SDperm.name, retryproc, card);
+		qunlock(&card->QLock);
 		return 0;
 	}
 	if(card->secsize != 0 && card->sectors[0] != 0){
 		unit->secsize = card->secsize;
 		unit->sectors = card->sectors[unit->subno];
 		if(unit->sectors == 0){
-			qunlock(card);
+			qunlock(&card->QLock);
 			poperror();
 			return 0;
 		}
 		(*io->cmd)(io, &SEND_STATUS, card->rca<<Rcashift, r);
-		qunlock(card);
+		qunlock(&card->QLock);
 		poperror();
 		return 1;
 	}
 	if(cardinit(card) != 1){
-		qunlock(card);
+		qunlock(&card->QLock);
 		poperror();
 		return 2;
 	}
@@ -620,7 +620,7 @@ mmconline(SDunit *unit)
 			poperror();
 		}
 	}
-	qunlock(card);
+	qunlock(&card->QLock);
 	poperror();
 	return 1;
 }
@@ -673,11 +673,11 @@ mmcbio(SDunit *unit, int lun, int write, void *data, long nb, uvlong bno)
 	if(unit->sectors == 0)
 		error(Echange);
 
-	eqlock(card);
+	eqlock(&card->QLock);
 	if(waserror()){
 		if(io->led != nil)
 			(*io->led)(io, 0);
-		qunlock(card);
+		qunlock(&card->QLock);
 		nexterror();
 	}
 	if(io->led != nil)
@@ -720,7 +720,7 @@ mmcbio(SDunit *unit, int lun, int write, void *data, long nb, uvlong bno)
 	}
 	if(io->led != nil)
 		(*io->led)(io, 0);
-	qunlock(card);
+	qunlock(&card->QLock);
 	poperror();
 
 	return (b - bno) * len;

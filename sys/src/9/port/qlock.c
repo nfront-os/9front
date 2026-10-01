@@ -14,8 +14,8 @@ eqlock(QLock *q)
 
 	pc = getcallerpc(&q);
 
-	if(m->ilockdepth != 0)
-		print("eqlock: %#p: ilockdepth %d\n", pc, m->ilockdepth);
+	if(m->PMach.ilockdepth != 0)
+		print("eqlock: %#p: ilockdepth %d\n", pc, m->PMach.ilockdepth);
 	if(up != nil && up->nlocks)
 		print("eqlock: %#p: nlocks %d\n", pc, up->nlocks);
 
@@ -60,8 +60,8 @@ qlock(QLock *q)
 
 	pc = getcallerpc(&q);
 
-	if(m->ilockdepth != 0)
-		print("qlock: %#p: ilockdepth %d\n", pc, m->ilockdepth);
+	if(m->PMach.ilockdepth != 0)
+		print("qlock: %#p: ilockdepth %d\n", pc, m->PMach.ilockdepth);
 	if(up != nil && up->nlocks)
 		print("qlock: %#p: nlocks %d\n", pc, up->nlocks);
 
@@ -136,8 +136,8 @@ rlock(RWLock *q)
 {
 	Proc *p;
 
-	if(m->ilockdepth != 0)
-		print("rlock: %#p: ilockdepth %d\n", getcallerpc(&q), m->ilockdepth);
+	if(m->PMach.ilockdepth != 0)
+		print("rlock: %#p: ilockdepth %d\n", getcallerpc(&q), m->PMach.ilockdepth);
 	if(up != nil && up->nlocks)
 		print("rlock: %#p: nlocks %d\n", getcallerpc(&q), up->nlocks);
 
@@ -194,8 +194,8 @@ wlock(RWLock *q)
 
 	pc = getcallerpc(&q);
 
-	if(m->ilockdepth != 0)
-		print("wlock: %#p: ilockdepth %d\n", pc, m->ilockdepth);
+	if(m->PMach.ilockdepth != 0)
+		print("wlock: %#p: ilockdepth %d\n", pc, m->PMach.ilockdepth);
 	if(up != nil && up->nlocks)
 		print("wlock: %#p: nlocks %d\n", pc, up->nlocks);
 

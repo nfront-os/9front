@@ -344,9 +344,9 @@ static struct Ctlrstat {
 };
 
 struct Ctlr {
-	Lock;
-	QLock;
-	Rendez;
+	Lock Lock;	/* gcc port: all three named (QLock.pc, Rendez's own Lock member, etc. all collide) under -fplan9-extensions */
+	QLock QLock;
+	Rendez Rendez;
 
 	Ctlr     *link;
 	Ctlrstat *stat;
@@ -581,7 +581,7 @@ i225mii(Ctlr *c)
 	c->mii->ctlr = c;
 	c->mii->mir = i225miir;
 	c->mii->miw = i225miiw;
-	c->mii->name = c->edev->name;
+	c->mii->name = c->edev->Netif.name;
 	if (mii(c->mii, ~0) == 0 || (phy = c->mii->curphy) == nil) {
 		free(c->mii); c->mii = nil;
 		error("phy");
@@ -611,24 +611,24 @@ i225intr(Ureg *, void *a)
 	 * read the cause register, clearing it, then wake
 	 * the correct process.
 	 */
-	ilock(c);
+	ilock(&c->Lock);
 	im = csr32r(c, Rintrmask); csr32w(c, Rintrmaskclr, ~0);
 	ime = csr32r(c, Rintremask); csr32w(c, Rintremaskclr, ~0); csr32f(c);
 	i = csr32r(c, Rintrcauseclr);
 	ie = csr32r(c, Rintrecauseclr); csr32f(c);
 
 	if (i & Ilink) {
-		wakeup(c);
+		wakeup(&c->Rendez);
 		goto out;
 	}
 
 	if (ie & Irx0) {
-		wakeup(&c->rx);
+		wakeup(&c->rx.Rendez);
 		goto out;
 	}
 
 	if (ie & Itx0) {
-		wakeup(&c->tx);
+		wakeup(&c->tx.Rendez);
 		goto out;
 	}
 
@@ -636,7 +636,7 @@ out:
 	/* pop the previous interrupt mask */
 	csr32w(c, Rintrmask, im);
 	csr32w(c, Rintremask, ime);
-	iunlock(c);
+	iunlock(&c->Lock);
 }
 
 static void
@@ -755,7 +755,7 @@ i225transmit(Ether *e)
 
 	c = e->ctlr;
 
-	wakeup(&c->tx);
+	wakeup(&c->tx.Rendez);
 }
 
 static uchar *
@@ -982,7 +982,7 @@ i225proctx(void *a)
 		;
 
 	/* process the transmit queue */
-	for (;; sleep(&c->tx, return0, nil)) {
+	for (;; sleep(&c->tx.Rendez,return0,nil)) {
 		i225tx(c, csr32r(c, Rtxrptr));
 		i225txfill(c);
 	}
@@ -998,7 +998,7 @@ i225procrx(void *a)
 		;
 
 	/* process the receive queue */
-	for(;; sleep(&c->rx, return0, nil)) {
+	for(;; sleep(&c->rx.Rendez,return0,nil)) {
 		i225rx(c, csr32r(c, Rrxrptr));
 		i225rxfill(c);
 	}
@@ -1014,7 +1014,7 @@ i225proclink(void *a)
 	while (waserror())
 		;
 	/* process link status */
-	for (;; sleep(c, return0, nil)) {
+	for (;; sleep(&c->Rendez,return0,nil)) {
 		phy = c->mii->curphy;
 		if (phy == nil) {
 			/* phy missing? */
@@ -1047,7 +1047,7 @@ i225procstat(void *a)
 
 	/* process statistics */
 	for (;; tsleep(&up->sleep, return0, nil, 5000)) {
-		qlock(c);
+		qlock(&c->QLock);
 		for (i = 0; i < c->stats; i++) {
 			switch(c->stat[i].stat) {
 			case Rstatrxbytes:
@@ -1066,7 +1066,7 @@ i225procstat(void *a)
 			}
 		}
 
-		qunlock(c);
+		qunlock(&c->QLock);
 	}
 }
 
@@ -1078,9 +1078,9 @@ i225attach(Ether *e)
 	u32int iv0, iv1;
 
 	c = e->ctlr;
-	qlock(c);
+	qlock(&c->QLock);
 	if (c->mii != nil) {
-		qunlock(c);
+		qunlock(&c->QLock);
 		return;
 	}
 
@@ -1095,7 +1095,7 @@ i225attach(Ether *e)
 		csr32w(c, Rintremaskauto, 0);
 		csr32w(c, Rintrecause, 0);
 
-		qunlock(c);
+		qunlock(&c->QLock);
 		nexterror();
 	}
 
@@ -1134,7 +1134,7 @@ i225attach(Ether *e)
 	csr32w(c, Rivar1, iv1);
 	csr32f(c);
 
-	qunlock(c);
+	qunlock(&c->QLock);
 	poperror();
 }
 
@@ -1148,11 +1148,11 @@ i225ifstat(void *a, char *p, char *q)
 	if (p >= q)
 		return p;
 
-	qlock(c);
+	qlock(&c->QLock);
 	for (i = 0; i < c->stats; i++)
 		p = seprint(p, q, "%s: %ulld\n", c->stat[i].name, c->stat[i].stat);
 
-	qunlock(c);
+	qunlock(&c->QLock);
 	return p;
 }
 
@@ -1384,7 +1384,7 @@ loop:
 	for (c = i225ctlr; c != nil; c = c->link) {
 		if (c->edev)
 			continue;
-		if (e->port == 0 || e->port == c->port) {
+		if (e->ISAConf.port == 0 || e->ISAConf.port == c->port) {
 			c->edev = e;
 			break;
 		}
@@ -1397,25 +1397,25 @@ loop:
 	pcisetbme(c->pdev);
 
 	e->ctlr = c;
-	e->port = c->port;
-	e->irq  = c->pdev->intl;
+	e->ISAConf.port = c->port;
+	e->ISAConf.irq  = c->pdev->intl;
 	e->tbdf = c->pdev->tbdf;
-	e->mbps = 2500;
+	e->Netif.mbps = 2500;
 	e->maxmtu = 9216;
 
-	e->arg = c;
+	e->Netif.arg = c;
 	e->attach = i225attach;
-	e->ifstat = i225ifstat;
+	e->Netif.ifstat = i225ifstat;
 	e->transmit = i225transmit;
-	e->promiscuous = i225promiscuous;
-	e->multicast = i225multicast;
+	e->Netif.promiscuous = i225promiscuous;
+	e->Netif.multicast = i225multicast;
 	e->shutdown = i225shutdown;
 	if (i225init(e) < 0) {
 		e->ctlr = nil;
 		goto loop;
 	}
 
-	intrenable(e->irq, i225intr, e, e->tbdf, e->name);
+	intrenable(e->ISAConf.irq, i225intr, e, e->tbdf, e->Netif.name);
 	return 0;
 }
 

@@ -228,9 +228,9 @@ audioread(Chan *c, void *a, long n, vlong off)
 	if(fn == nil)
 		error(Egreg);
 
-	eqlock(ac);
+	eqlock(&ac->QLock);
 	if(waserror()){
-		qunlock(ac);
+		qunlock(&ac->QLock);
 		nexterror();
 	}
 	switch((ulong)c->qid.path){
@@ -254,7 +254,7 @@ audioread(Chan *c, void *a, long n, vlong off)
 	default:
 		n = fn(adev, a, n, off);
 	}
-	qunlock(ac);
+	qunlock(&ac->QLock);
 	poperror();
 	return n;
 }
@@ -284,9 +284,9 @@ audiowrite(Chan *c, void *a, long n, vlong off)
 	if(fn == nil)
 		error(Egreg);
 
-	eqlock(ac);
+	eqlock(&ac->QLock);
 	if(waserror()){
-		qunlock(ac);
+		qunlock(&ac->QLock);
 		nexterror();
 	}
 	switch((ulong)c->qid.path){
@@ -303,7 +303,7 @@ audiowrite(Chan *c, void *a, long n, vlong off)
 		off = 0;
 	}
 	n = fn(adev, a, n, off);
-	qunlock(ac);
+	qunlock(&ac->QLock);
 	poperror();
 	return n;
 }

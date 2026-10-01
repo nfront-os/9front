@@ -588,7 +588,7 @@ ipmuxconv4(Ipmux *f)
 
 /*
  *  connection request is a semi separated list of filters
- *  e.g. ver=4;proto=17;data[0:4]=11aa22bb;ifc=135.104.9.2&255.255.255.0
+ *  e.g. ver=4;proto=17;data[0:4]=11aa22bb;ifc=135.104.9.2&255.0
  */
 static char*
 ipmuxconnect(Conv *c, char **argv, int argc)
@@ -644,9 +644,9 @@ ipmuxconnect(Conv *c, char **argv, int argc)
 	r->chain = chain;
 
 	/* add the chain to the protocol demultiplexor tree */
-	wlock(f);
+	wlock(&f->RWLock);
 	f->ipmux->priv = ipmuxmerge(f->ipmux->priv, mux);
-	wunlock(f);
+	wunlock(&f->RWLock);
 
 	Fsconnected(c, nil);
 	return nil;
@@ -689,14 +689,14 @@ ipmuxclose(Conv *c)
 	qclose(c->rq);
 	qclose(c->wq);
 	qclose(c->eq);
-	ipmove(c->laddr, IPnoaddr);
-	ipmove(c->raddr, IPnoaddr);
-	c->lport = 0;
-	c->rport = 0;
+	ipmove(c->Iphash.laddr, IPnoaddr);
+	ipmove(c->Iphash.raddr, IPnoaddr);
+	c->Iphash.lport = 0;
+	c->Iphash.rport = 0;
 
-	wlock(f);
-	ipmuxremove(&(c->p->priv), r->chain);
-	wunlock(f);
+	wlock(&f->RWLock);
+	ipmuxremove((Ipmux**)&(c->p->priv), r->chain);
+	wunlock(&f->RWLock);
 	ipmuxtreefree(r->chain);
 	r->chain = nil;
 }
@@ -764,7 +764,7 @@ ipmuxiput(Proto *p, Ipifc *ifc, Block *bp)
 	lifc = nil;
 
 	/* run the filter */
-	rlock(f);
+	rlock(&f->RWLock);
 	mux = f->ipmux->priv;
 	while(mux != nil){
 		switch(mux->type){
@@ -797,7 +797,7 @@ yes:
 			c = mux->conv;
 		mux = mux->yes;
 	}
-	runlock(f);
+	runlock(&f->RWLock);
 
 	if(c != nil){
 		/* tack on interface address */
@@ -863,9 +863,9 @@ ipmuxstats(Proto *p, char *buf, int len)
 	int n;
 	Fs *f = p->f;
 
-	rlock(f);
+	rlock(&f->RWLock);
 	n = ipmuxsprint(p->priv, 0, buf, len);
-	runlock(f);
+	runlock(&f->RWLock);
 
 	return n;
 }

@@ -194,8 +194,8 @@ struct Ctlr
 
 struct Srb			/* request buffer */
 {
-	Lock;
-	Rendez;
+	Lock Lock;	/* gcc port: named, Rendez also named (has its own Lock member now) under -fplan9-extensions */
+	Rendez Rendez;
 	Srb	*next;
 
 	Drive	*drive;

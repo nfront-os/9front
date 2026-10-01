@@ -311,10 +311,10 @@ netifwrite(Netif *nif, Chan *c, void *a, long n)
 	buf[n] = 0;
 
 	if(waserror()){
-		qunlock(nif);
+		qunlock(&nif->QLock);
 		nexterror();
 	}
-	qlock(nif);
+	qlock(&nif->QLock);
 
 	f = nif->f[NETID(c->qid.path)];
 	if((p = matchtoken(buf, "connect")) != 0){
@@ -362,7 +362,7 @@ netifwrite(Netif *nif, Chan *c, void *a, long n)
 		netmulti(nif, f, binaddr, 0);
 	} else
 		n = -1;
-	qunlock(nif);
+	qunlock(&nif->QLock);
 	poperror();
 	return n;
 }
@@ -383,10 +383,10 @@ netifwstat(Netif *nif, Chan *c, uchar *db, int n)
 	if(m == 0)
 		error(Eshortstat);
 	if(waserror()){
-		qunlock(nif);
+		qunlock(&nif->QLock);
 		nexterror();
 	}
-	qlock(nif);
+	qlock(&nif->QLock);
 	f = nif->f[NETID(c->qid.path)];
 	if(f == nil)
 		error(Enonexist);
@@ -398,7 +398,7 @@ netifwstat(Netif *nif, Chan *c, uchar *db, int n)
 	}
 	if(dir[0].mode != ~0UL)
 		f->mode = dir[0].mode;
-	qunlock(nif);
+	qunlock(&nif->QLock);
 	free(dir);
 	poperror();
 	poperror();
@@ -425,10 +425,10 @@ netifclose(Netif *nif, Chan *c)
 	if(t != Ndataqid && t != Nctlqid)
 		return;
 
-	qlock(nif);
+	qlock(&nif->QLock);
 	f = nif->f[NETID(c->qid.path)];
 	if(f == nil || --(f->inuse) != 0){
-		qunlock(nif);
+		qunlock(&nif->QLock);
 		return;
 	}
 	if(f->bypass){
@@ -467,7 +467,7 @@ netifclose(Netif *nif, Chan *c)
 	f->bridge = 0;
 	f->headersonly = 0;
 	qclose(f->in);
-	qunlock(nif);
+	qunlock(&nif->QLock);
 }
 
 static int
@@ -506,9 +506,9 @@ openfile(Netif *nif, int id, int omode)
 {
 	Netfile *f, **fp, **efp;
 
-	qlock(nif);
+	qlock(&nif->QLock);
 	if(waserror()){
-		qunlock(nif);
+		qunlock(&nif->QLock);
 		nexterror();
 	}
 	if(id >= 0){
@@ -519,7 +519,7 @@ openfile(Netif *nif, int id, int omode)
 			error(Eperm);
 		f->inuse++;
 		qreopen(f->in);
-		qunlock(nif);
+		qunlock(&nif->QLock);
 		poperror();
 		return id;
 	}
@@ -542,7 +542,7 @@ openfile(Netif *nif, int id, int omode)
 		f->inuse = 1;
 		qreopen(f->in);
 		netown(f, up->user, 0);
-		qunlock(nif);
+		qunlock(&nif->QLock);
 		poperror();
 		return fp - nif->f;
 	}

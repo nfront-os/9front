@@ -74,7 +74,7 @@ scanpci(void)
 static void
 init(Hci *hp)
 {
-	Xhci *ctlr = hp->aux;
+	Xhci *ctlr = hp->Hciimpl.aux;
 	Pcidev *pcidev = ctlr->aux;
 
 	if(ctlr->mmio[0] == -1){
@@ -88,7 +88,7 @@ init(Hci *hp)
 static void
 shutdown(Hci *hp)
 {
-	Xhci *ctlr = hp->aux;
+	Xhci *ctlr = hp->Hciimpl.aux;
 	Pcidev *pcidev = ctlr->aux;
 
 	xhcishutdown(hp);
@@ -116,7 +116,7 @@ reset(Hci *hp)
 		if(ctlr == nil)
 			break;
 		if(ctlr->active == nil)
-		if(hp->port == 0 || hp->port == ctlr->base)
+		if(hp->ISAConf.port == 0 || hp->ISAConf.port == ctlr->base)
 			goto Found;
 	}
 	return -1;
@@ -125,11 +125,11 @@ Found:
 	pcidev = ctlr->aux;
 	pcienable(pcidev);
 	xhcihandoff(ctlr);
-	hp->irq = pcidev->intl;
+	hp->ISAConf.irq = pcidev->intl;
 	hp->tbdf = pcidev->tbdf;
 	xhcilinkage(hp, ctlr);
-	hp->init = init;
-	hp->shutdown = shutdown;
+	hp->Hciimpl.init = init;
+	hp->Hciimpl.shutdown = shutdown;
 
 	return 0;
 }

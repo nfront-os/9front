@@ -1,6 +1,6 @@
 /*
  * intel 10GB ethernet pci-express driver
- * 6.0.0:	net  02.00.00 8086/15c8  11 0:dfc0000c 2097152 4:dfe0400c 16384
+ * 6.0:	net  02.00 8086/15c8  11 0:dfc0000c 2097152 4:dfe0400c 16384
  *	Intel Corporation Ethernet Connection X553/X550-AT 10GBASE-T
  */
 #include "u.h"
@@ -516,8 +516,6 @@ rim(void *v)
 	return ((Ctlr*)v)->rim != 0;
 }
 
-static uchar zeroea[Eaddrlen];
-
 static void
 rproc(void *v)
 {
@@ -877,7 +875,7 @@ pnp(Ether *e)
 		c = ctlrtab[i];
 		if(c == nil || c->flag & Factive)
 			continue;
-		if(e->port == 0 || e->port == c->io)
+		if(e->ISAConf.port == 0 || e->ISAConf.port == c->io)
 			break;
 	}
 	if (i >= nctlr)
@@ -892,22 +890,22 @@ pnp(Ether *e)
 
 	c->flag |= Factive;
 	e->ctlr = c;
-	e->port = (uintptr)c->reg;
-	e->irq = c->p->intl;
+	e->ISAConf.port = (uintptr)c->reg;
+	e->ISAConf.irq = c->p->intl;
 	e->tbdf = c->p->tbdf;
-	e->mbps = 10000;
+	e->Netif.mbps = 10000;
 	e->maxmtu = Mtu;
 
-	e->arg = e;
+	e->Netif.arg = e;
 	e->attach = attach;
 	e->ctl = ctl;
-	e->ifstat = ifstat;
-	e->multicast = multicast;
-	e->promiscuous = promiscuous;
+	e->Netif.ifstat = ifstat;
+	e->Netif.multicast = multicast;
+	e->Netif.promiscuous = promiscuous;
 	e->shutdown = shutdown;
 	e->transmit = transmit;
 
-	intrenable(e->irq, interrupt, e, e->tbdf, e->name);
+	intrenable(e->ISAConf.irq, interrupt, e, e->tbdf, e->Netif.name);
 
 	return 0;
 }

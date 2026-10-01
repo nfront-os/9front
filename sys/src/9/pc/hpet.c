@@ -59,7 +59,7 @@ hpetcpufreq(void)
 	uvlong a, b;
 	int loops;
 
-	ilock(&hpet);
+	ilock(&hpet.Lock);
 	for(loops = 1000;;loops += 1000){
 		cycles(&a);
 		x = hpet.mmio[Ctrlo];
@@ -69,13 +69,13 @@ hpetcpufreq(void)
 		if(y >= hpet.freq/HZ || loops >= 1000000)
 			break;
 	}
-	iunlock(&hpet);
+	iunlock(&hpet.Lock);
 
 	if(m->havetsc && b > a){
 		b -= a;
-		m->cyclefreq = b * hpet.freq / y;
+		m->PMach.cyclefreq = b * hpet.freq / y;
 		m->delaylcycles = (b + loops-1) / loops;
-		return m->cyclefreq;
+		return m->PMach.cyclefreq;
 	}
 	return (vlong)loops*m->delaylcycles * hpet.freq / y;
 }
@@ -88,7 +88,7 @@ hpetinit(void)
 	if(m->machno != 0){
 		m->cpuhz = MACHP(0)->cpuhz;
 		m->cpumhz = MACHP(0)->cpumhz;
-		m->cyclefreq = MACHP(0)->cyclefreq;
+		m->PMach.cyclefreq = MACHP(0)->PMach.cyclefreq;
 		m->loopconst = MACHP(0)->loopconst;
 		return;
 	}
@@ -116,11 +116,11 @@ hpetread(uvlong *hz)
 	if(hz != nil)
 		*hz = hpet.freq;
 
-	ilock(&hpet);
+	ilock(&hpet.Lock);
 	ticks = hpet.last;
 	ticks += hpet.mmio[Ctrlo] - (u32int)ticks;
 	hpet.last = ticks;
-	iunlock(&hpet);
+	iunlock(&hpet.Lock);
 
 	return ticks;
 }

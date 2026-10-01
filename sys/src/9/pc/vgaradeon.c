@@ -17,7 +17,7 @@
 #include <cursor.h>
 #include "screen.h"
 
-#include "/sys/src/cmd/aux/vga/radeon.h"	/* ugh */
+#include "radeon.h"
 
 /* #define HW_ACCEL */
 
@@ -154,8 +154,8 @@ radeoncurload(VGAscr *scr, Cursor *curs)
 		}
 	}
 
-	scr->offset.x = curs->offset.x;
-	scr->offset.y = curs->offset.y;
+	scr->Cursor.offset.x = curs->offset.x;
+	scr->Cursor.offset.y = curs->offset.y;
 }
 
 static int
@@ -170,8 +170,8 @@ radeoncurmove(VGAscr *scr, Point p)
 	if (storage == 0)
 		storage = scr->apsize - 1*Meg;
 
-	x = p.x + scr->offset.x;
-	y = p.y + scr->offset.y;
+	x = p.x + scr->Cursor.offset.x;
+	y = p.y + scr->Cursor.offset.y;
 	ox = oy = 0;
 
 	if (x < 0) {
@@ -436,7 +436,7 @@ radeondrawinit(VGAscr*scr)
 
 	dp_gui_master_cntl = dtype << GMC_DST_DATATYPE_SHIFT |
 		GMC_SRC_PITCH_OFFSET_CNTL | GMC_DST_PITCH_OFFSET_CNTL |
-		GMC_CLR_CMP_CNTL_DIS;
+		GMC_CLR_CMP_CNTL_DIS | GMC_CLR_CMP_CNTL_DIS;
 	radeonwaitfifo(scr, 1);
 	OUTREG(scr->mmio, DP_GUI_MASTER_CNTL,
 	    dp_gui_master_cntl | GMC_BRUSH_SOLID_COLOR | GMC_SRC_DATATYPE_COLOR);

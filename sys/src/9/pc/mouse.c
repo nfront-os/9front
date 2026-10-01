@@ -166,7 +166,7 @@ ps2mouseputc(int c, int shift)
 		}
 		dx = msg[1];
 		dy = -msg[2];
-		mousetrack(dx, dy, buttons, TK2MS(MACHP(0)->ticks));
+		mousetrack(dx, dy, buttons, TK2MS(MACHP(0)->PMach.ticks));
 	}
 }
 
@@ -273,7 +273,7 @@ synmouseputc(int c, int shift)
 			msg[5] |= 0xFF00;
 		dx = msg[4];
 		dy = -msg[5];
-		mousetrack(dx, dy, buttons, TK2MS(MACHP(0)->ticks));
+		mousetrack(dx, dy, buttons, TK2MS(MACHP(0)->PMach.ticks));
 		return;
 	}
 	
@@ -345,7 +345,7 @@ synmouseputc(int c, int shift)
 	
 	/* imitate trackpoint buttons */
 	buttons = b[(click[press]&7) | (shift ? 8 : 0)];
-	mousetrack(x-prevx, y-prevy, buttons, TK2MS(MACHP(0)->ticks));
+	mousetrack(x-prevx, y-prevy, buttons, TK2MS(MACHP(0)->PMach.ticks));
 	prevx = x;
 	prevy = y;
 }

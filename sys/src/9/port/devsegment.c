@@ -54,7 +54,7 @@ getgseg(Chan *c)
 		panic("getgseg");
 	g = globalseg[x];
 	if(g != nil)
-		incref(g);
+		incref(&g->Ref);
 	unlock(&globalseglock);
 	if(g == nil)
 		error("global segment disappeared");
@@ -64,11 +64,11 @@ getgseg(Chan *c)
 static void
 putgseg(Globalseg *g)
 {
-	if(g == nil || decref(g))
+	if(g == nil || decref(&g->Ref))
 		return;
-	if(g->s != nil)
-		putseg(g->s);
-	segio(g, nil, nil, 0, 0, 0);
+	if(g->Segio.s != nil)
+		putseg(g->Segio.s);
+	segio(&g->Segio,nil,nil,0,0,0);
 	free(g->name);
 	free(g->uid);
 	free(g);
@@ -132,8 +132,8 @@ segmentgen(Chan *c, char*, Dirtab*, int, int s, Dir *dp)
 			q.vers = 0;
 			q.path = PATH(SEG(c), Qdata);
 			q.type = QTFILE;
-			if(g->s != nil)
-				size = g->s->top - g->s->base;
+			if(g->Segio.s != nil)
+				size = g->Segio.s->top - g->Segio.s->base;
 			else
 				size = 0;
 			devdir(c, q, "data", size, g->uid, g->perm, dp);
@@ -191,7 +191,7 @@ segmentopen(Chan *c, int omode)
 			nexterror();
 		}
 		devpermcheck(g->uid, g->perm, omode);
-		if(TYPE(c) == Qdata && g->s == nil)
+		if(TYPE(c) == Qdata && g->Segio.s == nil)
 			error("segment not yet allocated");
 		c->aux = g;
 		poperror();
@@ -267,7 +267,7 @@ segmentcreate(Chan *c, char *name, int omode, ulong perm)
 		error(Ebadarg);
 
 	g = smalloc(sizeof(Globalseg));
-	g->ref = 1;
+	g->Ref.ref = 1;
 	g->perm = 0660;
 	kstrdup(&g->name, name);
 	kstrdup(&g->uid, up->user);
@@ -314,18 +314,18 @@ segmentread(Chan *c, void *a, long n, vlong voff)
 	g = c->aux;
 	switch(TYPE(c)){
 	case Qctl:
-		if(g->s == nil)
+		if(g->Segio.s == nil)
 			error("segment not yet allocated");
-		if((g->s->type&SG_TYPE) == SG_FIXED)
-			snprint(buf, sizeof(buf), "va %#p %#p fixed %#p\n", g->s->base, g->s->top-g->s->base,
-				g->s->map[0]->pages[0]->pa);
-		else if((g->s->type&SG_TYPE) == SG_STICKY)
-			snprint(buf, sizeof(buf), "va %#p %#p sticky\n", g->s->base, g->s->top-g->s->base);
+		if((g->Segio.s->type&SG_TYPE) == SG_FIXED)
+			snprint(buf, sizeof(buf), "va %#p %#p fixed %#p\n", g->Segio.s->base, g->Segio.s->top-g->Segio.s->base,
+				g->Segio.s->map[0]->pages[0]->pa);
+		else if((g->Segio.s->type&SG_TYPE) == SG_STICKY)
+			snprint(buf, sizeof(buf), "va %#p %#p sticky\n", g->Segio.s->base, g->Segio.s->top-g->Segio.s->base);
 		else
-			snprint(buf, sizeof(buf), "va %#p %#p\n", g->s->base, g->s->top-g->s->base);
+			snprint(buf, sizeof(buf), "va %#p %#p\n", g->Segio.s->base, g->Segio.s->top-g->Segio.s->base);
 		return readstr(voff, a, n, buf);
 	case Qdata:
-		return segio(g, g->s, a, n, voff, 1);
+		return segio(&g->Segio,g->Segio.s,a,n,voff,1);
 	default:
 		panic("segmentread");
 	}
@@ -350,7 +350,7 @@ segmentwrite(Chan *c, void *a, long n, vlong voff)
 			nexterror();
 		}
 		if(cb->nf > 0 && strcmp(cb->f[0], "va") == 0){
-			if(g->s != nil)
+			if(g->Segio.s != nil)
 				error("already has a virtual address");
 			if(cb->nf < 3)
 				error(Ebadarg);
@@ -366,7 +366,7 @@ segmentwrite(Chan *c, void *a, long n, vlong voff)
 			if(cb->nf >= 4 && strcmp(cb->f[3], "fixed") == 0){
 				if(!iseve())
 					error(Eperm);
-				g->s = fixedseg(va, len/BY2PG);
+				g->Segio.s = fixedseg(va, len/BY2PG);
 			} else if(cb->nf >= 4 && strcmp(cb->f[3], "sticky") == 0){
 				Segment *s;
 
@@ -380,16 +380,16 @@ segmentwrite(Chan *c, void *a, long n, vlong voff)
 				for(; va < s->top; va += BY2PG)
 					segpage(s, fillpage(newpage(va, nil), 0));
 				poperror();
-				g->s = s;
+				g->Segio.s = s;
 			} else
-				g->s = newseg(SG_SHARED, va, len/BY2PG);
+				g->Segio.s = newseg(SG_SHARED, va, len/BY2PG);
 		} else
 			error(Ebadctl);
 		free(cb);
 		poperror();
 		return n;
 	case Qdata:
-		return segio(g, g->s, a, n, voff, 0);
+		return segio(&g->Segio,g->Segio.s,a,n,voff,0);
 	default:
 		panic("segmentwrite");
 	}
@@ -456,10 +456,10 @@ globalsegattach(char *name)
 	return nil;
 Found:
 	devpermcheck(g->uid, g->perm, ORDWR);
-	s = g->s;
+	s = g->Segio.s;
 	if(s == nil)
 		error("global segment not assigned a virtual address");
-	incref(s);
+	incref(&s->Ref);
 	unlock(&globalseglock);
 	poperror();
 	return s;
@@ -483,12 +483,12 @@ fixedseg(uintptr va, ulong len)
 		nexterror();
 	}
 
-	lock(&palloc);
+	lock(&palloc.Lock);
 	i = 0;
 	l = palloc.pages;
 	color = getpgcolor(va);
 	for(n = palloc.user; n >= len; n--, l++){
-		if(l->ref != 0 || l->image != nil
+		if(l->Ref.ref != 0 || l->image != nil
 		|| i != 0 ? (l[-1].pa+BY2PG) != l->pa : l->color != color){
 		Retry:
 			i = 0;
@@ -520,12 +520,12 @@ fixedseg(uintptr va, ulong len)
 			goto Retry;
 		}
 		palloc.freecount -= i;
-		unlock(&palloc);
+		unlock(&palloc.Lock);
 
 		p = l-len;
 		do {
 			p++;
-			p->ref = 1;
+			p->Ref.ref = 1;
 			p->va = va;
 			va += BY2PG;
 			p->modref = 0;
@@ -541,7 +541,7 @@ fixedseg(uintptr va, ulong len)
 		poperror();
 		return s;
 	}
-	unlock(&palloc);
+	unlock(&palloc.Lock);
 
 	error(Enomem);
 }

@@ -112,16 +112,16 @@ struct Eopio
 
 struct Poll
 {
-	Lock;
-	Rendez;
+	Lock Lock;	/* gcc port: named, Rendez below also named (it has its own Lock member now) to avoid collision under -fplan9-extensions */
+	Rendez Rendez;
 	int must;
 	int does;
 };
 
 struct Ctlr
 {
-	Rendez;			/* for waiting to async advance doorbell */
-	Lock;			/* for ilock. qh lists and basic ctlr I/O */
+	Rendez Rendez;		/* for waiting to async advance doorbell; gcc port: named, see Poll above */
+	Lock Lock;		/* for ilock. qh lists and basic ctlr I/O */
 	QLock	doorbell;	/* for doorbell */
 	int	active;		/* in use or not */
 	void*	capio;		/* base address for debug info */

@@ -402,7 +402,7 @@ rtl8169mii(Ether *edev)
 	ctlr->mii->mir = rtl8169miimir;
 	ctlr->mii->miw = rtl8169miimiw;
 	ctlr->mii->ctlr = ctlr;
-	ctlr->mii->name = edev->name;
+	ctlr->mii->name = edev->Netif.name;
 	addmiibus(ctlr->mii);
 
 	/*
@@ -450,13 +450,13 @@ rtl8169promiscuous(void* arg, int on)
 
 	edev = arg;
 	ctlr = edev->ctlr;
-	ilock(ctlr);
+	ilock(&ctlr->Lock);
 	if(on)
 		ctlr->rcr |= Aap;
 	else
 		ctlr->rcr &= ~Aap;
 	csr32w(ctlr, Rcr, ctlr->rcr);
-	iunlock(ctlr);
+	iunlock(&ctlr->Lock);
 }
 
 enum {
@@ -503,7 +503,7 @@ rtl8169multicast(void* ether, uchar *eaddr, int add)
 
 	edev = ether;
 	ctlr = edev->ctlr;
-	ilock(ctlr);
+	ilock(&ctlr->Lock);
 
 	ctlr->mchash |= 1ULL << (ethercrcbe(eaddr, Eaddrlen) >> 26);
 
@@ -519,7 +519,7 @@ rtl8169multicast(void* ether, uchar *eaddr, int add)
 		csr32w(ctlr, Mar0+4, ctlr->mchash>>32);
 	}
 
-	iunlock(ctlr);
+	iunlock(&ctlr->Lock);
 }
 
 static char*
@@ -550,11 +550,11 @@ rtl8169ifstat(void *arg, char *p, char *e)
 		error(Eio);
 	dtcc = ctlr->dtcc;
 
-	edev->oerrs = dtcc->txer;
-	edev->crcs = dtcc->rxer;
-	edev->frames = dtcc->fae;
-	edev->buffs = dtcc->misspkt;
-	edev->overflows = ctlr->txdu+ctlr->rdu;
+	edev->Netif.oerrs = dtcc->txer;
+	edev->Netif.crcs = dtcc->rxer;
+	edev->Netif.frames = dtcc->fae;
+	edev->Netif.buffs = dtcc->misspkt;
+	edev->Netif.overflows = ctlr->txdu+ctlr->rdu;
 
 	if(p >= e){
 		qunlock(&ctlr->slock);
@@ -679,9 +679,9 @@ rtl8169init(Ether* edev)
 	u16int cplusc;
 
 	ctlr = edev->ctlr;
-	ilock(ctlr);
+	ilock(&ctlr->Lock);
 	if(rtl8169reset(ctlr) < 0){
-		iunlock(ctlr);
+		iunlock(&ctlr->Lock);
 		error("reset failed");
 	}
 
@@ -742,7 +742,7 @@ rtl8169init(Ether* edev)
 		delay(1);
 	}
 	if(csr32r(ctlr, Dtccr) & (Reset|Dump)){
-		iunlock(ctlr);
+		iunlock(&ctlr->Lock);
 		error("reset failed");
 	}
 
@@ -803,7 +803,7 @@ rtl8169init(Ether* edev)
 	default:
 		break;
 	}
-	iunlock(ctlr);
+	iunlock(&ctlr->Lock);
 }
 
 static void
@@ -868,11 +868,11 @@ rtl8169attach(Ether* edev)
 		error(Enomem);
 
 	pcisetbme(ctlr->pcidev);
-	intrenable(edev->irq, rtl8169interrupt, edev, edev->tbdf, edev->name);
+	intrenable(edev->ISAConf.irq, rtl8169interrupt, edev, edev->tbdf, edev->Netif.name);
 	if(waserror()){
 		rtl8169halt(ctlr);
 		pciclrbme(ctlr->pcidev);
-		intrdisable(edev->irq, rtl8169interrupt, edev, edev->tbdf, edev->name);
+		intrdisable(edev->ISAConf.irq, rtl8169interrupt, edev, edev->tbdf, edev->Netif.name);
 		nexterror();
 	}
 
@@ -926,7 +926,7 @@ rtl8169transmit(Ether* edev)
 
 	ctlr = edev->ctlr;
 
-	ilock(ctlr);
+	ilock(&ctlr->Lock);
 	for(x = ctlr->tdh; ctlr->ntq > 0; x = NEXT(x, ctlr->ntd)){
 		d = &ctlr->td[x];
 		if(d->control & Own)
@@ -970,7 +970,7 @@ rtl8169transmit(Ether* edev)
 		coherence();
 		csr8w(ctlr, Tppoll, Npq);
 	}
-	iunlock(ctlr);
+	iunlock(&ctlr->Lock);
 }
 
 static void
@@ -1231,7 +1231,7 @@ rtl8169pnp(Ether* edev)
 	for(ctlr = rtl8169ctlrhead; ctlr != nil; ctlr = ctlr->next){
 		if(ctlr->active)
 			continue;
-		if(edev->port == 0 || edev->port == ctlr->port){
+		if(edev->ISAConf.port == 0 || edev->ISAConf.port == ctlr->port){
 			ctlr->active = 1;
 			break;
 		}
@@ -1240,10 +1240,10 @@ rtl8169pnp(Ether* edev)
 		return -1;
 
 	edev->ctlr = ctlr;
-	edev->port = ctlr->port;
-	edev->irq = ctlr->pcidev->intl;
+	edev->ISAConf.port = ctlr->port;
+	edev->ISAConf.irq = ctlr->pcidev->intl;
 	edev->tbdf = ctlr->pcidev->tbdf;
-	edev->mbps = 100;
+	edev->Netif.mbps = 100;
 	edev->maxmtu = Mtu;
 
 	/*
@@ -1264,12 +1264,12 @@ rtl8169pnp(Ether* edev)
 
 	edev->attach = rtl8169attach;
 	edev->transmit = rtl8169transmit;
-	edev->ifstat = rtl8169ifstat;
+	edev->Netif.ifstat = rtl8169ifstat;
 	edev->shutdown = rtl8169shutdown;
 
-	edev->arg = edev;
-	edev->promiscuous = rtl8169promiscuous;
-	edev->multicast = rtl8169multicast;
+	edev->Netif.arg = edev;
+	edev->Netif.promiscuous = rtl8169promiscuous;
+	edev->Netif.multicast = rtl8169multicast;
 
 	rtl8169link(edev);
 
