@@ -359,7 +359,18 @@ void		segpage(Segment*, Page*);
 Page*		segpeek(Segment*, uintptr);
 int		setcolor(ulong, ulong, ulong, ulong);
 void		setkernur(Ureg*, Proc*);
-int		setlabel(Label*);
+/*
+ * GCC port: setlabel() is Plan 9's setjmp-equivalent (gotolabel() is its
+ * longjmp) -- it can "return" a second time, with a different register/
+ * stack context, via a later call to gotolabel() far away in the code
+ * (used for both the scheduler's context switches and, via waserror(),
+ * the kernel's structured error handling -- see the #define above).
+ * Without returns_twice, GCC's optimizer is free to assume a call
+ * returns (at most) once and keep values live across it in registers
+ * that gotolabel()'s jump never restores, corrupting arbitrary state
+ * the next time execution resumes here via the "second return".
+ */
+int		setlabel(Label*) __attribute__((returns_twice));
 void		setmalloctag(void*, uintptr);
 ulong		setnoteid(Proc*, ulong);
 void		setrealloctag(void*, uintptr);
