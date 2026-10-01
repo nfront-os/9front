@@ -11,7 +11,7 @@
 #include	<a.out.h>
 
 uintptr
-sysr1(va_list)
+sysr1(uchar *)
 {
 	if(!iseve())
 		error(Eperm);
@@ -25,7 +25,7 @@ abortion(void)
 }
 
 uintptr
-sysrfork(va_list list)
+sysrfork(uchar *list)
 {
 	/*
 	 * Code using RFNOMNT expects to block all but
@@ -37,7 +37,7 @@ sysrfork(va_list list)
 	int n, i;
 	Proc *p;
 
-	flag = va_arg(list, ulong);
+	flag = ARG(list, ulong);
 	/* Check flags before we commit */
 	if((flag & (RFFDG|RFCFDG)) == (RFFDG|RFCFDG))
 		error(Ebadarg);
@@ -295,7 +295,7 @@ beswav(uvlong v)
 }
 
 uintptr
-sysexec(va_list list)
+sysexec(uchar *list)
 {
 	union {
 		struct {
@@ -315,9 +315,9 @@ sysexec(va_list list)
 	Chan *tc;
 	Fgrp *f;
 
-	file = va_arg(list, char*);
+	file = ARG(list, char*);
 	validaddr((uintptr)file, 1, 0);
-	argp = va_arg(list, char**);
+	argp = ARG(list, char**);
 	evenaddr((uintptr)argp);
 	validaddr((uintptr)argp, 2*BY2WD, 0);
 	if(*argp == nil)
@@ -700,11 +700,11 @@ return0(void*)
 }
 
 uintptr
-syssleep(va_list list)
+syssleep(uchar *list)
 {
 	long ms;
 
-	ms = va_arg(list, long);
+	ms = ARG(list, long);
 	if(ms <= 0) {
 		if (up->edf != nil && (up->edf->flags & Admitted))
 			edfyield();
@@ -717,20 +717,20 @@ syssleep(va_list list)
 }
 
 uintptr
-sysalarm(va_list list)
+sysalarm(uchar *list)
 {
-	return procalarm(va_arg(list, ulong));
+	return procalarm(ARG(list, ulong));
 }
 
 
 uintptr
-sysexits(va_list list)
+sysexits(uchar *list)
 {
 	char *status;
 	char *inval = "invalid exit string";
 	char buf[ERRMAX];
 
-	status = va_arg(list, char*);
+	status = ARG(list, char*);
 	if(status != nil){
 		if(waserror())
 			status = inval;
@@ -749,13 +749,13 @@ sysexits(va_list list)
 }
 
 uintptr
-sys_wait(va_list list)
+sys_wait(uchar *list)
 {
 	ulong pid;
 	Waitmsg w;
 	OWaitmsg *ow;
 
-	ow = va_arg(list, OWaitmsg*);
+	ow = ARG(list, OWaitmsg*);
 	if(ow == nil)
 		pid = pwait(nil);
 	else {
@@ -775,14 +775,14 @@ sys_wait(va_list list)
 }
 
 uintptr
-sysawait(va_list list)
+sysawait(uchar *list)
 {
 	char *p;
 	Waitmsg w;
 	uint n;
 
-	p = va_arg(list, char*);
-	n = va_arg(list, uint);
+	p = ARG(list, char*);
+	n = ARG(list, uint);
 	validaddr((uintptr)p, n, 1);
 	pwait(&w);
 	return (uintptr)snprint(p, n, "%d %lud %lud %lud %q",
@@ -845,28 +845,28 @@ generrstr(char *buf, uint nbuf)
 }
 
 uintptr
-syserrstr(va_list list)
+syserrstr(uchar *list)
 {
 	char *buf;
 	uint len;
 
-	buf = va_arg(list, char*);
-	len = va_arg(list, uint);
+	buf = ARG(list, char*);
+	len = ARG(list, uint);
 	return (uintptr)generrstr(buf, len);
 }
 
 /* compatibility for old binaries */
 uintptr
-sys_errstr(va_list list)
+sys_errstr(uchar *list)
 {
-	return (uintptr)generrstr(va_arg(list, char*), 64);
+	return (uintptr)generrstr(ARG(list, char*), 64);
 }
 
 uintptr
-sysnotify(va_list list)
+sysnotify(uchar *list)
 {
 	int (*f)(void*, char*);
-	f = va_arg(list, void*);
+	f = ARG(list, void*);
 	if(f != nil)
 		validaddr((uintptr)f, sizeof(void*), 0);
 	up->notify = f;
@@ -913,12 +913,12 @@ donotify(Ureg *ureg)
 }
 
 uintptr
-sysnoted(va_list list)
+sysnoted(uchar *list)
 {
 	Ureg *nureg;
 	int arg;
 
-	arg = va_arg(list, int);
+	arg = ARG(list, int);
 
 	qlock(&up->debug);
 	if(up->notified){
@@ -966,12 +966,12 @@ sysnoted(va_list list)
 }
 
 uintptr
-syssegbrk(va_list list)
+syssegbrk(uchar *list)
 {
 	int i;
 	Segment *s;
 
-	s = seg(up, va_arg(list, uintptr), 0);
+	s = seg(up, ARG(list, uintptr), 0);
 	if(s == nil)
 		error(Ebadarg);
 
@@ -987,21 +987,21 @@ syssegbrk(va_list list)
 	if(i < 0)
 		error(Ebadarg);
 
-	return ibrk(i, va_arg(list, uintptr));
+	return ibrk(i, ARG(list, uintptr));
 }
 
 uintptr
-syssegattach(va_list list)
+syssegattach(uchar *list)
 {
 	int attr;
 	char *name;
 	uintptr va;
 	ulong len;
 
-	attr = va_arg(list, int);
-	name = va_arg(list, char*);
-	va = va_arg(list, uintptr);
-	len = va_arg(list, ulong);
+	attr = ARG(list, int);
+	name = ARG(list, char*);
+	va = ARG(list, uintptr);
+	len = ARG(list, ulong);
 	validaddr((uintptr)name, 1, 0);
 	name = validnamedup(name, 1);
 	if(waserror()){
@@ -1015,7 +1015,7 @@ syssegattach(va_list list)
 }
 
 uintptr
-syssegdetach(va_list list)
+syssegdetach(uchar *list)
 {
 	int i;
 	Segment *s;
@@ -1026,7 +1026,7 @@ syssegdetach(va_list list)
 		nexterror();
 	}
 
-	s = seg(up, va_arg(list, uintptr), 0);
+	s = seg(up, ARG(list, uintptr), 0);
 	if(s == nil)
 		error(Ebadarg);
 
@@ -1049,42 +1049,42 @@ syssegdetach(va_list list)
 }
 
 uintptr
-syssegflush(va_list list)
+syssegflush(uchar *list)
 {
 	uintptr len;
 	void *va;
 
-	va = va_arg(list, void*);
-	len = va_arg(list, ulong);
+	va = ARG(list, void*);
+	len = ARG(list, ulong);
 	return segflush(va, len);
 }
 
 uintptr
-syssegfree(va_list list)
+syssegfree(uchar *list)
 {
 	uintptr len;
 	void *va;
 
-	va = va_arg(list, void*);
-	len = va_arg(list, ulong);
+	va = ARG(list, void*);
+	len = ARG(list, ulong);
 	return segfree(va, len);
 }
 
 /* For binary compatibility */
 uintptr
-sysbrk_(va_list list)
+sysbrk_(uchar *list)
 {
-	return ibrk(BSEG, va_arg(list, uintptr));
+	return ibrk(BSEG, ARG(list, uintptr));
 }
 
 uintptr
-sysrendezvous(va_list list)
+sysrendezvous(uchar *list)
 {
 	uintptr tag, val, new;
 	Proc *p, **l;
 
-	tag = va_arg(list, uintptr);
-	new = va_arg(list, uintptr);
+	tag = ARG(list, uintptr);
+	new = ARG(list, uintptr);
 	l = &REND(up->rgrp, tag);
 
 	lock(&up->rgrp->Lock);
@@ -1346,14 +1346,14 @@ tsemacquire(Segment *s, long *addr, ulong ms)
 }
 
 uintptr
-syssemacquire(va_list list)
+syssemacquire(uchar *list)
 {
 	int block;
 	long *addr;
 	Segment *s;
 
-	addr = va_arg(list, long*);
-	block = va_arg(list, int);
+	addr = ARG(list, long*);
+	block = ARG(list, int);
 	evenaddr((uintptr)addr);
 	s = seg(up, (uintptr)addr, 0);
 	if(s == nil || (s->type&SG_RONLY) != 0 || (uintptr)addr+sizeof(long) > s->top){
@@ -1366,14 +1366,14 @@ syssemacquire(va_list list)
 }
 
 uintptr
-systsemacquire(va_list list)
+systsemacquire(uchar *list)
 {
 	long *addr;
 	ulong ms;
 	Segment *s;
 
-	addr = va_arg(list, long*);
-	ms = va_arg(list, ulong);
+	addr = ARG(list, long*);
+	ms = ARG(list, ulong);
 	evenaddr((uintptr)addr);
 	s = seg(up, (uintptr)addr, 0);
 	if(s == nil || (s->type&SG_RONLY) != 0 || (uintptr)addr+sizeof(long) > s->top){
@@ -1386,13 +1386,13 @@ systsemacquire(va_list list)
 }
 
 uintptr
-syssemrelease(va_list list)
+syssemrelease(uchar *list)
 {
 	long *addr, delta;
 	Segment *s;
 
-	addr = va_arg(list, long*);
-	delta = va_arg(list, long);
+	addr = ARG(list, long*);
+	delta = ARG(list, long);
 	evenaddr((uintptr)addr);
 	s = seg(up, (uintptr)addr, 0);
 	if(s == nil || (s->type&SG_RONLY) != 0 || (uintptr)addr+sizeof(long) > s->top){
@@ -1407,7 +1407,7 @@ syssemrelease(va_list list)
 
 /* For binary compatibility */
 uintptr
-sysnsec(va_list list)
+sysnsec(uchar *list)
 {
 	vlong *v;
 
@@ -1417,7 +1417,7 @@ sysnsec(va_list list)
 		return (uintptr)nsec();
 	}
 
-	v = va_arg(list, vlong*);
+	v = ARG(list, vlong*);
 	evenaddr((uintptr)v);
 	validaddr((uintptr)v, sizeof(vlong), 1);
 	*v = nsec();
@@ -1427,14 +1427,14 @@ sysnsec(va_list list)
 /* compatibility name: dtracysys.c's WRAP1(dtwrap_sys_nsec, ...) references
  * this exact symbol, mirroring how sys_errstr coexists with syserrstr above */
 uintptr
-sys_nsec(va_list list)
+sys_nsec(uchar *list)
 {
 	return sysnsec(list);
 }
 
 /* reserved/invalid syscall slot (SYS_r0 == 0); never legitimately called */
 uintptr
-sysr0(va_list)
+sysr0(uchar *)
 {
 	return -1;
 }

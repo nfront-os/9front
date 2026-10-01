@@ -1,3 +1,4 @@
+#include	<trace.h>
 void		_assert(char*);
 void		accounttime(void);
 Timer*		addclock0link(void (*)(void), int);
@@ -274,7 +275,7 @@ ulong		procpagecount(Proc*);
 void		procpriority(Proc*, int, int);
 void		procsetuser(char*);
 Proc*		proctab(int);
-extern void	(*proctrace)(Proc*, int, vlong); 
+extern void	(*proctrace)(Proc*, Tevent, vlong); 
 void		procwired(Proc*, int);
 int		pullblock(Block**, int);
 Block*		pullupblock(Block*, int);
@@ -373,8 +374,8 @@ void		srvrenameuser(char*, char*);
 void		shrrenameuser(char*, char*);
 int		swapcount(uintptr);
 int		swapfull(void);
-void		syscallfmt(ulong syscallno, uintptr pc, va_list list);
-void		sysretfmt(ulong syscallno, va_list list, uintptr ret, uvlong start, uvlong stop);
+void		syscallfmt(ulong syscallno, uintptr pc, uchar *list);
+void		sysretfmt(ulong syscallno, uchar *list, uintptr ret, uvlong start, uvlong stop);
 void		timeradd(Timer*);
 void		timerdel(Timer*);
 void		timersinit(void);

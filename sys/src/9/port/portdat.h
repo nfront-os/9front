@@ -125,6 +125,17 @@ struct Sargs
 };
 
 /*
+ * Sargs is a flat buffer of one BY2WD-sized slot per syscall argument,
+ * filled by the userspace syscall stub -- not a real C varargs call
+ * (dosyscall() invokes every handler with a single raw pointer). The
+ * kencc va_list/va_arg macros used to do exactly this (va_list was
+ * literally char*, with word-stride pointer arithmetic); __builtin_va_arg
+ * doesn't apply to this raw buffer at all. ARG() replaces both: advance
+ * by one word, then read T from the slot's original (low) address.
+ */
+#define ARG(list, T) (((list) += BY2WD), *(T*)((list) - BY2WD))
+
+/*
  * Access types in namec & channel flags
  */
 enum

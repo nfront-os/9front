@@ -98,7 +98,7 @@ func systab(b *build) {
 	}
 
 	write("#include \"%s\"\n\n", src)
-	write("typedef uintptr Syscall(va_list);\n\n")
+	write("typedef uintptr Syscall(uchar*);\n\n")
 	write("enum {\n")
 	for _, n := range names {
 		write("\tSYS_%s = %s,\n", strings.ToLower(n), strings.ToUpper(n))

@@ -5,18 +5,65 @@
 #include	"fns.h"
 #include	"../port/error.h"
 
-#include "/sys/src/libc/9syscall/sys.h"
+#include "../../libc/9syscall/sys.h"
+
+/* gcc port: syscall numbers for tracing (may differ from libc) */
+#ifndef SYSR1
+#define SYSR1	1
+#endif
+#ifndef _ERRSTR
+#define _ERRSTR	41
+#endif
+#ifndef _FSESSION
+#define _FSESSION	48
+#endif
+#ifndef _MOUNT
+#define _MOUNT	46
+#endif
+#ifndef _FSTAT
+#define _FSTAT	43
+#endif
+#ifndef _FWSTAT
+#define _FWSTAT	45
+#endif
+#ifndef _READ
+#define _READ	50
+#endif
+#ifndef OSEEK
+#define OSEEK	39
+#endif
+#ifndef _STAT
+#define _STAT	42
+#endif
+#ifndef _WRITE
+#define _WRITE	51
+#endif
+#ifndef _WSTAT
+#define _WSTAT	44
+#endif
+#ifndef _FWSTAT
+#define _FWSTAT	45
+#endif
+#ifndef _WAIT
+#define _WAIT	47
+#endif
+#ifndef _NSEC
+#define _NSEC	53
+#endif
 
 #include	<dtracy.h>
 #include	<ctype.h>
 
 static DTProbe **dtpsysentry, **dtpsysreturn;
 
-typedef uintptr Syscall(va_list);
+/* must match the generated typedef in systab.h (genheaders.go's systab()) --
+ * not included directly here since systab.h also defines the systab[]/
+ * sysctab[] array storage, meant to be included exactly once (sysproc.c) */
+typedef uintptr Syscall(uchar *);
 extern Syscall *systab[];
 
 #define WRAP0(x,y,z)\
-	Syscall z; uintptr x(va_list va){\
+	Syscall z; uintptr x(uchar *va){\
 	uintptr rc;\
 	DTTrigInfo info;\
 	memset(&info, 0, sizeof(info));\
@@ -27,12 +74,11 @@ extern Syscall *systab[];
 	return rc;\
 }
 #define WRAP1(x,y,z,type0)\
-	Syscall z; uintptr x(va_list va){\
+	Syscall z; uintptr x(uchar *va){\
 	uintptr rc;\
-	va_list vb = va;\
 	DTTrigInfo info;\
 	memset(&info, 0, sizeof(info));\
-	info.arg[0] = (uvlong) va_arg(vb, type0);\
+	info.arg[0] = (uvlong) ARG(va, type0);\
 	dtptrigger(dtpsysentry[y], &info);\
 	rc = z(va);\
 	info.arg[9] = (uvlong) rc;\
@@ -40,13 +86,12 @@ extern Syscall *systab[];
 	return rc;\
 }
 #define WRAP2(x,y,z,type0,type1)\
-	Syscall z; uintptr x(va_list va){\
+	Syscall z; uintptr x(uchar *va){\
 	uintptr rc;\
-	va_list vb = va;\
 	DTTrigInfo info;\
 	memset(&info, 0, sizeof(info));\
-	info.arg[0] = (uvlong) va_arg(vb, type0);\
-	info.arg[1] = (uvlong) va_arg(vb, type1);\
+	info.arg[0] = (uvlong) ARG(va, type0);\
+	info.arg[1] = (uvlong) ARG(va, type1);\
 	dtptrigger(dtpsysentry[y], &info);\
 	rc = z(va);\
 	info.arg[9] = (uvlong) rc;\
@@ -54,14 +99,13 @@ extern Syscall *systab[];
 	return rc;\
 }
 #define WRAP3(x,y,z,type0,type1,type2)\
-	Syscall z; uintptr x(va_list va){\
+	Syscall z; uintptr x(uchar *va){\
 	uintptr rc;\
-	va_list vb = va;\
 	DTTrigInfo info;\
 	memset(&info, 0, sizeof(info));\
-	info.arg[0] = (uvlong) va_arg(vb, type0);\
-	info.arg[1] = (uvlong) va_arg(vb, type1);\
-	info.arg[2] = (uvlong) va_arg(vb, type2);\
+	info.arg[0] = (uvlong) ARG(va, type0);\
+	info.arg[1] = (uvlong) ARG(va, type1);\
+	info.arg[2] = (uvlong) ARG(va, type2);\
 	dtptrigger(dtpsysentry[y], &info);\
 	rc = z(va);\
 	info.arg[9] = (uvlong) rc;\
@@ -69,15 +113,14 @@ extern Syscall *systab[];
 	return rc;\
 }
 #define WRAP4(x,y,z,type0,type1,type2,type3)\
-	Syscall z; uintptr x(va_list va){\
+	Syscall z; uintptr x(uchar *va){\
 	uintptr rc;\
-	va_list vb = va;\
 	DTTrigInfo info;\
 	memset(&info, 0, sizeof(info));\
-	info.arg[0] = (uvlong) va_arg(vb, type0);\
-	info.arg[1] = (uvlong) va_arg(vb, type1);\
-	info.arg[2] = (uvlong) va_arg(vb, type2);\
-	info.arg[3] = (uvlong) va_arg(vb, type3);\
+	info.arg[0] = (uvlong) ARG(va, type0);\
+	info.arg[1] = (uvlong) ARG(va, type1);\
+	info.arg[2] = (uvlong) ARG(va, type2);\
+	info.arg[3] = (uvlong) ARG(va, type3);\
 	dtptrigger(dtpsysentry[y], &info);\
 	rc = z(va);\
 	info.arg[9] = (uvlong) rc;\
@@ -86,16 +129,15 @@ extern Syscall *systab[];
 }
 /*TODO*/
 #define WRAP5(x,y,z,type0,type1,type2,type3,type4)\
-	Syscall z; uintptr x(va_list va){\
+	Syscall z; uintptr x(uchar *va){\
 	uintptr rc;\
-	va_list vb = va;\
 	DTTrigInfo info;\
 	memset(&info, 0, sizeof(info));\
-	info.arg[0] = (uvlong) va_arg(vb, type0);\
-	info.arg[1] = (uvlong) va_arg(vb, type1);\
-	info.arg[2] = (uvlong) va_arg(vb, type2);\
-	info.arg[3] = (uvlong) va_arg(vb, type3);\
-	info.arg[4] = (uvlong) va_arg(vb, type4);\
+	info.arg[0] = (uvlong) ARG(va, type0);\
+	info.arg[1] = (uvlong) ARG(va, type1);\
+	info.arg[2] = (uvlong) ARG(va, type2);\
+	info.arg[3] = (uvlong) ARG(va, type3);\
+	info.arg[4] = (uvlong) ARG(va, type4);\
 	dtptrigger(dtpsysentry[y], &info);\
 	rc = z(va);\
 	info.arg[9] = (uvlong) rc;\

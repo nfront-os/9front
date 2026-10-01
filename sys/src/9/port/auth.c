@@ -20,16 +20,16 @@ iseve(void)
 }
 
 uintptr
-sysfversion(va_list list)
+sysfversion(uchar *list)
 {
 	int msize, arglen, fd;
 	char *vers;
 	Chan *c;
 
-	fd = va_arg(list, int);
-	msize = va_arg(list, int);
-	vers = va_arg(list, char*);
-	arglen = va_arg(list, int);
+	fd = ARG(list, int);
+	msize = ARG(list, int);
+	vers = ARG(list, char*);
+	arglen = ARG(list, int);
 	validaddr((uintptr)vers, arglen, 1);
 	/* check there's a NUL in the version string */
 	if(arglen <= 0 || memchr(vers, 0, arglen) == nil)
@@ -46,16 +46,16 @@ sysfversion(va_list list)
 }
 
 uintptr
-sys_fsession(va_list list)
+sys_fsession(uchar *list)
 {
 	int fd;
 	char *str;
 	uint len;
 
 	/* deprecated; backwards compatibility only */
-	fd = va_arg(list, int);
-	str = va_arg(list, char*);
-	len = va_arg(list, uint);
+	fd = ARG(list, int);
+	str = ARG(list, char*);
+	len = ARG(list, uint);
 	if(len == 0)
 		error(Ebadarg);
 	validaddr((uintptr)str, len, 1);
@@ -65,14 +65,14 @@ sys_fsession(va_list list)
 }
 
 uintptr
-sysfauth(va_list list)
+sysfauth(uchar *list)
 {
 	Chan *c, *ac;
 	char *aname;
 	int fd;
 
-	fd = va_arg(list, int);
-	aname = va_arg(list, char*);
+	fd = ARG(list, int);
+	aname = ARG(list, char*);
 	validaddr((uintptr)aname, 1, 0);
 	aname = validnamedup(aname, 1);
 	if(waserror()){
