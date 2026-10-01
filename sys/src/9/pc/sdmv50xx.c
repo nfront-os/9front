@@ -22,7 +22,7 @@
 
 #define	dprint(...)	// print(__VA_ARGS__)
 #define	idprint(...)	print(__VA_ARGS__)
-#define	Ticks		MACHP(0)->ticks
+#define	Ticks		MACHP(0)->PMach.ticks
 
 enum {
 	NCtlr		= 4,
@@ -269,7 +269,7 @@ struct Edma			/* memory-mapped per-drive DMA-related registers */
 	ulong	iordyto;		/* IORDY timeout */
 	char	fill[0x18];
 	ulong	sataconfig;	/* sata 2 */
-	char	fill[0xac];
+	char	fill2[0xac];	/* gcc port: renamed, duplicate "fill" name collided under gcc (padding only, never referenced by name) */
 	ushort	pio;		/* data register */
 	char	pad0[2];
 	uchar	err;		/* features and error */
@@ -287,7 +287,7 @@ struct Edma			/* memory-mapped per-drive DMA-related registers */
 	uchar	cmdstat;		/* cmd/status */
 	char	pad7[3];
 	uchar	altstat;		/* alternate status */
-	uchar	fill2[0x1df];
+	uchar	fill4[0x1df];	/* gcc port: renamed, duplicate "fill2" name collided under gcc (padding only, never referenced by name) */
 	Bridge	port;
 	char	fill3[0x1c00];	/* pad to 0x2000 bytes */
 };
@@ -474,13 +474,13 @@ edmacleanout(Drive *d)
 			d->srb[i] = nil;
 			d->nsrb--;
 			srb->flag |= SFerror|SFdone;
-			wakeup(srb);
+			wakeup(&srb->Rendez);
 		}
 	}
 	while(srb = d->srbhead){
 		d->srbhead = srb->next;
 		srb->flag |= SFerror|SFdone;
-		wakeup(srb);
+		wakeup(&srb->Rendez);
 	}
 }
 
@@ -965,7 +965,7 @@ completesrb(Drive *d)
 				iprint("cEdmaSts: %02ux\n", rx->cEdmaSts);
 			srb->sta = rx->cDevSts;
 			srb->flag |= SFdone;
-			wakeup(srb);
+			wakeup(&srb->Rendez);
 		}else
 			iprint("srb missing\n");
 		edma->rxo = advance(edma->rxo, 3);
@@ -1433,19 +1433,25 @@ rdregs(char *p, char *e, void *base, Regs *r, int n, char *prefix)
 	return p;
 }
 
-static int
-mv50rctl(SDunit *unit, char *p, int l)
+/*
+ * gcc port: signature was the pre-SDifc-API-change int rctl(SDunit*,char*,int)
+ * form (returning p-op); SDifc.rctl is now char* rctl(SDunit*,char*,char*)
+ * (bounded-buffer pointer, returning p) -- this driver's source was never
+ * updated when the rest of the tree's rctl API changed (it's dead code,
+ * never present in pc64's active device table, so kencc's looser function-
+ * pointer checking let the stale signature slide silently). Adapted to the
+ * current API, same formatting logic, unchanged.
+ */
+static char*
+mv50rctl(SDunit *unit, char *p, char *e)
 {
-	char *e, *op;
 	Ctlr *ctlr;
 	Drive *drive;
 
 	if((ctlr = unit->dev->ctlr) == nil)
-		return 0;
+		return p;
 	drive = &ctlr->drive[unit->subno];
 
-	e = p+l;
-	op = p;
 	if(drive->state == Dready){
 		p = seprint(p, e, "model    %s\n", drive->model);
 		p = seprint(p, e, "serial   %s\n", drive->serial);
@@ -1462,7 +1468,7 @@ mv50rctl(SDunit *unit, char *p, int l)
 		p = rdregs(p, e, drive->bridge, regsbridge, nelem(regsbridge), nil);
 		p = rdregs(p, e, drive->edma, regsedma, nelem(regsedma), nil);
 	}
-	return p-op;
+	return p;
 }
 
 static int
@@ -1544,7 +1550,7 @@ retry:
 
 		while(waserror())
 			;
-		sleep(srb, srbdone, srb);
+		sleep(&srb->Rendez, srbdone, srb);
 		poperror();
 
 		flag = srb->flag;
@@ -1827,7 +1833,10 @@ SDifc sdmv50xxifc = {
 	"mv50xx",			/* name */
 
 	mv50pnp,			/* pnp */
-	nil,				/* legacy */
+	/* gcc port: dropped stray extra nil "legacy" initializer here --
+	 * SDifc has no such field (verified identical to front's sd.h); the
+	 * extra entry silently shifted every subsequent initializer one slot
+	 * under kencc's looser excess-initializer handling, gcc errors on it */
 	mv50enable,			/* enable */
 	mv50disable,			/* disable */
 

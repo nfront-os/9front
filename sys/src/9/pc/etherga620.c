@@ -1119,7 +1119,7 @@ ga620reset(Ctlr* ctlr)
 	 * Snarf the MAC address from the serial EEPROM.
 	 */
 	for(i = 0; i < Eaddrlen; i++){
-		if((r = at24c32r(ctlr, 0x8E+i)) == -1)
+		if((r = at24c32r(ctlr, 0x8E + i)) == -1)
 			return -1;
 		ctlr->ea[i] = r;
 	}

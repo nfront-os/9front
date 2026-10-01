@@ -153,8 +153,12 @@ typedef struct Ccb32 {
 } Ccb32;
 
 typedef union Ccb {
-	Ccb24;
-	Ccb32;
+	Ccb24 Ccb24;	/* gcc port: named -- Ccb24/Ccb32's same-named fields
+			 * (opcode, datadir, ...) collided anonymously under
+			 * -fplan9-extensions; all access in this file goes
+			 * through explicit (Ccb24*)/(Ccb32*) casts anyway,
+			 * never the anonymous shorthand, so naming is safe */
+	Ccb32 Ccb32;
 } Ccb;
 
 enum {					/* opcode */
@@ -306,7 +310,7 @@ mylex24rio(SDreq* r)
 	 * from the last completed Ccb, return it immediately.
 	 */
 	lock(&ctlr->cachelock);
-	if((ccb = ctlr->cache[target]) != nil){
+	if((ccb = (Ccb24*)ctlr->cache[target]) != nil){
 		ctlr->cache[target] = nil;
 		if(r->cmd[0] == 0x03
 		&& ccb->sdstat == SDcheck && lun == ((ccb->cs[1]>>5) & 0x07)){
@@ -325,7 +329,7 @@ mylex24rio(SDreq* r)
 	}
 	unlock(&ctlr->cachelock);
 	if(ccb == nil)
-		ccb = ccballoc(ctlr);
+		ccb = (Ccb24*)ccballoc(ctlr);
 
 	/*
 	 * Check if the transfer is to memory above the 24-bit limit the
@@ -551,7 +555,7 @@ mylex32rio(SDreq* r)
 	 * from the last completed Ccb, return it immediately.
 	 */
 	lock(&ctlr->cachelock);
-	if((ccb = ctlr->cache[target]) != nil){
+	if((ccb = (Ccb32*)ctlr->cache[target]) != nil){
 		ctlr->cache[target] = nil;
 		if(r->cmd[0] == 0x03
 		&& ccb->sdstat == SDcheck && lun == (ccb->luntag & 0x07)){
@@ -569,7 +573,7 @@ mylex32rio(SDreq* r)
 	}
 	unlock(&ctlr->cachelock);
 	if(ccb == nil)
-		ccb = ccballoc(ctlr);
+		ccb = (Ccb32*)ccballoc(ctlr);
 
 	/*
 	 * Fill in the ccb.

@@ -21,7 +21,7 @@
 #define	aprint(...)	if(adebug)	print(__VA_ARGS__); else USED(adebug)
 #define	Pciwaddrh(a)	0
 #define	Pciw64(x)	(uvlong)PCIWADDR(x)
-#define	Ticks		MACHP(0)->ticks
+#define	Ticks		MACHP(0)->PMach.ticks
 
 /* copied from sdiahci */
 enum {
@@ -865,9 +865,9 @@ mswait(Cmd *x, int ms)
 static void
 setstate(Drive *d, int state)
 {
-	ilock(d);
+	ilock(&d->Lock);
 	d->state = state;
-	iunlock(d);
+	iunlock(&d->Lock);
 }
 
 static void
@@ -890,9 +890,9 @@ waitready(Drive *d)
 		δ = Ticks - d->lastseen;
 		if(d->state == Dnull || δ > 10*1000)
 			return -1;
-		ilock(d);
+		ilock(&d->Lock);
 		s = sstatus(d);
-		iunlock(d);
+		iunlock(&d->Lock);
 		if((s & Sphyrdy) == 0 && δ > 1500)
 			return -1;
 		if(d->state == Dready && (s & Sphyrdy))
@@ -2217,7 +2217,7 @@ checkdrive(Drive *d, int i)
 
 	if(d->unit == nil)
 		return;
-	ilock(d);
+	ilock(&d->Lock);
 	s = sstatus(d);
 	d->wait++;
 	if(s & Sphyrdy)
@@ -2240,9 +2240,9 @@ checkdrive(Drive *d, int i)
 	case Dnew:
 		if(d->wait % 6 != 0)
 			break;
-		iunlock(d);
+		iunlock(&d->Lock);
 		newdrive(d);
-		ilock(d);
+		ilock(&d->Lock);
 		break;
 	case Dready:
 		d->wait = 0;
@@ -2259,7 +2259,7 @@ checkdrive(Drive *d, int i)
 	case Dportreset:
 		break;
 	}
-	iunlock(d);
+	iunlock(&d->Lock);
 }
 
 static void
@@ -2473,7 +2473,7 @@ msonline(SDunit *u)
 			d->drivechange = 0;
 		return r;
 	}
-	ilock(d);
+	ilock(&d->Lock);
 	if(d->drivechange){
 		r = 2;
 		d->drivechange = 0;
@@ -2481,7 +2481,7 @@ msonline(SDunit *u)
 		u->secsize = d->secsize;
 	} else if(d->state == Dready)
 		r = 1;
-	iunlock(d);
+	iunlock(&d->Lock);
 	return r;
 }
 
@@ -2516,14 +2516,14 @@ msverify(SDunit *u)
 	c = u->dev->ctlr;
 	d = c->drive + u->subno;
 	ilock(c);
-	ilock(d);
+	ilock(&d->Lock);
 	chk = 0;
 	if(d->unit == nil){
 		d->unit = u;
 		sdaddfile(u, "led", 0644, eve, odinledr, odinledw);
 		chk = 1;
 	}
-	iunlock(d);
+	iunlock(&d->Lock);
 	iunlock(c);
 
 	/*
@@ -2777,10 +2777,10 @@ forcestate(Drive *d, char *state)
 			break;
 	if(i == nelem(diskstates))
 		error(Ebadctl);
-	ilock(d);
+	ilock(&d->Lock);
 	d->state = 1 << i - 1;
 	statechange(d);
-	iunlock(d);
+	iunlock(&d->Lock);
 }
 
 static int

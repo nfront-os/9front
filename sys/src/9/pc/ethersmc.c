@@ -334,7 +334,7 @@ txstart(Ether* ether)
 	if (pno & ArFailed) {
 		outb(port + IntrMask, inb(port + IntrMask) | IntAlloc);
 		ctlr->txbp = bp;
-		ctlr->txtime = MACHP(0)->ticks;
+		ctlr->txtime = MACHP(0)->PMach.ticks;
 		return;
 	}
 
@@ -497,7 +497,7 @@ transmit(Ether* ether)
 	ilock(ctlr);
 
 	if (ctlr->txbp) {
-		n = TK2MS(MACHP(0)->ticks - ctlr->txtime);
+		n = TK2MS(MACHP(0)->PMach.ticks - ctlr->txtime);
 		if (n > TxTimeout) {
 			chipreset(ether);
 			chipenable(ether);

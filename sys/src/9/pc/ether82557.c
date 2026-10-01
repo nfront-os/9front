@@ -262,6 +262,15 @@ static uchar configdata[24] = {
 #define csr16w(c, r, w)	(outs((c)->port+(r), (ushort)(w)))
 #define csr32w(c, r, l)	(outl((c)->port+(r), (ulong)(l)))
 
+/*
+ * gcc port: file-scope forward declarations, hoisted out of watchdog()/
+ * the eeprom-dump loop below -- a block-scope declaration can't carry
+ * `static` (internal linkage) unless the identifier already has it from
+ * an enclosing scope, which this textually-first appearance didn't.
+ */
+static void txstart(Ether*);
+static int miir(Ctlr*, int, int);
+
 static void
 command(Ctlr* ctlr, int c, int v)
 {
@@ -345,7 +354,6 @@ watchdog(void* arg)
 {
 	Ether *ether;
 	Ctlr *ctlr;
-	static void txstart(Ether*);
 
 	ether = arg;
 	while(waserror())
@@ -479,7 +487,6 @@ ifstat(void *a, char *p, char *e)
 		phyaddr = ctlr->eeprom[6] & 0x00FF;
 		p = seprint(p, e, "\nphy %2d:", phyaddr);
 		for(i = 0; i < 6; i++){
-			static int miir(Ctlr*, int, int);
 			p = seprint(p, e, " %4.4ux", miir(ctlr, phyaddr, i));
 		}
 	}
