@@ -268,7 +268,7 @@ segmentcreate(Chan *c, char *name, int omode, ulong perm)
 
 	g = smalloc(sizeof(Globalseg));
 	g->Ref.ref = 1;
-	g->perm = 0660;
+	g->perm = perm & 0777;	/* honor the caller's requested bits (e.g. +x, needed to exec() a segment) instead of a hardcoded 0660 */
 	kstrdup(&g->name, name);
 	kstrdup(&g->uid, up->user);
 

@@ -452,7 +452,7 @@ sysexec(uchar *list)
 	if(magic & HDR_MAGIC) {
 		if(n < sizeof(u.ehdr))
 			error(Ebadexec);
-		entry = beswav(*(uvlong*)((uchar*)&u.ehdr.Exec));
+		entry = beswav(u.ehdr.hdr[0]);
 		text = UTZERO+sizeof(u.ehdr);
 	} else {
 		entry = beswal(u.ehdr.Exec.entry);

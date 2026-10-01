@@ -1,14 +1,23 @@
 typedef	struct	Exec	Exec;
 struct	Exec
 {
-	long	magic;		/* magic number */
-	long	text;	 	/* size of text segment */
-	long	data;	 	/* size of initialized data */
-	long	bss;	  	/* size of uninitialized data */
-	long	syms;	 	/* size of symbol table */
-	long	entry;	 	/* entry point */
-	long	spsz;		/* size of pc/sp offset table */
-	long	pcsz;		/* size of pc/line number table */
+	/*
+	 * GCC port: these are on-disk a.out header fields, always 32 bits
+	 * (matching 6c's `long`, and the a.out format itself -- see
+	 * amd64/include/u.h's ulong comment for the general issue). Plain
+	 * `long` is a 64-bit GCC/LP64 keyword on amd64 that we can't
+	 * retypedef like our own `ulong`, so this struct used it to read
+	 * 64 bytes instead of the real 32-byte header, corrupting every
+	 * field read past the first. Explicit `int` instead.
+	 */
+	int	magic;		/* magic number */
+	int	text;	 	/* size of text segment */
+	int	data;	 	/* size of initialized data */
+	int	bss;	  	/* size of uninitialized data */
+	int	syms;	 	/* size of symbol table */
+	int	entry;	 	/* entry point */
+	int	spsz;		/* size of pc/sp offset table */
+	int	pcsz;		/* size of pc/line number table */
 };
 
 #define HDR_MAGIC	0x00008000		/* header expansion */
