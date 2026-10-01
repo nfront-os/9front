@@ -1,5 +1,5 @@
-#pragma src "/sys/src/libdisk"
-#pragma lib "libdisk.a"
+/* #pragma src "/sys/src/libdisk" */
+/* #pragma lib "libdisk.a" */
 
 /* SCSI interface */
 typedef struct Scsi Scsi;

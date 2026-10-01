@@ -1,5 +1,5 @@
-#pragma	src	"/sys/src/libndb"
-#pragma	lib	"libndb.a"
+/* #pragma	src	"/sys/src/libndb" */
+/* #pragma	lib	"libndb.a" */
 
 /*
  *  this include file requires includes of <u.h> and <bio.h>

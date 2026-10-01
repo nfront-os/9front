@@ -1,5 +1,5 @@
-#pragma	src	"/sys/src/libframe"
-#pragma	lib	"libframe.a"
+/* #pragma	src	"/sys/src/libframe" */
+/* #pragma	lib	"libframe.a" */
 
 typedef struct Frbox Frbox;
 typedef struct Frame Frame;

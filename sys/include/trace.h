@@ -1,3 +1,5 @@
+#ifndef TRACE_H
+#define TRACE_H
 typedef enum Tevent {
 	SAdmit = 0,	/* Edf admit */
 	SRelease,	/* Edf release, waiting to be scheduled */
@@ -22,3 +24,4 @@ struct Traceevent {
 	ulong	etype;	/* Event type */
 	vlong	time;	/* time stamp  */
 };
+#endif

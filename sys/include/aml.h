@@ -1,5 +1,5 @@
-#pragma	lib	"libaml.a"
-#pragma	src	"/sys/src/libaml"
+/* #pragma	lib	"libaml.a" */
+/* #pragma	src	"/sys/src/libaml" */
 
 /*
  *	b	uchar*	buffer		amllen() returns number of bytes

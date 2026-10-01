@@ -2,8 +2,8 @@
  * NFS mounter V3;  see RFC 1813
  */
 
-#pragma lib "libsunrpc.a"
-#pragma src "/sys/src/libsunrpc"
+/* #pragma lib "libsunrpc.a" */
+/* #pragma src "/sys/src/libsunrpc" */
 
 enum {
 	NfsMount1HandleSize = 32,

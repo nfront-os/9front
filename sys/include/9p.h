@@ -1,5 +1,5 @@
-#pragma src "/sys/src/lib9p"
-#pragma lib "lib9p.a"
+/* #pragma src "/sys/src/lib9p" */
+/* #pragma lib "lib9p.a" */
 
 /*
  * Maps from ulongs to void*s.

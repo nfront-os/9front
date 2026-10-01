@@ -1,7 +1,7 @@
 #ifndef __U_H
 #define __U_H
 #ifndef _PLAN9_SOURCE
-   This header file is an extension to ANSI/POSIX
+/* This header file is an extension to ANSI/POSIX */
 #endif
 
 #define nil		((void*)0)

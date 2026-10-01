@@ -1,5 +1,5 @@
-#pragma src "/sys/src/libttf"
-#pragma lib "libttf.a"
+/* #pragma src "/sys/src/libttf" */
+/* #pragma lib "libttf.a" */
 
 typedef struct TTTable TTTable;
 typedef struct TTChMap TTChMap;

@@ -1,5 +1,5 @@
-#pragma src "/sys/src/libmemlayer"
-#pragma lib "libmemlayer.a"
+/* #pragma src "/sys/src/libmemlayer" */
+/* #pragma lib "libmemlayer.a" */
 
 typedef struct Memscreen Memscreen;
 typedef void (*Refreshfn)(Memimage*, Rectangle, void*);

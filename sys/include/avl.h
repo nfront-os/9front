@@ -1,5 +1,5 @@
-#pragma lib "libavl.a"
-#pragma src "/sys/src/libavl"
+/* #pragma lib "libavl.a" */
+/* #pragma src "/sys/src/libavl" */
 
 typedef struct Avl Avl;
 typedef struct Avltree Avltree;

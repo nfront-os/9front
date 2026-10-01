@@ -1,4 +1,4 @@
-#pragma src "/sys/src/libdraw"
+/* #pragma src "/sys/src/libdraw" */
 
 typedef struct	Channel Channel;
 typedef struct	Cursor Cursor;
@@ -15,7 +15,10 @@ struct	Mouse
 
 struct Mousectl
 {
-	Mouse;
+	/* GCC port: explicitly add Mouse members since gcc doesn't support Plan 9 struct embedding */
+	int	buttons;
+	Point	xy;
+	ulong	msec;
 	Channel	*c;	/* chan(Mouse) */
 	Channel	*resizec;	/* chan(int)[2] */
 			/* buffered in case client is waiting for a mouse action before handling resize */

@@ -1,5 +1,5 @@
-#pragma src "/sys/src/libthread"
-#pragma lib "libthread.a"
+/* #pragma src "/sys/src/libthread" */
+/* #pragma lib "libthread.a" */
 
 #pragma	varargck	argpos	chanprint	2
 

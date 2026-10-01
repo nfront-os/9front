@@ -1,5 +1,5 @@
-#pragma	lib	"libsec.a"
-#pragma	src	"/sys/src/libsec"
+/* #pragma	lib	"libsec.a" */
+/* #pragma	src	"/sys/src/libsec" */
 
 
 #ifndef _MPINT

@@ -1,5 +1,5 @@
-#pragma	lib	"libcomplete.a"
-#pragma src "/sys/src/libcomplete"
+/* #pragma	lib	"libcomplete.a" */
+/* #pragma src "/sys/src/libcomplete" */
 
 typedef struct Completion Completion;
 
