@@ -236,3 +236,21 @@ Das ist dieselbe Bugklasse wie der bereits in einer früheren Session gefixte `%
 **Committed:** `26564e65b` (returns_twice), `328479bc7` (Label.bp).
 
 **Nächster Schritt:** Den Userspace-Fault bei `pc=0x200028` (vermutlich in `init9.s`s Trampolin oder `initcode.c`s `startboot()`) root-causen — vermutlich ein Mismatch zwischen dem, was `touser()`/`sysexec()` als initialen User-Stack/Register-Zustand aufsetzt, und dem, was `initcode.i`s eingebettetes Binary erwartet.
+
+## 2026-10-01 (Teil 7): Exec-Test erfolgreich — Syscall-Mechanismus end-to-end mit echtem Userspace-Prozess verifiziert
+
+**Auftrag:** Fortsetzung von Teil 6 — nachdem der Kernel bis zur Userspace-Ausführung (`touser()`/initcode) kam, zeigte sich: `sys/src/9/port/initcode.i` war nur ein 1-Byte-Platzhalter-Stub (`uchar initcode[] = {0};`), kein echtes kompiliertes Programm — der Userspace-Fault war also kein Kernel-Bug, sondern schlicht fehlender Testinhalt.
+
+**Lösung:** Da im Baum noch kein Userspace-libc/-Toolchain verdrahtet ist (siehe `libc.json`/`sysconf.json`-Scaffolding-Notizen), wurde ein minimales, von Hand geschriebenes Test-`initcode` assembliert: `scripts/testinit.S` (neu) + `scripts/gen-testinit-i.sh` (neu, gleiches Muster wie `gen-rebootcode-i.sh`/`gen-apbootstrap-i.sh`: assemblieren → an fixer Adresse linken → `objcopy -O binary` → Python-Bytearray nach `sys/src/9/port/initcode.i`, welches wie `rebootcode.i`/`apbootstrap.i` NICHT getrackt ist).
+
+Das Test-Binary: `open("#c/cons", OWRITE)` (Device-Syntax — braucht kein `bind()`-Setup, anders als `/dev/cons`), `pwrite(fd, "hello from initcode via real exec!\n", len, ~0)`, `exits(nil)`. Syscall-ABI (aus `l.S`s `syscallentry` + `trap.c`s `syscall()` abgelesen): Syscall-Nummer in `%rbp`, `syscall`-Instruktion, Argumente werden vom Kernel vom AUFRUFER-EIGENEN Stack gelesen, beginnend bei `(user %rsp beim Trap) + 8`, ein 8-Byte-Slot pro Argument (= exakt der `Sargs`/`ARG()`-Mechanismus aus Teil 3).
+
+**Ergebnis — vollständig erfolgreich (Commit `e271e5739`):** QEMU-Boot zeigt `hello from initcode via real exec!` auf der Konsole, gefolgt vom erwarteten `panic: boot process died` (korrektes Kernel-Verhalten, da der Testprozess sich sofort beendet und kein echtes `/boot/boot` im Baum existiert — kein Bug). Das verifiziert END-TO-END, mit einem ECHTEN exec'd/gebooteten Userspace-Prozess (nicht nur durch Code-Lesen): `touser()` → `SYSCALL` → `syscallentry` → `dosyscall()` → `ARG()`/`Sargs` funktioniert korrekt, inklusive eines echten 4-Argument-Syscalls (`pwrite`) — exakt der Mechanismus, dessen BY2WD-Stride-Bug ganz am Anfang dieser langen Session-Kette gefunden und gefixt wurde (Teil 3, Commit `07748d071`).
+
+**Status der ursprünglichen Pläne aus Teil 3:**
+- **Teil A (Syscall-Mechanismus):** ✅ Jetzt empirisch verifiziert (nicht nur Code-Review).
+- **Teil B (ELF64-Loader):** Noch nicht boot-verifiziert — bräuchte ein eigenes Test-Binary (statisches ELF64, `ET_EXEC` oder `ET_DYN`) anstelle des aktuellen rohen initcode-Mechanismus (der a.out-artig OHNE Header-Parsing direkt nach UTZERO kopiert wird — das ist der SEPARATE `proc0()`-Spezialfall für den allerersten Prozess, nicht der normale `sysexec()`-Pfad, den Teil B betrifft). Ein sinnvoller nächster Test wäre ein `sysexec()`-Aufruf AUS dem Testprozess heraus (exec() auf eine zweite, eingebettete ELF64-Datei), um Teil B tatsächlich zu triggern.
+
+**Offen / nächste Schritte:**
+- Teil B (ELF64-Loader) boot-verifizieren (siehe oben).
+- Die lange Bugkette aus Teil 4-6 (Fmt.args, 5× Register-Clobber in `l.S`, `returns_twice`, `Label.bp`) war allesamt notwendig, um überhaupt bis hierhin zu kommen — ein guter Zeitpunkt für einen Gesamt-Review/Zusammenfassung der gcc-Port-Korrektheit, bevor an echten Userspace-Programmen (libc-Scaffolding verdrahten, `mksys` ersetzen) weitergearbeitet wird.
