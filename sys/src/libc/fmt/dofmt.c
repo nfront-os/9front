@@ -217,7 +217,7 @@ _charfmt(Fmt *f)
 {
 	char x[1];
 
-	x[0] = va_arg(*f->args, int);
+	x[0] = va_arg(f->args, int);
 	f->prec = 1;
 	return _fmtcpy(f, x, 1, 1);
 }
@@ -228,7 +228,7 @@ _runefmt(Fmt *f)
 {
 	Rune x[1];
 
-	x[0] = va_arg(*f->args, int);
+	x[0] = va_arg(f->args, int);
 	return _fmtrcpy(f, x, 1);
 }
 
@@ -257,7 +257,7 @@ _strfmt(Fmt *f)
 {
 	char *s;
 
-	s = va_arg(*f->args, char *);
+	s = va_arg(f->args, char *);
 	return fmtstrcpy(f, s);
 }
 
@@ -290,7 +290,7 @@ _runesfmt(Fmt *f)
 {
 	Rune *s;
 
-	s = va_arg(*f->args, Rune *);
+	s = va_arg(f->args, Rune *);
 	return fmtrunestrcpy(f, s);
 }
 
@@ -321,7 +321,7 @@ _ifmt(Fmt *f)
 	vu = 0;
 	u = 0;
 	if(f->r == 'p'){
-		pu = va_arg(*f->args, uintptr);
+		pu = va_arg(f->args, uintptr);
 		if(sizeof(uintptr) == sizeof(uvlong)){
 			vu = pu;
 			isv = 1;
@@ -332,29 +332,29 @@ _ifmt(Fmt *f)
 	}else if(fl & FmtVLong){
 		isv = 1;
 		if(fl & FmtUnsigned)
-			vu = va_arg(*f->args, uvlong);
+			vu = va_arg(f->args, uvlong);
 		else
-			vu = va_arg(*f->args, vlong);
+			vu = va_arg(f->args, vlong);
 	}else if(fl & FmtLong){
 		if(fl & FmtUnsigned)
-			u = va_arg(*f->args, ulong);
+			u = va_arg(f->args, ulong);
 		else
-			u = va_arg(*f->args, long);
+			u = va_arg(f->args, long);
 	}else if(fl & FmtByte){
 		if(fl & FmtUnsigned)
-			u = (uchar)va_arg(*f->args, int);
+			u = (uchar)va_arg(f->args, int);
 		else
-			u = (char)va_arg(*f->args, int);
+			u = (char)va_arg(f->args, int);
 	}else if(fl & FmtShort){
 		if(fl & FmtUnsigned)
-			u = (ushort)va_arg(*f->args, int);
+			u = (ushort)va_arg(f->args, int);
 		else
-			u = (short)va_arg(*f->args, int);
+			u = (short)va_arg(f->args, int);
 	}else{
 		if(fl & FmtUnsigned)
-			u = va_arg(*f->args, uint);
+			u = va_arg(f->args, uint);
 		else
-			u = va_arg(*f->args, int);
+			u = va_arg(f->args, int);
 	}
 	conv = "0123456789abcdef";
 	switch(f->r){
@@ -457,7 +457,7 @@ _countfmt(Fmt *f)
 	ulong fl;
 
 	fl = f->flags;
-	p = va_arg(*f->args, void*);
+	p = va_arg(f->args, void*);
 	if(fl & FmtVLong){
 		*(vlong*)p = f->nfmt;
 	}else if(fl & FmtLong){

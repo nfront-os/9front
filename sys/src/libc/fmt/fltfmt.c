@@ -318,6 +318,6 @@ _efgfmt(Fmt *f)
 {
 	double d;
 
-	d = va_arg(*f->args, double);
+	d = va_arg(f->args, double);
 	return _floatfmt(f, d);
 }

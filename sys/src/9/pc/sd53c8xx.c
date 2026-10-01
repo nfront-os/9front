@@ -2166,7 +2166,7 @@ na_fixup(Controller *c, ulong pa_reg,
 	int p;
 	int v;
 	ulong *script, pa_script;
-	unsigned long lw, lv;
+	ulong lw, lv;
 
 	script = c->script;
 	pa_script = c->scriptpa;

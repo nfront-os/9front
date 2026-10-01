@@ -260,6 +260,26 @@ _clearbss:
 	cld
 	rep	stosl				/* clear BSS */
 
+	/*
+	 * GCC port: MemMin lives in BSS (between edata and end), so the
+	 * clear above just wiped out the value _warp64 computed into it
+	 * earlier (while still in 32-bit mode, before paging). The
+	 * original source has this same ordering (BSS cleared after
+	 * MemMin is set) and presumably gets away with it only because
+	 * 6l/8l happen to place MemMin outside [edata,end) under their
+	 * own layout; GNU ld's doesn't, so it's provably zero here by
+	 * the time meminit0() reads it (confirmed: panics "kernel too
+	 * big" since MemMin(0) < PADDR(PGROUND(end))). Recompute the
+	 * exact same value _warp64 used -- see the "map from KZERO to
+	 * end" block above -- now in 64-bit/virtual-addressing form
+	 * since paging is already active here.
+	 */
+	movq	$end-KZERO, %rdx		/* %rax must stay 0 -- used below to clear flags */
+	addq	$(16*1024), %rdx		/* qemu puts multiboot data after the kernel */
+	addq	$(PGLSZ(1)-1), %rdx
+	andq	$~(PGLSZ(1)-1), %rdx
+	movl	%edx, MemMin
+
 	pushq	%rax				/* clear flags */
 	popfq
 

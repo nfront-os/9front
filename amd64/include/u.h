@@ -1,7 +1,15 @@
 #define nil		((void*)0)
 typedef	unsigned short	ushort;
 typedef	unsigned char	uchar;
-typedef unsigned long	ulong;
+/*
+ * GCC port: Plan 9's 6c treats `long`/`ulong` as 32 bits even on amd64
+ * (uintptr/vlong/u64int are the explicit 64-bit types) -- the whole tree
+ * assumes sizeof(ulong)==4 (e.g. ulong* array indexing, on-disk formats).
+ * GCC's LP64 model makes plain `unsigned long` 64 bits on amd64, which
+ * silently doubles every ulong* stride; use unsigned int instead to match
+ * 6c's actual size, not the spelling.
+ */
+typedef unsigned int	ulong;
 typedef unsigned int	uint;
 typedef signed char	schar;
 typedef	long long	vlong;

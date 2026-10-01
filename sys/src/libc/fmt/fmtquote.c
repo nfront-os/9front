@@ -177,10 +177,10 @@ _quotestrfmt(int runesin, Fmt *f)
 	if(f->flags&FmtPrec)
 		nin = f->prec;
 	if(runesin){
-		r = va_arg(*f->args, Rune *);
+		r = va_arg(f->args, Rune *);
 		s = nil;
 	}else{
-		s = va_arg(*f->args, char *);
+		s = va_arg(f->args, char *);
 		r = nil;
 	}
 	if(!s && !r)
