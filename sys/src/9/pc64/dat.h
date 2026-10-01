@@ -35,6 +35,18 @@ struct Label
 {
 	uintptr	sp;
 	uintptr	pc;
+	/*
+	 * GCC port: native 6c never uses %rbp as a dedicated frame pointer
+	 * (addressing is SP-relative), so front's Label only needs sp+pc.
+	 * We build with -fno-omit-frame-pointer, so gcc-compiled functions
+	 * address their locals %rbp-relative -- gotolabel()'s jump bypasses
+	 * every intervening function's normal epilogue (which would
+	 * otherwise pop %rbp back to the caller's value), so without
+	 * saving/restoring it here too, %rbp is left holding whatever was
+	 * live in gotolabel()'s own caller, and every %rbp-relative local
+	 * read in the resumed frame becomes garbage.
+	 */
+	uintptr	bp;
 };
 
 struct FPssestate
