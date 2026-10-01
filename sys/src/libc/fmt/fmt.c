@@ -176,7 +176,7 @@ _fmtdispatch(Fmt *f, void *fmt, int isrunes)
 			}
 			continue;
 		case '*':
-			i = va_arg(f->args, int);
+			i = va_arg(*f->args, int);
 			if(i < 0){
 				/*
 				 * negative precision =>

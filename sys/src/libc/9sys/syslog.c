@@ -51,7 +51,7 @@ syslog(int cons, char *logname, char *fmt, ...)
 
 	err[0] = '\0';
 	errstr(err, sizeof err);
-	lock(&sl);
+	lock((Lock*)&sl);
 
 	/*
 	 *  paranoia makes us stat to make sure a fork+close
@@ -88,7 +88,7 @@ syslog(int cons, char *logname, char *fmt, ...)
 	}
 
 	if(fmt == nil){
-		unlock(&sl);
+		unlock((Lock*)&sl);
 		return;
 	}
 
@@ -112,5 +112,5 @@ syslog(int cons, char *logname, char *fmt, ...)
 	if(cons && sl.consfd >=0)
 		write(sl.consfd, buf, n);
 
-	unlock(&sl);
+	unlock((Lock*)&sl);
 }

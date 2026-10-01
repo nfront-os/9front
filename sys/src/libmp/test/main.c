@@ -10,7 +10,7 @@ mpdetfmt(Fmt *f)
 	mpint *a;
 	int i, j;
 	
-	a = va_arg(f->args, mpint *);
+	a = va_arg(*f->args, mpint *);
 	fmtprint(f, "(sign=%d,top=%d,size=%d,", a->sign, a->top, a->size);
 	for(i=0;i<a->top;){
 		fmtprint(f, "%ullx", (uvlong)a->p[i]);

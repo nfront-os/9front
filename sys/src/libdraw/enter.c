@@ -23,5 +23,5 @@ enter(char *ask, char *buf, int len, Mousectl *mc, Keyboardctl *kc, Screen *scr)
 {
 	while(nbrecv(kc->c, nil) == 1)
 		;
-	return genenter(ask, buf, len, mc, kc->c, _input, scr);
+	return genenter(ask, buf, len, (Mouse*)mc, kc->c, _input, scr);
 }

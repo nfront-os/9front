@@ -122,7 +122,7 @@ gmfield(mpint *N)
 	g->m2->p = (mpdigit*)&g[1];
 	g->m2->size = d*2+1;
 	mpmul(N, N, g->m2);
-	mpassign(N, g);
+	mpassign(N, (mpint*)g);
 	g->reduce = gmreduce;
 	g->flags |= MPfield;
 
@@ -160,7 +160,7 @@ gmfield(mpint *N)
 			break;
 	}
 	if(s != 0){
-		mpfree(g);
+		mpfree((mpint*)g);
 		g = nil;
 	}
 out:
@@ -168,6 +168,6 @@ out:
 	free(X);
 	mpfree(M);
 	mpfree(T);
-	return g;
+	return (Mfield*)g;
 }
 

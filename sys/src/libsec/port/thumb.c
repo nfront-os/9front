@@ -1,5 +1,9 @@
 #include "os.h"
 #include <bio.h>
+#define nelem(x) (sizeof(x)/sizeof((x)[0]))
+extern int tokenize(char*, char**, int);
+extern int dec16(uchar*, int, char*, int);
+extern int dec64(uchar*, int, char*, int);
 #include <libsec.h>
 
 enum{ ThumbTab = 1<<10 };
@@ -97,7 +101,7 @@ loadThumbprints(char *file, char *tag, Thumbprint *table, Thumbprint *crltab, in
 		return 0;	/* not an error */
 	if((bin = Bopen(file, OREAD|OCEXEC)) == nil)
 		return -1;
-	for(; (line = Brdstr(bin, '\n', 1)) != nil; free(line)){
+	for(; (line = Brdstr((Biobufhdr*)bin, '\n', 1)) != nil; free(line)){
 		if(tokenize(line, field, nelem(field)) < 2)
 			continue;
 		if(strcmp(field[0], "#include") == 0){
@@ -136,11 +140,11 @@ loadThumbprints(char *file, char *tag, Thumbprint *table, Thumbprint *crltab, in
 		entry->len = len;
 		memcpy(entry->hash, hash, len);
 	}
-	Bterm(bin);
+	Bterm((Biobufhdr*)bin);
 	return 0;
 err:
 	free(line);
-	Bterm(bin);
+	Bterm((Biobufhdr*)bin);
 	return -1;
 }
 

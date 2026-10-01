@@ -17,14 +17,15 @@ fmtprint(Fmt *f, char *fmt, ...)
 	f->flags = 0;
 	f->width = 0;
 	f->prec = 0;
-	va = f->args;
-	va_start(f->args, fmt);
+	__builtin_va_copy(va, *f->args);
+	va_start(*f->args, fmt);
 	n = dofmt(f, fmt);
-	va_end(f->args);
+	va_end(*f->args);
 	f->flags = 0;
 	f->width = 0;
 	f->prec = 0;
-	f->args = va;
+	__builtin_va_copy(*f->args, va);
+	va_end(va);
 	if(n >= 0)
 		return 0;
 	return n;

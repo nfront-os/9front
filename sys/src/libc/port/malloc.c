@@ -1,5 +1,13 @@
 #include <u.h>
 #include <libc.h>
+#if defined(__GNUC__)
+#undef va_start
+#undef va_end
+#undef va_arg
+#define va_start(list, start) __builtin_va_start(list, start)
+#define va_end(list) __builtin_va_end(list)
+#define va_arg(list, mode) __builtin_va_arg(list, mode)
+#endif
 #include <pool.h>
 #include <tos.h>
 

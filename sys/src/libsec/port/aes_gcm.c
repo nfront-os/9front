@@ -148,7 +148,7 @@ aesgcm_setiv(AESGCMstate *s, uchar *iv, int ivlen)
 void
 setupAESGCMstate(AESGCMstate *s, uchar *key, int keylen, uchar *iv, int ivlen)
 {
-	setupAESstate(s, key, keylen, nil);
+	setupAESstate((AESstate*)s, key, keylen, nil);
 
 	memset(s->ivec, 0, AESbsize);
 	aes_encrypt(s->ekey, s->rounds, s->ivec, s->ivec);
@@ -166,7 +166,7 @@ aesgcm_encrypt(uchar *dat, ulong ndat, uchar *aad, ulong naad, uchar tag[16], AE
 	ulong L[4], Y[4] = {0};
 
 	ghashn(s, aad, naad, Y);
-	aesxctrn(s, dat, ndat);
+	aesxctrn((AESstate*)s, dat, ndat);
 	ghashn(s, dat, ndat, Y);
 	L[0] = ndat << 3;
 	L[1] = ndat >> 29;
@@ -174,7 +174,7 @@ aesgcm_encrypt(uchar *dat, ulong ndat, uchar *aad, ulong naad, uchar tag[16], AE
 	L[3] = naad >> 29;
 	ghash1(s, L, Y);
 	store128(Y, tag);
-	aesxctr1(s, s->ivec, tag, 16);
+	aesxctr1((AESstate*)s, s->ivec, tag, 16);
 }
 
 int
@@ -191,9 +191,9 @@ aesgcm_decrypt(uchar *dat, ulong ndat, uchar *aad, ulong naad, uchar tag[16], AE
 	L[3] = naad >> 29;
 	ghash1(s, L, Y);
 	store128(Y, tmp);
-	aesxctr1(s, s->ivec, tmp, 16);
+	aesxctr1((AESstate*)s, s->ivec, tmp, 16);
 	if(tsmemcmp(tag, tmp, 16) != 0)
 		return -1;
-	aesxctrn(s, dat, ndat);
+	aesxctrn((AESstate*)s, dat, ndat);
 	return 0;
 }

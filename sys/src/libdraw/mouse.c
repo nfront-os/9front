@@ -31,7 +31,7 @@ readmouse(Mousectl *mc)
 		if(d->bufp > d->buf)
 			flushimage(d, 1);
 	}
-	if(recv(mc->c, &mc->Mouse) < 0){
+	if(recv(mc->c, &mc) < 0){
 		fprint(2, "readmouse: %r\n");
 		return -1;
 	}
@@ -77,11 +77,11 @@ _ioproc(void *arg)
 			if(send(mc->c, &m) < 0)
 				continue;
 			/*
-			 * mc->Mouse is updated after send so it doesn't have wrong value if we block during send.
-			 * This means that programs should receive into mc->Mouse (see readmouse() above) if
+			 * mc is updated after send so it doesn't have wrong value if we block during send.
+			 * This means that programs should receive into mc (see readmouse() above) if
 			 * they want full synchrony.
 			 */
-			mc->Mouse = m;
+			mc->buttons = m.buttons; mc->xy = m.xy; mc->msec = m.msec;
 			break;
 		}
 	}

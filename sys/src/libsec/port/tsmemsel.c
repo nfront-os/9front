@@ -1,5 +1,6 @@
 #include "os.h"
 #include <libsec.h>
+#include <assert.h>
 
 void
 tsmemsel(void *dst, void *src1, void *src2, ulong len, ulong cond)

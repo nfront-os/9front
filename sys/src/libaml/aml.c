@@ -271,7 +271,7 @@ gc(void)
 					print("\namlunmapio(%N): %-8s %llux - %llux\n", 
 						(Name*)r->name, spacename[r->space],
 						r->off, r->off + r->len);
-				amlunmapio(r);
+				amlunmapio((Amlio*)r);
 			}
 			r->mapped = 0;
 			r->write = nil;
@@ -533,7 +533,7 @@ rwreg(void *reg, int off, int len, uvlong v, int write)
 					(Name*)r->name, spacename[r->space],
 					r->off, r->off + r->len);
 			r->mapped = 1;
-			if(amlmapio(r) < 0)
+			if(amlmapio((Amlio*)r) < 0)
 				r->mapped = -1;
 		}
 		if(r->mapped <= 0)
@@ -554,13 +554,13 @@ rwreg(void *reg, int off, int len, uvlong v, int write)
 					r->off, off, len, v);
 			putle(p, len, v);
 			if(r->write != nil){
-				if((*r->write)(r, p, len, off) != len)
+				if((*r->write)((Amlio*)r, p, len, off) != len)
 					break;
 			} else if(p == buf)
 				break;
 		} else {
 			if(r->read != nil){
-				if((*r->read)(r, p, len, off) != len)
+				if((*r->read)((Amlio*)r, p, len, off) != len)
 					break;
 			} else if(p == buf)
 				break;
@@ -891,7 +891,7 @@ Nfmt(Fmt *f)
 	int i;
 	Name *n;
 
-	n = va_arg(f->args, Name*);
+	n = va_arg(*f->args, Name*);
 	if(n == nil)
 		return fmtprint(f, "?NIL");
 	switch(TAG(n)){
@@ -929,7 +929,7 @@ Vfmt(Fmt *f)
 	Region *g;
 	Ref *r;
 
-	p = va_arg(f->args, void*);
+	p = va_arg(*f->args, void*);
 	if(p == nil)
 		return fmtprint(f, "nil");
 	c = TAG(p);

@@ -7,9 +7,7 @@
 
 #define flt2fix(n)	((long)((n)*(1<<13) + ((n) < 0? -0.5: 0.5)))
 
-enum {
-	ε	= 1e-6
-};
+#define eps	1e-6
 
 static double
 fract(double n)
@@ -34,8 +32,8 @@ mkwarp(double m0[3][3])
 	w.m[2][0] = 0; w.m[2][1] = 0; w.m[2][2] = 1<<13;
 
 	if(m0[0][1] == 0 && m0[1][0] == 0
-	&& m0[0][0] > 1 && (fract(m0[0][0]) <= ε || 1.0 - fract(m0[0][0]) <= ε)
-	&& m0[1][1] > 1 && (fract(m0[1][1]) <= ε || 1.0 - fract(m0[1][1]) <= ε))
+	&& m0[0][0] > 1 && (fract(m0[0][0]) <= eps || 1.0 - fract(m0[0][0]) <= eps)
+	&& m0[1][1] > 1 && (fract(m0[1][1]) <= eps || 1.0 - fract(m0[1][1]) <= eps))
 		w.flags |= WFintupscale;
 	return w;
 }

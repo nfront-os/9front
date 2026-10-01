@@ -21,5 +21,5 @@ _moveto(Mouse *m, Point pt)
 int
 menuhit(int but, Mousectl *mc, Menu *menu, Screen *scr)
 {
-	return genmenuhit(but, mc, _readmouse, _moveto, menu, scr);
+	return genmenuhit(but, (Mouse*)mc, _readmouse, _moveto, menu, scr);
 }

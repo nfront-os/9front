@@ -1583,7 +1583,7 @@ mlkem1024_keypair(uchar *pk, uchar *sk)
 }
 
 int
-mlkem512_enc(uchar *ct, uchar *ss, const uchar *pk)
+mlkem512_enc(uchar *ct, uchar *ss, uchar *pk)
 {
 	uchar coins[MLKEM_SYMBYTES];
 	int r;
@@ -1595,7 +1595,7 @@ mlkem512_enc(uchar *ct, uchar *ss, const uchar *pk)
 }
 
 int
-mlkem768_enc(uchar *ct, uchar *ss, const uchar *pk)
+mlkem768_enc(uchar *ct, uchar *ss, uchar *pk)
 {
 	uchar coins[MLKEM_SYMBYTES];
 	int r;
@@ -1607,7 +1607,7 @@ mlkem768_enc(uchar *ct, uchar *ss, const uchar *pk)
 }
 
 int
-mlkem1024_enc(uchar *ct, uchar *ss, const uchar *pk)
+mlkem1024_enc(uchar *ct, uchar *ss, uchar *pk)
 {
 	uchar coins[MLKEM_SYMBYTES];
 	int r;
@@ -1619,19 +1619,19 @@ mlkem1024_enc(uchar *ct, uchar *ss, const uchar *pk)
 }
 
 int
-mlkem512_dec(uchar *ss, const uchar *ct, const uchar *sk)
+mlkem512_dec(uchar *ss, uchar *ct, uchar *sk)
 {
 	return mlk_kem_dec_x(K512, ss, ct, sk);
 }
 
 int
-mlkem768_dec(uchar *ss, const uchar *ct, const uchar *sk)
+mlkem768_dec(uchar *ss, uchar *ct, uchar *sk)
 {
 	return mlk_kem_dec_x(K768, ss, ct, sk);
 }
 
 int
-mlkem1024_dec(uchar *ss, const uchar *ct, const uchar *sk)
+mlkem1024_dec(uchar *ss, uchar *ct, uchar *sk)
 {
 	return mlk_kem_dec_x(K1024, ss, ct, sk);
 }

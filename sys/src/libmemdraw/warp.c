@@ -902,17 +902,10 @@ memaffinewarp(Memimage *d, Point dp0, Rectangle r, Memimage *s, Point sp0,
 	}
 }
 
-static double
-coeffsum(double *m, int len)
-{
-	double *e, Σ;
-
-	e = m + len;
-	Σ = 0;
-	while(m < e)
-		Σ += *m++;
-	return Σ;
-}
+/* GCC port: coeffsum() used to be a separate function, but a function
+ * returning double can't be compiled with -mno-sse (the x86-64 ABI has
+ * no non-SSE way to return a scalar double); inlined into its one caller
+ * below instead, same computation. */
 
 Memimage *
 allocmemimagekernel(double *k, int dx, int dy, double denom)
@@ -928,8 +921,16 @@ allocmemimagekernel(double *k, int dx, int dy, double denom)
 		return nil;
 	}
 
-	if(denom == 0)
-		denom = coeffsum(k, dx*dy);
+	if(denom == 0){
+		double *m, *e, Σ;
+
+		m = k;
+		e = k + dx*dy;
+		Σ = 0;
+		while(m < e)
+			Σ += *m++;
+		denom = Σ;
+	}
 	denom = denom? 1/denom: 1;
 
 	kern = (long*)(ik->data->bdata + ik->zero);

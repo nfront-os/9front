@@ -153,7 +153,7 @@ mpfmt(Fmt *fmt)
 	char *x, *p;
 	int base;
 
-	b = va_arg(fmt->args, mpint*);
+	b = va_arg(*fmt->args, mpint*);
 	if(b == nil)
 		return fmtstrcpy(fmt, "*");
 

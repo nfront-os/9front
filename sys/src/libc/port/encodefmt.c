@@ -17,7 +17,7 @@ encodefmt(Fmt *f)
 	if(!(f->flags&FmtPrec) || f->prec < 1)
 		goto error;
 
-	b = va_arg(f->args, uchar*);
+	b = va_arg(*f->args, uchar*);
 	if(b == 0)
 		return fmtstrcpy(f, "<nil>");
 
