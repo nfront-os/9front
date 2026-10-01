@@ -18,6 +18,12 @@ typedef uintptr		jmp_buf[2];
 typedef unsigned int	mpdigit;	/* for /sys/include/mp.h */
 typedef unsigned char	u8int;
 typedef unsigned short	u16int;
+
+/* gcc port: USED and SET macros */
+#define USED(...) ((void)(0, ##__VA_ARGS__))
+#define SET(x) ((x)=0)
+#define SET2(x,y) ((x)=(y))
+#define SET3(x,y,z) ((x)=(y)=(z))
 typedef unsigned int	u32int;
 typedef unsigned long long u64int;
 typedef signed char s8int;
@@ -60,18 +66,12 @@ union FPdbleword
 	};
 };
 
-typedef	char*	va_list;
-#define va_start(list, start) list =\
-	(sizeof(start) < 8?\
-		(char*)((vlong*)&(start)+1):\
-		(char*)(&(start)+1))
-#define va_end(list)\
-	USED(list)
-#define va_arg(list, mode)\
-	((sizeof(mode) == 1)?\
-		((list += 8), (mode*)list)[-8]:\
-	(sizeof(mode) == 2)?\
-		((list += 8), (mode*)list)[-4]:\
-	(sizeof(mode) == 4)?\
-		((list += 8), (mode*)list)[-2]:\
-		((list += sizeof(mode)), (mode*)list)[-1])
+#ifndef _VA_LIST_DEFINED
+typedef	__builtin_va_list	va_list;
+#define _VA_LIST_DEFINED
+#endif
+/* GCC port: use gcc varargs builtins; __builtin_va_list is an array type
+   here, so the raw-pointer Plan 9 macros cannot assign/increment it */
+#define va_start(list, start) __builtin_va_start(list, start)
+#define va_end(list) __builtin_va_end(list)
+#define va_arg(list, mode) __builtin_va_arg(list, mode)

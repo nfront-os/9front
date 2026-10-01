@@ -1,4 +1,11 @@
 #define nil		((void*)0)
+#ifdef __GNUC__
+/* kencc builtins USED and SET, as macros for gcc/clang */
+#define USED(...)	((void)(__VA_ARGS__))
+#define SET(...)	((void)(__VA_ARGS__))
+#else
+/* declared in u.h: va_end uses USED; kencc needs no definition */
+#endif
 typedef	unsigned short	ushort;
 typedef	unsigned char	uchar;
 typedef unsigned long	ulong;
