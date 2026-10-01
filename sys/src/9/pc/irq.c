@@ -72,7 +72,22 @@ irqhandled(Ureg *ureg, int vno)
 		return 0;
 
 	m->spuriousintr++;
-	if(arch->intrspurious != nil && (*arch->intrspurious)(vno) == 0)
+	/*
+	 * gcc port: arch is nil until archinit() runs (main(), well after
+	 * screeninit()/early console setup) -- under this port, something
+	 * ahead of archinit() enables interrupts (sti via spllo()) early
+	 * enough that a spurious/unregistered-vector interrupt (observed:
+	 * a timer tick) reaches here first and NULL-derefs arch->
+	 * intrspurious, cascading into a fault storm (the fault handler
+	 * recurses through the same unresolved path). front's original
+	 * code has this identical, unguarded dereference (confirmed
+	 * identical in pc64/irq.c too, which just never hits the early-
+	 * interrupt window in practice) -- not something to silently
+	 * paper over without understanding why pc's sequencing differs,
+	 * but guarding it is strictly safe (arch!=nil is unaffected) and
+	 * unblocks boot while that sequencing question gets its own look.
+	 */
+	if(arch != nil && arch->intrspurious != nil && (*arch->intrspurious)(vno) == 0)
 		return 1;	/* false alarm */
 
 	iprint("cpu%d: spurious interrupt %d, last %d\n",
