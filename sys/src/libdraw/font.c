@@ -18,7 +18,9 @@ cachechars(Font *f, char **ss, Rune **rr, ushort *cp, int max, int *wp, char **s
 
 	if(ss){
 		sp = *ss;
-		rp = L"";
+		rp = (Rune*)L"";	/* gcc port: wchar_t's underlying type isn't
+					 * always Rune (unsigned int) -- e.g. this
+					 * host's gcc -m32 target picks long int */
 	}else{
 		sp = "";
 		rp = *rr;

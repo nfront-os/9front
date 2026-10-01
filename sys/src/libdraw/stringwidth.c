@@ -18,7 +18,9 @@ _stringnwidth(Font *f, char *s, Rune *r, int len)
 	}else
 		sptr = &s;
 	if(r == nil){
-		r = L"";
+		r = (Rune*)L"";	/* gcc port: wchar_t's underlying type isn't always
+				 * Rune (unsigned int) -- e.g. this host's gcc -m32
+				 * target picks long int */
 		rptr = nil;
 	}else
 		rptr = &r;
