@@ -26,7 +26,7 @@ dirmodefmt(Fmt *f)
 	static char buf[16];
 	ulong m;
 
-	m = va_arg(*f->args, ulong);
+	m = va_arg(f->args, ulong);
 
 	if(m & DMDIR)
 		buf[0]='d';

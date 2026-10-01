@@ -236,7 +236,7 @@ ldfmt(Fmt *f)
 	char *b, *p;
 	int i, d, s, c;
 	
-	a = va_arg(*f->args, ldint *);
+	a = va_arg(f->args, ldint *);
 	d = (a->n + 3) / 4;
 	b = calloc(1, d + 1);
 	c = s = a->b[a->n - 1];
@@ -261,7 +261,7 @@ mpdetfmt(Fmt *f)
 	mpint *a;
 	int i, j;
 	
-	a = va_arg(*f->args, mpint *);
+	a = va_arg(f->args, mpint *);
 	fmtprint(f, "(sign=%d,top=%d,size=%d,", a->sign, a->top, a->size);
 	for(i=0;i<a->top;){
 		fmtprint(f, "%ullx", (uvlong)a->p[i]);

@@ -56,7 +56,7 @@ dtefmt(Fmt *f)
 		[DTE_SXT] "SXT",
 	};
 	
-	ins = va_arg(*f->args, u32int);
+	ins = va_arg(f->args, u32int);
 	op = ins >> 24;
 	a = ins >> 16;
 	b = ins >> 8;

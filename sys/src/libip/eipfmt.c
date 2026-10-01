@@ -33,12 +33,12 @@ eipfmt(Fmt *f)
 
 	switch(f->r) {
 	case 'E':		/* Ethernet address */
-		p = va_arg(*f->args, uchar*);
+		p = va_arg(f->args, uchar*);
 		snprint(buf, sizeof buf, efmt, p[0], p[1], p[2], p[3], p[4], p[5]);
 		return fmtstrcpy(f, buf);
 
 	case 'I':		/* Ip address */
-		p = va_arg(*f->args, uchar*);
+		p = va_arg(f->args, uchar*);
 common:
 		if(memcmp(p, v4prefix, 12) == 0){
 			snprint(buf, sizeof buf, ifmt, p[12], p[13], p[14], p[15]);
@@ -73,19 +73,19 @@ common:
 		return fmtstrcpy(f, buf);
 
 	case 'i':		/* v6 address as 4 longs */
-		lp = va_arg(*f->args, ulong*);
+		lp = va_arg(f->args, ulong*);
 		for(i = 0; i < 4; i++)
 			hnputl(ip+4*i, *lp++);
 		p = ip;
 		goto common;
 
 	case 'V':		/* v4 ip address */
-		p = va_arg(*f->args, uchar*);
+		p = va_arg(f->args, uchar*);
 		snprint(buf, sizeof buf, ifmt, p[0], p[1], p[2], p[3]);
 		return fmtstrcpy(f, buf);
 
 	case 'M':		/* ip mask */
-		p = va_arg(*f->args, uchar*);
+		p = va_arg(f->args, uchar*);
 
 		/* look for a prefix mask */
 		for(i = 0; i < 16; i++)

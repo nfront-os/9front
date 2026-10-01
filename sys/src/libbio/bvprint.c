@@ -30,7 +30,7 @@ Bvprint(Biobufhdr *bp, char *fmt, va_list arg)
 	f.flush = fmtBflush;
 	f.farg = bp;
 	f.nfmt = 0;
-	f.args = arg;
+	__builtin_va_copy(f.args, arg);	/* GCC port: va_list is an array type, can't '=' */
 	n = dofmt(&f, fmt);
 	bp->ocount = (char*)f.to - (char*)f.stop;
 	return n;

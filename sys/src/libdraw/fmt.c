@@ -7,7 +7,7 @@ Rfmt(Fmt *f)
 {
 	Rectangle r;
 
-	r = va_arg(*f->args, Rectangle);
+	r = va_arg(f->args, Rectangle);
 	return fmtprint(f, "%P %P", r.min, r.max);
 }
 
@@ -16,7 +16,7 @@ Pfmt(Fmt *f)
 {
 	Point p;
 
-	p = va_arg(*f->args, Point);
+	p = va_arg(f->args, Point);
 	return fmtprint(f, "[%d %d]", p.x, p.y);
 }
 

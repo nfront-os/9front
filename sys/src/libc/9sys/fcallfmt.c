@@ -19,7 +19,7 @@ fcallfmt(Fmt *fmt)
 	Qid *q;
 
 	e = buf+sizeof(buf);
-	f = va_arg(*fmt->args, Fcall*);
+	f = va_arg(fmt->args, Fcall*);
 	type = f->type;
 	fid = f->fid;
 	tag = f->tag;
@@ -165,7 +165,7 @@ dirfmt(Fmt *fmt)
 {
 	char buf[160];
 
-	fdirconv(buf, buf+sizeof buf, va_arg(*fmt->args, Dir*));
+	fdirconv(buf, buf+sizeof buf, va_arg(fmt->args, Dir*));
 	return fmtstrcpy(fmt, buf);
 }
 

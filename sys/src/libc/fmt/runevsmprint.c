@@ -57,9 +57,8 @@ runevsmprint(char *fmt, va_list args)
 
 	if(runefmtstrinit(&f) < 0)
 		return nil;
-	__builtin_va_copy(*f.args, args);
+	__builtin_va_copy(f.args, args);	/* GCC port: va_list is an array type, can't '=' */
 	n = dofmt(&f, fmt);
-	va_end(*f.args);
 	if(f.start == nil)
 		return nil;
 	if(n < 0){

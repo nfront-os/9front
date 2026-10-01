@@ -891,7 +891,7 @@ Nfmt(Fmt *f)
 	int i;
 	Name *n;
 
-	n = va_arg(*f->args, Name*);
+	n = va_arg(f->args, Name*);
 	if(n == nil)
 		return fmtprint(f, "?NIL");
 	switch(TAG(n)){
@@ -929,7 +929,7 @@ Vfmt(Fmt *f)
 	Region *g;
 	Ref *r;
 
-	p = va_arg(*f->args, void*);
+	p = va_arg(f->args, void*);
 	if(p == nil)
 		return fmtprint(f, "nil");
 	c = TAG(p);

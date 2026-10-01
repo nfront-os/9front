@@ -408,7 +408,7 @@ static int
 	Tm *tm;
 
 	n = 0;
-	tf = va_arg(*f->args, Tmfmt);
+	tf = va_arg(f->args, Tmfmt);
 	tm = tf.tm;
 	p = tf.fmt;
 	if(p == nil)
@@ -1040,7 +1040,7 @@ dotmfmt(Fmt *f, ...)
 	f->flush = nil;
 	f->farg = nil;
 	f->nfmt = 0;
-	f->args = &ap;
+	__builtin_va_copy(f->args, ap);	/* GCC port: va_list is an array type, can't '=' */
 	τconv(f);
 	va_end(ap);
 	buf[sizeof(buf) - 1] = 0;

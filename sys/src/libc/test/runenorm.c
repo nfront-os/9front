@@ -24,7 +24,7 @@ vrunefmt(Fmt *f)
 	Rune *s;
 	int n;
 
-	s = va_arg(*f->args, Rune*);
+	s = va_arg(f->args, Rune*);
 	n = fmtprint(f, "%S(", s);
 	for(; *s != 0; s++)
 		n += fmtprint(f, "%X ", *s);

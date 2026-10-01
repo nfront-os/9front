@@ -195,7 +195,7 @@ ldfmt(Fmt *f)
 	char *b, *p;
 	int i, d, s, c;
 	
-	a = va_arg(*f->args, ldint *);
+	a = va_arg(f->args, ldint *);
 	d = (a->n + 3) / 4;
 	b = calloc(1, d + 1);
 	c = s = a->b[a->n - 1];

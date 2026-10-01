@@ -17,14 +17,13 @@ fmtvprint(Fmt *f, char *fmt, va_list args)
 	f->flags = 0;
 	f->width = 0;
 	f->prec = 0;
-	__builtin_va_copy(va, *f->args);
-	__builtin_va_copy(*f->args, args);
+	__builtin_va_copy(va, f->args);	/* GCC port: va_list is an array type, can't '=' */
+	__builtin_va_copy(f->args, args);
 	n = dofmt(f, fmt);
 	f->flags = 0;
 	f->width = 0;
 	f->prec = 0;
-	__builtin_va_copy(*f->args, va);
-	va_end(va);
+	__builtin_va_copy(f->args, va);
 	if(n >= 0)
 		return 0;
 	return n;
