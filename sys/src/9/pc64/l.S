@@ -48,6 +48,7 @@
  *	load all the data segments
  *	load the code segment via a far jump.
  */
+.globl _protected			/* GCC port: ENTRY(_protected) in kernel.ld needs this visible */
 _protected:
 	cli
 
@@ -63,11 +64,12 @@ _protected:
 
 	pFARJMP32(SELECTOR(3, SELGDT, 0), _warp64-KZERO)
 
-	.byte	0x90	/* align */
-
 /*
- * Must be 4-byte aligned.
+ * Must be 4-byte aligned (GCC port: GAS doesn't auto-align TEXT symbols
+ * the way 6a did, so this needs an explicit directive rather than the
+ * original single alignment byte).
  */
+	.balign 4
 _multibootheader:
 	.long	0x1BADB002			/* magic */
 	.long	0x00010007			/* flags */
@@ -83,21 +85,16 @@ _multibootheader:
 	.long	32				/* depth */
 
 /*
- * the kernel expects the data segment to be page-aligned
- * multiboot bootloaders put the data segment right behind text
+ * the kernel expects the data segment to be page-aligned.
+ * 8l/6l pack .data immediately after .text with no gap, so the original
+ * Plan 9 code here shifted that tightly-packed block up to a page boundary
+ * at boot (see git history for the byte-shuffle this replaces). GCC port:
+ * kernel.ld's linker script page-aligns .data directly (ADDR(.data) is
+ * already page-aligned, matching where the old code used to move it), so
+ * there's nothing left to relocate -- just stash the Multiboot info
+ * pointer and fall into _protected.
  */
 _multibootentry:
-	movl	$etext-KZERO, %esi
-	movl	%esi, %edi
-	addl	$(BY2PG-1), %edi
-	andl	$~(BY2PG-1), %edi
-	movl	$edata-KZERO, %ecx
-	subl	%edi, %ecx
-	addl	%ecx, %esi
-	addl	%ecx, %edi
-	incl	%ecx	/* one more for post decrement */
-	std
-	rep	movsb
 	movl	%ebx, multibootptr-KZERO
 	movl	$_protected-KZERO, %eax
 	jmp	*%eax
@@ -284,6 +281,10 @@ _idle:
  */
 .globl cpuid
 cpuid:
+	pushq	%rbp				/* GCC port: %rbp is callee-saved under
+						 * System V (unlike Plan9's convention) --
+						 * save/restore the caller's value around
+						 * using it as scratch below. */
 	movq	%rdx, %rbp			/* info (arg3); save before CPUID clobbers %rdx */
 	movl	%edi, %eax			/* function (arg1) */
 	movl	%esi, %ecx			/* sub-level (arg2) */
@@ -293,6 +294,7 @@ cpuid:
 	movl	%ebx, 4(%rbp)
 	movl	%ecx, 8(%rbp)
 	movl	%edx, 12(%rbp)
+	popq	%rbp
 	ret
 
 /*
@@ -510,6 +512,14 @@ _cycles:					/* time stamp counter */
 .globl rdmsr
 rdmsr:						/* Model-Specific Register */
 	movl	%edi, %ecx			/* index (arg1) */
+	pushq	%rbp				/* GCC port: %rbp is caller-saved under
+						 * Plan9's convention but callee-saved under
+						 * System V -- trap.c's _rdmsrinst/_wrmsrinst
+						 * fault recovery writes -1 into the saved
+						 * Ureg's bp field, which lands back in %rbp
+						 * when the trap returns; save/restore the
+						 * caller's %rbp around that so it isn't
+						 * clobbered on every call. */
 	movq	$0, %rbp
 .globl _rdmsrinst
 _rdmsrinst:
@@ -517,6 +527,7 @@ _rdmsrinst:
 	movl	%eax, 0(%rsi)			/* lo; vlong (arg2) already in %rsi */
 	movl	%edx, 4(%rsi)			/* hi */
 	movq	%rbp, %rax			/* %rbp set to -1 if trapped */
+	popq	%rbp
 	ret
 
 .globl wrmsr
@@ -525,11 +536,13 @@ wrmsr:
 	movl	%esi, %eax			/* value (arg2), low 32 bits */
 	movq	%rsi, %rdx
 	shrq	$32, %rdx			/* value (arg2), high 32 bits */
+	pushq	%rbp				/* GCC port: see rdmsr above */
 	movq	$0, %rbp
 .globl _wrmsrinst
 _wrmsrinst:
 	wrmsr
 	movq	%rbp, %rax			/* %rbp set to -1 if trapped */
+	popq	%rbp
 	ret
 
 /* fault-proof memcpy */
