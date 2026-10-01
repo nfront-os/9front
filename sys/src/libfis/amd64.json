@@ -9,6 +9,8 @@
 			"-mno-sse",
 			"-mno-sse2",
 			"-mno-mmx",
+			"-ffixed-r14",
+			"-ffixed-r15",
 			"-fno-builtin",
 			"-fno-asynchronous-unwind-tables",
 			"-fno-stack-protector",
