@@ -191,3 +191,28 @@ Per `/plan` geplant (drei parallele Explore-Agents: Syscall-Mechanismus, a.out-v
 **Committed:** `f2f4a780b` (ulong/MemMin-Fixes), `971596f49` (Fmt.args-Fix). Der diagnostische `dbgcount`-Testfix in `bootargs.c` wurde nach Bestätigung, dass er nicht die Ursache war, vollständig zurückgerollt (Datei matcht wieder exakt `front`).
 
 **Nächster Schritt:** Mit jetzt stabil bootendem Kernel kann die ursprünglich angefragte Exec-Testphase beginnen (`GOOS=plan9 GOARCH=amd64 go build` für ein echtes a.out-Testbinary zur Verifikation von Teil A/Syscall-Mechanismus; ein minimales freistehendes ELF64-Binary für Teil B/den neuen ELF-Loader, siehe Teil-3-Notiz oben für Details) — noch nicht begonnen.
+
+## 2026-10-01 (Teil 5): Systemischer %rbx/%rbp-Clobber-Bugklasse in l.S — 5 Instanzen gefunden+gefixt, Boot kommt jetzt durch PCI/Netzwerk/Memory-Init
+
+**Auftrag:** "starte exec tests" — während der Vorbereitung (Kernel muss zuerst sauber durchbooten) weiteren, bisher unentdeckten Boot-Blocker gefunden.
+
+**Befund:** Nach dem Fmt.args-Fix (Teil 4) bootete der Kernel bis zum `HPET: fed00000 8086a201 100 MHz`-Print, hing dann aber scheinbar endlos in `hpetcpufreq()`s Kalibrierungsschleife (`sys/src/9/pc/hpet.c`, Pre-kopiert nach `pc64/`). Per QEMU-Monitor direkt verifiziert: HPET-Hardware selbst inkrementiert korrekt (sowohl physischer als auch über die Kernel-eigene Page-Table gelesener Wert), kein MMU/vmap-Bug. Ursache per gezieltem Debug-Print (`loops=%d`) gefunden: **`delayloop()`** (`sys/src/9/pc64/l.S`) benutzt `%rbx` als Scratch-Register OHNE es zu sichern — unter System V ist `%rbx` aber callee-saved, und `hpetcpufreq()`s von gcc in `%rbx` gehaltene `loops`-Variable wurde bei JEDEM `delayloop()`-Aufruf stillschweigend auf `1` zurückgesetzt, wodurch die Abbruchbedingung `loops >= 1000000` nie erreicht wurde — eine quasi-Endlosschleife, die wie ein Hang aussah.
+
+Das ist dieselbe Bugklasse wie der bereits in einer früheren Session gefixte `%rbp`-Clobber in `rdmsr`/`wrmsr`/`cpuid` (dort nur `%rbp`, nicht auch `%rbx`). Ein gezielter Audit der KOMPLETTEN `l.S` (per Subagent, 124 Labels/1486 Zeilen, sauber zwischen echten Funktionen und internen Jump-Targets unterschieden, RMACH/RUSER(`%r14`/`%r15`)-Pinning korrekt als beabsichtigt erkannt, Trap-Entry/vmrestore/forkret korrekt als "State-als-Daten speichern" statt "Scratch-Clobber" eingestuft) fand **3 weitere echte Instanzen**:
+- `cpuid()`: CPUID-Instruktion selbst zerstört `%ebx` (Ergebnis landet dort) — nur `%rbp` war bisher geschützt, `%rbx` nicht.
+- `splhi()`: benutzt `%rbx` als Scratch für die gesicherte PC (`m->splpc`). **Höchste Blast-Radius-Kandidat** — läuft bei praktisch jedem Lock/ilock im gesamten Kernel.
+- `cas()`/`cmpswap486()`: staged den "new"-Wert für `cmpxchgl` in `%ebx`. Ebenfalls extrem heiß (9fronts atomares CAS-Primitiv, überall in Refcounting/Lock-free-Code).
+
+**Fixes** (Commit `091ca1bd1`):
+- `delayloop()`, `cpuid()`: `pushq %rbx` / `popq %rbx` um die Clobber-Stelle.
+- `splhi()`: `pushq %rbx` am Funktionsanfang (vor dem `jz _alreadyhi`-Early-Return), `popq %rbx` vor BEIDEN Exit-Pfaden (gemeinsames `_alreadyhi:`-Label).
+- `cas()`: statt Push/Pop (Hot-Path!) einfach `%r10d` (caller-saved, hier frei) statt `%ebx` für den "new"-Wert benutzt — keine Overhead-Kosten auf diesem sehr heißen Pfad.
+- `setlabel()`: statt `%rbx` wird `%rax` als Scratch für die Return-PC benutzt (wird sowieso gleich mit dem Rückgabewert überschrieben) — ebenfalls kein Push/Pop nötig.
+
+**Verifiziert:** Mit NUR dem `delayloop()`-Fix kommt der Boot bereits durch die komplette PCI-Routing-, Netzwerk-/Tastatur-Interrupt-Setup- und Memory-Accounting-Phase (`248M memory: 104M kernel data, 144M user, 570M swap`) — deutlich weiter als je zuvor in dieser Session erreicht.
+
+**Neuer, noch nicht root-gecauster Folgefehler:** direkt nach der Memory-Accounting-Zeile paniert der Kernel mit `panic: D2B called on non-block ffffffff8021eda8 (double-free?)` — ein Pool-Allocator-Konsistenzcheck (`sys/src/libc/port/pool.c:930`) schlägt fehl. Die ktrace-Stack-Dumps sind zwischen Testläufen NICHT deterministisch reproduzierbar (unterschiedliche Trace-Länge vor Abbruch), was auf einen MÖGLICHEN Sekundärfehler während `dumpstack()` selbst hindeutet. Direkter Physical-Memory-Read des erwarteten Stack-Bereichs via QEMU-Monitor zeigte dort Pool-Allocator-Poison-Pattern (`0xdeadfa11`, `0xcafebabe`, `0xfaf0f1fe`) statt echter Stack-Frames — noch nicht verstanden, ob das derselbe `%rbx`-artige Register-Clobber-Bugklasse ist (an einer bisher nicht gefundenen Stelle, evtl. außerhalb von `l.S`) oder ein genuines, unabhängiges Allocator-Problem.
+
+**GDB-Methodik-Hinweis:** `-enable-kvm` scheint Breakpoint-Insertion vor Long-Mode/Paging anders (unzuverlässiger, "Cannot access memory"-Fehler) zu behandeln als reines TCG — für GDB-Debugging-Sessions testweise auf `-enable-kvm` verzichten, auch wenn das Boot dann langsamer ist. GDB-Attachment war in dieser Session insgesamt sehr unzuverlässig (viele Verbindungsabbrüche, nie erklärte "Cannot execute this command while running"-Fehler) — direkte QEMU-Monitor-Physical-Memory-Inspektion (`pmemsave`) bleibt der robustere Fallback.
+
+**Nächster Schritt:** D2B/double-free-Panic root-causen (vermutlich noch eine Register-Clobber-Instanz oder echter Pool-Bug), dann weiter Richtung „starte exec tests" (userinit/initcode erreichen, Syscall-Mechanismus + ELF-Loader aus Teil 3 tatsächlich mit echten Testbinaries verifizieren).
