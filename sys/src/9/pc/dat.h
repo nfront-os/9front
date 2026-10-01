@@ -38,6 +38,19 @@ struct Label
 {
 	ulong	sp;
 	ulong	pc;
+	/*
+	 * GCC port: native 8c never uses %ebp as a dedicated frame pointer
+	 * (addressing is SP-relative), so front's Label only needs sp+pc.
+	 * We build with -fno-omit-frame-pointer, so gcc-compiled functions
+	 * address their locals %ebp-relative -- gotolabel()'s jump bypasses
+	 * every intervening function's normal epilogue (which would
+	 * otherwise pop %ebp back to the caller's value), so without
+	 * saving/restoring it here too, %ebp is left holding whatever was
+	 * live in gotolabel()'s own caller, and every %ebp-relative local
+	 * in the destination context reads garbage. See pc64/dat.h for the
+	 * amd64 equivalent of this fix.
+	 */
+	ulong	bp;
 };
 
 struct	FPx87state		/* x87 fp state */
