@@ -18,6 +18,46 @@
 #include	"initcode.i"
 
 /*
+ * GCC port, exec/ELF64-loader test only (see MEMORY.md, scripts/
+ * gen-exectest-payloads.sh): two real-toolchain test binaries (a gcc-
+ * compiled static ELF64 executable and a real `GOOS=plan9 GOARCH=amd64
+ * go build` a.out binary), embedded here since no real filesystem
+ * exists yet to exec() them from. Mapped read-only into the bootstrap
+ * test process's address space below so scripts/testinit.S can copy
+ * them into a #g (devsegment) shared segment -- the only way to give
+ * sysexec() an actual Chan to read from without a filesystem -- and
+ * exec() them, exercising the ELF64 loader and the a.out loader with
+ * genuine compiler output instead of hand-assembled code.
+ */
+#include	"testelf.i"
+#include	"testgo.i"
+
+#define TESTELFVA	0x500000ULL
+#define TESTGOVA	0x700000ULL
+
+static void
+loadrotext(int seg, uintptr base, uchar *data, ulong len)
+{
+	KMap *k;
+	Page *p;
+	ulong off, n;
+
+	attachseg(up, seg, newseg(SG_TEXT | SG_RONLY, base, (len+BY2PG-1)/BY2PG));
+	for(off = 0; off < len; off += BY2PG){
+		p = newpage(base+off, nil);
+		k = kmap(p);
+		n = len-off;
+		if(n > BY2PG)
+			n = BY2PG;
+		memmove((uchar*)VA(k), data+off, n);
+		if(n < BY2PG)
+			memset((uchar*)VA(k)+n, 0, BY2PG-n);
+		kunmap(k);
+		segpage(up->seg[seg], p);
+	}
+}
+
+/*
  * The first kernel process starts here.
  */
 static void
@@ -60,6 +100,12 @@ proc0(void*)
 	memset((uchar*)VA(k)+sizeof(initcode), 0, BY2PG-sizeof(initcode));
 	kunmap(k);
 	segpage(up->seg[TSEG], p);
+
+	/* GCC port, exec/ELF64-loader test only -- see comment above */
+	qlock(&up->seglock);
+	loadrotext(SEG1, TESTELFVA, testelf, sizeof(testelf));
+	loadrotext(SEG2, TESTGOVA, testgo, sizeof(testgo));
+	qunlock(&up->seglock);
 
 	/*
 	 * Become a user process.
