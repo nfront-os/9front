@@ -305,6 +305,10 @@ cpuid:
 						 * System V (unlike Plan9's convention) --
 						 * save/restore the caller's value around
 						 * using it as scratch below. */
+	pushq	%rbx				/* GCC port: %rbx is also callee-saved --
+						 * the CPUID instruction itself clobbers it
+						 * (its result lands in %ebx), so shield the
+						 * caller's value the same way. */
 	movq	%rdx, %rbp			/* info (arg3); save before CPUID clobbers %rdx */
 	movl	%edi, %eax			/* function (arg1) */
 	movl	%esi, %ecx			/* sub-level (arg2) */
@@ -314,6 +318,7 @@ cpuid:
 	movl	%ebx, 4(%rbp)
 	movl	%ecx, 8(%rbp)
 	movl	%edx, 12(%rbp)
+	popq	%rbx
 	popq	%rbp
 	ret
 
@@ -506,6 +511,13 @@ mb586:
  */
 .globl delayloop
 delayloop:
+	/*
+	 * GCC port: %rbx is callee-saved under System V -- gcc-compiled
+	 * callers (e.g. hpetcpufreq()'s "loops") keep live values there
+	 * across this call, trusting the ABI. Save/restore it instead of
+	 * clobbering it as scratch.
+	 */
+	pushq	%rbx
 	movl	%edi, %ecx			/* arg1 */
 	movl	$1, %ebx
 	movl	$0, %edx
@@ -520,6 +532,7 @@ _delayloop:
 	idivq	%rbx
 	idivq	%rbx
 	loop	_delayloop
+	popq	%rbx
 	ret
 
 .globl _cycles
@@ -612,15 +625,20 @@ sfence:
 .globl splhi
 splhi:
 _splhi:
+	pushq	%rbx				/* GCC port: %rbx is callee-saved under
+						 * System V -- shield the caller's value
+						 * while using it as scratch below (this
+						 * runs on essentially every lock/ilock). */
 	pushfq
 	popq	%rax
 	testq	$0x200, %rax			/* 0x200 - Interrupt Flag */
 	jz	_alreadyhi
 
-	movq	(%rsp), %rbx
+	movq	8(%rsp), %rbx			/* return PC (now past the rbx push) */
 	movq	%rbx, 8(RMACH)			/* save PC in m->splpc */
 	cli
 _alreadyhi:
+	popq	%rbx
 	ret
 
 .globl spllo
@@ -668,9 +686,14 @@ _tas:
 cmpswap486:
 .globl cas
 cas:
+	/*
+	 * GCC port: stage "new" in %r10d, not %ebx -- %rbx is callee-saved
+	 * under System V and this hot path (called from essentially every
+	 * refcount/lock) must not clobber it; %r10 is caller-saved and free.
+	 */
 	movl	%esi, %eax			/* exp (arg2) */
-	movl	%edx, %ebx			/* new (arg3) */
-	lock; cmpxchgl %ebx, (%rdi)
+	movl	%edx, %r10d			/* new (arg3) */
+	lock; cmpxchgl %r10d, (%rdi)
 	movl	$1, %eax
 	jne	_cas32r0
 _cas32r1:
@@ -692,9 +715,14 @@ gotolabel:
 
 .globl setlabel
 setlabel:
+	/*
+	 * GCC port: stage the return PC in %rax, not %rbx -- %rbx is
+	 * callee-saved under System V; %rax is about to be overwritten
+	 * with the return value anyway, so it's free scratch here.
+	 */
 	movq	%rsp, 0(%rdi)			/* store SP */
-	movq	0(%rsp), %rbx			/* store return PC */
-	movq	%rbx, 8(%rdi)
+	movq	0(%rsp), %rax			/* store return PC */
+	movq	%rax, 8(%rdi)
 	movl	$0, %eax			/* return 0 */
 	ret
 
