@@ -950,12 +950,17 @@ mul64fract:
  * Label consists of a stack pointer and a programme counter -- plus, in
  * this gcc port, a frame pointer (see header comment: -fno-omit-frame-
  * pointer means gotolabel's jump must restore %ebp too, mirrored in
- * sys/src/9/pc/dat.h's struct Label).
+ * sys/src/9/pc/dat.h's struct Label), and the rest of the cdecl
+ * callee-saved set (%ebx/%esi/%edi), which gcc may keep live across a
+ * procswitch() in the frames above it.
  */
 .globl gotolabel
 gotolabel:
 	movl	4(%esp), %eax			/* label */
 	movl	8(%eax), %ebp			/* restore BP */
+	movl	12(%eax), %ebx			/* restore BX */
+	movl	16(%eax), %esi			/* restore SI */
+	movl	20(%eax), %edi			/* restore DI */
 	movl	0(%eax), %esp			/* restore SP */
 	movl	4(%eax), %eax			/* put return pc on the stack */
 	movl	%eax, 0(%esp)
@@ -975,6 +980,9 @@ setlabel:
 	movl	0(%esp), %ecx			/* store return pc */
 	movl	%ecx, 4(%eax)
 	movl	%ebp, 8(%eax)			/* store bp */
+	movl	%ebx, 12(%eax)			/* store bx */
+	movl	%esi, 16(%eax)			/* store si */
+	movl	%edi, 20(%eax)			/* store di */
 	movl	$0, %eax			/* return 0 */
 	ret
 

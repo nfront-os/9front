@@ -51,6 +51,16 @@ struct Label
 	 * amd64 equivalent of this fix.
 	 */
 	ulong	bp;
+	/*
+	 * GCC port: same for the rest of the cdecl callee-saved set. 8c
+	 * treats every register as caller-saved, gcc does not: a frame
+	 * above procswitch() may keep a live value in %ebx/%esi/%edi across
+	 * the switch, and without these it resumes holding the previous
+	 * proc's values.
+	 */
+	ulong	bx;
+	ulong	si;
+	ulong	di;
 };
 
 struct	FPx87state		/* x87 fp state */

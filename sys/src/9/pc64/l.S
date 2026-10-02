@@ -725,9 +725,12 @@ gotolabel:
 	 * -fno-omit-frame-pointer, so gcc-compiled functions address
 	 * their locals %rbp-relative, and this jump bypasses every
 	 * intervening function's normal epilogue that would otherwise
-	 * have restored it.
+	 * have restored it. Same for %rbx/%r12/%r13 (Label.bx/r12/r13).
 	 */
 	movq	16(%rdi), %rbp			/* restore BP */
+	movq	24(%rdi), %rbx			/* restore BX */
+	movq	32(%rdi), %r12			/* restore R12 */
+	movq	40(%rdi), %r13			/* restore R13 */
 	movq	0(%rdi), %rsp			/* restore SP */
 	movq	8(%rdi), %rax			/* put return PC on the stack */
 	movq	%rax, 0(%rsp)
@@ -740,12 +743,15 @@ setlabel:
 	 * GCC port: stage the return PC in %rax, not %rbx -- %rbx is
 	 * callee-saved under System V; %rax is about to be overwritten
 	 * with the return value anyway, so it's free scratch here.
-	 * Also save %rbp (Label.bp) -- see gotolabel().
+	 * Also save %rbp (Label.bp) and %rbx/%r12/%r13 -- see gotolabel().
 	 */
 	movq	%rsp, 0(%rdi)			/* store SP */
 	movq	0(%rsp), %rax			/* store return PC */
 	movq	%rax, 8(%rdi)
 	movq	%rbp, 16(%rdi)			/* store BP */
+	movq	%rbx, 24(%rdi)			/* store BX */
+	movq	%r12, 32(%rdi)			/* store R12 */
+	movq	%r13, 40(%rdi)			/* store R13 */
 	movl	$0, %eax			/* return 0 */
 	ret
 

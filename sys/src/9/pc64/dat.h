@@ -47,6 +47,17 @@ struct Label
 	 * read in the resumed frame becomes garbage.
 	 */
 	uintptr	bp;
+	/*
+	 * GCC port: same reasoning for the rest of the System V
+	 * callee-saved set (%r14/%r15 are -ffixed RUSER/RMACH). 6c treats
+	 * every register as caller-saved, gcc does not: a frame above
+	 * procswitch() (e.g. v4lookup() -> rlock() -> sched()) may keep a
+	 * live value in %rbx/%r12/%r13 across the switch, and without
+	 * these it resumes holding the previous proc's values.
+	 */
+	uintptr	bx;
+	uintptr	r12;
+	uintptr	r13;
 };
 
 struct FPssestate
