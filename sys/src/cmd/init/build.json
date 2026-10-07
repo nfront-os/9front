@@ -1,0 +1,21 @@
+[
+	{
+		"Name": "init",
+		"Include": [
+			"/$ARCH/cflags.json"
+		],
+		"Program": "init",
+		"Install": "/$ARCH/bin/",
+		"Oflags": [
+			"--entry=_main"
+		],
+		"Libs": [
+			"/$ARCH/lib/libauth.a",
+			"/$ARCH/lib/libbio.a",
+			"/$ARCH/lib/libc.a"
+		],
+		"SourceFiles": [
+			"../init.c"
+		]
+	}
+]
