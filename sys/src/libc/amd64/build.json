@@ -2,16 +2,17 @@
 	{
 		"Name": "archfiles",
 		"SourceFiles": [
+			"$ARCH/_seek.c",
 			"$ARCH/notejmp.c",
 			"$ARCH/cycles.c",
 			"$ARCH/argv0.c",
-			"port/getcallstack.c",
-			"$ARCH/rdpmc.c",
+			"$ARCH/getcallerpc.S",
 			"$ARCH/setjmp.s",
 			"$ARCH/sqrt.s",
 			"$ARCH/tas.s",
 			"$ARCH/atom.S",
-			"$ARCH/main9.S"
+			"$ARCH/main9.S",
+			"$ARCH/notify.S"
 		]
 	}
 ]

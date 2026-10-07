@@ -19,7 +19,14 @@ typedef unsigned long long uintptr;
 typedef unsigned long long usize;
 typedef	uint		Rune;
 typedef union FPdbleword FPdbleword;
-typedef uintptr		jmp_buf[2];
+/*
+ * GCC port: 6c treats every register as caller-saved, so front's
+ * jmp_buf is just sp+pc. Under System V %rbx/%rbp/%r12-%r15 are
+ * callee-saved and live across setjmp() in callers above it (libthread
+ * switches threads with setjmp/longjmp), so they are saved too:
+ * [2]=bp [3]=bx [4]=r12 [5]=r13 [6]=r14 [7]=r15 (see libc/amd64/setjmp.s).
+ */
+typedef uintptr		jmp_buf[8];
 #define	JMPBUFSP	0
 #define	JMPBUFPC	1
 #define	JMPBUFDPC	0

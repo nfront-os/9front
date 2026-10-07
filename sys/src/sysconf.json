@@ -103,6 +103,10 @@
 			]
 		},
 		{
+			"Args": [
+				"int32_t",
+				"char*"
+			],
 			"Id": 10,
 			"Name": "fauth",
 			"Ret": [
@@ -110,6 +114,10 @@
 			]
 		},
 		{
+			"Args": [
+				"void*",
+				"void*"
+			],
 			"Id": 12,
 			"Name": "segbrk",
 			"Ret": [
@@ -197,6 +205,7 @@
 			],
 			"Id": 28,
 			"Name": "notify",
+			"Libname": "_notify",
 			"Ret": [
 				"int32_t"
 			]
@@ -212,6 +221,12 @@
 			]
 		},
 		{
+			"Args": [
+				"int32_t",
+				"char*",
+				"void*",
+				"uint32_t"
+			],
 			"Id": 30,
 			"Name": "segattach",
 			"Ret": [
@@ -219,6 +234,9 @@
 			]
 		},
 		{
+			"Args": [
+				"void*"
+			],
 			"Id": 31,
 			"Name": "segdetach",
 			"Ret": [
@@ -226,6 +244,10 @@
 			]
 		},
 		{
+			"Args": [
+				"void*",
+				"uint32_t"
+			],
 			"Id": 32,
 			"Name": "segfree",
 			"Ret": [
@@ -233,6 +255,10 @@
 			]
 		},
 		{
+			"Args": [
+				"void*",
+				"uint32_t"
+			],
 			"Id": 33,
 			"Name": "segflush",
 			"Ret": [
@@ -241,6 +267,7 @@
 		},
 		{
 			"Args": [
+				"void*",
 				"void*"
 			],
 			"Id": 34,
@@ -291,11 +318,18 @@
 			],
 			"Id": 39,
 			"Name": "seek",
+			"Libname": "_seek",
 			"Ret": [
 				"int64_t"
 			]
 		},
 		{
+			"Args": [
+				"int32_t",
+				"int32_t",
+				"char*",
+				"int32_t"
+			],
 			"Id": 40,
 			"Name": "fversion",
 			"Ret": [
@@ -363,6 +397,7 @@
 		},
 		{
 			"Args": [
+				"int32_t",
 				"int32_t",
 				"char*",
 				"int32_t",

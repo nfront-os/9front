@@ -223,9 +223,13 @@ func adjust(s []string) []string {
 }
 
 // return the given absolute path as an absolute path rooted at the plan9 tree.
+// idempotent: a path already rooted under plan9 (e.g. one that already went
+// through fromRoot once during UnmarshalJSON's adjust(), and is now being
+// passed through include()'s own fromRoot call) is left alone, since
+// path.IsAbs is true either way and re-joining would double the prefix.
 func fromRoot(p string) string {
 	expandedPath := os.ExpandEnv(p)
-	if path.IsAbs(expandedPath) {
+	if path.IsAbs(expandedPath) && expandedPath != plan9 && !strings.HasPrefix(expandedPath, plan9+string(filepath.Separator)) {
 		expandedPath = path.Join(plan9, expandedPath)
 	}
 
