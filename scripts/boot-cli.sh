@@ -19,8 +19,11 @@
 #                                          console log, quit
 #   env:  CLI_DIR     work dir (default ${XDG_CACHE_HOME:-~/.cache}/9front-cli)
 #         UFS         ufs binary (default: ufs in PATH, else ~/go/bin/ufs)
+#         SERVICE     cpu (default: cpurc, console rc) or terminal
 #         MEM NIC     QEMU memory (256) and NIC model (e1000)
 #         QEMU_EXTRA  extra QEMU flags (e.g. "-s -S" for gdb)
+#         UFS_EXTRA   directory whose contents are added to the root
+#                     (tests/guest puts its test programs in /tests)
 #         BOOTWAIT    seconds before typing the first line (15)
 #         CMDWAIT     seconds per line (2)
 set -e
@@ -30,6 +33,7 @@ CLI_DIR=${CLI_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/9front-cli}
 KERNEL=$ROOT/amd64/bin/9pc64
 UFS=${UFS:-$(command -v ufs 2>/dev/null || echo "$HOME/go/bin/ufs")}
 UFS_PORT=5640			# fixed: compiled into scripts/boot/netmount.c
+SERVICE=${SERVICE:-cpu}
 MEM=${MEM:-256}
 NIC=${NIC:-e1000}
 
@@ -49,17 +53,18 @@ mkdir -p "$CLI_DIR"
 
 # root file system
 bash "$ROOT/scripts/gen-ufs-root.sh" "$CLI_DIR/ufsroot" > /dev/null
+[ -z "$UFS_EXTRA" ] || cp -r "$UFS_EXTRA"/. "$CLI_DIR/ufsroot/"
 
 # GRUB multiboot ISO; GRUB itself also talks on the serial line, so a
 # boot that stops at the grub> prompt is visible
 rm -rf "$CLI_DIR/iso"
 mkdir -p "$CLI_DIR/iso/boot/grub"
 cp "$KERNEL" "$CLI_DIR/iso/boot/9pc64"
-cat > "$CLI_DIR/iso/boot/grub/grub.cfg" <<'EOF'
+cat > "$CLI_DIR/iso/boot/grub/grub.cfg" <<EOF
 set timeout=0
 serial --speed=115200 --unit=0 --word=8 --parity=no --stop=1
 terminal_output serial console
-multiboot /boot/9pc64 console=0
+multiboot /boot/9pc64 console=0 service=$SERVICE
 boot
 EOF
 grub-mkrescue -o "$CLI_DIR/9pc64.iso" "$CLI_DIR/iso" > "$CLI_DIR/grub-mkrescue.log" 2>&1 \

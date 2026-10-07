@@ -14,9 +14,7 @@
  * /root $rootspec` and `bind -a $rootdir /`). /root is one of
  * devroot.c's fixed "#/" entries, so it is walkable as a mount point.
  *
- * init is started with -t -m (terminal, manual): -m makes it run a
- * plain interactive rc instead of /rc/bin/termrc, whose helpers
- * (mntgen, ndb/cs, wc, ...) are not ported yet.
+ * init gets -c for service=cpu and -t otherwise, as in bootrc.
  *
  * Deliberately NOT the real ipconfig(8): that's a ~4000-line DHCP/v6/
  * PPP-capable client. We only need one fixed, well-known address for
@@ -50,7 +48,8 @@ setenv(char *name, char *val)
 void
 main(int argc, char *argv[])
 {
-	int ctlfd, routefd, datafd, srvfd;
+	int ctlfd, routefd, datafd, srvfd, rtc, tfd, n;
+	char buf[64];
 	char *ufsaddr, init[64], kbdfs[64], **dp;
 	static char *bootdevs[] = {"#¤", "#¶", "#P", "#S", "#f", "#æ", "#t", "#b", "#m", nil};
 	Waitmsg *w;
@@ -75,6 +74,15 @@ main(int argc, char *argv[])
 	/* bootrc: for(i in ¤ ¶ P S f æ t b m) bind -qa '#'^$i /dev */
 	for(dp = bootdevs; *dp != nil; dp++)
 		bind(*dp, "/dev", MAFTER);
+
+	/* bootrc: cat '#r/rtc' >/dev/time (usually better than 1970) */
+	if((rtc = open("#r/rtc", OREAD)) >= 0){
+		if((n = read(rtc, buf, sizeof buf - 1)) > 0 && (tfd = open("/dev/time", OWRITE)) >= 0){
+			write(tfd, buf, n);
+			close(tfd);
+		}
+		close(rtc);
+	}
 
 	must(bind("#I0", "/net", MREPL), "bind #I0");
 	must(bind("#l0", "/net", MAFTER), "bind #l0");
@@ -129,6 +137,9 @@ main(int argc, char *argv[])
 
 	/* bootrc: exec $init */
 	snprint(init, sizeof init, "/%s/init", getenv("cputype"));
-	execl(init, "init", "-t", "-m", nil);
+	if(strcmp(getenv("service"), "cpu") == 0)
+		execl(init, "init", "-c", nil);
+	else
+		execl(init, "init", "-t", nil);
 	sysfatal("exec %s: %r", init);
 }
