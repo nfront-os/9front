@@ -44,8 +44,9 @@ testfmt(void)
 {
 	char buf[128];
 
-	snprint(buf, sizeof buf, "%d %ud %x %lld %llux", -5, 4000000000U, 0xdeadbeef, -1234567890123LL, 0xfedcba9876543210ULL);
-	check("fmt integers", strcmp(buf, "-5 4000000000 deadbeef -1234567890123 fedcba9876543210") == 0, "%s", buf);
+	snprint(buf, sizeof buf, "%d %ud %ux %x %lld %llux", -5, 4000000000U, 0xdeadbeef, -1, -1234567890123LL, 0xfedcba9876543210ULL);
+	/* print(2): without u the integer verbs, x included, are signed */
+	check("fmt integers", strcmp(buf, "-5 4000000000 deadbeef -1 -1234567890123 fedcba9876543210") == 0, "%s", buf);
 	snprint(buf, sizeof buf, "%ld %lud %lux", (long)-7, (ulong)0xffffffff, (ulong)0x80000000);
 	check("fmt long/ulong", strcmp(buf, "-7 4294967295 80000000") == 0, "%s", buf);
 	snprint(buf, sizeof buf, "%5.2f|%g|%e", 3.14159, 0.5, 12345.0);

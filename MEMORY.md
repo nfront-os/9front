@@ -550,3 +550,20 @@ Grund: `scripts/netmount.c` (aktuelle Version, 14:33) macht NICHT mehr "mount at
 - `tests/static`: neue Prüfung, dass gegenüber `front` nur `T**`- oder kommentierte `GCC port`-Casts hinzukommen und `mouse.h` `Mouse` einbettet.
 
 **Ergebnis:** alle Bibliotheken, Kommandos und der Kernel bauen; static/asm/syscall/build grün; guest/boot nur noch mit den bekannten Fehlern aus Teil 18 (long-Typmodell: `%d` negativ, `ps`/`psu`; NTP ohne DNS).
+
+## 2026-10-07 (Teil 20): long-Typmodell — Entscheidung "einzeln reparieren"
+
+**Entscheidung (User):** `long` bleibt gcc-64-Bit, Stellen mit 32-Bit-long-Annahme werden einzeln repariert (kein globales `#define long int`, kein Harvey-artiger Typ-Rewrite). Korrekturtyp für kencc-`long`: `s32int` (amd64/include/u.h).
+
+**Behoben:**
+- `libc/fmt/dofmt.c`: Vorzeichenprüfung `(long)u < 0` mit 32-Bit-`u` war unter gcc nie wahr → `print("%d", -5)` gab `4294967291`. Jetzt `(s32int)u`. Wirkt auch im Kernel (klibc).
+- `9/port/fault.c` `okaddr()`: `(long)len >= 0` war immer wahr → Längen ≥2^31 (negative Benutzerwerte) wurden nicht verworfen. Jetzt `(s32int)len`.
+- `~0UL`-Vergleiche auch im Userspace (`scripts/port/fixulongmax.py`): `cmd/ip/ipconfig/ipv6.c` (gebaut), `libhttpd/parse.c`, `libmach/7db.c`, `cmd/ip/ppp/unthwack.c`, `cmd/git/util.c`, `cmd/upas/imap4d/{nodes,msg}.c`. `tests/static` prüft jetzt Kernel, Bibliotheken und Kommandos.
+- Suche nach weiteren `(long)x < 0`/`>= 0`-Prüfungen: übrige Treffer nur in nicht gebauten Programmen (cc, gs, cdfs, 5e, troff).
+
+**Keine long-Fehler (Fehldiagnosen):**
+- `%x` mit `0xdeadbeef` → `-21524111` ist korrektes 9front-Verhalten (print(2): ohne `u` vorzeichenbehaftet); Testerwartung korrigiert.
+- `threadtest` hing: Fehler im Test (`recvul(c) != ~0UL`, 32-bit ulong gegen 64-bit `~0UL`), libthread ist korrekt.
+- `ps`/`psu`: Hostowner (`eve`) ist leer, weil `factotum` fehlt → leere Benutzerspalte in `/proc/n/status`, `ps` verwirft die Zeile (tokenize < 12 Felder). Gehört zur factotum-Portierung.
+
+**Teststand:** static 10/10, asm 2/2, syscall 5/5, build 4/4, guest 43/43, boot 7/9 (ps/psu: factotum fehlt; timesync: netmount trägt keinen DNS-Server ein).

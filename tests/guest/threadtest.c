@@ -40,7 +40,7 @@ pinger(void *v)
 
 	for(i = 0; i < 1000; i++)
 		sendul(c, i);
-	sendul(c, ~0UL);
+	sendul(c, ~(ulong)0);
 }
 
 static long locals;
@@ -72,7 +72,7 @@ threadmain(int, char**)
 	c = chancreate(sizeof(ulong), 16);
 	proccreate(pinger, c, 8192);
 	sum = 0;
-	for(n = 0; (i = recvul(c)) != ~0UL; n++)
+	for(n = 0; (i = recvul(c)) != ~(ulong)0; n++)
 		sum += i;
 	check("proccreate + buffered channel across procs", n == 1000 && sum == 499500);
 
