@@ -27,7 +27,7 @@ _reqqueueproc(void *v)
 			write(fd, "nointerrupt", 11);
 		q->cur = nil;
 		while(q->next == q)
-			rsleep(q);
+			rsleep(&q->Rendez);
 		r = (Req*)(((char*)q->next) - ((char*)&((Req*)0)->qu));
 		r->qu.next->prev = r->qu.prev;
 		r->qu.prev->next = r->qu.next;
@@ -54,7 +54,7 @@ reqqueuecreate(void)
 
 	q = emalloc9p(sizeof(*q));
 	memset(q, 0, sizeof(*q));
-	q->l = q;
+	q->Rendez.l = q;
 	q->next = q->prev = q;
 	q->pid = proccreate(_reqqueueproc, q, mainstacksize);
 	return q;
@@ -69,7 +69,7 @@ reqqueuepush(Reqqueue *q, Req *r, void (*f)(Req *))
 	r->qu.prev = q->prev;
 	q->prev->next = &r->qu;
 	q->prev = &r->qu;
-	rwakeup(q);
+	rwakeup(&q->Rendez);
 	qunlock(q);
 }
 

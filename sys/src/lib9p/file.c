@@ -139,20 +139,20 @@ removefile(File *f)
 		return -1;
 	}
 
-	wlock(f);
-	wlock(fp);
+	wlock(&f->RWLock);
+	wlock(&fp->RWLock);
 	if(f->nchild != 0){
 		werrstr("has children");
-		wunlock(fp);
-		wunlock(f);
+		wunlock(&fp->RWLock);
+		wunlock(&f->RWLock);
 		closefile(f);
 		return -1;
 	}
 
 	if(f->parent != fp){
 		werrstr("parent changed underfoot");
-		wunlock(fp);
-		wunlock(f);
+		wunlock(&fp->RWLock);
+		wunlock(&f->RWLock);
 		closefile(f);
 		return -1;
 	}
@@ -166,10 +166,10 @@ removefile(File *f)
 	fp->nchild--;
 	fp->nxchild++;
 	f->parent = nil;
-	wunlock(f);
+	wunlock(&f->RWLock);
 
 	cleanfilelist(fp);
-	wunlock(fp);
+	wunlock(&fp->RWLock);
 
 	closefile(fp);	/* reference from child */
 	closefile(f);	/* reference from tree */
@@ -189,9 +189,9 @@ createfile(File *fp, char *name, char *uid, ulong perm, void *aux)
 		return nil;
 	}
 
-	wlock(fp);
+	wlock(&fp->RWLock);
 	if(fp->parent == nil){
-		wunlock(fp);
+		wunlock(&fp->RWLock);
 		werrstr("create in deleted directory");
 		return nil;
 	}
@@ -206,7 +206,7 @@ createfile(File *fp, char *name, char *uid, ulong perm, void *aux)
 	 */
 	for(l=&fp->filelist; fl=*l; l=&fl->link){
 		if(fl->f && strcmp(fl->f->name, name) == 0){
-			wunlock(fp);
+			wunlock(&fp->RWLock);
 			werrstr("file already exists");
 			return nil;
 		}
@@ -244,7 +244,7 @@ createfile(File *fp, char *name, char *uid, ulong perm, void *aux)
 	incref(f);	/* for the tree */
 	fl->f = f;
 	fp->nchild++;
-	wunlock(fp);
+	wunlock(&fp->RWLock);
 
 	return f;
 }
@@ -255,12 +255,12 @@ walkfile1(File *dir, char *elem)
 	File *fp;
 	Filelist *fl;
 
-	rlock(dir);
+	rlock(&dir->RWLock);
 	if(strcmp(elem, "..") == 0){
 		fp = dir->parent;
 		if(fp != nil)
 			incref(fp);
-		runlock(dir);
+		runlock(&dir->RWLock);
 		closefile(dir);
 		return fp;
 	}
@@ -273,7 +273,7 @@ walkfile1(File *dir, char *elem)
 			break;
 		}
 
-	runlock(dir);
+	runlock(&dir->RWLock);
 	closefile(dir);
 	return fp;
 }
@@ -373,9 +373,9 @@ opendirfile(File *dir)
 {
 	Readdir *r;
 
-	rlock(dir);
+	rlock(&dir->RWLock);
 	if((dir->mode & DMDIR)==0){
-		runlock(dir);
+		runlock(&dir->RWLock);
 		return nil;
 	}
 	r = emalloc9p(sizeof(*r));
@@ -389,7 +389,7 @@ opendirfile(File *dir)
 	r->fl = dir->filelist;
 	r->dir = dir;
 	incref(&dir->readers);
-	runlock(dir);
+	runlock(&dir->RWLock);
 	return r;
 }
 
@@ -417,9 +417,9 @@ void
 closedirfile(Readdir *r)
 {
 	if(decref(&r->dir->readers) == 0){
-		wlock(r->dir);
+		wlock(&r->dir->RWLock);
 		cleanfilelist(r->dir);
-		wunlock(r->dir);
+		wunlock(&r->dir->RWLock);
 	}
 	free(r);
 }

@@ -136,7 +136,7 @@ alt(Alt *alts)
 				continue;
 			else if(isopenfor(xa->c, xa->op)){
 				waiting = 1;
-				enqueue(xa, &c);
+				enqueue(xa, (Channel**)&c);	/* GCC port: 8c converts the Channel** implicitly */
 			} else if(xa->err != errcl)
 				ca = xa;
 			else

@@ -376,12 +376,12 @@ dirwritable(Fid *fid)
 
 	f = fid->file;
 	if(f){
-		rlock(f);
+		rlock(&f->RWLock);
 		if(f->parent && !hasperm(f->parent, fid->uid, AWRITE)){
-			runlock(f);
+			runlock(&f->RWLock);
 			return 0;
 		}
-		runlock(f);
+		runlock(&f->RWLock);
 	}
 	return 1;
 }

@@ -1,0 +1,18 @@
+[
+	{
+		"Name": "Libauth",
+		"Include": [
+			"../lib.json"
+		],
+		"Install": "/$ARCH/lib/",
+		"Library": "libauth.a",
+		"SourceFiles": [
+		  "amount.c",
+			"newns.c",
+			"auth_rpc.c",
+			"auth_proxy.c",
+			"amount_getkey.c",
+			"auth_getkey.c"
+		]
+	}
+]

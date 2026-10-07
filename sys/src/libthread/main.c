@@ -24,7 +24,7 @@ main(int argc, char **argv)
 	rfork(RFREND);
 
 //_threaddebuglevel = (DBGSCHED|DBGCHAN|DBGREND)^~0;
-	_threadprocp = privalloc();
+	_threadprocp = (Proc**)privalloc();	/* GCC port: void** -> Proc** */
 	_qlockinit(_threadrendezvous);
 	_sysfatal = _threadsysfatal;
 	__assert = _threadassert;

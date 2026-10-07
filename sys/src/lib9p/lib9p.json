@@ -1,0 +1,35 @@
+[
+	{
+		"Name": "Lib9p",
+		"Include": [
+			"../lib.json"
+		],
+		"Install": "/$ARCH/lib/",
+		"Library": "lib9p.a",
+		"SourceFiles": [
+			"auth.c",
+			"dirread.c",
+			"fid.c",
+			"file.c",
+			"intmap.c",
+			"mem.c",
+			"req.c",
+			"parse.c",
+			"queue.c",
+			"uid.c",
+			"util.c",
+			"srv.c",
+			"post.c",
+			"mount.c",
+			"share.c",
+			"listen.c",
+			"rfork.c",
+			"thread.c",
+			"threadsrv.c",
+			"threadpostsrv.c",
+			"threadpostmountsrv.c",
+			"threadpostsharesrv.c",
+			"threadlistensrv.c"
+		]
+	}
+]

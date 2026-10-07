@@ -42,7 +42,7 @@ struct Queueelem
 struct Reqqueue
 {
 	QLock;
-	Rendez;
+	Rendez Rendez;	/* GCC port: named, Rendez's head/tail clash with QLock's under -fplan9-extensions */
 	Queueelem;
 	int pid, flush;
 	Req *cur;
@@ -136,7 +136,7 @@ struct File {
 	void *aux;
 
 /* below is implementation-specific; don't use */
-	RWLock;
+	RWLock RWLock;	/* GCC port: named, RWLock's readers clashes with the Ref readers below under -fplan9-extensions */
 	Filelist *filelist;
 	Tree *tree;
 	int nchild;
