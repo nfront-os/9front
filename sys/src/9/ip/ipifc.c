@@ -1348,7 +1348,7 @@ findprimaryipv6(Fs *f, uchar *local)
 		for(lifc = ifc->lifc; lifc != nil; lifc = lifc->next){
 			atypel = v6addrtype(lifc->local);
 			if(atypel > atype)
-			if(lifc->preflt == ~0UL || lifc->preflt >= now-lifc->origint) {
+			if(lifc->preflt == (ulong)~0UL || lifc->preflt >= now-lifc->origint) {	/* GCC port: ~0UL is 64-bit, ulong is 32-bit */
 				ipmove(local, lifc->local);
 				atype = atypel;
 				if(atype == globalv6){
@@ -1453,7 +1453,7 @@ ipv6local(Ipifc *ifc, uchar *local, int prefixlen, uchar *remote)
 			continue;
 
 		a.atype = v6addrtype(lifc->local);
-		a.deprecated = lifc->preflt != ~0UL && lifc->preflt < now-lifc->origint;
+		a.deprecated = lifc->preflt != (ulong)~0UL && lifc->preflt < now-lifc->origint;	/* GCC port: ~0UL is 64-bit, ulong is 32-bit */
 		a.comprefixlen = comprefixlen(lifc->local, remote, IPaddrlen);
 
 		/* prefer appropriate scope */
@@ -1818,7 +1818,7 @@ ipifcdel6(Ipifc *ifc, char**, int argc)
 	now = NOW/1000;
 	for(l = &ifc->lifc; (lifc = *l) != nil;) {
 		if((lifc->type & Rv4) == 0)
-		if(lifc->validlt != ~0UL && lifc->validlt < now-lifc->origint)
+		if(lifc->validlt != (ulong)~0UL && lifc->validlt < now-lifc->origint)	/* GCC port: ~0UL is 64-bit, ulong is 32-bit */
 			if(ipifcdellifc(ifc, l) == nil)
 				continue;
 		l = &lifc->next;

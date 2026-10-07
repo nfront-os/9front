@@ -1594,7 +1594,7 @@ sdwstat(Chan* c, uchar* dp, int n)
 	/* committed */
 	if(!emptystr(d[0].uid))
 		kstrdup(&perm->user, d[0].uid);
-	if(d[0].mode != ~0UL)
+	if(d[0].mode != (ulong)~0UL)	/* GCC port: ~0UL is 64-bit, ulong is 32-bit */
 		perm->perm = (perm->perm & ~0777) | (d[0].mode & 0777);
 	qunlock(&unit->ctl);
 	if(sdev != nil)

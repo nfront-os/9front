@@ -396,7 +396,7 @@ netifwstat(Netif *nif, Chan *c, uchar *db, int n)
 		strncpy(f->owner, dir[0].uid, KNAMELEN-1);
 		f->owner[KNAMELEN-1] = 0;
 	}
-	if(dir[0].mode != ~0UL)
+	if(dir[0].mode != (ulong)~0UL)	/* GCC port: ~0UL is 64-bit, ulong is 32-bit */
 		f->mode = dir[0].mode;
 	qunlock(&nif->QLock);
 	free(dir);

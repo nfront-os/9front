@@ -574,7 +574,7 @@ ipwstat(Chan *c, uchar *dp, int n)
 			error(Eperm);
 		kstrdup(&cv->owner, dir->uid);
 	}
-	if(dir->mode != ~0UL)
+	if(dir->mode != (ulong)~0UL)	/* GCC port: ~0UL is 64-bit, ulong is 32-bit */
 		cv->perm = dir->mode & 0666;
 	qunlock(&cv->QLock);
 	poperror();

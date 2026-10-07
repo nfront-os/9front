@@ -421,7 +421,7 @@ segmentwstat(Chan *c, uchar *dp, int n)
 		error(Eshortstat);
 	if(!emptystr(d->uid))
 		kstrdup(&g->uid, d->uid);
-	if(d->mode != ~0UL)
+	if(d->mode != (ulong)~0UL)	/* GCC port: ~0UL is 64-bit, ulong is 32-bit */
 		g->perm = d->mode&0777;
 	free(d);
 	poperror();

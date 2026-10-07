@@ -61,12 +61,12 @@ lookup(Link *l, char *name, ulong qidpath)
 {
 	Link *lp;
 
-	if(qidpath != ~0UL){
+	if(qidpath != (ulong)~0UL){	/* GCC port: ~0UL is 64-bit, ulong is 32-bit */
 		assert(SRVTYPE(qidpath) == Qsrv);
 		qidpath = SRVPATH(qidpath);
 	}
 	for(lp = l; lp != nil; lp = lp->link){
-		if(qidpath != ~0UL && lp->path == qidpath)
+		if(qidpath != (ulong)~0UL && lp->path == qidpath)	/* GCC port: ~0UL is 64-bit, ulong is 32-bit */
 			return lp;
 		if(name != nil && strcmp(lp->name, name) == 0)
 			return lp;
@@ -80,13 +80,13 @@ remove(Link **l, char *name, ulong qidpath)
 	Link *lp;
 	Link **last;
 
-	if(qidpath != ~0UL){
+	if(qidpath != (ulong)~0UL){	/* GCC port: ~0UL is 64-bit, ulong is 32-bit */
 		assert(SRVTYPE(qidpath) == Qsrv);
 		qidpath = SRVPATH(qidpath);
 	}
 	last = l;
 	for(lp = *l; lp != nil; lp = lp->link){
-		if(qidpath != ~0UL && lp->path == qidpath)
+		if(qidpath != (ulong)~0UL && lp->path == qidpath)	/* GCC port: ~0UL is 64-bit, ulong is 32-bit */
 			break;
 		if(name != nil && strcmp(lp->name, name) == 0)
 			break;
@@ -521,7 +521,7 @@ srvwstat(Chan *c, uchar *dp, int n)
 	}
 	if(d.uid != nil && *d.uid)
 		kstrdup(&lp->owner, d.uid);
-	if(d.mode != ~0UL)
+	if(d.mode != (ulong)~0UL)	/* GCC port: ~0UL is 64-bit, ulong is 32-bit */
 		lp->perm = d.mode & 0777;
 
 	wunlock(&srvlk);

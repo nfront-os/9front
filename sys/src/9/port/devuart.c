@@ -623,7 +623,7 @@ uartwstat(Chan *c, uchar *dp, int n)
 	n = convM2D(dp, n, &d, nil);
 	if(n == 0)
 		error(Eshortstat);
-	if(d.mode != ~0UL)
+	if(d.mode != (ulong)~0UL)	/* GCC port: ~0UL is 64-bit, ulong is 32-bit */
 		dt[0].perm = dt[1].perm = d.mode;
 	return n;
 }

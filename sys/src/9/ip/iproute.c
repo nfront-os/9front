@@ -844,7 +844,7 @@ again:
 			/* calculate local prefix length for source specific routes */
 			for(h = 0; h < IPllen; h++){
 				hnputl(src+4*h, p->v6.source[h]);
-				if((x = ~(p->v6.endsource[h] ^ p->v6.source[h])) != ~0UL){
+				if((x = ~(p->v6.endsource[h] ^ p->v6.source[h])) != (ulong)~0UL){	/* GCC port: ~0UL is 64-bit, ulong is 32-bit */
 					for(; x & 0x80000000UL; x <<= 1)
 						splen++;
 					break;

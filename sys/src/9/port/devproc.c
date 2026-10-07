@@ -555,7 +555,7 @@ procwstat(Chan *c, uchar *db, int n)
 		kstrdup(&p->user, d->uid);
 	}
 	/* p->procmode determines default mode for files in /proc */
-	if(d->mode != ~0UL)
+	if(d->mode != (ulong)~0UL)	/* GCC port: ~0UL is 64-bit, ulong is 32-bit */
 		p->procmode = d->mode&0777;
 
 	qunlock(&p->debug);

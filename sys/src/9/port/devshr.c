@@ -673,7 +673,7 @@ shrwstat(Chan *c, uchar *dp, int n)
 	}
 	if(d.uid != nil && *d.uid)
 		kstrdup(&ent->owner, d.uid);
-	if(d.mode != ~0UL)
+	if(d.mode != (ulong)~0UL)	/* GCC port: ~0UL is 64-bit, ulong is 32-bit */
 		ent->perm = d.mode & 0777;
 
 	switch(sch->level){
