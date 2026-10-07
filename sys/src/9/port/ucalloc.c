@@ -30,7 +30,7 @@ ucpoolpanic(Pool* p, char* fmt, ...)
 	vseprint(pv->cur, &pv->msg[sizeof pv->msg], fmt, v);
 	va_end(v);
 	memmove(msg, pv->msg, sizeof msg);
-	iunlock((Lock*)pv);
+	iunlock(pv);
 	panic("%s", msg);
 }
 
@@ -54,13 +54,13 @@ ucpoolunlock(Pool* p)
 
 	pv = p->private;
 	if(pv->cur == pv->msg){
-		iunlock((Lock*)pv);
+		iunlock(pv);
 		return;
 	}
 
 	memmove(msg, pv->msg, sizeof msg);
 	pv->cur = pv->msg;
-	iunlock((Lock*)pv);
+	iunlock(pv);
 
 	iprint("%.*s", sizeof pv->msg, msg);
 }
@@ -71,7 +71,7 @@ ucpoollock(Pool* p)
 	Private *pv;
 
 	pv = p->private;
-	ilock((Lock*)pv);
+	ilock(pv);
 	pv->cur = pv->msg;
 }
 

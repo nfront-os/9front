@@ -136,10 +136,10 @@ loopbackattach(char *spec)
 	}
 
 	lb = &loopbacks[dev];
-	qlock((QLock*)lb);
+	qlock(lb);
 	if(waserror()){
 		lb->ref--;
-		qunlock((QLock*)lb);
+		qunlock(lb);
 		nexterror();
 	}
 
@@ -169,7 +169,7 @@ loopbackattach(char *spec)
 		}
 	}
 	poperror();
-	qunlock((QLock*)lb);
+	qunlock(lb);
 
 	poperror();
 
@@ -253,11 +253,11 @@ loopbackwalk(Chan *c, Chan *nc, char **name, int nname)
 	wq = devwalk(c, nc, name, nname, nil, 0, loopbackgen);
 	if(wq != nil && wq->clone != nil && wq->clone != c){
 		lb = c->aux;
-		qlock((QLock*)lb);
+		qlock(lb);
 		lb->ref++;
 		if((c->flag & COPEN) && TYPE(c->qid.path) == Qdata)
 			lb->link[ID(c->qid.path)].ref++;
-		qunlock((QLock*)lb);
+		qunlock(lb);
 	}
 	return wq;
 }
@@ -286,15 +286,15 @@ loopbackopen(Chan *c, int omode)
 	}
 
 	lb = c->aux;
-	qlock((QLock*)lb);
+	qlock(lb);
 	if(TYPE(c->qid.path) == Qdata){
 		if(lb->link[ID(c->qid.path)].ref){
-			qunlock((QLock*)lb);
+			qunlock(lb);
 			error(Einuse);
 		}
 		lb->link[ID(c->qid.path)].ref++;
 	}
-	qunlock((QLock*)lb);
+	qunlock(lb);
 
 	c->mode = openmode(omode);
 	c->flag |= COPEN;
@@ -311,7 +311,7 @@ loopbackclose(Chan *c)
 
 	lb = c->aux;
 
-	qlock((QLock*)lb);
+	qlock(lb);
 
 	/*
 	 * closing either side hangs up the stream
@@ -340,7 +340,7 @@ loopbackclose(Chan *c)
 	ref = --lb->ref;
 	if(ref == 0)
 		freelb(lb);
-	qunlock((QLock*)lb);
+	qunlock(lb);
 }
 
 static void
@@ -362,7 +362,7 @@ closelink(Link *link, int dofree)
 	Queue *iq, *oq;
 	Block *bp;
 
-	ilock((Lock*)link);
+	ilock(link);
 	iq = link->iq;
 	oq = link->oq;
 	bp = link->tq;
@@ -371,23 +371,23 @@ closelink(Link *link, int dofree)
 	link->tout = 0;
 	link->tin = 0;
 	timerdel(&link->ci);
-	iunlock((Lock*)link);
+	iunlock(link);
 	if(iq != nil){
 		qclose(iq);
 		if(dofree){
-			ilock((Lock*)link);
+			ilock(link);
 			free(iq);
 			link->iq = nil;
-			iunlock((Lock*)link);
+			iunlock(link);
 		}
 	}
 	if(oq != nil){
 		qclose(oq);
 		if(dofree){
-			ilock((Lock*)link);
+			ilock(link);
 			free(oq);
 			link->oq = nil;
-			iunlock((Lock*)link);
+			iunlock(link);
 		}
 	}
 	freeblist(bp);
@@ -501,40 +501,40 @@ loopbackwrite(Chan *c, void *va, long n, vlong off)
 			 * to run pushlink; perhaps this should be accounted.
 			 */
 
-		ilock((Lock*)link);
+		ilock(link);
 			link->delay0ns = d0ns;
 			link->delaynns = dnns;
-		iunlock((Lock*)link);
+		iunlock(link);
 		}else if(strcmp(cb->f[0], "indrop") == 0){
 			if(cb->nf != 2)
 				error("usage: indrop [01]");
-		ilock((Lock*)link);
+		ilock(link);
 			link->indrop = strtol(cb->f[1], nil, 0) != 0;
-		iunlock((Lock*)link);
+		iunlock(link);
 		}else if(strcmp(cb->f[0], "droprate") == 0){
 			if(cb->nf != 2)
 				error("usage: droprate ofn");
-		ilock((Lock*)link);
+		ilock(link);
 			link->droprate = strtol(cb->f[1], nil, 0);
-		iunlock((Lock*)link);
+		iunlock(link);
 		}else if(strcmp(cb->f[0], "limit") == 0){
 			if(cb->nf != 2)
 				error("usage: limit maxqsize");
-		ilock((Lock*)link);
+		ilock(link);
 			link->limit = strtol(cb->f[1], nil, 0);
 			qsetlimit(link->oq, link->limit);
 			qsetlimit(link->iq, link->limit);
-		iunlock((Lock*)link);
+		iunlock(link);
 		}else if(strcmp(cb->f[0], "reset") == 0){
 			if(cb->nf != 1)
 				error("usage: reset");
-		ilock((Lock*)link);
+		ilock(link);
 			link->packets = 0;
 			link->bytes = 0;
 			link->indrop = 0;
 			link->soverflows = 0;
 			link->drops = 0;
-		iunlock((Lock*)link);
+		iunlock(link);
 		}else
 			error("unknown control request");
 		poperror();
@@ -601,9 +601,9 @@ pushlink(Link *link, vlong now)
 	/*
 	 * put another block in the link queue
 	 */
-ilock((Lock*)link);
+ilock(link);
 	if(link->iq == nil || link->oq == nil){
-	iunlock((Lock*)link);
+	iunlock(link);
 		return;
 
 	}
@@ -686,7 +686,7 @@ ilock((Lock*)link);
 			panic("loopback unfinished business");
 		timeradd(&link->ci);
 	}
-iunlock((Lock*)link);
+iunlock(link);
 }
 
 static void

@@ -90,7 +90,7 @@ remove(Link **l, char *name, ulong qidpath)
 			break;
 		if(name != nil && strcmp(lp->name, name) == 0)
 			break;
-		last = (Link**)&lp->link;
+		last = (Link**)&lp->link;	/* GCC port: 8c converts void** implicitly */
 	}
 	if(lp == nil)
 		return nil;

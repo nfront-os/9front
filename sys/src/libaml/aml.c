@@ -271,7 +271,7 @@ gc(void)
 					print("\namlunmapio(%N): %-8s %llux - %llux\n", 
 						(Name*)r->name, spacename[r->space],
 						r->off, r->off + r->len);
-				amlunmapio((Amlio*)r);
+				amlunmapio(r);
 			}
 			r->mapped = 0;
 			r->write = nil;
@@ -533,7 +533,7 @@ rwreg(void *reg, int off, int len, uvlong v, int write)
 					(Name*)r->name, spacename[r->space],
 					r->off, r->off + r->len);
 			r->mapped = 1;
-			if(amlmapio((Amlio*)r) < 0)
+			if(amlmapio(r) < 0)
 				r->mapped = -1;
 		}
 		if(r->mapped <= 0)
@@ -554,13 +554,13 @@ rwreg(void *reg, int off, int len, uvlong v, int write)
 					r->off, off, len, v);
 			putle(p, len, v);
 			if(r->write != nil){
-				if((*r->write)((Amlio*)r, p, len, off) != len)
+				if((*r->write)(r, p, len, off) != len)
 					break;
 			} else if(p == buf)
 				break;
 		} else {
 			if(r->read != nil){
-				if((*r->read)((Amlio*)r, p, len, off) != len)
+				if((*r->read)(r, p, len, off) != len)
 					break;
 			} else if(p == buf)
 				break;

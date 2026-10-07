@@ -77,9 +77,8 @@ struct Btail {
 #define B2PT(b) ((Btail*)((uchar*)(b)-sizeof(Btail)))
 #define T2HDR(t) ((Bhdr*)((uchar*)(t)+sizeof(Btail)-(t)->size))
 struct Free {
- 			ulong	magic;
- 			ulong	size;
- 	Free*	left;
+			Bhdr;
+	Free*	left;
 	Free*	right;
 	Free*	next;
 	Free*	prev;
@@ -92,26 +91,24 @@ enum {
  * the point of the notused fields is to make 8c differentiate
  * between Bhdr and Allocblk, and between Kempt and Unkempt.
  */
- struct Alloc {
- 			ulong	magic;
- 			ulong	size;
- };
+struct Alloc {
+			Bhdr;
+};
 enum {
 	ALLOC_MAGIC = 0x0A110C09,
-	UNALLOC_MAGIC = 0xCAB00D1F,
+	UNALLOC_MAGIC = 0xCAB00D1E + 1,	/* GCC port: 0xCAB00D1E+1 lexes as one pp-number (E+ exponent) */
 };
 
 struct Arena {
- 			ulong	magic;
- 			ulong	size;
- 	Arena*	aup;
+			Bhdr;
+	Arena*	aup;
 	Arena*	down;
 	ulong	asize;
 	ulong	pad;	/* to a multiple of 8 bytes */
 };
 enum {
-	ARENA_MAGIC = 0xC0A1E5CF,
-	ARENATAIL_MAGIC = 0xEC5E1A0D,
+	ARENA_MAGIC = 0xC0A1E5CE + 1,	/* GCC port: see UNALLOC_MAGIC */
+	ARENATAIL_MAGIC = 0xEC5E1A0C+1,
 };
 #define A2TB(a)	((Bhdr*)((uchar*)(a)+(a)->asize-sizeof(Bhdr)))
 #define A2B(a)	B2NB(a)
@@ -499,7 +496,7 @@ trim(Pool *p, Alloc *b, ulong dsize)
 	extra = b->size - bsize;
 	if(b->size - dsize >= 0x10000 ||
 	  (extra >= bsize>>2 && extra >= MINBLOCKSIZE && extra >= p->minblock)) {
-		blocksetsize((Bhdr*)b, bsize);
+		blocksetsize(b, bsize);
 		frag = (Alloc*) B2NB(b);
 
 		antagonism {
@@ -507,7 +504,7 @@ trim(Pool *p, Alloc *b, ulong dsize)
 		}
 
 		frag->magic = UNALLOC_MAGIC;
-		blocksetsize((Bhdr*)frag, extra);
+		blocksetsize(frag, extra);
 		pooladd(p, frag);
 	}
 
@@ -525,9 +522,9 @@ freefromfront(Pool *p, Alloc *b, ulong skip)
 	if(skip >= 0x1000 || (skip >= b->size>>2 && skip >= MINBLOCKSIZE && skip >= p->minblock)){
 		bb = (Alloc*)((uchar*)b+skip);
 		bb->magic = UNALLOC_MAGIC;
-		blocksetsize((Bhdr*)bb, b->size-skip);
+		blocksetsize(bb, b->size-skip);
 		b->magic = UNALLOC_MAGIC;
-		blocksetsize((Bhdr*)b, skip);
+		blocksetsize(b, skip);
 		pooladd(p, b);
 		return bb;
 	}
@@ -577,17 +574,17 @@ poolnewarena(Pool *p, ulong asize)
 
 	/* arena hdr */
 	a->magic = ARENA_MAGIC;
-	blocksetsize((Bhdr*)a, sizeof(Arena));
+	blocksetsize(a, sizeof(Arena));
 	arenasetsize(a, asize);
-	blockcheck(p, (Bhdr*)a);
+	blockcheck(p, a);
 
 	/* create one large block in arena */
 	b = (Alloc*)A2B(a);
 	b->magic = UNALLOC_MAGIC;
-	blocksetsize((Bhdr*)b, (uchar*)A2TB(a)-(uchar*)b);
-	blockcheck(p, (Bhdr*)b);
+	blocksetsize(b, (uchar*)A2TB(a)-(uchar*)b);
+	blockcheck(p, b);
 	pooladd(p, b);
-	blockcheck(p, (Bhdr*)b);
+	blockcheck(p, b);
 
 	/* sort arena into descending sorted arena list */
 	for(lastap=nil, ap=p->arenalist; ap > a; lastap=ap, ap=ap->down)
@@ -618,13 +615,13 @@ blockgrow(Pool *p, Bhdr *b, ulong nsize)
 		Alloc *a;
 		Bhdr *bnxt;
 		a = pooldel(p, (Free*)b);
-		blockcheck(p, (Bhdr*)a);
-		blocksetsize((Bhdr*)a, nsize);
-		blockcheck(p, (Bhdr*)a);
+		blockcheck(p, a);
+		blocksetsize(a, nsize);
+		blockcheck(p, a);
 		bnxt = B2NB(a);
 		if(bnxt->magic == FREE_MAGIC)
-			a = blockmerge(p, (Bhdr*)a, (Bhdr*)bnxt);
-		blockcheck(p, (Bhdr*)a);
+			a = blockmerge(p, a, bnxt);
+		blockcheck(p, a);
 		pooladd(p, a);
 	} else {
 		Alloc *a;
@@ -633,7 +630,7 @@ blockgrow(Pool *p, Bhdr *b, ulong nsize)
 		a = (Alloc*)b;
 		p->curalloc -= a->size;
 		dsize = getdsize(a);
-		blocksetsize((Bhdr*)a, nsize);
+		blocksetsize(a, nsize);
 		trim(p, a, dsize);
 		p->curalloc += a->size;
 	}
@@ -647,8 +644,8 @@ arenamerge(Pool *p, Arena *bot, Arena *top)
 	Btail *t;
 	ulong newsize;
 
-	blockcheck(p, (Bhdr*)bot);
-	blockcheck(p, (Bhdr*)top);
+	blockcheck(p, bot);
+	blockcheck(p, top);
 	assert(bot->aup == top && top > bot);
 
 	newsize = top->asize + ((uchar*)top - (uchar*)bot);
@@ -665,15 +662,15 @@ arenamerge(Pool *p, Arena *bot, Arena *top)
 	t = B2PT(A2TB(bot));
 	bbot = T2HDR(t);
 	btop = A2B(top);
-	blockcheck(p, (Bhdr*)bbot);
-	blockcheck(p, (Bhdr*)btop);
+	blockcheck(p, bbot);
+	blockcheck(p, btop);
 
 	/* grow bottom arena to encompass top */
 	arenasetsize(bot, newsize);
 
 	/* grow bottom block to encompass space between arenas */
 	blockgrow(p, bbot, (uchar*)btop-(uchar*)bbot);
-	blockcheck(p, (Bhdr*)bbot);
+	blockcheck(p, bbot);
 	return bot;
 }
 
@@ -982,7 +979,7 @@ poolreallocl(Pool *p, void *v, ulong ndsize)
 		return nil;
 	}
 	a = D2B(p, v);
-	blockcheck(p, (Bhdr*)a);
+	blockcheck(p, a);
 	odsize = getdsize(a);
 	obsize = a->size;
 
@@ -1002,20 +999,20 @@ poolreallocl(Pool *p, void *v, ulong ndsize)
 	/* can merge with surrounding blocks? */
 	right = B2NB(a);
 	if(right->magic == FREE_MAGIC && a->size+right->size >= nbsize) {
-		a = blockmerge(p, (Bhdr*)a, (Bhdr*)right);
+		a = blockmerge(p, a, right);
 		goto Returnblock;
 	}
 
 	t = B2PT(a);
 	left = T2HDR(t);
 	if(left->magic == FREE_MAGIC && left->size+a->size >= nbsize) {
-		a = blockmerge(p, (Bhdr*)left, (Bhdr*)a);
+		a = blockmerge(p, left, a);
 		goto Returnblock;
 	}
 
 	if(left->magic == FREE_MAGIC && right->magic == FREE_MAGIC
 	&& left->size+a->size+right->size >= nbsize) {
-		a = (Alloc*)blockmerge(p, (Bhdr*)blockmerge(p, (Bhdr*)left, (Bhdr*)a), (Bhdr*)right);
+		a = blockmerge(p, blockmerge(p, left, a), right);
 		goto Returnblock;
 	}
 
@@ -1025,12 +1022,12 @@ poolreallocl(Pool *p, void *v, ulong ndsize)
 	/* maybe the new block is next to us; if so, merge */
 	left = T2HDR(B2PT(a));
 	right = B2NB(a);
-	newb = (Bhdr*)D2B(p, nv);
+	newb = D2B(p, nv);
 	if(left == newb || right == newb) {
 		if(left == newb || left->magic == FREE_MAGIC)
-			a = blockmerge(p, (Bhdr*)left, (Bhdr*)a);
+			a = blockmerge(p, left, a);
 		if(right == newb || right->magic == FREE_MAGIC)
-			a = blockmerge(p, (Bhdr*)a, (Bhdr*)right);
+			a = blockmerge(p, a, right);
 		assert(a->size >= nbsize);
 		goto Returnblock;
 	}
@@ -1154,7 +1151,7 @@ poolfreel(Pool *p, void *v)
 		return;
 
 	ab = D2B(p, v);
-	blockcheck(p, (Bhdr*)ab);
+	blockcheck(p, ab);
 
 	if(p->flags&POOL_NOREUSE){
 		int n;
@@ -1170,11 +1167,11 @@ poolfreel(Pool *p, void *v)
 	p->curalloc -= ab->size;
 	back = T2HDR(B2PT(ab));
 	if(back->magic == FREE_MAGIC)
-		ab = blockmerge(p, (Bhdr*)back, (Bhdr*)ab);
+		ab = blockmerge(p, back, ab);
 
 	fwd = B2NB(ab);
 	if(fwd->magic == FREE_MAGIC)
-		ab = blockmerge(p, (Bhdr*)ab, (Bhdr*)fwd);
+		ab = blockmerge(p, ab, fwd);
 
 	scrub {
 		memset(_B2D(ab), 0x00, ab->size-sizeof(Bhdr)-sizeof(Btail));
@@ -1404,9 +1401,9 @@ poolcheckarena(Pool *p, Arena *a)
 	Bhdr *atail;
 
 	atail = A2TB(a);
-	for(b=(Bhdr*)a; b->magic != ARENATAIL_MAGIC && b<atail; b=B2NB(b))
-		blockcheck(p, (Bhdr*)b);
-	blockcheck(p, (Bhdr*)b);
+	for(b=a; b->magic != ARENATAIL_MAGIC && b<atail; b=B2NB(b))
+		blockcheck(p, b);
+	blockcheck(p, b);
 	if(b != atail)
 		p->panic(p, "found wrong tail");
 }
@@ -1437,7 +1434,7 @@ poolblockcheck(Pool *p, void *v)
 		return;
 
 	p->lock(p);
-	blockcheck(p, (Bhdr*)D2B(p, v));
+	blockcheck(p, D2B(p, v));
 	p->unlock(p);
 }
 
@@ -1464,7 +1461,7 @@ pooldumparena(Pool *p, Arena *a)
 {
 	Bhdr *b;
 
-	for(b=(Bhdr*)a; b->magic != ARENATAIL_MAGIC; b=B2NB(b))
+	for(b=a; b->magic != ARENATAIL_MAGIC; b=B2NB(b))
 		p->print(p, "(%p %.8lux %lud)", b, b->magic, b->size);
 	p->print(p, "\n");
 }

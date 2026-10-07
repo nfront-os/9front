@@ -310,7 +310,7 @@ mylex24rio(SDreq* r)
 	 * from the last completed Ccb, return it immediately.
 	 */
 	lock(&ctlr->cachelock);
-	if((ccb = (Ccb24*)ctlr->cache[target]) != nil){
+	if((ccb = (Ccb24*)ctlr->cache[target]) != nil){	/* GCC port: Ccb's members are named (see union Ccb); union members sit at offset 0 */
 		ctlr->cache[target] = nil;
 		if(r->cmd[0] == 0x03
 		&& ccb->sdstat == SDcheck && lun == ((ccb->cs[1]>>5) & 0x07)){
@@ -329,7 +329,7 @@ mylex24rio(SDreq* r)
 	}
 	unlock(&ctlr->cachelock);
 	if(ccb == nil)
-		ccb = (Ccb24*)ccballoc(ctlr);
+		ccb = (Ccb24*)ccballoc(ctlr);	/* GCC port: Ccb's members are named (see union Ccb); union members sit at offset 0 */
 
 	/*
 	 * Check if the transfer is to memory above the 24-bit limit the
@@ -555,7 +555,7 @@ mylex32rio(SDreq* r)
 	 * from the last completed Ccb, return it immediately.
 	 */
 	lock(&ctlr->cachelock);
-	if((ccb = (Ccb32*)ctlr->cache[target]) != nil){
+	if((ccb = (Ccb32*)ctlr->cache[target]) != nil){	/* GCC port: Ccb's members are named (see union Ccb); union members sit at offset 0 */
 		ctlr->cache[target] = nil;
 		if(r->cmd[0] == 0x03
 		&& ccb->sdstat == SDcheck && lun == (ccb->luntag & 0x07)){
@@ -573,7 +573,7 @@ mylex32rio(SDreq* r)
 	}
 	unlock(&ctlr->cachelock);
 	if(ccb == nil)
-		ccb = (Ccb32*)ccballoc(ctlr);
+		ccb = (Ccb32*)ccballoc(ctlr);	/* GCC port: Ccb's members are named (see union Ccb); union members sit at offset 0 */
 
 	/*
 	 * Fill in the ccb.

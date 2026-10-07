@@ -695,7 +695,7 @@ ipmuxclose(Conv *c)
 	c->Iphash.rport = 0;
 
 	wlock(&f->RWLock);
-	ipmuxremove((Ipmux**)&(c->p->priv), r->chain);
+	ipmuxremove((Ipmux**)&(c->p->priv), r->chain);	/* GCC port: 8c converts void** implicitly */
 	wunlock(&f->RWLock);
 	ipmuxtreefree(r->chain);
 	r->chain = nil;

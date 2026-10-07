@@ -1906,7 +1906,7 @@ xhcialloc(u32int *mmio, u64int base, u64int size)
 
 	ctlr->Xhci.dmaaddr = physaddr;
 
-	return (Xhci*)ctlr;
+	return ctlr;
 }
 
 void

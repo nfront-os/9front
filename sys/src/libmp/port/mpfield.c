@@ -17,5 +17,5 @@ mpfield(mpint *N)
 Exchange:
 	setmalloctag(f, getcallerpc(&N));
 	mpfree(N);
-	return (mpint*)f;
+	return f;
 }

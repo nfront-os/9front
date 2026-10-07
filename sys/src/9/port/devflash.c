@@ -497,9 +497,9 @@ readflash(Flash *f, void *buf, long offset, int n)
 
 	if(offset < 0 || offset+n > f->size)
 		error(Ebadarg);
-	qlock((QLock*)f);
+	qlock(f);
 	if(waserror()){
-		qunlock((QLock*)f);
+		qunlock(f);
 		nexterror();
 	}
 	if(f->read != nil){
@@ -531,7 +531,7 @@ readflash(Flash *f, void *buf, long offset, int n)
 		/* assumes hardware supports byte access */
 		memmove(buf, (uchar*)f->addr+offset, n);
 	poperror();
-	qunlock((QLock*)f);
+	qunlock(f);
 	return n;
 }
 
@@ -551,11 +551,11 @@ writeflash(Flash *f, long offset, void *buf, int n)
 		error(Eprotect);
 	width = f->width;
 	wmask = width-1;
-	qlock((QLock*)f);
+	qlock(f);
 	archflashwp(f, 0);
 	if(waserror()){
 		archflashwp(f, 1);
-		qunlock((QLock*)f);
+		qunlock(f);
 		nexterror();
 	}
 	p = buf;
@@ -591,7 +591,7 @@ writeflash(Flash *f, long offset, void *buf, int n)
 	}
 	poperror();
 	archflashwp(f, 1);
-	qunlock((QLock*)f);
+	qunlock(f);
 	return n;
 }
 
@@ -602,11 +602,11 @@ eraseflash(Flash *f, Flashregion *r, ulong addr)
 
 	if(f->protect && r != nil && r->start == 0 && addr < r->erasesize)
 		error(Eprotect);
-	qlock((QLock*)f);
+	qlock(f);
 	archflashwp(f, 0);
 	if(waserror()){
 		archflashwp(f, 1);
-		qunlock((QLock*)f);
+		qunlock(f);
 		nexterror();
 	}
 	if(r == nil){
@@ -620,7 +620,7 @@ eraseflash(Flash *f, Flashregion *r, ulong addr)
 		error(Eio);
 	poperror();
 	archflashwp(f, 1);
-	qunlock((QLock*)f);
+	qunlock(f);
 }
 
 /*

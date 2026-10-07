@@ -2005,7 +2005,7 @@ isoopen(Ctlr *ctlr, Ep *ep)
 	for(i = 0; i < iso->nframes-1; i++){	/* -1 for dummy */
 		td = tdalloc();
 		td->ep = ep;
-		td->io = (Qio*)iso;
+		td->io = iso;
 		td->bp = allocb(ep->maxpkt);
 		td->anext = iso->atds;		/* link as avail */
 		iso->atds = td;

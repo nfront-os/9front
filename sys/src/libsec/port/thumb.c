@@ -101,7 +101,7 @@ loadThumbprints(char *file, char *tag, Thumbprint *table, Thumbprint *crltab, in
 		return 0;	/* not an error */
 	if((bin = Bopen(file, OREAD|OCEXEC)) == nil)
 		return -1;
-	for(; (line = Brdstr((Biobufhdr*)bin, '\n', 1)) != nil; free(line)){
+	for(; (line = Brdstr(bin, '\n', 1)) != nil; free(line)){
 		if(tokenize(line, field, nelem(field)) < 2)
 			continue;
 		if(strcmp(field[0], "#include") == 0){
@@ -140,11 +140,11 @@ loadThumbprints(char *file, char *tag, Thumbprint *table, Thumbprint *crltab, in
 		entry->len = len;
 		memcpy(entry->hash, hash, len);
 	}
-	Bterm((Biobufhdr*)bin);
+	Bterm(bin);
 	return 0;
 err:
 	free(line);
-	Bterm((Biobufhdr*)bin);
+	Bterm(bin);
 	return -1;
 }
 

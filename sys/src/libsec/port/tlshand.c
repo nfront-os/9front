@@ -1025,7 +1025,7 @@ tlsSecECDHEc(TlsSec *sec, int curve, Bytes *Ys)
 		n = (mpsignif(dom->p)+7)/8;
 		setMasterSecret(sec, mptobytes(K.x, n));
 		Yc = newbytes(1 + 2*n);
-		Yc->len = ecencodepub(dom, (ECpub*)Q, Yc->data, Yc->len);
+		Yc->len = ecencodepub(dom, Q, Yc->data, Yc->len);
 
 		mpfree(K.x);
 		mpfree(K.y);
@@ -2594,7 +2594,7 @@ tlsSecECDHEs1(TlsSec *sec)
 		par = newbytes(1+2+1+n);
 		par->data[0] = 3;
 		put16(par->data+1, sec->nc->tlsid);
-		n = ecencodepub(dom, (ECpub*)Q, par->data+4, par->len-4);
+		n = ecencodepub(dom, Q, par->data+4, par->len-4);
 		par->data[3] = n;
 		par->len = 1+2+1+n;
 	}

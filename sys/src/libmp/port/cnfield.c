@@ -103,12 +103,12 @@ cnfield(mpint *N)
 	f->m->size = M->top;
 	f->m->p = (mpdigit*)&f[1];
 	mpassign(M, f->m);
-	mpassign(N, (mpint*)f);
+	mpassign(N, f);
 	f->reduce = cnreduce;
 	f->flags |= MPfield;
 out:
 	mpfree(M);
 	mpfree(C);
 
-	return (Mfield*)f;
+	return f;
 }

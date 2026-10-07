@@ -1368,7 +1368,7 @@ epctl(Ep *ep, Chan *c, void *a, long n)
 		 * the name for the new endpoint
 		 */
 		snprint(up->genbuf, sizeof(up->genbuf), "ep%d.%d", nep->dev->nb, nep->nb);
-		kstrdup((char**)&c->aux, up->genbuf);
+		kstrdup((char**)&c->aux, up->genbuf);	/* GCC port: 8c converts void** implicitly */
 		putep(nep);
 		break;
 	case CMdetach:

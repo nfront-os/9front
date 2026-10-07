@@ -451,5 +451,5 @@ notefpsave(Proc *p)
 		memmove(p->fpsave, p->fpsave->link, sizeof(FPsave));
 		p->fpstate = FPinactive;
 	}
-	return (FPsave*)(void*)p->fpsave->link;
+	return p->fpsave->link;
 }
