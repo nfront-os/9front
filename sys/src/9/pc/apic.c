@@ -88,7 +88,7 @@ static uchar lapictdxtab[] = {		/* LapicTDCR */
 };
 
 /* lapicbase is nil when in x2APIC mode */
-static ulong* lapicbase;
+static volatile ulong* lapicbase;	/* GCC port: volatile, see mp.h's Apic.addr comment */
 
 typedef struct Apictimer Apictimer;
 struct Apictimer
@@ -396,7 +396,7 @@ lapiceoi(int)
 void
 ioapicrdtr(Apic* apic, int sel, int* hi, int* lo)
 {
-	ulong *iowin;
+	volatile ulong *iowin;	/* GCC port: volatile, see mp.h's Apic.addr comment */
 
 	iowin = apic->addr+(0x10/sizeof(ulong));
 	sel = IoapicRDT + 2*sel;
@@ -414,7 +414,7 @@ ioapicrdtr(Apic* apic, int sel, int* hi, int* lo)
 void
 ioapicrdtw(Apic* apic, int sel, int hi, int lo)
 {
-	ulong *iowin;
+	volatile ulong *iowin;	/* GCC port: volatile, see mp.h's Apic.addr comment */
 
 	iowin = apic->addr+(0x10/sizeof(ulong));
 	sel = IoapicRDT + 2*sel;
@@ -431,7 +431,7 @@ void
 ioapicinit(Apic* apic)
 {
 	int hi, lo, v;
-	ulong *iowin;
+	volatile ulong *iowin;	/* GCC port: volatile, see mp.h's Apic.addr comment */
 
 	assert(apic->type == PcmpIOAPIC);
 

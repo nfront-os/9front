@@ -50,23 +50,37 @@ randomseed(void*)
 
 	s = secalloc(sizeof(Seedbuf));
 
-	if(hwrandbuf != nil)
+	if(hwrandbuf != nil){
+		/*
+		 * Not a GCC-port fix: a hardware RNG instruction already
+		 * gives sufficient entropy on its own, so skip the slow
+		 * scheduling-jitter collection loop below entirely instead
+		 * of still waiting for it to independently fill s->nbuf.
+		 * front's original code fills s->buf here but then always
+		 * falls through to the jitter loop regardless -- harmless
+		 * on real hardware (plenty of genuine timing jitter to
+		 * harvest quickly) but pathologically slow under emulators
+		 * with little true timing jitter (e.g. QEMU TCG), where the
+		 * loop can take minutes instead of the expected seconds.
+		 */
 		(*hwrandbuf)(s->buf, sizeof(s->buf));
-
-	/* Frequency close but not equal to HZ */
-	up->Timer.tns = (vlong)(MS2HZ+3)*1000000LL;
-	up->Timer.tmode = Tperiodic;
-	up->Timer.tt = nil;
-	up->Timer.ta = s;
-	up->Timer.tf = randomsample;
-	timeradd(&up->Timer);
-	while(s->nbuf < sizeof(s->buf)){
-		if(++s->randomcount <= 100000)
-			continue;
-		if(anyhigher())
-			sched();
+		s->nbuf = sizeof(s->buf);
+	} else {
+		/* Frequency close but not equal to HZ */
+		up->Timer.tns = (vlong)(MS2HZ+3)*1000000LL;
+		up->Timer.tmode = Tperiodic;
+		up->Timer.tt = nil;
+		up->Timer.ta = s;
+		up->Timer.tf = randomsample;
+		timeradd(&up->Timer);
+		while(s->nbuf < sizeof(s->buf)){
+			if(++s->randomcount <= 100000)
+				continue;
+			if(anyhigher())
+				sched();
+		}
+		timerdel(&up->Timer);
 	}
-	timerdel(&up->Timer);
 
 	sha2_512(s->buf, sizeof(s->buf), s->buf, &s->ds);
 	setupChachastate(&rs->cs, s->buf, 32, s->buf+32, 12, 20);

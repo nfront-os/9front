@@ -77,7 +77,15 @@ typedef struct Apic {
 	int	apicno;
 	int	x2apic;			/* x2APIC UID */
 
-	ulong*	addr;			/* register base address */
+	volatile ulong*	addr;		/* register base address */
+					/* GCC port: must be volatile -- without it, gcc
+					 * strength-reduces "(*addr>>16)&0xFF"-style reads
+					 * into a single-byte load at addr+2, and can elide
+					 * or reorder repeated reads of the same window
+					 * register (e.g. ioapicrdtr's hi/lo pair). kencc
+					 * never did this, so the original source relied on
+					 * the compiler not performing the transform rather
+					 * than on an explicit volatile qualifier. */
 	uvlong	paddr;
 	int	flags;			/* PcmpBP|PcmpEN */
 

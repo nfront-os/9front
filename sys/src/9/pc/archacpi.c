@@ -287,8 +287,21 @@ pcibusno(void *dot)
 		if((p = amlval(x)) != nil)
 			id = amleisaid(p);
 	if((x = amlwalk(dot, "^_BBN")) == nil)
-		if((x = amlwalk(dot, "^_ADR")) == nil)
-			return -1;
+		x = amlwalk(dot, "^_ADR");
+	if(x == nil){
+		/* Not a GCC-port issue: front's original pcibusno() has no
+		 * fallback here and simply fails closed (return -1) whenever
+		 * a node has neither _BBN nor _ADR. Per the ACPI spec, _BBN
+		 * may be omitted on a PCI root bridge, defaulting to bus 0 --
+		 * some QEMU-generated DSDTs rely on exactly that default
+		 * instead of stating it explicitly, which left every PCI
+		 * interrupt routing (_PRT) lookup unable to resolve a bus
+		 * number and silently dropped (see mpintrassign's "can't
+		 * find bus type 12" in MEMORY.md). */
+		if(id != nil && (strcmp(id, "PNP0A03")==0 || strcmp(id, "PNP0A08")==0))
+			return 0;
+		return -1;
+	}
 	p = nil;
 	if(amleval(x, "", &p) < 0)
 		return -1;

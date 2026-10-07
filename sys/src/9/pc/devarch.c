@@ -648,7 +648,19 @@ cpuidentify(void)
 	if((m->cpuiddx & Mtrr) != 0 && getconf("*nomtrr") == nil)
 		mtrrsync();
 
-	if(strcmp(m->cpuidid, "GenuineIntel") == 0 && (m->cpuidcx & Rdrnd) != 0)
+	/*
+	 * Not a GCC-port fix: front's original code here gates RDRAND
+	 * on an exact "GenuineIntel" vendor match, even though the
+	 * CPUID feature bit itself (Rdrnd) is the vendor-neutral,
+	 * spec-defined way to detect support for the instruction --
+	 * AMD CPUs (real, since Zen/Ryzen, and several QEMU CPU models)
+	 * set this bit too. The Intel-only check silently forces every
+	 * AMD-identifying CPU onto the much slower scheduling-jitter
+	 * entropy path in sys/src/9/port/random.c's randomseed(), which
+	 * is particularly painful under QEMU TCG (little real timing
+	 * jitter to harvest).
+	 */
+	if((m->cpuidcx & Rdrnd) != 0)
 		hwrandbuf = rdrandbuf;
 	else
 		hwrandbuf = nil;
