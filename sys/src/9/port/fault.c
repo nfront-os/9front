@@ -393,7 +393,7 @@ okaddr(uintptr addr, ulong len, int write)
 {
 	Segment *s;
 
-	if((long)len >= 0 && len <= -addr) {
+	if((s32int)len >= 0 && len <= -addr) {	/* GCC port: kencc's long is 32 bits like len, gcc's is 64 */
 		for(;;) {
 			s = seg(up, addr, 0);
 			if(s == nil || (write && (s->type&SG_RONLY)))

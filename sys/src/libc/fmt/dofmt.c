@@ -381,8 +381,8 @@ _ifmt(Fmt *f)
 		if(isv && (vlong)vu < 0){
 			vu = -(vlong)vu;
 			neg = 1;
-		}else if(!isv && (long)u < 0){
-			u = -(long)u;
+		}else if(!isv && (s32int)u < 0){	/* GCC port: kencc's long is 32 bits like u, gcc's is 64 */
+			u = -(s32int)u;
 			neg = 1;
 		}
 	}
