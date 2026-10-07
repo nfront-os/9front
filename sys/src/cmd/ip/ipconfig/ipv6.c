@@ -687,8 +687,8 @@ recvrahost(uchar buf[], int pktlen, ulong now)
 	m = 0;
 	for(rr = &routelist; (r = *rr) != nil;){
 		if(m > 100
-		|| r->prefixlt != ~0UL && r->prefixlt < now-r->time
-		|| r->routerlt != ~0UL && r->routerlt < now-r->time){
+		|| r->prefixlt != (ulong)~0UL && r->prefixlt < now-r->time	/* GCC port: ~0UL is 64-bit, ulong is 32-bit */
+		|| r->routerlt != (ulong)~0UL && r->routerlt < now-r->time){	/* GCC port: ~0UL is 64-bit, ulong is 32-bit */
 			DEBUG("purging RA from %I on %s; pfx %I %M",
 				r->src, conf.dev, r->laddr, r->mask);
 			if(validip(r->gaddr)){
@@ -768,8 +768,8 @@ recvrahost(uchar buf[], int pktlen, ulong now)
 		}
 		if(r != nil){
 			/* rfc4862, section 5.5.3, e) */
-			ulong remaining = r->prefixlt != ~0UL ? r->time + r->prefixlt : ~0UL;
-			ulong signaled = conf.validlt != ~0UL ? now + conf.validlt : ~0UL;
+			ulong remaining = r->prefixlt != (ulong)~0UL ? r->time + r->prefixlt : ~0UL;	/* GCC port: ~0UL is 64-bit, ulong is 32-bit */
+			ulong signaled = conf.validlt != (ulong)~0UL ? now + conf.validlt : ~0UL;	/* GCC port: ~0UL is 64-bit, ulong is 32-bit */
 			ulong timeout = now + 2*60*60;	/* 2 horus from now */
 			if(signaled <= timeout && signaled <= remaining) {
 				if(remaining <= timeout)
@@ -994,7 +994,7 @@ renewdhcp:
 				fprint(conf.rfd, "tag ra6");
 			}
 			/* infinity */
-			if(conf.lease == ~0UL){
+			if(conf.lease == (ulong)~0UL){	/* GCC port: ~0UL is 64-bit, ulong is 32-bit */
 				if(!gotra)
 					rendezvous(recvra6, (void*)1);
 				exits(nil);

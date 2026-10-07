@@ -237,7 +237,7 @@ Qfmt(Fmt *fmt)
 	Qid q;
 
 	q = va_arg(fmt->args, Qid);
-	if(q.path == ~0ULL && q.vers == ~0UL && q.type == 0xff)
+	if(q.path == ~0ULL && q.vers == (ulong)~0UL && q.type == 0xff)	/* GCC port: ~0UL is 64-bit, ulong is 32-bit */
 		return fmtprint(fmt, "NOQID");
 	else
 		return fmtprint(fmt, "%llux.%lud.%hhx", q.path, q.vers, q.type);

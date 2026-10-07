@@ -399,7 +399,7 @@ msgbodysize(Msg *m)
 	int n, fd, c;
 	Dir *d;
 
-	if(m->lines != ~0UL)
+	if(m->lines != (ulong)~0UL)	/* GCC port: ~0UL is 64-bit, ulong is 32-bit */
 		return 1;
 	fd = msgfile(m, "rawbody");
 	if(fd < 0)

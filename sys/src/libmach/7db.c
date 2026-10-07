@@ -329,7 +329,7 @@ nones(ulong v)
 static int
 nshift(ulong m)
 {
-	if(m == 0 || m == ~0UL)
+	if(m == 0 || m == (ulong)~0UL)	/* GCC port: ~0UL is 64-bit, ulong is 32-bit */
 		return 0;
 	return nones(~m);
 }

@@ -76,7 +76,7 @@ unthwackstate(Unthwack *ut, uchar *mask)
 		if(ut->blocks[slot].maxoff == 0)
 			continue;
 		bseq = ut->blocks[slot].seq;
-		if(seq == ~0UL)
+		if(seq == (ulong)~0UL)	/* GCC port: ~0UL is 64-bit, ulong is 32-bit */
 			seq = bseq;
 		else if(seq - bseq > MaxSeqMask)
 			break;

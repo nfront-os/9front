@@ -692,7 +692,7 @@ mimecontlen(Hlex *h, char *)
 		return;
 	e = h->wordval;
 	v = digtoul(e, &e);
-	if(v == ~0UL || *e != '\0')
+	if(v == (ulong)~0UL || *e != '\0')	/* GCC port: ~0UL is 64-bit, ulong is 32-bit */
 		return;
 	h->c->head.contlen = v;
 }

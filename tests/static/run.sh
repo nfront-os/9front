@@ -22,8 +22,11 @@ manifests(){
 check "manifests match scripts/gen{libc,libs,cmds}.py" manifests
 
 # 2. no 32-bit ulong compared against the 64-bit ~0UL (scripts/port/fixulongmax.py)
-check "no ulong == / != ~0UL in the kernel" \
-	bash -c '! grep -rnP "[!=]=\s*~0UL\b(?!L)" sys/src/9/port sys/src/9/pc sys/src/9/ip --include=*.c'
+ulongmax(){
+	! grep -rnP "[!=]=\s*~0UL\b(?!L)|~0UL\s*[!=]=" sys/src/9/port sys/src/9/pc sys/src/9/ip \
+		sys/src/lib* sys/src/cmd --include=*.c | grep -vE "/cmd/(cc|[5678kqv][ac]|gs)/"
+}
+check "no ulong == / != ~0UL (kernel, libraries, commands)" ulongmax
 
 # 3. explicit casts to an unnamed member's type: gcc does not adjust the
 #    address like 8c; every remaining cast must be reviewed (allow list)

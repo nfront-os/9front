@@ -55,7 +55,7 @@ formsgsi(Box *box, Msgset *ms, uint max, int (*f)(Box*, Msg*, int, void*), void 
 					rok = 1;
 					break;	/* optimization */
 				}
-				if(ms->to == ~0UL)
+				if(ms->to == (ulong)~0UL)	/* GCC port: ~0UL is 64-bit, ulong is 32-bit */
 					rok = 1;
 				id++;
 			}
