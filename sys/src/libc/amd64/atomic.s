@@ -1,48 +1,62 @@
+/*
+ * GCC port: GAS/System V translation: pointer in %rdi (6c: RARG),
+ * value/compare arguments in %esi/%rsi and %edx/%rdx instead of
+ * v+8(FP)/c+8(FP)/v+16(FP); %ecx/%rcx instead of the callee-saved BX.
+ */
+
 /* get variants */
-TEXT agetl+0(SB),1,$0
-	MOVL	(RARG), AX
-	RET
-TEXT agetp+0(SB),1,$0
-	MOVQ	(RARG), AX
-	RET
+.globl agetl
+agetl:
+	movl	(%rdi), %eax
+	ret
+.globl agetp
+agetp:
+	movq	(%rdi), %rax
+	ret
 
 /* set variants */
-TEXT aswapl+0(SB),1,$0
-	MOVL		v+8(FP), AX
-	LOCK; XCHGL	(RARG), AX
-	RET
+.globl aswapl
+aswapl:
+	movl	%esi, %eax
+	lock; xchgl	%eax, (%rdi)
+	ret
 
-TEXT aswapp+0(SB),1,$0
-	MOVQ		v+8(FP), AX
-	LOCK; XCHGQ	(RARG), AX
-	RET
+.globl aswapp
+aswapp:
+	movq	%rsi, %rax
+	lock; xchgq	%rax, (%rdi)
+	ret
 
 /* inc variants */
-TEXT aincl+0(SB),1,$0
-	MOVQ		v+8(FP), BX
-	MOVQ		BX, AX
-	LOCK; XADDL	AX, (RARG)
-	ADDQ		BX, AX
-	RET
+.globl aincl
+aincl:
+	movq	%rsi, %rcx
+	movq	%rcx, %rax
+	lock; xaddl	%eax, (%rdi)
+	addq	%rcx, %rax
+	ret
 
 /* cas variants */
-TEXT acasl+0(SB),1,$0
-	MOVL	c+8(FP), AX
-	MOVL	v+16(FP), BX
-	LOCK; CMPXCHGL	BX, (RARG)
-	SETEQ	AX
-	MOVBLZX	AX, AX
-	RET
+.globl acasl
+acasl:
+	movl	%esi, %eax
+	movl	%edx, %ecx
+	lock; cmpxchgl	%ecx, (%rdi)
+	sete	%al
+	movzbl	%al, %eax
+	ret
 
-TEXT acasp+0(SB),1,$0
-	MOVQ	c+8(FP), AX
-	MOVQ	v+16(FP), BX
-	LOCK; CMPXCHGQ BX, (RARG)
-	SETEQ	AX
-	MOVBLZX	AX, AX
-	RET
+.globl acasp
+acasp:
+	movq	%rsi, %rax
+	movq	%rdx, %rcx
+	lock; cmpxchgq %rcx, (%rdi)
+	sete	%al
+	movzbl	%al, %eax
+	ret
 
 /* barriers */
-TEXT coherence+0(SB),1,$0
-	MFENCE
-	RET
+.globl coherence
+coherence:
+	mfence
+	ret

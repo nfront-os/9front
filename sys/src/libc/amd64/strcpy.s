@@ -1,40 +1,44 @@
-	TEXT	strcpy(SB),$0
-
-	MOVL	$0, AX
-	MOVQ	$-1, CX
-	CLD
+/*
+ * GCC port: GAS/System V translation: p1, p2 arrive in %rdi, %rsi; p1
+ * is kept in %r8 (the original reread RARG), %r9 replaces the
+ * callee-saved BX.
+ */
+.globl strcpy
+strcpy:
+	movq	%rdi, %r8
+	movl	$0, %eax
+	movq	$-1, %rcx
+	cld
 /*
  * find end of second string
  */
+	movq	%rsi, %rdi
+	repne; scasb
 
-	MOVQ	p2+8(FP), DI
-	REPN;	SCASB
-
-	MOVQ	DI, BX
-	SUBQ	p2+8(FP), BX
+	movq	%rdi, %r9
+	subq	%rsi, %r9
 
 /*
  * copy the memory
  */
-	MOVQ	RARG, DI
-	MOVQ	p2+8(FP), SI
+	movq	%r8, %rdi
 /*
  * copy whole longs, if aligned
  */
-	MOVQ	DI, CX
-	ORQ		SI, CX
-	ANDL	$3, CX
-	JNE	c3
-	MOVQ	BX, CX
-	SHRQ	$2, CX
-	REP;	MOVSL
+	movq	%rdi, %rcx
+	orq	%rsi, %rcx
+	andl	$3, %ecx
+	jne	1f
+	movq	%r9, %rcx
+	shrq	$2, %rcx
+	rep; movsl
 /*
  * copy the rest, by bytes
  */
-	ANDL	$3, BX
-c3:
-	MOVL	BX, CX
-	REP;	MOVSB
+	andl	$3, %r9d
+1:
+	movl	%r9d, %ecx
+	rep; movsb
 
-	MOVQ	RARG, AX
-	RET
+	movq	%r8, %rax
+	ret

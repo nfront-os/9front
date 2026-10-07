@@ -2,7 +2,7 @@
 	{
 		"Name": "9syscall",
 		"Pre": [
-			"mksys -o . -mode=syscallfiles /sys/src/sysconf.json"
+			"bash ../../../../scripts/gen-9syscall.sh ."
 		]
 	}
 ]

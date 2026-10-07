@@ -1,41 +1,44 @@
-TEXT	memset(SB),$0
-
-	CLD
-	MOVQ	RARG, DI
-	MOVBLZX	c+8(FP), AX
-	MOVQ	n+16(FP), BX
+/*
+ * GCC port: GAS/System V translation: p, c, n arrive in %rdi, %esi,
+ * %rdx; p is kept in %r8 for the return value (stosb advances %rdi, the
+ * original kept p in RARG), %r9 replaces the callee-saved BX.
+ */
+.globl memset
+memset:
+	cld
+	movq	%rdi, %r8
+	movzbl	%sil, %eax
+	movq	%rdx, %r9
 /*
  * if not enough bytes, just set bytes
  */
-	CMPQ	BX, $9
-	JLS	c3
+	cmpq	$9, %r9
+	jbe	3f
 /*
  * if not aligned, just set bytes
  */
-	MOVQ	RARG, CX
-	ANDL	$3,CX
-	JNE	c3
+	movq	%rdi, %rcx
+	andl	$3, %ecx
+	jne	3f
 /*
  * build word in AX
  */
-	MOVB	AL, AH
-	MOVL	AX, CX
-	SHLL	$16, CX
-	ORL	CX, AX
+	movb	%al, %ah
+	movl	%eax, %ecx
+	shll	$16, %ecx
+	orl	%ecx, %eax
 /*
  * set whole longs
  */
-c1:
-	MOVQ	BX, CX
-	SHRQ	$2, CX
-	ANDL	$3, BX
-	REP;	STOSL
+	movq	%r9, %rcx
+	shrq	$2, %rcx
+	andl	$3, %r9d
+	rep; stosl
 /*
  * set the rest, by bytes
  */
-c3:
-	MOVL	BX, CX
-	REP;	STOSB
-ret:
-	MOVQ	RARG,AX
-	RET
+3:
+	movl	%r9d, %ecx
+	rep; stosb
+	movq	%r8, %rax
+	ret

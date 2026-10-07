@@ -1,23 +1,25 @@
-TEXT	memchr(SB),$0
-
-	MOVQ	n+16(FP), CX
-	CMPQ	CX, $0
-	JEQ	none
-	MOVQ	RARG, DI
-	MOVBLZX	c+8(FP), AX
-	CLD
+/*
+ * GCC port: GAS/System V translation: p, c, n arrive in %rdi, %esi,
+ * %rdx (p is already where SCASB wants it).
+ */
+.globl memchr
+memchr:
+	movq	%rdx, %rcx
+	cmpq	$0, %rcx
+	je	1f
+	movzbl	%sil, %eax
+	cld
 /*
  * SCASB is memchr instruction
  */
+	repne; scasb
+	je	2f
 
-	REPN;	SCASB
-	JEQ	found
+1:
+	movl	$0, %eax
+	ret
 
-none:
-	MOVL	$0, AX
-	RET
-
-found:
-	MOVQ	DI, AX
-	SUBQ	$1, AX
-	RET
+2:
+	movq	%rdi, %rax
+	subq	$1, %rax
+	ret

@@ -2,17 +2,32 @@
 	{
 		"Name": "archfiles",
 		"SourceFiles": [
-			"$ARCH/_seek.c",
-			"$ARCH/notejmp.c",
-			"$ARCH/cycles.c",
-			"$ARCH/argv0.c",
-			"$ARCH/getcallerpc.S",
+			"$ARCH/argv0.s",
+			"$ARCH/atom.s",
+			"$ARCH/atomic.s",
+			"$ARCH/atomic64.s",
+			"$ARCH/cycles.s",
+			"$ARCH/getfcr.s",
+			"$ARCH/main9.s",
+			"$ARCH/main9p.s",
+			"$ARCH/memccpy.s",
+			"$ARCH/memchr.s",
+			"$ARCH/memcmp.s",
+			"$ARCH/memcpy.s",
+			"$ARCH/memmove.s",
+			"$ARCH/memset.s",
+			"$ARCH/muldiv.s",
 			"$ARCH/setjmp.s",
 			"$ARCH/sqrt.s",
+			"$ARCH/strcat.s",
+			"$ARCH/strchr.s",
+			"$ARCH/strcpy.s",
+			"$ARCH/strlen.s",
 			"$ARCH/tas.s",
-			"$ARCH/atom.S",
-			"$ARCH/main9.S",
-			"$ARCH/notify.S"
+			"$ARCH/_seek.c",
+			"$ARCH/getcallerpc.s",
+			"$ARCH/notejmp.c",
+			"$ARCH/notetramp.S"
 		]
 	}
 ]

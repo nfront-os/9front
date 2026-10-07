@@ -1,52 +1,53 @@
-TEXT	memcmp(SB),$0
-
-	MOVQ	n+16(FP), BX
-	CMPQ	BX, $0
-	JEQ	none
-	MOVQ	RARG, DI
-	MOVQ	p2+8(FP), SI
-	CLD
-	MOVQ	DI, CX
-	ORQ	SI, CX
-	ANDL	$3, CX
-	JNE	c3
+/*
+ * GCC port: GAS/System V translation: p1, p2, n arrive in %rdi, %rsi,
+ * %rdx; %r9 replaces the callee-saved BX.
+ */
+.globl memcmp
+memcmp:
+	movq	%rdx, %r9
+	cmpq	$0, %r9
+	je	3f
+	cld
+	movq	%rdi, %rcx
+	orq	%rsi, %rcx
+	andl	$3, %ecx
+	jne	2f
 /*
  * first by longs
  */
+	movq	%r9, %rcx
+	shrq	$2, %rcx
 
-	MOVQ	BX, CX
-	SHRQ	$2, CX
-
-	REP;	CMPSL
-	JNE	found
+	repe; cmpsl
+	jne	4f
 
 /*
  * then by bytes
  */
-	ANDL	$3, BX
-c3:
-	MOVQ	BX, CX
-	REP;	CMPSB
-	JNE	found1
+	andl	$3, %r9d
+2:
+	movq	%r9, %rcx
+	repe; cmpsb
+	jne	5f
 
-none:
-	MOVQ	$0, AX
-	RET
+3:
+	movq	$0, %rax
+	ret
 
 /*
  * if long found,
  * back up and look by bytes
  */
-found:
-	MOVL	$4, CX
-	SUBQ	CX, DI
-	SUBQ	CX, SI
-	REP;	CMPSB
+4:
+	movl	$4, %ecx
+	subq	%rcx, %rdi
+	subq	%rcx, %rsi
+	repe; cmpsb
 
-found1:
-	JLS	lt
-	MOVQ	$-1, AX
-	RET
-lt:
-	MOVQ	$1, AX
-	RET
+5:
+	jbe	6f
+	movq	$-1, %rax
+	ret
+6:
+	movq	$1, %rax
+	ret

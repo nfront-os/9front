@@ -1,27 +1,35 @@
+/*
+ * GCC port: GAS/System V translation, see atomic.s.
+ */
+
 /* get variants */
-TEXT agetv+0(SB),1,$0
-	MOVQ	(RARG), AX
-	RET
+.globl agetv
+agetv:
+	movq	(%rdi), %rax
+	ret
 
 /* set variants */
-TEXT aswapv+0(SB),1,$0
-	MOVQ		v+8(FP), AX
-	LOCK; XCHGQ	(RARG), AX
-	RET
+.globl aswapv
+aswapv:
+	movq	%rsi, %rax
+	lock; xchgq	%rax, (%rdi)
+	ret
 
 /* inc variants */
-TEXT aincv+0(SB),1,$0
-	MOVQ		v+8(FP), BX
-	MOVQ		BX, AX
-	LOCK; XADDQ	AX, (RARG)
-	ADDQ		BX, AX
-	RET
+.globl aincv
+aincv:
+	movq	%rsi, %rcx
+	movq	%rcx, %rax
+	lock; xaddq	%rax, (%rdi)
+	addq	%rcx, %rax
+	ret
 
 /* cas variants */
-TEXT acasv+0(SB),1,$0
-	MOVQ	c+8(FP), AX
-	MOVQ	v+16(FP), BX
-	LOCK; CMPXCHGQ BX, (RARG)
-	SETEQ	AX
-	MOVBLZX	AX, AX
-	RET
+.globl acasv
+acasv:
+	movq	%rsi, %rax
+	movq	%rdx, %rcx
+	lock; cmpxchgq %rcx, (%rdi)
+	sete	%al
+	movzbl	%al, %eax
+	ret

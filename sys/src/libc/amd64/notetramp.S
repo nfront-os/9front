@@ -18,8 +18,8 @@
  * kernel's old-convention arguments and re-dispatches to the real,
  * user-registered handler via an ordinary `call` with correct SysV
  * arguments. notify(fn) itself just stashes fn and installs the
- * trampoline via the renamed raw syscall _notify (see sysconf.json's
- * "notify" entry: "Libname": "_notify").
+ * trampoline via the renamed raw syscall _notify (scripts/gen-9syscall.sh
+ * names the stub for sys.h's NOTIFY _notify).
  */
 
 .bss
