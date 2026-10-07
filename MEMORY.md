@@ -512,3 +512,41 @@ Grund: `scripts/netmount.c` (aktuelle Version, 14:33) macht NICHT mehr "mount at
 - `mksys.go`-Patch liegt außerhalb des Repos — ins Repo holen (z.B. Generator-Template unter `scripts/`) oder die generierten `9syscall/*.s` einchecken.
 - Externe Kommandos portieren (`echo`, `cat`, `ls`, `bind`, `mount`, ...), danach `init -t` ohne `-m` (termrc).
 - Phase 3 (hjfs-Image) unverändert offen.
+
+## 2026-10-07 (Teil 18): libc originalgetreu, Userspace-Bibliotheken + 190 Kommandos, stock cpurc-Boot bis `sysname#`, Tests unter ./tests
+
+**Ergebnis:** `scripts/build-cli.sh` + `scripts/boot-cli.sh` (Default `service=cpu`) bootet den stock-Pfad `bootrc`-Ersatz (`netmount`) → `init -c` → `/rc/bin/cpurc` → Konsolen-rc mit Prompt `10.0.2.15#`. 243 Programme in `/bin` (112 aus `sys/src/cmd`, aux, ip, ndb, disk, grep, awk). Tests: `tests/run.sh [static asm syscall build guest boot]`, im laufenden System `/tests/run`.
+
+**libc jetzt 1:1 nach 9fronts mkfiles** (`scripts/genlibc.py` erzeugt `libc.json` + `libc/amd64/build.json`): 9sys/fmt OFILES, port CFILES mit reduce, ucd, 52 Syscall-Stubs. Fehlende Dateien ergänzt (`port/calloc,crypt,date,profile,utfncmp`, `9sys/callmain,idn,nsec,procsetname`, `ucd/*`).
+- **Alle amd64-.s eigenständig nach GAS/SysV portiert** (gleiche Dateinamen): argv0 (.comm), atom, atomic, atomic64, cycles, getcallerpc (über `8(%rbp)`, 6c-Stacktrick geht unter SysV nicht), getfcr, main9/main9p (`_callmain(main, argc, argv)`; `9sys/callmain.c` nimmt jetzt `char **argv` statt `&arg0`), memccpy/memchr/memcmp/memcpy/memmove/memset, muldiv (`%edx` vor `mull` retten, `cltq` für 64-bit long), strcat/strchr/strcpy/strlen. `BX` → `%r8-%r11`, Rückwärtskopie setzt `DF` vor `ret` zurück. Harvey-Duplikate entfernt (`argv0.c atom.S cycles.c getcallerpc.S main9.S rdpmc.c`), `notify.S` → `notetramp.S` (einzige Abweichung).
+- **Syscall-Stubs ohne Harvey-mksys**: `scripts/gen-9syscall.sh` bildet 9fronts `9syscall/mkfile` nach (aus `sys.h`, Namen wie 9front: `seek.s`→`_seek`, `_exits`, `_nsec`), spillt immer alle 6 Argumentregister (keine Argumentanzahl nötig → Fehlerklasse aus Teil 14/17 weg), sichert `%rbp/%rbx/%r12/%r13`. `sys/src/sysconf.json` entfernt.
+- `nsec()` wie 9front über `/dev/bintime` (9sys/nsec.c), `_nsec` ist der alte Syscall.
+
+**Bibliotheken** (`scripts/genlibs.py`, aus mkfiles; libsec/libmp per reduce, nur portierte Arch-Dateien ersetzen port-C): libbio, libauth (jetzt vollständig), libthread, lib9p, libregexp, libString, libndb, libip, libflate, libauthsrv, libdisk, libsec, libmp. Host-Generatoren (alle mit plan9port `../plan9port`): `gen-mpc.sh` (libsec `*.mp`, libauthsrv `*.mpc`), `gen-runetype.sh` (libc/ucd), `gen-awk-proctab.sh`, `gen-latin1-h.sh`, `yacc.sh` (plan9port-yacc mit 9fronts `sys/lib/yaccpar`).
+
+**Kommandos** (`scripts/gencmds.py`, `cmds.json` je Verzeichnis): Ein-Datei-Listen aus Probe-Builds, mkone/mkmany aus mkfiles (grep, awk, ip/ipconfig, disk/prep, ndb dns/dnsdebug/dnsgetip). Build-Tool: linkt Ein-Datei-Kommandos nach `<name>.out` (sys/src/cmd/test ist ein Verzeichnis) und legt Archive neu an (sonst bleiben veraltete Member).
+
+**Gefundene Port-Fehler (gcc vs. kencc-Semantik):**
+1. **Explizite Casts auf anonyme Member** (`(Lock*)&sl`): 8c passt die Adresse auch beim expliziten Cast an, gcc nicht. Gefixt: libc `9sys/syslog.c` (dns hing ewig), `9/ip/udp.c`+`icmp.c` (`(Routehint*)c` überschrieb das QLock von Conv/Translation — in front stand dort gar kein Cast, kam durch frühere Port-Skripte), `9/port/devi2c.c`, `9/port/sdram.c`, `9/pc/sd53c8xx.c`. Detektor: `scripts/port/find-embedded-casts.py`, geprüfte Restfälle in `tests/static/embedded-casts.allow`.
+2. **kencc erweitert uchar/ushort vorzeichenerhaltend zu uint** (`cc/sub.c` arith: `while(k < TINT) k += 2`), gcc zu int. `9/ip/ipaux.c` `iphash()`: Port ≥0x8000 → negativer Index → Kernel-Panic in etherread4. Gefixt mit `(ulong)`-Casts. Weitere Stellen im Baum vermutlich — noch kein Detektor.
+3. **kencc-Enumeratoren behalten den Typ ihres Werts** (`Daysec = (vlong)24*3600`), gcc macht int → `2440588*Daysec` lief über, alle Datumsfunktionen falsch. `libc/port/date.c`: `#define Daysec`.
+4. `SET()` war in u.h eine Zuweisung `(x)=0` mit einem Argument — jetzt wie 8c variadisch ohne Code.
+5. ~0UL-Vergleiche (Teil 17), libc-Manifest-Lücken (`calloc`, `asctime`, ...).
+
+**Offen — Grundsatzentscheidung Typmodell:** kencc/amd64 hat `long` = 32 Bit; der Port hat `ulong` per typedef 32 Bit, `long` aber gcc-64 Bit. Der Baum nimmt 32-bit `long` an. Sichtbar: `print("%d", -5)` → `4294967291` (`dofmt.c`: `(long)u < 0` mit 32-bit `u`), vermutlich auch `ps`/`psu` (`null list in concatenation`). Optionen: `long` global auf 32 Bit (u.h, bricht 122× `long long`, 21× `long double`) oder Stellen einzeln fixen.
+
+**Weitere offene Punkte:** factotum (auth/factotum) nicht portiert; `netmount` trägt keinen DNS-Server ein (`timesync`: can't reach pool.ntp.org); diskparts: `edisk`/`prep` stürzen ab (Broken); Grafik-Kommandos (libdraw/libmemdraw), libmach, libttf nicht gebaut; Red Zone: Kernel-Note-Zustellung respektiert die 128-Byte-Red-Zone von gcc-Userspace evtl. nicht — prüfen.
+- **Wie Harvey es gelöst hat:** Coccinelle-Semantic-Patch `sys/src/spatches/patch_scalar.cocci` (Harvey `509239da3`): `[u]vlong→[u]int64_t`, `[u]long→[u]int32_t`, `[u]short→[u]int16_t`, `[u]char→[u]int8_t`, angewendet auf den ganzen Baum in `a70b8e915` (3432 Dateien, ±46k Zeilen; "longs in plan 9 are 32 bits"), danach die alten Typen aus u.h entfernt (`ba964bb8a`). Für dieses Projekt (Diff zu front klein halten) ungeeignet — Alternative: 32-bit `long` zentral (u.h/cflags, z.B. `#define long int` nach den vlong-typedefs; die 122 `long long`-Stellen auf `vlong` umstellen), Quellen sonst unverändert.
+
+## 2026-10-07 (Teil 19): von früheren Port-Skripten eingefügte Casts zurückgebaut
+
+**Befund:** `scripts/port/find-added-casts.py` (neu) listet Casts, die gegenüber `front` hinzugekommen sind: 115 Stück. Ursache war die falsche Annahme der alten Port-Skripte, gcc unterstütze keine Plan-9-Struct-Einbettung — tatsächlich fehlte nur `-fplan9-extensions` in den Cflags der Kernel-Bibliotheken (`lib{c,draw,dtracy,fis,ip,memdraw,memlayer}/amd64.json`). Die Skripte hatten deshalb Strukturen flachgeklopft (`libc/port/pool.c`: `Free`/`Alloc`/`Arena` ohne `Bhdr`; `sys/include/mouse.h`: `Mousectl` ohne `Mouse`) und die Aufrufstellen mit expliziten Casts geflickt — die unter gcc bei Nicht-Offset-0-Membern falsch sind (Teil 18: udp/icmp `Routehint`).
+
+**Behoben:**
+- `-fplan9-extensions` in den 7 Kernel-Bibliotheks-Manifesten ergänzt; `libc/amd64.json` nutzt `amd64/getcallerpc.s` (Harvey-`.S` war entfernt).
+- `pool.c` und `mouse.h` auf `front` zurückgesetzt. Einzige nötige Änderung in `pool.c`: `0xCAB00D1E+1`/`0xC0A1E5CE+1` → mit Leerzeichen (gcc liest `E+1` als Teil einer pp-number).
+- 66 Member-Casts zeilenweise auf die `front`-Zeile zurückgesetzt (devflash, devloopback, ucalloc, usbxhci, usbohci, fpu, aml, libdraw enter/menuhit/readcolmap, libmp cnfield/gmfield/mpfield, libsec aes_gcm/thumb/tlshand) — gcc macht die implizite Umwandlung wie 8c.
+- Verbleibend und kommentiert: 7 `T**`-Casts (gcc erzwingt sie für `void**`: ipmux, devsrv, devusb, kbdfs ×2, libthread channel/main) und 4 in `pc/sdmylex.c` (benannte `union Ccb`-Member wegen Feldkollision, Offset 0).
+- `tests/static`: neue Prüfung, dass gegenüber `front` nur `T**`- oder kommentierte `GCC port`-Casts hinzukommen und `mouse.h` `Mouse` einbettet.
+
+**Ergebnis:** alle Bibliotheken, Kommandos und der Kernel bauen; static/asm/syscall/build grün; guest/boot nur noch mit den bekannten Fehlern aus Teil 18 (long-Typmodell: `%d` negativ, `ps`/`psu`; NTP ohne DNS).
