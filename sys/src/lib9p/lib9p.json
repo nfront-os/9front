@@ -1,6 +1,6 @@
 [
 	{
-		"Name": "Lib9p",
+		"Name": "9p",
 		"Include": [
 			"../lib.json"
 		],

@@ -8,6 +8,7 @@
 			"-fno-stack-protector",
 			"-fplan9-extensions",
 			"-fcommon",
+			"-Wno-error=implicit-int",
 			"-g",
 			"-gdwarf-2",
 			"-ggdb",

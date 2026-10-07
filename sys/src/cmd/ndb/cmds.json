@@ -1,0 +1,157 @@
+[
+	{
+		"Name": "cmds-ndb",
+		"Include": [
+			"/$ARCH/cflags.json"
+		],
+		"Install": "/$ARCH/bin/ndb/",
+		"Oflags": [
+			"--entry=_main"
+		],
+		"Libs": [
+			"/$ARCH/lib/libdisk.a",
+			"/$ARCH/lib/lib9p.a",
+			"/$ARCH/lib/libthread.a",
+			"/$ARCH/lib/libauth.a",
+			"/$ARCH/lib/libauthsrv.a",
+			"/$ARCH/lib/libndb.a",
+			"/$ARCH/lib/libip.a",
+			"/$ARCH/lib/libsec.a",
+			"/$ARCH/lib/libauth.a",
+			"/$ARCH/lib/libmp.a",
+			"/$ARCH/lib/libflate.a",
+			"/$ARCH/lib/libregexp.a",
+			"/$ARCH/lib/libString.a",
+			"/$ARCH/lib/libbio.a",
+			"/$ARCH/lib/libc.a"
+		],
+		"SourceFilesCmd": [
+			"mkdb.c",
+			"query.c",
+			"mkhash.c",
+			"mkhosts.c",
+			"cs.c",
+			"csquery.c",
+			"dnsquery.c",
+			"ipquery.c",
+			"inform.c"
+		]
+	},
+	{
+		"Name": "dns",
+		"Include": [
+			"/$ARCH/cflags.json"
+		],
+		"Install": "/$ARCH/bin/ndb/",
+		"Oflags": [
+			"--entry=_main"
+		],
+		"Libs": [
+			"/$ARCH/lib/libdisk.a",
+			"/$ARCH/lib/lib9p.a",
+			"/$ARCH/lib/libthread.a",
+			"/$ARCH/lib/libauth.a",
+			"/$ARCH/lib/libauthsrv.a",
+			"/$ARCH/lib/libndb.a",
+			"/$ARCH/lib/libip.a",
+			"/$ARCH/lib/libsec.a",
+			"/$ARCH/lib/libauth.a",
+			"/$ARCH/lib/libmp.a",
+			"/$ARCH/lib/libflate.a",
+			"/$ARCH/lib/libregexp.a",
+			"/$ARCH/lib/libString.a",
+			"/$ARCH/lib/libbio.a",
+			"/$ARCH/lib/libc.a"
+		],
+		"Program": "dns",
+		"SourceFiles": [
+			"dns.c",
+			"dnudpserver.c",
+			"dntcpserver.c",
+			"dn.c",
+			"dnresolve.c",
+			"dblookup.c",
+			"dnserver.c",
+			"dnnotify.c",
+			"dnarea.c",
+			"convM2DNS.c",
+			"convDNS2M.c"
+		]
+	},
+	{
+		"Name": "dnsdebug",
+		"Include": [
+			"/$ARCH/cflags.json"
+		],
+		"Install": "/$ARCH/bin/ndb/",
+		"Oflags": [
+			"--entry=_main"
+		],
+		"Libs": [
+			"/$ARCH/lib/libdisk.a",
+			"/$ARCH/lib/lib9p.a",
+			"/$ARCH/lib/libthread.a",
+			"/$ARCH/lib/libauth.a",
+			"/$ARCH/lib/libauthsrv.a",
+			"/$ARCH/lib/libndb.a",
+			"/$ARCH/lib/libip.a",
+			"/$ARCH/lib/libsec.a",
+			"/$ARCH/lib/libauth.a",
+			"/$ARCH/lib/libmp.a",
+			"/$ARCH/lib/libflate.a",
+			"/$ARCH/lib/libregexp.a",
+			"/$ARCH/lib/libString.a",
+			"/$ARCH/lib/libbio.a",
+			"/$ARCH/lib/libc.a"
+		],
+		"Program": "dnsdebug",
+		"SourceFiles": [
+			"dnsdebug.c",
+			"dn.c",
+			"dnresolve.c",
+			"dblookup.c",
+			"dnserver.c",
+			"dnarea.c",
+			"convM2DNS.c",
+			"convDNS2M.c"
+		]
+	},
+	{
+		"Name": "dnsgetip",
+		"Include": [
+			"/$ARCH/cflags.json"
+		],
+		"Install": "/$ARCH/bin/ndb/",
+		"Oflags": [
+			"--entry=_main"
+		],
+		"Libs": [
+			"/$ARCH/lib/libdisk.a",
+			"/$ARCH/lib/lib9p.a",
+			"/$ARCH/lib/libthread.a",
+			"/$ARCH/lib/libauth.a",
+			"/$ARCH/lib/libauthsrv.a",
+			"/$ARCH/lib/libndb.a",
+			"/$ARCH/lib/libip.a",
+			"/$ARCH/lib/libsec.a",
+			"/$ARCH/lib/libauth.a",
+			"/$ARCH/lib/libmp.a",
+			"/$ARCH/lib/libflate.a",
+			"/$ARCH/lib/libregexp.a",
+			"/$ARCH/lib/libString.a",
+			"/$ARCH/lib/libbio.a",
+			"/$ARCH/lib/libc.a"
+		],
+		"Program": "dnsgetip",
+		"SourceFiles": [
+			"dnsgetip.c",
+			"dn.c",
+			"dnresolve.c",
+			"dblookup.c",
+			"dnserver.c",
+			"dnarea.c",
+			"convM2DNS.c",
+			"convDNS2M.c"
+		]
+	}
+]

@@ -1,0 +1,37 @@
+[
+	{
+		"Name": "ipconfig",
+		"Include": [
+			"/$ARCH/cflags.json"
+		],
+		"Install": "/$ARCH/bin/ip/",
+		"Oflags": [
+			"--entry=_main"
+		],
+		"Libs": [
+			"/$ARCH/lib/libdisk.a",
+			"/$ARCH/lib/lib9p.a",
+			"/$ARCH/lib/libthread.a",
+			"/$ARCH/lib/libauth.a",
+			"/$ARCH/lib/libauthsrv.a",
+			"/$ARCH/lib/libndb.a",
+			"/$ARCH/lib/libip.a",
+			"/$ARCH/lib/libsec.a",
+			"/$ARCH/lib/libauth.a",
+			"/$ARCH/lib/libmp.a",
+			"/$ARCH/lib/libflate.a",
+			"/$ARCH/lib/libregexp.a",
+			"/$ARCH/lib/libString.a",
+			"/$ARCH/lib/libbio.a",
+			"/$ARCH/lib/libc.a"
+		],
+		"Program": "ipconfig",
+		"SourceFiles": [
+			"main.c",
+			"dhcp.c",
+			"dhcpv6.c",
+			"ipv6.c",
+			"ppp.c"
+		]
+	}
+]

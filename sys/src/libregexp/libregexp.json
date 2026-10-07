@@ -1,0 +1,19 @@
+[
+	{
+		"Name": "Regexp",
+		"Include": [
+			"../lib.json"
+		],
+		"Install": "/$ARCH/lib/",
+		"Library": "libregexp.a",
+		"SourceFiles": [
+			"regcomp.c",
+			"regerror.c",
+			"regexec.c",
+			"regsub.c",
+			"rregexec.c",
+			"rregsub.c",
+			"regprint.c"
+		]
+	}
+]

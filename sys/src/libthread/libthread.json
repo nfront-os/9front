@@ -1,6 +1,6 @@
 [
 	{
-		"Name": "Libthread",
+		"Name": "Thread",
 		"Include": [
 			"../lib.json"
 		],

@@ -593,7 +593,10 @@ func link(b *build) {
 			n = n[:len(n)-len(ext)]
 			f := path.Base(n)
 			o := f[:len(f)] + ".o"
-			args := []string{"-o", n, o}
+			// link to <name>.out like mk's $O.<name>: a directory
+			// named like the command (sys/src/cmd/test) would
+			// otherwise be in the way; install renames it
+			args := []string{"-o", n + ".out", o}
 			args = append(args, "-L", fromRoot("/$ARCH/lib"))
 			args = append(args, b.Libs...)
 			args = append(args, b.Oflags...)
@@ -620,12 +623,19 @@ func install(b *build) {
 	switch {
 	case len(b.SourceFilesCmd) > 0:
 		for _, n := range b.SourceFilesCmd {
-			move(cmdTarget(b, n))
+			exe, dir := cmdTarget(b, n)
+			final := path.Join(dir, path.Base(exe))
+			log.Printf("move %s %s\n", exe+".out", final)
+			_ = os.Remove(final)
+			fail(os.Rename(exe+".out", final))
 		}
 	case len(b.Program) > 0:
 		move(b.Program, b.Install)
 	case len(b.Library) > 0:
 		libpath := path.Join(b.Install, b.Library)
+		// start from an empty archive: ar -r only adds/replaces members,
+		// so objects of sources dropped from a manifest would linger
+		_ = os.Remove(libpath)
 		args := append([]string{"-rs", libpath}, b.ObjectFiles...)
 		run(b, *shellhack, exec.Command(tools["ar"], args...))
 		run(b, *shellhack, exec.Command(tools["ranlib"], libpath))

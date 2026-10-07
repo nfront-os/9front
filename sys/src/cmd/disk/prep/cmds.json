@@ -1,0 +1,104 @@
+[
+	{
+		"Name": "fdisk",
+		"Include": [
+			"/$ARCH/cflags.json"
+		],
+		"Install": "/$ARCH/bin/disk/",
+		"Oflags": [
+			"--entry=_main"
+		],
+		"Libs": [
+			"/$ARCH/lib/libdisk.a",
+			"/$ARCH/lib/lib9p.a",
+			"/$ARCH/lib/libthread.a",
+			"/$ARCH/lib/libauth.a",
+			"/$ARCH/lib/libauthsrv.a",
+			"/$ARCH/lib/libndb.a",
+			"/$ARCH/lib/libip.a",
+			"/$ARCH/lib/libsec.a",
+			"/$ARCH/lib/libauth.a",
+			"/$ARCH/lib/libmp.a",
+			"/$ARCH/lib/libflate.a",
+			"/$ARCH/lib/libregexp.a",
+			"/$ARCH/lib/libString.a",
+			"/$ARCH/lib/libbio.a",
+			"/$ARCH/lib/libc.a"
+		],
+		"Pre": [
+			"bash ../../../../../scripts/yacc.sh -d calc.y"
+		],
+		"Program": "fdisk",
+		"SourceFiles": [
+			"fdisk.c",
+			"edit.c",
+			"y.tab.c"
+		]
+	},
+	{
+		"Name": "edisk",
+		"Include": [
+			"/$ARCH/cflags.json"
+		],
+		"Install": "/$ARCH/bin/disk/",
+		"Oflags": [
+			"--entry=_main"
+		],
+		"Libs": [
+			"/$ARCH/lib/libdisk.a",
+			"/$ARCH/lib/lib9p.a",
+			"/$ARCH/lib/libthread.a",
+			"/$ARCH/lib/libauth.a",
+			"/$ARCH/lib/libauthsrv.a",
+			"/$ARCH/lib/libndb.a",
+			"/$ARCH/lib/libip.a",
+			"/$ARCH/lib/libsec.a",
+			"/$ARCH/lib/libauth.a",
+			"/$ARCH/lib/libmp.a",
+			"/$ARCH/lib/libflate.a",
+			"/$ARCH/lib/libregexp.a",
+			"/$ARCH/lib/libString.a",
+			"/$ARCH/lib/libbio.a",
+			"/$ARCH/lib/libc.a"
+		],
+		"Program": "edisk",
+		"SourceFiles": [
+			"edisk.c",
+			"edit.c",
+			"y.tab.c"
+		]
+	},
+	{
+		"Name": "prep",
+		"Include": [
+			"/$ARCH/cflags.json"
+		],
+		"Install": "/$ARCH/bin/disk/",
+		"Oflags": [
+			"--entry=_main"
+		],
+		"Libs": [
+			"/$ARCH/lib/libdisk.a",
+			"/$ARCH/lib/lib9p.a",
+			"/$ARCH/lib/libthread.a",
+			"/$ARCH/lib/libauth.a",
+			"/$ARCH/lib/libauthsrv.a",
+			"/$ARCH/lib/libndb.a",
+			"/$ARCH/lib/libip.a",
+			"/$ARCH/lib/libsec.a",
+			"/$ARCH/lib/libauth.a",
+			"/$ARCH/lib/libmp.a",
+			"/$ARCH/lib/libflate.a",
+			"/$ARCH/lib/libregexp.a",
+			"/$ARCH/lib/libString.a",
+			"/$ARCH/lib/libbio.a",
+			"/$ARCH/lib/libc.a"
+		],
+		"Program": "prep",
+		"SourceFiles": [
+			"prep.c",
+			"edit.c",
+			"y.tab.c"
+		]
+	}
+]
