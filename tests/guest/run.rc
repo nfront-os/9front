@@ -1,0 +1,18 @@
+#!/bin/rc
+# Guest tests of the gcc port, run inside 9front.
+# usage: /tests/run [test...]      (default: all tests below)
+rfork e
+tests=($*)
+if(~ $#tests 0)
+	tests=(libctest threadtest)
+failed=()
+for(t in $tests){
+	echo '==' $t
+	/tests/$t
+	if(! ~ $status '')
+		failed=($failed $t)
+}
+if(~ $#failed 0)
+	echo 'tests: all passed'
+if not
+	echo 'tests: failed:' $failed

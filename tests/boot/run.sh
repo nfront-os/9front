@@ -1,0 +1,27 @@
+#!/bin/bash
+# boot: CLI boot smoke test (scripts/boot-cli.sh, service=cpu): bootrc
+# stand-in, init -c, cpurc, console rc
+. "$(dirname "$0")/../lib.sh"
+[ -f "$ROOT/amd64/bin/9pc64" ] || { skip "boot" "no kernel, run scripts/build-cli.sh"; done_tests; exit; }
+
+boot(){
+	BOOTWAIT=${BOOTWAIT:-45} CMDWAIT=${CMDWAIT:-3} "$ROOT/scripts/boot-cli.sh" \
+		'echo hello' 'ls /bin | wc -l' 'date -i' 'ps | wc -l' 'cat /dev/sysname; echo' \
+		> "$TMPD/console" 2>&1
+	tr -d '\r' < "$TMPD/console" > "$TMPD/log"
+}
+check "boot to the console" boot || { done_tests; exit; }
+L=$TMPD/log
+# the command echo line is followed by its output
+out(){ grep -A1 -F "# $1" "$L" | tail -1; }
+
+check "cpurc finished, console rc prompt" grep -q '^init: starting /bin/rc' "$L"
+check "cpurc: no errors besides the missing factotum" \
+	bash -c "! sed -n '/root is/,/init: starting/p' '$L' | grep -iE 'error|fail|can.t|null list|suicide|panic' | grep -v factotum"
+check "echo" test "$(out 'echo hello')" = hello
+check "ls /bin | wc -l > 100" test "$(out 'ls /bin | wc -l' | tr -d ' ')" -gt 100
+check "date: RTC/timesync year >= 2025" bash -c "[ \$(echo '$(out 'date -i')' | cut -c1-4) -ge 2025 ]"
+check "ps lists every process (> 20)" test "$(out 'ps | wc -l' | tr -d ' ')" -gt 20
+check "sysname set (cs or cpurc)" test -n "$(out 'cat /dev/sysname; echo')"
+check "no kernel panic" bash -c "! grep -q '^panic:' '$L'"
+done_tests
