@@ -1340,7 +1340,7 @@ sd53c8xxinterrupt(Ureg *ur, void *a)
 				if (DEBUG(1)) {
 					IPRINT(PRINTPREFIX "waking up dsa %#p\n", d);
 				}
-				wakeup((Rendez*)d);
+				wakeup(&d->Rendez);	/* GCC port: 8c converts a cast to an unnamed member's type, gcc does not */
 				wokesomething = 1;
 			}
 		}
@@ -1758,7 +1758,7 @@ sd53c8xxinterrupt(Ureg *ur, void *a)
 	if (wakeme){
 		if(dsa->p9status == SDnostatus)
 			dsa->p9status = SDeio;
-		wakeup((Rendez*)dsa);
+		wakeup(&dsa->Rendez);	/* GCC port: 8c converts a cast to an unnamed member's type, gcc does not */
 	}
 	iunlock(&c->Lock);
 	if (DEBUG(1)) {
@@ -1983,7 +1983,7 @@ docheck:
 
 	while(waserror())
 		;
-	tsleep((Rendez*)d, done, d, 600 * 1000);
+	tsleep(&d->Rendez, done, d, 600 * 1000);	/* GCC port: 8c converts a cast to an unnamed member's type, gcc does not */
 	poperror();
 
 	if (!done(d)) {

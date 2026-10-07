@@ -109,10 +109,10 @@ static int
 enterbus(I2Cbus *bus)
 {
 	if(up != nil && islo()){
-		eqlock((QLock*)bus);
+		eqlock(&bus->QLock);	/* GCC port: 8c converts a cast to an unnamed member's type, gcc does not */
 		return 1;
 	} else {
-		while(!canqlock((QLock*)bus))
+		while(!canqlock(&bus->QLock))	/* GCC port: 8c converts a cast to an unnamed member's type, gcc does not */
 			;
 		return 0;
 	}
@@ -121,7 +121,7 @@ enterbus(I2Cbus *bus)
 static void
 leavebus(I2Cbus *bus)
 {
-	qunlock((QLock*)bus);
+	qunlock(&bus->QLock);	/* GCC port: 8c converts a cast to an unnamed member's type, gcc does not */
 }
 
 int

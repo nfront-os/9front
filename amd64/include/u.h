@@ -34,11 +34,13 @@ typedef unsigned int	mpdigit;	/* for /sys/include/mp.h */
 typedef unsigned char	u8int;
 typedef unsigned short	u16int;
 
-/* gcc port: USED and SET macros */
+/*
+ * gcc port: USED and SET are 8c/6c intrinsics taking any number of
+ * arguments and generating no code (they only silence "used"/"set and
+ * not used" diagnostics).
+ */
 #define USED(...) ((void)(0, ##__VA_ARGS__))
-#define SET(x) ((x)=0)
-#define SET2(x,y) ((x)=(y))
-#define SET3(x,y,z) ((x)=(y)=(z))
+#define SET(...) ((void)0)
 typedef unsigned int	u32int;
 typedef unsigned long long u64int;
 typedef signed char s8int;

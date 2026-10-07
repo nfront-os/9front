@@ -322,7 +322,7 @@ goticmpkt(Proto *icmp, Block *bp, Ipifc *ifc)
 
 		/* only use route-hint when from original desination */
 		if(memcmp(p->src, q->forward.laddr+IPv4off, IPv4addrlen) == 0)
-			rh = (Routehint*)q;
+			rh = &q->Routehint;	/* GCC port: 8c converts a cast to an unnamed member's type, gcc does not */
 		else
 			rh = nil;
 		qunlock(&icmp->QLock);

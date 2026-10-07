@@ -268,7 +268,7 @@ udpkick(void *x, Block *bp)
 		} else {
 			v6tov4(uh4->udpdst, c->Iphash.raddr);
 			hnputs(uh4->udpdport, c->Iphash.rport);
-			rh = (Routehint*)c;
+			rh = &c->Routehint;	/* GCC port: 8c converts a cast to an unnamed member's type, gcc does not */
 		}
 		v6tov4(uh4->udpsrc, laddr);
 		hnputs(uh4->udpsport, c->Iphash.lport);
@@ -301,7 +301,7 @@ udpkick(void *x, Block *bp)
 		} else {
 			ipmove(uh6->udpdst, c->Iphash.raddr);
 			hnputs(uh6->udpdport, c->Iphash.rport);
-			rh = (Routehint*)c;
+			rh = &c->Routehint;	/* GCC port: 8c converts a cast to an unnamed member's type, gcc does not */
 		}
 		ipmove(uh6->udpsrc, laddr);
 		hnputs(uh6->udpsport, c->Iphash.lport);
@@ -450,7 +450,7 @@ Noconv:
 
 		/* only use route-hint when from original desination */
 		if(memcmp(uh4->udpsrc, q->forward.laddr+IPv4off, IPv4addrlen) == 0)
-			rh = (Routehint*)q;
+			rh = &q->Routehint;	/* GCC port: 8c converts a cast to an unnamed member's type, gcc does not */
 		else
 			rh = nil;
 		qunlock(&udp->QLock);

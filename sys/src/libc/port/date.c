@@ -13,10 +13,15 @@ enum {
 	Nsec		= 1000*1000*1000,
 	Usec		= 1000*1000,
 	Msec		= 1000,
-	Daysec		= (vlong)24*3600,
 	Days400y	= 365*400 + 4*25 - 3,
 	Days4y		= 365*4 + 1,
 };
+/*
+ * GCC port: kencc gives an enumerator the type of its value, so
+ * Daysec = (vlong)24*3600 was a vlong constant. gcc makes every
+ * enumerator that fits an int, and 2440588*Daysec in tmfill() overflowed.
+ */
+#define Daysec	((vlong)24*3600)
 
 enum {
 	Cend,

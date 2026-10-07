@@ -207,7 +207,7 @@ ramonline(SDunit *unit)
 	rd->seg = newseg(rd->Physseg.attr, UTZERO, rd->Physseg.size/BY2PG);
 	if(rd->seg == nil)
 		return 0;
-	rd->seg->pseg = (Physseg*)rd;
+	rd->seg->pseg = &rd->Physseg;	/* GCC port: 8c converts a cast to an unnamed member's type, gcc does not */
 	unit->sectors = rd->nb;
 	unit->secsize = rd->ss;
 

@@ -51,7 +51,7 @@ syslog(int cons, char *logname, char *fmt, ...)
 
 	err[0] = '\0';
 	errstr(err, sizeof err);
-	lock((Lock*)&sl);
+	lock(&sl.Lock);	/* GCC port: 8c converts a cast to an unnamed member's type, gcc does not */
 
 	/*
 	 *  paranoia makes us stat to make sure a fork+close
@@ -88,7 +88,7 @@ syslog(int cons, char *logname, char *fmt, ...)
 	}
 
 	if(fmt == nil){
-		unlock((Lock*)&sl);
+		unlock(&sl.Lock);	/* GCC port: 8c converts a cast to an unnamed member's type, gcc does not */
 		return;
 	}
 
@@ -112,5 +112,5 @@ syslog(int cons, char *logname, char *fmt, ...)
 	if(cons && sl.consfd >=0)
 		write(sl.consfd, buf, n);
 
-	unlock((Lock*)&sl);
+	unlock(&sl.Lock);	/* GCC port: 8c converts a cast to an unnamed member's type, gcc does not */
 }

@@ -263,7 +263,13 @@ convipvers(Conv *c)
 static ulong
 iphash(uchar *sa, ushort sp, uchar *da, ushort dp)
 {
-	return ((sa[IPaddrlen-1]<<24) ^ (sp << 16) ^ (da[IPaddrlen-1]<<8) ^ dp ) % Nipht;
+	/*
+	 * GCC port: kencc promotes uchar/ushort to uint (unsigned
+	 * preserving), gcc to int: sp << 16 for a port >= 0x8000 went
+	 * negative and so did the signed % below, indexing far outside
+	 * ht->tab. The casts give the kencc types.
+	 */
+	return (((ulong)sa[IPaddrlen-1]<<24) ^ ((ulong)sp << 16) ^ ((ulong)da[IPaddrlen-1]<<8) ^ (ulong)dp ) % Nipht;
 }
 
 void
