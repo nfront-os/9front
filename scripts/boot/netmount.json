@@ -1,0 +1,19 @@
+[
+	{
+		"Name": "netmount",
+		"Include": [
+			"/$ARCH/cflags.json"
+		],
+		"Program": "netmount",
+		"Install": "/$ARCH/bin/",
+		"Oflags": [
+			"--entry=_main"
+		],
+		"Libs": [
+			"/$ARCH/lib/libc.a"
+		],
+		"SourceFiles": [
+			"netmount.c"
+		]
+	}
+]

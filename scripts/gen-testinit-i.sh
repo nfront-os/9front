@@ -1,5 +1,5 @@
 #!/bin/sh
-# Assemble scripts/testinit.S (minimal hand-written test initcode, see
+# Assemble scripts/boot/testinit.S (minimal hand-written test initcode, see
 # that file's own comment) into sys/src/9/port/initcode.i, the raw
 # byte array sys/src/9/port/userinit.c's proc0() copies to UTZERO.
 #
@@ -14,7 +14,7 @@ TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 
 gcc -c -m64 -mno-red-zone -fno-pic -fno-pie \
-    "$ROOT/scripts/testinit.S" -o "$TMP/testinit.o"
+    "$ROOT/scripts/boot/testinit.S" -o "$TMP/testinit.o"
 
 gcc -nostdlib -static -Wl,-Ttext=0x200000 -Wl,--entry=start -Wl,-N \
     -o "$TMP/testinit.elf" "$TMP/testinit.o"

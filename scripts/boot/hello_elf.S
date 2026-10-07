@@ -5,7 +5,7 @@
  * genuine ELF program headers, not the hand-spliced flat-binary trick
  * used for the bootstrap initcode test.
  *
- * Syscall ABI (same as scripts/testinit.S): syscall number in %rbp,
+ * Syscall ABI (same as scripts/boot/testinit.S): syscall number in %rbp,
  * `syscall` instruction; arguments read by the kernel from this
  * process's own stack starting at (user %rsp at trap time) + 8, one
  * 8-byte slot per argument.

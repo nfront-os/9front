@@ -23,7 +23,7 @@
  * compiled static ELF64 executable and a real `GOOS=plan9 GOARCH=amd64
  * go build` a.out binary), embedded here since no real filesystem
  * exists yet to exec() them from. Mapped read-only into the bootstrap
- * test process's address space below so scripts/testinit.S can copy
+ * test process's address space below so scripts/boot/testinit.S can copy
  * them into a #g (devsegment) shared segment -- the only way to give
  * sysexec() an actual Chan to read from without a filesystem -- and
  * exec() them, exercising the ELF64 loader and the a.out loader with
@@ -31,9 +31,15 @@
  */
 #include	"testelf.i"
 #include	"testgo.i"
+#include	"testinitreal.i"
+#include	"testrc.i"
+#include	"testnetmount.i"
 
 #define TESTELFVA	0x500000ULL
 #define TESTGOVA	0x700000ULL
+#define TESTINITVA	0x1000000ULL
+#define TESTRCVA	0x1800000ULL
+#define TESTNETMOUNTVA	0x2000000ULL
 
 static void
 loadrotext(int seg, uintptr base, uchar *data, ulong len)
@@ -105,6 +111,13 @@ proc0(void*)
 	qlock(&up->seglock);
 	loadrotext(SEG1, TESTELFVA, testelf, sizeof(testelf));
 	loadrotext(SEG2, TESTGOVA, testgo, sizeof(testgo));
+	loadrotext(SEG3, TESTINITVA, testinitreal, sizeof(testinitreal));
+	loadrotext(SEG4, TESTRCVA, testrc, sizeof(testrc));
+	/* DSEG is unused here (this bootstrap process is raw-loaded by
+	 * proc0() with only SSEG+TSEG attached, never the normal Data/BSS/
+	 * Env/Lib segments a real exec'd process would have) -- reused as
+	 * a 5th scratch slot, same pattern as SEG1-4 above */
+	loadrotext(DSEG, TESTNETMOUNTVA, testnetmount, sizeof(testnetmount));
 	qunlock(&up->seglock);
 
 	/*
