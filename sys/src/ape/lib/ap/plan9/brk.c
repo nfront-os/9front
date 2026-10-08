@@ -3,7 +3,7 @@
 #include <stdint.h>
 #include "sys9.h"
 
-char	end[];
+extern char	end[];	/* GCC port: was char end[]; gcc makes that a one-element common, and the linker's end then lies inside bss: the heap overwrote the variables after it */
 static	char	*bloc = { end };
 extern	int	_BRK_(void*);
 

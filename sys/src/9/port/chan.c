@@ -490,14 +490,14 @@ closeproc(void *)
 			}
 			c = closechandeq();
 			if(c == nil) {
-				if(clunkq.head != nil) {
+				if(clunkq.q.head != nil) {
 					qunlock(&clunkq.q);
 					pexit("no work", 1);
 				}
 				qunlock(&clunkq.q);
 				continue;
 			}
-			if(clunkq.head == nil) {
+			if(clunkq.q.head == nil) {
 				if(!waserror()) {
 					kproc("closeproc", closeproc, nil);
 					poperror();

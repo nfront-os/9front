@@ -6,10 +6,9 @@
 #   2. manifests, regenerated from 9front's mkfiles: scripts/genlibc.py,
 #      scripts/genlibs.py, scripts/gencmds.py
 #   3. userspace libraries: libc, then those of genlibs.py
-#   4. programs: init, rc, aux/kbdfs, boot/netmount and the commands of
-#      gencmds.py (sys/src/cmd/**/cmds.json)
-#   5. the boot payloads compiled into the kernel
-#      (scripts/gen-testinit-i.sh, scripts/gen-exectest-payloads.sh)
+#   4. programs: the manifests of gencmds.py (sys/src/cmd, games, ape)
+#   5. what the kernel embeds: initcode (scripts/gen-initcode-i.sh),
+#      /boot/boot and $CONF.bootfs.paq (scripts/gen-bootfs.sh)
 #   6. the pc64 kernel (amd64/bin/9pc64)
 #
 # Kernel libraries (klib*.a) are NOT rebuilt; after changing them run
@@ -54,16 +53,17 @@ build sys/src/libc/libc.json
 for l in $(python3 scripts/genlibs.py --list); do
 	build "sys/src/$l/$l.json"
 done
-for m in \
-	scripts/boot/netmount.json \
-	$(python3 scripts/gencmds.py --list)
+for m in $(python3 scripts/gencmds.py --list)
 do
 	build "$m"
 done
 
-echo "boot payloads"
-bash scripts/gen-testinit-i.sh > "$CLI_DIR/log/gen-testinit-i.log" 2>&1
-bash scripts/gen-exectest-payloads.sh > "$CLI_DIR/log/gen-exectest-payloads.log" 2>&1
+echo "initcode, boot, bootfs.paq"
+bash scripts/gen-initcode-i.sh > "$CLI_DIR/log/gen-initcode-i.log" 2>&1 \
+	|| { cat "$CLI_DIR/log/gen-initcode-i.log"; die "gen-initcode-i.sh failed"; }
+bash scripts/gen-bootfs.sh pc64 > "$CLI_DIR/log/gen-bootfs.log" 2>&1 \
+	|| { tail "$CLI_DIR/log/gen-bootfs.log"; die "gen-bootfs.sh failed"; }
 
-build sys/src/9/pc64/build.json
+# bootdir paths: /$objtype/bin/paqfs, $CONF.bootfs.paq (as mk sets them)
+objtype=amd64 CONF=pc64 build sys/src/9/pc64/build.json
 echo "ok: amd64/bin/9pc64"

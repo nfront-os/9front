@@ -10,10 +10,12 @@
 #   boot     CLI boot smoke test via scripts/boot-cli.sh (boots once)
 #   gui      terminal boot: VESA via aux/realemu, rio (boots once;
 #            GUI_SCREENSHOT=file.png keeps the screen dump)
+#   disk     install image with hjfs (scripts/mkdisk.sh, minutes), booted
+#            on its own (DISKIMG=image skips building it)
 #
 # usage: tests/run.sh [category...]     (default: all, in the order above)
 cd "$(dirname "$0")"
-cats=${*:-static asm syscall build guest boot gui}
+cats=${*:-static asm syscall build guest boot gui disk}
 failed=()
 for c in $cats; do
 	[ -x "$c/run.sh" ] || { echo "unknown category $c"; exit 2; }

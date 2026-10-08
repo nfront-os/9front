@@ -531,7 +531,7 @@ stop:
 }
 
 /*
- * §6.2.1  first part; comreset handled by reset disk.
+ * §6.2.2.1  first part; comreset handled by reset disk.
  *	- remainder is handled by configdisk.
  *	- ahcirecover is a quick recovery from a failed command.
  */

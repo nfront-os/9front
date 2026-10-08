@@ -50,6 +50,10 @@ addedcasts(){
 check "no casts added to 9front sources except T** conversions" addedcasts
 check "mouse.h embeds Mouse like 9front" grep -qP '^\tMouse;' sys/include/mouse.h
 
+# 3c. member paths must not lose a level against 9front (clunkq.q.head ->
+#     clunkq.head changed the kernel's closeproc logic)
+check "no member path shortened against 9front" python3 scripts/port/find-shortened-members.py
+
 # 4. enumerators with a vlong value: kencc keeps the type, gcc makes them int
 enums(){
 	python3 - sys/src/lib* sys/src/cmd sys/src/9/port sys/src/9/pc sys/src/9/ip <<'PY'

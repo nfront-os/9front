@@ -3,24 +3,26 @@
 # vgasize/monitor/mouseport as plan9.ini would set them): screenrc runs
 # aux/realemu and aux/vga -m vesa, the profile starts rio with riostart.
 # The commands are typed into rio's window; they write their output to
-# the kernel console ('#c/cons', the serial line) so it can be checked.
+# the kernel console ('#c/cons', the serial line) so it can be checked --
+# after a pause, as the console window echoes the typed line meanwhile.
+# Typed input reaches rio's window slowly (kbdfs), so the line is short.
 . "$(dirname "$0")/../lib.sh"
 [ -f "$ROOT/amd64/bin/9pc64" ] || { skip "gui" "no kernel, run scripts/build-cli.sh"; done_tests; exit; }
 
 boot(){
 	SERVICE=terminal KARGS="vgasize=1024x768x16 monitor=vesa mouseport=ps2" \
-	SCREENSHOT="$TMPD/screen.png" BOOTWAIT=${BOOTWAIT:-130} CMDWAIT=${CMDWAIT:-8} \
+	SCREENSHOT="$TMPD/screen.png" BOOTWAIT=${BOOTWAIT:-130} CMDWAIT=${CMDWAIT:-30} \
 		"$ROOT/scripts/boot-cli.sh" \
-		"{echo GUI; grep size /dev/vgactl; ps | awk '{print \"PS\", \$NF}'} > '#c/cons'" \
+		"sleep 3;{grep size /dev/vgactl;ps}>'#c/cons'" \
 		> "$TMPD/console" 2>&1
 	tr -d '\r' < "$TMPD/console" > "$TMPD/log"
 }
 check "terminal boot" boot || { done_tests; exit; }
 L=$TMPD/log
 
-check "vesa mode 1024x768x16" grep -q '^size 1024x768x16' "$L"
+check "vesa mode 1024x768x16" grep -q 'size 1024x768x16' "$L"
 for p in rio stats plumber webfs; do
-	check "$p running" grep -q "^PS $p\$" "$L"
+	check "$p running" grep -qE " $p\$" "$L"
 done
 check "screen dump is 1024x768" python3 -c "
 import struct, sys

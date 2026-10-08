@@ -25,9 +25,9 @@
 			"-z",
 			"noseparate-code",
 			"-z",
-			"max-page-size=0x200000",
+			"max-page-size=0x1000",
 			"-T",
-			"/$ARCH/rodata.ld"
+			"/$ARCH/plan9.ld"
 		],
 		"Include": [
 			"/$ARCH/$CC.json"

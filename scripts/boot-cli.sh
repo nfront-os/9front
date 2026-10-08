@@ -1,14 +1,12 @@
 #!/bin/bash
-# Boot the gcc-built pc64 kernel in QEMU into the minimal CLI system: an
-# interactive rc on the serial console (see MEMORY.md Teil 17).
+# Boot the gcc-built pc64 kernel in QEMU into the system, with the root
+# file system served by the build host: an rc on the serial console
+# (service=cpu) or rio (service=terminal, see KARGS).
 #
-# Guest boot path (compiled into the kernel by scripts/build-cli.sh):
-#   scripts/boot/testinit.S   stands in for port/initcode.c
-#   scripts/boot/netmount.c   stands in for boot(8)/bootrc: static IP for
-#                             QEMU's user network, dials the host's ufs
-#                             9P server (tcp!10.0.2.2!5640) as the root,
-#                             starts aux/kbdfs, execs /amd64/init -t -m
-#   init -> newns(/lib/namespace) -> rc
+# Guest boot path, 9front's own: initcode -> /boot/boot -> bootrc with
+# nobootprompt=tcp: ipconfig (QEMU's DHCP), srv tcp!fs!564 -- QEMU
+# forwards fs (10.0.2.100) port 564 to the host's ufs -- factotum,
+# init -> newns(/lib/namespace) -> cpurc or termrc.
 #
 # Host side: builds the root tree (scripts/gen-ufs-root.sh) and a GRUB
 # multiboot ISO in $CLI_DIR, starts Harvey's ufs on :5640, runs QEMU.
@@ -21,6 +19,13 @@
 #         UFS         ufs binary (default: ufs in PATH, else ~/go/bin/ufs)
 #         SERVICE     cpu (default: cpurc, console rc) or terminal
 #         SCREENSHOT  PNG file: screen dump after the commands (QMP)
+#         SRC9        a directory the guest can mount: a second ufs serves
+#                     it as tcp!10.0.2.101!5641 (srv tcp!10.0.2.101!5641 src9)
+#         DISK        raw disk image attached as the first IDE disk (sdC0)
+#         WAITFOR     after the commands, wait until the console shows this
+#                     (grep -E), at most WAITMAX seconds (3600)
+#         BOOTDISK    boot this disk image instead (scripts/mkdisk.sh): no
+#                     host root, the image's GRUB, kernel and hjfs
 #         KARGS       more kernel parameters (plan9.ini variables), e.g.
 #                     "vgasize=1024x768x16 monitor=vesa mouseport=ps2"
 #         MEM NIC     QEMU memory (256) and NIC model (e1000)
@@ -38,10 +43,14 @@ ROOT=${PLAN9:-$(git -C "$(dirname "$0")" rev-parse --show-toplevel)}
 CLI_DIR=${CLI_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/9front-cli}
 KERNEL=$ROOT/amd64/bin/9pc64
 UFS=${UFS:-$(command -v ufs 2>/dev/null || echo "$HOME/go/bin/ufs")}
-UFS_PORT=5640			# fixed: compiled into scripts/boot/netmount.c
+UFS_PORT=5640
 SERVICE=${SERVICE:-cpu}
 MEM=${MEM:-256}
 NIC=${NIC:-e1000}
+# bootrc's tcp root: fs!564, which QEMU forwards to the host's ufs
+FSADDR=10.0.2.100
+SRC9ADDR=10.0.2.101
+SRC9_PORT=5641
 
 die(){ echo "boot-cli: $*" >&2; exit 1; }
 port_open(){ timeout 2 bash -c "exec 3<>/dev/tcp/127.0.0.1/$UFS_PORT" 2>/dev/null; }
@@ -50,12 +59,23 @@ cmds=("$@")
 
 [ -f "$KERNEL" ] || die "$KERNEL missing, run scripts/build-cli.sh"
 command -v qemu-system-x86_64 >/dev/null || die "qemu-system-x86_64 missing"
+mkdir -p "$CLI_DIR"
+pids=()
+cleanup(){ [ ${#pids[@]} -gt 0 ] && kill "${pids[@]}" 2>/dev/null; wait 2>/dev/null; return 0; }
+trap cleanup EXIT
+
+if [ -n "$BOOTDISK" ]; then
+	# an installed system (scripts/mkdisk.sh): its own boot loader and root
+	[ -f "$BOOTDISK" ] || die "$BOOTDISK missing"
+	qemu=(qemu-system-x86_64 -drive "file=$BOOTDISK,format=raw,if=ide,index=0" -m "$MEM"
+		-display none -no-reboot -monitor none
+		-netdev user,id=net0 -device "$NIC",netdev=net0
+		-cpu qemu64,+rdrand)
+else
 command -v grub-mkrescue >/dev/null || die "grub-mkrescue missing"
 [ -x "$UFS" ] || die "ufs missing (go install github.com/Harvey-OS/ninep/cmd/ufs@latest, or set UFS)"
 # a ufs left over from an earlier run would serve a stale root
 port_open && die "port $UFS_PORT is in use (old ufs still running?)"
-
-mkdir -p "$CLI_DIR"
 
 # root file system
 bash "$ROOT/scripts/gen-ufs-root.sh" "$CLI_DIR/ufsroot" > /dev/null
@@ -70,25 +90,30 @@ cat > "$CLI_DIR/iso/boot/grub/grub.cfg" <<EOF
 set timeout=0
 serial --speed=115200 --unit=0 --word=8 --parity=no --stop=1
 terminal_output serial console
-multiboot /boot/9pc64 console=0 service=$SERVICE $KARGS
+multiboot /boot/9pc64 console=0 service=$SERVICE nobootprompt=tcp fs=$FSADDR auth=$FSADDR $KARGS
 boot
 EOF
 grub-mkrescue -o "$CLI_DIR/9pc64.iso" "$CLI_DIR/iso" > "$CLI_DIR/grub-mkrescue.log" 2>&1 \
 	|| die "grub-mkrescue failed (log: $CLI_DIR/grub-mkrescue.log)"
 
-pids=()
-cleanup(){ [ ${#pids[@]} -gt 0 ] && kill "${pids[@]}" 2>/dev/null; wait 2>/dev/null; return 0; }
-trap cleanup EXIT
-
 "$UFS" -root="$CLI_DIR/ufsroot" -addr=":$UFS_PORT" > "$CLI_DIR/ufs.log" 2>&1 &
 pids+=($!)
 for _ in $(seq 50); do port_open && break; sleep 0.2; done
 port_open || die "ufs did not come up (log: $CLI_DIR/ufs.log)"
+fwd=guestfwd=tcp:$FSADDR:564-tcp:127.0.0.1:$UFS_PORT
+if [ -n "$SRC9" ]; then
+	"$UFS" -root="$SRC9" -addr=":$SRC9_PORT" > "$CLI_DIR/ufs-src9.log" 2>&1 &
+	pids+=($!)
+	fwd=$fwd,guestfwd=tcp:$SRC9ADDR:$SRC9_PORT-tcp:127.0.0.1:$SRC9_PORT	# not 564 too: QEMU names the forwards by guest port
+fi
+disk=()
+[ -z "$DISK" ] || disk=(-drive "file=$DISK,format=raw,if=ide,index=0,media=disk")
 
 qemu=(qemu-system-x86_64 -cdrom "$CLI_DIR/9pc64.iso" -m "$MEM"
 	-display none -no-reboot -monitor none
-	-netdev user,id=net0 -device "$NIC",netdev=net0
+	-netdev user,id=net0,$fwd -device "$NIC",netdev=net0 "${disk[@]}"
 	-cpu qemu64,+rdrand)	# RDRAND: kernel entropy fast path, dial() needs it
+fi
 
 if [ ${#cmds[@]} -eq 0 ]; then
 	echo "boot-cli: starting QEMU (Ctrl-A x quits)" >&2
@@ -138,6 +163,12 @@ for c in "${cmds[@]}"; do
 	printf '%s\r' "$c" > "$pts"
 	sleep "${CMDWAIT:-2}"
 done
+if [ -n "$WAITFOR" ]; then
+	end=$((SECONDS + ${WAITMAX:-3600}))
+	until tr -d '\r' < "$CLI_DIR/console.log" | grep -qE "$WAITFOR" || [ $SECONDS -ge $end ]; do
+		sleep 2
+	done
+fi
 sleep 2
 if [ -n "$SCREENSHOT" ]; then	# QMP screendump (PPM), stored as PNG
 	python3 - "$CLI_DIR/qmp.sock" "$CLI_DIR/screen.ppm" "$SCREENSHOT" <<'PY'

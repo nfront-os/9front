@@ -56,6 +56,42 @@ PY
 }
 check "every command of the cmds.json manifests installed as ELF64 executable" cmds
 
+# amd64/plan9.ld: like 8l, a code segment (R E) and a data segment (RW)
+# with .rodata -- string literals writable, nothing writable+executable
+segments(){
+	python3 - <<'PY'
+import os, subprocess, sys
+bad = n = 0
+paths = ['amd64/init'] + [os.path.join(dp, f) for dp, _, fs in os.walk('amd64/bin') for f in fs]
+for p in paths:
+	if p.endswith('9pc64') or open(p, 'rb').read(4) != b'\x7fELF':
+		continue
+	n += 1
+	out = subprocess.run(['readelf', '-lSW', p], capture_output=True, text=True).stdout
+	# LOAD Offset VirtAddr PhysAddr FileSiz MemSiz Flg Align; Flg is "R E" or "RW"
+	flags = [' '.join(l.split()[6:-1]) for l in out.splitlines() if l.split()[:1] == ['LOAD']]
+	if flags != ['R E', 'RW']:
+		print(p, 'segments', flags)
+		bad += 1
+		continue
+	# sbrk starts the heap at end: it must be the end of the data segment
+	ld = [l.split() for l in out.splitlines() if l.split()[:1] == ['LOAD']][1]
+	top = int(ld[2], 16) + int(ld[5], 16)
+	syms = subprocess.run(['nm', p], capture_output=True, text=True).stdout.split()
+	if 'end' in syms and int(syms[syms.index('end') - 2], 16) != top:
+		print(p, 'end %s, data segment ends %#x' % (syms[syms.index('end') - 2], top))
+		bad += 1
+	for l in out.splitlines():
+		w = l.replace('[', ' ').replace(']', ' ').split()
+		if '.rodata' in w and 'PROGBITS' in w and int(w[w.index('.rodata') + 2], 16) < 0x600000:
+			print(p, '.rodata in the text segment')
+			bad += 1
+print(n, 'programs checked')
+sys.exit(bad != 0)
+PY
+}
+check "programs: a R E code and a RW data segment holding .rodata, end at its end (plan9.ld)" segments
+
 kernel(){
 	local k=amd64/bin/9pc64
 	[ -f $k ] || { echo "$k missing"; return 1; }

@@ -18,55 +18,6 @@
 #include	"initcode.i"
 
 /*
- * GCC port, exec/ELF64-loader test only (see MEMORY.md, scripts/
- * gen-exectest-payloads.sh): two real-toolchain test binaries (a gcc-
- * compiled static ELF64 executable and a real `GOOS=plan9 GOARCH=amd64
- * go build` a.out binary), embedded here since no real filesystem
- * exists yet to exec() them from. Mapped read-only into the bootstrap
- * test process's address space below so scripts/boot/testinit.S can copy
- * them into a #g (devsegment) shared segment -- the only way to give
- * sysexec() an actual Chan to read from without a filesystem -- and
- * exec() them, exercising the ELF64 loader and the a.out loader with
- * genuine compiler output instead of hand-assembled code.
- */
-#include	"testelf.i"
-#include	"testgo.i"
-#include	"testinitreal.i"
-#include	"testrc.i"
-#include	"testnetmount.i"
-
-#define TESTELFVA	0x500000ULL
-#define TESTGOVA	0x700000ULL
-#define TESTINITVA	0x1000000ULL
-#define TESTRCVA	0x1800000ULL
-#define TESTNETMOUNTVA	0x2000000ULL
-
-static void
-loadrotext(int seg, uintptr base, uchar *data, ulong len)
-{
-	KMap *k;
-	Page *p;
-	ulong off, n;
-
-	/* SG_CEXEC: the payloads only serve the boot process's staging;
-	 * SEG1-SEG4 survive exec otherwise and every process inherited
-	 * them (aux/realemu's brk ran into TESTGOVA) */
-	attachseg(up, seg, newseg(SG_TEXT | SG_RONLY | SG_CEXEC, base, (len+BY2PG-1)/BY2PG));
-	for(off = 0; off < len; off += BY2PG){
-		p = newpage(base+off, nil);
-		k = kmap(p);
-		n = len-off;
-		if(n > BY2PG)
-			n = BY2PG;
-		memmove((uchar*)VA(k), data+off, n);
-		if(n < BY2PG)
-			memset((uchar*)VA(k)+n, 0, BY2PG-n);
-		kunmap(k);
-		segpage(up->seg[seg], p);
-	}
-}
-
-/*
  * The first kernel process starts here.
  */
 static void
@@ -81,7 +32,7 @@ proc0(void*)
 
 	up->pgrp = newpgrp();
 	up->egrp = smalloc(sizeof(Egrp));
-	up->egrp->Ref.ref = 1;
+	up->egrp->Ref.ref = 1;	/* GCC port: was ->ref, gcc needs the member (RWLock is embedded too) */
 	up->fgrp = dupfgrp(nil);
 	up->rgrp = newrgrp();
 
@@ -109,19 +60,6 @@ proc0(void*)
 	memset((uchar*)VA(k)+sizeof(initcode), 0, BY2PG-sizeof(initcode));
 	kunmap(k);
 	segpage(up->seg[TSEG], p);
-
-	/* GCC port, exec/ELF64-loader test only -- see comment above */
-	qlock(&up->seglock);
-	loadrotext(SEG1, TESTELFVA, testelf, sizeof(testelf));
-	loadrotext(SEG2, TESTGOVA, testgo, sizeof(testgo));
-	loadrotext(SEG3, TESTINITVA, testinitreal, sizeof(testinitreal));
-	loadrotext(SEG4, TESTRCVA, testrc, sizeof(testrc));
-	/* DSEG is unused here (this bootstrap process is raw-loaded by
-	 * proc0() with only SSEG+TSEG attached, never the normal Data/BSS/
-	 * Env/Lib segments a real exec'd process would have) -- reused as
-	 * a 5th scratch slot, same pattern as SEG1-4 above */
-	loadrotext(DSEG, TESTNETMOUNTVA, testnetmount, sizeof(testnetmount));
-	qunlock(&up->seglock);
 
 	/*
 	 * Become a user process.

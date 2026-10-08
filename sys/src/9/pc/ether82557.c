@@ -877,7 +877,7 @@ hy93c46r(Ctlr* ctlr, int r)
 	 * Hyundai HY93C46 or equivalent serial EEPROM.
 	 * This sequence for reading a 16-bit register 'r'
 	 * in the EEPROM is taken straight from Section
-	 * 3.4.2 of the Intel 82557 User's Guide.
+	 * 3.3.4.2 of the Intel 82557 User's Guide.
 	 */
 reread:
 	csr16w(ctlr, Ecr, EEcs);
