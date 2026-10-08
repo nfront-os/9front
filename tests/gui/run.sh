@@ -11,7 +11,7 @@
 
 boot(){
 	SERVICE=terminal KARGS="vgasize=1024x768x16 monitor=vesa mouseport=ps2" \
-	SCREENSHOT="$TMPD/screen.png" BOOTWAIT=${BOOTWAIT:-130} CMDWAIT=${CMDWAIT:-30} \
+	SCREENSHOT="$TMPD/screen.png" CMDWAIT=${CMDWAIT:-30} \
 		"$ROOT/scripts/boot-cli.sh" \
 		"sleep 3;{grep size /dev/vgactl;ps}>'#c/cons'" \
 		> "$TMPD/console" 2>&1

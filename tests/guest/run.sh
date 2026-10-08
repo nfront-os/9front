@@ -13,7 +13,7 @@ buildtests(){
 }
 check "build tests/guest with the port toolchain" buildtests || { done_tests; exit; }
 
-boot(){ BOOTWAIT=${BOOTWAIT:-45} CMDWAIT=${CMDWAIT:-20} "$ROOT/scripts/boot-cli.sh" /tests/run > "$TMPD/console" 2>&1; }
+boot(){ "$ROOT/scripts/boot-cli.sh" /tests/run > "$TMPD/console" 2>&1; }
 check "boot and run /tests/run" boot || { done_tests; exit; }
 tr -d '\r' < "$TMPD/console" | sed -n '/^== /,/^tests: /p' > "$TMPD/log"
 

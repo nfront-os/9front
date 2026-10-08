@@ -1,5 +1,8 @@
 #!/bin/rc
-window 0,0,161,117 stats -lmisce
+# not the old syntax 'window 0,0,161,117': that makes the window from a
+# background job, which can finish after the windows below and take the
+# keyboard focus from them (the serial console window)
+window -r 0 0 161 117 stats -lmisce
 window -miny 130
 
 # run a system shell on the serial console

@@ -33,12 +33,14 @@
 #         QEMU_EXTRA  extra QEMU flags (e.g. "-s -S" for gdb)
 #         UFS_EXTRA   directory whose contents are added to the root
 #                     (tests/guest puts its test programs in /tests)
-#         BOOTWAIT    seconds at least before typing the first line (15);
+#         BOOTWAIT    seconds at most for the boot: until rc prompts (300);
 #                     each line waits for rc's prompt (PROMPTWAIT, 300 s); meanwhile
 #                     factotum's nvram prompts get AUTHID (glenda),
 #                     AUTHDOM (9front), PASSWORD (gccport9), empty
 #                     secstore key and the p9sk1 default
-#         CMDWAIT     seconds per line (2)
+#         CMDWAIT     seconds at most per line: until rc prompts after its
+#                     output (60; input typed into a rio window gets no prompt
+#                     on the serial line, there it is the pause)
 #         HOLD        1: after the commands keep the guest running (until
 #                     this script is killed); scripts/guest-cmd.sh types
 #                     further lines into it
@@ -141,13 +143,37 @@ for _ in $(seq 50); do
 done
 [ -n "$pts" ] || die "no QEMU serial pty (log: $CLI_DIR/qemu.log)"
 stty -F "$pts" raw -echo
-cat "$pts" > "$CLI_DIR/console.log" &
+# empty now, not in the background job: the prompt checks below must
+# not see the previous boot's log
+: > "$CLI_DIR/console.log"
+cat "$pts" >> "$CLI_DIR/console.log" &
 pids+=($!)
+# type a line only when rc prompts for it (term% , sysname# ): input that
+# arrives while init and cpurc/termrc still run gets lost
+prompted(){
+	local log
+	log=$(tr -d '\r' < "$CLI_DIR/console.log")
+	case ${log##*$'\n'} in
+	*'% '|*'# ')	return 0 ;;
+	esac
+	return 1
+}
+# rc prompted since the console log had $1 bytes, after a newline (the
+# echoed input line)
+replied(){
+	local out
+	out=$(tail -c +$(($1 + 1)) "$CLI_DIR/console.log" | tr -d '\r')
+	[ "$out" != "${out%%$'\n'*}" ] || return 1
+	case ${out##*$'\n'} in
+	*'% '|*'# ')	return 0 ;;
+	esac
+	return 1
+}
 # while booting, answer factotum's nvram questions (readnvram(2): no
 # nvram in QEMU) as the console user would; each prompt once
 answered=0
-end=$((SECONDS + ${BOOTWAIT:-15}))
-while [ $SECONDS -lt $end ]; do
+end=$((SECONDS + ${BOOTWAIT:-300}))
+while [ $SECONDS -lt $end ] && ! prompted; do
 	log=$(tr -d '\r' < "$CLI_DIR/console.log")
 	last=${log##*$'\n'}
 	ans=-
@@ -167,16 +193,6 @@ while [ $SECONDS -lt $end ]; do
 	fi
 	sleep 0.5
 done
-# type a line only when rc prompts for it (term% , sysname# ): input that
-# arrives while init and cpurc/termrc still run gets lost
-prompted(){
-	local log
-	log=$(tr -d '\r' < "$CLI_DIR/console.log")
-	case ${log##*$'\n'} in
-	*'% '|*'# ')	return 0 ;;
-	esac
-	return 1
-}
 for c in "${cmds[@]}"; do
 	end=$((SECONDS + ${PROMPTWAIT:-300}))
 	until prompted || [ $SECONDS -ge $end ]; do
@@ -184,13 +200,17 @@ for c in "${cmds[@]}"; do
 	done
 	# in pieces: the serial input buffer drops what exceeds about 128
 	# bytes at once (the rest of a long line, its newline with it)
+	start=$(stat -c %s "$CLI_DIR/console.log")
 	l=$c$'\r'
 	while [ -n "$l" ]; do
 		printf '%s' "${l:0:32}" > "$pts"
 		l=${l:32}
 		sleep 0.2
 	done
-	sleep "${CMDWAIT:-2}"
+	end=$((SECONDS + ${CMDWAIT:-60}))
+	until replied $start || [ $SECONDS -ge $end ]; do
+		sleep 0.5
+	done
 done
 if [ -n "$WAITFOR" ]; then
 	end=$((SECONDS + ${WAITMAX:-3600}))
@@ -198,7 +218,7 @@ if [ -n "$WAITFOR" ]; then
 		sleep 2
 	done
 fi
-sleep 2
+sleep 1
 if [ -n "$SCREENSHOT" ]; then	# QMP screendump (PPM), stored as PNG
 	python3 - "$CLI_DIR/qmp.sock" "$CLI_DIR/screen.ppm" "$SCREENSHOT" <<'PY'
 import json, socket, struct, sys, zlib

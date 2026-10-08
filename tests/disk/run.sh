@@ -13,7 +13,7 @@ if [ -z "$DISKIMG" ]; then
 fi
 
 boot(){
-	BOOTDISK=$IMG MEM=1024 BOOTWAIT=${BOOTWAIT:-130} CMDWAIT=${CMDWAIT:-6} "$ROOT/scripts/boot-cli.sh" \
+	BOOTDISK=$IMG MEM=1024 "$ROOT/scripts/boot-cli.sh" \
 		'echo $bootargs' 'ls -d /sys/src/9/pc64 /amd64/bin/rc /usr/glenda/lib/profile' \
 		'ps | grep -c closeproc' 'ls /srv | grep -c hjfs' \
 		'echo lib `{ls /amd64/lib | wc -l} gcc `{ls /amd64/lib.gcc/libc.a}' > "$TMPD/console" 2>&1

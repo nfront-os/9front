@@ -5,7 +5,7 @@
 [ -f "$ROOT/amd64/bin/9pc64" ] || { skip "boot" "no kernel, run scripts/build-cli.sh"; done_tests; exit; }
 
 boot(){
-	BOOTWAIT=${BOOTWAIT:-45} CMDWAIT=${CMDWAIT:-3} "$ROOT/scripts/boot-cli.sh" \
+	"$ROOT/scripts/boot-cli.sh" \
 		'echo hello' 'ls /bin | wc -l' 'date -i' 'ps | wc -l' 'cat /dev/sysname; echo' \
 		'cat /proc/$pid/segment | wc -l' \
 		"bind -a '#v' /dev; aux/realemu && aux/vga -m vesa -l 1024x768x16 && grep size /dev/vgactl" \
