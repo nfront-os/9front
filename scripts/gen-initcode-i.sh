@@ -5,7 +5,7 @@
 # -- with the port toolchain: pc64/init9.S (GCC port of ../pc/init9.c),
 # port/initcode.c and libc's system call stubs. proc0() starts it at
 # UTZERO+0x28, past where the a.out header was, so the image is preceded
-# by 0x28 bytes. Needs amd64/lib/libc.a (scripts/build-cli.sh).
+# by 0x28 bytes. Needs amd64/lib.gcc/libc.a (scripts/build-cli.sh).
 set -e
 ROOT=${PLAN9:-$(git -C "$(dirname "$0")" rev-parse --show-toplevel)}
 TMP=$(mktemp -d)
@@ -18,7 +18,7 @@ gcc $CFLAGS -c -o "$TMP/init9.o" "$ROOT/sys/src/9/pc64/init9.S"
 gcc $CFLAGS -c -o "$TMP/initcode.o" "$ROOT/sys/src/9/port/initcode.c"
 # -N: text and data contiguous, like 8l -R1
 ld -N -static -Ttext=$(printf "%#x" $((UTZERO + 0x28))) --entry=_main -o "$TMP/initcode.elf" \
-	"$TMP/init9.o" "$TMP/initcode.o" "$ROOT/amd64/lib/libc.a"
+	"$TMP/init9.o" "$TMP/initcode.o" "$ROOT/amd64/lib.gcc/libc.a"
 objcopy -O binary -R .bss -R .comment -R .note.gnu.property "$TMP/initcode.elf" "$TMP/initcode.bin"
 python3 - "$TMP/initcode.bin" "$ROOT/sys/src/9/port/initcode.i" <<'PY'
 import sys

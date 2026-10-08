@@ -1045,7 +1045,7 @@ dotmfmt(Fmt *f, ...)
 	f->flush = nil;
 	f->farg = nil;
 	f->nfmt = 0;
-	__builtin_va_copy(f->args, ap);	/* GCC port: va_list is an array type, can't '=' */
+	va_copy(f->args, ap);	/* GCC port: va_list is an array type, can't '=' */
 	τconv(f);
 	va_end(ap);
 	buf[sizeof(buf) - 1] = 0;

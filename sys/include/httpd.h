@@ -1,7 +1,5 @@
 #pragma	lib	"libhttpd.a"
 #pragma	src	"/sys/src/libhttpd"
-/* #pragma	lib	"libhttpd.a" */
-/* #pragma	src	"/sys/src/libhttpd" */
 
 typedef struct HConnect		HConnect;
 typedef struct HContent		HContent;

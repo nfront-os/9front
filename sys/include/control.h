@@ -1,7 +1,5 @@
 #pragma src "/sys/src/libcontrol"
 #pragma lib "libcontrol.a"
-/* #pragma src "/sys/src/libcontrol" */
-/* #pragma lib "libcontrol.a" */
 
 #pragma	varargck	argpos	ctlprint	2
 #pragma varargck	argpos	_ctlprint	2

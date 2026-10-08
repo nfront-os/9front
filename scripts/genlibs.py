@@ -128,7 +128,7 @@ def main():
 		manifest = [{
 			'Name': lib[3:].capitalize() if lib[3:].islower() else lib[3:],
 			'Include': ['../lib.json'],
-			'Install': '/$ARCH/lib/',
+			'Install': '/$ARCH/lib.gcc/',	# gcc archives; /$ARCH/lib is the native (6c) one
 			'Library': lib + '.a',
 			'SourceFiles': files,
 		}]

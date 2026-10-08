@@ -815,7 +815,7 @@ syssleep(uchar *list)
 {
 	long ms;
 
-	ms = ARG(list, long);
+	ms = ARG(list, s32int);	/* GCC port: 6c long, see ARG */
 	if(ms <= 0) {
 		if (up->edf != nil && (up->edf->flags & Admitted))
 			edfyield();
@@ -1503,7 +1503,7 @@ syssemrelease(uchar *list)
 	Segment *s;
 
 	addr = ARG(list, long*);
-	delta = ARG(list, long);
+	delta = ARG(list, s32int);	/* GCC port: 6c long, see ARG */
 	evenaddr((uintptr)addr);
 	s = seg(up, (uintptr)addr, 0);
 	if(s == nil || (s->type&SG_RONLY) != 0 || (uintptr)addr+sizeof(long) > s->top){

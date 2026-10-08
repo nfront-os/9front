@@ -395,7 +395,7 @@ lookup(void)
 		h += *p++;
 	}
 	n = (p - symb) + 1;
-	if((long)h < 0)
+	if((s32int)h < 0)	/* GCC port: was (long), 32 bits under kencc */
 		h = ~h;
 	h %= NHASH;
 	c = symb[0];

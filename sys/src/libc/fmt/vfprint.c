@@ -26,7 +26,7 @@ vfprint(int fd, char *fmt, va_list args)
 	int n;
 
 	fmtfdinit(&f, fd, buf, sizeof(buf));
-	__builtin_va_copy(f.args, args);	/* GCC port: va_list is an array type, can't '=' */
+	va_copy(f.args, args);	/* GCC port: va_list is an array type, can't '=' */
 	n = dofmt(&f, fmt);
 	if(n > 0 && _fmtFdFlush(&f) == 0)
 		return -1;

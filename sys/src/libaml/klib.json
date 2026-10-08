@@ -1,7 +1,7 @@
 [
 	{
 		"Name": "klibaml",
-		"Install": "/$ARCH/lib/",
+		"Install": "/$ARCH/lib.gcc/",
 		"Library": "klibaml.a",
 		"Include": [
 			"$ARCH.json"

@@ -1,10 +1,5 @@
 #pragma	src	"/sys/src/libbio"
 #pragma	lib	"libbio.a"
-/* #pragma	src	"/sys/src/libbio" */
-/* #pragma	lib	"libbio.a" */
-
-#define UTFmax 4
-#define IOUNIT 32768U
 
 typedef struct	Bstr	Bstr;
 typedef	struct	Biobuf	Biobuf;

@@ -21,10 +21,15 @@ enum{
  * GCC port: front takes char *arg0 and passes &arg0 as argv, which
  * relies on 6c leaving the arguments in place on the initial stack.
  * Under System V they arrive in registers, so amd64/main9.s passes the
- * argv pointer itself (as libc/9sys/callmain.c).
+ * argv pointer itself (as libc/9sys/callmain.c). APE is compiled
+ * -U__GNUC__ (amd64/ape.json); natively (6c, 6a's main9.s) front's.
  */
 void
+#ifdef __GNUC_MINOR__
 _callmain(int (*f)(int, char**), int argc, char **argv)
+#else
+_callmain(int (*f)(int, char**), int argc, char *arg0)
+#endif
 {
 	int errno;
 	char err[ERRMAX];
@@ -36,7 +41,11 @@ _callmain(int (*f)(int, char**), int argc, char **argv)
 	_nprivates = NPRIVATES;
 	_errnoloc = &errno;
 	_plan9err = &err[0];
+#ifdef __GNUC_MINOR__
 	exit(f(argc, argv));
+#else
+	exit(f(argc, &arg0));
+#endif
 }
 
 int

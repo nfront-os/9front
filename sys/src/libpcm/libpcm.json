@@ -4,7 +4,7 @@
 		"Include": [
 			"../lib.json"
 		],
-		"Install": "/$ARCH/lib/",
+		"Install": "/$ARCH/lib.gcc/",
 		"Library": "libpcm.a",
 		"SourceFiles": [
 			"conv.c",

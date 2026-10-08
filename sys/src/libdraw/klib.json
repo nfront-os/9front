@@ -1,7 +1,7 @@
 [
 	{
 		"Name": "klibdraw",
-		"Install": "/$ARCH/lib/",
+		"Install": "/$ARCH/lib.gcc/",
 		"Library": "klibdraw.a",
 		"Include": [
 			"$ARCH.json"

@@ -26,17 +26,22 @@
 #                     (grep -E), at most WAITMAX seconds (3600)
 #         BOOTDISK    boot this disk image instead (scripts/mkdisk.sh): no
 #                     host root, the image's GRUB, kernel and hjfs
+#         KVM         0: no KVM acceleration (default: use /dev/kvm if writable)
 #         KARGS       more kernel parameters (plan9.ini variables), e.g.
 #                     "vgasize=1024x768x16 monitor=vesa mouseport=ps2"
 #         MEM NIC     QEMU memory (256) and NIC model (e1000)
 #         QEMU_EXTRA  extra QEMU flags (e.g. "-s -S" for gdb)
 #         UFS_EXTRA   directory whose contents are added to the root
 #                     (tests/guest puts its test programs in /tests)
-#         BOOTWAIT    seconds before typing the first line (15); meanwhile
+#         BOOTWAIT    seconds at least before typing the first line (15);
+#                     each line waits for rc's prompt (PROMPTWAIT, 300 s); meanwhile
 #                     factotum's nvram prompts get AUTHID (glenda),
 #                     AUTHDOM (9front), PASSWORD (gccport9), empty
 #                     secstore key and the p9sk1 default
 #         CMDWAIT     seconds per line (2)
+#         HOLD        1: after the commands keep the guest running (until
+#                     this script is killed); scripts/guest-cmd.sh types
+#                     further lines into it
 set -e
 
 ROOT=${PLAN9:-$(git -C "$(dirname "$0")" rev-parse --show-toplevel)}
@@ -50,6 +55,9 @@ NIC=${NIC:-e1000}
 # bootrc's tcp root: fs!564, which QEMU forwards to the host's ufs
 FSADDR=10.0.2.100
 SRC9ADDR=10.0.2.101
+# KVM when the host has it (KVM=0: emulation only); same CPU model either way
+accel=()
+[ "${KVM:-1}" != 0 ] && [ -w /dev/kvm ] && accel=(-accel kvm)
 SRC9_PORT=5641
 
 die(){ echo "boot-cli: $*" >&2; exit 1; }
@@ -70,7 +78,7 @@ if [ -n "$BOOTDISK" ]; then
 	qemu=(qemu-system-x86_64 -drive "file=$BOOTDISK,format=raw,if=ide,index=0" -m "$MEM"
 		-display none -no-reboot -monitor none
 		-netdev user,id=net0 -device "$NIC",netdev=net0
-		-cpu qemu64,+rdrand)
+		-cpu qemu64,+rdrand "${accel[@]}")
 else
 command -v grub-mkrescue >/dev/null || die "grub-mkrescue missing"
 [ -x "$UFS" ] || die "ufs missing (go install github.com/Harvey-OS/ninep/cmd/ufs@latest, or set UFS)"
@@ -112,7 +120,7 @@ disk=()
 qemu=(qemu-system-x86_64 -cdrom "$CLI_DIR/9pc64.iso" -m "$MEM"
 	-display none -no-reboot -monitor none
 	-netdev user,id=net0,$fwd -device "$NIC",netdev=net0 "${disk[@]}"
-	-cpu qemu64,+rdrand)	# RDRAND: kernel entropy fast path, dial() needs it
+	-cpu qemu64,+rdrand "${accel[@]}")	# RDRAND: kernel entropy fast path, dial() needs it
 fi
 
 if [ ${#cmds[@]} -eq 0 ]; then
@@ -159,8 +167,29 @@ while [ $SECONDS -lt $end ]; do
 	fi
 	sleep 0.5
 done
+# type a line only when rc prompts for it (term% , sysname# ): input that
+# arrives while init and cpurc/termrc still run gets lost
+prompted(){
+	local log
+	log=$(tr -d '\r' < "$CLI_DIR/console.log")
+	case ${log##*$'\n'} in
+	*'% '|*'# ')	return 0 ;;
+	esac
+	return 1
+}
 for c in "${cmds[@]}"; do
-	printf '%s\r' "$c" > "$pts"
+	end=$((SECONDS + ${PROMPTWAIT:-300}))
+	until prompted || [ $SECONDS -ge $end ]; do
+		sleep 1
+	done
+	# in pieces: the serial input buffer drops what exceeds about 128
+	# bytes at once (the rest of a long line, its newline with it)
+	l=$c$'\r'
+	while [ -n "$l" ]; do
+		printf '%s' "${l:0:32}" > "$pts"
+		l=${l:32}
+		sleep 0.2
+	done
 	sleep "${CMDWAIT:-2}"
 done
 if [ -n "$WAITFOR" ]; then
@@ -191,6 +220,11 @@ def chunk(t, b):
 open(sys.argv[3], 'wb').write(b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', w, h, 8, 2, 0, 0, 0))
 	+ chunk(b'IDAT', zlib.compress(raw)) + chunk(b'IEND', b''))
 PY
+fi
+if [ -n "$HOLD" ]; then
+	echo "$pts" > "$CLI_DIR/pts"
+	echo "guest running on $pts: scripts/guest-cmd.sh 'cmd'"
+	wait
 fi
 cleanup
 pids=()

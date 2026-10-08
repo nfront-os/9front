@@ -4,8 +4,6 @@
 
 #pragma lib "libsunrpc.a"
 #pragma src "/sys/src/libsunrpc"
-/* #pragma lib "libsunrpc.a" */
-/* #pragma src "/sys/src/libsunrpc" */
 
 typedef uchar u1int;
 

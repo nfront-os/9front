@@ -1,7 +1,7 @@
 [
 	{
 		"Name": "klibc",
-		"Install": "/$ARCH/lib/",
+		"Install": "/$ARCH/lib.gcc/",
 		"Library": "klibc.a",
 		"Include": [
 			"$ARCH.json"

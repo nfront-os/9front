@@ -1,7 +1,5 @@
 #pragma	src	"/sys/src/libip"
 #pragma	lib	"libip.a"
-/* #pragma	src	"/sys/src/libip" */
-/* #pragma	lib	"libip.a" */
 
 enum 
 {

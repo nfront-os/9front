@@ -1,7 +1,5 @@
 #pragma lib "libdtracy.a"
 #pragma src "/sys/src/libdtracy"
-/* #pragma lib "libdtracy.a" */
-/* #pragma src "/sys/src/libdtracy" */
 
 /*
 	triggered probes run in "probe context", which involves grabbing a per-CPU lock using dtmachlock/dtmachunlock.

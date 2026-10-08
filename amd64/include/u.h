@@ -106,6 +106,7 @@ typedef	__builtin_va_list	va_list;
 #define va_start(list, start) __builtin_va_start(list, start)
 #define va_end(list) __builtin_va_end(list)
 #define va_arg(list, mode) __builtin_va_arg(list, mode)
+#define va_copy(dst, src) __builtin_va_copy(dst, src)
 #else
 typedef	char*	va_list;
 #define va_start(list, start) list =\
@@ -122,4 +123,6 @@ typedef	char*	va_list;
 	(sizeof(mode) == 4)?\
 		((list += 8), (mode*)list)[-2]:\
 		((list += sizeof(mode)), (mode*)list)[-1])
+/* GCC port: for the sources that copy a va_list (libc/fmt, libbio) */
+#define va_copy(dst, src) ((dst) = (src))
 #endif

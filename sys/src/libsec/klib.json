@@ -1,7 +1,7 @@
 [
 	{
 		"Name": "klibsec",
-		"Install": "/$ARCH/lib/",
+		"Install": "/$ARCH/lib.gcc/",
 		"Library": "klibsec.a",
 		"Include": [
 			"$ARCH.json"

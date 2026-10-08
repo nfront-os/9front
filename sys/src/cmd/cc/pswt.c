@@ -53,7 +53,8 @@ doswit(Node *n)
 		if(isv)
 			q->val = c->val;
 		else
-			q->val = (long)c->val;	/* cast ensures correct value for 32-bit switch on 64-bit architecture */
+			q->val = (s32int)c->val;	/* cast ensures correct value for 32-bit switch on 64-bit architecture */
+			/* GCC port: (long) was the 32-bit truncation under kencc; gcc's long is 64 bits */
 		q++;
 	}
 	qsort(iq, nc, sizeof(C1), swcmp);
@@ -105,7 +106,7 @@ doswit(Node *n)
 		for(j = i; j < nc; j++){
 			if((iq[j].val>>32) != iqh[nh].val)
 				break;
-			q->val = (long)iq[j].val;
+			q->val = (s32int)iq[j].val;	/* GCC port: was (long), 32 bits under kencc */
 			q->label = iq[j].label;
 			q++;
 		}

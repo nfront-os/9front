@@ -1,7 +1,5 @@
 #pragma	lib	"libpcm.a"
 #pragma	src	"/sys/src/libpcm"
-/* #pragma	lib	"libpcm.a" */
-/* #pragma	src	"/sys/src/libpcm" */
 
 typedef struct Pcmconv Pcmconv;
 typedef struct Pcmdesc Pcmdesc;

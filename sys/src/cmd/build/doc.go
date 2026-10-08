@@ -130,7 +130,7 @@ builds one archive from several directories the way mk's ar does
 "Oflags" is an array of flags to pass to the linker. They are in addition
 to the standard flags of
 
-	-o $program $objfiles -L /$ARCH/lib $libs
+	-o $program $objfiles -L /$ARCH/lib.gcc $libs
 
 The lib path is re-rooted to the plan9 tree if not on a plan9 system.
 

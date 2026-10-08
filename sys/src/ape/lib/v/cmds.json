@@ -5,7 +5,7 @@
 			"/$ARCH/cflags.json",
 			"/$ARCH/ape.json"
 		],
-		"Install": "/$ARCH/lib/ape/",
+		"Install": "/$ARCH/lib.gcc/ape/",
 		"Ape": true,
 		"Library": "libv.a",
 		"SourceFiles": [

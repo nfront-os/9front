@@ -41,7 +41,7 @@ CFLAGS="-std=gnu17 -fno-asm -ffreestanding -nostdinc -fno-builtin -fplan9-extens
 	-I$ROOT/amd64/include -I$ROOT/sys/include -I$ROOT/sys/src/9/boot"
 gcc $CFLAGS -c -o "$TMP/boot.o" "$ROOT/sys/src/9/boot/boot.c"
 ld -o "$KDIR/boot" --entry=_main -z noseparate-code -z max-page-size=0x1000 \
-	-T "$ROOT/amd64/plan9.ld" "$TMP/boot.o" "$ROOT/amd64/lib/libc.a"
+	-T "$ROOT/amd64/plan9.ld" "$TMP/boot.o" "$ROOT/amd64/lib.gcc/libc.a"
 
 # the kernel's objects ($OBJ): source files and configuration lines
 OBJ=$(python3 - "$KDIR/build.json" <<'PY'

@@ -8,7 +8,7 @@
 			"../lib.json",
 			"$ARCH/build.json"
 		],
-		"Install": "/$ARCH/lib/",
+		"Install": "/$ARCH/lib.gcc/",
 		"Library": "libc.a",
 		"Projects": [
 			"9syscall/9syscall.json"

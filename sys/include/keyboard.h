@@ -1,7 +1,5 @@
 #pragma src "/sys/src/libdraw"
 #pragma lib "libdraw.a"
-/* #pragma src "/sys/src/libdraw" */
-/* #pragma lib "libdraw.a" */
 
 typedef struct 	Keyboardctl Keyboardctl;
 typedef struct	Channel	Channel;

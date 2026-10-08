@@ -14,7 +14,10 @@
 # The binds become a view of symlinks (dist/9front, the repository
 # itself, is left out: the disk gets the system, not a second source
 # tree); /sys/src holds the repository's files only, not the gcc build's
-# objects in the working tree; scripts/proto.py expands the protos. Our
+# objects in the working tree; scripts/boot/gccproto adds /amd64/lib.gcc,
+# the gcc build's archives (distproto ships /amd64/lib empty, as 9front
+# does: libraries are built with mk on the installed system);
+# scripts/proto.py expands the protos. Our
 # binaries carry DWARF (8l writes none) and are stripped. The guest's install script
 # (scripts/boot/mkdisk.rc) reads the result as /n/src9.
 #
@@ -52,6 +55,12 @@ for f in "$ROOT"/sys/*; do
 done
 git -C "$ROOT" ls-files -z sys/src | (cd "$VIEW" && xargs -0 -n 500 sh -c '
 	for f; do mkdir -p "$(dirname "$f")"; ln -s "'"$ROOT"'/$f" "$f"; done' sh)
+# generated files a 9front release tree has: libc/ucd's tables, which mk
+# would make with a helper linked against a Plan 9 libc.a (the native
+# /amd64/lib; the gcc build's archives are in /amd64/lib.gcc)
+for f in "$ROOT"/sys/src/libc/ucd/rune*data; do
+	ln -s "$f" "$VIEW/sys/src/libc/ucd/$(basename "$f")"
+done
 
 # the kernel where 9front installs it
 mkdir -p "$VIEW/.amd64"
@@ -65,7 +74,11 @@ export objtype=amd64
 python3 "$ROOT/scripts/proto.py" -s "$VIEW" -d "$OUT" \
 	-e tmp -e lib/firmware -e n -e mnt \
 	"$ROOT/sys/lib/sysconfig/proto/distproto" "$ROOT/sys/lib/sysconfig/proto/9bootproto" \
+	"$ROOT/scripts/boot/gccproto" \
 	2> "$OUT.warnings" || { cat "$OUT.warnings"; exit 1; }
+# for the guest's disk/mkfs (scripts/boot/mkdisk.rc); no proto lists it,
+# so it stays off the disk
+cp "$ROOT/scripts/boot/gccproto" "$OUT/gccproto"
 find "$OUT" -type f -perm -u+x -exec sh -c 'file -b "$1" | grep -q ^ELF && strip "$1"' _ {} \;
 echo "$(grep -c . "$OUT.warnings") proto warnings ($OUT.warnings)"
 du -sh "$OUT"

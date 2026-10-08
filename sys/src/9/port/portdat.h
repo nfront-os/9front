@@ -134,6 +134,12 @@ struct Sargs
  * by one word, then read T from the slot's original (low) address.
  */
 #define ARG(list, T) (((list) += BY2WD), *(T*)((list) - BY2WD))
+/*
+ * GCC port: 6c's va_arg read a type narrower than BY2WD from the low
+ * half of its slot; a 6c caller stores only that half (MOVL), the upper
+ * one is stale stack. 6c's long is 4 bytes, gcc's 8: syscall arguments
+ * declared long (32 bits in the Plan 9 ABI) are read as s32int/u32int.
+ */
 
 /*
  * Access types in namec & channel flags

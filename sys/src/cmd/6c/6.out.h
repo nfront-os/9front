@@ -827,10 +827,11 @@ enum
  * this is the simulated IEEE floating point
  */
 typedef	struct	ieee	Ieee;
+/* GCC port: s32int was long -- two 32-bit words, read bytewise as a double */
 struct	ieee
 {
-	long	l;	/* contains ls-man	0xffffffff */
-	long	h;	/* contains sign	0x80000000
+	s32int	l;	/* contains ls-man	0xffffffff */
+	s32int	h;	/* contains sign	0x80000000
 				    exp		0x7ff00000
 				    ms-man	0x000fffff */
 };

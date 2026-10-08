@@ -647,7 +647,7 @@ func link(b *build) {
 			if r := presolve(b, n, []string{o}); r != "" {
 				args = []string{"-o", n + ".out", r}
 			}
-			args = append(args, "-L", fromRoot("/$ARCH/lib"))
+			args = append(args, "-L", fromRoot("/$ARCH/lib.gcc"))
 			args = append(args, b.Libs...)
 			args = append(args, b.Oflags...)
 			run(b, *shellhack, exec.Command(tools["ld"], args...))
@@ -660,7 +660,7 @@ func link(b *build) {
 	} else {
 		args = append(args, b.ObjectFiles...)
 	}
-	args = append(args, "-L", fromRoot("/$ARCH/lib"))
+	args = append(args, "-L", fromRoot("/$ARCH/lib.gcc"))
 	args = append(args, b.Libs...)
 	args = append(args, b.Oflags...)
 	run(b, *shellhack, exec.Command(tools["ld"], args...))

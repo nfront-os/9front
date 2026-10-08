@@ -150,16 +150,16 @@
             "max-page-size=0x1000"
         ],
         "Libs": [
-            "/amd64/lib/klibmemlayer.a",
-            "/amd64/lib/klibmemdraw.a",
-            "/amd64/lib/klibdraw.a",
-            "/amd64/lib/klibip.a",
-            "/amd64/lib/klibsec.a",
-            "/amd64/lib/klibmp.a",
-            "/amd64/lib/klibc.a",
-            "/amd64/lib/klibfis.a",
-            "/amd64/lib/klibaml.a",
-            "/amd64/lib/klibdtracy.a"
+            "/amd64/lib.gcc/klibmemlayer.a",
+            "/amd64/lib.gcc/klibmemdraw.a",
+            "/amd64/lib.gcc/klibdraw.a",
+            "/amd64/lib.gcc/klibip.a",
+            "/amd64/lib.gcc/klibsec.a",
+            "/amd64/lib.gcc/klibmp.a",
+            "/amd64/lib.gcc/klibc.a",
+            "/amd64/lib.gcc/klibfis.a",
+            "/amd64/lib.gcc/klibaml.a",
+            "/amd64/lib.gcc/klibdtracy.a"
         ],
         "Kernel": {
             "Systab": "/sys/src/libc/9syscall/sys.h",

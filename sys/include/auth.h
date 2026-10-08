@@ -1,7 +1,5 @@
 #pragma	src	"/sys/src/libauth"
 #pragma	lib	"libauth.a"
-/* #pragma	src	"/sys/src/libauth" */
-/* #pragma	lib	"libauth.a" */
 
 /*
  * Interface for typical callers.

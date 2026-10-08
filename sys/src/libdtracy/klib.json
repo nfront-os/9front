@@ -1,7 +1,7 @@
 [
 	{
 		"Name": "klibdtracy",
-		"Install": "/$ARCH/lib/",
+		"Install": "/$ARCH/lib.gcc/",
 		"Library": "klibdtracy.a",
 		"Include": [
 			"$ARCH.json"

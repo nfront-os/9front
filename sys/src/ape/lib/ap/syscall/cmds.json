@@ -5,7 +5,7 @@
 			"/$ARCH/cflags.json",
 			"/$ARCH/ape.json"
 		],
-		"Install": "/$ARCH/lib/ape/",
+		"Install": "/$ARCH/lib.gcc/ape/",
 		"Pre": [
 			"bash ../../../../../../scripts/gen-9syscall.sh --ape ."
 		],

@@ -15,7 +15,7 @@ vsnprint(char *buf, int len, char *fmt, va_list args)
 	f.flush = nil;
 	f.farg = nil;
 	f.nfmt = 0;
-	__builtin_va_copy(f.args, args);	/* GCC port: va_list is an array type, can't '=' */
+	va_copy(f.args, args);	/* GCC port: va_list is an array type, can't '=' */
 	dofmt(&f, fmt);
 	*(char*)f.to = '\0';
 	return (char*)f.to - buf;

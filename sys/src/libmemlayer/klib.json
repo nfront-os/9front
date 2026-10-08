@@ -1,7 +1,7 @@
 [
 	{
 		"Name": "klibmemlayer",
-		"Install": "/$ARCH/lib/",
+		"Install": "/$ARCH/lib.gcc/",
 		"Library": "klibmemlayer.a",
 		"Include": [
 			"$ARCH.json"

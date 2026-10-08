@@ -377,7 +377,7 @@ zname(Biobuf *b, Sym *s, int t)
 void
 zaddr(Biobuf *b, Adr *a, int s)
 {
-	long l;
+	s32int l;	/* GCC port: was long; the T_64 test needs kencc's 32 bits */
 	int i, t;
 	char *n;
 	Ieee e;

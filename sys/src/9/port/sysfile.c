@@ -727,7 +727,7 @@ sys_read(uchar *list)
 
 	fd = ARG(list, int);
 	buf = ARG(list, void*);
-	len = ARG(list, long);
+	len = ARG(list, s32int);	/* GCC port: 6c long, see ARG */
 	return (uintptr)read(fd, buf, len, nil);
 }
 
@@ -741,7 +741,7 @@ syspread(uchar *list)
 
 	fd = ARG(list, int);
 	buf = ARG(list, void*);
-	len = ARG(list, long);
+	len = ARG(list, s32int);	/* GCC port: 6c long, see ARG */
 	off = ARG(list, vlong);
 	if(off != ~0ULL)
 		offp = &off;
@@ -807,7 +807,7 @@ sys_write(uchar *list)
 
 	fd = ARG(list, int);
 	buf = ARG(list, void*);
-	len = ARG(list, long);
+	len = ARG(list, s32int);	/* GCC port: 6c long, see ARG */
 	return (uintptr)write(fd, buf, len, nil);
 }
 
@@ -821,7 +821,7 @@ syspwrite(uchar *list)
 
 	fd = ARG(list, int);
 	buf = ARG(list, void*);
-	len = ARG(list, long);
+	len = ARG(list, s32int);	/* GCC port: 6c long, see ARG */
 	off = ARG(list, vlong);
 	if(off != ~0ULL)
 		offp = &off;
@@ -915,7 +915,7 @@ sysoseek(uchar *list)
 	long n;
 
 	fd = ARG(list, int);
-	n = ARG(list, long);
+	n = ARG(list, s32int);	/* GCC port: 6c long, see ARG */
 	t = ARG(list, int);
 	return (uintptr)sseek(fd, n, t);
 }

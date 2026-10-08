@@ -1,7 +1,5 @@
 #pragma	lib	"libflate.a"
 #pragma	src	"/sys/src/libflate"
-/* #pragma	lib	"libflate.a" */
-/* #pragma	src	"/sys/src/libflate" */
 
 /*
  * errors from deflate, deflateinit, deflateblock,

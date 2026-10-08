@@ -1,7 +1,5 @@
 #pragma lib "libgeometry.a"
 #pragma src "/sys/src/libgeometry"
-/* #pragma lib "libgeometry.a" */
-/* #pragma src "/sys/src/libgeometry" */
 
 #define DEG 0.01745329251994330	/* π/180 */
 

@@ -277,7 +277,8 @@ void
 fmt2(char *f)
 {
 	int i;
-	for(i=0; i<ndata; i+=sizeof(unsigned long))
+	/* GCC port: unsigned long is 8 bytes under gcc; the format is 4 */
+	for(i=0; i<ndata; i+=sizeof(u32int))
 		xprint(f, le ? (data[i+3]<<24)|(data[i+2]<<16)|(data[i+1]<<8)|data[i]
 		             : (data[i]<<24)|(data[i+1]<<16)|(data[i+2]<<8)|data[i+3]);
 }

@@ -147,7 +147,7 @@ syscallfmt(ulong syscallno, uintptr pc, uchar *list)
 		fmtprint(&fmt, "%d %d", i[0], i[1]);
 		break;
 	case ALARM:
-		l = ARG(list, unsigned long);
+		l = ARG(list, u32int);	/* GCC port: 6c long, see ARG */
 		fmtprint(&fmt, "%#lud ", l);
 		break;
 	case EXEC:
@@ -198,12 +198,12 @@ syscallfmt(ulong syscallno, uintptr pc, uchar *list)
 		fmtprint(&fmt, "%#ux", i[0]);
 		break;
 		i[0] = ARG(list, int);
-		l = ARG(list, long);
+		l = ARG(list, s32int);	/* GCC port: 6c long, see ARG */
 		i[1] = ARG(list, int);
 		fmtprint(&fmt, "%d %ld %d", i[0], l, i[1]);
 		break;
 	case SLEEP:
-		l = ARG(list, long);
+		l = ARG(list, s32int);	/* GCC port: 6c long, see ARG */
 		fmtprint(&fmt, "%ld", l);
 		break;
 		a = ARG(list, char*);
@@ -232,7 +232,7 @@ syscallfmt(ulong syscallno, uintptr pc, uchar *list)
 	case FWSTAT:
 		i[0] = ARG(list, int);
 		a = ARG(list, char*);
-		l = ARG(list, unsigned long);
+		l = ARG(list, u32int);	/* GCC port: 6c long, see ARG */
 		fmtprint(&fmt, "%d %#p %lud", i[0], a, l);
 		break;
 	case NOTIFY:
@@ -249,7 +249,7 @@ syscallfmt(ulong syscallno, uintptr pc, uchar *list)
 	case SEGFREE:
 	case SEGFLUSH:
 		v = ARG(list, void*);
-		l = ARG(list, unsigned long);
+		l = ARG(list, u32int);	/* GCC port: 6c long, see ARG */
 		fmtprint(&fmt, "%#p %lud", v, l);
 		break;
 	case UNMOUNT:
@@ -282,7 +282,7 @@ syscallfmt(ulong syscallno, uintptr pc, uchar *list)
 		fmtprint(&fmt, "%d %d ", i[0], i[1]);
 		a = ARG(list, char*);
 		fmtuserstring(&fmt, a, " ");
-		l = ARG(list, unsigned long);
+		l = ARG(list, u32int);	/* GCC port: 6c long, see ARG */
 		fmtprint(&fmt, "%lud", l);
 		break;
 	case WSTAT:
@@ -293,7 +293,7 @@ syscallfmt(ulong syscallno, uintptr pc, uchar *list)
 	case ERRSTR:
 	case AWAIT:
 		a = ARG(list, char*);
-		l = ARG(list, unsigned long);
+		l = ARG(list, u32int);	/* GCC port: 6c long, see ARG */
 		fmtprint(&fmt, "%#p %lud", a, l);
 		break;
 	case MOUNT:
@@ -310,7 +310,7 @@ syscallfmt(ulong syscallno, uintptr pc, uchar *list)
 	case PREAD:
 		i[0] = ARG(list, int);
 		v = ARG(list, void*);
-		l = ARG(list, long);
+		l = ARG(list, s32int);	/* GCC port: 6c long, see ARG */
 		fmtprint(&fmt, "%d %#p %ld", i[0], v, l);
 		if(syscallno == PREAD){
 			vl = ARG(list, vlong);
@@ -320,7 +320,7 @@ syscallfmt(ulong syscallno, uintptr pc, uchar *list)
 	case PWRITE:
 		i[0] = ARG(list, int);
 		v = ARG(list, void*);
-		l = ARG(list, long);
+		l = ARG(list, s32int);	/* GCC port: 6c long, see ARG */
 		fmtprint(&fmt, "%d ", i[0]);
 		len = MIN(l, 64);
 		fmtrwdata(&fmt, v, len, " ");
@@ -368,7 +368,7 @@ sysretfmt(ulong syscallno, uchar *list, uintptr ret, uvlong start, uvlong stop)
 		break;
 	case AWAIT:
 		a = ARG(list, char*);
-		l = ARG(list, unsigned long);
+		l = ARG(list, u32int);	/* GCC port: 6c long, see ARG */
 		if(ret > 0){
 			fmtuserstring(&fmt, a, " ");
 			fmtprint(&fmt, "%lud = %ld", l, (long)ret);
@@ -383,7 +383,7 @@ sysretfmt(ulong syscallno, uchar *list, uintptr ret, uvlong start, uvlong stop)
 		if(syscallno == _ERRSTR)
 			l = 64;
 		else
-			l = ARG(list, unsigned long);
+			l = ARG(list, u32int);	/* GCC port: 6c long, see ARG */
 		if(ret > 0){
 			fmtuserstring(&fmt, a, " ");
 			fmtprint(&fmt, "%lud = %ld", l, (long)ret);
@@ -397,7 +397,7 @@ sysretfmt(ulong syscallno, uchar *list, uintptr ret, uvlong start, uvlong stop)
 		i = ARG(list, int);
 		USED(i);
 		a = ARG(list, char*);
-		l = ARG(list, unsigned long);
+		l = ARG(list, u32int);	/* GCC port: 6c long, see ARG */
 		if(ret > 0){
 			fmtuserstring(&fmt, a, " ");
 			fmtprint(&fmt, "%lud = %ld", l, (long)ret);
@@ -411,7 +411,7 @@ sysretfmt(ulong syscallno, uchar *list, uintptr ret, uvlong start, uvlong stop)
 		i = ARG(list, int);
 		USED(i);
 		v = ARG(list, void*);
-		l = ARG(list, long);
+		l = ARG(list, s32int);	/* GCC port: 6c long, see ARG */
 		if(ret > 0){
 			len = MIN(ret, 64);
 			fmtrwdata(&fmt, v, len, "");

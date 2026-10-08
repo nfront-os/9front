@@ -1,7 +1,5 @@
 #pragma	src	"/sys/src/libmemdraw"
 #pragma	lib	"libmemdraw.a"
-/* #pragma	src	"/sys/src/libmemdraw" */
-/* #pragma	lib	"libmemdraw.a" */
 
 typedef struct	Memimage Memimage;
 typedef struct	Memdata Memdata;

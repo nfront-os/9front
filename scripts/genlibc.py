@@ -86,7 +86,7 @@ def main():
 		'Name': 'Libc',
 		'Cflags': ['-fasm'],
 		'Include': ['../lib.json', '$ARCH/build.json'],
-		'Install': '/$ARCH/lib/',
+		'Install': '/$ARCH/lib.gcc/',	# gcc archives; /$ARCH/lib is the native (6c) one
 		'Library': 'libc.a',
 		'Projects': ['9syscall/9syscall.json'],
 		'Pre': ['bash ../../../scripts/gen-runetype.sh'],

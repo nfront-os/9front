@@ -20,6 +20,7 @@ d=/dev/sdC0
 s=newfs
 proto=/n/src9/sys/lib/sysconfig/proto/distproto
 bootproto=/n/src9/sys/lib/sysconfig/proto/9bootproto
+gccproto=/n/src9/gccproto	# /amd64/lib.gcc (scripts/boot/gccproto)
 kernel=/n/src9/amd64/9pc64
 
 test -f $d/data || fail no disk $d
@@ -56,7 +57,7 @@ hjfs -f $d/fs -n $s -S -r || fail hjfs
 	sleep 1
 } >> /srv/$s.cmd
 mount -N -c /srv/$s /n/newfs || fail mount newfs
-disk/mkfs -z 4096 -U -s /n/src9 -d /n/newfs <{cat $proto $bootproto}	# warns about the missing /386 boot code
+disk/mkfs -z 4096 -U -s /n/src9 -d /n/newfs <{cat $proto $bootproto $gccproto}	# warns about the missing /386 boot code
 echo sync >> /srv/$s.cmd
 echo halt >> /srv/$s.cmd
 while(test -e /srv/$s.cmd) sleep 1

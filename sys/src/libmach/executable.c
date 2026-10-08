@@ -433,7 +433,8 @@ commonllp64(int, Fhdr *fp, ExecHdr *hp)
 	long pgsize;
 	uvlong entry;
 
-	hswal(&hp->e, sizeof(Exec)/sizeof(long), beswal);
+	/* GCC port: long is 8 bytes under gcc; Exec's fields are 4 (a.out.h) */
+	hswal(&hp->e, sizeof(Exec)/sizeof(ulong), beswal);
 	if(!(hp->e.magic & HDR_MAGIC))
 		return 0;
 

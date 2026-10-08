@@ -1,7 +1,5 @@
 #pragma	src	"/sys/src/libmp"
 #pragma	lib	"libmp.a"
-/* #pragma	src	"/sys/src/libmp" */
-/* #pragma	lib	"libmp.a" */
 
 #define _MPINT 1
 

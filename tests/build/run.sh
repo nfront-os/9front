@@ -2,7 +2,7 @@
 # build: results of scripts/build-cli.sh
 . "$(dirname "$0")/../lib.sh"
 cd "$ROOT"
-L=amd64/lib
+L=amd64/lib.gcc
 
 dupsyms(){ nm "$1" 2>/dev/null | awk '$2=="T"{print $3}' | sort | uniq -d; }
 

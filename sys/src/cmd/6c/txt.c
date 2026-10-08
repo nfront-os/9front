@@ -238,7 +238,7 @@ Node*
 nodgconst(vlong v, Type *t)
 {
 	if(!typev[t->etype])
-		return nodconst((long)v);
+		return nodconst((s32int)v);	/* GCC port: was (long), 32 bits under kencc */
 	vconstnode.vconst = v;
 	return &vconstnode;
 }

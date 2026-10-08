@@ -5,7 +5,7 @@
 			"/$ARCH/cflags.json",
 			"/$ARCH/ape.json"
 		],
-		"Install": "/$ARCH/lib/ape/",
+		"Install": "/$ARCH/lib.gcc/ape/",
 		"Cflags": [
 			"-D_POSIX_SOURCE",
 			"-D_PLAN9_SOURCE"

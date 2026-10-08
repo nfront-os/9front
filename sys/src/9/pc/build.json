@@ -36,17 +36,17 @@
             "max-page-size=0x1000"
         ],
         "Libs": [
-            "/386/lib/klibmemlayer.a",
-            "/386/lib/klibmemdraw.a",
-            "/386/lib/klibdraw.a",
-            "/386/lib/klibip.a",
-            "/386/lib/klibsec.a",
-            "/386/lib/klibmp.a",
-            "/386/lib/klibc.a",
-            "/386/lib/klibfis.a",
-            "/386/lib/klibaml.a",
-            "/386/lib/klibdtracy.a",
-            "/386/lib/libgcc.a"
+            "/386/lib.gcc/klibmemlayer.a",
+            "/386/lib.gcc/klibmemdraw.a",
+            "/386/lib.gcc/klibdraw.a",
+            "/386/lib.gcc/klibip.a",
+            "/386/lib.gcc/klibsec.a",
+            "/386/lib.gcc/klibmp.a",
+            "/386/lib.gcc/klibc.a",
+            "/386/lib.gcc/klibfis.a",
+            "/386/lib.gcc/klibaml.a",
+            "/386/lib.gcc/klibdtracy.a",
+            "/386/lib.gcc/libgcc.a"
         ],
         "Kernel": {
             "Systab": "/sys/src/libc/9syscall/sys.h",

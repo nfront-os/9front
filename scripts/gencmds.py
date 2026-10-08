@@ -338,7 +338,7 @@ def entries(d):
 		stubs = ['_%s.S' % n for n in re.findall(r'^#define\s+([A-Z0-9][A-Z0-9_]*)\s', sysh, re.M)]
 		return [(d + '/libap.a', {'Cflags': [], 'Libs': [], 'Install': '', 'ape': True,
 			'Pre': ['bash %sscripts/gen-9syscall.sh --ape .' % up(d)], 'library': 'libap.a',
-			'libinstall': '/$ARCH/lib/ape/', 'append': True, 'src': stubs})]
+			'libinstall': '/$ARCH/lib.gcc/ape/', 'append': True, 'src': stubs})]
 	text = readmk(d)
 	k = kind(text)
 	if k is None:
@@ -365,7 +365,7 @@ def entries(d):
 		if v['LIB'][0].startswith('/'):	# mksyslib: LIB=/$objtype/lib/ape/libap.a
 			L = v['LIB'][0]
 			return [(d + '/' + os.path.basename(L), dict(common, library=os.path.basename(L),
-				libinstall=os.path.dirname(L).replace('/amd64', '/$ARCH', 1) + '/',
+				libinstall=os.path.dirname(L).replace('/amd64/lib', '/$ARCH/lib.gcc', 1) + '/',	# gcc archives beside the native /$ARCH/lib
 				append=d in APEDIRS[1:], src=src))]
 		lib = os.path.normpath(os.path.join(d, v['LIB'][0].replace('$O', '6')))
 		return [(lib, dict(common, library=os.path.basename(lib), libdir=os.path.dirname(lib),
@@ -443,8 +443,8 @@ def manifest(e, name):
 		m['Install'] = ''
 		return m
 	m['Oflags'] = ['--entry=_main']
-	syslibs = ['/$ARCH/lib/ape/%s.a' % l for l in APELIBS] if e.get('ape') else \
-		['/$ARCH/lib/%s.a' % l for l in LIBS]
+	syslibs = ['/$ARCH/lib.gcc/ape/%s.a' % l for l in APELIBS] if e.get('ape') else \
+		['/$ARCH/lib.gcc/%s.a' % l for l in LIBS]
 	m['Libs'] = ['--start-group'] + [l.replace('$O', '6') for l in e.get('Libs', [])] + \
 		syslibs + ['--end-group']
 	if 'single' in e:
