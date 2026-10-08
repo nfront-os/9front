@@ -307,7 +307,7 @@ ocvt_fixed(FILE *f, va_list *args, int flags, int width, int precision,
 
 	if(sgned){
 		if(flags&PTR) snum = (uintptr_t)va_arg(*args, void *);
-		else if(flags&SHORT) snum = va_arg(*args, short);
+		else if(flags&SHORT) snum = (short)va_arg(*args, int);	/* GCC port: promoted to int through ..., va_arg of a narrower type is undefined (gcc: trap) */
 		else if(flags&LONG) snum = va_arg(*args, long);
 		else if(flags&VLONG) snum = va_arg(*args, long long);
 		else snum = va_arg(*args, int);
@@ -323,7 +323,7 @@ ocvt_fixed(FILE *f, va_list *args, int flags, int width, int precision,
 	} else {
 		sign = "";
 		if(flags&PTR) num = (uintptr_t)va_arg(*args, void *);
-		else if(flags&SHORT) num = va_arg(*args, unsigned short);
+		else if(flags&SHORT) num = (unsigned short)va_arg(*args, int);	/* GCC port: promoted to int through ..., va_arg of a narrower type is undefined (gcc: trap) */
 		else if(flags&LONG) num = va_arg(*args, unsigned long);
 		else if(flags&VLONG) num = va_arg(*args, unsigned long long);
 		else num = va_arg(*args, unsigned int);

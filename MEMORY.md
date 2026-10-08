@@ -663,3 +663,12 @@ Symptom: Disk-/gui-Test, Terminal-Boot: `term%` erscheint seriell, getippte Zeil
 - **boot-cli.sh:** `cat $pts > console.log &` leerte das Log erst im Hintergrund-Job; die Promptprüfung las manchmal noch das Log des vorigen Boots (`term% `) und tippte sofort — die Zeile landete als Antwort im `user[glenda]:`-Prompt. Jetzt `: > console.log` synchron vorher. Bisher kaschiert durch feste Pausen.
 - **Wartezeiten ereignisgesteuert:** `BOOTWAIT` (300) und `CMDWAIT` (60) sind nur noch Obergrenzen — Boot-Phase endet am rc-Prompt, jede Zeile am nächsten Prompt nach ihrer Ausgabe. Tests ohne feste Pausen (gui behält CMDWAIT=30 als Grenze). Boot bis Prompt ~12 s statt 130 s; ganze Suite inkl. Image-Bau 221 s. 10/10 Disk-Boots ohne Eingabeverlust.
 
+
+## 2026-10-08 (Teil 29): Rebase auf front (dd17bf052)
+
+- `front` auf origin/front vorgezogen (31 Commits: libdraw `drawcmd()` statt bufimage, devdraw `drawunpack`, benannte Initialisierer in den sd-Treibern, gefs, Unicode 18 in /lib/ucd, …), `gcc` (71 Commits) ohne Textkonflikt darauf rebased; Manifeste unverändert neu erzeugt.
+- **Neu in front, gcc-relevant:** libdraw `vdrawcmd()` nutzt `va_arg(va, uchar/ushort)` — durch `...` gereichte Werte sind zu int befördert, gcc erzeugt dafür eine Falle (`ud2`) → rio starb mit „invalid opcode“. Jetzt `(uchar)va_arg(va, int)` usw.; derselbe Fehler bestand schon in `libstdio`/APE-`vfprintf` (`%h`). Neuer statischer Test: kein `va_arg` mit char/short/float.
+- **klibc** war seit der .s/.S-Trennung nicht neu gebaut: `libc/amd64.json` nannte noch 6a-`getcallerpc.s` → `.S`. Die klib*.a baut build-cli.sh nicht; nach Änderungen an Kernel-Bibliotheken `build.exe sys/src/lib*/klib.json` laufen lassen.
+- Ausführbar-Bit: `core.fileMode=false` im Klon → Modus nie erfasst, nach dem Checkout waren alle Skripte 644. Jetzt für alle Shebang-Skripte in scripts/ und tests/ im Index gesetzt.
+- disk-Test: closeprocs erst nach `sleep 10` zählen (direkt nach dem Boot kurz 5, danach 1).
+- `CLAUDE.md` eingecheckt. Ergebnis: alle Kategorien grün (static 12, …, disk 9).

@@ -15,7 +15,7 @@ fi
 boot(){
 	BOOTDISK=$IMG MEM=1024 "$ROOT/scripts/boot-cli.sh" \
 		'echo $bootargs' 'ls -d /sys/src/9/pc64 /amd64/bin/rc /usr/glenda/lib/profile' \
-		'ps | grep -c closeproc' 'ls /srv | grep -c hjfs' \
+		'sleep 10; ps | grep -c closeproc' 'ls /srv | grep -c hjfs' \
 		'echo lib `{ls /amd64/lib | wc -l} gcc `{ls /amd64/lib.gcc/libc.a}' > "$TMPD/console" 2>&1
 	tr -d '\r' < "$TMPD/console" > "$TMPD/log"
 }
@@ -28,6 +28,7 @@ check "booted from local!/dev/sdC0/fs" test "$(out 'echo $bootargs')" = 'local!/
 check "system installed (sources, binaries, home)" bash -c "grep -A3 -F '% ls -d /sys/src' '$L' | grep -c '^/' | grep -qx 3"
 check "/amd64/lib empty as in 9front, gcc archives in /amd64/lib.gcc" \
 	test "$(out 'echo lib')" = 'lib 1 gcc /amd64/lib.gcc/libc.a'
-check "at most a few closeprocs" test "$(out 'ps | grep -c closeproc' | tr -d ' ')" -le 4
+# closeprocs come and go while rio starts; count them once it is idle
+check "at most a few closeprocs" test "$(out 'sleep 10; ps | grep -c closeproc' | tr -d ' ')" -le 4
 check "no kernel panic" bash -c "! grep -q '^panic:' '$L'"
 done_tests

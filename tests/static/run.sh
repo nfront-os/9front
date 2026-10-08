@@ -75,6 +75,11 @@ PY
 check "no (u)vlong-valued enumerators" enums
 
 # 5. amd64 u.h: 8c intrinsics and the System V jmp_buf
+# arguments through ... are promoted to int (double); va_arg of a
+# narrower type is undefined -- gcc compiles it into a trap (ud2), kencc
+# read the low bytes
+check "no va_arg of a promoted type (char, short, float)" bash -c \
+	"! git grep -n -E 'va_arg\([^,]+, *(uchar|ushort|char|short|unsigned char|unsigned short|signed char|u8int|u16int|s8int|s16int|float)\)' -- sys/src"
 check "u.h: SET/USED are variadic no-ops" grep -q '^#define SET(...) ((void)0)' amd64/include/u.h
 check "u.h: jmp_buf holds sp, pc and 6 callee-saved registers" grep -q 'jmp_buf\[8\]' amd64/include/u.h
 

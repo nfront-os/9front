@@ -481,12 +481,12 @@ vdrawcmd(Display *d, char *fmt, va_list va)
 		case 'b':
 			if((a = growcmdbuf(d, a, 1)) == nil)
 				return -1;
-			*a++ = va_arg(va, uchar);
+			*a++ = (uchar)va_arg(va, int);	/* GCC port: promoted to int through ..., va_arg of a narrower type is undefined (gcc: trap) */
 			break;
 		case 's':
 			if((a = growcmdbuf(d, a, 2)) == nil)
 				return -1;
-			s = va_arg(va, ushort);
+			s = (ushort)va_arg(va, int);	/* GCC port: promoted to int through ..., va_arg of a narrower type is undefined (gcc: trap) */
 			BPSHORT(a, s);
 			a += 2;
 			break;
@@ -523,7 +523,7 @@ vdrawcmd(Display *d, char *fmt, va_list va)
 			a += 3*3*4;
 			break;
 		case 'z':
-			l = va_arg(va, uchar);
+			l = (uchar)va_arg(va, int);	/* GCC port: promoted to int through ..., va_arg of a narrower type is undefined (gcc: trap) */
 			if((a = growcmdbuf(d, a, 1+l)) == nil)
 				return -1;
 			v = va_arg(va, void*);
@@ -540,7 +540,7 @@ vdrawcmd(Display *d, char *fmt, va_list va)
 			a += l;
 			break;
 		case 'O':
-			l = va_arg(va, uchar);
+			l = (uchar)va_arg(va, int);	/* GCC port: promoted to int through ..., va_arg of a narrower type is undefined (gcc: trap) */
 			if(l == SoverD)
 				break;
 			if((a = growcmdbuf(d, a, 1+1)) == nil)
