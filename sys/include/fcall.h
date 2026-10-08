@@ -1,3 +1,5 @@
+#pragma	src	"/sys/src/libc/9sys"
+#pragma	lib	"libc.a"
 /* #pragma	src	"/sys/src/libc/9sys" */
 /* #pragma	lib	"libc.a" */
 

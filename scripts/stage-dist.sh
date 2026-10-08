@@ -13,8 +13,9 @@
 #
 # The binds become a view of symlinks (dist/9front, the repository
 # itself, is left out: the disk gets the system, not a second source
-# tree); scripts/proto.py expands the protos. Our binaries carry DWARF
-# (8l writes none) and are stripped. The guest's install script
+# tree); /sys/src holds the repository's files only, not the gcc build's
+# objects in the working tree; scripts/proto.py expands the protos. Our
+# binaries carry DWARF (8l writes none) and are stripped. The guest's install script
 # (scripts/boot/mkdisk.rc) reads the result as /n/src9.
 #
 # usage: scripts/stage-dist.sh dir
@@ -42,6 +43,16 @@ for f in "$ROOT"/adm/*; do [ "$(basename "$f")" = timezone ] || ln -s "$f" "$VIE
 for f in "$DIST"/adm/timezone/* "$ROOT"/adm/timezone/*; do
 	ln -sfn "$f" "$VIEW/adm/timezone/$(basename "$f")"
 done
+# /sys/src: the sources as the repository has them -- the working tree
+# also holds the gcc build's objects, archives and generated files
+rm "$VIEW/sys"
+mkdir "$VIEW/sys"
+for f in "$ROOT"/sys/*; do
+	[ "$(basename "$f")" = src ] || ln -s "$f" "$VIEW/sys/$(basename "$f")"
+done
+git -C "$ROOT" ls-files -z sys/src | (cd "$VIEW" && xargs -0 -n 500 sh -c '
+	for f; do mkdir -p "$(dirname "$f")"; ln -s "'"$ROOT"'/$f" "$f"; done' sh)
+
 # the kernel where 9front installs it
 mkdir -p "$VIEW/.amd64"
 for f in "$ROOT"/amd64/*; do ln -s "$f" "$VIEW/.amd64/$(basename "$f")"; done

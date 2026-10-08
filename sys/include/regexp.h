@@ -1,3 +1,5 @@
+#pragma src "/sys/src/libregexp"
+#pragma lib "libregexp.a"
 /* #pragma src "/sys/src/libregexp" */
 /* #pragma lib "libregexp.a" */
 enum

@@ -1,3 +1,5 @@
+#pragma	lib	"libaml.a"
+#pragma	src	"/sys/src/libaml"
 /* #pragma	lib	"libaml.a" */
 /* #pragma	src	"/sys/src/libaml" */
 

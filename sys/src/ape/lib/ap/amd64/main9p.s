@@ -1,30 +1,19 @@
-/*
- * GCC port: GAS/System V translation, see main9.s and libc/amd64/main9p.s.
- * _savearg/_saveret/_callpc serve plan9/profile.c's 6c -p
- * instrumentation, which gcc does not emit; _callpc keeps the original's
- * 6c stack-slot arithmetic.
- */
-.comm	_tos, 8, 8
+GLOBL	_tos(SB), $8
 
-.globl _mainp
-_mainp:
-	movq	%rax, _tos
-	movq	$_profmain, %rdi
-	movq	0(%rsp), %rsi		/* argc */
-	leaq	8(%rsp), %rdx		/* argv */
-	andq	$~15, %rsp
-	call	_callmain
+TEXT	_mainp(SB), 1, $0
+	MOVQ	AX, _tos(SB)
+	MOVQ	$_profmain(SB), RARG
+	PUSHQ	RARG
+	PUSHQ	$0
+	JMPF	_callmain(SB)
 
-.globl _savearg
-_savearg:
-	movq	%rdi, %rax
-	ret
+TEXT	_savearg(SB), 1, $0
+	MOVQ	RARG, AX
+	RET
 
-.globl _saveret
-_saveret:
-	ret				/* the return value is still in %rax */
+TEXT	_saveret(SB), 1, $0
+	RET				/* we want RARG in RARG */
 
-.globl _callpc
-_callpc:
-	movq	8(%rdi), %rax
-	ret
+TEXT	_callpc(SB), 1, $0
+	MOVQ	8(RARG), AX
+	RET

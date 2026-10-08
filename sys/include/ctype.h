@@ -1,3 +1,5 @@
+#pragma	src	"/sys/src/libc/port"
+#pragma	lib	"libc.a"
 /* #pragma	src	"/sys/src/libc/port" */
 /* #pragma	lib	"libc.a" */
 

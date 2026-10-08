@@ -79,8 +79,12 @@ PRE = {
 # directories whose mkfile rules gen-src.sh replicates
 for d in ('cmd/ip/snoopy', 'cmd/syscall', 'cmd/tcs', 'cmd/nusb/disk'):
 	PRE[d] = ['gen-src.sh ' + d]
+# the compilers' and loaders' enam.c (cc/mkfile.port, ?l/mkfile)
+for d in sorted(os.listdir(os.path.join(SRC, 'cmd'))):
+	if re.match(r'^[0-9a-z][cl]$', d) and d != 'rc':
+		PRE['cmd/' + d] = ['gen-src.sh cmd/' + d]
 # not target programs: compilers and assemblers, test data, the build tool
-SKIP = re.compile(r'^(cmd/build|cmd/cc|cmd/[0-9a-qs-z][acl]|.*/test|ape/lib/(mp|sec)/amd64)(/|$)')	# compilers, assemblers, loaders (not rc)
+SKIP = re.compile(r'^(cmd/build|.*/test|ape/lib/(mp|sec)/amd64)(/|$)')	# the build tool, test data, unported asm
 
 def rel(path):
 	return os.path.relpath(path, SRC)
@@ -191,6 +195,12 @@ def kind(text):
 	m = re.search(r'^<\s*/sys/src/cmd/(mkone|mkmany|mklib|mksyslib)\s*$', text, re.M)
 	return m.group(1) if m else None
 
+def gasport(f, d):
+	# the GAS port (foo.S) instead of 9front's 6a source (foo.s) beside it
+	if f.endswith('.s') and os.path.exists(os.path.join(SRC, d, f[:-2] + '.S')):
+		return f[:-2] + '.S'
+	return f
+
 def objs2src(objs, d, text='', v={}):
 	# explicit (eui.$O: ../eui.c) and meta (%.$O: ../%.c) object rules
 	explicit, meta = {}, []
@@ -207,16 +217,17 @@ def objs2src(objs, d, text='', v={}):
 	out = []
 	for o in objs:
 		if o.endswith(('.c', '.s', '.S')):
-			out.append(o)
+			out.append(gasport(o, d))
 			continue
 		base = o[:-2] if o.endswith('.6') else o
 		if base == 'y.tab':
 			out.append('y.tab.c')
 			continue
 		if base in explicit:
-			out.append(explicit[base])
+			out.append(gasport(explicit[base], d))
 			continue
-		for ext in ('.c', '.s', '.S'):
+		# the GAS port (.S) before the 6a original (.s)
+		for ext in ('.c', '.S', '.s'):
 			if os.path.exists(os.path.join(SRC, d, base + ext)):
 				out.append(base + ext)
 				break
@@ -224,7 +235,7 @@ def objs2src(objs, d, text='', v={}):
 			for m in meta:
 				f = m.replace('%', base)
 				if os.path.exists(os.path.join(SRC, d, f)):
-					out.append(f)
+					out.append(gasport(f, d))
 					break
 			else:
 				out.append(base + '.c')	# generated (awk's proctab.c, ...)
@@ -324,7 +335,7 @@ def entries(d):
 	if d == 'ape/lib/ap/syscall':
 		# genall: a stub per sys.h entry not starting with _
 		sysh = open(os.path.join(SRC, 'libc/9syscall/sys.h')).read()
-		stubs = ['_%s.s' % n for n in re.findall(r'^#define\s+([A-Z0-9][A-Z0-9_]*)\s', sysh, re.M)]
+		stubs = ['_%s.S' % n for n in re.findall(r'^#define\s+([A-Z0-9][A-Z0-9_]*)\s', sysh, re.M)]
 		return [(d + '/libap.a', {'Cflags': [], 'Libs': [], 'Install': '', 'ape': True,
 			'Pre': ['bash %sscripts/gen-9syscall.sh --ape .' % up(d)], 'library': 'libap.a',
 			'libinstall': '/$ARCH/lib/ape/', 'append': True, 'src': stubs})]

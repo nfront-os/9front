@@ -11,10 +11,10 @@ cd "$TMPD/9syscall"
 
 # one stub per sys.h entry, named like 9front's 9syscall/mkfile
 n=$(grep -c '^#define' sys.h)
-check "one stub per sys.h entry ($n)" test "$(ls *.s | wc -l)" -eq "$n"
+check "one stub per sys.h entry ($n)" test "$(ls *.S | wc -l)" -eq "$n"
 names(){
-	for want in "seek.s:_seek" "_exits.s:_exits" "_nsec.s:_nsec" "notify.s:_notify" \
-		"open.s:open" "pread.s:pread" "mount.s:mount" "rendezvous.s:rendezvous"; do
+	for want in "seek.S:_seek" "_exits.S:_exits" "_nsec.S:_nsec" "notify.S:_notify" \
+		"open.S:open" "pread.S:pread" "mount.S:mount" "rendezvous.S:rendezvous"; do
 		f=${want%%:*}; s=${want#*:}
 		grep -q "^\.globl	$s$" "$f" || { echo "$f does not define $s"; return 1; }
 	done
@@ -24,14 +24,14 @@ numbers(){
 	grep '^#define' sys.h | while read -r _ name num; do
 		i=$(echo "$name" | tr A-Z a-z)
 		case $i in exits|nsec) i=_$i ;; esac
-		grep -q "movq	\$$num, %rbp" "$i.s" || { echo "$i.s: call number $num not loaded into %rbp"; exit 1; }
+		grep -q "movq	\$$num, %rbp" "$i.S" || { echo "$i.S: call number $num not loaded into %rbp"; exit 1; }
 	done
 }
 check "call numbers from sys.h in %rbp" numbers
 
 # execute every stub on the host against fakesys (see fakesys.s)
 run(){
-	for f in *.s; do
+	for f in *.S; do
 		sed 's/^\(_\?[a-z_0-9]*\):$/s_\1:/; s/^\.globl	\(.*\)$/.globl	s_\1/; s/^	syscall$/	call	fakesys/' "$f" > "x_$f"
 	done
 	{
@@ -40,20 +40,20 @@ run(){
 		echo 'static long call6(long (*f)(long,long,long,long,long,long)){ return f(11,22,33,44,55,66); }'
 		grep '^#define' sys.h | while read -r _ name num; do
 			i=$(echo "$name" | tr A-Z a-z); case $i in exits|nsec) i=_$i ;; esac
-			s=$(sed -n 's/^\.globl	//p' "$i.s")
+			s=$(sed -n 's/^\.globl	//p' "$i.S")
 			echo "long s_$s(long,long,long,long,long,long);"
 		done
 		echo 'int main(void){ int bad = 0; long r;'
 		grep '^#define' sys.h | while read -r _ name num; do
 			i=$(echo "$name" | tr A-Z a-z); case $i in exits|nsec) i=_$i ;; esac
-			s=$(sed -n 's/^\.globl	//p' "$i.s")
+			s=$(sed -n 's/^\.globl	//p' "$i.S")
 			echo "	r = call6(s_$s);"
 			echo "	if(r != $num || sysnum != $num || sysargs[0] != 11 || sysargs[1] != 22 || sysargs[2] != 33 || sysargs[3] != 44 || sysargs[4] != 55 || sysargs[5] != 66){ printf(\"$s: number/arguments wrong\\n\"); bad = 1; }"
 			echo "	if(callcheck(s_$s, 1, 2, 3, 4) & 0xf){ printf(\"$s: callee-saved register lost\\n\"); bad = 1; }"
 		done
 		echo '	return bad; }'
 	} > t.c
-	gcc -o t t.c x_*.s "$HERE/fakesys.s" "$ROOT/tests/asm/callcheck.s" && ./t
+	gcc -o t t.c x_*.S "$HERE/fakesys.s" "$ROOT/tests/asm/callcheck.s" && ./t
 }
 check "every stub: number in %rbp, 6 arguments at 8..48(%rsp), %rbx/%rbp/%r12/%r13 preserved" run
 done_tests

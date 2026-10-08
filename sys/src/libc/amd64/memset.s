@@ -1,44 +1,41 @@
-/*
- * GCC port: GAS/System V translation: p, c, n arrive in %rdi, %esi,
- * %rdx; p is kept in %r8 for the return value (stosb advances %rdi, the
- * original kept p in RARG), %r9 replaces the callee-saved BX.
- */
-.globl memset
-memset:
-	cld
-	movq	%rdi, %r8
-	movzbl	%sil, %eax
-	movq	%rdx, %r9
+TEXT	memset(SB),$0
+
+	CLD
+	MOVQ	RARG, DI
+	MOVBLZX	c+8(FP), AX
+	MOVQ	n+16(FP), BX
 /*
  * if not enough bytes, just set bytes
  */
-	cmpq	$9, %r9
-	jbe	3f
+	CMPQ	BX, $9
+	JLS	c3
 /*
  * if not aligned, just set bytes
  */
-	movq	%rdi, %rcx
-	andl	$3, %ecx
-	jne	3f
+	MOVQ	RARG, CX
+	ANDL	$3,CX
+	JNE	c3
 /*
  * build word in AX
  */
-	movb	%al, %ah
-	movl	%eax, %ecx
-	shll	$16, %ecx
-	orl	%ecx, %eax
+	MOVB	AL, AH
+	MOVL	AX, CX
+	SHLL	$16, CX
+	ORL	CX, AX
 /*
  * set whole longs
  */
-	movq	%r9, %rcx
-	shrq	$2, %rcx
-	andl	$3, %r9d
-	rep; stosl
+c1:
+	MOVQ	BX, CX
+	SHRQ	$2, CX
+	ANDL	$3, BX
+	REP;	STOSL
 /*
  * set the rest, by bytes
  */
-3:
-	movl	%r9d, %ecx
-	rep; stosb
-	movq	%r8, %rax
-	ret
+c3:
+	MOVL	BX, CX
+	REP;	STOSB
+ret:
+	MOVQ	RARG,AX
+	RET

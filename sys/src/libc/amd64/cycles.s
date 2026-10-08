@@ -1,9 +1,5 @@
-/*
- * GCC port: GAS/System V translation (pointer argument in %rdi).
- */
-.globl cycles
-cycles:				/* time stamp counter; cycles since power up */
-	rdtsc
-	movl	%eax, 0(%rdi)		/* lo */
-	movl	%edx, 4(%rdi)		/* hi */
-	ret
+TEXT cycles(SB),1,$0				/* time stamp counter; cycles since power up */
+	RDTSC
+	MOVL	AX, 0(RARG)			/* lo */
+	MOVL	DX, 4(RARG)			/* hi */
+	RET

@@ -1,3 +1,5 @@
+#pragma	lib	"libplumb.a"
+#pragma	src	"/sys/src/libplumb"
 /* #pragma	lib	"libplumb.a" */
 /* #pragma	src	"/sys/src/libplumb" */
 

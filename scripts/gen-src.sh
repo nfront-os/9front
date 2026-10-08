@@ -43,6 +43,20 @@ cmd/nusb/disk)
 	# scsierrs.c: ./mkscsierrs (reads /sys/lib/scsicodes)
 	sed "s#/sys/lib/scsicodes#$ROOT/sys/lib/scsicodes#" mkscsierrs | p9 rc >scsierrs.c
 	;;
+cmd/[0-9a-z]c|cmd/[0-9a-z]l)
+	# compilers: enam.c: ../$D/$T.out.h	rc ../cc/mkenam (cc/mkfile.port);
+	# loaders: ../Xc/enam.c: ../Xc/X.out.h	@{ cd ../Xc; mk enam.c }
+	# (T from the compiler's mkfile: 1c builds with 2.out.h, tc with 5.out.h)
+	case $1 in
+	*c)	d=. ;;
+	*l)	d=$(sed -n 's,^\.\./\([0-9a-z]c\)/enam\.c:.*,../\1,p' mkfile | head -1) ;;
+	esac
+	(cd "$d" && T=$(sed -n 's/^T=//p' mkfile) && export T && p9 rc ../cc/mkenam)
+	# 7l: cnam.c: l.h mkcname	rc ./mkcname
+	if grep -q '^cnam.c:' mkfile; then
+		p9 rc ./mkcname
+	fi
+	;;
 *)
 	echo "gen-src.sh: no rules for $1" >&2
 	exit 1

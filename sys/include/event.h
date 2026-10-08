@@ -1,3 +1,5 @@
+#pragma src "/sys/src/libdraw"
+#pragma lib "libdraw.a"
 /* #pragma src "/sys/src/libdraw" */
 /* #pragma lib "libdraw.a" */
 

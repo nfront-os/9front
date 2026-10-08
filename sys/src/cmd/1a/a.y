@@ -205,10 +205,10 @@ gen:
 			a = &$$;
 			*a = $2;
 		}
-		if($2.type == D_AUTO || $2.type == D_PARAM)
+		if($2.atype == D_AUTO || $2.atype == D_PARAM)
 			yyerror("constant cannot be automatic: %s",
 				$2.sym->name);
-		$$.type = $2.type | I_ADDR;
+		$$.type = $2.atype | I_ADDR;
 	}
 |	'$' LSCONST
 	{
@@ -259,7 +259,7 @@ gen:
 |	areg
 	{
 		$$ = nullgen;
-		$$.type = $1.type;
+		$$.type = $1.atype;
 		{
 			Addr *a;
 			a = &$$;
@@ -279,25 +279,25 @@ reg:
 areg:
 	'(' LAREG ')'
 	{
-		$$.type = $2 | I_INDIR;
+		$$.atype = $2 | I_INDIR;
 		$$.sym = S;
 		$$.offset = 0;
 	}
 |	con '(' LAREG ')'
 	{
-		$$.type = $3 | I_INDIR;
+		$$.atype = $3 | I_INDIR;
 		$$.sym = S;
 		$$.offset = $1;
 	}
 |	'(' ')'
 	{
-		$$.type = D_NONE | I_INDIR;
+		$$.atype = D_NONE | I_INDIR;
 		$$.sym = S;
 		$$.offset = 0;
 	}
 |	con '(' ')'
 	{
-		$$.type = D_NONE | I_INDIR;
+		$$.atype = D_NONE | I_INDIR;
 		$$.sym = S;
 		$$.offset = $1;
 	}
@@ -306,13 +306,13 @@ areg:
 name:
 	LNAME offset '(' pointer ')'
 	{
-		$$.type = $4;
+		$$.atype = $4;
 		$$.sym = $1;
 		$$.offset = $2;
 	}
 |	LNAME '<' '>' offset '(' LSB ')'
 	{
-		$$.type = D_STATIC;
+		$$.atype = D_STATIC;
 		$$.sym = $1;
 		$$.offset = $4;
 	}

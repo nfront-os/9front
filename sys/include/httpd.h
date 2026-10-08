@@ -1,3 +1,5 @@
+#pragma	lib	"libhttpd.a"
+#pragma	src	"/sys/src/libhttpd"
 /* #pragma	lib	"libhttpd.a" */
 /* #pragma	src	"/sys/src/libhttpd" */
 

@@ -1,3 +1,5 @@
+#pragma lib "libventi.a"
+#pragma src "/sys/src/libventi"
 /* #pragma lib "libventi.a" */
 /* #pragma src "/sys/src/libventi" */
 

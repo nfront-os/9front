@@ -266,7 +266,7 @@ void	gpseudo(int, Sym*, Node*);
 /*
  * swt.c
  */
-int	swcmp(void*, void*);
+int	swcmp(const void*, const void*);	/* GCC port: const as in ../cc/pswt.c, kencc ignored the difference */
 void	doswit(Node*);
 void	swit1(C1*, int, long, Node*);
 void	swit2(C1*, int, long, Node*, Node*);

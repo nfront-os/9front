@@ -1,3 +1,5 @@
+#pragma	lib	"libfis.a"
+#pragma	src	"/sys/src/libfis"
 /* #pragma	lib	"libfis.a" */
 /* #pragma	src	"/sys/src/libfis" */
 

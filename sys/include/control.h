@@ -1,3 +1,5 @@
+#pragma src "/sys/src/libcontrol"
+#pragma lib "libcontrol.a"
 /* #pragma src "/sys/src/libcontrol" */
 /* #pragma lib "libcontrol.a" */
 

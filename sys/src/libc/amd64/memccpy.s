@@ -1,63 +1,58 @@
-/*
- * GCC port: GAS/System V translation: p1, p2, c, n arrive in %rdi,
- * %rsi, %edx, %rcx. p1 and p2 are kept in %r8/%r10 (the original reread
- * RARG and p2+8(FP)), n in %r11, %r9 replaces the callee-saved BX.
- */
-.globl memccpy
-memccpy:
-	movq	%rdi, %r8
-	movq	%rsi, %r10
-	movq	%rcx, %r11
-	cmpq	$0, %rcx
-	je	1f
-	movq	%r10, %rdi
-	movzbl	%dl, %eax
-	cld
+TEXT	memccpy(SB),$0
+
+	MOVQ	n+24(FP), CX
+	CMPQ	CX, $0
+	JEQ	none
+	MOVQ	p2+8(FP), DI
+	MOVBLZX	c+16(FP), AX
+	CLD
 /*
  * find the character in the second string
  */
-	repne; scasb
-	je	2f
+
+	REPN;	SCASB
+	JEQ	found
 
 /*
  * if not found, set count to 'n'
  */
-1:
-	movl	$0, %eax
-	movq	%r11, %r9
-	jmp	3f
+none:
+	MOVL	$0, AX
+	MOVQ	n+24(FP), BX
+	JMP	memcpy
 
 /*
  * if found, set count to bytes thru character
  */
-2:
-	movq	%rdi, %rax
-	subq	%r10, %rax
-	movq	%rax, %r9
-	addq	%r8, %rax
+found:
+	MOVQ	DI, AX
+	SUBQ	p2+8(FP), AX
+	MOVQ	AX, BX
+	ADDQ	RARG, AX
 
 /*
  * copy the memory
  */
-3:
-	movq	%r8, %rdi
-	movq	%r10, %rsi
+
+memcpy:
+	MOVQ	RARG, DI
+	MOVQ	p2+8(FP), SI
 /*
  * copy whole longs, if aligned
  */
-	movq	%rdi, %rdx
-	orq	%rsi, %rdx
-	andl	$3, %edx
-	jne	4f
-	movq	%r9, %rcx
-	shrq	$2, %rcx
-	rep; movsl
+	MOVQ	DI, DX
+	ORQ	SI, DX
+	ANDL	$3, DX
+	JNE	c3
+	MOVQ	BX, CX
+	SHRQ	$2, CX
+	REP;	MOVSL
 /*
  * copy the rest, by bytes
  */
-	andl	$3, %r9d
-4:
-	movq	%r9, %rcx
-	rep; movsb
+	ANDL	$3, BX
+c3:
+	MOVQ	BX, CX
+	REP;	MOVSB
 
-	ret
+	RET

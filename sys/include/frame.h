@@ -1,3 +1,5 @@
+#pragma	src	"/sys/src/libframe"
+#pragma	lib	"libframe.a"
 /* #pragma	src	"/sys/src/libframe" */
 /* #pragma	lib	"libframe.a" */
 

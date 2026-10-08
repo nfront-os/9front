@@ -1,0 +1,63 @@
+[
+	{
+		"Name": "cmd-va-va",
+		"Include": [
+			"/$ARCH/cflags.json"
+		],
+		"Install": "/$ARCH/bin/",
+		"Pre": [
+			"bash ../../../../scripts/yacc.sh -D1 -d a.y"
+		],
+		"Oflags": [
+			"--entry=_main"
+		],
+		"Libs": [
+			"--start-group",
+			"/$ARCH/lib/libdisk.a",
+			"/$ARCH/lib/libcontrol.a",
+			"/$ARCH/lib/libhtml.a",
+			"/$ARCH/lib/libframe.a",
+			"/$ARCH/lib/libdraw.a",
+			"/$ARCH/lib/libmemlayer.a",
+			"/$ARCH/lib/libmemdraw.a",
+			"/$ARCH/lib/libplumb.a",
+			"/$ARCH/lib/libcomplete.a",
+			"/$ARCH/lib/lib9p.a",
+			"/$ARCH/lib/libventi.a",
+			"/$ARCH/lib/libsunrpc.a",
+			"/$ARCH/lib/libthread.a",
+			"/$ARCH/lib/libauth.a",
+			"/$ARCH/lib/libauthsrv.a",
+			"/$ARCH/lib/libndb.a",
+			"/$ARCH/lib/libip.a",
+			"/$ARCH/lib/libhttpd.a",
+			"/$ARCH/lib/libsec.a",
+			"/$ARCH/lib/libmp.a",
+			"/$ARCH/lib/libflate.a",
+			"/$ARCH/lib/libregexp.a",
+			"/$ARCH/lib/libString.a",
+			"/$ARCH/lib/libmach.a",
+			"/$ARCH/lib/libbin.a",
+			"/$ARCH/lib/libavl.a",
+			"/$ARCH/lib/libjson.a",
+			"/$ARCH/lib/libgeometry.a",
+			"/$ARCH/lib/libpcm.a",
+			"/$ARCH/lib/libttf.a",
+			"/$ARCH/lib/libsat.a",
+			"/$ARCH/lib/libscribble.a",
+			"/$ARCH/lib/liblex.a",
+			"/$ARCH/lib/libstdio.a",
+			"/$ARCH/lib/libdtracy.a",
+			"/$ARCH/lib/libaml.a",
+			"/$ARCH/lib/libfis.a",
+			"/$ARCH/lib/libbio.a",
+			"/$ARCH/lib/libc.a",
+			"--end-group"
+		],
+		"Program": "va",
+		"SourceFiles": [
+			"y.tab.c",
+			"lex.c"
+		]
+	}
+]

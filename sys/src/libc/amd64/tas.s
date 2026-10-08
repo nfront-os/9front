@@ -1,11 +1,5 @@
-/*
- * GCC port: GAS/SysV translation. RARG (6c's first-argument register) ->
- * %rdi under gcc's SysV ABI (see setjmp.s). Logic unchanged: atomic
- * exchange of 0xdeaddead into *p, returning the old value in %eax.
- */
+TEXT	_tas(SB), 1, $0
 
-.globl _tas
-_tas:
-	movl	$0xdeaddead, %eax
-	xchgl	%eax, (%rdi)
-	ret
+	MOVL	$0xdeaddead,AX
+	XCHGL	AX,(RARG)
+	RET

@@ -1,0 +1,31 @@
+[
+	{
+		"Name": "cmd-cc-cc.a6",
+		"Include": [
+			"/$ARCH/cflags.json"
+		],
+		"Install": "/sys/src/cmd/cc/",
+		"Pre": [
+			"bash ../../../../scripts/yacc.sh -d cc.y",
+			"bash ../../../../scripts/gen-src.sh cmd/cc"
+		],
+		"Library": "cc.a6",
+		"SourceFiles": [
+			"y.tab.c",
+			"lex.c",
+			"mac.c",
+			"dcl.c",
+			"acid.c",
+			"pickle.c",
+			"bits.c",
+			"com.c",
+			"scon.c",
+			"funct.c",
+			"sub.c",
+			"com64.c",
+			"compat.c",
+			"dpchk.c",
+			"omachcap.c"
+		]
+	}
+]

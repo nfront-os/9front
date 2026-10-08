@@ -1,3 +1,5 @@
+#pragma lib "libdtracy.a"
+#pragma src "/sys/src/libdtracy"
 /* #pragma lib "libdtracy.a" */
 /* #pragma src "/sys/src/libdtracy" */
 

@@ -1,3 +1,5 @@
+#pragma src "/sys/src/libscribble"
+#pragma lib "libscribble.a"
 /* #pragma src "/sys/src/libscribble" */
 /* #pragma lib "libscribble.a" */
 

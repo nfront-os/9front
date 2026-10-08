@@ -1,3 +1,5 @@
+#pragma lib "libavl.a"
+#pragma src "/sys/src/libavl"
 /* #pragma lib "libavl.a" */
 /* #pragma src "/sys/src/libavl" */
 

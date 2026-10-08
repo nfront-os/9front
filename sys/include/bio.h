@@ -1,3 +1,5 @@
+#pragma	src	"/sys/src/libbio"
+#pragma	lib	"libbio.a"
 /* #pragma	src	"/sys/src/libbio" */
 /* #pragma	lib	"libbio.a" */
 

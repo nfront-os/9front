@@ -1,3 +1,5 @@
+#pragma	src	"/sys/src/libndb"
+#pragma	lib	"libndb.a"
 /* #pragma	src	"/sys/src/libndb" */
 /* #pragma	lib	"libndb.a" */
 

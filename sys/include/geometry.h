@@ -1,3 +1,5 @@
+#pragma lib "libgeometry.a"
+#pragma src "/sys/src/libgeometry"
 /* #pragma lib "libgeometry.a" */
 /* #pragma src "/sys/src/libgeometry" */
 

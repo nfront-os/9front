@@ -14,15 +14,15 @@
 		"Library": "libap.a",
 		"SourceFiles": [
 			"_seek.c",
-			"cycles.s",
+			"cycles.S",
 			"lock.c",
-			"main9.s",
-			"main9p.s",
+			"main9.S",
+			"main9p.S",
 			"notetramp.c",
-			"setjmp.s",
-			"strchr.s",
-			"strlen.s",
-			"tas.s",
+			"setjmp.S",
+			"strchr.S",
+			"strlen.S",
+			"tas.S",
 			"notify.S"
 		],
 		"Append": true

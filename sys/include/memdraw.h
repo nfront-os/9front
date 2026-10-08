@@ -1,3 +1,5 @@
+#pragma	src	"/sys/src/libmemdraw"
+#pragma	lib	"libmemdraw.a"
 /* #pragma	src	"/sys/src/libmemdraw" */
 /* #pragma	lib	"libmemdraw.a" */
 

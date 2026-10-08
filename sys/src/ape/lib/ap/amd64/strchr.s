@@ -1,41 +1,38 @@
-/*
- * GCC port: GAS/System V translation, as libc/amd64/strchr.s: s, c
- * arrive in %rdi, %esi; %dl replaces BX.
- */
-.globl strchr
-strchr:
-	movl	%esi, %eax
-	cmpb	$0, %al
-	je	2f
+	TEXT	strchr(SB), $0
+
+	MOVQ	RARG, DI
+	MOVB	c+8(FP), AX
+	CMPB	AX, $0
+	JEQ	l2	/**/
 
 /*
  * char is not null
  */
-1:
-	movb	(%rdi), %dl
-	cmpb	$0, %dl
-	je	3f
-	addq	$1, %rdi
-	cmpb	%dl, %al
-	jne	1b
+l1:
+	MOVB	(DI), BX
+	CMPB	BX, $0
+	JEQ	ret0
+	ADDQ	$1, DI
+	CMPB	AX, BX
+	JNE	l1
 
-	movq	%rdi, %rax
-	subq	$1, %rax
-	ret
+	MOVQ	DI, AX
+	SUBQ	$1, AX
+	RET
 
 /*
  * char is null
  */
-2:
-	movq	$-1, %rcx
-	cld
+l2:
+	MOVQ	$-1, CX
+	CLD
 
-	repne; scasb
+	REPN;	SCASB
 
-	movq	%rdi, %rax
-	subq	$1, %rax
-	ret
+	MOVQ	DI, AX
+	SUBQ	$1, AX
+	RET
 
-3:
-	movq	$0, %rax
-	ret
+ret0:
+	MOVQ	$0, AX
+	RET

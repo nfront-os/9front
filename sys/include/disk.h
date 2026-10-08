@@ -1,3 +1,5 @@
+#pragma src "/sys/src/libdisk"
+#pragma lib "libdisk.a"
 /* #pragma src "/sys/src/libdisk" */
 /* #pragma lib "libdisk.a" */
 

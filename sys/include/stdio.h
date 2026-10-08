@@ -1,3 +1,5 @@
+#pragma	src	"/sys/src/libstdio"
+#pragma	lib	"libstdio.a"
 /* #pragma	src	"/sys/src/libstdio" */
 /* #pragma	lib	"libstdio.a" */
 

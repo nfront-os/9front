@@ -1,10 +1,9 @@
 #!/bin/bash
 # Build the host-side root tree that Harvey's `ufs` 9P server exports
-# to the pc64 test kernel (plan Phase 2.5; scripts/boot/netmount.c mounts
-# it as /root and execs /$cputype/init from it, like bootrc would).
+# to the pc64 kernel booted by scripts/boot-cli.sh (bootrc's tcp root,
+# srv tcp!fs!564).
 #
-# Layout follows the stock 9front root (only what init + rc need for a
-# minimal interactive shell):
+# Layout follows the stock 9front root:
 #   /amd64/init, /amd64/bin/... gcc-built binaries from $ROOT/amd64/bin
 #   /rc/lib/rcmain, /rc/bin     stock rc library/scripts
 #   /lib/namespace, /lib/ndb    stock name space file (newns), network db
@@ -23,7 +22,7 @@ mkdir -p "$OUT"/amd64/bin "$OUT"/rc "$OUT"/lib "$OUT"/adm/timezone \
 
 cp "$ROOT"/amd64/init "$OUT"/amd64/init
 cp -r "$ROOT"/amd64/bin/. "$OUT"/amd64/bin/
-rm -f "$OUT"/amd64/bin/9pc64 "$OUT"/amd64/bin/init "$OUT"/amd64/bin/netmount	# kernel, boot-only
+rm -f "$OUT"/amd64/bin/9pc64	# the kernel
 
 cp -r "$ROOT"/rc/lib "$ROOT"/rc/bin "$OUT"/rc/
 cp -r "$ROOT"/lib/. "$OUT"/lib/	# namespace, vgadb, fonts, keyboard, ...

@@ -1,3 +1,5 @@
+#pragma src "/sys/src/libjson"
+#pragma lib "libjson.a"
 /* #pragma src "/sys/src/libjson" */
 /* #pragma lib "libjson.a" */
 

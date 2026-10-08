@@ -1,3 +1,4 @@
+#pragma lib "libsat.a"
 /* #pragma lib "libsat.a" */
 
 typedef struct SATParam SATParam;

@@ -1,3 +1,5 @@
+#pragma	src	"/sys/src/libauthsrv"
+#pragma	lib	"libauthsrv.a"
 /* #pragma	src	"/sys/src/libauthsrv" */
 /* #pragma	lib	"libauthsrv.a" */
 

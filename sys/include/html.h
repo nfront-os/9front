@@ -1,3 +1,5 @@
+#pragma lib "libhtml.a"
+#pragma src "/sys/src/libhtml"
 /* #pragma lib "libhtml.a" */
 /* #pragma src "/sys/src/libhtml" */
 

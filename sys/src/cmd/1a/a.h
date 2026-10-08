@@ -69,7 +69,7 @@ struct	Addr
 {
 	Sym*	sym;
 	long	offset;
-	short	type;
+	short	atype;	/* GCC port: was type; Gen embeds Addr and has a type of its own */
 };
 struct	Gen
 {

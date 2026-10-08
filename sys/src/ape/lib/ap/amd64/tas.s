@@ -1,8 +1,5 @@
-/*
- * GCC port: GAS/System V translation: the pointer arrives in %rdi.
- */
-.globl tas
-tas:
-	movl	$0xdeadead, %eax
-	xchgl	%eax, (%rdi)
-	ret
+TEXT	tas(SB),$0
+
+	MOVL	$0xdeadead,AX
+	XCHGL	AX,(RARG)
+	RET

@@ -78,13 +78,20 @@ check "no (u)vlong-valued enumerators" enums
 check "u.h: SET/USED are variadic no-ops" grep -q '^#define SET(...) ((void)0)' amd64/include/u.h
 check "u.h: jmp_buf holds sp, pc and 6 callee-saved registers" grep -q 'jmp_buf\[8\]' amd64/include/u.h
 
-# 6. libc/amd64 has exactly 9front's files, GAS-ported in place, plus notetramp.S
-libcarch(){
-	diff <(git ls-tree --name-only front sys/src/libc/amd64/ | xargs -n1 basename | sort) \
-	     <(ls sys/src/libc/amd64 | grep -vx 'build.json\|notetramp.S' | sort)
+# 6. the 6a sources stay 9front's (for 6a on Plan 9), each with its GAS
+#    port beside it (foo.S, as the kernel's l.S beside l.s)
+asmpairs(){
+	local bad=0
+	for d in sys/src/libc/amd64 sys/src/ape/lib/ap/amd64 sys/src/ape/lib/9/amd64; do
+		git diff --quiet front -- "$d"/*.s || { echo "$d: .s differs from front"; bad=1; }
+		for s in "$d"/*.s; do
+			[ -f "${s%.s}.S" ] || { echo "$s: no GAS port ${s%.s}.S"; bad=1; }
+		done
+	done
+	return $bad
 }
-check "libc/amd64: 9front's file set (+ notetramp.S)" libcarch
-check "libc/amd64: no 6a assembly left" \
-	bash -c '! grep -nP "^(TEXT|GLOBL)\s|^\t[A-Z]{2,}[A-Z0-9]*\t" sys/src/libc/amd64/*.s'
+check "amd64 assembly: 9front's .s unchanged, each with a GAS .S" asmpairs
+check "GAS ports: no 6a assembly in them" \
+	bash -c '! grep -nP "^(TEXT|GLOBL)\s|^\t[A-Z]{2,}[A-Z0-9]*\t" sys/src/libc/amd64/*.S sys/src/ape/lib/ap/amd64/*.S sys/src/ape/lib/9/amd64/*.S'
 
 done_tests

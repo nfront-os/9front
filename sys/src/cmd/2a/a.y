@@ -205,10 +205,10 @@ gen:
 			a = &$$;
 			*a = $2;
 		}
-		if($2.type == D_AUTO || $2.type == D_PARAM)
+		if($2.atype == D_AUTO || $2.atype == D_PARAM)
 			yyerror("constant cannot be automatic: %s",
 				$2.sym->name);
-		$$.type = $2.type | I_ADDR;
+		$$.type = $2.atype | I_ADDR;
 	}
 |	'$' LSCONST
 	{
@@ -259,7 +259,7 @@ gen:
 |	areg
 	{
 		$$ = nullgen;
-		$$.type = $1.type;
+		$$.type = $1.atype;
 		{
 			Addr *a;
 			a = &$$;
@@ -274,45 +274,45 @@ gen:
 |	areg xreg
 	{
 		$$ = nullgen;
-		$$.type = $1.type;
+		$$.type = $1.atype;
 		{
 			Addr *a;
 			a = &$$;
 			*a = $1;
 		}
-		$$.index = $2.type | I_INDEX1;
+		$$.index = $2.atype | I_INDEX1;
 		$$.scale = $2.offset;
 	}
 |	'(' areg ')' xreg
 	{
 		$$ = nullgen;
-		$$.type = $2.type;
+		$$.type = $2.atype;
 		{
 			Addr *a;
 			a = &$$;
 			*a = $2;
 		}
-		$$.index = $4.type | I_INDEX2;
+		$$.index = $4.atype | I_INDEX2;
 		$$.scale = $4.offset;
 		$$.displace = 0;
 	}
 |	con '(' areg ')' xreg
 	{
 		$$ = nullgen;
-		$$.type = $3.type;
+		$$.type = $3.atype;
 		{
 			Addr *a;
 			a = &$$;
 			*a = $3;
 		}
-		$$.index = $5.type | I_INDEX2;
+		$$.index = $5.atype | I_INDEX2;
 		$$.scale = $5.offset;
 		$$.displace = $1;
 	}
 |	'(' areg ')'
 	{
 		$$ = nullgen;
-		$$.type = $2.type;
+		$$.type = $2.atype;
 		{
 			Addr *a;
 			a = &$$;
@@ -325,7 +325,7 @@ gen:
 |	con '(' areg ')'
 	{
 		$$ = nullgen;
-		$$.type = $3.type;
+		$$.type = $3.atype;
 		{
 			Addr *a;
 			a = &$$;
@@ -338,26 +338,26 @@ gen:
 |	'(' areg xreg ')'
 	{
 		$$ = nullgen;
-		$$.type = $2.type;
+		$$.type = $2.atype;
 		{
 			Addr *a;
 			a = &$$;
 			*a = $2;
 		}
-		$$.index = $3.type | I_INDEX3;
+		$$.index = $3.atype | I_INDEX3;
 		$$.scale = $3.offset;
 		$$.displace = 0;
 	}
 |	con '(' areg xreg ')'
 	{
 		$$ = nullgen;
-		$$.type = $3.type;
+		$$.type = $3.atype;
 		{
 			Addr *a;
 			a = &$$;
 			*a = $3;
 		}
-		$$.index = $4.type | I_INDEX3;
+		$$.index = $4.atype | I_INDEX3;
 		$$.scale = $4.offset;
 		$$.displace = $1;
 	}
@@ -379,7 +379,7 @@ xreg:
 	 */
 	'(' reg LWID scale ')'
 	{
-		$$.type = $2;
+		$$.atype = $2;
 		$$.offset = $3+$4;
 		$$.sym = S;
 	}
@@ -417,25 +417,25 @@ scale:
 areg:
 	'(' LAREG ')'
 	{
-		$$.type = $2 | I_INDIR;
+		$$.atype = $2 | I_INDIR;
 		$$.sym = S;
 		$$.offset = 0;
 	}
 |	con '(' LAREG ')'
 	{
-		$$.type = $3 | I_INDIR;
+		$$.atype = $3 | I_INDIR;
 		$$.sym = S;
 		$$.offset = $1;
 	}
 |	'(' ')'
 	{
-		$$.type = D_NONE | I_INDIR;
+		$$.atype = D_NONE | I_INDIR;
 		$$.sym = S;
 		$$.offset = 0;
 	}
 |	con '(' ')'
 	{
-		$$.type = D_NONE | I_INDIR;
+		$$.atype = D_NONE | I_INDIR;
 		$$.sym = S;
 		$$.offset = $1;
 	}
@@ -444,13 +444,13 @@ areg:
 name:
 	LNAME offset '(' pointer ')'
 	{
-		$$.type = $4;
+		$$.atype = $4;
 		$$.sym = $1;
 		$$.offset = $2;
 	}
 |	LNAME '<' '>' offset '(' LSB ')'
 	{
-		$$.type = D_STATIC;
+		$$.atype = D_STATIC;
 		$$.sym = $1;
 		$$.offset = $4;
 	}
