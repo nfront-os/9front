@@ -1,0 +1,44 @@
+[
+	{
+		"Name": "cmd-postscript-posttek-posttek",
+		"Include": [
+			"/$ARCH/cflags.json",
+			"/$ARCH/ape.json"
+		],
+		"Install": "/$ARCH/bin/aux/",
+		"Cflags": [
+			"-Dplan9",
+			"-D_POSIX_SOURCE",
+			"-I../common"
+		],
+		"Ape": true,
+		"Oflags": [
+			"--entry=_main"
+		],
+		"Libs": [
+			"--start-group",
+			"/sys/src/cmd/postscript/common/com.a6",
+			"/$ARCH/lib/ape/libdraw.a",
+			"/$ARCH/lib/ape/libplumb.a",
+			"/$ARCH/lib/ape/libauth.a",
+			"/$ARCH/lib/ape/libsec.a",
+			"/$ARCH/lib/ape/libmp.a",
+			"/$ARCH/lib/ape/libnet.a",
+			"/$ARCH/lib/ape/libbsd.a",
+			"/$ARCH/lib/ape/libl.a",
+			"/$ARCH/lib/ape/libv.a",
+			"/$ARCH/lib/ape/libz.a",
+			"/$ARCH/lib/ape/libbz2.a",
+			"/$ARCH/lib/ape/libbio.a",
+			"/$ARCH/lib/ape/lib9.a",
+			"/$ARCH/lib/ape/libfmt.a",
+			"/$ARCH/lib/ape/libutf.a",
+			"/$ARCH/lib/ape/libap.a",
+			"--end-group"
+		],
+		"Program": "posttek",
+		"SourceFiles": [
+			"posttek.c"
+		]
+	}
+]

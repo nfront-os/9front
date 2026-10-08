@@ -26,7 +26,7 @@ struct Mouseinfo
 	Mousestate;
 	ulong	lastcounter;	/* value when /dev/mouse read */
 	Rendez	r;
-	Ref;
+	Ref	Ref;	/* GCC port: named, Ref embeds a Lock like Mouseinfo itself */
 	int	resize;
 	int	open;
 	Mousestate	queue[16];	/* circular buffer of click events */
@@ -128,7 +128,7 @@ mouseopen(Chan *c, int omode)
 		mouse.lastcounter = mouse.counter;
 		/* wet floor */
 	case Qcursor:
-		incref(&mouse);
+		incref(&mouse.Ref);
 	}
 	c->mode = mode;
 	c->flag |= COPEN;
@@ -146,7 +146,7 @@ mouseclose(Chan *c)
 		mouse.open = 0;
 		/* wet floor */
 	case Qcursor:
-		if(decref(&mouse) != 0)
+		if(decref(&mouse.Ref) != 0)
 			return;
 		cursoroff();
 		curs = arrow;

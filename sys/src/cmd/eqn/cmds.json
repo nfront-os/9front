@@ -1,0 +1,63 @@
+[
+	{
+		"Name": "cmd-eqn-eqn",
+		"Include": [
+			"/$ARCH/cflags.json",
+			"/$ARCH/ape.json"
+		],
+		"Install": "/$ARCH/bin/",
+		"Pre": [
+			"bash ../../../../scripts/yacc.sh -d -S eqn.y"
+		],
+		"Ape": true,
+		"Oflags": [
+			"--entry=_main"
+		],
+		"Libs": [
+			"--start-group",
+			"/$ARCH/lib/ape/libdraw.a",
+			"/$ARCH/lib/ape/libplumb.a",
+			"/$ARCH/lib/ape/libauth.a",
+			"/$ARCH/lib/ape/libsec.a",
+			"/$ARCH/lib/ape/libmp.a",
+			"/$ARCH/lib/ape/libnet.a",
+			"/$ARCH/lib/ape/libbsd.a",
+			"/$ARCH/lib/ape/libl.a",
+			"/$ARCH/lib/ape/libv.a",
+			"/$ARCH/lib/ape/libz.a",
+			"/$ARCH/lib/ape/libbz2.a",
+			"/$ARCH/lib/ape/libbio.a",
+			"/$ARCH/lib/ape/lib9.a",
+			"/$ARCH/lib/ape/libfmt.a",
+			"/$ARCH/lib/ape/libutf.a",
+			"/$ARCH/lib/ape/libap.a",
+			"--end-group"
+		],
+		"Program": "eqn",
+		"SourceFiles": [
+			"main.c",
+			"tuning.c",
+			"diacrit.c",
+			"eqnbox.c",
+			"font.c",
+			"fromto.c",
+			"funny.c",
+			"glob.c",
+			"integral.c",
+			"input.c",
+			"lex.c",
+			"lookup.c",
+			"mark.c",
+			"matrix.c",
+			"move.c",
+			"over.c",
+			"paren.c",
+			"pile.c",
+			"shift.c",
+			"size.c",
+			"sqrt.c",
+			"text.c",
+			"y.tab.c"
+		]
+	}
+]

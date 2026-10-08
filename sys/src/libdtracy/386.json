@@ -1,24 +1,27 @@
 [
-	{
-		"Name": "klibdtracy-386",
-		"Cflags": [
-			"-m32",
-			"-fno-pic",
-			"-fno-builtin",
-			"-fno-asynchronous-unwind-tables",
-			"-fno-stack-protector",
-			"-fno-omit-frame-pointer",
-			"-fno-zero-initialized-in-bss",
-			"-Os",
-			"-gdwarf-2"
-		],
-		"SourceFiles": [
-			"agg.c",
-			"chan.c",
-			"dtefmt.c",
-			"pack.c",
-			"prog.c",
-			"prov.c"
-		]
-	}
+    {
+        "Name": "klibdtracy-386",
+        "Cflags": [
+            "-m32",
+            "-mno-sse",
+            "-mno-sse2",
+            "-mno-mmx",
+            "-fno-pic",
+            "-fno-builtin",
+            "-fno-asynchronous-unwind-tables",
+            "-fno-stack-protector",
+            "-fno-omit-frame-pointer",
+            "-fno-zero-initialized-in-bss",
+            "-Os",
+            "-gdwarf-2"
+        ],
+        "SourceFiles": [
+            "agg.c",
+            "chan.c",
+            "dtefmt.c",
+            "pack.c",
+            "prog.c",
+            "prov.c"
+        ]
+    }
 ]

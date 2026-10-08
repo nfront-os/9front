@@ -1,0 +1,32 @@
+[
+	{
+		"Name": "Memdraw",
+		"Include": [
+			"../lib.json"
+		],
+		"Install": "/$ARCH/lib/",
+		"Library": "libmemdraw.a",
+		"SourceFiles": [
+			"alloc.c",
+			"arc.c",
+			"cload.c",
+			"cmap.c",
+			"cread.c",
+			"defont.c",
+			"draw.c",
+			"ellipse.c",
+			"fillpoly.c",
+			"hwdraw.c",
+			"line.c",
+			"load.c",
+			"openmemsubfont.c",
+			"poly.c",
+			"read.c",
+			"string.c",
+			"subfont.c",
+			"unload.c",
+			"write.c",
+			"warp.c"
+		]
+	}
+]

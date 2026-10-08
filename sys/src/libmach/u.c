@@ -4,7 +4,7 @@
 #include <u.h>
 #include <libc.h>
 #include <bio.h>
-#include "/sparc64/include/ureg.h"
+#include "../../../sparc64/include/ureg.h"	/* GCC port: was "/sparc64/include/ureg.h", a Plan 9 absolute path */
 #include <mach.h>
 
 #define	REGOFF(x)	(ulong)(&((struct Ureg *) 0)->x)

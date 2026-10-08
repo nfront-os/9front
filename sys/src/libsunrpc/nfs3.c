@@ -115,7 +115,7 @@ static struct {
 };
 
 void
-nfs3Errstr(SunStatus status)
+nfs3Errstr(Nfs3Status status)	/* GCC port: as nfs3.h declares it; distinct enum types are incompatible under gcc */
 {
 	int i;
 

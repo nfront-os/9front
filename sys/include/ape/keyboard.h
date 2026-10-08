@@ -2,5 +2,5 @@
   This header file is an extension to ANSI/POSIX
 #endif
 
-#include "/sys/include/keyboard.h"
+#include "../keyboard.h"	/* GCC port: was "/sys/include/keyboard.h", a Plan 9 absolute path */
 

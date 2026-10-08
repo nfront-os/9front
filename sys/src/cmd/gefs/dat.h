@@ -693,7 +693,7 @@ struct Cron {
 };
 
 struct Mount {
-	Limbo;
+	Limbo	Limbo;	/* GCC port: named, Limbo's next clashes with Mount's (8c let Mount's shadow it); still first, so Limbo* <-> Mount* casts hold */
 	Lock;
 	Mount	*next;
 	Along	ref;

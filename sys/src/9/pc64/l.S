@@ -694,8 +694,20 @@ _tas:
 	xchgl	%eax, (%rdi)
 	ret
 
+/*
+ * GCC port: cmpswap(long*, long, long) compares and swaps a long, and
+ * gcc's long is 64 bits (Ref.ref, Pid.pid, user semaphores): the 32-bit
+ * cmpxchgl of 6c's 32-bit long left the upper half alone -- a freed Pid
+ * (-1) came back as a negative pid on reuse and pidlookup failed.
+ */
 .globl cmpswap486
 cmpswap486:
+	movq	%rsi, %rax			/* exp (arg2) */
+	lock; cmpxchgq %rdx, (%rdi)		/* new (arg3) */
+	movl	$1, %eax
+	jne	_cas32r0
+	ret
+
 .globl cas
 cas:
 	/*

@@ -1,38 +1,42 @@
 [
-	{
-		"Name": "klibmemdraw-386",
-		"Cflags": [
-			"-m32",
-			"-fno-pic",
-			"-fno-builtin",
-			"-fno-asynchronous-unwind-tables",
-			"-fno-stack-protector",
-			"-fno-omit-frame-pointer",
-			"-fno-zero-initialized-in-bss",
-			"-Os",
-			"-gdwarf-2"
-		],
-		"SourceFiles": [
-			"alloc.c",
-			"arc.c",
-			"cload.c",
-			"cmap.c",
-			"cread.c",
-			"defont.c",
-			"draw.c",
-			"ellipse.c",
-			"fillpoly.c",
-			"hwdraw.c",
-			"line.c",
-			"load.c",
-			"openmemsubfont.c",
-			"poly.c",
-			"read.c",
-			"string.c",
-			"subfont.c",
-			"unload.c",
-			"warp.c",
-			"write.c"
-		]
-	}
+    {
+        "Name": "klibmemdraw-386",
+        "Cflags": [
+            "-m32",
+            "-mno-sse",
+            "-mno-sse2",
+            "-mno-mmx",
+            "-mfpmath=387",
+            "-fno-pic",
+            "-fno-builtin",
+            "-fno-asynchronous-unwind-tables",
+            "-fno-stack-protector",
+            "-fno-omit-frame-pointer",
+            "-fno-zero-initialized-in-bss",
+            "-Os",
+            "-gdwarf-2"
+        ],
+        "SourceFiles": [
+            "alloc.c",
+            "arc.c",
+            "cload.c",
+            "cmap.c",
+            "cread.c",
+            "defont.c",
+            "draw.c",
+            "ellipse.c",
+            "fillpoly.c",
+            "hwdraw.c",
+            "line.c",
+            "load.c",
+            "openmemsubfont.c",
+            "poly.c",
+            "read.c",
+            "string.c",
+            "subfont.c",
+            "unload.c",
+            "warp.c",
+            "write.c"
+        ]
+    }
 ]

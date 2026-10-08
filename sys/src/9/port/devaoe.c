@@ -531,7 +531,7 @@ hset(Aoedev *d, Frame *f, Aoehdr *h, int cmd, int new)
 	Devlink *l;
 
 	if(f->srb != nil)
-	if((long)(Ticks-f->srb->ticksent) > Srbtimeout){
+	if((s32int)(Ticks-f->srb->ticksent) > Srbtimeout){	/* GCC port: was (long), 32 bits in kencc */
 		eventlog("%æ: srb timeout\n", d);
 		if(cmd == ACata && Nofail(d, s))
 			f->srb->ticksent = Ticks;

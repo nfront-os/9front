@@ -1,31 +1,34 @@
 [
-	{
-		"Name": "klibmemlayer-386",
-		"Cflags": [
-			"-m32",
-			"-fno-pic",
-			"-fno-builtin",
-			"-fno-asynchronous-unwind-tables",
-			"-fno-stack-protector",
-			"-fno-omit-frame-pointer",
-			"-fno-zero-initialized-in-bss",
-			"-Os",
-			"-gdwarf-2"
-		],
-		"SourceFiles": [
-			"draw.c",
-			"lalloc.c",
-			"layerop.c",
-			"ldelete.c",
-			"lhide.c",
-			"line.c",
-			"load.c",
-			"lorigin.c",
-			"lsetrefresh.c",
-			"ltofront.c",
-			"ltorear.c",
-			"unload.c",
-			"warp.c"
-		]
-	}
+    {
+        "Name": "klibmemlayer-386",
+        "Cflags": [
+            "-m32",
+            "-mno-sse",
+            "-mno-sse2",
+            "-mno-mmx",
+            "-fno-pic",
+            "-fno-builtin",
+            "-fno-asynchronous-unwind-tables",
+            "-fno-stack-protector",
+            "-fno-omit-frame-pointer",
+            "-fno-zero-initialized-in-bss",
+            "-Os",
+            "-gdwarf-2"
+        ],
+        "SourceFiles": [
+            "draw.c",
+            "lalloc.c",
+            "layerop.c",
+            "ldelete.c",
+            "lhide.c",
+            "line.c",
+            "load.c",
+            "lorigin.c",
+            "lsetrefresh.c",
+            "ltofront.c",
+            "ltorear.c",
+            "unload.c",
+            "warp.c"
+        ]
+    }
 ]

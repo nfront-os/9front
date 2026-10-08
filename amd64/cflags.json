@@ -2,13 +2,18 @@
 	{
 		"Name": "buildflags",
 		"Cflags": [
+			"-std=gnu17",
+			"-fno-asm",
 			"-ffreestanding",
+			"-nostdinc",
 			"-fno-builtin",
 			"-fno-omit-frame-pointer",
 			"-fno-stack-protector",
 			"-fplan9-extensions",
 			"-fcommon",
 			"-Wno-error=implicit-int",
+			"-Wno-error=incompatible-pointer-types",
+			"-Wno-error=int-conversion",
 			"-g",
 			"-gdwarf-2",
 			"-ggdb",
@@ -20,7 +25,9 @@
 			"-z",
 			"noseparate-code",
 			"-z",
-			"max-page-size=0x200000"
+			"max-page-size=0x200000",
+			"-T",
+			"/$ARCH/rodata.ld"
 		],
 		"Include": [
 			"/$ARCH/$CC.json"

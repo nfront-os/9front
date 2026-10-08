@@ -63,7 +63,7 @@ readFibhdr(Fibhdr *s, uchar *v, int nv)
 	s->fFarEast = ((v[0xB]) & 0x64) >> 6;
 	s->fCrypto = ((v[0xB]) & 0x128) >> 7;
 	s->nFibBack = v[0xC] | (v[0xC+1] << 8);
-	s->lKey = v[0xE] | (v[0xE+1] << 8)| (v[0xE+2] << 16) | (v[0xE+3] << 24);
+	s->lKey = v[0xE] | (v[0xE +1] << 8)| (v[0xE +2] << 16) | (v[0xE +3] << 24);	/* GCC port: 0xE+1 is one pp-number in ISO C */
 	s->envr = v[0x12];
 	s->fMac = ((v[0x13]) & 0x1) >> 0;
 	s->fEmptySpecial = ((v[0x13]) & 0x2) >> 1;

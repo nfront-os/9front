@@ -892,7 +892,7 @@ utf2ksym [] = {
 	[L'օ']	0x14fb,
 	[L'Ֆ']	0x14fc,
 	[L'ֆ']	0x14fd,
-	[L''']	0x14ff,
+	[L'\'']	0x14ff,	/* GCC port: '\'' -- 8c reads ''' as a quote character */
 	[L'ა']	0x15d0,
 	[L'ბ']	0x15d1,
 	[L'გ']	0x15d2,

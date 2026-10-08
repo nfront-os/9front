@@ -446,7 +446,24 @@ execprintf(Node **arg, int narg, uchar *p, uchar *e, Enab *en)
 		default: abort();
 		}
 	}
+#ifdef __x86_64__
+	{
+		/*
+		 * GCC port: was vfprint(1, (*arg)->str, (va_list) x). 8c's va_list
+		 * is a pointer to the arguments; the System V one is a descriptor.
+		 * With the register areas used up, va_arg reads x as the stack area.
+		 */
+		va_list va;
+
+		va[0].gp_offset = 6*8;
+		va[0].fp_offset = 6*8 + 8*16;
+		va[0].overflow_arg_area = x;
+		va[0].reg_save_area = nil;
+		vfprint(1, (*arg)->str, va);
+	}
+#else
 	vfprint(1, (*arg)->str, (va_list) x);
+#endif
 	free(x);
 }
 

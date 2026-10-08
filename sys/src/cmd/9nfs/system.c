@@ -27,8 +27,22 @@ system(char *name, char **argv)
 	return nil;
 }
 
+/*
+ * GCC port: front passes &name+1 as the argument vector, relying on 6c
+ * passing the variadic arguments contiguously on the stack; collect
+ * them with va_arg instead (as libc/port/execl.c).
+ */
 Waitmsg*
 systeml(char *name, ...)
 {
-	return system(name, &name+1);
+	va_list arg;
+	char *argv[64];
+	int n;
+
+	va_start(arg, name);
+	for(n = 0; n < nelem(argv)-1 && (argv[n] = va_arg(arg, char*)) != nil; n++)
+		;
+	argv[n] = nil;
+	va_end(arg);
+	return system(name, argv);
 }

@@ -1309,7 +1309,7 @@ void dofmtsize(Node *r, Node *args)
 
 	v.type = res.type ;
 	s = &v.Store ;
-	*s = res ;
+	*s = res.Store ;	/* GCC port: was *s = res, 8c converts the struct to its Store member */
 
 	r->op = OCONST;
 	r->type = TINT ;

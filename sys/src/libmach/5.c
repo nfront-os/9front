@@ -7,7 +7,7 @@
 #include <mach.h>
 
 #pragma pack on
-#include "/arm/include/ureg.h"
+#include "../../../arm/include/ureg.h"	/* GCC port: was "/arm/include/ureg.h", a Plan 9 absolute path */
 #pragma pack off
 
 #define	REGOFF(x)	(uintptr)(&((struct Ureg *) 0)->x)

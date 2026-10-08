@@ -1,0 +1,83 @@
+[
+	{
+		"Name": "cmd-audio-mp3enc-mp3enc",
+		"Include": [
+			"/$ARCH/cflags.json",
+			"/$ARCH/ape.json"
+		],
+		"Install": "/$ARCH/bin/audio/",
+		"Cflags": [
+			"-I.",
+			"-D_POSIX_SOURCE",
+			"-DSTDC_HEADERS",
+			"-DUSE_LAYER_1",
+			"-DUSE_LAYER_2",
+			"-DCHAR_BIT=8",
+			"-DSIZEOF_DOUBLE=8",
+			"-DSIZEOF_FLOAT=4",
+			"-DSIZEOF_INT=4",
+			"-DSIZEOF_LONG=4",
+			"-DSIZEOF_LONG_DOUBLE=8",
+			"-DSIZEOF_LONG_LONG=8",
+			"-DSIZEOF_SHORT=2",
+			"-DSIZEOF_UNSIGNED_INT=4",
+			"-DSIZEOF_UNSIGNED_LONG=4",
+			"-DSIZEOF_UNSIGNED_LONG_LONG=8",
+			"-DSIZEOF_UNSIGNED_SHORT=2"
+		],
+		"Ape": true,
+		"Oflags": [
+			"--entry=_main"
+		],
+		"Libs": [
+			"--start-group",
+			"/$ARCH/lib/ape/libdraw.a",
+			"/$ARCH/lib/ape/libplumb.a",
+			"/$ARCH/lib/ape/libauth.a",
+			"/$ARCH/lib/ape/libsec.a",
+			"/$ARCH/lib/ape/libmp.a",
+			"/$ARCH/lib/ape/libnet.a",
+			"/$ARCH/lib/ape/libbsd.a",
+			"/$ARCH/lib/ape/libl.a",
+			"/$ARCH/lib/ape/libv.a",
+			"/$ARCH/lib/ape/libz.a",
+			"/$ARCH/lib/ape/libbz2.a",
+			"/$ARCH/lib/ape/libbio.a",
+			"/$ARCH/lib/ape/lib9.a",
+			"/$ARCH/lib/ape/libfmt.a",
+			"/$ARCH/lib/ape/libutf.a",
+			"/$ARCH/lib/ape/libap.a",
+			"--end-group"
+		],
+		"Program": "mp3enc",
+		"SourceFiles": [
+			"VbrTag.c",
+			"bitstream.c",
+			"encoder.c",
+			"fft.c",
+			"get_audio.c",
+			"id3tag.c",
+			"lame.c",
+			"lametime.c",
+			"main.c",
+			"mpglib_interface.c",
+			"newmdct.c",
+			"parse.c",
+			"pcm.c",
+			"portableio.c",
+			"psymodel.c",
+			"quantize.c",
+			"quantize_pvt.c",
+			"reservoir.c",
+			"set_get.c",
+			"tables.c",
+			"takehiro.c",
+			"timestatus.c",
+			"tools.c",
+			"util.c",
+			"vbrquantize.c",
+			"version.c",
+			"vorbis_interface.c"
+		]
+	}
+]

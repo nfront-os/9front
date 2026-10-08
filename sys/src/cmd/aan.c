@@ -321,7 +321,7 @@ fromnet(void*)
 		inmsg++;
 
 		// Process the acked list.
-		while((long)(acked - lastacked) > 0) {
+		while((s32int)(acked - lastacked) > 0) {	/* GCC port: was (long), 32 bits in kencc */
 			Buf *rb;
 
 			if((rb = recvp(unacked)) == nil)

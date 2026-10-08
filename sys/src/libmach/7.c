@@ -6,7 +6,7 @@
 #include <bio.h>
 #include <mach.h>
 
-#include "/arm64/include/ureg.h"
+#include "../../../arm64/include/ureg.h"	/* GCC port: was "/arm64/include/ureg.h", a Plan 9 absolute path */
 
 #define	REGSIZE		sizeof(struct Ureg)
 #define	FPREGSIZE	520

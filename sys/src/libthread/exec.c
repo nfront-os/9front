@@ -72,9 +72,34 @@ procexec(Channel *pidc, char *prog, char *args[])
 	_schedexecwait();
 }
 
+/*
+ * GCC port: front passes &f+1 as the argument vector, relying on 6c
+ * passing the variadic arguments contiguously on the stack. Under the
+ * System V ABI they arrive in registers; collect them with va_arg (as
+ * libc/port/execl.c). procexec returns only when the exec failed.
+ */
 void
 procexecl(Channel *pidc, char *f, ...)
 {
-	procexec(pidc, f, &f+1);
+	va_list arg;
+	char **argv;
+	int n;
+
+	va_start(arg, f);
+	for(n = 0; va_arg(arg, char*) != nil; n++)
+		;
+	va_end(arg);
+	argv = malloc((n+1)*sizeof(char*));
+	if(argv == nil){
+		if(pidc)
+			sendul(pidc, ~0);
+		return;
+	}
+	va_start(arg, f);
+	for(n = 0; (argv[n] = va_arg(arg, char*)) != nil; n++)
+		;
+	va_end(arg);
+	procexec(pidc, f, argv);
+	free(argv);
 }
 

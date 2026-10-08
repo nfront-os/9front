@@ -5,7 +5,7 @@
 #include "../plan9/sys9.h"
 
 int
-nanosleep(struct timespec *req, struct timespec *rem)
+nanosleep(const struct timespec *req, struct timespec *rem)	/* GCC port: types as in the prototype, kencc ignored the difference */
 {
 	int ms;
 

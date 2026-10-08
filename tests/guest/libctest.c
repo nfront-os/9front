@@ -199,6 +199,71 @@ testnote(void)
 }
 
 static void
+testnotifynil(void)
+{
+	Waitmsg *w;
+
+	switch(fork()){
+	case 0:
+		notify(handler);
+		notify(nil);
+		postnote(PNPROC, getpid(), "byenote");
+		sleep(1000);
+		exits("survived");
+	}
+	w = wait();
+	check("notify(nil): note gets the default action", w != nil && strstr(w->msg, "byenote") != nil,
+		"%s", w ? w->msg : "no wait");
+	free(w);
+}
+
+static void
+testliterals(void)
+{
+	char *s;
+
+	/* 8l keeps string literals in the data segment (amd64/rodata.ld) */
+	s = "literal";
+	s[0] = 'L';
+	check("string literals are writable", s[0] == 'L', nil);
+}
+
+static int gotalarm;
+
+static void
+alarmhandler(void*, char *msg)
+{
+	if(strcmp(msg, "alarm") == 0){
+		gotalarm = 1;
+		noted(NCONT);
+	}
+	noted(NDFLT);
+}
+
+static void
+testalarm(void)
+{
+	vlong t;
+	long left;
+
+	notify(alarmhandler);
+	gotalarm = 0;
+	t = nsec();
+	alarm(300);
+	sleep(1000);	/* interrupted by the alarm note */
+	t = nsec() - t;
+	check("alarm(300) fires after ~300ms", gotalarm && t >= 250*1000000LL && t < 900*1000000LL,
+		"note %d after %lld ms", gotalarm, t/1000000);
+	gotalarm = 0;
+	alarm(30*1000);
+	sleep(100);
+	left = alarm(0);
+	check("alarm(30000) pending after 100ms", !gotalarm && left > 29000 && left <= 30000,
+		"note %d, %ld ms left", gotalarm, left);
+	notify(nil);
+}
+
+static void
 testexec(void)
 {
 	int p[2], n;
@@ -300,6 +365,9 @@ main(void)
 	testmem();
 	testjmp();
 	testnote();
+	testnotifynil();
+	testliterals();
+	testalarm();
 	testexec();
 	testrendez();
 	testfile();

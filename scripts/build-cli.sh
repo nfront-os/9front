@@ -55,11 +55,8 @@ for l in $(python3 scripts/genlibs.py --list); do
 	build "sys/src/$l/$l.json"
 done
 for m in \
-	sys/src/cmd/init/build.json \
-	sys/src/cmd/rc/build.json \
-	sys/src/cmd/aux/kbdfs/build.json \
 	scripts/boot/netmount.json \
-	$(cd sys/src/cmd && find . -name cmds.json | sed 's|^\./|sys/src/cmd/|' | sort)
+	$(python3 scripts/gencmds.py --list)
 do
 	build "$m"
 done

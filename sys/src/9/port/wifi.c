@@ -209,8 +209,8 @@ nodelookup(Wifi *wifi, uchar *bssid, int new)
 			continue;
 		if(memcmp(wn->bssid, bssid, Eaddrlen) == 0)
 			return wn;
-		if((long)(wn->lastsend - nn->lastsend) < 0
-		|| (long)(wn->lastseen - nn->lastseen) < 0)
+		if((s32int)(wn->lastsend - nn->lastsend) < 0	/* GCC port: was (long), 32 bits in kencc */
+		|| (s32int)(wn->lastseen - nn->lastseen) < 0)	/* GCC port: was (long), 32 bits in kencc */
 			nn = wn;
 	}
 	if(!new)

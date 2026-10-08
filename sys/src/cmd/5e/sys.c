@@ -3,7 +3,7 @@
 #include <thread.h>
 #include "dat.h"
 #include "fns.h"
-#include </sys/src/libc/9syscall/sys.h>
+#include "../../libc/9syscall/sys.h"	/* GCC port: was "/sys/src/libc/9syscall/sys.h", a Plan 9 absolute path */
 
 static u32int
 arg(int n)

@@ -714,7 +714,7 @@ grectlreport(Conv *c, int, char **argv)
 
 		assert(bp && bp->rp - bp->base >= sizeof(Metablock));
 		m = (Metablock *)bp->base;
-		if((long)(seq - m->seq) <= 0)
+		if((s32int)(seq - m->seq) <= 0)	/* GCC port: was (long), 32 bits in kencc */
 			break;
 
 		r->ring[r->consumed & Ringmask] = nil;

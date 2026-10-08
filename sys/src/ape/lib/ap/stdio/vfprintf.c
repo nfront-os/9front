@@ -150,10 +150,12 @@ ocvt_x,	0,	0,	0,	0,	0,	0,	0,	/*  x  y  z  {  |  }  ~ ^? */
 static int nprint;
 
 int
-vfprintf(FILE *f, const char *s, va_list args)
+vfprintf(FILE *f, const char *s, va_list args0)
 {
 	int tfl, flags, width, precision;
+	va_list args;	/* GCC port: the System V va_list parameter is a pointer, &args0 no va_list* */
 
+	va_copy(args, args0);
 	nprint = 0;
 	while(*s){
 		if(*s != '%'){

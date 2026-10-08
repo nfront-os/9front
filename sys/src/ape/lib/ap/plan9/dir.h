@@ -3,7 +3,7 @@ typedef	unsigned long long uvlong;
 typedef 	unsigned char uchar;
 typedef	unsigned short ushort;
 typedef 	unsigned int uint;
-typedef	unsigned long ulong;
+typedef	unsigned int ulong;	/* GCC port: was unsigned long, 32 bits with kencc */
 
 #define	GBIT8(p)	((p)[0])
 #define	GBIT16(p)	((p)[0]|((p)[1]<<8))

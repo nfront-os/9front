@@ -15,6 +15,15 @@
 #include <errno.h>
 #include <float.h>
 #include <math.h>
+#ifdef __x86_64__
+/*
+ * GCC port: this code keeps 32 bits per long (Pack_32, ULong words,
+ * the IEEE word overlay) -- kencc's long is 32 bits, gcc's 64. The
+ * headers the users of fconv.h need come first, then long means int.
+ */
+#include <stdio.h>
+#define long int
+#endif
 #define CONST const
 
 /*

@@ -592,11 +592,10 @@ rmb(Mousectl *mc)
 void
 mouse(Mousectl *mc)
 {
-	enum {
+	double	/* GCC port: was enum, kencc allows floating enumerators */
 		ScrollzoomΔ	= 0.05,
 		Scrollzoomin	= 1.00+ScrollzoomΔ,
-		Scrollzoomout	= 1.00-ScrollzoomΔ,
-	};
+		Scrollzoomout	= 1.00-ScrollzoomΔ;
 	static Mouse om;
 	static Point p;
 	int tainted;

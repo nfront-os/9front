@@ -26,7 +26,7 @@ struct PFid {
 	char *msg;
 	int msgn, msgp;
 };
-Qid rootqid = {.type QTDIR};
+Qid rootqid = {.type = QTDIR};	/* GCC port: kencc initializers may omit the = of .member */
 
 struct FAttr {
 	char *name;

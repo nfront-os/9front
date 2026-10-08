@@ -50,7 +50,7 @@ A port of Harvey's Go build tool lives in `sys/src/cmd/build/` (`build.go`, `cod
 - dont alter logic but you are allowed to pick a modern soluttion
 - look at the original 9front build system to see if missing files or definitions are auto generated
 - rewritting assembly to fit the gcc/clang system v api is a must
-- keep helper scripts in ./opencode
+- keep helper scripts in ./scripts
 
 ### gcc Port Status
 - Siehe `MEMORY.md` für aktuellen Stand, Todos und offene Punkte der gcc-Portierung

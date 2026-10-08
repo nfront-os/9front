@@ -32,7 +32,10 @@ _notifyfn:
 notify:
 	/* notify(void(*fn)(void*,char*)) -- SysV: fn arrives in %rdi */
 	movq	%rdi, _notifyfn(%rip)
+	testq	%rdi, %rdi			/* notify(nil): no handler, no trampoline */
+	jz	1f
 	leaq	_notetramp(%rip), %rdi
+1:
 	jmp	_notify				/* tail call: our caller's return address and _notify's return value both pass through untouched */
 
 .globl	_notetramp

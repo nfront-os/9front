@@ -12,7 +12,7 @@
 #endif
 
 typedef unsigned long long uvlong;
-typedef unsigned long ulong;
+typedef unsigned int ulong;	/* GCC port: was unsigned long, 32 bits with kencc */
 
 #ifdef _NEEDLL
 static uvlong uvnan    = 0x7FF0000000000001LL;

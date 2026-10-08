@@ -48,9 +48,9 @@ setenv(char *name, char *val)
 void
 main(int argc, char *argv[])
 {
-	int ctlfd, routefd, datafd, srvfd, rtc, tfd, n;
+	int ctlfd, routefd, datafd, srvfd, rtc, tfd, n, ndbfd;
 	char buf[64];
-	char *ufsaddr, init[64], kbdfs[64], **dp;
+	char *ufsaddr, init[64], kbdfs[64], factotum[64], **dp;
 	static char *bootdevs[] = {"#¤", "#¶", "#P", "#S", "#f", "#æ", "#t", "#b", "#m", nil};
 	Waitmsg *w;
 
@@ -97,6 +97,15 @@ main(int argc, char *argv[])
 	must(fprint(routefd, "add 0.0.0.0 0.0.0.0 10.0.2.2"), "add route");
 	close(routefd);
 
+	/*
+	 * what ipconfig's putndb() writes after DHCP, so cs/dns know the
+	 * DNS server (QEMU's user network: 10.0.2.3)
+	 */
+	if((ndbfd = open("/net/ndb", OWRITE|OTRUNC)) >= 0){
+		fprint(ndbfd, "ip=10.0.2.15 ipmask=255.255.255.0 ipgw=10.0.2.2\n\tdns=10.0.2.3\n");
+		close(ndbfd);
+	}
+
 	print("netmount: dialing %s...\n", ufsaddr);
 	datafd = dial(ufsaddr, nil, nil, nil);
 	must(datafd, "dial ufs");
@@ -134,6 +143,29 @@ main(int argc, char *argv[])
 	free(w);
 	close(0);
 	must(open("/dev/cons", OREAD), "open /dev/cons");
+
+	/*
+	 * bootrc: authentication agent; it sets the hostowner (-S: from
+	 * nvram, asking for authid/authdom/password when there is none,
+	 * -u: $user). Then remount the ip interface, as bootrc does, so
+	 * its files belong to the hostowner.
+	 */
+	unmount("#I0", "/net");
+	snprint(factotum, sizeof factotum, "/%s/bin/auth/factotum", getenv("cputype"));
+	switch(fork()){
+	case -1:
+		sysfatal("fork: %r");
+	case 0:
+		if(strcmp(getenv("service"), "cpu") == 0)
+			execl(factotum, "factotum", "-n", "-sfactotum", "-S", nil);
+		else
+			execl(factotum, "factotum", "-n", "-sfactotum", "-u", nil);
+		sysfatal("exec %s: %r", factotum);
+	}
+	if((w = wait()) == nil || w->msg[0] != '\0')
+		fprint(2, "netmount: factotum: %s\n", w != nil ? w->msg : "wait failed");
+	free(w);
+	bind("#I0", "/net", MAFTER);
 
 	/* bootrc: exec $init */
 	snprint(init, sizeof init, "/%s/init", getenv("cputype"));

@@ -9,7 +9,7 @@ typedef struct IDEIO IDEIO;
 
 struct IDEIO {
 	QLock;
-	Rendez;
+	Rendez	Rendez;	/* GCC port: named, its head/tail collide with QLock's */
 	u8int rbuf[8192];
 	u8int wbuf[1024];
 	u16int rbufrp, rbufwp;
@@ -68,8 +68,8 @@ idereset(IDE *d)
 		qlock(&d->io);
 		while(d->io.state != IIOIDLE){
 			d->io.scratched = 1;
-			rwakeup(&d->io);
-			rsleep(&d->io);
+			rwakeup(&d->io.Rendez);
+			rsleep(&d->io.Rendez);
 		}
 		d->io.rbufrp = d->io.rbufwp = 0;
 		d->io.scratched = 0;
@@ -134,13 +134,13 @@ idegoio(IDE *d, int wr)
 	}
 	qlock(&d->io);
 	while(d->io.state != IIOIDLE)
-		rsleep(&d->io);
+		rsleep(&d->io.Rendez);
 	d->io.addr = addr;
 	d->io.cnt = (d->cnt - 1 & 0xff) + 1;
 	d->io.err = 0;
 	d->io.wr = wr;
 	d->io.state = IIOBUSY;
-	rwakeup(&d->io);
+	rwakeup(&d->io.Rendez);
 	qunlock(&d->io);
 }
 
@@ -172,7 +172,7 @@ idesecrend(IDE *d)
 	}
 	ideincaddr(d);
 	if(d->io.rbufwp == (u16int)(d->io.rbufrp + sizeof(d->io.rbuf) - 512))
-		rwakeup(&d->io);
+		rwakeup(&d->io.Rendez);
 	if(--d->cnt == 0){
 		d->stat &= ~(IDEBUSY|IDEDRQ);
 		d->flags &= ~IDEPIOREAD;
@@ -209,7 +209,7 @@ idesecwend(IDE *d)
 	ideincaddr(d);
 	d->cnt--;
 	if((u16int)(d->io.wbufwp - 512) == d->io.wbufrp)
-		rwakeup(&d->io);
+		rwakeup(&d->io.Rendez);
 	if(d->io.wbufwp == (u16int)(d->io.wbufrp + sizeof(d->io.wbuf))){
 		d->stat = d->stat & ~IDEDRQ | IDEBUSY;
 	}else{
@@ -287,9 +287,9 @@ ideioproc(void *dp)
 	for(;;){
 		qlock(io);
 		io->state = IIOIDLE;
-		rwakeup(io);
+		rwakeup(&io->Rendez);
 		while(io->state == IIOIDLE)
-			rsleep(io);
+			rsleep(&io->Rendez);
 		a = io->addr;
 		n = io->cnt;
 		qunlock(io);
@@ -298,7 +298,7 @@ ideioproc(void *dp)
 			for(i = 0; i < n; i++){
 				qlock(io);
 				while(!io->scratched && io->wbufrp == (io->wbufwp & ~511))
-					rsleep(io);
+					rsleep(&io->Rendez);
 				if(io->scratched){
 					qunlock(io);
 					break;
@@ -316,7 +316,7 @@ ideioproc(void *dp)
 			for(i = 0; i < n; i++){
 				qlock(io);
 				while(!io->scratched && io->rbufwp == (u16int)((io->rbufrp & ~511) + sizeof(io->rbuf)))
-					rsleep(io);
+					rsleep(&io->Rendez);
 				if(io->scratched){
 					qunlock(io);
 					break;
@@ -400,7 +400,7 @@ idecmd(IDE *d, u8int cmd)
 	case 0xec: /* identify */
 		qlock(&d->io);
 		while(d->io.state != IIOIDLE)
-			rsleep(&d->io);
+			rsleep(&d->io.Rendez);
 		p = d->io.rbuf + (d->io.rbufwp & sizeof(d->io.rbuf) - 1);
 		d->io.rbufwp += 512;
 		memset(p, 0, 512);

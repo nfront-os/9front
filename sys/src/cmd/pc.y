@@ -1061,7 +1061,7 @@ main(int, char **)
 	in = Bfdopen(0, OREAD);
 	if(in == nil)
 		sysfatal("Bfdopen: %r");
-	extern void yyparse(void);
+	extern int yyparse(void);	/* GCC port: was void, yaccpar defines int yyparse */
 	yyparse();
 	extern int yynerrs;
 	exits(yynerrs ? "error" : nil);

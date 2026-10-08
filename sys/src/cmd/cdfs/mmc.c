@@ -483,7 +483,7 @@ mmctrackinfo(Drive *drive, int t, int i)
 		break;
 	}
 
-	drive->track[i].mtime = drive->changetime;
+	drive->track[i].mtime = drive->dchangetime;
 	drive->track[i].beg = beg;
 	drive->track[i].end = beg+size;
 	drive->track[i].type = type;
@@ -815,7 +815,7 @@ mmcinfertracks(Drive *drive, int first, int last)
 		if(mmcreadtoc(drive, 0, i, resp, sizeof(resp)) < 0)
 			break;
 		t = &drive->track[i-first];
-		t->mtime = drive->changetime;
+		t->mtime = drive->dchangetime;
 		t->type = TypeData;
 		t->bs = BScdrom;
 		t->beg = bige(resp+8);
@@ -871,7 +871,7 @@ mmcgettoc(Drive *drive)
 	 * if the disc doesn't appear to be have been changed, and there
 	 * is a disc in this drive, there's nothing to do (the common case).
 	 */
-	if(drive->nchange == drive->Scsi.nchange && drive->changetime != 0)
+	if(drive->dnchange == drive->Scsi.nchange && drive->dchangetime != 0)
 		return 0;
 
 	/*
@@ -881,8 +881,8 @@ mmcgettoc(Drive *drive)
 
 	drive->ntrack = 0;
 	drive->nameok = 0;
-	drive->nchange = drive->Scsi.nchange;
-	drive->changetime = drive->Scsi.changetime;
+	drive->dnchange = drive->Scsi.nchange;
+	drive->dchangetime = drive->Scsi.changetime;
 	drive->writeok = No;
 	drive->erasable = drive->recordable = Unset;
 	getinvistrack(drive);
@@ -1169,7 +1169,7 @@ mmcopenrd(Drive *drive, int trackno)
 	o = emalloc(sizeof(Otrack));
 	o->drive = drive;
 	o->track = &drive->track[trackno];
-	o->nchange = drive->nchange;
+	o->nchange = drive->dnchange;
 	o->omode = OREAD;
 	o->buf = bopen(mmcread, OREAD, o->track->bs, Maxrpc/o->track->bs);
 	o->buf->otrack = o;
@@ -1287,7 +1287,7 @@ reserve(Drive *drive, int track)
 			argv0, track, drive->ntrack);
 	}
 	sz -= sz % Eccblk;		/* round down to ecc-block multiple */
-	if ((long)sz < 0) {
+	if ((s32int)sz < 0) {	/* GCC port: was (long), 32 bits in kencc */
 		fprint(2, "%s: reserve: bogus size %lud\n", argv0, sz);
 		return -1;
 	}
@@ -1392,7 +1392,7 @@ mmccreate(Drive *drive, int type)
 
 	o = emalloc(sizeof(Otrack));
 	o->drive = drive;
-	o->nchange = drive->nchange;
+	o->nchange = drive->dnchange;
 	o->omode = OWRITE;
 	o->track = t;
 	o->buf = bopen(mmcwrite, OWRITE, bs, Maxrpc/bs);
@@ -1480,7 +1480,7 @@ mmcclose(Otrack *o)
 		aux->nwopen--;
 		mmcxwrite(o, zero, 2);	/* write lead out */
 		mmcsynccache(o->drive);
-		o->drive->nchange = -1;	/* force reread toc */
+		o->drive->dnchange = -1;	/* force reread toc */
 	}
 	free(o);
 }
@@ -1511,7 +1511,7 @@ mmcfixate(Drive *drive)
 		werrstr("not a writer");
 		return -1;
 	}
-	drive->nchange = -1;		/* force reread toc */
+	drive->dnchange = -1;		/* force reread toc */
 
 	setonesess(drive);
 
@@ -1544,7 +1544,7 @@ mmcblank(Drive *drive, int quick)
 {
 	uchar cmd[12];
 
-	drive->nchange = -1;		/* force reread toc */
+	drive->dnchange = -1;		/* force reread toc */
 
 	initcdb(cmd, sizeof cmd, ScmdBlank);	/* blank cd-rw media */
 	/* immediate bit is 0x10 */

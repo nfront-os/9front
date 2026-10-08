@@ -16,7 +16,7 @@ int verbose;
 
 typedef struct Ahdr Ahdr;
 struct Ahdr {
-	char *name;
+	char *aname;	/* GCC port: was name, which the embedded Dir also has; 8c let this one shadow it */
 	Dir;
 };
 
@@ -77,7 +77,7 @@ gethdr(Biobuf *b)
 	}
 
 	a = emalloc(sizeof(*a));
-	a->name = estrdup(f[0]);
+	a->aname = estrdup(f[0]);
 	a->mode = strtoul(f[1], 0, 8);
 	a->uid = estrdup(f[2]);
 	a->gid = estrdup(f[3]);
@@ -228,7 +228,7 @@ main(int argc, char **argv)
 
 	archtree = fs.tree = alloctree("sys", "sys", DMDIR|0775, nil);
 	while(a = gethdr(b)) {
-		archcreatefile(a->name, newarch(Boffset(b), a->length), a);
+		archcreatefile(a->aname, newarch(Boffset(b), a->length), a);
 		Bseek(b, a->length, 1);
 	}
 

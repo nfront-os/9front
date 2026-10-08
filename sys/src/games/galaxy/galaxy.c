@@ -79,7 +79,7 @@ char *menustr[] = {
 	[MEND]	nil
 };
 Menu menu = {
-	.item menustr
+	.item = menustr	/* GCC port: kencc initializers may omit the = of .member */
 };
 
 Image*

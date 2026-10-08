@@ -11,14 +11,14 @@
 typedef	union
 {
 	double	d;
-	struct
+	struct	/* GCC port: halves were long, 32 bits with kencc */
 	{
 #ifdef IEEE_8087
-		long	ls;
-		long	ms;
+		int	ls;
+		int	ms;
 #else
-		long	ms;
-		long	ls;
+		int	ms;
+		int	ls;
 #endif
 	};
 } Cheat;

@@ -141,7 +141,7 @@ struct Mbox {
 
 	Channel	*see;
 	Channel	*show;
-	Channel	*event;
+	Channel	*eventc;	/* GCC port: was event, which the embedded Win also has; 8c let this one shadow it */
 	Channel	*send;
 
 	int	view;

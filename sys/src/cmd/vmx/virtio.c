@@ -35,7 +35,7 @@ struct VIOBuf {
 
 struct VIOQueue {
 	QLock;
-	Rendez;
+	Rendez	Rendez;	/* GCC port: named, its head/tail collide with QLock's */
 	VIODev *d;
 	u8int (*desc)[16], *avail, *used;
 	u16int size;
@@ -134,7 +134,7 @@ waitloop:
 			qunlock(q);
 			return nil;
 		}
-		rsleep(q);
+		rsleep(&q->Rendez);
 	}
 	dp = checkdesc(q, GET16(q->avail, 4 + 2 * (q->availidx % q->size)));
 	rb = nil;
@@ -305,7 +305,7 @@ vioqaddrset(VIOQueue *q, u64int addr)
 		q->desc = p;
 		q->avail = (u8int*)p + 16 * q->size;
 		q->used = (u8int*)p + sz1;
-		rwakeupall(q);
+		rwakeupall(&q->Rendez);
 	}
 	qunlock(q);
 }
@@ -392,7 +392,7 @@ static void
 viowakeup(VIOQueue *q)
 {
 	qlock(q);
-	rwakeupall(q);
+	rwakeupall(&q->Rendez);
 	qunlock(q);
 }
 

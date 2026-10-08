@@ -1,0 +1,65 @@
+[
+	{
+		"Name": "ape-cmd-pdksh-sh",
+		"Include": [
+			"/$ARCH/cflags.json",
+			"/$ARCH/ape.json"
+		],
+		"Install": "/$ARCH/bin/ape/",
+		"Cflags": [
+			"-I.",
+			"-DHAVE_CONFIG_H"
+		],
+		"Ape": true,
+		"Oflags": [
+			"--entry=_main"
+		],
+		"Libs": [
+			"--start-group",
+			"/$ARCH/lib/ape/libdraw.a",
+			"/$ARCH/lib/ape/libplumb.a",
+			"/$ARCH/lib/ape/libauth.a",
+			"/$ARCH/lib/ape/libsec.a",
+			"/$ARCH/lib/ape/libmp.a",
+			"/$ARCH/lib/ape/libnet.a",
+			"/$ARCH/lib/ape/libbsd.a",
+			"/$ARCH/lib/ape/libl.a",
+			"/$ARCH/lib/ape/libv.a",
+			"/$ARCH/lib/ape/libz.a",
+			"/$ARCH/lib/ape/libbz2.a",
+			"/$ARCH/lib/ape/libbio.a",
+			"/$ARCH/lib/ape/lib9.a",
+			"/$ARCH/lib/ape/libfmt.a",
+			"/$ARCH/lib/ape/libutf.a",
+			"/$ARCH/lib/ape/libap.a",
+			"--end-group"
+		],
+		"Program": "sh",
+		"SourceFiles": [
+			"alloc.c",
+			"c_ksh.c",
+			"c_sh.c",
+			"c_test.c",
+			"c_ulimit.c",
+			"eval.c",
+			"exec.c",
+			"expr.c",
+			"history.c",
+			"io.c",
+			"jobs.c",
+			"lex.c",
+			"mail.c",
+			"main.c",
+			"misc.c",
+			"path.c",
+			"shf.c",
+			"syn.c",
+			"table.c",
+			"trap.c",
+			"tree.c",
+			"tty.c",
+			"var.c",
+			"version.c"
+		]
+	}
+]

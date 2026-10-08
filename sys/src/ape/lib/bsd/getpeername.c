@@ -16,7 +16,7 @@
 #include "priv.h"
 
 int
-getpeername(int fd, struct sockaddr *addr, int *alen)
+getpeername(int fd, void *addr, int *alen)	/* GCC port: types as in the prototype, kencc ignored the difference */
 {
 	Rock *r;
 	int olen, len;

@@ -16,8 +16,8 @@ typedef struct {
 			Exec;		/* a.out.h */
 			uvlong hdr[1];
 		};
-		Ehdr;			/* elf.h */
-		E64hdr;
+		Ehdr Ehdr;			/* elf.h */
+		E64hdr E64hdr;	/* GCC port: Ehdr/E64hdr are named, their fields collide */
 		struct mipsexec;	/* bootexec.h */
 		struct mips4kexec;	/* bootexec.h */
 		struct sparcexec;	/* bootexec.h */
@@ -567,7 +567,7 @@ elf64dotout(int fd, Fhdr *fp, ExecHdr *hp)
 	int i, it, id, is, phsz;
 	uvlong uvl;
 
-	ep = &hp->e;
+	ep = &hp->e.E64hdr;	/* GCC port: Ehdr/E64hdr are named, their fields collide */
 	if(ep->ident[DATA] == ELFDATA2LSB) {
 		swab = leswab;
 		swal = leswal;
@@ -679,7 +679,7 @@ elf32dotout(int fd, Fhdr *fp, ExecHdr *hp)
 	int i, it, id, is, phsz;
 
 	/* bitswap the header according to the DATA format */
-	ep = &hp->e;
+	ep = &hp->e.Ehdr;	/* GCC port: Ehdr/E64hdr are named, their fields collide */
 	if(ep->ident[DATA] == ELFDATA2LSB) {
 		swab = leswab;
 		swal = leswal;
@@ -828,7 +828,7 @@ elfdotout(int fd, Fhdr *fp, ExecHdr *hp)
 	Ehdr *ep;
 
 	/* bitswap the header according to the DATA format */
-	ep = &hp->e;
+	ep = &hp->e.Ehdr;	/* GCC port: Ehdr/E64hdr are named, their fields collide */
 	if(ep->ident[CLASS] == ELFCLASS32)
 		return elf32dotout(fd, fp, hp);
 	else if(ep->ident[CLASS] == ELFCLASS64)

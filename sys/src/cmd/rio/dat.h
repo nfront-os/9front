@@ -141,7 +141,7 @@ struct Window
 	Channel		*gone;		/* chan(char*) */
 	uint			nr;			/* number of runes in window */
 	uint			maxr;		/* number of runes allocated in r */
-	Rune			*r;
+	Rune			*runes;	/* GCC port: was r, which the embedded Frame also has; 8c let this one shadow it */
 	uint			nraw;
 	Rune			*raw;
 	uint			org;

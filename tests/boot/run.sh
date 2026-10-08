@@ -16,8 +16,9 @@ L=$TMPD/log
 out(){ grep -A1 -F "# $1" "$L" | tail -1; }
 
 check "cpurc finished, console rc prompt" grep -q '^init: starting /bin/rc' "$L"
-check "cpurc: no errors besides the missing factotum" \
-	bash -c "! sed -n '/root is/,/init: starting/p' '$L' | grep -iE 'error|fail|can.t|null list|suicide|panic' | grep -v factotum"
+# readnvram: QEMU has no nvram, factotum asks (scripts/boot-cli.sh answers)
+check "cpurc: no errors besides the missing nvram" \
+	bash -c "! sed -n '/root is/,/init: starting/p' '$L' | grep -iE 'error|fail|can.t|null list|suicide|panic' | grep -vE 'nvram|unknown device in # filename'"
 check "echo" test "$(out 'echo hello')" = hello
 check "ls /bin | wc -l > 100" test "$(out 'ls /bin | wc -l' | tr -d ' ')" -gt 100
 check "date: RTC/timesync year >= 2025" bash -c "[ \$(echo '$(out 'date -i')' | cut -c1-4) -ge 2025 ]"

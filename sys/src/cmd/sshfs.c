@@ -1238,19 +1238,19 @@ sshfsend(Srv *)
 }
 
 Srv sshfssrv = {
-	.start sshfsstart,
-	.attach sshfsattach,
-	.walk sshfswalk,
-	.open submitreq,
-	.create submitreq,
-	.read sshfsread,
-	.write submitreq,
-	.stat submitreq,
-	.wstat submitreq,
-	.remove submitreq,
-	.destroyfid sshfsdestroyfid,
-	.destroyreq sshfsdestroyreq,
-	.end sshfsend,
+	.start = sshfsstart,	/* GCC port: kencc initializers may omit the = of .member */
+	.attach = sshfsattach,
+	.walk = sshfswalk,
+	.open = submitreq,
+	.create = submitreq,
+	.read = sshfsread,
+	.write = submitreq,
+	.stat = submitreq,
+	.wstat = submitreq,
+	.remove = submitreq,
+	.destroyfid = sshfsdestroyfid,
+	.destroyreq = sshfsdestroyreq,
+	.end = sshfsend,
 };
 
 char *

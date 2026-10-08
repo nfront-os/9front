@@ -23,7 +23,7 @@ struct Page {
 	Page	*up;
 	Page	*next;
 	Page	*down;
-	Page	*tail;
+	Page	*ptail;	/* GCC port: was tail, which the embedded QLock also has; 8c let this one shadow it */
 
 	Page	*lnext;
 	Page	*lprev;
@@ -153,11 +153,11 @@ addpage(Page *up, char *name, int (*popen)(Page *), void *pdata, int fd)
 
 	qlock(&pagelock);
 	if(p->up = up){
-		if(up->tail == nil)
-			up->down = up->tail = p;
+		if(up->ptail == nil)
+			up->down = up->ptail = p;
 		else {
-			up->tail->next = p;
-			up->tail = p;
+			up->ptail->next = p;
+			up->ptail = p;
 		}
 	}
 	qunlock(&pagelock);

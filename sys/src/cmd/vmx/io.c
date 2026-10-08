@@ -417,7 +417,7 @@ struct PITChannel {
 	u8int output;
 };
 PITChannel pit[3] = {
-	[0] { .state 1 },
+	[0] { .state = 1 },	/* GCC port: kencc initializers may omit the = of .member */
 };
 u8int port61;
 enum { PERIOD = 838 };
@@ -644,10 +644,10 @@ struct I8042 {
 	int cmd;
 	u16int buf; /* |0x100 == kbd, |0x200 == mouse, |0x400 == cmd */
 } i8042 = {
-	.cfg 0x74,
-	.stat 0x10,
-	.oport 0x01,
-	.cmd -1,
+	.cfg = 0x74,	/* GCC port: kencc initializers may omit the = of .member */
+	.stat = 0x10,
+	.oport = 0x01,
+	.cmd = -1,
 };
 Channel *kbdch, *mousech;
 u8int mouseactive;

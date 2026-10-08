@@ -1028,7 +1028,7 @@ reqproc(void *aux)
 				Req **rr, **xx;
 
 				for(rr = &q; *rr; rr=xx){
-					xx = (Req**)&((*rr)->aux);	/* GCC port: void** -> Req** */
+					xx = &((*rr)->aux);
 					if(*rr == r->oldreq){
 						if((*rr = *xx) == nil)
 							qq = rr;
@@ -1044,7 +1044,7 @@ reqproc(void *aux)
 			}
 			r->aux = nil;
 			*qq = r;
-			qq = (Req**)&r->aux;	/* GCC port: void** -> Req** */
+			qq = &r->aux;
 
 			if(0){
 		case ASTR:

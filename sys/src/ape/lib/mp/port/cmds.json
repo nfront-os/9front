@@ -1,0 +1,60 @@
+[
+	{
+		"Name": "ape-lib-mp-port-libmp.a",
+		"Include": [
+			"/$ARCH/cflags.json",
+			"/$ARCH/ape.json"
+		],
+		"Install": "/$ARCH/lib/ape/",
+		"Cflags": [
+			"-D_POSIX_SOURCE",
+			"-D_PLAN9_SOURCE",
+			"-I.",
+			"-I../../9"
+		],
+		"Ape": true,
+		"Library": "libmp.a",
+		"SourceFiles": [
+			"../../../../libmp/port/mpaux.c",
+			"../../../../libmp/port/mpfmt.c",
+			"../../../../libmp/port/strtomp.c",
+			"../../../../libmp/port/mptobe.c",
+			"../../../../libmp/port/mptober.c",
+			"../../../../libmp/port/mptole.c",
+			"../../../../libmp/port/mptolel.c",
+			"../../../../libmp/port/betomp.c",
+			"../../../../libmp/port/letomp.c",
+			"../../../../libmp/port/mpadd.c",
+			"../../../../libmp/port/mpsub.c",
+			"../../../../libmp/port/mpcmp.c",
+			"../../../../libmp/port/mpsel.c",
+			"../../../../libmp/port/mpfactorial.c",
+			"../../../../libmp/port/mpmul.c",
+			"../../../../libmp/port/mpleft.c",
+			"../../../../libmp/port/mpright.c",
+			"../../../../libmp/port/mpvecadd.c",
+			"../../../../libmp/port/mpvecsub.c",
+			"../../../../libmp/port/mpvecdigmuladd.c",
+			"../../../../libmp/port/mpveccmp.c",
+			"../../../../libmp/port/mpvectscmp.c",
+			"../../../../libmp/port/mpdigdiv.c",
+			"../../../../libmp/port/mpdiv.c",
+			"../../../../libmp/port/mpexp.c",
+			"../../../../libmp/port/mpmod.c",
+			"../../../../libmp/port/mpmodop.c",
+			"../../../../libmp/port/mpextendedgcd.c",
+			"../../../../libmp/port/mpinvert.c",
+			"../../../../libmp/port/mprand.c",
+			"../../../../libmp/port/mpnrand.c",
+			"../../../../libmp/port/crt.c",
+			"../../../../libmp/port/mptoi.c",
+			"../../../../libmp/port/mptoui.c",
+			"../../../../libmp/port/mptov.c",
+			"../../../../libmp/port/mptouv.c",
+			"../../../../libmp/port/mpfield.c",
+			"../../../../libmp/port/cnfield.c",
+			"../../../../libmp/port/gmfield.c",
+			"../../../../libmp/port/mplogic.c"
+		]
+	}
+]

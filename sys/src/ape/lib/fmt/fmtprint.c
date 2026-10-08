@@ -32,14 +32,14 @@ fmtprint(Fmt *f, char *fmt, ...)
 	f->flags = 0;
 	f->width = 0;
 	f->prec = 0;
-	va = f->args;
+	va_copy(va, f->args);	/* GCC port: was va = f->args, va_list is an array type */
 	va_start(f->args, fmt);
 	n = dofmt(f, fmt);
 	va_end(f->args);
 	f->flags = 0;
 	f->width = 0;
 	f->prec = 0;
-	f->args = va;
+	va_copy(f->args, va);	/* GCC port: was f->args = va, va_list is an array type */
 	if(n >= 0)
 		return 0;
 	return n;

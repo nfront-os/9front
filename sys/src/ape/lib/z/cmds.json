@@ -1,0 +1,30 @@
+[
+	{
+		"Name": "ape-lib-z-libz.a",
+		"Include": [
+			"/$ARCH/cflags.json",
+			"/$ARCH/ape.json"
+		],
+		"Install": "/$ARCH/lib/ape/",
+		"Cflags": [
+			"-D_POSIX_SOURCE",
+			"-D_C99_SNPRINTF_EXTENSION"
+		],
+		"Ape": true,
+		"Library": "libz.a",
+		"SourceFiles": [
+			"../../../cmd/gs/zlib/adler32.c",
+			"../../../cmd/gs/zlib/compress.c",
+			"../../../cmd/gs/zlib/crc32.c",
+			"../../../cmd/gs/zlib/deflate.c",
+			"../../../cmd/gs/zlib/gzio.c",
+			"../../../cmd/gs/zlib/infback.c",
+			"../../../cmd/gs/zlib/inffast.c",
+			"../../../cmd/gs/zlib/inflate.c",
+			"../../../cmd/gs/zlib/inftrees.c",
+			"../../../cmd/gs/zlib/trees.c",
+			"../../../cmd/gs/zlib/uncompr.c",
+			"../../../cmd/gs/zlib/zutil.c"
+		]
+	}
+]

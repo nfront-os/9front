@@ -7,7 +7,15 @@
 #define nil		((void*)0)
 typedef	unsigned short	ushort;
 typedef	unsigned char	uchar;
+#ifdef __x86_64__
+/*
+ * GCC port: 32 bits, as with kencc and amd64/include/u.h; Plan 9
+ * structures shared with the kernel (Tos) and u32int depend on it
+ */
+typedef unsigned int	ulong;
+#else
 typedef unsigned long	ulong;
+#endif
 typedef unsigned int	uint;
 typedef signed char	schar;
 typedef	long long	vlong;

@@ -2,5 +2,5 @@
   This header file is an extension to ANSI/POSIX
 #endif
 
-#include "/sys/include/mouse.h"
+#include "../mouse.h"	/* GCC port: was "/sys/include/mouse.h", a Plan 9 absolute path */
 

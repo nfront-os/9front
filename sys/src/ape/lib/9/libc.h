@@ -170,6 +170,7 @@ extern int  dec16(uchar *, int, char *, int);
 extern int  enc16(char *, int, uchar *, int);
 extern int  dec32(uchar *, int, char *, int);
 extern int  enc32(char *, int, uchar *, int);
+extern int  cistrncmp(char*, char*, int);	/* GCC port: idn.c calls it; kencc declared it implicitly */
 extern int  dec64(uchar *, int, char *, int);
 extern int  enc64(char *, int, uchar *, int);
 

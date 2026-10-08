@@ -1,31 +1,34 @@
 [
-	{
-		"Name": "klibip-386",
-		"Cflags": [
-			"-m32",
-			"-fno-pic",
-			"-fno-builtin",
-			"-fno-asynchronous-unwind-tables",
-			"-fno-stack-protector",
-			"-fno-omit-frame-pointer",
-			"-fno-zero-initialized-in-bss",
-			"-Os",
-			"-gdwarf-2"
-		],
-		"SourceFiles": [
-			"bo.c",
-			"classmask.c",
-			"eipfmt.c",
-			"equivip.c",
-			"ipaux.c",
-			"iplocalonifc.c",
-			"ipremoteonifc.c",
-			"myetheraddr.c",
-			"myipaddr.c",
-			"parseether.c",
-			"parseip.c",
-			"ptclbsum.c",
-			"readipifc.c"
-		]
-	}
+    {
+        "Name": "klibip-386",
+        "Cflags": [
+            "-m32",
+            "-mno-sse",
+            "-mno-sse2",
+            "-mno-mmx",
+            "-fno-pic",
+            "-fno-builtin",
+            "-fno-asynchronous-unwind-tables",
+            "-fno-stack-protector",
+            "-fno-omit-frame-pointer",
+            "-fno-zero-initialized-in-bss",
+            "-Os",
+            "-gdwarf-2"
+        ],
+        "SourceFiles": [
+            "bo.c",
+            "classmask.c",
+            "eipfmt.c",
+            "equivip.c",
+            "ipaux.c",
+            "iplocalonifc.c",
+            "ipremoteonifc.c",
+            "myetheraddr.c",
+            "myipaddr.c",
+            "parseether.c",
+            "parseip.c",
+            "ptclbsum.c",
+            "readipifc.c"
+        ]
+    }
 ]

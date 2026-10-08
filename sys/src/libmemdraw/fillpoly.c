@@ -113,7 +113,7 @@ mod(long x, long y)
 	long z;
 
 	z = x%y;
-	if((long)(((ulong)z)^((ulong)y)) > 0 || z == 0)
+	if((s32int)(((ulong)z)^((ulong)y)) > 0 || z == 0)	/* GCC port: was (long), 32 bits in kencc */
 		return z;
 	return z + y;
 }
@@ -121,7 +121,7 @@ mod(long x, long y)
 static long
 sdiv(long x, long y)
 {
-	if((long)(((ulong)x)^((ulong)y)) >= 0 || x == 0)
+	if((s32int)(((ulong)x)^((ulong)y)) >= 0 || x == 0)	/* GCC port: was (long), 32 bits in kencc */
 		return x/y;
 
 	return (x+((y>>30)|1))/y-1;

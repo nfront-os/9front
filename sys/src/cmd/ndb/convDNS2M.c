@@ -202,7 +202,7 @@ convRR2M(RR *rp, uchar *p, uchar *ep, Dict *dp)
 		USHORT(rp->udpsize);
 		ULONG(rp->eflags);
 	} else {
-		if(rp->db || (ttl = (long)(rp->expire - now)) > rp->ttl)
+		if(rp->db || (ttl = (s32int)(rp->expire - now)) > rp->ttl)	/* GCC port: was (long), 32 bits in kencc */
 			ttl = rp->ttl;
 		if(ttl < 0)
 			ttl = 0;

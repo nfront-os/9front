@@ -100,7 +100,7 @@ cmdmap(Map *map)
 	int i;
 	char name[MAXSYM];
 
-	extern char lastc;
+	/* GCC port: was extern char lastc; defs.h declares it int */
 
 	rdc();
 	readsym(name);

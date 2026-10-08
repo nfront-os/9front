@@ -1,0 +1,55 @@
+[
+	{
+		"Name": "Mach",
+		"Include": [
+			"../lib.json"
+		],
+		"Install": "/$ARCH/lib/",
+		"Library": "libmach.a",
+		"SourceFiles": [
+			"executable.c",
+			"map.c",
+			"obj.c",
+			"swap.c",
+			"sym.c",
+			"access.c",
+			"machdata.c",
+			"setmach.c",
+			"t.c",
+			"v.c",
+			"k.c",
+			"u.c",
+			"q.c",
+			"0.c",
+			"2.c",
+			"5.c",
+			"6.c",
+			"7.c",
+			"8.c",
+			"9.c",
+			"tdb.c",
+			"vdb.c",
+			"kdb.c",
+			"udb.c",
+			"qdb.c",
+			"2db.c",
+			"5db.c",
+			"7db.c",
+			"8db.c",
+			"vobj.c",
+			"kobj.c",
+			"uobj.c",
+			"2obj.c",
+			"5obj.c",
+			"6obj.c",
+			"7obj.c",
+			"8obj.c",
+			"9obj.c",
+			"qobj.c",
+			"vcodas.c"
+		],
+		"Cflags": [
+			"-I../cmd"
+		]
+	}
+]

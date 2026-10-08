@@ -66,7 +66,7 @@ idxfree(Idx *i)
 }
 
 static char*
-∂(char *x)
+_2202_(char *x)	/* GCC port: runes gcc rejects in identifiers spelled _<hex>_ */
 {
 	if(x)
 		return x;
@@ -77,10 +77,10 @@ static int
 pridxmsg(Biobuf *b, Idx *x)
 {
 	Bprint(b, "%#A %ux %D %lud ", x->digest, x->flags&~Frecent, x->fileid, x->lines);
-	Bprint(b, "%q %q %q %q %q ", ∂(x->ffrom), ∂(x->from), ∂(x->to), ∂(x->cc), ∂(x->bcc));
-	Bprint(b, "%q %q %q %q %q %q ", ∂(x->replyto), ∂(x->messageid), ∂(x->subject), ∂(x->sender), ∂(x->inreplyto), ∂(x->date822));
-	Bprint(b, "%s %d %q %lud %lud ", x->type, x->disposition, ∂(x->filename), x->size, x->rawbsize);
-	Bprint(b, "%lud %q %d\n", x->ibadchars, ∂(x->idxaux), x->nparts);
+	Bprint(b, "%q %q %q %q %q ", _2202_(x->ffrom), _2202_(x->from), _2202_(x->to), _2202_(x->cc), _2202_(x->bcc));
+	Bprint(b, "%q %q %q %q %q %q ", _2202_(x->replyto), _2202_(x->messageid), _2202_(x->subject), _2202_(x->sender), _2202_(x->inreplyto), _2202_(x->date822));
+	Bprint(b, "%s %d %q %lud %lud ", x->type, x->disposition, _2202_(x->filename), x->size, x->rawbsize);
+	Bprint(b, "%lud %q %d\n", x->ibadchars, _2202_(x->idxaux), x->nparts);
 	return 0;
 }
 
@@ -344,7 +344,7 @@ rdfileid(char *s, int level)
 }
 
 static char*
-∫(char *x)
+_222b_(char *x)
 {
 	if(x && *x)
 		return x;
@@ -429,24 +429,24 @@ dead:
 		m->flags = strtoul(f[1], 0, 16);
 		m->fileid = rdfileid(f[2], level);
 		m->lines = atoi(f[3]);
-		m->ffrom = ∫(f[4]);
-		m->from = ∫(f[5]);
-		m->to = ∫(f[6]);
-		m->cc = ∫(f[7]);
-		m->bcc = ∫(f[8]);
-		m->replyto = ∫(f[9]);
-		m->messageid = ∫(f[10]);
-		m->subject = ∫(f[11]);
-		m->sender = ∫(f[12]);
-		m->inreplyto = ∫(f[13]);
-		m->date822 = ∫(f[14]);
+		m->ffrom = _222b_(f[4]);
+		m->from = _222b_(f[5]);
+		m->to = _222b_(f[6]);
+		m->cc = _222b_(f[7]);
+		m->bcc = _222b_(f[8]);
+		m->replyto = _222b_(f[9]);
+		m->messageid = _222b_(f[10]);
+		m->subject = _222b_(f[11]);
+		m->sender = _222b_(f[12]);
+		m->inreplyto = _222b_(f[13]);
+		m->date822 = _222b_(f[14]);
 		m->type = intern(f[15]);
 		m->disposition = atoi(f[16]);
-		m->filename = ∫(f[17]);
+		m->filename = _222b_(f[17]);
 		m->size = strtoul(f[18], 0, 0);
 		m->rawbsize = strtoul(f[19], 0, 0);
 		m->ibadchars = strtoul(f[20], 0, 0);
-		m->idxaux = ∫(f[21]);
+		m->idxaux = _222b_(f[21]);
 		m->nparts = strtoul(f[22], 0, 0);
 		m->cstate &= ~Cidxstale;
 		m->cstate |= Cidx|Cnew;

@@ -9,7 +9,7 @@
 #include <netdb.h>
 
 struct servent*
-getservbyport(int port, char *proto)
+getservbyport(int port, const char *proto)	/* GCC port: types as in the prototype, kencc ignored the difference */
 {
 	char buf[32];
 

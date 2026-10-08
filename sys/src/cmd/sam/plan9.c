@@ -1,6 +1,6 @@
 #include "sam.h"
 
-Rune	samname[] = L"~~sam~~";
+Rune	samname[] = U"~~sam~~";	/* GCC port: U"", not L"": kencc's L"" is Rune[], gcc's is wchar_t (int)[] */
 
 Rune *left[]= {
 	L"{[(<«",

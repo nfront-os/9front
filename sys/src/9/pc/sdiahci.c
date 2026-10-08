@@ -1017,7 +1017,7 @@ enum {
 static void
 hangck(Drive *d)
 {
-	if(d->active && d->totick != 0 && (long)(Ticks - d->totick) > 0){
+	if(d->active && d->totick != 0 && (s32int)(Ticks - d->totick) > 0){	/* GCC port: was (long), 32 bits in kencc */
 		dprint("%s: drive hung [task %lux; ci %lux; serr %lux]%s\n",
 			dnam(d), d->port->task, d->port->ci, d->port->serror,
 			d->nodma == 0 ? "; disabling dma" : "");

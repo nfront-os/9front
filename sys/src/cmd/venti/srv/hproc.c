@@ -2,7 +2,7 @@
 #include <bio.h>
 #include <mach.h>
 #include <ureg.h>
-#include "/sys/src/libthread/threadimpl.h"
+#include "../../../libthread/threadimpl.h"	/* GCC port: was "/sys/src/libthread/threadimpl.h", a Plan 9 absolute path */
 #include "dat.h"
 #include "fns.h"
 

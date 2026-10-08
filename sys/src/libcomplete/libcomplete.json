@@ -1,0 +1,13 @@
+[
+	{
+		"Name": "Complete",
+		"Include": [
+			"../lib.json"
+		],
+		"Install": "/$ARCH/lib/",
+		"Library": "libcomplete.a",
+		"SourceFiles": [
+			"complete.c"
+		]
+	}
+]

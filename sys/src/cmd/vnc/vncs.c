@@ -26,7 +26,7 @@ Dev	*devtab[] =
  */
 struct {
 	QLock;
-	Vncs *head;
+	Vncs *chead;	/* GCC port: was head, QLock has a member head too */
 } clients;
 
 int	shared;
@@ -255,8 +255,8 @@ main(int argc, char **argv)
 		getremote(ldir, v->remote);
 		strcpy(v->netpath, ldir);
 		qlock(&clients);
-		v->next = clients.head;
-		clients.head = v;
+		v->next = clients.chead;
+		clients.chead = v;
 		qunlock(&clients);
 		vncaccept(v);
 	}
@@ -317,7 +317,7 @@ vncclose(Vncs *v)
 
 	/* remove self from client list if there */
 	qlock(&clients);
-	for(l=&clients.head; *l; l=&(*l)->next)
+	for(l=&clients.chead; *l; l=&(*l)->next)
 		if(*l == v){
 			*l = v->next;
 			break;
@@ -366,7 +366,7 @@ killclients(Vncs *safe)
 	Vncs *v;
 
 	qlock(&clients);
-	for(v=clients.head; v; v=v->next){
+	for(v=clients.chead; v; v=v->next){
 		if(v == safe)
 			continue;
 		if(v->ctlfd >= 0){
@@ -917,7 +917,7 @@ flushmemscreen(Rectangle r)
 	if(!rectclip(&r, gscreen->clipr))
 		return;
 	qlock(&clients);
-	for(v=clients.head; v; v=v->next)
+	for(v=clients.chead; v; v=v->next)
 		addtorlist(&v->rlist, r);
 	qunlock(&clients);
 }
@@ -931,7 +931,7 @@ mousewarpnote(Point p)
 	Vncs *v;
 
 	qlock(&clients);
-	for(v=clients.head; v; v=v->next){
+	for(v=clients.chead; v; v=v->next){
 		if(v->canwarp){
 			vnclock(v);
 			v->dowarp = 1;

@@ -12,7 +12,7 @@
 #define	Q	44488
 #define	R	3399
 
-typedef unsigned long	ulong;
+typedef unsigned int	ulong;	/* GCC port: was unsigned long, 32 bits with kencc */
 
 static	ulong	rng_vec[LEN];
 static	ulong*	rng_tap = rng_vec;

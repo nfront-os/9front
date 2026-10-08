@@ -100,10 +100,12 @@ scalewarpinit(Point p, int scale)
 	scalew = mkwarp(TS);
 }
 
+/* GCC port: buf was a static of convproc; gcc folds the float in SCREENHEIGHT only at file scope */
+static u32int buf[SCREENWIDTH*SCREENHEIGHT];
+
 static void
 convproc(void *p)
 {
-	static u32int buf[SCREENWIDTH*SCREENHEIGHT];
 	static Image *fb;
 	int scale;
 	Rectangle r;

@@ -20,7 +20,7 @@ int vesamode, maxw, maxh;
 int novga;
 
 VgaMode textmode = {
-	.w 640, .h 400, .no 3
+	.w = 640, .h = 400, .no = 3	/* GCC port: kencc initializers may omit the = of .member */
 };
 
 static Image *img, *bg;
@@ -48,10 +48,10 @@ struct VGA {
 	u8int crtc[0x18];
 	QLock;
 } vga = {
-	.miscout 1,
-	.attr { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 },
-	.crtc { [10] 13, [11] 14 },
-	.pal {
+	.miscout = 1,	/* GCC port: kencc initializers may omit the = of .member */
+	.attr = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 },
+	.crtc = { [10] 13, [11] 14 },
+	.pal = {
 		0x000000ff, 0x0000a8ff, 0x00a800ff, 0x00a8a8ff, 0xa80000ff, 0xa800a8ff, 0xa85400ff, 0xa8a8a8ff,
 		0x545454ff, 0x5454fcff, 0x54fc54ff, 0x54fcfcff, 0xfc5454ff, 0xfc54fcff, 0xfcfc54ff, 0xfcfcfcff,
 		0x000000ff, 0x141414ff, 0x202020ff, 0x2c2c2cff, 0x383838ff, 0x444444ff, 0x505050ff, 0x606060ff,

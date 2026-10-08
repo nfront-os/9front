@@ -1,0 +1,37 @@
+[
+	{
+		"Name": "cmd-mothra-libpanel-libpanel.a6",
+		"Include": [
+			"/$ARCH/cflags.json"
+		],
+		"Install": "/sys/src/cmd/mothra/libpanel/",
+		"Library": "libpanel.a6",
+		"SourceFiles": [
+			"button.c",
+			"canvas.c",
+			"draw.c",
+			"edit.c",
+			"entry.c",
+			"event.c",
+			"frame.c",
+			"group.c",
+			"init.c",
+			"label.c",
+			"list.c",
+			"mem.c",
+			"message.c",
+			"pack.c",
+			"popup.c",
+			"print.c",
+			"pulldown.c",
+			"rtext.c",
+			"scroll.c",
+			"scrollbar.c",
+			"slider.c",
+			"textview.c",
+			"textwin.c",
+			"utf.c",
+			"snarf.c"
+		]
+	}
+]

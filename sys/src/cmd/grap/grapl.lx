@@ -9,7 +9,7 @@
 #include "grap.h"
 #include "y.tab.h"
 
-extern	struct	symtab	symtab[];
+/* GCC port: was extern struct symtab symtab[]; unused, struct symtab is never defined */
 
 int	yyback(int *, int);
 int	yylook(void);

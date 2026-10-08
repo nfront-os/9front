@@ -57,7 +57,7 @@ dosfs(Xfs *xf)
 			isdos[i] = 1;
 		isdos['$'] = 1;
 		isdos['%'] = 1;
-		isdos['''] = 1;
+		isdos['\''] = 1;	/* GCC port: '\'' -- 8c reads ''' as a quote character */
 		isdos['-'] = 1;
 		isdos['_'] = 1;
 		isdos['@'] = 1;

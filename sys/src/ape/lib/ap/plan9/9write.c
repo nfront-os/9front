@@ -5,7 +5,7 @@
 #include "dir.h"
 
 long
-_WRITE(int fd, void *buf, long n)
+_WRITE(int fd, const void *buf, long n)	/* GCC port: types as in the prototype, kencc ignored the difference */
 {
 	return _PWRITE(fd, buf, n, -1LL);
 }

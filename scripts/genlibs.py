@@ -26,22 +26,22 @@ import sys
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 SRC = os.path.join(ROOT, 'sys', 'src')
 
-# library -> origin of its source list
-LIBS = {
-	'libbio':	'mkfile',
-	'libauth':	'mkfile',
-	'libthread':	'mkfile',
-	'lib9p':	'mkfile',
-	'libregexp':	'mkfile',
-	'libString':	'mkfile',
-	'libndb':	'mkfile',
-	'libip':	'mkfile',
-	'libflate':	'mkfile',
-	'libauthsrv':	'mkfile',
-	'libdisk':	'mkfile',
-	'libsec':	'reduce',
-	'libmp':	'reduce',
-}
+# build order: libraries others depend on first; the rest of
+# sys/src/mkfile's LIBS (libc excluded, see genlibc.py) follow
+FIRST = ['libbio', 'libauth', 'libthread', 'lib9p', 'libregexp', 'libString',
+	'libndb', 'libip', 'libflate', 'libauthsrv', 'libdisk', 'libsec', 'libmp']
+
+def mklibs():
+	text = open(os.path.join(SRC, 'mkfile')).read().replace('\\\n', ' ')
+	m = re.search(r'^LIBS\s*=(.*)$', text, re.M)
+	libs = [l for l in m.group(1).split() if l != 'libc']
+	return FIRST + [l for l in libs if l not in FIRST]
+
+LIBS = mklibs()
+
+def kind(lib):
+	# libraries built from port/ plus an arch dir use 9front's reduce
+	return 'reduce' if os.path.exists(os.path.join(SRC, lib, 'port', 'mkfile')) else 'mkfile'
 
 # generated sources (9front mkfile rules) -> generator run as Pre step
 PRE = {
@@ -55,8 +55,14 @@ def mkfile_sources(lib):
 	m = re.search(r'^OFILES\s*=(.*)$', text, re.M)
 	if m is None:
 		sys.exit('%s: no OFILES in mkfile' % lib)
-	files = []
+	# expand mkfile variables used in OFILES ($PROTO in libsunrpc)
+	defs = dict((d.group(1), d.group(2).split()) for d in re.finditer(r'^(\w+)\s*=(.*)$', text, re.M))
+	words = []
 	for o in m.group(1).split():
+		v = re.fullmatch(r'\$\{?(\w+)\}?', o)
+		words += defs.get(v.group(1), [o]) if v and v.group(1) != 'objtype' else [o]
+	files = []
+	for o in words:
 		o = o.replace('$objtype', 'amd64').replace('${objtype}', 'amd64')
 		if not o.endswith('.$O'):
 			sys.exit('%s: unexpected OFILES entry %r' % (lib, o))
@@ -65,6 +71,17 @@ def mkfile_sources(lib):
 			sys.exit('%s: %s not found' % (lib, c))
 		files.append(c)
 	return files
+
+def mkincludes(lib):
+	# CFLAGS=$CFLAGS -I/sys/src/cmd -> -I../cmd (manifests run in the lib dir)
+	text = open(os.path.join(SRC, lib, 'mkfile')).read()
+	inc = []
+	for m in re.finditer(r'^CFLAGS\s*=.*$', text, re.M):
+		for d in re.findall(r'-I(\S+)', m.group(0)):
+			if d.startswith('/'):
+				d = os.path.relpath(os.path.join(ROOT, d.lstrip('/')), os.path.join(SRC, lib))
+			inc.append('-I' + d)
+	return inc
 
 def reduce_sources(lib):
 	text = open(os.path.join(SRC, lib, 'port', 'mkfile')).read()
@@ -97,11 +114,17 @@ def main():
 	if sys.argv[1:] == ['--list']:	# build order for scripts/build-cli.sh
 		print(' '.join(LIBS))
 		return
-	libs = sys.argv[1:] or sorted(LIBS)
+	libs = sys.argv[1:] or LIBS
+	bad = 0
 	for lib in libs:
 		if lib not in LIBS:
 			sys.exit('unknown library %s' % lib)
-		files = mkfile_sources(lib) if LIBS[lib] == 'mkfile' else reduce_sources(lib)
+		try:
+			files = mkfile_sources(lib) if kind(lib) == 'mkfile' else reduce_sources(lib)
+		except SystemExit as e:
+			print('%s: %s' % (lib, e), file=sys.stderr)
+			bad = 1
+			continue
 		manifest = [{
 			'Name': lib[3:].capitalize() if lib[3:].islower() else lib[3:],
 			'Include': ['../lib.json'],
@@ -109,10 +132,15 @@ def main():
 			'Library': lib + '.a',
 			'SourceFiles': files,
 		}]
+		inc = mkincludes(lib)
+		if inc:
+			manifest[0]['Cflags'] = inc
 		if lib in PRE:
 			manifest[0]['Pre'] = ['bash ../../../scripts/' + PRE[lib]]
 		out = os.path.join(SRC, lib, lib + '.json')
 		open(out, 'w').write(json.dumps(manifest, indent='\t') + '\n')
 		print('%s: %d files' % (os.path.relpath(out, ROOT), len(files)))
+
+	sys.exit(bad)
 
 main()

@@ -1040,7 +1040,7 @@ iplinkfree(Iplink *p)
 
 	l = &freeiplink;
 	for(np = *l; np != nil; np = *l){
-		if((long)(now - np->expire) >= 0){
+		if((s32int)(now - np->expire) >= 0){	/* GCC port: was (long), 32 bits in kencc */
 			*l = np->next;
 			free(np);
 			continue;
@@ -1060,7 +1060,7 @@ ipselffree(Ipself *p)
 
 	l = &freeipself;
 	for(np = *l; np != nil; np = *l){
-		if((long)(now - np->expire) >= 0){
+		if((s32int)(now - np->expire) >= 0){	/* GCC port: was (long), 32 bits in kencc */
 			*l = np->next;
 			free(np);
 			continue;

@@ -680,7 +680,7 @@ setupep(Ep *e, Pcmdesc *fmt, int exact)
 		if(c == nil || e != c->ep || e->dir != dir || c->bits != 8*c->bps)
 			continue;
 		for(f = c->freq; f != c->freq+c->nfreq; f++){
-			p = *c;
+			p = c->Pcmdesc;	/* GCC port: was p = *c, 8c converts the struct to its Pcmdesc member */
 			if(f->min >= fmt->rate)
 				p.rate = f->min;
 			else if(f->max <= fmt->rate)

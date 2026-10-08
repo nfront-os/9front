@@ -13,6 +13,7 @@
 			"-ffixed-r14",
 			"-ffixed-r15",
 			"-fno-builtin",
+			"-nostdinc",
 			"-fplan9-extensions",
 			"-fno-asynchronous-unwind-tables",
 			"-fno-stack-protector",

@@ -1,5 +1,6 @@
 # Reviewed casts to unnamed-member types (scripts/port/find-embedded-casts.py),
 # all with the member first or not a struct conversion; see MEMORY.md Teil 18.
+# libaml/aml.c: its own struct Ref, casts from void* (not the embedded libc Ref).
 sys/src/9/pc/devtv.c: (Frame*) -- Frame not first in: Text, Window
 sys/src/9/pc/etherga620.c: (Block*) -- Block not first in: Caa, Cert, Key, Txt
 sys/src/9/pc/etherrt2860.c: (Block*) -- Block not first in: Caa, Cert, Key, Txt
@@ -17,3 +18,4 @@ sys/src/cmd/sort.c: (Line*) -- Line not first in: Node
 sys/src/cmd/upas/pop3/pop3.c: (Dir*) -- Dir not first in: Ahdr
 sys/src/cmd/webfs/fs.c: (Key*) -- Key not first in: Dent
 sys/src/libaml/aml.c: (Ref*) -- Ref not first in: Fd, File, Mouseinfo, Note, Tfile, Window
+sys/src/libaml/aml.c: (Ref*) -- Ref not first in: Fd, File, Mouseinfo, Note, Num, Tfile, Window

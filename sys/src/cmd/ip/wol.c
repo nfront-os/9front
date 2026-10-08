@@ -52,7 +52,7 @@ main(int argc, char* argv[])
 	char *argmac, *pass, *address;
 	uchar mac[Eaddrlen];
 	static Wolpack w = {
-		.magic { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, }
+		.magic = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, }	/* GCC port: kencc initializers may omit the = of .member */
 	};
 
 	address = pass = nil;

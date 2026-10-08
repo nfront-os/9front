@@ -70,7 +70,7 @@ sigsetjmp(sigjmp_buf buf, int savemask)
  * BUG: improper handling of process signal mask
  */
 int
-sigaction(int sig, struct sigaction *act, struct sigaction *oact)
+sigaction(int sig, const struct sigaction *act, struct sigaction *oact)	/* GCC port: types as in the prototype, kencc ignored the difference */
 {
 	if(sig <= 0 || sig > MAXSIG || sig == SIGKILL){
 		errno = EINVAL;
@@ -89,7 +89,7 @@ sigaction(int sig, struct sigaction *act, struct sigaction *oact)
 
 /* this is registered in _envsetup */
 int
-_notehandler(Ureg *u, char *msg)
+_notehandler(void *u, char *msg)	/* GCC port: types as in the prototype, kencc ignored the difference */
 {
 	int i;
 	void(*f)(int, char*, Ureg*);

@@ -1968,9 +1968,10 @@ terminate(PPP *ppp, char *why, int fatal)
 static void
 ipinproc(PPP *ppp)
 {
-	Block b[1] = *allocb(Buflen);
+	Block b[1];	/* GCC port: was b[1] = *allocb(Buflen), gcc cannot initialize an array from a struct */
 	int n;
 
+	b[0] = *allocb(Buflen);
 	while(!dying){
 		n = read(ppp->ipfd, b->wptr, BALLOC(b));
 		if(n <= 0)

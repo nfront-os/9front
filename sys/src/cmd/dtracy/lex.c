@@ -340,15 +340,15 @@ typefmt(Fmt *f)
 	}
 }
 
-static Type typu8 = {.type TYPINT, .size 1, .sign 0};
-static Type typs8 = {.type TYPINT, .size 1, .sign 1};
-static Type typu16 = {.type TYPINT, .size 2, .sign 0};
-static Type typs16 = {.type TYPINT, .size 2, .sign 1};
-static Type typu32 = {.type TYPINT, .size 4, .sign 0};
-static Type typs32 = {.type TYPINT, .size 4, .sign 1};
-static Type typu64 = {.type TYPINT, .size 8, .sign 0};
-static Type typs64 = {.type TYPINT, .size 8, .sign 1};
-static Type typstr = {.type TYPSTRING, .size DTSTRMAX };
+static Type typu8 = {.type = TYPINT, .size = 1, .sign = 0};	/* GCC port: kencc initializers may omit the = of .member */
+static Type typs8 = {.type = TYPINT, .size = 1, .sign = 1};
+static Type typu16 = {.type = TYPINT, .size = 2, .sign = 0};
+static Type typs16 = {.type = TYPINT, .size = 2, .sign = 1};
+static Type typu32 = {.type = TYPINT, .size = 4, .sign = 0};
+static Type typs32 = {.type = TYPINT, .size = 4, .sign = 1};
+static Type typu64 = {.type = TYPINT, .size = 8, .sign = 0};
+static Type typs64 = {.type = TYPINT, .size = 8, .sign = 1};
+static Type typstr = {.type = TYPSTRING, .size = DTSTRMAX };
 static Type *typereg;
 
 static Type *

@@ -14,7 +14,7 @@ struct Tab {
 	int		border;
 	int		selected;
 	int		separation;
-	char		*format;
+	char		*tabformat;	/* GCC port: was format, which Control also has; 8c let the outer one shadow it */
 	CImage	*bordercolor;
 	CImage	*image;
 	Control	*tabrow;
@@ -154,8 +154,8 @@ tabctl(Control *c, CParse *cp)
 			_ctlprint(cbut, "value 1");
 		}else{
 			t->selected = i;
-			if (t->format)
-				chanprint(t->event, t->format, t->name, i);
+			if (t->tabformat)
+				chanprint(t->event, t->tabformat, t->name, i);
 			tabshow(t);
 		}
 		break;
@@ -164,7 +164,7 @@ tabctl(Control *c, CParse *cp)
 		break;
 	case EFormat:
 		_ctlargcount(t, cp, 2);
-		t->format = ctlstrdup(cp->args[1]);
+		t->tabformat = ctlstrdup(cp->args[1]);
 		break;
 	case EImage:
 		_ctlargcount(t, cp, 2);

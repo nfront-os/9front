@@ -133,7 +133,7 @@ readpsfontdesc(char *fontname, int trindex) {
 	int startfont, endfont, startchar, endchar, i, pfid;
 	char psfontnam[128];
 	struct troffont *tp;
-	struct charent *cp[];
+	/* GCC port: was struct charent *cp[]; unused, gcc rejects the missing size */
 
 	if (debug) Bprint(Bstderr, "readpsfontdesc(%s,%d)\n", fontname, trindex);
 	filename=galloc(filename, strlen(postroffdirname)+1+strlen(fontname)+1, "readpsfontdesc: cannot allocate memory\n");

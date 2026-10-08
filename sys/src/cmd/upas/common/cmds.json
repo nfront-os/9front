@@ -1,0 +1,20 @@
+[
+	{
+		"Name": "cmd-upas-common-libcommon.a6",
+		"Include": [
+			"/$ARCH/cflags.json"
+		],
+		"Install": "/sys/src/cmd/upas/common/",
+		"Library": "libcommon.a6",
+		"SourceFiles": [
+			"aux.c",
+			"become.c",
+			"config.c",
+			"folder.c",
+			"flags.c",
+			"fmt.c",
+			"libsys.c",
+			"process.c"
+		]
+	}
+]

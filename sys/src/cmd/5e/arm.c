@@ -71,9 +71,9 @@ doshift(u32int instr, u8int *carry)
 	case 2:
 		if(amount < 32){
 			*carry = (val >> (amount - 1)) & 1;
-			return ((long) val) >> amount;
+			return ((s32int) val) >> amount;	/* GCC port: was (long), 32 bits in kencc */
 		}
-		if((long)val < 0){
+		if((s32int)val < 0){	/* GCC port: was (long), 32 bits in kencc */
 			*carry = 1;
 			return -1;
 		}

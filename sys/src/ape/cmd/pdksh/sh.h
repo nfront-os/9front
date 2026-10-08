@@ -87,8 +87,8 @@ extern int setpgrp ARGS((void));
 char *strstr ARGS((const char *s, const char *p));
 #endif /* HAVE_STRSTR */
 #ifndef HAVE_STRCASECMP
-int strcasecmp ARGS((const char *s1, const char *s2));
-int strncasecmp ARGS((const char *s1, const char *s2, int n));
+int strcasecmp ARGS((char *s1, char *s2));	/* GCC port: as in <bsd.h>, kencc ignored const */
+int strncasecmp ARGS((char *s1, char *s2, int n));
 #endif /* HAVE_STRCASECMP */
 
 #ifdef HAVE_MEMORY_H

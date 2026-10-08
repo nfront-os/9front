@@ -181,7 +181,7 @@ initcolors(void)
 }
 
 void
-threadmain()
+threadmain(int, char**)	/* GCC port: was threadmain(), gcc rejects a definition without the prototype's parameters */
 {
 	static QLock ql;
 	int rc;

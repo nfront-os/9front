@@ -13,6 +13,7 @@
 			"-ffixed-r15",
 			"-fplan9-extensions",
 			"-fno-builtin",
+			"-nostdinc",
 			"-fno-asynchronous-unwind-tables",
 			"-fno-stack-protector",
 			"-fno-omit-frame-pointer",

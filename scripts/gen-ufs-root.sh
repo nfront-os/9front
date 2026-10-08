@@ -21,7 +21,7 @@ rm -rf "$OUT"
 mkdir -p "$OUT"/amd64/bin "$OUT"/rc "$OUT"/lib "$OUT"/adm/timezone \
 	"$OUT"/usr/glenda/tmp "$OUT"/tmp "$OUT"/n "$OUT"/mnt "$OUT"/srv
 
-cp "$ROOT"/amd64/bin/init "$OUT"/amd64/init
+cp "$ROOT"/amd64/init "$OUT"/amd64/init
 cp -r "$ROOT"/amd64/bin/. "$OUT"/amd64/bin/
 rm -f "$OUT"/amd64/bin/9pc64 "$OUT"/amd64/bin/init "$OUT"/amd64/bin/netmount	# kernel, boot-only
 
@@ -30,6 +30,8 @@ cp "$ROOT"/lib/namespace "$OUT"/lib/
 mkdir -p "$OUT"/lib/ndb	# like the dist install: /lib/ndb from sys/lib/dist/ndb
 cp "$ROOT"/sys/lib/dist/ndb/* "$OUT"/lib/ndb/ && rm -f "$OUT"/lib/ndb/mkfile
 cp "$ROOT"/adm/timezone/GMT "$OUT"/adm/timezone/local
+# like the dist install: the user's home from sys/lib/dist/usr/glenda
+cp -r "$ROOT"/sys/lib/dist/usr/glenda/. "$OUT"/usr/glenda/
 
 # guest tests (tests/guest), if built: /tests/run [test...]
 [ ! -d "$ROOT"/tests/guest/root ] || cp -r "$ROOT"/tests/guest/root/. "$OUT"/

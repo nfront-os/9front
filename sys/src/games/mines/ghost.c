@@ -27,7 +27,7 @@ typedef struct CGroup CGroup;
 
 struct Ghost {
 	QLock;
-	Rendez;
+	Rendez	Rendez;	/* GCC port: named, Rendez's head/tail clash with QLock's */
 	int active, wait;
 	int pid;
 	
@@ -699,7 +699,7 @@ GhostInit(void)
 		qlock(&ghost);
 		for(;;){
 			while(!ghost.active || ghost.targettype != NOTARG)
-				rsleep(&ghost);
+				rsleep(&ghost.Rendez);
 			g = ghost.generation;
 			ghostprep(&cl, &ncl);
 			qunlock(&ghost);
@@ -786,7 +786,7 @@ GhostMode(void)
 	qlock(&ghost);
 	if(!ghost.active){
 		ghost.active = 1;
-		rwakeup(&ghost);
+		rwakeup(&ghost.Rendez);
 	}
 	if(ghost.targettype != NOTARG){
 		p = addpt(addpt(mulpt(ghost.target, 16), Pt(12+8, 57+8)), Origin);
@@ -796,7 +796,7 @@ GhostMode(void)
 			case RTARG: RightClick(ghost.target); break;
 			}
 			ghost.targettype = NOTARG;
-			rwakeup(&ghost);
+			rwakeup(&ghost.Rendez);
 			qunlock(&ghost);
 			if(Status != Game && !TURBO) ghost.wait = 100;
 			DrawButton(Status);

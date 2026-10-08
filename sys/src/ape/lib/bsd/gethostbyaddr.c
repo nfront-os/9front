@@ -11,7 +11,7 @@
 int h_errno;
 
 struct hostent*
-gethostbyaddr(void *addr, int len, int type)
+gethostbyaddr(const void *addr, int len, int type)	/* GCC port: types as in the prototype, kencc ignored the difference */
 {
 	unsigned long a, y;
 	struct in_addr x;

@@ -1,0 +1,15 @@
+[
+	{
+		"Name": "Plumb",
+		"Include": [
+			"../lib.json"
+		],
+		"Install": "/$ARCH/lib/",
+		"Library": "libplumb.a",
+		"SourceFiles": [
+			"event.c",
+			"mesg.c",
+			"plumbsendtext.c"
+		]
+	}
+]

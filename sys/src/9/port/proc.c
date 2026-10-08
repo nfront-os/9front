@@ -246,7 +246,7 @@ hzsched(void)
 
 	/* unless preempted, get to run for at least 100ms */
 	if(anyhigher()
-	|| (!up->fixedpri && (long)(m->PMach.ticks - m->PMach.schedticks) > 0 && anyready())){
+	|| (!up->fixedpri && (s32int)(m->PMach.ticks - m->PMach.schedticks) > 0 && anyready())){	/* GCC port: was (long), 32 bits in kencc */
 		m->PMach.readied = nil;	/* avoid cooperative scheduling */
 		up->delaysched++;
 	}

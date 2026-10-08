@@ -6,7 +6,7 @@
  */
 
 int
-sigsuspend(sigset_t *)
+sigsuspend(const sigset_t *)	/* GCC port: types as in the prototype, kencc ignored the difference */
 {
 	errno = EINVAL;
 	return -1;

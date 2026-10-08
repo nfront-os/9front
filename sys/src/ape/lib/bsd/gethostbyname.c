@@ -26,7 +26,7 @@ enum
  *  for inet addresses only
  */
 struct hostent*
-gethostbyname(char *name)
+gethostbyname(const char *name)	/* GCC port: types as in the prototype, kencc ignored the difference */
 {
 	int i, t, fd, m;
 	char *p, *k, *bp;

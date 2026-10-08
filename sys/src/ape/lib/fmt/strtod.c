@@ -25,7 +25,7 @@
 #endif
 #define nil ((void*)0)
 #define ulong _fmtulong
-typedef unsigned long ulong;
+typedef unsigned int ulong;	/* GCC port: was unsigned long, 32 bits with kencc */
 
 /*
  * This routine will convert to arbitrary precision

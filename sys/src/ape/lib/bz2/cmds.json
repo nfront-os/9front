@@ -1,0 +1,32 @@
+[
+	{
+		"Name": "ape-lib-bz2-libbz2.a",
+		"Include": [
+			"/$ARCH/cflags.json",
+			"/$ARCH/ape.json"
+		],
+		"Install": "/$ARCH/lib/ape/",
+		"Cflags": [
+			"-D_POSIX_SOURCE"
+		],
+		"Ape": true,
+		"Library": "libbz2.a",
+		"SourceFiles": [
+			"../../../cmd/bzip2/lib/blocksort.c",
+			"../../../cmd/bzip2/lib/bzassert.c",
+			"../../../cmd/bzip2/lib/bzcompress.c",
+			"../../../cmd/bzip2/lib/bzdecompress.c",
+			"../../../cmd/bzip2/lib/bzfeof.c",
+			"../../../cmd/bzip2/lib/bzlib.c",
+			"../../../cmd/bzip2/lib/bzread.c",
+			"../../../cmd/bzip2/lib/bzversion.c",
+			"../../../cmd/bzip2/lib/bzwrite.c",
+			"../../../cmd/bzip2/lib/bzzlib.c",
+			"../../../cmd/bzip2/lib/compress.c",
+			"../../../cmd/bzip2/lib/crctable.c",
+			"../../../cmd/bzip2/lib/decompress.c",
+			"../../../cmd/bzip2/lib/huffman.c",
+			"../../../cmd/bzip2/lib/randtable.c"
+		]
+	}
+]

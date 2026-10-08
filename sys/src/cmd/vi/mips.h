@@ -1,7 +1,7 @@
 /*
  * mipsim.h
  */
-#include "/mips/include/ureg.h"
+#include "../../../../mips/include/ureg.h"	/* GCC port: was "/mips/include/ureg.h", a Plan 9 absolute path */
 #define	USERADDR	0xC0000000
 #define	UREGADDR	(USERADDR+BY2PG-4-0xA0)
 #define USER_REG(x)	(UREGADDR+(ulong)(x))

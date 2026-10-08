@@ -1,0 +1,25 @@
+[
+	{
+		"Name": "Memlayer",
+		"Include": [
+			"../lib.json"
+		],
+		"Install": "/$ARCH/lib/",
+		"Library": "libmemlayer.a",
+		"SourceFiles": [
+			"draw.c",
+			"warp.c",
+			"lalloc.c",
+			"layerop.c",
+			"ldelete.c",
+			"lhide.c",
+			"line.c",
+			"load.c",
+			"lorigin.c",
+			"lsetrefresh.c",
+			"ltofront.c",
+			"ltorear.c",
+			"unload.c"
+		]
+	}
+]

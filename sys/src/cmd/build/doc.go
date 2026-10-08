@@ -67,6 +67,8 @@ A build object has the following keys and types:
 	Program         string
 	Library         string
 	Install         string
+	Ape             bool
+	Append          bool
 	Kernel          kernel
 
 These are the steps taken, in order:
@@ -112,6 +114,15 @@ executable. If this key is provided, "SourceFiles" and "Program" are ignored.
 
 "SourceFiles" is an array of C files that will ultimately produce a single
 binary or library, named by "Program" or "Library" respectively.
+
+"Ape" compiles the sources the way pcc does for the ANSI/POSIX
+environment: the include path is /$ARCH/include/ape, /sys/include/ape
+and . instead of /$ARCH/include, /sys/include and .
+
+"Append" adds the objects to an existing "Library" archive, replacing
+members of the same name, instead of creating the archive anew. It
+builds one archive from several directories the way mk's ar does
+(APE's libap).
 
 "Program" is the name of the final executable for the files specified by
 "SourceFiles".

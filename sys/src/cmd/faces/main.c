@@ -234,7 +234,7 @@ facetime(Face *f, int *recent)
 {
 	static char buf[30];
 
-	if((long)(now - f->time) > HhmmTime){
+	if((s32int)(now - f->time) > HhmmTime){	/* GCC port: was (long), 32 bits in kencc */
 		*recent = 0;
 		sprint(buf, "%.3s %2d", mon+3*f->tm.mon, f->tm.mday);
 		return buf;
@@ -283,7 +283,7 @@ updatetimes(void)
 		f = faces[i];
 		if(f == nil)
 			continue;
-		if(((long)(now - f->time) <= HhmmTime) != f->recent)
+		if(((s32int)(now - f->time) <= HhmmTime) != f->recent)	/* GCC port: was (long), 32 bits in kencc */
 			drawface(f, i);
 	}	
 }

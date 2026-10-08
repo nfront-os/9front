@@ -161,23 +161,23 @@ enum {
 	ALCORVid	= 0x058F,
 	ALCORDid	= 0x9720,
 
-	/* Willcom WS002IN Data Driver (by NetIndex Inc.) */,
+	/* Willcom WS002IN Data Driver (by NetIndex Inc.) */	/* GCC port: stray , removed */
 	WS002INVid	= 0x11f6,
 	WS002INDid	= 0x2001,
 
-	/* Corega CG-USBRS232R Serial Adapter */,
+	/* Corega CG-USBRS232R Serial Adapter */	/* GCC port: stray , removed */
 	COREGAVid	= 0x07aa,
 	COREGADid	= 0x002a,
 
-	/* Y.C. Cable U.S.A., Inc - USB to RS-232 */,
+	/* Y.C. Cable U.S.A., Inc - USB to RS-232 */	/* GCC port: stray , removed */
 	YCCABLEVid	= 0x05ad,
 	YCCABLEDid	= 0x0fba,
 
-	/* "Superial" USB - Serial */,
+	/* "Superial" USB - Serial */	/* GCC port: stray , removed */
 	SUPERIALVid	= 0x5372,
 	SUPERIALDid	= 0x2303,
 
-	/* Hewlett-Packard LD220-HP POS Pole Display */,
+	/* Hewlett-Packard LD220-HP POS Pole Display */	/* GCC port: stray , removed */
 	HPVid		= 0x03f0,
 	HPLD220Did	= 0x3524,
 };

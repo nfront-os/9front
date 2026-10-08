@@ -957,7 +957,7 @@ builtin(const char *name, int (*func) ARGS((char **)))
  * either function, hashed command, or built-in (in that order)
  */
 struct tbl *
-findcom(char *name, int flags)
+findcom(const char *name, int flags)	/* GCC port: types as in the prototype, kencc ignored the difference */
 {
 	static struct tbl temp;
 	unsigned int h = hash(name);

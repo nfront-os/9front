@@ -7,7 +7,7 @@
 #include <u.h>
 #include <libc.h>
 #include <bio.h>
-#include "/sys/src/cmd/8c/8.out.h"
+#include "../8c/8.out.h"	/* GCC port: was "/sys/src/cmd/8c/8.out.h", a Plan 9 absolute path */
 
 typedef struct Sym Sym;
 struct Sym

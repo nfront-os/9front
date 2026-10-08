@@ -60,7 +60,7 @@ struct Win {
 };
 
 struct Ident {
-	uint type, dev;
+	uint itype, dev;	/* GCC port: was type, which the embedded Qid also has; 8c let this one shadow it */
 	Qid;
 };
 

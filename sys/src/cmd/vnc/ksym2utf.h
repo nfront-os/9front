@@ -915,7 +915,7 @@ ksym2utf [] = {
 	[0x14fc]	L'Ֆ',
 	[0x14fd]	L'ֆ',
 	[0x14fe]	L'’',
-	[0x14ff]	L''',
+	[0x14ff]	L'\'',	/* GCC port: '\'' -- 8c reads ''' as a quote character */
 	[0x15d0]	L'ა',
 	[0x15d1]	L'ბ',
 	[0x15d2]	L'გ',

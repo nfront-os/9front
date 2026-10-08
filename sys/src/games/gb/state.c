@@ -11,7 +11,7 @@ extern Event *events[NEVENT], *elist;
 extern u8int *back;
 extern int nback;
 static Biobuf *bp;
-Var apuvars[] = {{nil, 0, 0}};
+/* GCC port: was Var apuvars[] = {{nil, 0, 0}}; a placeholder, apu.c defines the table (8l let apu.c's data win) */
 
 static void
 putevents(void)

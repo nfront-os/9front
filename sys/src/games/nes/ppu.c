@@ -239,7 +239,7 @@ flush(void)
 void
 ppustep(void)
 {
-	extern int nmi;
+	/* GCC port: was extern int nmi; dat.h declares it u8int */
 	int mask;
 
 	if(ppuy < 240 || ppuy == 261){

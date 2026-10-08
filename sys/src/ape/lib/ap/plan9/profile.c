@@ -16,11 +16,11 @@ enum {
 }; /* what */
 
 typedef long long vlong;
-typedef unsigned long ulong;
+typedef unsigned int ulong;	/* GCC port: was unsigned long, 32 bits with kencc */
 typedef unsigned long long uvlong;
 typedef unsigned char uchar;
 
-#include	"/sys/include/tos.h"
+#include "../../../../../include/tos.h"	/* GCC port: was "/sys/include/tos.h", a Plan 9 absolute path */
 
 extern	void*	sbrk(ulong);
 extern	long	_callpc(void**);

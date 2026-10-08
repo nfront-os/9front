@@ -100,7 +100,7 @@ void rewind(FILE *);
 void clearerr(FILE *);
 int feof(FILE *);
 int ferror(FILE *);
-void perror(const char *);
+void perror(char *);	/* GCC port: as libc.h declares it; gcc rejects the const mismatch */
 extern FILE _IO_stream[FOPEN_MAX];
 FILE *sopenr(const char *);
 FILE *sopenw(void);

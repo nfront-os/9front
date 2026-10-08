@@ -3,7 +3,7 @@
 #include	<errno.h>
 
 int
-mkfifo(char *, mode_t)
+mkfifo(const char *, mode_t)	/* GCC port: types as in the prototype, kencc ignored the difference */
 {
 #pragma ref path
 #pragma ref mode

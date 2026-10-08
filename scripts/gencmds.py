@@ -1,138 +1,583 @@
 #!/usr/bin/env python3
 """
-Generate gcc build-tool manifests (sys/src/cmd/.../cmds.json) for 9front
-userspace commands.
+Generate gcc build-tool manifests (cmds.json) for every program
+directory below sys/src/cmd and sys/src/games, from 9front's mkfiles.
 
-Two kinds of entries, following 9front's mkfiles:
-  - single: directories of one-file commands (sys/src/cmd/mkfile, mkmany
-    without OFILES): one SourceFilesCmd entry; each x.c becomes x.
-    The lists name the commands that build with gcc today (trial-built,
-    see MEMORY.md Teil 18); the rest need libraries not ported yet
-    (libdraw, libmemdraw, libmach, libttf, ...) or source fixes.
-  - prog: mkone/mkmany directories with shared OFILES and an optional
-    yacc grammar. Objects come from the mkfile; yacc runs through
-    scripts/yacc.sh (Plan 9 yacc with 9front's yaccpar).
+mkfile kinds, following /sys/src/cmd/mk{one,many,lib,syslib}:
+  mkone      one target TARG from OFILES (+ local LIB archives)
+  mkmany     each TARG from TARG.c + OFILES; `$O.t: objects' rules
+             (ndb's dns) override the object list
+  mklib,     a program-local archive (LIB=libfoo.a$O), built first
+  mksyslib
+  sys/src/cmd/mkfile itself: every cmd/*.c is a one-file command
+APE (sys/src/ape, and programs whose mkfile sets CC=pcc or reads
+$APE/config) compiles like pcc (manifest key Ape: only the ape include
+directories) and links APE's libraries; libap is one archive from
+several directories (Append, see APEDIRS).
+YFILES run through scripts/yacc.sh (Plan 9 yacc with 9front's yaccpar);
+generators needed by a few directories are listed in PRE.
 
-All commands link against the same library set; static linking only
-pulls in what a command uses.
+Only targets that build are written to the manifests. `--probe' builds
+every target on its own with the build tool and records the ones that
+fail in scripts/cmds-broken.txt (target, reason); without it, the
+broken list from the last probe is used. Probing needs the libraries
+(scripts/build-cli.sh) and $CLI_DIR/build.exe.
 
-usage: scripts/gencmds.py        (rewrites every manifest listed below)
+usage: scripts/gencmds.py [--probe] [dir...]   (dirs relative to sys/src)
+       scripts/gencmds.py --list               manifests in build order
 """
 import json
 import os
 import re
+import subprocess
 import sys
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-CMD = os.path.join(ROOT, 'sys', 'src', 'cmd')
+SRC = os.path.join(ROOT, 'sys', 'src')
+BROKEN = os.path.join(ROOT, 'scripts', 'cmds-broken.txt')
+CLI_DIR = os.environ.get('CLI_DIR', os.path.join(
+	os.environ.get('XDG_CACHE_HOME', os.path.expanduser('~/.cache')), '9front-cli'))
 
-# static link order; libsec (tlshand.c) calls back into libauth, so
-# libauth is listed again after it
-LIBS = ['libdisk', 'lib9p', 'libthread', 'libauth', 'libauthsrv', 'libndb', 'libip',
-	'libsec', 'libauth', 'libmp', 'libflate', 'libregexp', 'libString', 'libbio', 'libc']
+# linked as one group (--start-group ... --end-group): 8l rescans the
+# libraries until nothing is undefined, GNU ld would scan each archive
+# once and miss mutual references (libc crypt.c -> libsec key_setup,
+# libmemdraw -> libdraw chantodepth); unused archives cost nothing
+LIBS = ['libdisk', 'libcontrol', 'libhtml', 'libframe', 'libdraw', 'libmemlayer',
+	'libmemdraw', 'libplumb', 'libcomplete', 'lib9p', 'libventi', 'libsunrpc',
+	'libthread', 'libauth', 'libauthsrv', 'libndb', 'libip', 'libhttpd', 'libsec',
+	'libmp', 'libflate', 'libregexp', 'libString', 'libmach', 'libbin',
+	'libavl', 'libjson', 'libgeometry', 'libpcm', 'libttf', 'libsat', 'libscribble',
+	'liblex', 'libstdio', 'libdtracy', 'libaml', 'libfis', 'libbio', 'libc']
 
-SINGLE = {
-	'.': ('/$ARCH/bin/', '''
-		aan alarm ascii basename bind cal calendar cat chgrp chmod
-		cleanname cmp col comm cp crc32 date dc dd deroff derp du echo
-		ecp ed factor fcp fmt fortune freq getmap html2ms idiff io
-		iostats kbremap lnfs lock look ls md5sum mkdir mntgen mount
-		ms2html mtime mv news ns os patch pbd p pcc pipefile pr primes
-		ps pump pwd qr ramfs ratrace rdbfs read riow rm seconds sed seg
-		seq sha1sum skelfs sleep sort split srv srvfs sshnet strings sum
-		swap tail tar tee test time timepic touch touchfs tput tr uhtml
-		unicode uniq unlnfs unmount urlencode walk wc xargs xd'''),
-	'aux': ('/$ARCH/bin/aux/', '''
-		9pcon acidleak astarld bflz cddb cdsh clog cpuid consolefs
-		data2s dial disksim esd icanhasmsi icanhasvmx lines listen
-		listen1 msexceltables mouse olefs pcmcia rdwr reboot searchfs
-		seek stub tablet timesync trampoline txt2uimage unbflz usage
-		usbsdmux write wacom wikifmt zerotrunc'''),
-	'ip': ('/$ARCH/bin/ip/', '''
-		6in4 ayiya dhcpclient hogports hproxy httpfile linklocal ping
-		pppoe pptp pptpd rarpd rip rlogind telnet tftpd tftpfs
-		traceroute torrent udpecho socksd'''),
-	'ndb': ('/$ARCH/bin/ndb/', '''
-		mkdb query mkhash mkhosts cs csquery dnsquery ipquery inform'''),
+# per-architecture directories of other machines
+ARCHS = ['386', '68000', '68020', 'arm', 'arm64', 'mips', 'mips2', 'power', 'power64',
+	'sparc', 'sparc64', 'spim', 'alpha', '3210', '29000']
+
+# APE's libraries, linked as one group like LIBS (pcc: -lX is
+# /$objtype/lib/ape/libX.a, libap always; the rest via #pragma lib)
+APELIBS = ['libdraw', 'libplumb', 'libauth', 'libsec', 'libmp', 'libnet', 'libbsd',
+	'libl', 'libv', 'libz', 'libbz2', 'libbio', 'lib9', 'libfmt', 'libutf', 'libap']
+
+# libap: ape/lib/ap/mkfile builds `$DIRS $objtype' into one archive; the
+# first directory starts it, the others add to it (later ones replace
+# members of the same name: stdio/strtod over gen/strtod, as with ar)
+APEDIRS = ['ape/lib/ap/gen', 'ape/lib/ap/math', 'ape/lib/ap/plan9', 'ape/lib/ap/posix',
+	'ape/lib/ap/stdio', 'ape/lib/ap/syscall', 'ape/lib/ap/amd64']
+# sources outside the mkfile's OFILES: system call stubs (genall),
+# the note trampolines of the gcc port
+APEEXTRA = {'ape/lib/ap/amd64': ['notify.S']}
+
+# directories whose mkfile runs a generator before compiling
+PRE = {
+	'cmd/awk':		['gen-awk-proctab.sh'],
+	'cmd/aux/kbdfs':	['gen-latin1-h.sh'],
+	'cmd/jpg':		['gen-jpg-tables.sh'],
+	'cmd/upas/smtp':	['gen-upas-yacc.sh'],
+	'cmd/upas/send':	['gen-upas-yacc.sh'],
+	'cmd/upas/ml':		['gen-upas-yacc.sh'],
 }
+# directories whose mkfile rules gen-src.sh replicates
+for d in ('cmd/ip/snoopy', 'cmd/syscall', 'cmd/tcs', 'cmd/nusb/disk'):
+	PRE[d] = ['gen-src.sh ' + d]
+# not target programs: compilers and assemblers, test data, the build tool
+SKIP = re.compile(r'^(cmd/build|cmd/cc|cmd/[0-9a-qs-z][acl]|.*/test|ape/lib/(mp|sec)/amd64)(/|$)')	# compilers, assemblers, loaders (not rc)
 
-# dir -> (install dir, [(target, extra objects from the mkfile var)]),
-# Pre steps; None objects = the mkfile's OFILES.
-PROGS = {
-	'grep':		('/$ARCH/bin/', None),
-	'awk':		('/$ARCH/bin/', ['scripts/gen-awk-proctab.sh']),
-	'ip/ipconfig':	('/$ARCH/bin/ip/', None),
-	'disk/prep':	('/$ARCH/bin/disk/', None),
-	# ndb's mkmany links dns/dnsdebug/dnsgetip from explicit object lists
-	'ndb:dns':	('/$ARCH/bin/ndb/', 'DNSOBJ'),
-	'ndb:dnsdebug':	('/$ARCH/bin/ndb/', 'DNSDEBUGOBJ'),
-	'ndb:dnsgetip':	('/$ARCH/bin/ndb/', 'DNSGETIPOBJ'),
-}
+def rel(path):
+	return os.path.relpath(path, SRC)
 
-def mkvars(d):
-	text = open(os.path.join(CMD, d, 'mkfile')).read().replace('\\\n', ' ')
-	v = {}
-	for m in re.finditer(r'^([A-Za-z_]+)\s*=(.*)$', text, re.M):
-		v[m.group(1)] = m.group(2).split()
-	return v, text
+STDMK = re.compile(r'^/(\$objtype|amd64)/mkfile$|^/sys/src/cmd/mk(one|many|lib|syslib|dirs)$')
 
-def objs2c(objs):
-	return [o.replace('$O', 'c').replace('.$c', '.c') if o.endswith('.$O') else o for o in objs]
+def readmk(d, name='mkfile'):
+	"""the mkfile with its local includes (<../mkupas) inlined"""
+	path = os.path.join(SRC, d, name)
+	# a comment ends at its line; mk still joins a trailing \ (htmlroff's #	t9.$O\)
+	text = re.sub(r'#[^\n]*?(\\?)$', r'\1', open(path).read(), flags=re.M)
+	text = text.replace('\\\n', ' ')
+	def inc(m):
+		f = m.group(1).strip()
+		if STDMK.match(f) or '$' in f.replace('$objtype', ''):
+			return m.group(0)
+		full = os.path.join(ROOT, f.lstrip('/')) if f.startswith('/') else os.path.join(os.path.dirname(path), f)
+		if not os.path.isfile(full):
+			return m.group(0)
+		return readmk(os.path.relpath(os.path.dirname(full), SRC), os.path.basename(full))
+	return re.sub(r'^<\s*(\S+)\s*$', inc, text, flags=re.M)
 
-def libs():
-	return ['/$ARCH/lib/%s.a' % l for l in LIBS]
+def rules(text):
+	"""[(targets, prerequisites, recipe text or '')] of the mkfile's rules"""
+	out = []
+	lines = text.split('\n')
+	for i, l in enumerate(lines):
+		m = re.match(r'^([^\t=:<][^:=]*?):(?![=])\s*(.*)$', l)
+		if not m or l.startswith('\t'):
+			continue
+		recipe = []
+		for r in lines[i+1:]:
+			if not r.startswith('\t'):
+				break
+			recipe.append(r.strip())
+		out.append((m.group(1).split(), m.group(2), '\n'.join(recipe)))
+	return out
 
-def rel_scripts(d):
-	depth = len(os.path.normpath(os.path.join('sys/src/cmd', d)).split('/'))
-	return '../' * depth + 'scripts/'
+def rcquote(w):
+	return "'" + w.replace("'", "''") + "'" if re.search(r"[\s']", w) or w == '' else w
 
-def base(name, install):
-	return {'Name': name, 'Include': ['/$ARCH/cflags.json'], 'Install': install,
-		'Oflags': ['--entry=_main'], 'Libs': libs()}
+def rcwords(s):
+	"""split like rc: '...' quotes (with '' a quote), blanks separate"""
+	out, w, q, i, word = [], '', False, 0, False
+	while i < len(s):
+		c = s[i]
+		if q:
+			if c == "'":
+				if s[i+1:i+2] == "'":
+					w += "'"
+					i += 1
+				else:
+					q = False
+			else:
+				w += c
+		elif c == "'":
+			q = word = True
+		elif c in ' \t\n':
+			if word:
+				out.append(w)
+			w, word = '', False
+		else:
+			w += c
+			word = True
+		i += 1
+	if word:
+		out.append(w)
+	return out
 
-def write(d, entries):
-	out = os.path.join(CMD, d, 'cmds.json')
-	open(out, 'w').write(json.dumps(entries, indent='\t') + '\n')
-	print(os.path.relpath(out, ROOT))
+def expand(s, v):
+	def sub(m):
+		name, pat = m.group(1) or m.group(3), m.group(2)
+		words = v.get(name, [])
+		if pat and '=' in pat:
+			a, b = pat.split('=', 1)
+			pa, pb = a.split('%', 1) if '%' in a else (a, '')
+			ba, bb = b.split('%', 1) if '%' in b else (b, '')
+			out = []
+			for w in words:
+				if w.startswith(pa) and w.endswith(pb) and len(w) >= len(pa) + len(pb):
+					out.append(ba + w[len(pa):len(w) - len(pb)] + bb)
+				else:
+					out.append(w)
+			words = out
+		return ' '.join(rcquote(w) for w in words)
+	for _ in range(5):
+		s = re.sub(r'\$\{(\w+)(?::([^}]*))?\}|\$(\w+)', sub, s)
+	return s
+
+def isape(text):
+	# <$APE/config (CC=pcc, APEBIN), or CC=pcc of its own (grap, pic)
+	# or native cc with APE's headers first (antiword: -I/sys/include/ape)
+	return bool(re.search(r'^<\s*/?\$APE/config|^CC\s*=\s*pcc\b|^CFLAGS\s*=.*-I/sys/include/ape', text, re.M))
+
+def variables(text):
+	v = {'objtype': ['amd64'], 'O': ['6'], 'cputype': ['amd64'], 'CPUS': ['amd64']}
+	if isape(text):	# sys/src/ape/config
+		v.update({'APE': ['/sys/src/ape'], 'APEBIN': ['/amd64/bin/ape'], 'FAMILY': ['plan9'],
+			'APELIB': ['/rc/bin/ape'], 'CC': ['pcc'], 'CFLAGS': ['-Fw']})
+	for m in re.finditer(r'^(\w+)\s*=(.*)$', text, re.M):
+		# rc quoting: FS='64', FS='', -D'PROGRAMNAME="troff, Plan 9 edition"'
+		# `{...} (doom's `{~ $objtype mips && echo -D__BIG_ENDIAN__}) is not run
+		val = re.sub(r'`\{[^}]*\}', '', m.group(2))
+		v[m.group(1)] = [w for w in rcwords(expand(val, v)) if w != '']
+	return v
+
+def kind(text):
+	m = re.search(r'^<\s*/sys/src/cmd/(mkone|mkmany|mklib|mksyslib)\s*$', text, re.M)
+	return m.group(1) if m else None
+
+def objs2src(objs, d, text='', v={}):
+	# explicit (eui.$O: ../eui.c) and meta (%.$O: ../%.c) object rules
+	explicit, meta = {}, []
+	for targets, prereq, recipe in rules(text):
+		ts = expand(' '.join(targets), v).split()
+		ps = [p for p in expand(prereq, v).split() if p.endswith(('.c', '.s', '.S'))]
+		if not ps or not recipe:	# scat.$O: strings.c is a dependency only
+			continue
+		for t in ts:
+			if t == '%.6':
+				meta.append(tree(ps[0], d))
+			elif t.endswith('.6') and '%' not in t:
+				explicit[t[:-2]] = tree(ps[0], d)
+	out = []
+	for o in objs:
+		if o.endswith(('.c', '.s', '.S')):
+			out.append(o)
+			continue
+		base = o[:-2] if o.endswith('.6') else o
+		if base == 'y.tab':
+			out.append('y.tab.c')
+			continue
+		if base in explicit:
+			out.append(explicit[base])
+			continue
+		for ext in ('.c', '.s', '.S'):
+			if os.path.exists(os.path.join(SRC, d, base + ext)):
+				out.append(base + ext)
+				break
+		else:
+			for m in meta:
+				f = m.replace('%', base)
+				if os.path.exists(os.path.join(SRC, d, f)):
+					out.append(f)
+					break
+			else:
+				out.append(base + '.c')	# generated (awk's proctab.c, ...)
+	return out
+
+def tree(path, d):
+	# absolute 9front paths (/sys/src/cmd/map) relative to sys/src/<d>
+	if path.startswith('/sys/'):
+		return os.path.relpath(os.path.join(ROOT, path[1:]), os.path.join(SRC, d))
+	return path
+
+def cflags(v, d):
+	return ['-I' + tree(f[2:], d) if f.startswith('-I') else f
+		for f in v.get('CFLAGS', []) if f.startswith(('-I', '-D'))]
+
+def locallibs(v, d):
+	# LIB may also name plain objects (vac's error.$O ...): those are sources
+	# and archives of other source dirs (bzfs: /sys/src/cmd/bzip2/lib/libbzip2.a$O)
+	return [os.path.normpath(os.path.join('/sys/src', d, l)) for l in v.get('LIB', [])
+		if (not l.startswith('/') or l.startswith('/sys/src/')) and not l.endswith('.6')]
+
+def pragmalibs(cf, d):
+	"""#pragma lib of local headers (map.h: /sys/src/cmd/map/libmap/libmap.a$O);
+	gcc ignores the pragma, 8l links what it names"""
+	out = []
+	for inc in ['.'] + [f[2:] for f in cf if f.startswith('-I')]:
+		p = os.path.join(SRC, d, inc)
+		if not os.path.isdir(p):
+			continue
+		for h in sorted(os.listdir(p)):
+			if h.endswith('.h'):
+				for m in re.finditer(r'^#pragma\s+lib\s+"(/sys/src/[^"]+)"', open(os.path.join(p, h), errors='replace').read(), re.M):
+					out.append(m.group(1).replace('$O', '6'))
+	return out
+
+def libobjs(v):
+	return [l for l in v.get('LIB', []) if not l.startswith('/') and l.endswith('.6')]
+
+def dirlibs(text, v, d, common):
+	"""archives of LIB that a rule of this mkfile builds (httpd's libhttps.a$O)"""
+	out = []
+	for l in v.get('LIB', []):
+		if '/' in l or l.endswith('.6'):
+			continue
+		for targets, prereq, recipe in rules(text):
+			if recipe and l in expand(' '.join(targets), v).split():
+				objs = [o for o in expand(prereq, v).split() if o.endswith('.6')]
+				if not objs:	# cmd/auth: $LIB: cd lib; mk (a mklib directory)
+					break
+				out.append((os.path.join(d, l), dict(common, Libs=[], library=l, libdir=d,
+					src=objs2src(objs, d, text, v))))
+				break
+	return out
+
+def up(d):
+	# from sys/src/<d> back to the tree root
+	return '../' * (d.count('/') + 3)
+
+def yaccpre(text, v, d):
+	y = v.get('YFILES', [])
+	if not y:
+		return []
+	m = re.search(r'^[^\n:]*:\S*\s*\$YFILES\s*\n\t\$YACC (.*)$', text, re.M)
+	args = expand(m.group(1), dict(v, YFLAGS=v.get('YFLAGS', ['-d']), prereq=y)) if m else ' '.join(v.get('YFLAGS', ['-d']) + y)
+	out = ['bash %sscripts/yacc.sh %s' % (up(d), args)]
+	# grap.c: y.tab.c	mv $prereq $target
+	for targets, prereq, recipe in rules(text):
+		if prereq.split() == ['y.tab.c'] and re.match(r'(mv|cp)\b', recipe):
+			out += ['%s y.tab.c %s' % (recipe.split()[0], t) for t in targets if t.endswith('.c')]
+	return out
+
+def lexpre(text, v, d):
+	# grapl.c: $LFILES	$LEX -t $prereq > $target
+	out = []
+	for targets, prereq, recipe in rules(text):
+		if re.match(r'\$LEX\s+-t\b', recipe):
+			for t in targets:
+				out.append('bash %sscripts/lex.sh --out %s -t %s' % (up(d), t, expand(prereq, v)))
+	return out
+
+def install(v):
+	b = (v.get('BIN') or ['/amd64/bin'])[0]
+	return b.replace('/amd64', '/$ARCH', 1).rstrip('/') + '/'
+
+def entries(d):
+	"""[(target name, description)] for directory d"""
+	if d == 'cmd':
+		fs = sorted(os.listdir(os.path.join(SRC, d)))
+		ys = [f[:-2] for f in fs if f.endswith('.y')]
+		# %.c %.tab.h: %.y	yacc -d -o $stem.c -s $stem $stem.y
+		# $BIN/init: $O.init	cp $O.init /$objtype/init
+		return [('cmd/init', {'single': 'init.c', 'Install': '/$ARCH/'})] + \
+			[('cmd/' + f[:-2], {'single': f, 'Install': '/$ARCH/bin/'})
+			for f in fs if f.endswith('.c') and f[:-2] not in ys + ['init']] + \
+			[('cmd/' + y, {'program': y, 'src': [y + '.c'], 'Install': '/$ARCH/bin/',
+			'Pre': ['bash ../../../scripts/yacc.sh -d -o %s.c -s %s %s.y' % (y, y, y)]}) for y in ys]
+	if d == 'ape/lib/ap/syscall':
+		# genall: a stub per sys.h entry not starting with _
+		sysh = open(os.path.join(SRC, 'libc/9syscall/sys.h')).read()
+		stubs = ['_%s.s' % n for n in re.findall(r'^#define\s+([A-Z0-9][A-Z0-9_]*)\s', sysh, re.M)]
+		return [(d + '/libap.a', {'Cflags': [], 'Libs': [], 'Install': '', 'ape': True,
+			'Pre': ['bash %sscripts/gen-9syscall.sh --ape .' % up(d)], 'library': 'libap.a',
+			'libinstall': '/$ARCH/lib/ape/', 'append': True, 'src': stubs})]
+	text = readmk(d)
+	k = kind(text)
+	if k is None:
+		return []
+	v = variables(text)
+	common = {'Cflags': cflags(v, d), 'Libs': locallibs(v, d) + pragmalibs(cflags(v, d), d), 'Install': install(v),
+		'Pre': yaccpre(text, v, d) + lexpre(text, v, d) + ['bash %sscripts/%s' % (up(d), s) for s in PRE.get(d, [])],
+		'ape': isape(text)}
+	if k in ('mklib', 'mksyslib'):
+		if not v.get('LIB'):
+			return []
+		ofiles = v.get('OFILES', [])
+		if re.search(r'^OFILES\s*=\s*`\{rc \./reduce', text, re.M):
+			# ape/lib/ap/gen/reduce: ALLOFILES minus what ../$objtype
+			# has as .c/.s (grep -v ^name, a prefix match)
+			md = os.path.join(SRC, d, '..', 'amd64')
+			drop = [f[:-2] for f in os.listdir(md) if f.endswith(('.c', '.s'))]
+			ofiles = [o for o in v.get('ALLOFILES', []) if not any(o.startswith(x) for x in drop)]
+		elif re.search(r'^OFILES\s*=\s*`\{.*/port/reduce', text, re.M):
+			# APE libmp, libsec: reduce against the native lib's amd64
+			# assembly, which the port does not use (as genlibs.py)
+			ofiles = v.get('ALLOFILES', [])
+		src = objs2src(ofiles, d, text, v) + APEEXTRA.get(d, [])
+		if v['LIB'][0].startswith('/'):	# mksyslib: LIB=/$objtype/lib/ape/libap.a
+			L = v['LIB'][0]
+			return [(d + '/' + os.path.basename(L), dict(common, library=os.path.basename(L),
+				libinstall=os.path.dirname(L).replace('/amd64', '/$ARCH', 1) + '/',
+				append=d in APEDIRS[1:], src=src))]
+		lib = os.path.normpath(os.path.join(d, v['LIB'][0].replace('$O', '6')))
+		return [(lib, dict(common, library=os.path.basename(lib), libdir=os.path.dirname(lib),
+			src=src))]
+	if k == 'mkone':
+		if not v.get('TARG'):
+			return []
+		t = v['TARG'][0]
+		if '/' in t:	# disk/smart: TARG=disk/smart, BIN=/$objtype/bin
+			common['Install'] += os.path.dirname(t) + '/'
+			t = os.path.basename(t)
+		return dirlibs(text, v, d, common) + [(d + '/' + t, dict(common, program=t,
+			src=objs2src(v.get('OFILES', []) + libobjs(v), d, text, v)))]
+	out = dirlibs(text, v, d, common)
+	rs = rules(text)
+	for t in v.get('TARG', []):
+		# mk: a rule with a recipe replaces the meta-rule's prerequisites
+		# (ndb's dns), one without adds to them ($O.4s $O.5s: xs.$O)
+		objs, extra, script, pcc = None, [], None, False
+		for targets, prereq, recipe in rs:
+			if '6.' + t in expand(' '.join(targets), v).split():
+				pcc = pcc or bool(re.match(r'pcc\b', recipe))
+				pp = expand(prereq, v).split()
+				p = [o for o in pp if o.endswith(('.6', '.c'))]
+				rc = [o for o in pp if o.endswith('.rc')]
+				if recipe and rc and not p:
+					script = rc[0]
+				if recipe:
+					objs = p
+				else:
+					extra += p
+		if script:	# $O.mk9660: mk9660.rc	cp mk9660.rc $target
+			out.append((d + '/' + t, dict(common, script=script, program=t)))
+			continue
+		if objs == []:
+			continue
+		if objs is None:
+			objs = [t + '.6'] + v.get('OFILES', []) + extra
+		objs += libobjs(v)
+		src = objs2src(list(dict.fromkeys(objs)), d, text, v)
+		if pcc:	# lp: $O.lpdsend: lpdsend.$O	pcc -o $target ...
+			fl = []
+			for targets, prereq, recipe in rs:
+				if any(o in expand(' '.join(targets), v).split() for o in objs) and recipe.startswith('pcc'):
+					fl += [f.replace("'", '') for f in recipe.split() if f.startswith(("-D", "-I", "-'D"))]
+			out.append((d + '/' + t, dict(common, ape=True, Cflags=list(dict.fromkeys(fl)),
+				program=t, src=src)))
+			continue
+		if len(src) == 1 and not common['Pre'] and not common['Libs']:
+			out.append((d + '/' + t, dict(common, single=src[0])))
+		else:
+			out.append((d + '/' + t, dict(common, program=t, src=src)))
+	return out
+
+def manifest(e, name):
+	m = {'Name': name.replace('/', '-'), 'Include': ['/$ARCH/cflags.json'], 'Install': e['Install']}
+	if e.get('ape'):	# kencc's USED/SET intrinsics (native: u.h)
+		m['Include'].append('/$ARCH/ape.json')
+	if e.get('Cflags'):
+		m['Cflags'] = e['Cflags']
+	if e.get('Pre'):
+		m['Pre'] = e['Pre']
+	if e.get('ape'):
+		m['Ape'] = True
+	if 'library' in e:
+		m.update({'Install': e.get('libinstall') or '/sys/src/%s/' % e['libdir'],
+			'Library': e['library'], 'SourceFiles': e['src']})
+		if e.get('append'):
+			m['Append'] = True
+		return m
+	if 'script' in e:
+		# rc script installed as the program (venti's conf gets no header)
+		m.pop('Include')
+		m['Post'] = ['install -D -m 755 %s %s%s' % (e['script'], e['Install'], e['program'])]
+		m['Install'] = ''
+		return m
+	m['Oflags'] = ['--entry=_main']
+	syslibs = ['/$ARCH/lib/ape/%s.a' % l for l in APELIBS] if e.get('ape') else \
+		['/$ARCH/lib/%s.a' % l for l in LIBS]
+	m['Libs'] = ['--start-group'] + [l.replace('$O', '6') for l in e.get('Libs', [])] + \
+		syslibs + ['--end-group']
+	if 'single' in e:
+		m['SourceFilesCmd'] = [e['single']]
+	else:
+		m['Program'] = e['program']
+		m['SourceFiles'] = e['src']
+	return m
+
+def subdirs(d):
+	"""the subdirectories mk descends into: DIRS of the mkfile (disk: sacfs
+	commented out); cmd computes DIRS as every */mkfile but $NOMK"""
+	text = readmk(d)
+	m = re.search(r'^DIRS\s*=(.*)$', text, re.M)
+	if m and '`' not in m.group(1):
+		# plus library dirs that rules build (auth: $LIB:	cd lib; mk)
+		libs = [s for s in sorted(os.listdir(os.path.join(SRC, d)))
+			if s not in ARCHS and os.path.isfile(os.path.join(SRC, d, s, 'mkfile'))
+			and kind(readmk(os.path.join(d, s))) in ('mklib', 'mksyslib')]
+		ds = expand(m.group(1), variables(text)).split()
+		if re.search(r'for\s*\(\s*i\s+in\s+\$DIRS\s+\$objtype\s*\)', text):
+			ds.append('amd64')	# ape/lib/ap: for(i in $DIRS $objtype)
+		return ds + [l for l in libs if l not in ds]
+	return [s for s in sorted(os.listdir(os.path.join(SRC, d))) if s != 'test']
+
+def dirs(args):
+	if args:
+		return args
+	out = []
+	def walk(d):
+		if SKIP.match(d) or not os.path.isfile(os.path.join(SRC, d, 'mkfile')):
+			return
+		out.append(d)
+		for s in subdirs(d):
+			walk(os.path.join(d, s))
+	walk('cmd')
+	walk('games')
+	walk('ape')
+	return out
+
+def loadbroken():
+	b = {}
+	if os.path.exists(BROKEN):
+		for l in open(BROKEN):
+			if l.strip() and not l.startswith('#'):
+				t, _, why = l.rstrip('\n').partition('\t')
+				b[t] = why
+	return b
+
+def probe(d, name, e):
+	"""build one target on its own; '' or the first error"""
+	m = manifest(e, name)
+	if 'Library' not in m:
+		m['Install'] = '/tests/.probe/'
+	path = os.path.join(SRC, d, '.probe.json')
+	open(path, 'w').write(json.dumps([m]))
+	env = dict(os.environ, PLAN9=ROOT, ARCH='amd64', CPUS='4', CC='gcc', TOOLPREFIX='', TOOLPFX='')
+	try:
+		r = subprocess.run([os.path.join(CLI_DIR, 'build.exe'), '.probe.json'],
+			cwd=os.path.join(SRC, d), env=env, capture_output=True, text=True, timeout=900)
+		out, rc = r.stdout + r.stderr, r.returncode
+	except subprocess.TimeoutExpired:
+		out, rc = 'timeout', 1
+	os.remove(path)
+	if rc == 0:
+		return ''
+	for pat in (r'error: (.*)', r'(undefinierter Verweis auf [^\n]*)', r'(undefined reference[^\n]*)',
+			r'(fatal error: [^\n]*)', r'(exit status \d+)'):
+		mm = re.search(pat, out)
+		if mm:
+			return mm.group(1)[:160]
+	return out.strip().split('\n')[-1][:160] or 'failed'
+
+def buildorder():
+	"""the cmds.json manifests, directories holding archives first"""
+	libs, rest = [], []
+	for d in dirs([]):
+		f = os.path.join(SRC, d, 'cmds.json')
+		if os.path.exists(f):
+			(libs if any('Library' in m for m in json.load(open(f))) else rest).append(rel(f))
+	return ['sys/src/' + f for f in libs + rest]
 
 def main():
-	byfile = {}
-	for d, (install, names) in SINGLE.items():
-		e = base('cmds-' + d.replace('/', '-').replace('.', 'cmd'), install)
-		e['SourceFilesCmd'] = [n + '.c' for n in names.split()]
-		for n in names.split():
-			if not os.path.exists(os.path.join(CMD, d, n + '.c')):
-				sys.exit('%s/%s.c missing' % (d, n))
-		byfile.setdefault(d, []).append(e)
-	for key, (install, extra) in PROGS.items():
-		d, _, targ = key.partition(':')
-		v, text = mkvars(d)
-		pre = []
-		y = v.get('YFILES', [])
-		if y:
-			m = re.search(r'^[^\n:]*:\s*\$YFILES\s*\n\t\$YACC (.*)$', text, re.M)
-			yflags = m.group(1).replace('$YFLAGS', '-d').replace('$prereq', ' '.join(y)) if m else '-d ' + ' '.join(y)
-			pre.append('bash %syacc.sh %s' % (rel_scripts(d), yflags))
-		if isinstance(extra, list):
-			pre += ['bash %s%s' % (rel_scripts(d), os.path.basename(s)) for s in extra]
-		if targ:
-			targets = [(targ, objs2c(v[extra]))]
-		else:
-			ofiles = objs2c(v.get('OFILES', []))
-			tg = v['TARG']
-			if len(tg) == 1:	# mkone
-				targets = [(tg[0], ofiles)]
-			else:			# mkmany: <targ>.c + OFILES
-				targets = [(t, [t + '.c'] + ofiles) for t in tg]
-		for t, src in targets:
-			e = base(t, install)
-			if pre:
-				e['Pre'] = pre
-				pre = []	# grammar/tables once per directory run
-			e['Program'] = t
-			e['SourceFiles'] = src
-			byfile.setdefault(d, []).append(e)
-	for d, entries in byfile.items():
-		write(d, entries)
+	args = sys.argv[1:]
+	if args == ['--list']:
+		print('\n'.join(buildorder()))
+		return
+	doprobe = '--probe' in args
+	args = [a for a in args if a != '--probe']
+	# a full probe starts afresh (targets renamed or no longer walked drop out)
+	broken = {} if doprobe and not args else loadbroken()
+	os.makedirs(os.path.join(ROOT, 'tests', '.probe'), exist_ok=True)
+	total = ok = 0
+	alldirs = [(d, entries(d)) for d in dirs(args)]
+	alldirs = [(d, es) for d, es in alldirs if es]
+	result = {}
+	# program-local archives first (auth/lib builds ../lib.6.a for cmd/auth)
+	for libpass in (True, False):
+		for d, es in alldirs:
+			for name, e in es:
+				if ('library' in e) != libpass:
+					continue
+				total += 1
+				if doprobe:
+					why = probe(d, name, e)
+					if why:
+						broken[name] = why
+					else:
+						broken.pop(name, None)
+					print('%-4s %s %s' % ('ok' if not why else 'FAIL', name, why), flush=True)
+				if name not in broken:
+					ok += 1
+					result.setdefault(d, []).append((name, e))
+	for d, es in alldirs:
+		good = result.get(d, [])
+		out = os.path.join(SRC, d, 'cmds.json')
+		if not good:
+			if os.path.exists(out):
+				os.remove(out)
+			continue
+		ms = [manifest(e, n) for n, e in good if 'library' in e]
+		# singles share a manifest per install directory (cmd: init goes to /$objtype)
+		groups = {}
+		for n, e in good:
+			if 'single' in e:
+				groups.setdefault(e['Install'], []).append(e)
+		for i, (inst, es) in enumerate(sorted(groups.items(), key=lambda g: -len(g[1]))):
+			m = manifest(es[0], d + '/cmds' + ('' if i == 0 else '-' + str(i)))
+			m['SourceFilesCmd'] = [e['single'] for e in es]
+			ms.append(m)
+		ms += [manifest(e, n) for n, e in good if 'program' in e]
+		open(out, 'w').write(json.dumps(ms, indent='\t') + '\n')
+	if not args:	# manifests of directories mk does not build (disk/sacfs)
+		walked = set(d for d, es in alldirs)
+		for top in ('cmd', 'games', 'ape'):
+			for dp, dn, fn in os.walk(os.path.join(SRC, top)):
+				if 'cmds.json' in fn and rel(dp) not in walked:
+					os.remove(os.path.join(dp, 'cmds.json'))
+	if doprobe:
+		with open(BROKEN, 'w') as f:
+			f.write('# targets that do not build yet (scripts/gencmds.py --probe): target<TAB>first error\n')
+			for t in sorted(broken):
+				f.write('%s\t%s\n' % (t, broken[t]))
+	print('%d of %d targets build, %d broken (%s)' % (ok, total, total - ok, os.path.relpath(BROKEN, ROOT)))
 
-main()
+if __name__ == '__main__':
+	main()

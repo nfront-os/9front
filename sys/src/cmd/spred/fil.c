@@ -60,7 +60,7 @@ putident(Ident)
 int
 identcmp(Ident *a, Ident *b)
 {
-	return a->type != b->type || a->dev != b->dev || a->path != b->path;
+	return a->itype != b->itype || a->dev != b->dev || a->path != b->path;
 }
 
 int

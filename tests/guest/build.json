@@ -9,6 +9,7 @@
 			"--entry=_main"
 		],
 		"Libs": [
+			"--start-group",
 			"/$ARCH/lib/libdisk.a",
 			"/$ARCH/lib/lib9p.a",
 			"/$ARCH/lib/libthread.a",
@@ -17,17 +18,58 @@
 			"/$ARCH/lib/libndb.a",
 			"/$ARCH/lib/libip.a",
 			"/$ARCH/lib/libsec.a",
-			"/$ARCH/lib/libauth.a",
 			"/$ARCH/lib/libmp.a",
 			"/$ARCH/lib/libflate.a",
 			"/$ARCH/lib/libregexp.a",
 			"/$ARCH/lib/libString.a",
 			"/$ARCH/lib/libbio.a",
-			"/$ARCH/lib/libc.a"
+			"/$ARCH/lib/libc.a",
+			"--end-group"
 		],
 		"SourceFilesCmd": [
 			"libctest.c",
-			"threadtest.c"
+			"threadtest.c",
+			"authtest.c",
+			"mptest.c",
+			"paktest.c"
+		]
+	},
+	{
+		"Name": "guest-apetests",
+		"Include": [
+			"/$ARCH/cflags.json",
+			"/$ARCH/ape.json"
+		],
+		"Ape": true,
+		"Cflags": [
+			"-D_POSIX_SOURCE"
+		],
+		"Install": "/tests/guest/root/tests/",
+		"Oflags": [
+			"--entry=_main"
+		],
+		"Libs": [
+			"--start-group",
+			"/$ARCH/lib/ape/libdraw.a",
+			"/$ARCH/lib/ape/libplumb.a",
+			"/$ARCH/lib/ape/libauth.a",
+			"/$ARCH/lib/ape/libsec.a",
+			"/$ARCH/lib/ape/libmp.a",
+			"/$ARCH/lib/ape/libnet.a",
+			"/$ARCH/lib/ape/libbsd.a",
+			"/$ARCH/lib/ape/libl.a",
+			"/$ARCH/lib/ape/libv.a",
+			"/$ARCH/lib/ape/libz.a",
+			"/$ARCH/lib/ape/libbz2.a",
+			"/$ARCH/lib/ape/libbio.a",
+			"/$ARCH/lib/ape/lib9.a",
+			"/$ARCH/lib/ape/libfmt.a",
+			"/$ARCH/lib/ape/libutf.a",
+			"/$ARCH/lib/ape/libap.a",
+			"--end-group"
+		],
+		"SourceFilesCmd": [
+			"apetest.c"
 		]
 	}
 ]

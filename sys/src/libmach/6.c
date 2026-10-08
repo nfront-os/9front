@@ -4,7 +4,7 @@
 #include <u.h>
 #include <libc.h>
 #include <bio.h>
-#include "/amd64/include/ureg.h"
+#include "../../../amd64/include/ureg.h"	/* GCC port: was "/amd64/include/ureg.h", a Plan 9 absolute path */
 #include <mach.h>
 
 #define	REGOFF(x)	offsetof(struct Ureg, x)

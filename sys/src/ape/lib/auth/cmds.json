@@ -1,0 +1,39 @@
+[
+	{
+		"Name": "ape-lib-auth-libauth.a",
+		"Include": [
+			"/$ARCH/cflags.json",
+			"/$ARCH/ape.json"
+		],
+		"Install": "/$ARCH/lib/ape/",
+		"Cflags": [
+			"-D_POSIX_SOURCE",
+			"-D_PLAN9_SOURCE",
+			"-D_NET_EXTENSION",
+			"-I.",
+			"-I../9",
+			"-I../../../libauth"
+		],
+		"Ape": true,
+		"Library": "libauth.a",
+		"SourceFiles": [
+			"../../../libauth/amount.c",
+			"../../../libauth/amount_getkey.c",
+			"../../../libauth/attr.c",
+			"../../../libauth/auth_attr.c",
+			"../../../libauth/auth_challenge.c",
+			"../../../libauth/auth_chuid.c",
+			"../../../libauth/auth_getkey.c",
+			"../../../libauth/auth_getuserpasswd.c",
+			"../../../libauth/auth_proxy.c",
+			"../../../libauth/auth_respond.c",
+			"../../../libauth/auth_rpc.c",
+			"../../../libauth/auth_userpasswd.c",
+			"../../../libauth/login.c",
+			"../../../libauth/newns.c",
+			"../../../libauth/noworld.c",
+			"../../../libauth/procsetuser.c",
+			"../../../libauthsrv/passtokey.c"
+		]
+	}
+]

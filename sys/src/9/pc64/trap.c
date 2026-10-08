@@ -421,10 +421,18 @@ syscall(Ureg* ureg)
 		panic("syscall: cs 0x%4.4lluX", ureg->cs);
 	fpukenter(ureg);
 	scallnr = ureg->bp;	/* RARG */
+	/*
+	 * GCC port: was ((void**)&ureg)[-1] = noteret: under 6c the argument
+	 * lies right above syscall's return pc; under System V ureg arrives
+	 * in %rdi and &ureg is a slot in this frame. With frame pointers
+	 * (-fno-omit-frame-pointer) the return pc is at 8(%rbp). Without
+	 * this the return went through forkret, which zeroes %rbp, and note
+	 * handlers got no Ureg*.
+	 */
 	if(dosyscall(scallnr, (Sargs*)(ureg->sp+BY2WD), &ureg->ax))
-		((void**)&ureg)[-1] = (void*)noteret;	/* loads RARG */
+		((void**)__builtin_frame_address(0))[1] = (void*)noteret;	/* loads RARG */
 	if((up->procctl || up->nnote) && donotify(ureg))
-		((void**)&ureg)[-1] = (void*)noteret;	/* loads RARG */
+		((void**)__builtin_frame_address(0))[1] = (void*)noteret;	/* loads RARG */
 	/* if we delayed sched because we held a lock, sched now */
 	if(up->delaysched)
 		sched();

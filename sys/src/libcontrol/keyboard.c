@@ -31,7 +31,7 @@ struct Keyboard
 	int		border;
 	int		lastbut;
 	int		state;
-	char		*key;
+	char		*keyname;	/* GCC port: was key, which Control also has; 8c let the outer one shadow it */
 };
 
 enum{
@@ -363,13 +363,13 @@ keydown(Keyboard *k, Point p)
 	char *s;
 
 	s = whichkey(k, p, &row, &col, &r);
-	if(s == k->key)
+	if(s == k->keyname)
 		return;
 	keyboardshow(k);
 	if(s != nil)
 		draw(k->screen, r, k->light->image, k->mask->image, ZP);
 	flushimage(display, 1);
-	k->key = s;
+	k->keyname = s;
 }
 
 static int
@@ -414,7 +414,7 @@ keyup(Keyboard *k, Point p)
 	keyboardshow(k);
 	if(val)
 		chanprint(k->event, k->format, k->name, val);
-	k->key = nil;
+	k->keyname = nil;
 }
 
 static void
@@ -526,7 +526,7 @@ createkeyboard(Controlset *cs, char *name)
 	k->format = ctlstrdup("%q: value 0x%x");
 	k->border = 0;
 	k->lastbut = 0;
-	k->key = nil;
+	k->keyname = nil;
 	k->state = SRegular;
 	k->ctl = keyboardctl;
 	k->mouse = keyboardmouse;

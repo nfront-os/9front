@@ -1,0 +1,27 @@
+[
+	{
+		"Name": "ape-lib-ap-posix-libap.a",
+		"Include": [
+			"/$ARCH/cflags.json",
+			"/$ARCH/ape.json"
+		],
+		"Install": "/$ARCH/lib/ape/",
+		"Cflags": [
+			"-D_POSIX_SOURCE"
+		],
+		"Ape": true,
+		"Library": "libap.a",
+		"SourceFiles": [
+			"getgrent.c",
+			"getpwent.c",
+			"locale.c",
+			"mkfifo.c",
+			"pathconf.c",
+			"sigset.c",
+			"sysconf.c",
+			"tzset.c",
+			"nanosleep.c"
+		],
+		"Append": true
+	}
+]

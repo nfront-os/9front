@@ -1,38 +1,55 @@
+/*
+ * GCC port: GAS/System V translation: the argument is in %edi (6c:
+ * RARG). The MXCSR scratch word lives in an explicit 8-byte stack slot
+ * (the original's $4 frame) rather than the red zone.
+ */
 
-TEXT	setfcr(SB), $4
-	XORL	$(0x3F<<7),RARG	/* bits are cleared in csr to enable them */
-	ANDL	$0xFFC0, RARG	/* just the fcr bits */
-	WAIT	/* is this needed? */
-	STMXCSR	0(SP)
-	MOVL	0(SP), AX
-	ANDL	$0x3F, AX
-	ORL	RARG, AX
-	MOVL	AX, 0(SP)
-	LDMXCSR	0(SP)
-	RET
+.globl setfcr
+setfcr:
+	xorl	$(0x3F<<7), %edi	/* bits are cleared in csr to enable them */
+	andl	$0xFFC0, %edi		/* just the fcr bits */
+	fwait				/* is this needed? */
+	subq	$8, %rsp
+	stmxcsr	0(%rsp)
+	movl	0(%rsp), %eax
+	andl	$0x3F, %eax
+	orl	%edi, %eax
+	movl	%eax, 0(%rsp)
+	ldmxcsr	0(%rsp)
+	addq	$8, %rsp
+	ret
 
-TEXT	getfcr(SB), $4
-	WAIT
-	STMXCSR	0(SP)
-	MOVWLZX	0(SP), AX
-	ANDL	$0xFFC0, AX
-	XORL	$(0x3F<<7),AX
-	RET
+.globl getfcr
+getfcr:
+	subq	$8, %rsp
+	fwait
+	stmxcsr	0(%rsp)
+	movzwl	0(%rsp), %eax
+	andl	$0xFFC0, %eax
+	xorl	$(0x3F<<7), %eax
+	addq	$8, %rsp
+	ret
 
-TEXT	getfsr(SB), $4
-	WAIT
-	STMXCSR	0(SP)
-	MOVL	0(SP), AX
-	ANDL	$0x3F, AX
-	RET
+.globl getfsr
+getfsr:
+	subq	$8, %rsp
+	fwait
+	stmxcsr	0(%rsp)
+	movl	0(%rsp), %eax
+	andl	$0x3F, %eax
+	addq	$8, %rsp
+	ret
 
-TEXT	setfsr(SB), $4
-	ANDL	$0x3F, RARG
-	WAIT
-	STMXCSR	0(SP)
-	MOVL	0(SP), AX
-	ANDL	$~0x3F, AX
-	ORL	RARG, AX
-	MOVL	AX, 0(SP)
-	LDMXCSR	0(SP)
-	RET
+.globl setfsr
+setfsr:
+	andl	$0x3F, %edi
+	fwait
+	subq	$8, %rsp
+	stmxcsr	0(%rsp)
+	movl	0(%rsp), %eax
+	andl	$~0x3F, %eax
+	orl	%edi, %eax
+	movl	%eax, 0(%rsp)
+	ldmxcsr	0(%rsp)
+	addq	$8, %rsp
+	ret

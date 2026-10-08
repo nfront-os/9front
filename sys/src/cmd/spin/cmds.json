@@ -1,0 +1,73 @@
+[
+	{
+		"Name": "cmd-spin-spin",
+		"Include": [
+			"/$ARCH/cflags.json",
+			"/$ARCH/ape.json"
+		],
+		"Install": "/$ARCH/bin/",
+		"Cflags": [
+			"-D_POSIX_SOURCE",
+			"-D_PLAN9"
+		],
+		"Pre": [
+			"bash ../../../../scripts/yacc.sh -S -d spin.y"
+		],
+		"Ape": true,
+		"Oflags": [
+			"--entry=_main"
+		],
+		"Libs": [
+			"--start-group",
+			"/$ARCH/lib/ape/libdraw.a",
+			"/$ARCH/lib/ape/libplumb.a",
+			"/$ARCH/lib/ape/libauth.a",
+			"/$ARCH/lib/ape/libsec.a",
+			"/$ARCH/lib/ape/libmp.a",
+			"/$ARCH/lib/ape/libnet.a",
+			"/$ARCH/lib/ape/libbsd.a",
+			"/$ARCH/lib/ape/libl.a",
+			"/$ARCH/lib/ape/libv.a",
+			"/$ARCH/lib/ape/libz.a",
+			"/$ARCH/lib/ape/libbz2.a",
+			"/$ARCH/lib/ape/libbio.a",
+			"/$ARCH/lib/ape/lib9.a",
+			"/$ARCH/lib/ape/libfmt.a",
+			"/$ARCH/lib/ape/libutf.a",
+			"/$ARCH/lib/ape/libap.a",
+			"--end-group"
+		],
+		"Program": "spin",
+		"SourceFiles": [
+			"dstep.c",
+			"flow.c",
+			"guided.c",
+			"main.c",
+			"mesg.c",
+			"msc_tcl.c",
+			"pangen1.c",
+			"pangen2.c",
+			"pangen3.c",
+			"pangen4.c",
+			"pangen5.c",
+			"pangen6.c",
+			"pangen7.c",
+			"reprosrc.c",
+			"run.c",
+			"sched.c",
+			"spinlex.c",
+			"structs.c",
+			"sym.c",
+			"vars.c",
+			"y.tab.c",
+			"tl_buchi.c",
+			"tl_cache.c",
+			"tl_lex.c",
+			"tl_main.c",
+			"tl_mem.c",
+			"tl_parse.c",
+			"tl_rewrt.c",
+			"tl_trans.c"
+		]
+	}
+]

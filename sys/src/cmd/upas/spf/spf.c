@@ -511,7 +511,7 @@ spfinit(Squery *q, char *dom, int argc, char **argv)
 }
 
 int
-§fmt(Fmt *f)
+_a7_fmt(Fmt *f)	/* GCC port: runes gcc rejects in identifiers spelled _<hex>_ */
 {
 	char *p, *e, buf[115];
 	Spf *spf;
@@ -691,7 +691,7 @@ main(int argc, char **argv)
 		usage();
 	if(argc == 1)
 		pflag = 1;
-	fmtinstall(L'§', §fmt);
+	fmtinstall(L'§', _a7_fmt);
 	fmtinstall('I', eipfmt);
 	fmtinstall('M', eipfmt);
 

@@ -1,0 +1,58 @@
+[
+	{
+		"Name": "cmd-pic-pic",
+		"Include": [
+			"/$ARCH/cflags.json",
+			"/$ARCH/ape.json"
+		],
+		"Install": "/$ARCH/bin/",
+		"Pre": [
+			"bash ../../../../scripts/yacc.sh -S -d picy.y",
+			"mv y.tab.c picy.c",
+			"bash ../../../../scripts/lex.sh --out picl.c -t picl.lx"
+		],
+		"Ape": true,
+		"Oflags": [
+			"--entry=_main"
+		],
+		"Libs": [
+			"--start-group",
+			"/$ARCH/lib/ape/libdraw.a",
+			"/$ARCH/lib/ape/libplumb.a",
+			"/$ARCH/lib/ape/libauth.a",
+			"/$ARCH/lib/ape/libsec.a",
+			"/$ARCH/lib/ape/libmp.a",
+			"/$ARCH/lib/ape/libnet.a",
+			"/$ARCH/lib/ape/libbsd.a",
+			"/$ARCH/lib/ape/libl.a",
+			"/$ARCH/lib/ape/libv.a",
+			"/$ARCH/lib/ape/libz.a",
+			"/$ARCH/lib/ape/libbz2.a",
+			"/$ARCH/lib/ape/libbio.a",
+			"/$ARCH/lib/ape/lib9.a",
+			"/$ARCH/lib/ape/libfmt.a",
+			"/$ARCH/lib/ape/libutf.a",
+			"/$ARCH/lib/ape/libap.a",
+			"--end-group"
+		],
+		"Program": "pic",
+		"SourceFiles": [
+			"picy.c",
+			"picl.c",
+			"main.c",
+			"print.c",
+			"misc.c",
+			"symtab.c",
+			"blockgen.c",
+			"boxgen.c",
+			"circgen.c",
+			"arcgen.c",
+			"linegen.c",
+			"movegen.c",
+			"textgen.c",
+			"input.c",
+			"for.c",
+			"pltroff.c"
+		]
+	}
+]

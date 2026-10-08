@@ -201,7 +201,7 @@ struct Dev
 
 struct Drive
 {
-	QLock;
+	QLock	dqlock;	/* GCC port: named, Scsi embeds a QLock too; this one is unused */
 	Scsi;
 
 	int	type;			/* scsi peripheral device type: Type?? */
@@ -212,8 +212,8 @@ struct Drive
 	int	firsttrack;
 	int	invistrack;
 	int	ntrack;
-	int	nchange;		/* compare with the members in Scsi */
-	ulong	changetime;		/* " */
+	int	dnchange;		/* compare with the members in Scsi */	/* GCC port: was nchange, Scsi has one too */
+	ulong	dchangetime;		/* " */	/* GCC port: was changetime */
 	int	nameok;
 	int	writeok;		/* writable disc? */
 	/*

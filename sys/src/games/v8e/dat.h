@@ -1,4 +1,4 @@
-typedef char s8int;
+/* GCC port: was typedef char s8int; u.h has it (signed char) */
 typedef short s16int;
 typedef int s32int;
 typedef vlong s64int;

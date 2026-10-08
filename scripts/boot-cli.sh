@@ -24,7 +24,10 @@
 #         QEMU_EXTRA  extra QEMU flags (e.g. "-s -S" for gdb)
 #         UFS_EXTRA   directory whose contents are added to the root
 #                     (tests/guest puts its test programs in /tests)
-#         BOOTWAIT    seconds before typing the first line (15)
+#         BOOTWAIT    seconds before typing the first line (15); meanwhile
+#                     factotum's nvram prompts get AUTHID (glenda),
+#                     AUTHDOM (9front), PASSWORD (gccport9), empty
+#                     secstore key and the p9sk1 default
 #         CMDWAIT     seconds per line (2)
 set -e
 
@@ -102,7 +105,30 @@ done
 stty -F "$pts" raw -echo
 cat "$pts" > "$CLI_DIR/console.log" &
 pids+=($!)
-sleep "${BOOTWAIT:-15}"
+# while booting, answer factotum's nvram questions (readnvram(2): no
+# nvram in QEMU) as the console user would; each prompt once
+answered=0
+end=$((SECONDS + ${BOOTWAIT:-15}))
+while [ $SECONDS -lt $end ]; do
+	log=$(tr -d '\r' < "$CLI_DIR/console.log")
+	last=${log##*$'\n'}
+	ans=-
+	if [ ${#log} -gt $answered ]; then
+		case $last in
+		*'authid: ')			ans=${AUTHID:-glenda} ;;
+		*'authdom: ')			ans=${AUTHDOM:-9front} ;;
+		*'secstore key: ')		ans= ;;
+		*'password: ')			ans=${PASSWORD:-gccport9} ;;	# and confirm password
+		*'enable legacy p9sk1'*': ')	ans= ;;
+		*'user['*']: ')		ans= ;;	# -u: hostowner, default
+		esac
+	fi
+	if [ "$ans" != - ]; then
+		printf '%s\r' "$ans" > "$pts"
+		answered=${#log}
+	fi
+	sleep 0.5
+done
 for c in "${cmds[@]}"; do
 	printf '%s\r' "$c" > "$pts"
 	sleep "${CMDWAIT:-2}"

@@ -1,0 +1,14 @@
+[
+	{
+		"Name": "Json",
+		"Include": [
+			"../lib.json"
+		],
+		"Install": "/$ARCH/lib/",
+		"Library": "libjson.a",
+		"SourceFiles": [
+			"json.c",
+			"printjson.c"
+		]
+	}
+]

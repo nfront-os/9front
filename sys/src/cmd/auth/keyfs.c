@@ -1083,7 +1083,7 @@ io(int in, int out)
 			error("mount write");
 
 		now = time(0);
-		if(warnarg && (long)(now - lastwarning) > 24*60*60){
+		if(warnarg && (s32int)(now - lastwarning) > 24*60*60){	/* GCC port: was (long), 32 bits in kencc */
 			syslog(0, "auth", "keyfs starting warnings: %lux %lux",
 				now, lastwarning);
 			warning();

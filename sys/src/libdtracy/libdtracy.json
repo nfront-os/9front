@@ -1,0 +1,18 @@
+[
+	{
+		"Name": "Dtracy",
+		"Include": [
+			"../lib.json"
+		],
+		"Install": "/$ARCH/lib/",
+		"Library": "libdtracy.a",
+		"SourceFiles": [
+			"prov.c",
+			"prog.c",
+			"dtefmt.c",
+			"pack.c",
+			"chan.c",
+			"agg.c"
+		]
+	}
+]

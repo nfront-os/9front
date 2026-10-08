@@ -30,7 +30,7 @@
 typedef unsigned char		uchar;
 typedef unsigned short		ushort;
 typedef unsigned int		uint;
-typedef unsigned long		ulong;
+typedef unsigned int		ulong;	/* GCC port: was unsigned long, 32 bits with kencc */
 
 #ifndef NOVLONGS
 typedef unsigned long long	uvlong;

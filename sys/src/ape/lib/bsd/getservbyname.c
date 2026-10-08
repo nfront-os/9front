@@ -25,7 +25,7 @@ enum
  *  for inet addresses only
  */
 struct servent*
-getservbyname(char *name, char *proto)
+getservbyname(const char *name, const char *proto)	/* GCC port: types as in the prototype, kencc ignored the difference */
 {
 	int i, fd, m, num;
 	char *p, *bp;

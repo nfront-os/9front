@@ -5,7 +5,7 @@
 #include <u.h>
 #include <libc.h>
 #include <bio.h>
-#include "/power64/include/ureg.h"
+#include "../../../power64/include/ureg.h"	/* GCC port: was "/power64/include/ureg.h", a Plan 9 absolute path */
 #include <mach.h>
 
 

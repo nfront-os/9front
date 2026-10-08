@@ -2,7 +2,7 @@
 #include <libc.h>
 #include <disk.h>
 #include <fis.h>
-#include </sys/src/cmd/scuzz/scsireq.h>
+#include "../../scuzz/scsireq.h"	/* GCC port: was "/sys/src/cmd/scuzz/scsireq.h", a Plan 9 absolute path */
 #include "smart.h"
 
 enum{

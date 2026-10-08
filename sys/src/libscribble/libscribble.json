@@ -1,0 +1,15 @@
+[
+	{
+		"Name": "Scribble",
+		"Include": [
+			"../lib.json"
+		],
+		"Install": "/$ARCH/lib/",
+		"Library": "libscribble.a",
+		"SourceFiles": [
+			"li_recognizer.c",
+			"hre_api.c",
+			"graffiti.c"
+		]
+	}
+]

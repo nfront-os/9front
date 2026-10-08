@@ -315,7 +315,7 @@ issuequery(Query *qp, char *name, int class, int recurse)
 			nsrp = randomize(rrlookup(nsdp, Tns, NOneg));
 
 		/* if the entry timed out, ignore it */
-		if(nsrp && !nsrp->db && (long)(nsrp->expire - now) <= 0)
+		if(nsrp && !nsrp->db && (s32int)(nsrp->expire - now) <= 0)	/* GCC port: was (long), 32 bits in kencc */
 			rrfreelistptr(&nsrp);
 
 		if(nsrp){
@@ -370,7 +370,7 @@ dnresolve1(char *name, int class, int type, Request *req, int depth, int recurse
 			}
 		} else
 			/* cached entry must still be valid */
-			if((long)(rp->expire - now) > 0)
+			if((s32int)(rp->expire - now) > 0)	/* GCC port: was (long), 32 bits in kencc */
 				/* but Tall entries are special */
 				if(type != Tall || rp->query == Tall) {
 					noteinmem();
@@ -621,7 +621,7 @@ readnet(Query *qp, int medium, int fd, uchar pkt[Maxpkt], uvlong endms,
 	*replyp = nil;
 
 	startms = nowms;
-	ms = (long)(endms - startms);
+	ms = (s32int)(endms - startms);	/* GCC port: was (long), 32 bits in kencc */
 	if (ms < 1)
 		return -1;		/* taking too long */
 
@@ -1249,7 +1249,7 @@ tcpquery(Query *qp, uchar *pkt, int len, Dest *p, uvlong endms, DNSmsg *mp, int 
 	}
 Retry:
 	retry = 0;
-	ms = (long)(endms - nowms);
+	ms = (s32int)(endms - nowms);	/* GCC port: was (long), 32 bits in kencc */
 	if(ms < Minreqtm)
 		return -1;	/* takes too long */
 	if(ms > Maxtcpdialtm)
@@ -1385,7 +1385,7 @@ udpqueryns(Query *qp, int fd, uchar *pkt, int len)
 	 */
 	for(ndest = 2; ndest < Maxdest; ndest += 2){
 		endms = nowms;
-		if((long)(qp->req->aborttime - nowms) < Minreqtm)
+		if((s32int)(qp->req->aborttime - nowms) < Minreqtm)	/* GCC port: was (long), 32 bits in kencc */
 			break;
 
 		/*

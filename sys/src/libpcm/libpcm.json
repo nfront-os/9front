@@ -1,0 +1,14 @@
+[
+	{
+		"Name": "Pcm",
+		"Include": [
+			"../lib.json"
+		],
+		"Install": "/$ARCH/lib/",
+		"Library": "libpcm.a",
+		"SourceFiles": [
+			"conv.c",
+			"desc.c"
+		]
+	}
+]

@@ -768,7 +768,7 @@ pagesetrefresh(Page *p)
 	if(!q)
 		return;
 	n = runestrlen(q);
-	if(*q == L'''){
+	if(*q == L'\''){	/* GCC port: '\'' -- 8c reads ''' as a quote character */
 		q++;
 		n -= 2;
 	}

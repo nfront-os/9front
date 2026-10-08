@@ -6,9 +6,9 @@
 #include "sys9.h"
 
 typedef long long vlong;
-typedef unsigned long ulong;
+typedef unsigned int ulong;	/* GCC port: was unsigned long, 32 bits with kencc */
 typedef unsigned long long uvlong;
-#include	"/sys/include/tos.h"
+#include "../../../../../include/tos.h"	/* GCC port: was "/sys/include/tos.h", a Plan 9 absolute path */
 
 pid_t
 getpid(void)

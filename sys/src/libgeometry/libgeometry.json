@@ -1,0 +1,18 @@
+[
+	{
+		"Name": "Geometry",
+		"Include": [
+			"../lib.json"
+		],
+		"Install": "/$ARCH/lib/",
+		"Library": "libgeometry.a",
+		"SourceFiles": [
+			"point.c",
+			"matrix.c",
+			"quaternion.c",
+			"rframe.c",
+			"utils.c",
+			"fmt.c"
+		]
+	}
+]

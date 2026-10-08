@@ -1,0 +1,54 @@
+[
+	{
+		"Name": "ape-lib-fmt-libfmt.a",
+		"Include": [
+			"/$ARCH/cflags.json",
+			"/$ARCH/ape.json"
+		],
+		"Install": "/$ARCH/lib/ape/",
+		"Cflags": [
+			"-D_POSIX_SOURCE",
+			"-D_PLAN9_SOURCE",
+			"-D_BSD_EXTENSION"
+		],
+		"Ape": true,
+		"Library": "libfmt.a",
+		"SourceFiles": [
+			"dofmt.c",
+			"errfmt.c",
+			"fltfmt.c",
+			"fmt.c",
+			"fmtfd.c",
+			"fmtfdflush.c",
+			"fmtlock.c",
+			"fmtprint.c",
+			"fmtquote.c",
+			"fmtrune.c",
+			"fmtstr.c",
+			"fmtvprint.c",
+			"fprint.c",
+			"nan64.c",
+			"print.c",
+			"runefmtstr.c",
+			"runeseprint.c",
+			"runesmprint.c",
+			"runesnprint.c",
+			"runesprint.c",
+			"runevseprint.c",
+			"runevsmprint.c",
+			"runevsnprint.c",
+			"seprint.c",
+			"smprint.c",
+			"snprint.c",
+			"sprint.c",
+			"strtod.c",
+			"vfprint.c",
+			"vseprint.c",
+			"vsmprint.c",
+			"vsnprint.c",
+			"werrstr.c",
+			"charstod.c",
+			"pow10.c"
+		]
+	}
+]

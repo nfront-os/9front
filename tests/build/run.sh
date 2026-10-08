@@ -34,11 +34,13 @@ cmds(){
 	python3 - <<'PY'
 import json, os, subprocess, sys
 bad = n = 0
-for dp, _, fs in os.walk('sys/src/cmd'):
+for dp, _, fs in [w for top in ('sys/src/cmd', 'sys/src/games', 'sys/src/ape') for w in os.walk(top)]:
 	if 'cmds.json' not in fs:
 		continue
 	for e in json.load(open(os.path.join(dp, 'cmds.json'))):
-		inst = e['Install'].replace('/$ARCH', 'amd64').lstrip('/')
+		if 'Library' in e or not e.get('Install'):	# archives; rc scripts (Post install)
+			continue
+		inst = e['Install'].replace('$ARCH', 'amd64').lstrip('/')
 		names = [os.path.splitext(f)[0] for f in e.get('SourceFilesCmd', [])] or [e['Program']]
 		for t in names:
 			n += 1

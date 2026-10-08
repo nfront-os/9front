@@ -1,0 +1,22 @@
+[
+	{
+		"Name": "ape-lib-l-libl.a",
+		"Include": [
+			"/$ARCH/cflags.json",
+			"/$ARCH/ape.json"
+		],
+		"Install": "/$ARCH/lib/ape/",
+		"Cflags": [
+			"-D_RESEARCH_SOURCE"
+		],
+		"Ape": true,
+		"Library": "libl.a",
+		"SourceFiles": [
+			"allprint.c",
+			"main.c",
+			"reject.c",
+			"yyless.c",
+			"yywrap.c"
+		]
+	}
+]

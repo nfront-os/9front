@@ -765,7 +765,7 @@ clunkmount(Mount *mnt)
 			aswapp(&fs->mounts, p->next);
 		else
 			*pp = p->next;
-		limbo(DFmnt, p);
+		limbo(DFmnt, &p->Limbo);	/* GCC port: Mount's Limbo is named */
 	}
 	qunlock(&fs->mountlk);
 }
@@ -1406,7 +1406,7 @@ fswalk(Fmsg *m)
 	up = o->pqpath;
 	prev = o->qpath;
 	rlock(o->dent);
-	d = *o->dent;
+	d = o->dent->Xdir;	/* GCC port: 8c converts a struct value to its unnamed member, gcc only pointers */
 	runlock(o->dent);
 	duid = d.uid;
 	dgid = d.gid;

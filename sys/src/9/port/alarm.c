@@ -22,7 +22,7 @@ alarmkproc(void*)
 		for(rp = alarms.head; rp != nil; rp = rp->palarm){
 			if((when = rp->alarm) == 0)
 				continue;
-			if((long)(now - when) < 0)
+			if((s32int)(now - when) < 0)	/* GCC port: was (long), 32 bits in kencc */
 				break;
 			if(!canqlock(&rp->debug))
 				break;
@@ -58,7 +58,7 @@ checkalarms(void)
 	if(p != nil){
 		now = MACHP(0)->PMach.ticks;
 		when = p->alarm;
-		if(when == 0 || (long)(now - when) >= 0)
+		if(when == 0 || (s32int)(now - when) >= 0)	/* GCC port: was (long), 32 bits in kencc */
 			wakeup(&alarmr);
 	}
 }
@@ -73,7 +73,7 @@ procalarm(ulong time)
 	old = up->alarm;
 	if(old) {
 		old -= when;
-		if((long)old > 0)
+		if((s32int)old > 0)	/* GCC port: was (long), 32 bits in kencc */
 			old = tk2ms(old);
 		else
 			old = 0;
@@ -98,7 +98,7 @@ procalarm(ulong time)
 	l = &alarms.head;
 	for(f = *l; f; f = f->palarm) {
 		time = f->alarm;
-		if(time != 0 && (long)(time - when) >= 0)
+		if(time != 0 && (s32int)(time - when) >= 0)	/* GCC port: was (long), 32 bits in kencc */
 			break;
 		l = &f->palarm;
 	}

@@ -63,7 +63,7 @@ fsattach(Req *r)
 	}
 
 	checktoc(drive);
-	r->fid->qid = (Qid){Qdir, drive->nchange, QTDIR};
+	r->fid->qid = (Qid){Qdir, drive->dnchange, QTDIR};
 	r->ofcall.qid = r->fid->qid;
 	r->fid->aux = emalloc(sizeof(Aux));
 	respond(r, nil);
@@ -91,7 +91,7 @@ fswalk1(Fid *fid, char *name, Qid *qid)
 	switch((ulong)fid->qid.path) {
 	case Qdir:
 		if(strcmp(name, "..") == 0) {
-			*qid = (Qid){Qdir, drive->nchange, QTDIR};
+			*qid = (Qid){Qdir, drive->dnchange, QTDIR};
 			return nil;
 		}
 		if(strcmp(name, "ctl") == 0) {
@@ -101,11 +101,11 @@ fswalk1(Fid *fid, char *name, Qid *qid)
 		if(strcmp(name, "wa") == 0 && drive->writeok &&
 		    (drive->mmctype == Mmcnone ||
 		     drive->mmctype == Mmccd)) {
-			*qid = (Qid){Qwa, drive->nchange, QTDIR};
+			*qid = (Qid){Qwa, drive->dnchange, QTDIR};
 			return nil;
 		}
 		if(strcmp(name, "wd") == 0 && drive->writeok) {
-			*qid = (Qid){Qwd, drive->nchange, QTDIR};
+			*qid = (Qid){Qwd, drive->dnchange, QTDIR};
 			return nil;
 		}
 		for(i=0; i<drive->ntrack; i++)
@@ -119,7 +119,7 @@ fswalk1(Fid *fid, char *name, Qid *qid)
 	case Qwa:
 	case Qwd:
 		if(strcmp(name, "..") == 0) {
-			*qid = (Qid){Qdir, drive->nchange, QTDIR};
+			*qid = (Qid){Qdir, drive->dnchange, QTDIR};
 			return nil;
 		}
 		return "file not found";
@@ -173,12 +173,12 @@ fscreate(Req *r)
 		respond(r, geterrstr());
 		return;
 	}
-	drive->nchange = -1;
+	drive->dnchange = -1;
 	checktoc(drive);	/* update directory info */
 	o->nref = 1;
 	((Aux*)fid->aux)->o = o;
 
-	fid->qid = (Qid){Qtrack+(o->track - drive->track), drive->nchange, 0};
+	fid->qid = (Qid){Qtrack+(o->track - drive->track), drive->dnchange, 0};
 	r->ofcall.qid = fid->qid;
 	respond(r, nil);
 }
@@ -253,9 +253,9 @@ fillstat(ulong qid, Dir *d)
 	free(ty);
 	d->uid = d->gid = buf;
 	d->muid = "";
-	d->qid = (Qid){qid, drive->nchange, 0};
+	d->qid = (Qid){qid, drive->dnchange, 0};
 	d->atime = time(0);
-	d->mtime = drive->changetime;
+	d->mtime = drive->dchangetime;
 
 	switch(qid){
 	case Qdir:
@@ -557,7 +557,7 @@ fsopen(Req *r)
 	fid = r->fid;
 	omode = r->ifcall.mode;
 	checktoc(drive);
-	r->ofcall.qid = (Qid){fid->qid.path, drive->nchange, fid->qid.vers};
+	r->ofcall.qid = (Qid){fid->qid.path, drive->dnchange, fid->qid.vers};
 
 	switch((ulong)fid->qid.path){
 	case Qdir:

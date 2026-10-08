@@ -117,8 +117,8 @@ srvwrite(Req *r)
 }
 
 static Srv vmxsrv = {
-	.read srvread,
-	.write srvwrite,
+	.read = srvread,	/* GCC port: kencc initializers may omit the = of .member */
+	.write = srvwrite,
 };
 
 void

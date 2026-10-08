@@ -29,7 +29,7 @@ struct Stream
 	ulong	rp;
 	ulong	wp;
 	QLock;
-	Rendez;
+	Rendez	Rendez;	/* GCC port: named, Rendez's head/tail clash with QLock's */
 };
 
 ulong	mixrp;
@@ -236,7 +236,7 @@ fsflush(Req *r)
 		qlock(s);
 		if(s->used && s->run){
 			s->flush = 1;
-			rwakeup(s);
+			rwakeup(&s->Rendez);
 		}
 		qunlock(s);
 	}
@@ -318,19 +318,19 @@ audioproc(void *)
 			qlock(s);
 			if(s->run){
 				if(s->mode & OWRITE){
-					n = (long)(s->wp - mixrp);
+					n = (s32int)(s->wp - mixrp);	/* GCC port: was (long), 32 bits in kencc */
 					if(n <= 0 && (s->used == 0 || sweep))
 						s->run = 0;
 					else if(n < m)
 						m = n;
 					if(n < delay)
-						rwakeup(s);
+						rwakeup(&s->Rendez);
 				} else {
-					n = (long)(mixrp - s->rp);
+					n = (s32int)(mixrp - s->rp);	/* GCC port: was (long), 32 bits in kencc */
 					if(n > NBUF && (s->used == 0 || sweep))
 						s->run = 0;
 					if(n > 0)
-						rwakeup(s);
+						rwakeup(&s->Rendez);
 				}
 			}
 			qunlock(s);
@@ -474,12 +474,12 @@ fsread(Req *r)
 			s->rp = mixrp;
 			s->run = 1;
 		}
-		m = (long)(mixrp - s->rp);
+		m = (s32int)(mixrp - s->rp);	/* GCC port: was (long), 32 bits in kencc */
 		if(m <= 0){
 			if(s->flush)
 				break;
 			s->run = 1;
-			rsleep(s);
+			rsleep(&s->Rendez);
 			continue;
 		}
 		if(m > NBUF){
@@ -576,13 +576,13 @@ fswrite(Req *r)
 			s->wp = mixrp;
 			s->run = 1;
 		}
-		m = NBUF-1 - (long)(s->wp - mixrp);
+		m = NBUF-1 - (s32int)(s->wp - mixrp);	/* GCC port: was (long), 32 bits in kencc */
 
 		if(m <= 0){
 			if(s->flush)
 				break;
 			s->run = 1;
-			rsleep(s);
+			rsleep(&s->Rendez);
 			continue;
 		}
 		if(m > n)
@@ -600,9 +600,9 @@ fswrite(Req *r)
 
 		n -= m;
 	}
-	if((long)(s->wp - mixrp) >= delay && !s->flush){
+	if((s32int)(s->wp - mixrp) >= delay && !s->flush){	/* GCC port: was (long), 32 bits in kencc */
 		s->run = 1;
-		rsleep(s);
+		rsleep(&s->Rendez);
 	}
 	s->flush = 0;
 	qunlock(s);
@@ -619,7 +619,7 @@ fsstat(Req *r)
 	if(r->fid->file != nil && strcmp(r->fid->file->name, "audio") == 0 && (s = r->fid->aux) != nil){
 		qlock(s);
 		if(s->run){
-			r->d.length = (long)(s->wp - mixrp);
+			r->d.length = (s32int)(s->wp - mixrp);	/* GCC port: was (long), 32 bits in kencc */
 			r->d.length *= NCHAN*2;
 		}
 		qunlock(s);

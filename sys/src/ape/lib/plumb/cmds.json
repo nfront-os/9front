@@ -1,0 +1,22 @@
+[
+	{
+		"Name": "ape-lib-plumb-libplumb.a",
+		"Include": [
+			"/$ARCH/cflags.json",
+			"/$ARCH/ape.json"
+		],
+		"Install": "/$ARCH/lib/ape/",
+		"Cflags": [
+			"-D_POSIX_SOURCE",
+			"-D_PLAN9_SOURCE",
+			"-I../9"
+		],
+		"Ape": true,
+		"Library": "libplumb.a",
+		"SourceFiles": [
+			"../../../libplumb/event.c",
+			"../../../libplumb/mesg.c",
+			"../../../libplumb/plumbsendtext.c"
+		]
+	}
+]

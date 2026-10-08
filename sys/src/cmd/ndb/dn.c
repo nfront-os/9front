@@ -399,8 +399,8 @@ dnage(DN *dp)
 		assert(rp->cached);
 		assert(rp->owner == dp);
 
-		if(!rp->db && ((long)(rp->expire - now) <= 0
-		|| (long)(now - (rp->expire - rp->ttl)) > dnvars.oldest))
+		if(!rp->db && ((s32int)(rp->expire - now) <= 0	/* GCC port: was (long), 32 bits in kencc */
+		|| (s32int)(now - (rp->expire - rp->ttl)) > dnvars.oldest))	/* GCC port: was (long), 32 bits in kencc */
 			rrdelhead(l); /* rp == *l before; *l == rp->next after */
 		else {
 			l = &rp->next;
@@ -442,7 +442,7 @@ dnageall(int doit)
 		} else {
 			period = Minage / 2;
 		}
-		if((long)(now - dnvars.lastage) < period)
+		if((s32int)(now - dnvars.lastage) < period)	/* GCC port: was (long), 32 bits in kencc */
 			return;
 
 		dnslog("more names (%lud) than target (%lud)", dnvars.names, target);
@@ -656,7 +656,7 @@ rrattach1(RR *new, int auth)
 			/* all things equal, pick the newer one */
 			else if(rrequiv(rp, new)){
 				/* old drives out new */
-				if((long)(rp->expire - new->expire) > 0) {
+				if((s32int)(rp->expire - new->expire) > 0) {	/* GCC port: was (long), 32 bits in kencc */
 					rrfree(new);
 					return;
 				}
@@ -852,7 +852,7 @@ rrlookup(DN *dp, int type, int flag)
 	for(rp = dp->rr; rp; rp = rp->next){
 		if(!rp->db)
 		if(rp->auth)
-		if((long)(rp->expire - now) > 0)
+		if((s32int)(rp->expire - now) > 0)	/* GCC port: was (long), 32 bits in kencc */
  		if(tsame(type, rp->type)){
 			if(flag == NOneg && rp->negative)
 				goto out;
@@ -865,7 +865,7 @@ rrlookup(DN *dp, int type, int flag)
 	/* try for a living unauthoritative network entry */
 	for(rp = dp->rr; rp; rp = rp->next){
 		if(!rp->db)
-		if((long)(rp->expire - now) > 0)
+		if((s32int)(rp->expire - now) > 0)	/* GCC port: was (long), 32 bits in kencc */
 		if(tsame(type, rp->type)){
 			if(flag == NOneg && rp->negative)
 				goto out;

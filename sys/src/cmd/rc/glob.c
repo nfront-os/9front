@@ -35,7 +35,7 @@ globsort(word *left, word *right)
 	for(a = left;a!=right;a = a->next) n++;
 	list = (char **)emalloc(n*sizeof(char *));
 	for(a = left,n = 0;a!=right;a = a->next,n++) list[n] = a->word;
-	qsort((void *)list, n, sizeof(void *), (int(*)(void*,void*))globcmp);	/* GCC port: globcmp's const-qualified params vs. libc.h's unqualified qsort comparator type */
+	qsort((void *)list, n, sizeof(void *), globcmp);
 	for(a = left,n = 0;a!=right;a = a->next,n++) a->word = list[n];
 	free(list);
 }

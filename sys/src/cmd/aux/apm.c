@@ -1,6 +1,6 @@
 #include <u.h>
 #include <libc.h>
-#include </386/include/ureg.h>
+#include "../../../../386/include/ureg.h"	/* GCC port: was "/386/include/ureg.h", a Plan 9 absolute path */
 typedef struct Ureg Ureg;
 #include <auth.h>
 #include <fcall.h>

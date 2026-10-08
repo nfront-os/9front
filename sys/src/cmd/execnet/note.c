@@ -3,7 +3,7 @@
 #include <u.h>
 #include <libc.h>
 #include <thread.h>
-#include "/sys/src/libthread/threadimpl.h"
+#include "../../libthread/threadimpl.h"	/* GCC port: was "/sys/src/libthread/threadimpl.h", a Plan 9 absolute path */
 
 int	_threadnopasser;
 

@@ -54,7 +54,7 @@ sigdelset(sigset_t *set, int signo)
 }
 
 int
-sigismember(sigset_t *set, int signo)
+sigismember(const sigset_t *set, int signo)	/* GCC port: types as in the prototype, kencc ignored the difference */
 {
 	int b;
 

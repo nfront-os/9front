@@ -35,7 +35,7 @@ struct Hpool
 {
 	QLock;
 
-	Hconn	*head;
+	Hconn	*chead;	/* GCC port: was head, which the embedded QLock also has; 8c let this one shadow it */
 	int	active;
 
 	int	limit;
@@ -102,12 +102,12 @@ hdial(Url *u, int cached)
 
 	qlock(&hpool);
 	if(cached){
-		for(p = nil, h = hpool.head; h; p = h, h = h->next){
+		for(p = nil, h = hpool.chead; h; p = h, h = h->next){
 			if(strcmp(h->addr, addr) == 0){
 				if(p)
 					p->next = h->next;
 				else
-					hpool.head = h->next;
+					hpool.chead = h->next;
 				h->next = nil;
 				qunlock(&hpool);
 				return h;
@@ -182,7 +182,7 @@ hclose(Hconn *h)
 
 	qlock(&hpool);
 	if(!h->tunnel && h->keep && h->fd >= 0){
-		for(n = 0, i = 0, t = nil, x = hpool.head; x; x = x->next){
+		for(n = 0, i = 0, t = nil, x = hpool.chead; x; x = x->next){
 			if(strcmp(x->addr, h->addr) == 0)
 				if(++n > hpool.peer)
 					break;
@@ -192,8 +192,8 @@ hclose(Hconn *h)
 		if(x == nil){
 			/* return connection to pool */
 			h->time = time(0);
-			h->next = hpool.head;
-			hpool.head = h;
+			h->next = hpool.chead;
+			hpool.chead = h;
 
 			/* cut off tail */
 			if(t){
@@ -223,7 +223,7 @@ hclose(Hconn *h)
 					now = time(0);
 
 					x = nil;
-					xx = &hpool.head;
+					xx = &hpool.chead;
 					while(h = *xx){
 						if((now - h->time) > hpool.idle){
 							*xx = h->next;
@@ -236,7 +236,7 @@ hclose(Hconn *h)
 						xx = &h->next;
 					}
 
-					i = hpool.head != nil;
+					i = hpool.chead != nil;
 					qunlock(&hpool);
 
 					/* free the tail */

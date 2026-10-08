@@ -1,0 +1,145 @@
+[
+	{
+		"Name": "cmd-lp-cmds",
+		"Include": [
+			"/$ARCH/cflags.json"
+		],
+		"Install": "/$ARCH/bin/aux/",
+		"Cflags": [
+			"-Dplan9"
+		],
+		"Oflags": [
+			"--entry=_main"
+		],
+		"Libs": [
+			"--start-group",
+			"/$ARCH/lib/libdisk.a",
+			"/$ARCH/lib/libcontrol.a",
+			"/$ARCH/lib/libhtml.a",
+			"/$ARCH/lib/libframe.a",
+			"/$ARCH/lib/libdraw.a",
+			"/$ARCH/lib/libmemlayer.a",
+			"/$ARCH/lib/libmemdraw.a",
+			"/$ARCH/lib/libplumb.a",
+			"/$ARCH/lib/libcomplete.a",
+			"/$ARCH/lib/lib9p.a",
+			"/$ARCH/lib/libventi.a",
+			"/$ARCH/lib/libsunrpc.a",
+			"/$ARCH/lib/libthread.a",
+			"/$ARCH/lib/libauth.a",
+			"/$ARCH/lib/libauthsrv.a",
+			"/$ARCH/lib/libndb.a",
+			"/$ARCH/lib/libip.a",
+			"/$ARCH/lib/libhttpd.a",
+			"/$ARCH/lib/libsec.a",
+			"/$ARCH/lib/libmp.a",
+			"/$ARCH/lib/libflate.a",
+			"/$ARCH/lib/libregexp.a",
+			"/$ARCH/lib/libString.a",
+			"/$ARCH/lib/libmach.a",
+			"/$ARCH/lib/libbin.a",
+			"/$ARCH/lib/libavl.a",
+			"/$ARCH/lib/libjson.a",
+			"/$ARCH/lib/libgeometry.a",
+			"/$ARCH/lib/libpcm.a",
+			"/$ARCH/lib/libttf.a",
+			"/$ARCH/lib/libsat.a",
+			"/$ARCH/lib/libscribble.a",
+			"/$ARCH/lib/liblex.a",
+			"/$ARCH/lib/libstdio.a",
+			"/$ARCH/lib/libdtracy.a",
+			"/$ARCH/lib/libaml.a",
+			"/$ARCH/lib/libfis.a",
+			"/$ARCH/lib/libbio.a",
+			"/$ARCH/lib/libc.a",
+			"--end-group"
+		],
+		"SourceFilesCmd": [
+			"lpsend.c",
+			"LOCK.c"
+		]
+	},
+	{
+		"Name": "cmd-lp-lpdsend",
+		"Include": [
+			"/$ARCH/cflags.json",
+			"/$ARCH/ape.json"
+		],
+		"Install": "/$ARCH/bin/aux/",
+		"Cflags": [
+			"-D_POSIX_SOURCE",
+			"-D_BSD_EXTENSION",
+			"-D_NET_EXTENSION",
+			"-DPLAN9",
+			"-DMAXHOSTNAMELEN=64"
+		],
+		"Ape": true,
+		"Oflags": [
+			"--entry=_main"
+		],
+		"Libs": [
+			"--start-group",
+			"/$ARCH/lib/ape/libdraw.a",
+			"/$ARCH/lib/ape/libplumb.a",
+			"/$ARCH/lib/ape/libauth.a",
+			"/$ARCH/lib/ape/libsec.a",
+			"/$ARCH/lib/ape/libmp.a",
+			"/$ARCH/lib/ape/libnet.a",
+			"/$ARCH/lib/ape/libbsd.a",
+			"/$ARCH/lib/ape/libl.a",
+			"/$ARCH/lib/ape/libv.a",
+			"/$ARCH/lib/ape/libz.a",
+			"/$ARCH/lib/ape/libbz2.a",
+			"/$ARCH/lib/ape/libbio.a",
+			"/$ARCH/lib/ape/lib9.a",
+			"/$ARCH/lib/ape/libfmt.a",
+			"/$ARCH/lib/ape/libutf.a",
+			"/$ARCH/lib/ape/libap.a",
+			"--end-group"
+		],
+		"Program": "lpdsend",
+		"SourceFiles": [
+			"lpdsend.c"
+		]
+	},
+	{
+		"Name": "cmd-lp-lpdaemon",
+		"Include": [
+			"/$ARCH/cflags.json",
+			"/$ARCH/ape.json"
+		],
+		"Install": "/$ARCH/bin/aux/",
+		"Cflags": [
+			"-D_POSIX_SOURCE",
+			"-DPLAN9"
+		],
+		"Ape": true,
+		"Oflags": [
+			"--entry=_main"
+		],
+		"Libs": [
+			"--start-group",
+			"/$ARCH/lib/ape/libdraw.a",
+			"/$ARCH/lib/ape/libplumb.a",
+			"/$ARCH/lib/ape/libauth.a",
+			"/$ARCH/lib/ape/libsec.a",
+			"/$ARCH/lib/ape/libmp.a",
+			"/$ARCH/lib/ape/libnet.a",
+			"/$ARCH/lib/ape/libbsd.a",
+			"/$ARCH/lib/ape/libl.a",
+			"/$ARCH/lib/ape/libv.a",
+			"/$ARCH/lib/ape/libz.a",
+			"/$ARCH/lib/ape/libbz2.a",
+			"/$ARCH/lib/ape/libbio.a",
+			"/$ARCH/lib/ape/lib9.a",
+			"/$ARCH/lib/ape/libfmt.a",
+			"/$ARCH/lib/ape/libutf.a",
+			"/$ARCH/lib/ape/libap.a",
+			"--end-group"
+		],
+		"Program": "lpdaemon",
+		"SourceFiles": [
+			"lpdaemon.c"
+		]
+	}
+]

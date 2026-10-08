@@ -86,7 +86,7 @@ quadins(Body *nb, double size)
 void
 quadcalc(Body *b, QB qb, double size)
 {
-	double fx÷❨m₁m₂❩, fy÷❨m₁m₂❩, dx, dy, h, G÷h³;
+	double fx_f7__2768_m₁m₂_2769_, fy_f7__2768_m₁m₂_2769_, dx, dy, h, G_f7_h³;	/* GCC port: runes gcc rejects in identifiers spelled _<hex>_ */
 
 	for(;;) switch(qb.t) {
 	default:
@@ -99,11 +99,11 @@ quadcalc(Body *b, QB qb, double size)
 		dx = qb.b->x - b->x;
 		dy = qb.b->y - b->y;
 		h = hypot(hypot(dx, dy), ε);
-		G÷h³ = G / (h*h*h);
-		fx÷❨m₁m₂❩ = dx * G÷h³;
-		fy÷❨m₁m₂❩ = dy * G÷h³;
-		b->newa.x += fx÷❨m₁m₂❩ * qb.b->mass;
-		b->newa.y += fy÷❨m₁m₂❩ * qb.b->mass;
+		G_f7_h³ = G / (h*h*h);
+		fx_f7__2768_m₁m₂_2769_ = dx * G_f7_h³;
+		fy_f7__2768_m₁m₂_2769_ = dy * G_f7_h³;
+		b->newa.x += fx_f7__2768_m₁m₂_2769_ * qb.b->mass;
+		b->newa.y += fy_f7__2768_m₁m₂_2769_ * qb.b->mass;
 		STATS(calcs++;)
 		return;
 	case QUAD:
@@ -112,11 +112,11 @@ quadcalc(Body *b, QB qb, double size)
 		h = hypot(dx, dy);
 		if(h != 0.0 && size/h < θ) {
 			h = hypot(h, ε);
-			G÷h³ = G / (h*h*h);
-			fx÷❨m₁m₂❩ = dx * G÷h³;
-			fy÷❨m₁m₂❩ = dy * G÷h³;
-			b->newa.x += fx÷❨m₁m₂❩ * qb.q->mass;
-			b->newa.y += fy÷❨m₁m₂❩ * qb.q->mass;
+			G_f7_h³ = G / (h*h*h);
+			fx_f7__2768_m₁m₂_2769_ = dx * G_f7_h³;
+			fy_f7__2768_m₁m₂_2769_ = dy * G_f7_h³;
+			b->newa.x += fx_f7__2768_m₁m₂_2769_ * qb.q->mass;
+			b->newa.y += fy_f7__2768_m₁m₂_2769_ * qb.q->mass;
 			STATS(calcs++;)
 			return;
 		}

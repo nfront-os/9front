@@ -113,7 +113,12 @@ type build struct {
 	Program string
 	Library string
 	Install string // where to place the resulting binary/lib
-	Kernel  *kernel
+	// Ape compiles like pcc: only /$ARCH/include/ape, /sys/include/ape and .
+	Ape bool
+	// Append adds to an existing Library archive instead of starting a
+	// new one (libap: one archive from several directories, like mk's ar)
+	Append bool
+	Kernel *kernel
 }
 
 type buildfile []build
@@ -338,6 +343,8 @@ func include(f string, targ string, b *build) {
 		}
 		b.Program += build.Program
 		b.Library += build.Library
+		b.Ape = b.Ape || build.Ape
+		b.Append = b.Append || build.Append
 	}
 }
 
@@ -524,6 +531,14 @@ func compile(b *build) {
 		"-I", fromRoot("/sys/include"),
 		"-I", ".",
 	}
+	if b.Ape {
+		// pcc: cpp -N -I/$objtype/include/ape -I/sys/include/ape
+		incArgs = []string{
+			"-I", fromRoot("/$ARCH/include/ape"),
+			"-I", fromRoot("/sys/include/ape"),
+			"-I", ".",
+		}
+	}
 	args := []string{
 		"-std=c11",
 		"-c",
@@ -635,7 +650,9 @@ func install(b *build) {
 		libpath := path.Join(b.Install, b.Library)
 		// start from an empty archive: ar -r only adds/replaces members,
 		// so objects of sources dropped from a manifest would linger
-		_ = os.Remove(libpath)
+		if !b.Append {
+			_ = os.Remove(libpath)
+		}
 		args := append([]string{"-rs", libpath}, b.ObjectFiles...)
 		run(b, *shellhack, exec.Command(tools["ar"], args...))
 		run(b, *shellhack, exec.Command(tools["ranlib"], libpath))

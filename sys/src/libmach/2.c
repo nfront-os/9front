@@ -2,7 +2,7 @@
  * 68020 definition
  */
 #include <u.h>
-#include "/68020/include/ureg.h"
+#include "../../../68020/include/ureg.h"	/* GCC port: was "/68020/include/ureg.h", a Plan 9 absolute path */
 #include <libc.h>
 #include <bio.h>
 #include <mach.h>

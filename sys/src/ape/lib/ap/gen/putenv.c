@@ -3,7 +3,7 @@
 extern	char **environ;
 
 int
-putenv(const char *str)
+putenv(char *str)	/* GCC port: types as in the prototype, kencc ignored the difference */
 {
 	char *s1, *s2, **e;
 	int n;

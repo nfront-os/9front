@@ -7,7 +7,7 @@
 #define VLONG_MIN	(1LL<<63)
 
 long long
-strtoll(char *nptr, char **endptr, int base)
+strtoll(const char *nptr, char **endptr, int base)	/* GCC port: types as in the prototype, kencc ignored the difference */
 {
 	char *p;
 	long long n, nn, m;

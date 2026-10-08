@@ -4,7 +4,7 @@
 
 #ifndef	__EVENT_H_
 #define	__EVENT_H_
-#include "/sys/include/event.h"
+#include "../event.h"	/* GCC port: was "/sys/include/event.h", a Plan 9 absolute path */
 
 #endif
 

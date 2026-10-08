@@ -88,9 +88,9 @@ eventread(void*)
 		ev = emalloc(sizeof(Event));
 		if(winevent(&mbox, ev) == -1)
 			break;
-		sendp(mbox.event, ev);
+		sendp(mbox.eventc, ev);
 	}
-	sendp(mbox.event, nil);
+	sendp(mbox.eventc, nil);
 	threadexits(nil);
 }
 
@@ -1034,7 +1034,7 @@ mbmain(void *cmd)
 	Plumbmsg *psee, *pshow, *psend;
 
 	Alt a[] = {
-	[Cevent]	= {mbox.event, &ev, CHANRCV},
+	[Cevent]	= {mbox.eventc, &ev, CHANRCV},
 	[Cseemail]	= {mbox.see, &psee, CHANRCV},
 	[Cshowmail]	= {mbox.show, &pshow, CHANRCV},
 	[Csendmail]	= {mbox.send, &psend, CHANRCV},
@@ -1128,7 +1128,7 @@ threadmain(int argc, char **argv)
 	cwait = threadwaitchan();
 
 	/* open these early so we won't miss messages while loading */
-	mbox.event = chancreate(sizeof(Event*), 0);
+	mbox.eventc = chancreate(sizeof(Event*), 0);
 	mbox.see = chancreate(sizeof(Plumbmsg*), 0);
 	mbox.show = chancreate(sizeof(Plumbmsg*), 0);
 	mbox.send = chancreate(sizeof(Plumbmsg*), 0);

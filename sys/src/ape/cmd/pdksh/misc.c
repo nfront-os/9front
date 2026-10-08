@@ -442,7 +442,7 @@ bi_getn(const char *as, int *ai)
  */
 
 int
-gmatch(char *s, char *p, int isfile)
+gmatch(const char *s, const char *p, int isfile)	/* GCC port: types as in the prototype, kencc ignored the difference */
 {
 	const char *se, *pe;
 
@@ -537,7 +537,7 @@ has_globbing(const char *xp, const char *xpe)
 
 /* Function must return either 0 or 1 (assumed by code for 0x80|'!') */
 static int
-do_gmatch(unsigned char *s, unsigned char *se, const unsigned char *p, unsigned char *pe, int isfile)
+do_gmatch(const unsigned char *s, const unsigned char *se, const unsigned char *p, const unsigned char *pe, int isfile)	/* GCC port: types as in the prototype, kencc ignored the difference */
 {
 	register int sc, pc;
 	const unsigned char *prest, *psub, *pnext;

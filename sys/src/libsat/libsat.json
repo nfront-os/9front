@@ -1,0 +1,19 @@
+[
+	{
+		"Name": "Sat",
+		"Include": [
+			"../lib.json"
+		],
+		"Install": "/$ARCH/lib/",
+		"Library": "libsat.a",
+		"SourceFiles": [
+			"misc.c",
+			"satadd.c",
+			"satrange.c",
+			"satsolve.c",
+			"satmore.c",
+			"debug.c",
+			"satget.c"
+		]
+	}
+]

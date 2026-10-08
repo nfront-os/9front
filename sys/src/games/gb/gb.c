@@ -200,7 +200,7 @@ loadrom(char *file)
 void
 flush(void)
 {
-	extern uchar pic[];
+	/* GCC port: was extern uchar pic[]; unused, eui.h declares uchar *pic */
 	static vlong old, delta;
 
 	flushmouse(1);
