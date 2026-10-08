@@ -696,9 +696,10 @@ _tas:
 
 /*
  * GCC port: cmpswap(long*, long, long) compares and swaps a long, and
- * gcc's long is 64 bits (Ref.ref, Pid.pid, user semaphores): the 32-bit
+ * gcc's long is 64 bits (Ref.ref, Pid.pid): the 32-bit
  * cmpxchgl of 6c's 32-bit long left the upper half alone -- a freed Pid
  * (-1) came back as a negative pid on reuse and pidlookup failed.
+ * User semaphores stay 32 bits and use cas (port/sysproc.c semcas).
  */
 .globl cmpswap486
 cmpswap486:

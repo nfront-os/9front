@@ -423,7 +423,7 @@ struct Physseg
 struct Sema
 {
 	Rendez;
-	long	*addr;
+	s32int	*addr;	/* GCC port: was long*, a 32-bit user semaphore (sysproc.c) */
 	int	waiting;
 	Sema	*next;
 	Sema	*prev;

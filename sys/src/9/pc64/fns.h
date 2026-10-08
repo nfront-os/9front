@@ -9,6 +9,8 @@ int	checksum(void *, int);
 void	clockintr(Ureg*, void*);
 int	(*cmpswap)(long*, long, long);
 int	cmpswap486(long*, long, long);
+int	cas(int*, int, int);
+#define semcas(p, o, n)	cas((p), (o), (n))	/* GCC port: 32-bit user semaphores, cmpswap is 64-bit (port/sysproc.c) */
 void	(*coherence)(void);
 void	cpuid(int, int, ulong regs[]);
 void	fpuinit(void);

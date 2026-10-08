@@ -338,6 +338,35 @@ testrendez(void)
 	check("rendezvous exchanges values", v == (void*)0x5678, "%p", v);
 }
 
+/*
+ * user semaphores are 32 bits in the kernel (the Plan 9 ABI's long);
+ * gcc's 64-bit long holds the value in its low half
+ */
+static long sem;
+
+static void
+testsem(void)
+{
+	long r;
+	int n;
+
+	sem = 0;
+	r = semrelease(&sem, 2);
+	check("semrelease returns the new value", r == 2 && sem == 2, "%ld %ld", r, sem);
+	n = semacquire(&sem, 0) + semacquire(&sem, 0);
+	check("semacquire twice", n == 2 && sem == 0, "%d %ld", n, sem);
+	check("non-blocking semacquire on 0", semacquire(&sem, 0) == 0 && sem == 0, "%ld", sem);
+	check("tsemacquire times out", tsemacquire(&sem, 50) == 0, nil);
+	switch(rfork(RFPROC|RFMEM|RFNOWAIT)){
+	case 0:
+		sleep(100);
+		semrelease(&sem, 1);
+		exits(nil);
+	}
+	n = semacquire(&sem, 1);
+	check("blocking semacquire woken by another proc", n == 1 && sem == 0, "%d %ld", n, sem);
+}
+
 static void
 testfile(void)
 {
@@ -408,6 +437,7 @@ main(void)
 	testalarm();
 	testexec();
 	testrendez();
+	testsem();
 	testfile();
 	testregexp();
 	print("libctest: %d ok, %d failed\n", nok, nfail);

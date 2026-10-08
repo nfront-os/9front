@@ -1310,9 +1310,19 @@ sysrendezvous(uchar *list)
  * read and after each write.		- rsc
  */
 
+/*
+ * GCC port: user semaphores are 32 bits, the Plan 9 ABI's long (6c);
+ * gcc's long is 64 bits, its programs' semaphore longs hold the value
+ * in the low half (little-endian, never negative). semcas is a 32-bit
+ * compare-and-swap: cas on pc64, cmpswap where long is 32 bits.
+ */
+#ifndef semcas
+#define semcas(p, o, n)	cmpswap((long*)(p), (o), (n))
+#endif
+
 /* Add semaphore p with addr a to list in seg. */
 static void
-semqueue(Segment *s, long *a, Sema *p)
+semqueue(Segment *s, s32int *a, Sema *p)
 {
 	memset(p, 0, sizeof *p);
 	p->addr = a;
@@ -1336,7 +1346,7 @@ semdequeue(Segment *s, Sema *p)
 
 /* Wake up n waiters with addr a on list in seg. */
 static void
-semwakeup(Segment *s, long *a, long n)
+semwakeup(Segment *s, s32int *a, long n)
 {
 	Sema *p;
 	
@@ -1354,25 +1364,25 @@ semwakeup(Segment *s, long *a, long n)
 
 /* Add delta to semaphore and wake up waiters as appropriate. */
 static long
-semrelease(Segment *s, long *addr, long delta)
+semrelease(Segment *s, s32int *addr, s32int delta)
 {
-	long value;
+	s32int value;
 
 	do
 		value = *addr;
-	while(!cmpswap(addr, value, value+delta));
+	while(!semcas(addr, value, value+delta));
 	semwakeup(s, addr, delta);
 	return value+delta;
 }
 
 /* Try to acquire semaphore using compare-and-swap */
 static int
-canacquire(long *addr)
+canacquire(s32int *addr)
 {
-	long value;
+	s32int value;
 	
 	while((value=*addr) > 0)
-		if(cmpswap(addr, value, value-1))
+		if(semcas(addr, value, value-1))
 			return 1;
 	return 0;
 }		
@@ -1387,7 +1397,7 @@ semawoke(void *p)
 
 /* Acquire semaphore (subtract 1). */
 static int
-semacquire(Segment *s, long *addr, int block)
+semacquire(Segment *s, s32int *addr, int block)
 {
 	int acquired;
 	Sema phore;
@@ -1418,7 +1428,7 @@ semacquire(Segment *s, long *addr, int block)
 
 /* Acquire semaphore or time-out */
 static int
-tsemacquire(Segment *s, long *addr, ulong ms)
+tsemacquire(Segment *s, s32int *addr, ulong ms)
 {
 	int timedout, acquired;
 	ulong t;
@@ -1460,15 +1470,15 @@ uintptr
 syssemacquire(uchar *list)
 {
 	int block;
-	long *addr;
+	s32int *addr;
 	Segment *s;
 
-	addr = ARG(list, long*);
+	addr = ARG(list, s32int*);
 	block = ARG(list, int);
 	evenaddr((uintptr)addr);
 	s = seg(up, (uintptr)addr, 0);
-	if(s == nil || (s->type&SG_RONLY) != 0 || (uintptr)addr+sizeof(long) > s->top){
-		validaddr((uintptr)addr, sizeof(long), 1);
+	if(s == nil || (s->type&SG_RONLY) != 0 || (uintptr)addr+sizeof(s32int) > s->top){
+		validaddr((uintptr)addr, sizeof(s32int), 1);
 		error(Ebadarg);
 	}
 	if(*addr < 0)
@@ -1479,16 +1489,16 @@ syssemacquire(uchar *list)
 uintptr
 systsemacquire(uchar *list)
 {
-	long *addr;
+	s32int *addr;
 	ulong ms;
 	Segment *s;
 
-	addr = ARG(list, long*);
+	addr = ARG(list, s32int*);
 	ms = ARG(list, ulong);
 	evenaddr((uintptr)addr);
 	s = seg(up, (uintptr)addr, 0);
-	if(s == nil || (s->type&SG_RONLY) != 0 || (uintptr)addr+sizeof(long) > s->top){
-		validaddr((uintptr)addr, sizeof(long), 1);
+	if(s == nil || (s->type&SG_RONLY) != 0 || (uintptr)addr+sizeof(s32int) > s->top){
+		validaddr((uintptr)addr, sizeof(s32int), 1);
 		error(Ebadarg);
 	}
 	if(*addr < 0)
@@ -1499,15 +1509,15 @@ systsemacquire(uchar *list)
 uintptr
 syssemrelease(uchar *list)
 {
-	long *addr, delta;
+	s32int *addr, delta;
 	Segment *s;
 
-	addr = ARG(list, long*);
+	addr = ARG(list, s32int*);
 	delta = ARG(list, s32int);	/* GCC port: 6c long, see ARG */
 	evenaddr((uintptr)addr);
 	s = seg(up, (uintptr)addr, 0);
-	if(s == nil || (s->type&SG_RONLY) != 0 || (uintptr)addr+sizeof(long) > s->top){
-		validaddr((uintptr)addr, sizeof(long), 1);
+	if(s == nil || (s->type&SG_RONLY) != 0 || (uintptr)addr+sizeof(s32int) > s->top){
+		validaddr((uintptr)addr, sizeof(s32int), 1);
 		error(Ebadarg);
 	}
 	/* delta == 0 is a no-op, not a release */
