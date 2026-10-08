@@ -197,6 +197,8 @@ var (
 		"ld":     "ld",
 		"ranlib": "ranlib",
 		"strip":  "strip",
+		"nm":      "nm",
+		"objcopy": "objcopy",
 	}
 	arch = map[string]bool{
 		"386":   true,
@@ -595,6 +597,36 @@ func compile(b *build) {
 	}
 }
 
+// presolve links a program's objects into one relocatable object with
+// its common symbols (tentative definitions) defined but weak, to get
+// 8l's semantics: GNU ld pulls an archive member to replace a common
+// symbol (stats' Machine *mach got libmach's Mach *mach = &mi386),
+// 8l searches libraries only for undefined symbols. A weak definition
+// pulls nothing, and a member linked for other reasons still supplies
+// its definition (control.h's char *alignnames[] in libcontrol).
+func presolve(b *build, out string, objs []string) string {
+	if b.Kernel != nil {
+		return ""
+	}
+	var commons []string
+	o, err := exec.Command(tools["nm"], append([]string{"-P"}, objs...)...).Output()
+	fail(err)
+	for _, l := range strings.Split(string(o), "\n") {
+		f := strings.Fields(l)
+		if len(f) >= 2 && f[1] == "C" {
+			commons = append(commons, f[0])
+		}
+	}
+	r := out + ".r.o"
+	run(b, *shellhack, exec.Command(tools["ld"], append([]string{"-r", "-d", "-o", r}, objs...)...))
+	if len(commons) > 0 {
+		w := out + ".weak"
+		fail(os.WriteFile(w, []byte(strings.Join(commons, "\n")+"\n"), 0644))
+		run(b, *shellhack, exec.Command(tools["objcopy"], "--weaken-symbols="+w, r))
+	}
+	return r
+}
+
 func link(b *build) {
 	log.Printf("Linking %s\n", b.Name)
 	if len(b.SourceFilesCmd) > 0 {
@@ -612,6 +644,9 @@ func link(b *build) {
 			// named like the command (sys/src/cmd/test) would
 			// otherwise be in the way; install renames it
 			args := []string{"-o", n + ".out", o}
+			if r := presolve(b, n, []string{o}); r != "" {
+				args = []string{"-o", n + ".out", r}
+			}
 			args = append(args, "-L", fromRoot("/$ARCH/lib"))
 			args = append(args, b.Libs...)
 			args = append(args, b.Oflags...)
@@ -620,7 +655,11 @@ func link(b *build) {
 		return
 	}
 	args := []string{"-o", b.Program}
-	args = append(args, b.ObjectFiles...)
+	if r := presolve(b, b.Program, b.ObjectFiles); r != "" {
+		args = append(args, r)
+	} else {
+		args = append(args, b.ObjectFiles...)
+	}
 	args = append(args, "-L", fromRoot("/$ARCH/lib"))
 	args = append(args, b.Libs...)
 	args = append(args, b.Oflags...)

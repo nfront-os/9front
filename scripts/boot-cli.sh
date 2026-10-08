@@ -20,6 +20,9 @@
 #   env:  CLI_DIR     work dir (default ${XDG_CACHE_HOME:-~/.cache}/9front-cli)
 #         UFS         ufs binary (default: ufs in PATH, else ~/go/bin/ufs)
 #         SERVICE     cpu (default: cpurc, console rc) or terminal
+#         SCREENSHOT  PNG file: screen dump after the commands (QMP)
+#         KARGS       more kernel parameters (plan9.ini variables), e.g.
+#                     "vgasize=1024x768x16 monitor=vesa mouseport=ps2"
 #         MEM NIC     QEMU memory (256) and NIC model (e1000)
 #         QEMU_EXTRA  extra QEMU flags (e.g. "-s -S" for gdb)
 #         UFS_EXTRA   directory whose contents are added to the root
@@ -67,7 +70,7 @@ cat > "$CLI_DIR/iso/boot/grub/grub.cfg" <<EOF
 set timeout=0
 serial --speed=115200 --unit=0 --word=8 --parity=no --stop=1
 terminal_output serial console
-multiboot /boot/9pc64 console=0 service=$SERVICE
+multiboot /boot/9pc64 console=0 service=$SERVICE $KARGS
 boot
 EOF
 grub-mkrescue -o "$CLI_DIR/9pc64.iso" "$CLI_DIR/iso" > "$CLI_DIR/grub-mkrescue.log" 2>&1 \
@@ -94,7 +97,9 @@ if [ ${#cmds[@]} -eq 0 ]; then
 fi
 
 # scripted: serial console on a pty, type the commands, collect output
-"${qemu[@]}" -serial pty $QEMU_EXTRA > "$CLI_DIR/qemu.log" 2>&1 &
+qmp=()
+[ -z "$SCREENSHOT" ] || { rm -f "$CLI_DIR/qmp.sock"; qmp=(-qmp "unix:$CLI_DIR/qmp.sock,server,nowait"); }
+"${qemu[@]}" -serial pty "${qmp[@]}" $QEMU_EXTRA > "$CLI_DIR/qemu.log" 2>&1 &
 pids+=($!)
 for _ in $(seq 50); do
 	pts=$(grep -oE "/dev/pts/[0-9]+" "$CLI_DIR/qemu.log" | head -1)
@@ -134,6 +139,28 @@ for c in "${cmds[@]}"; do
 	sleep "${CMDWAIT:-2}"
 done
 sleep 2
+if [ -n "$SCREENSHOT" ]; then	# QMP screendump (PPM), stored as PNG
+	python3 - "$CLI_DIR/qmp.sock" "$CLI_DIR/screen.ppm" "$SCREENSHOT" <<'PY'
+import json, socket, struct, sys, zlib
+s = socket.socket(socket.AF_UNIX)
+s.connect(sys.argv[1])
+f = s.makefile('rw')
+f.readline()
+for cmd in ({'execute': 'qmp_capabilities'},
+		{'execute': 'screendump', 'arguments': {'filename': sys.argv[2]}}):
+	f.write(json.dumps(cmd) + '\n')
+	f.flush()
+	f.readline()
+d = open(sys.argv[2], 'rb').read()
+magic, w, h, mx, px = d.split(maxsplit=4)
+w, h = int(w), int(h)
+raw = b''.join(b'\0' + px[y*w*3:(y+1)*w*3] for y in range(h))
+def chunk(t, b):
+	return struct.pack('>I', len(b)) + t + b + struct.pack('>I', zlib.crc32(t + b))
+open(sys.argv[3], 'wb').write(b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', w, h, 8, 2, 0, 0, 0))
+	+ chunk(b'IDAT', zlib.compress(raw)) + chunk(b'IEND', b''))
+PY
+fi
 cleanup
 pids=()
 tr -d '\r' < "$CLI_DIR/console.log"

@@ -8,10 +8,12 @@
 #   guest    libc unit tests built with the port toolchain, run in 9front
 #            under QEMU (needs a build; boots once)
 #   boot     CLI boot smoke test via scripts/boot-cli.sh (boots once)
+#   gui      terminal boot: VESA via aux/realemu, rio (boots once;
+#            GUI_SCREENSHOT=file.png keeps the screen dump)
 #
 # usage: tests/run.sh [category...]     (default: all, in the order above)
 cd "$(dirname "$0")"
-cats=${*:-static asm syscall build guest boot}
+cats=${*:-static asm syscall build guest boot gui}
 failed=()
 for c in $cats; do
 	[ -x "$c/run.sh" ] || { echo "unknown category $c"; exit 2; }

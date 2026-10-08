@@ -26,13 +26,16 @@ cp -r "$ROOT"/amd64/bin/. "$OUT"/amd64/bin/
 rm -f "$OUT"/amd64/bin/9pc64 "$OUT"/amd64/bin/init "$OUT"/amd64/bin/netmount	# kernel, boot-only
 
 cp -r "$ROOT"/rc/lib "$ROOT"/rc/bin "$OUT"/rc/
-cp "$ROOT"/lib/namespace "$OUT"/lib/
-cp "$ROOT"/lib/vgadb "$OUT"/lib/	# aux/vga
+cp -r "$ROOT"/lib/. "$OUT"/lib/	# namespace, vgadb, fonts, keyboard, ...
 mkdir -p "$OUT"/lib/ndb	# like the dist install: /lib/ndb from sys/lib/dist/ndb
 cp "$ROOT"/sys/lib/dist/ndb/* "$OUT"/lib/ndb/ && rm -f "$OUT"/lib/ndb/mkfile
 cp "$ROOT"/adm/timezone/GMT "$OUT"/adm/timezone/local
 # like the dist install: the user's home from sys/lib/dist/usr/glenda
 cp -r "$ROOT"/sys/lib/dist/usr/glenda/. "$OUT"/usr/glenda/
+mkdir -p "$OUT"/usr/glenda/bin/amd64
+# /sys/lib: plumbing rules, troff macros, ...
+mkdir -p "$OUT"/sys
+cp -r "$ROOT"/sys/lib "$OUT"/sys/
 
 # guest tests (tests/guest), if built: /tests/run [test...]
 [ ! -d "$ROOT"/tests/guest/root ] || cp -r "$ROOT"/tests/guest/root/. "$OUT"/

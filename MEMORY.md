@@ -612,3 +612,10 @@ Generatoren: `scripts/gen-upas-yacc.sh` (rfc822/smtpd), `scripts/gen-src.sh` (sn
 - **Userspace-Atomics:** `ainc/adec(long*)` und `agetl/aswapl/aincl/acasl` (Along) auf 64 Bit (`cmpxchgq`/`xaddq`) — gcc-long ist 64 Bit; libthread `decref` lieferte negative Zählstände nullerweitert.
 - `gen-ufs-root.sh` kopiert `/lib/vgadb`.
 - **Ergebnis:** im Gast `aux/realemu; aux/vga -m vesa -l 1024x768x16` → `vgactl: type vesa, size 1024x768x16`, QEMU-Screendump 1024×768. Tests: boot 11/11 (neu: Segmente, VESA), guest 85/85 (neu: Atomics, 1-MB-bss).
+
+## 2026-10-08 (Teil 24): rio auf VESA — Terminal-Boot mit grafischer Oberfläche
+
+- **Gast-Root:** `gen-ufs-root.sh` kopiert jetzt ganz `/lib` (Fonts, vgadb, keyboard, …), `/sys/lib` (plumb-Regeln, tmac, …) und legt `$home/bin/amd64` an (wie die Installation).
+- **boot-cli.sh:** `KARGS` (weitere Kernel-Parameter = plan9.ini-Variablen, z.B. `vgasize=1024x768x16 monitor=vesa mouseport=ps2`), `SCREENSHOT=datei.png` (QMP-Screendump nach den Kommandos, PPM→PNG).
+- **Linker: Common-Symbole wie 8l.** GNU ld zieht ein Archiv-Member, um ein Common-Symbol (tentative definition, `-fcommon`) durch eine echte Definition zu ersetzen; 8l durchsucht Bibliotheken nur nach undefinierten Symbolen. Folge: `stats` (`Machine *mach;`) bekam libmachs `Mach *mach = &mi386` → free() auf Datensegment, Abbruch. Fix im Build-Tool (`presolve` in build.go, nur Programme, nicht der Kernel): Objekte erst `ld -r -d` zu einem Relocatable, die vorherigen Commons (`nm -P`, Typ C) per `objcopy --weaken-symbols` schwach machen. Schwache Definition zieht nichts nach; ein aus anderen Gründen gelinktes Member liefert weiterhin seine Definition (control.h `char *alignnames[];` + libcontrol) — 8l-Verhalten.
+- **Ergebnis:** `SERVICE=terminal` mit VESA bootet in den Standard-9front-Desktop: screenrc (aux/realemu + aux/vga), plumber, webfs, rio mit riostart (stats-Fenster, rc-Fenster, Konsolenfenster). Neue Testkategorie `tests/gui` (Ausgabe der im rio-Fenster getippten Kommandos über `'#c/cons'` auf die serielle Konsole, Screendump-Größe): 9/9. Alle Kategorien grün.
