@@ -72,7 +72,7 @@
             "9sys/write.c",
             "9sys/writev.c",
             "amd64/_seek.c",
-            "amd64/getcallerpc.s",
+            "amd64/getcallerpc.S",
             "amd64/notejmp.c",
             "fmt/dofmt.c",
             "fmt/dorfmt.c",
