@@ -228,6 +228,42 @@ testliterals(void)
 	check("string literals are writable", s[0] == 'L', nil);
 }
 
+static void
+testatomic(void)
+{
+	long x;
+	Along a;
+
+	x = 0;
+	check("adec(long) goes negative", adec(&x) == -1 && x == -1, "x=%ld", x);
+	check("ainc(long) back to 0", ainc(&x) == 0 && x == 0, "x=%ld", x);
+	a.v = -5;
+	check("aincl/agetl/acasl on 64-bit long", aincl(&a, 2) == -3 && agetl(&a) == -3
+		&& acasl(&a, -3, 1LL<<40) && a.v == 1LL<<40, "v=%lld", (vlong)a.v);
+}
+
+static uchar bigbss[0x100000+4];	/* like aux/realemu's memory[] */
+
+static void
+testbigbss(void)
+{
+	char *p, buf[1024];
+	int fd, n;
+
+	bigbss[sizeof bigbss - 1] = 1;
+	p = malloc(344);
+	check("malloc after a 1MB bss", p != nil, "%r");
+	if(p == nil){
+		snprint(buf, sizeof buf, "/proc/%d/segment", getpid());
+		fd = open(buf, OREAD);
+		n = fd >= 0 ? read(fd, buf, sizeof buf - 1) : 0;
+		buf[n > 0 ? n : 0] = 0;
+		print("%s", buf);
+		close(fd);
+	}
+	free(p);
+}
+
 static int gotalarm;
 
 static void
@@ -367,6 +403,8 @@ main(void)
 	testnote();
 	testnotifynil();
 	testliterals();
+	testatomic();
+	testbigbss();
 	testalarm();
 	testexec();
 	testrendez();

@@ -27,6 +27,7 @@ rm -f "$OUT"/amd64/bin/9pc64 "$OUT"/amd64/bin/init "$OUT"/amd64/bin/netmount	# k
 
 cp -r "$ROOT"/rc/lib "$ROOT"/rc/bin "$OUT"/rc/
 cp "$ROOT"/lib/namespace "$OUT"/lib/
+cp "$ROOT"/lib/vgadb "$OUT"/lib/	# aux/vga
 mkdir -p "$OUT"/lib/ndb	# like the dist install: /lib/ndb from sys/lib/dist/ndb
 cp "$ROOT"/sys/lib/dist/ndb/* "$OUT"/lib/ndb/ && rm -f "$OUT"/lib/ndb/mkfile
 cp "$ROOT"/adm/timezone/GMT "$OUT"/adm/timezone/local

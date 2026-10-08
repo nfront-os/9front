@@ -4,10 +4,15 @@
  * v+8(FP)/c+8(FP)/v+16(FP); %ecx/%rcx instead of the callee-saved BX.
  */
 
+/*
+ * The l variants work on Along.v, a long: 64 bits under gcc (6c: 32),
+ * so they use the 64-bit instructions.
+ */
+
 /* get variants */
 .globl agetl
 agetl:
-	movl	(%rdi), %eax
+	movq	(%rdi), %rax
 	ret
 .globl agetp
 agetp:
@@ -17,8 +22,8 @@ agetp:
 /* set variants */
 .globl aswapl
 aswapl:
-	movl	%esi, %eax
-	lock; xchgl	%eax, (%rdi)
+	movq	%rsi, %rax
+	lock; xchgq	%rax, (%rdi)
 	ret
 
 .globl aswapp
@@ -32,16 +37,16 @@ aswapp:
 aincl:
 	movq	%rsi, %rcx
 	movq	%rcx, %rax
-	lock; xaddl	%eax, (%rdi)
+	lock; xaddq	%rax, (%rdi)
 	addq	%rcx, %rax
 	ret
 
 /* cas variants */
 .globl acasl
 acasl:
-	movl	%esi, %eax
-	movl	%edx, %ecx
-	lock; cmpxchgl	%ecx, (%rdi)
+	movq	%rsi, %rax
+	movq	%rdx, %rcx
+	lock; cmpxchgq	%rcx, (%rdi)
 	sete	%al
 	movzbl	%al, %eax
 	ret

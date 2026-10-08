@@ -11,7 +11,7 @@
 #include "../port/error.h"
 
 #define Ureg Ureg386
-#include "ureg.h"
+#include "../../../../386/include/ureg.h"	/* GCC port: was "ureg.h"; the 386 layout (mkfile: vgavesa.$O: /386/include/ureg.h) that aux/realemu reads from /dev/realmode */
 typedef struct Ureg386 Ureg386;
 
 #define	Image	IMAGE

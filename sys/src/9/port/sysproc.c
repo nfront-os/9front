@@ -665,6 +665,14 @@ sysexec(uchar *list)
 			}
 			if(elfnext > SEG4)
 				error(Ebadexec);
+			/*
+			 * GCC port: part of this image like TSEG/DSEG/BSEG, so
+			 * the next exec must drop it (SEG1..SEG4 are otherwise
+			 * kept across exec: segattach semantics). Without it,
+			 * an ELF with extra PT_LOAD segments left them in every
+			 * descendant, where brk ran into them.
+			 */
+			s->type |= SG_CEXEC;
 			attachseg(up, elfnext++, s);
 		}
 

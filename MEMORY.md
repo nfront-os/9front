@@ -604,3 +604,11 @@ Generatoren: `scripts/gen-upas-yacc.sh` (rfc822/smtpd), `scripts/gen-src.sh` (sn
 
 **Offen:** blabs (braucht `iconv -u`), gs; Userspace-Atomics (ainc/adec 32 Bit auf 64-bit-long); temporäre Debug-Ausgaben in `pc64/trap.c` (fault bei addr >= USTKTOP) entfernen; weitere `long`-Vorzeichenstellen ohne expliziten Cast (`long d = a - b;`), Grafik/rio, eigenes Root-FS + Image. (Behoben: natives `notetramp.S` installierte bei `notify(nil)` trotzdem das Trampolin → Note rief nil auf.)
 
+
+## 2026-10-08 (Teil 23): VESA über aux/realemu, Boot-Segmente, Userspace-Atomics
+
+- **vgavesa wieder im pc64-Kernel:** Eine frühere Sitzung hatte `vgavesa.c` entfernt ("Ureg386 inkompatibel mit amd64") und nur `vesabootscreenconf` als `pc64/vesabootscreen.c` extrahiert. Falsch: 9front baut vgavesa für pc64; der Treiber spricht über `/dev/realmode` mit aux/realemu im 386-Ureg-Layout (pc64/mkfile: `vgavesa.$O: /386/include/ureg.h`). Jetzt `pc/vgavesa.c` mit explizitem Include der 386-ureg.h (wie realemu), in `pc64/build.json` Pre/SourceFiles/Misc (`vgavesa`) ergänzt, `vesabootscreen.c` gelöscht. Der Kernel-Manifest-Generator (`genmanifest.py`) liegt nicht im Repo → build.json von Hand (minimaler Diff).
+- **aux/realemu: `Malloc failed: segments overlap`:** Ursache waren die Boot-Payload-Segmente aus `port/userinit.c` (`loadrotext`: TESTELF/GO/INIT/RC bei 0x500000…0x1800000, SEG1–SEG4). SEG1–4 überleben exec (segattach-Semantik) → JEDER Prozess erbte sie, realemus 1-MB-bss stieß per brk an 0x700000. Fix: `SG_CEXEC` für die Payloads; ebenso für zusätzliche PT_LOAD-Segmente im ELF-Lader (`sysproc.c`). Jetzt hat rc nur Stack/Text/Data/Bss.
+- **Userspace-Atomics:** `ainc/adec(long*)` und `agetl/aswapl/aincl/acasl` (Along) auf 64 Bit (`cmpxchgq`/`xaddq`) — gcc-long ist 64 Bit; libthread `decref` lieferte negative Zählstände nullerweitert.
+- `gen-ufs-root.sh` kopiert `/lib/vgadb`.
+- **Ergebnis:** im Gast `aux/realemu; aux/vga -m vesa -l 1024x768x16` → `vgactl: type vesa, size 1024x768x16`, QEMU-Screendump 1024×768. Tests: boot 11/11 (neu: Segmente, VESA), guest 85/85 (neu: Atomics, 1-MB-bss).

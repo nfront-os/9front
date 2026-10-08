@@ -48,7 +48,10 @@ loadrotext(int seg, uintptr base, uchar *data, ulong len)
 	Page *p;
 	ulong off, n;
 
-	attachseg(up, seg, newseg(SG_TEXT | SG_RONLY, base, (len+BY2PG-1)/BY2PG));
+	/* SG_CEXEC: the payloads only serve the boot process's staging;
+	 * SEG1-SEG4 survive exec otherwise and every process inherited
+	 * them (aux/realemu's brk ran into TESTGOVA) */
+	attachseg(up, seg, newseg(SG_TEXT | SG_RONLY | SG_CEXEC, base, (len+BY2PG-1)/BY2PG));
 	for(off = 0; off < len; off += BY2PG){
 		p = newpage(base+off, nil);
 		k = kmap(p);

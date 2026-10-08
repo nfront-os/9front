@@ -5,26 +5,31 @@
  * so the scratch register is %ecx. Logic unchanged.
  */
 
-.globl ainc			/* int ainc(int *); */
+/*
+ * long ainc(long*), long adec(long*) (libc.h): 64-bit operations, gcc's
+ * long is 64 bits -- the 32-bit ones left the upper half alone and
+ * returned a negative count zero-extended (libthread decref).
+ */
+.globl ainc			/* long ainc(long *); */
 ainc:
 1:
-	movl	(%rdi), %eax	/* exp */
-	movl	%eax, %ecx
-	incl	%ecx		/* new */
-	lock; cmpxchgl %ecx, (%rdi)
+	movq	(%rdi), %rax	/* exp */
+	movq	%rax, %rcx
+	incq	%rcx		/* new */
+	lock; cmpxchgq %rcx, (%rdi)
 	jnz	1b
-	movl	%ecx, %eax
+	movq	%rcx, %rax
 	ret
 
-.globl adec			/* int adec(int*); */
+.globl adec			/* long adec(long*); */
 adec:
 1:
-	movl	(%rdi), %eax
-	movl	%eax, %ecx
-	decl	%ecx
-	lock; cmpxchgl %ecx, (%rdi)
+	movq	(%rdi), %rax
+	movq	%rax, %rcx
+	decq	%rcx
+	lock; cmpxchgq %rcx, (%rdi)
 	jnz	1b
-	movl	%ecx, %eax
+	movq	%rcx, %rax
 	ret
 
 /*
