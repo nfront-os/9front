@@ -4,6 +4,9 @@
 		"Install": "",
 		"Post": [
 			"python3 ../../../../../scripts/mkinstall.py cmd/postscript/grabit"
+		],
+		"Clean": [
+			"grabit"
 		]
 	}
 ]

@@ -57,6 +57,9 @@
 		"Program": "syscall",
 		"SourceFiles": [
 			"syscall.c"
+		],
+		"Clean": [
+			"tab.h"
 		]
 	}
 ]

@@ -73,6 +73,14 @@
 			"log.c",
 			"skipequiv.c",
 			"../smtp/rfc822.tab.c"
+		],
+		"Clean": [
+			"../smtp/smtpd.tab.c",
+			"../smtp/rfc822.tab.c",
+			"../smtp/rfc822.tab.h",
+			"../smtp/y.debug",
+			"../smtp/y.output",
+			"../smtp/xxx"
 		]
 	},
 	{
@@ -143,6 +151,14 @@
 			"skipequiv.c",
 			"../smtp/rfc822.tab.c",
 			"cat_mail.c"
+		],
+		"Clean": [
+			"../smtp/smtpd.tab.c",
+			"../smtp/rfc822.tab.c",
+			"../smtp/rfc822.tab.h",
+			"../smtp/y.debug",
+			"../smtp/y.output",
+			"../smtp/xxx"
 		]
 	}
 ]

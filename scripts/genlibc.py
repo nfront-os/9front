@@ -28,6 +28,8 @@ import os
 import re
 import sys
 
+import genclean
+
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 LIBC = os.path.join(ROOT, 'sys', 'src', 'libc')
 ARCH = 'amd64'
@@ -90,6 +92,7 @@ def main():
 		'Library': 'libc.a',
 		'Projects': ['9syscall/9syscall.json'],
 		'Pre': ['bash ../../../scripts/gen-runetype.sh'],
+		'Clean': genclean.clean(['bash ../../../scripts/gen-runetype.sh'], LIBC),
 		'SourceFiles': src,
 	}]
 	archjson = [{'Name': 'archfiles', 'SourceFiles': arch}]

@@ -65,6 +65,14 @@
 			"spam.c",
 			"rfc822.tab.c",
 			"greylist.c"
+		],
+		"Clean": [
+			"smtpd.tab.c",
+			"rfc822.tab.c",
+			"rfc822.tab.h",
+			"y.debug",
+			"y.output",
+			"xxx"
 		]
 	},
 	{
@@ -131,6 +139,14 @@
 			"smtp.c",
 			"rfc822.tab.c",
 			"mxdial.c"
+		],
+		"Clean": [
+			"smtpd.tab.c",
+			"rfc822.tab.c",
+			"rfc822.tab.h",
+			"y.debug",
+			"y.output",
+			"xxx"
 		]
 	}
 ]

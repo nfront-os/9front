@@ -16,6 +16,12 @@
 		"Pre": [
 			"bash ../../../scripts/gen-runetype.sh"
 		],
+		"Clean": [
+			"ucd/runenormdata",
+			"ucd/runetotypedata",
+			"ucd/runeistypedata",
+			"ucd/runebreakdata"
+		],
 		"SourceFiles": [
 			"9sys/abort.c",
 			"9sys/access.c",

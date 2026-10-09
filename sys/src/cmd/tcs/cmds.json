@@ -74,6 +74,9 @@
 			"ksc.c",
 			"big5.c",
 			"tune.c"
+		],
+		"Clean": [
+			"alias.h"
 		]
 	}
 ]

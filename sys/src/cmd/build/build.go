@@ -118,6 +118,10 @@ type build struct {
 	// Append adds to an existing Library archive instead of starting a
 	// new one (libap: one archive from several directories, like mk's ar)
 	Append bool
+	// Clean names (globs, relative to the manifest's directory) the
+	// files its Pre steps generate: yacc's y.tab.[ch], enam.c, ...
+	// -clean removes them with what the build itself makes there.
+	Clean []string
 	Kernel *kernel
 }
 
@@ -208,6 +212,7 @@ var (
 	depends        = flag.Bool("D", false, "Do dependency checking")
 	staticAnalysis = flag.Bool("analyze", false, "Do static analysis")
 	shellhack      = flag.Bool("shellhack", false, "spawn every command in a shell (forced on if LD_PRELOAD is set)")
+	cleanMode      = flag.Bool("clean", false, "remove what the build makes in the source directories instead of building (mk clean): objects, links, generated sources; installed targets stay")
 )
 
 func debug(fmt string, s ...interface{}) {
@@ -345,6 +350,7 @@ func include(f string, targ string, b *build) {
 		}
 		b.Program += build.Program
 		b.Library += build.Library
+		b.Clean = append(b.Clean, build.Clean...)
 		b.Ape = b.Ape || build.Ape
 		b.Append = b.Append || build.Append
 	}
@@ -627,6 +633,49 @@ func presolve(b *build, out string, objs []string) string {
 	return r
 }
 
+// clean removes what building b makes in its directory, as mk clean
+// does: the objects, presolve's .r.o/.weak, links not yet installed,
+// archives installed into a source directory (program-local libraries,
+// cmd/map/libmap/libmap.a6), a kernel's <Name>.c, errstr.h and
+// ../port/systab.h, the targets of the Pre steps' cp and mv, and the
+// Clean globs. Installed programs and libraries (/$ARCH/...) stay.
+func clean(b *build) {
+	var files []string
+	files = append(files, b.ObjectFiles...)
+	for _, n := range b.SourceFilesCmd {
+		n = n[:len(n)-len(filepath.Ext(n))]
+		files = append(files, path.Base(n)+".o", n+".out", n+".r.o", n+".weak")
+	}
+	if b.Program != "" {
+		files = append(files, b.Program, b.Program+".r.o", b.Program+".weak")
+	}
+	if b.Library != "" && !strings.HasPrefix(b.Install, fromRoot("/$ARCH")+"/") && !strings.HasPrefix(b.Install, fromRoot("/tests")+"/") {
+		files = append(files, path.Join(b.Install, b.Library))
+	}
+	if b.Kernel != nil {
+		files = append(files, b.Name+".c", b.Name+".o", "errstr.h", "../port/systab.h")
+	}
+	for _, c := range b.Pre {
+		w := strings.Fields(c)
+		if len(w) != 3 || (w[0] != "cp" && w[0] != "mv") {
+			continue
+		}
+		t := w[2]
+		if d, err := isDir(t); err == nil && d || strings.HasSuffix(t, "/") {
+			t = path.Join(t, path.Base(w[1]))
+		}
+		files = append(files, t)
+	}
+	files = append(files, globby(b.Clean)...)
+	for _, f := range files {
+		if d, err := isDir(f); err != nil || d {
+			continue
+		}
+		log.Printf("rm %s\n", f)
+		fail(os.Remove(f))
+	}
+}
+
 func link(b *build) {
 	log.Printf("Linking %s\n", b.Name)
 	if len(b.SourceFilesCmd) > 0 {
@@ -802,6 +851,11 @@ func project(bf string, which []*regexp.Regexp) {
 	debug("Processing %v: %d target", root, len(builds))
 	for _, b := range builds {
 		debug("Processing %v: %v", b.Name, b)
+		if *cleanMode {
+			projects(&b, regexpAll)
+			clean(&b)
+			continue
+		}
 		projects(&b, regexpAll)
 		runCmds(&b, b.Pre)
 		buildkernel(&b)

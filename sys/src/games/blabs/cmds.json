@@ -57,6 +57,9 @@
 		"Program": "blabs",
 		"SourceFiles": [
 			"blabs.c"
+		],
+		"Clean": [
+			"*.bits"
 		]
 	}
 ]

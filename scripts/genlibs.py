@@ -23,6 +23,8 @@ import os
 import re
 import sys
 
+import genclean
+
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 SRC = os.path.join(ROOT, 'sys', 'src')
 
@@ -105,7 +107,9 @@ def reduce_sources(lib):
 		if n in ported:
 			files.append(ported.pop(n))
 		else:
-			if not os.path.exists(os.path.join(SRC, lib, 'port', n + '.c')):
+			# port/%.c: %.mp (gen-mpc.sh, a Pre step) need not exist yet
+			p = os.path.join(SRC, lib, 'port', n)
+			if not os.path.exists(p + '.c') and not os.path.exists(p + '.mp'):
 				sys.exit('%s: port/%s.c not found' % (lib, n))
 			files.append('port/' + n + '.c')
 	return files + sorted(ported.values())
@@ -137,6 +141,7 @@ def main():
 			manifest[0]['Cflags'] = inc
 		if lib in PRE:
 			manifest[0]['Pre'] = ['bash ../../../scripts/' + PRE[lib]]
+			manifest[0]['Clean'] = genclean.clean(manifest[0]['Pre'], os.path.join(SRC, lib))
 		out = os.path.join(SRC, lib, lib + '.json')
 		open(out, 'w').write(json.dumps(manifest, indent='\t') + '\n')
 		print('%s: %d files' % (os.path.relpath(out, ROOT), len(files)))

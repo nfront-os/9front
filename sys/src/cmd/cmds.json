@@ -322,6 +322,15 @@
 		"Program": "bc",
 		"SourceFiles": [
 			"bc.c"
+		],
+		"Clean": [
+			"y.tab.c",
+			"y.tab.h",
+			"y.debug",
+			"y.output",
+			"bc.c",
+			"bc.tab.c",
+			"bc.tab.h"
 		]
 	},
 	{
@@ -382,6 +391,15 @@
 		"Program": "mpc",
 		"SourceFiles": [
 			"mpc.c"
+		],
+		"Clean": [
+			"y.tab.c",
+			"y.tab.h",
+			"y.debug",
+			"y.output",
+			"mpc.c",
+			"mpc.tab.c",
+			"mpc.tab.h"
 		]
 	},
 	{
@@ -442,6 +460,15 @@
 		"Program": "pc",
 		"SourceFiles": [
 			"pc.c"
+		],
+		"Clean": [
+			"y.tab.c",
+			"y.tab.h",
+			"y.debug",
+			"y.output",
+			"pc.c",
+			"pc.tab.c",
+			"pc.tab.h"
 		]
 	},
 	{
@@ -502,6 +529,15 @@
 		"Program": "units",
 		"SourceFiles": [
 			"units.c"
+		],
+		"Clean": [
+			"y.tab.c",
+			"y.tab.h",
+			"y.debug",
+			"y.output",
+			"units.c",
+			"units.tab.c",
+			"units.tab.h"
 		]
 	}
 ]

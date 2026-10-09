@@ -66,6 +66,9 @@
 			"list.c",
 			"enam.c",
 			"mul.c"
+		],
+		"Clean": [
+			"enam.c"
 		]
 	}
 ]

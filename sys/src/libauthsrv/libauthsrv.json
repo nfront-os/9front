@@ -30,6 +30,18 @@
 		],
 		"Pre": [
 			"bash ../../../scripts/gen-mpc.sh"
+		],
+		"Clean": [
+			"../libsec/port/jacobian.c",
+			"../libsec/port/secp256k1.c",
+			"../libsec/port/secp256r1.c",
+			"../libsec/port/secp384r1.c",
+			"decaf.mpc",
+			"ed448.mpc",
+			"edwards.mpc",
+			"elligator2.mpc",
+			"msqrt.mpc",
+			"spake2ee.mpc"
 		]
 	}
 ]

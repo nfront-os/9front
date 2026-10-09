@@ -49,6 +49,13 @@
 			"plot.c",
 			"label.c",
 			"misc.c"
+		],
+		"Clean": [
+			"y.tab.c",
+			"y.tab.h",
+			"y.debug",
+			"y.output",
+			"grapl.c"
 		]
 	}
 ]

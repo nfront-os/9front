@@ -531,6 +531,9 @@
 			"zlib/zutil.c",
 			"src/zvmem.c",
 			"src/zvmem2.c"
+		],
+		"Clean": [
+			"amd64.h"
 		]
 	}
 ]

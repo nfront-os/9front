@@ -114,6 +114,15 @@
             "cp ../pc/etherga620fw.h etherga620fw.h",
             "cp ../pc/nv_dma.h nv_dma.h"
         ],
+        "Clean": [
+            "rebootcode.i",
+            "apbootstrap.i",
+            "../pc/etherm10g2k.i",
+            "../pc/etherm10g4k.i",
+            "../port/initcode.i",
+            "boot",
+            "pc64.bootfs.paq"
+        ],
         "Cflags": [
             "-m64",
             "-fno-pie",

@@ -67,6 +67,14 @@
 			"lib.c",
 			"run.c",
 			"awkgram.c"
+		],
+		"Clean": [
+			"y.tab.c",
+			"y.tab.h",
+			"y.debug",
+			"y.output",
+			"awkgram.c",
+			"proctab.c"
 		]
 	}
 ]

@@ -41,6 +41,8 @@ import re
 import subprocess
 import sys
 
+import genclean
+
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 SRC = os.path.join(ROOT, 'sys', 'src')
 BROKEN = os.path.join(ROOT, 'scripts', 'cmds-broken.txt')
@@ -287,12 +289,18 @@ def objs2src(objs, d, text='', v={}):
 				if not base.startswith(pre):
 					continue
 				f = m.replace('%', base[len(pre):])
-				if os.path.exists(os.path.join(SRC, d, f)):
+				if os.path.exists(os.path.join(SRC, d, f)) or made(f, d, text, v):
 					out.append(gasport(f, d))
 					break
 			else:
 				out.append(base + '.c')	# generated (awk's proctab.c, ...)
 	return out
+
+def made(f, d, text, v):
+	# a rule of the mkfile makes f from what exists (APE libsec:
+	# ../../../../libsec/port/%.c: ../../../../libsec/port/%.mp)
+	r = findrule(rules(text), v, f)
+	return bool(r and r[1] and all(os.path.exists(os.path.join(SRC, d, p)) for p in r[1]))
 
 def tree(path, d):
 	# absolute 9front paths (/sys/src/cmd/map) relative to sys/src/<d>
@@ -600,7 +608,40 @@ def mkentries(d):
 			out.append((d + '/' + t, dict(common, program=t, src=src)))
 	return out
 
-def manifest(e, name):
+def manifest(e, name, d):
+	"""the build tool's manifest entry, with Clean: what its Pre steps
+	(genclean.py) or the install rule's recipes generate in d"""
+	m = buildentry(e, name)
+	c = genclean.clean(m.get('Pre', []), os.path.join(SRC, d))
+	if 'install' in e:
+		c += [f for f in installtemps(d) if f not in c
+			and not genclean.tracked(os.path.normpath(os.path.join(SRC, d, f)))]
+	if c:
+		m['Clean'] = c
+	return m
+
+def installtemps(d):
+	"""local files the install rule's recipes make on the way
+	(postscript: cropmarks from cropmarks.rc; mkinstall.py's make)"""
+	text = readmk(d)
+	v = variables(text)
+	rs = rules(text)
+	out = []
+	def walk(f, depth):
+		r = findrule(rs, v, f)
+		if r is None or depth > 8 or f in out:
+			return
+		out.append(f)
+		for p in r[1]:
+			if not p.startswith('/'):
+				walk(p, depth + 1)
+	for t, recipe, prereq, stem, dest in installfiles(d):
+		for p in prereq:
+			if not p.startswith('/'):
+				walk(p, 0)
+	return out
+
+def buildentry(e, name):
 	name = re.sub(r'^(\.\./)+', '', name)	# /acme: ../../acme/...
 	if 'install' in e:	# the files of the install rule, by its recipes
 		return {'Name': name.replace('/', '-'), 'Install': '',
@@ -696,7 +737,7 @@ def loadbroken():
 
 def probe(d, name, e):
 	"""build one target on its own; '' or the first error"""
-	m = manifest(e, name)
+	m = manifest(e, name, d)
 	if 'Library' not in m:
 		m['Install'] = '/tests/.probe/'
 	path = os.path.join(SRC, d, '.probe.json')
@@ -765,18 +806,18 @@ def main():
 			if os.path.exists(out):
 				os.remove(out)
 			continue
-		ms = [manifest(e, n) for n, e in good if 'library' in e]
+		ms = [manifest(e, n, d) for n, e in good if 'library' in e]
 		# singles share a manifest per install directory (cmd: init goes to /$objtype)
 		groups = {}
 		for n, e in good:
 			if 'single' in e:
 				groups.setdefault(e['Install'], []).append(e)
 		for i, (inst, es) in enumerate(sorted(groups.items(), key=lambda g: -len(g[1]))):
-			m = manifest(es[0], d + '/cmds' + ('' if i == 0 else '-' + str(i)))
+			m = manifest(es[0], d + '/cmds' + ('' if i == 0 else '-' + str(i)), d)
 			m['SourceFilesCmd'] = [e['single'] for e in es]
 			ms.append(m)
-		ms += [manifest(e, n) for n, e in good if 'program' in e]
-		ms += [manifest(e, n) for n, e in good if 'install' in e]	# after the programs (git/: $BIN)
+		ms += [manifest(e, n, d) for n, e in good if 'program' in e]
+		ms += [manifest(e, n, d) for n, e in good if 'install' in e]	# after the programs (git/: $BIN)
 		open(out, 'w').write(json.dumps(ms, indent='\t') + '\n')
 	if not args:	# manifests of directories mk does not build (disk/sacfs)
 		walked = set(d for d, es in alldirs)

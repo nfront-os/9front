@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
 Check that everything `mk install' in sys/src installs is in place: the
-libraries of sys/src/mkfile's LIBS (the gcc archives in /$objtype/lib.gcc),
+libraries of sys/src/mkfile's LIBS (the gcc archives in /$objtype/lib.gcc,
+and the kernel's klib*.a),
 every target of the programs' mkfiles (scripts/gencmds.py: cmd, games,
 ape, /acme -- programs where their install rules put them, and the
 files those rules install, scripts/mkinstall.py) and the kernel.
@@ -14,6 +15,7 @@ files those rules install, scripts/mkinstall.py) and the kernel.
 Targets in scripts/cmds-broken.txt are reported as broken, not missing.
 
 usage: scripts/check-install.py [-r] [-d dist] [-i iso]
+       scripts/check-install.py -l	list the expected files
 	-r	remove stale files
 	-d	also check the distribution tree staged by scripts/stage-dist.sh
 		(all but the programs' local archives, /sys/src/.../lib*.a6)
@@ -21,6 +23,8 @@ usage: scripts/check-install.py [-r] [-d dist] [-i iso]
 		lists them)
 exit status 1 if anything is missing (or stale without -r)
 """
+import glob
+import json
 import os
 import re
 import subprocess
@@ -34,6 +38,9 @@ def expected():
 	out = {}
 	for l in g.variables(g.readmk('.'))['LIBS']:
 		out['/amd64/lib.gcc/%s.a' % l] = l
+	for k in sorted(glob.glob(os.path.join(g.SRC, 'lib*', 'klib.json'))):	# the kernel's
+		for b in json.load(open(k)):
+			out['/amd64/lib.gcc/' + b['Library']] = os.path.relpath(k, g.SRC)
 	out['/amd64/9pc64'] = 'kernel'
 	for d in g.dirs([]):
 		for name, e in g.entries(d):
@@ -58,6 +65,9 @@ def isofiles(iso):
 
 def main():
 	args = sys.argv[1:]
+	if args == ['-l']:
+		print('\n'.join(sorted(expected())))
+		return
 	remove = '-r' in args
 	dist = args[args.index('-d') + 1] if '-d' in args else None
 	iso = isofiles(args[args.index('-i') + 1]) if '-i' in args else None

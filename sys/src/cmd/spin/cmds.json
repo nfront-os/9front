@@ -68,6 +68,12 @@
 			"tl_parse.c",
 			"tl_rewrt.c",
 			"tl_trans.c"
+		],
+		"Clean": [
+			"y.tab.c",
+			"y.tab.h",
+			"y.debug",
+			"y.output"
 		]
 	}
 ]

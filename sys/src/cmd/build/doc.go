@@ -149,6 +149,13 @@ to. If it does not exist, it is created.
 
 "Post" is an array of commands to run last during the build.
 
+"Clean" is an array of files (globs, relative to the buildfile's
+directory) that the "Pre" commands generate. With -clean the build tool
+removes them together with what it makes there itself -- objects, links
+not yet installed, archives installed into a source directory, a kernel's
+generated C file and headers, the targets of "Pre" cp and mv commands --
+and builds nothing, like mk clean. Installed targets stay.
+
 KERNEL OBJECT
 
 A build object has the following keys and types:
@@ -196,6 +203,8 @@ The buildfile is looked for at these positions, in this order:
   ./$arg/build.json
 
 If the buildfile argument is not provided, it defaults to "build.json".
+
+-clean removes the build's artefacts instead of building (see "Clean").
 
 After the buildfile, a number of regexps specifying targets may be provided.
 If a target matches any supplied regexp, it is acted on. These regexps only

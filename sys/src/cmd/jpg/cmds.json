@@ -61,6 +61,10 @@
 			"totruecolor.c",
 			"writerawimage.c",
 			"readjpg.c"
+		],
+		"Clean": [
+			"rgbv.h",
+			"ycbcr.h"
 		]
 	},
 	{
@@ -123,6 +127,10 @@
 			"tojpg.c",
 			"writejpg.c",
 			"multichan.c"
+		],
+		"Clean": [
+			"rgbv.h",
+			"ycbcr.h"
 		]
 	},
 	{
@@ -187,6 +195,10 @@
 			"totruecolor.c",
 			"writerawimage.c",
 			"readgif.c"
+		],
+		"Clean": [
+			"rgbv.h",
+			"ycbcr.h"
 		]
 	},
 	{
@@ -250,6 +262,10 @@
 			"writegif.c",
 			"onechan.c",
 			"torgbv.c"
+		],
+		"Clean": [
+			"rgbv.h",
+			"ycbcr.h"
 		]
 	},
 	{
@@ -314,6 +330,10 @@
 			"totruecolor.c",
 			"writerawimage.c",
 			"readppm.c"
+		],
+		"Clean": [
+			"rgbv.h",
+			"ycbcr.h"
 		]
 	},
 	{
@@ -376,6 +396,10 @@
 			"toppm.c",
 			"writeppm.c",
 			"multichan.c"
+		],
+		"Clean": [
+			"rgbv.h",
+			"ycbcr.h"
 		]
 	},
 	{
@@ -439,6 +463,10 @@
 			"torgbv.c",
 			"writerawimage.c",
 			"readpng.c"
+		],
+		"Clean": [
+			"rgbv.h",
+			"ycbcr.h"
 		]
 	},
 	{
@@ -500,6 +528,10 @@
 		"SourceFiles": [
 			"topng.c",
 			"writepng.c"
+		],
+		"Clean": [
+			"rgbv.h",
+			"ycbcr.h"
 		]
 	},
 	{
@@ -563,6 +595,10 @@
 			"torgbv.c",
 			"writerawimage.c",
 			"readtif.c"
+		],
+		"Clean": [
+			"rgbv.h",
+			"ycbcr.h"
 		]
 	},
 	{
@@ -624,6 +660,10 @@
 		"SourceFiles": [
 			"totif.c",
 			"writetif.c"
+		],
+		"Clean": [
+			"rgbv.h",
+			"ycbcr.h"
 		]
 	},
 	{
@@ -688,6 +728,10 @@
 			"totruecolor.c",
 			"writerawimage.c",
 			"readyuv.c"
+		],
+		"Clean": [
+			"rgbv.h",
+			"ycbcr.h"
 		]
 	},
 	{
@@ -749,6 +793,10 @@
 		"SourceFiles": [
 			"ico.c",
 			"readpng.c"
+		],
+		"Clean": [
+			"rgbv.h",
+			"ycbcr.h"
 		]
 	},
 	{
@@ -809,6 +857,10 @@
 		"Program": "toico",
 		"SourceFiles": [
 			"toico.c"
+		],
+		"Clean": [
+			"rgbv.h",
+			"ycbcr.h"
 		]
 	},
 	{
@@ -873,6 +925,10 @@
 			"totruecolor.c",
 			"writerawimage.c",
 			"readbmp.c"
+		],
+		"Clean": [
+			"rgbv.h",
+			"ycbcr.h"
 		]
 	},
 	{
@@ -937,6 +993,10 @@
 			"totruecolor.c",
 			"writerawimage.c",
 			"readtga.c"
+		],
+		"Clean": [
+			"rgbv.h",
+			"ycbcr.h"
 		]
 	},
 	{
@@ -1001,6 +1061,10 @@
 			"totruecolor.c",
 			"writerawimage.c",
 			"readv210.c"
+		],
+		"Clean": [
+			"rgbv.h",
+			"ycbcr.h"
 		]
 	}
 ]

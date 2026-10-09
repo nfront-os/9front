@@ -63,6 +63,12 @@
 			"act.c",
 			"type.c",
 			"agg.c"
+		],
+		"Clean": [
+			"y.tab.c",
+			"y.tab.h",
+			"y.debug",
+			"y.output"
 		]
 	}
 ]

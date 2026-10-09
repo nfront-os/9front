@@ -105,6 +105,14 @@
 			"ttls.c",
 			"udp.c",
 			"vlan.c"
+		],
+		"Clean": [
+			"y.tab.c",
+			"y.tab.h",
+			"y.debug",
+			"y.output",
+			"protos.h",
+			"protos.c"
 		]
 	}
 ]

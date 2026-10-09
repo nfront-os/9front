@@ -71,6 +71,9 @@
 			"sgen.c",
 			"swt.c",
 			"txt.c"
+		],
+		"Clean": [
+			"enam.c"
 		]
 	}
 ]

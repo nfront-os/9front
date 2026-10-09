@@ -5,21 +5,20 @@
 #   1. the Go build tool (sys/src/cmd/build), into $CLI_DIR
 #   2. manifests, regenerated from 9front's mkfiles: scripts/genlibc.py,
 #      scripts/genlibs.py, scripts/gencmds.py
-#   3. userspace libraries: libc, then those of genlibs.py
+#   3. userspace libraries: libc, then those of genlibs.py, and the
+#      kernel's (sys/src/lib*/klib.json: klib*.a)
 #   4. programs: the manifests of gencmds.py (sys/src/mkfile's $SUBSYS
 #      $CMDS: ape, /acme, cmd, games), with the files their install rules
 #      put in place (scripts/mkinstall.py); scripts/check-install.py
 #      checks that everything is there
-#   5. what the kernel embeds: initcode (scripts/gen-initcode-i.sh),
+#   5. what the kernel embeds: rebootcode.i, apbootstrap.i, etherm10g*.i
+#      (scripts/gen-*-i.sh), initcode (scripts/gen-initcode-i.sh),
 #      /boot/boot and $CONF.bootfs.paq (scripts/gen-bootfs.sh)
 #   6. the pc64 kernel: amd64/bin/9pc64 (ELF, multiboot: scripts/boot-cli.sh)
 #      and amd64/9pc64, where 9front installs it, as the Plan 9 a.out that
 #      9boot loads (scripts/elf2aout.py)
 #   7. 9front's boot loaders, built in the system just made with its own
 #      mkfiles and compilers (scripts/build-boot.sh; boots it once)
-#
-# Kernel libraries (klib*.a) are NOT rebuilt; after changing them run
-# their klib.json manifests first.
 #
 # usage: scripts/build-cli.sh
 #   env:  CLI_DIR   work dir for the build tool and logs
@@ -60,12 +59,22 @@ build sys/src/libc/libc.json
 for l in $(python3 scripts/genlibs.py --list); do
 	build "sys/src/$l/$l.json"
 done
+# the kernel's libraries (klib*.a: the same sources with the kernel's
+# flags; root build.json lists them)
+for k in sys/src/lib*/klib.json; do
+	build "$k"
+done
 for m in $(python3 scripts/gencmds.py --list)
 do
 	build "$m"
 done
 
 echo "initcode, boot, bootfs.paq"
+# what pc64/mkfile makes before the kernel objects: rebootcode.i,
+# apbootstrap.i, ../pc/etherm10g%.i (main.$O, mp.$O, etherm10g.$O)
+for g in gen-rebootcode-i.sh gen-apbootstrap-i.sh gen-etherm10g-i.sh; do
+	sh scripts/$g > "$CLI_DIR/log/$g.log" 2>&1 || { cat "$CLI_DIR/log/$g.log"; die "$g failed"; }
+done
 bash scripts/gen-initcode-i.sh > "$CLI_DIR/log/gen-initcode-i.log" 2>&1 \
 	|| { cat "$CLI_DIR/log/gen-initcode-i.log"; die "gen-initcode-i.sh failed"; }
 bash scripts/gen-bootfs.sh pc64 > "$CLI_DIR/log/gen-bootfs.log" 2>&1 \

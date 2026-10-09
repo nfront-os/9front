@@ -53,6 +53,13 @@
 			"input.c",
 			"for.c",
 			"pltroff.c"
+		],
+		"Clean": [
+			"y.tab.c",
+			"y.tab.h",
+			"y.debug",
+			"y.output",
+			"picl.c"
 		]
 	}
 ]

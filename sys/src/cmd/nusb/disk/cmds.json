@@ -63,6 +63,9 @@
 			"disk.c",
 			"scsireq.c",
 			"scsierrs.c"
+		],
+		"Clean": [
+			"scsierrs.c"
 		]
 	}
 ]

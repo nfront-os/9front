@@ -63,6 +63,14 @@
 			"ml.c",
 			"common.c",
 			"../smtp/rfc822.tab.c"
+		],
+		"Clean": [
+			"../smtp/smtpd.tab.c",
+			"../smtp/rfc822.tab.c",
+			"../smtp/rfc822.tab.h",
+			"../smtp/y.debug",
+			"../smtp/y.output",
+			"../smtp/xxx"
 		]
 	},
 	{
@@ -129,6 +137,14 @@
 			"mlowner.c",
 			"common.c",
 			"../smtp/rfc822.tab.c"
+		],
+		"Clean": [
+			"../smtp/smtpd.tab.c",
+			"../smtp/rfc822.tab.c",
+			"../smtp/rfc822.tab.h",
+			"../smtp/y.debug",
+			"../smtp/y.output",
+			"../smtp/xxx"
 		]
 	},
 	{
@@ -194,6 +210,14 @@
 		"SourceFiles": [
 			"mlmgr.c",
 			"common.c"
+		],
+		"Clean": [
+			"../smtp/smtpd.tab.c",
+			"../smtp/rfc822.tab.c",
+			"../smtp/rfc822.tab.h",
+			"../smtp/y.debug",
+			"../smtp/y.output",
+			"../smtp/xxx"
 		]
 	}
 ]

@@ -60,6 +60,12 @@
 			"main.c",
 			"comp.c",
 			"sub.c"
+		],
+		"Clean": [
+			"y.tab.c",
+			"y.tab.h",
+			"y.debug",
+			"y.output"
 		]
 	}
 ]

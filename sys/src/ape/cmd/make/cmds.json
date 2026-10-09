@@ -46,6 +46,12 @@
 			"gram.c",
 			"misc.c",
 			"files.c"
+		],
+		"Clean": [
+			"y.tab.c",
+			"y.tab.h",
+			"y.debug",
+			"y.output"
 		]
 	}
 ]

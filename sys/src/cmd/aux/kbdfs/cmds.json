@@ -57,6 +57,9 @@
 		"Program": "kbdfs",
 		"SourceFiles": [
 			"kbdfs.c"
+		],
+		"Clean": [
+			"latin1.h"
 		]
 	}
 ]

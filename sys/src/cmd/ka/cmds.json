@@ -58,6 +58,12 @@
 		"SourceFiles": [
 			"y.tab.c",
 			"lex.c"
+		],
+		"Clean": [
+			"y.tab.c",
+			"y.tab.h",
+			"y.debug",
+			"y.output"
 		]
 	}
 ]

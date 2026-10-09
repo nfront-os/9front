@@ -70,6 +70,9 @@
 			"span.c",
 			"pass.c",
 			"mod.c"
+		],
+		"Clean": [
+			"cnam.c"
 		]
 	}
 ]

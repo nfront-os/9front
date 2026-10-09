@@ -61,6 +61,12 @@
 			"sub1.c",
 			"sub2.c",
 			"header.c"
+		],
+		"Clean": [
+			"y.tab.c",
+			"y.tab.h",
+			"y.debug",
+			"y.output"
 		]
 	}
 ]

@@ -70,6 +70,9 @@
 			"machcap.c",
 			"div.c",
 			"mul.c"
+		],
+		"Clean": [
+			"enam.c"
 		]
 	}
 ]

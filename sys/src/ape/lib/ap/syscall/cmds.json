@@ -54,6 +54,9 @@
 			"_PWRITE.S",
 			"_TSEMACQUIRE.S"
 		],
-		"Append": true
+		"Append": true,
+		"Clean": [
+			"_*.S"
+		]
 	}
 ]

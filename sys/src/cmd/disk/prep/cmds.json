@@ -59,6 +59,12 @@
 			"fdisk.c",
 			"edit.c",
 			"y.tab.c"
+		],
+		"Clean": [
+			"y.tab.c",
+			"y.tab.h",
+			"y.debug",
+			"y.output"
 		]
 	},
 	{
@@ -121,6 +127,12 @@
 			"edisk.c",
 			"edit.c",
 			"y.tab.c"
+		],
+		"Clean": [
+			"y.tab.c",
+			"y.tab.h",
+			"y.debug",
+			"y.output"
 		]
 	},
 	{
@@ -183,6 +195,12 @@
 			"prep.c",
 			"edit.c",
 			"y.tab.c"
+		],
+		"Clean": [
+			"y.tab.c",
+			"y.tab.h",
+			"y.debug",
+			"y.output"
 		]
 	}
 ]
