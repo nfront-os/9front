@@ -9,7 +9,11 @@
 #   4. programs: the manifests of gencmds.py (sys/src/cmd, games, ape)
 #   5. what the kernel embeds: initcode (scripts/gen-initcode-i.sh),
 #      /boot/boot and $CONF.bootfs.paq (scripts/gen-bootfs.sh)
-#   6. the pc64 kernel (amd64/bin/9pc64)
+#   6. the pc64 kernel: amd64/bin/9pc64 (ELF, multiboot: scripts/boot-cli.sh)
+#      and amd64/9pc64, where 9front installs it, as the Plan 9 a.out that
+#      9boot loads (scripts/elf2aout.py)
+#   7. 9front's boot loaders, built in the system just made with its own
+#      mkfiles and compilers (scripts/build-boot.sh; boots it once)
 #
 # Kernel libraries (klib*.a) are NOT rebuilt; after changing them run
 # their klib.json manifests first.
@@ -66,4 +70,10 @@ bash scripts/gen-bootfs.sh pc64 > "$CLI_DIR/log/gen-bootfs.log" 2>&1 \
 
 # bootdir paths: /$objtype/bin/paqfs, $CONF.bootfs.paq (as mk sets them)
 objtype=amd64 CONF=pc64 build sys/src/9/pc64/build.json
-echo "ok: amd64/bin/9pc64"
+python3 scripts/elf2aout.py amd64/bin/9pc64 amd64/9pc64 > /dev/null || die "elf2aout failed"
+echo "ok: amd64/bin/9pc64, amd64/9pc64"
+
+echo "boot loaders"
+bash scripts/build-boot.sh > "$CLI_DIR/log/build-boot.log" 2>&1 \
+	|| { tail -20 "$CLI_DIR/log/build-boot.log"; die "build-boot.sh failed"; }
+tail -1 "$CLI_DIR/log/build-boot.log"

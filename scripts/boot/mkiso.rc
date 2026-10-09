@@ -1,0 +1,62 @@
+#!/bin/rc
+# Make the 9front install/live CD, run inside the guest by
+# scripts/mkiso.sh: sys/lib/dist/mkfile's recipe for %.amd64.iso
+# (%.pc.iso) with this port's tools, the distribution tree served by
+# the build host as /n/src9 (scripts/stage-dist.sh, after mk binds),
+# the boot loaders from scripts/build-boot.sh in /n/src9/386.
+#
+# The recipe writes the image into a ramfs: written over 9P to the host
+# it takes most of an hour. Then it goes onto the disk sdC0, from where
+# scripts/mkiso.sh takes its first SIZE bytes ("mkiso: done SIZE").
+#
+# usage: mkiso
+rfork en
+fn fail{
+	echo mkiso: failed: $*
+	exit failed
+}
+
+d=/dev/sdC0
+test -f $d/data || fail no disk $d
+ramfs -m /n/ram || fail ramfs
+target=/n/ram/9front.iso
+objtype=amd64
+kernel=/n/src9/$objtype/9pc64
+proto=/n/src9/sys/lib/sysconfig/proto/distproto
+bootproto=/n/src9/sys/lib/sysconfig/proto/9bootproto
+gccproto=/n/src9/gccproto	# /amd64/lib.gcc (scripts/boot/gccproto)
+
+if(! test -d /n/src9/amd64)
+	srv tcp!10.0.2.101!5641 src9 && mount -nc /srv/src9 /n/src9 || fail mount src9
+
+@{rfork n
+{grep -v '^bootfile=' /n/src9/cfg/plan9.ini
+echo 'bootfile='^`{echo $kernel | sed 's!^/n/src9!!'}} > /env/plan9.ini
+bind /env/plan9.ini /n/src9/cfg/plan9.ini || fail bind plan9.ini
+disk/mk9660 -c9j -B 386/9bootiso -E 386/efiboot.fat \
+	-p <{cat $proto $bootproto $gccproto} \
+	-s /n/src9 -v 'Plan 9 Front ('^$objtype^')' $target || fail mk9660
+if(test -r /n/src9/386/9boothyb){
+	dd -if /dev/zero -bs 2048 -count 1024 >> $target
+	disk/partfs -m /n/partfs $target || fail partfs
+	disk=/n/partfs/sdXX
+	disk/mbr -m /n/src9/386/mbr $disk/data || fail mbr
+	@{echo a p1 '$-1' '$'
+		echo t p1 ESP
+		echo A p1
+		echo w
+		echo q} | disk/fdisk -b $disk/data || fail fdisk
+	disk/format -b /n/src9/386/pbs -xd -t hard $disk/esp || fail format
+	s = esp.$pid
+	dossrv -f $disk/esp $s
+	mount -c /srv/$s /n/esp || fail mount esp
+	cp /n/src9/386/9boothyb /n/esp/9bootfat
+	mkdir /n/esp/efi
+	mkdir /n/esp/efi/boot
+	cp /n/src9/386/boot*.efi /n/esp/efi/boot
+	unmount /n/esp
+	rm -f /srv/$s
+}} || exit failed
+size=`{ls -l $target | awk '{print $6}'}
+dd -if $target -of $d/data -bs 65536 || fail dd
+echo mkiso: done $size

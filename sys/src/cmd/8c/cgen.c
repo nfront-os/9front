@@ -9,7 +9,8 @@ cgen(Node *n, Node *nn)
 	Prog *p1;
 	Node nod, nod1, nod2, nod3, nod4;
 	int o, hardleft;
-	long v, curs;
+	s32int v;	/* GCC port: was long, 32 bits under kencc */
+	long curs;
 	vlong c;
 
 	if(debug['g']) {
@@ -1133,7 +1134,7 @@ void
 reglcgen(Node *t, Node *n, Node *nn)
 {
 	Node *r;
-	long v;
+	s32int v;	/* GCC port: was long, 32 bits under kencc */
 
 	regialloc(t, n, nn);
 	if(n->op == OIND) {

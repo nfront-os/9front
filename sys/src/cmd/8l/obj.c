@@ -1102,7 +1102,7 @@ lookup(char *symb, int v)
 {
 	Sym *s;
 	char *p;
-	long h;
+	s32int h;	/* GCC port: was long; the hash wraps at kencc's 32 bits */
 	int l, c;
 
 	h = v;

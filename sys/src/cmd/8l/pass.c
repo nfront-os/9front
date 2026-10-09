@@ -714,13 +714,13 @@ export(void)
 		/* Bprint(&bso, "EXPORT: %s sig=%lux t=%d\n", s->name, s->sig, s->type); */
 
 		/* signature */
-		p = newdata(et, off, sizeof(long), D_EXTERN);
-		off += sizeof(long);
+		p = newdata(et, off, sizeof(s32int), D_EXTERN);	/* GCC port: the target's 32-bit long */
+		off += sizeof(s32int);
 		p->to.offset = s->sig;
 
 		/* address */
-		p = newdata(et, off, sizeof(long), D_EXTERN);
-		off += sizeof(long);
+		p = newdata(et, off, sizeof(s32int), D_EXTERN);	/* GCC port: the target's 32-bit long */
+		off += sizeof(s32int);
 		p->to.type = D_ADDR;
 		p->to.index = D_EXTERN;
 		p->to.sym = s;
@@ -742,8 +742,8 @@ export(void)
 		}
 
 		/* name */
-		p = newdata(et, off, sizeof(long), D_EXTERN);
-		off += sizeof(long);
+		p = newdata(et, off, sizeof(s32int), D_EXTERN);	/* GCC port: the target's 32-bit long */
+		off += sizeof(s32int);
 		p->to.type = D_ADDR;
 		p->to.index = D_STATIC;
 		p->to.sym = str;
@@ -757,8 +757,8 @@ export(void)
 	}
 
 	for(i = 0; i < 3; i++){
-		newdata(et, off, sizeof(long), D_EXTERN);
-		off += sizeof(long);
+		newdata(et, off, sizeof(s32int), D_EXTERN);	/* GCC port: the target's 32-bit long */
+		off += sizeof(s32int);
 	}
 	et->value = off;
 	if(sv == 0)

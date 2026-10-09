@@ -784,7 +784,7 @@ zname(char *n, int t, int s)
 void
 zaddr(Gen *a, int s)
 {
-	long l;
+	s32int l;	/* GCC port: was long; the T_64 test needs kencc's 32 bits */
 	int i;
 	char *n;
 	Ieee e;

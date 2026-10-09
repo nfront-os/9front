@@ -25,7 +25,9 @@
 #         WAITFOR     after the commands, wait until the console shows this
 #                     (grep -E), at most WAITMAX seconds (3600)
 #         BOOTDISK    boot this disk image instead (scripts/mkdisk.sh): no
-#                     host root, the image's GRUB, kernel and hjfs
+#                     host root, the image's boot loader, kernel and hjfs
+#         BOOTISO     boot this CD image instead (scripts/mkiso.sh)
+#         UEFI        1: UEFI firmware (OVMF, $OVMF_CODE) instead of the BIOS
 #         KVM         0: no KVM acceleration (default: use /dev/kvm if writable)
 #         KARGS       more kernel parameters (plan9.ini variables), e.g.
 #                     "vgasize=1024x768x16 monitor=vesa mouseport=ps2"
@@ -74,10 +76,25 @@ pids=()
 cleanup(){ [ ${#pids[@]} -gt 0 ] && kill "${pids[@]}" 2>/dev/null; wait 2>/dev/null; return 0; }
 trap cleanup EXIT
 
-if [ -n "$BOOTDISK" ]; then
-	# an installed system (scripts/mkdisk.sh): its own boot loader and root
-	[ -f "$BOOTDISK" ] || die "$BOOTDISK missing"
-	qemu=(qemu-system-x86_64 -drive "file=$BOOTDISK,format=raw,if=ide,index=0" -m "$MEM"
+fw=()
+if [ "${UEFI:-0}" != 0 ]; then
+	OVMF_CODE=${OVMF_CODE:-/usr/share/edk2/x64/OVMF_CODE.4m.fd}
+	[ -f "$OVMF_CODE" ] || die "no OVMF firmware ($OVMF_CODE)"
+	cp "${OVMF_CODE%CODE*}VARS${OVMF_CODE##*CODE}" "$CLI_DIR/ovmf_vars.fd" || die "no OVMF variable store"
+	fw=(-drive "if=pflash,format=raw,readonly=on,file=$OVMF_CODE"
+		-drive "if=pflash,format=raw,file=$CLI_DIR/ovmf_vars.fd")
+fi
+if [ -n "$BOOTDISK$BOOTISO" ]; then
+	# an installed system (scripts/mkdisk.sh) or the CD (scripts/mkiso.sh):
+	# its own boot loader and root
+	if [ -n "$BOOTISO" ]; then
+		[ -f "$BOOTISO" ] || die "$BOOTISO missing"
+		media=(-drive "file=$BOOTISO,format=raw,if=ide,index=2,media=cdrom")
+	else
+		[ -f "$BOOTDISK" ] || die "$BOOTDISK missing"
+		media=(-drive "file=$BOOTDISK,format=raw,if=ide,index=0")
+	fi
+	qemu=(qemu-system-x86_64 "${fw[@]}" "${media[@]}" -m "$MEM"
 		-display none -no-reboot -monitor none
 		-netdev user,id=net0 -device "$NIC",netdev=net0
 		-cpu qemu64,+rdrand "${accel[@]}")
@@ -119,7 +136,7 @@ fi
 disk=()
 [ -z "$DISK" ] || disk=(-drive "file=$DISK,format=raw,if=ide,index=0,media=disk")
 
-qemu=(qemu-system-x86_64 -cdrom "$CLI_DIR/9pc64.iso" -m "$MEM"
+qemu=(qemu-system-x86_64 "${fw[@]}" -cdrom "$CLI_DIR/9pc64.iso" -m "$MEM"
 	-display none -no-reboot -monitor none
 	-netdev user,id=net0,$fwd -device "$NIC",netdev=net0 "${disk[@]}"
 	-cpu qemu64,+rdrand "${accel[@]}")	# RDRAND: kernel entropy fast path, dial() needs it
@@ -185,6 +202,7 @@ while [ $SECONDS -lt $end ] && ! prompted; do
 		*'password: ')			ans=${PASSWORD:-gccport9} ;;	# and confirm password
 		*'enable legacy p9sk1'*': ')	ans= ;;
 		*'user['*']: ')		ans= ;;	# -u: hostowner, default
+		*'bootargs is ('*')['*'] ')	ans= ;;	# the default bootrc found
 		esac
 	fi
 	if [ "$ans" != - ]; then

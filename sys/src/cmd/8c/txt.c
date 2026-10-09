@@ -428,7 +428,7 @@ regind(Node *n, Node *nn)
 void
 naddr(Node *n, Adr *a)
 {
-	long v;
+	s32int v;	/* GCC port: was long, 32 bits under kencc */
 
 	a->type = D_NONE;
 	if(n == Z)
@@ -521,7 +521,7 @@ naddr(Node *n, Adr *a)
 		}
 		a->sym = S;
 		a->type = D_CONST;
-		a->offset = n->vconst;
+		a->offset = (s32int)n->vconst;	/* GCC port: the long offset was 32 bits under kencc */
 		break;
 
 	case OADDR:
@@ -1376,7 +1376,7 @@ gpseudo(int a, Sym *s, Node *n)
 int
 sconst(Node *n)
 {
-	long v;
+	s32int v;	/* GCC port: was long; truncates vconst as under kencc */
 
 	if(n->op == OCONST && !typefd[n->type->etype]) {
 		v = n->vconst;

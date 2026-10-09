@@ -2,14 +2,8 @@
 # Install the 9front distribution onto the disk sdC0, run inside the
 # guest by scripts/mkdisk.sh: sys/lib/dist/mkfile's recipe for
 # %.amd64.qcow2 (%.disk) with this port's tools, the distribution tree
-# served by the build host as /n/src9 (scripts/stage-dist.sh).
-#
-# Deviations (GCC port): the 16-bit boot code 9front puts on the disk
-# (/386/mbr, /386/pbs, /386/9bootfat) is not ported; the build host puts
-# GRUB in the MBR and the gap before the first partition instead. So the
-# plan9 partition starts at the second cylinder (fdisk commands as the
-# mkfile's reform/pi targets use) rather than fdisk -baw's first track,
-# and 9fat gets no boot sector code, only plan9.ini and the kernel.
+# served by the build host as /n/src9 (scripts/stage-dist.sh), the boot
+# code (/386/mbr, pbs, 9bootfat) from scripts/build-boot.sh.
 rfork en
 fn fail{
 	echo mkdisk: failed: $*
@@ -31,18 +25,13 @@ if(! test -d /n/src9/amd64)
 	echo 'bootfile='^`{basename $kernel}
 	echo 'console=0'
 }
-fatfiles=(/env/plan9.ini $kernel)
+fatfiles=(/n/src9/386/9bootfat /env/plan9.ini $kernel)
 
 disk/mbr $d/data || fail mbr
-{
-	echo 'a p1 1 $'	# fdisk counts in cylinders: start at the second one
-	echo 't p1 PLAN9'
-	echo 'A p1'
-	echo 'w'
-	echo 'q'
-} | disk/fdisk -b $d/data || fail fdisk
+disk/mbr -m /n/src9/386/mbr $d/data || fail mbr -m
+disk/fdisk -baw $d/data || fail fdisk
 disk/prep -bw -a^(9fat nvram fs) $d/plan9 || fail prep
-disk/format -d -r 2 $d/9fat $fatfiles || fail format
+disk/format -b /n/src9/386/pbs -d -r 2 $d/9fat $fatfiles || fail format
 hjfs -f $d/fs -n $s -S -r || fail hjfs
 {
 	echo echo on
@@ -57,7 +46,7 @@ hjfs -f $d/fs -n $s -S -r || fail hjfs
 	sleep 1
 } >> /srv/$s.cmd
 mount -N -c /srv/$s /n/newfs || fail mount newfs
-disk/mkfs -z 4096 -U -s /n/src9 -d /n/newfs <{cat $proto $bootproto $gccproto}	# warns about the missing /386 boot code
+disk/mkfs -z 4096 -U -s /n/src9 -d /n/newfs <{cat $proto $bootproto $gccproto}
 echo sync >> /srv/$s.cmd
 echo halt >> /srv/$s.cmd
 while(test -e /srv/$s.cmd) sleep 1

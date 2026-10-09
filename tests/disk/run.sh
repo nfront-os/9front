@@ -1,7 +1,8 @@
 #!/bin/bash
 # disk: the install image (scripts/mkdisk.sh: 9front's %.amd64.qcow2
-# recipe run in the guest, hjfs root, GRUB) boots on its own -- no host
-# root -- and serves the installed system. Builds the image (minutes)
+# recipe run in the guest, hjfs root, 9front's boot code mbr, pbs,
+# 9bootfat) boots on its own -- no host root -- and serves the
+# installed system. Builds the image (minutes)
 # unless DISKIMG names one.
 . "$(dirname "$0")/../lib.sh"
 [ -f "$ROOT/amd64/bin/9pc64" ] || { skip "disk" "no kernel, run scripts/build-cli.sh"; done_tests; exit; }
@@ -23,7 +24,10 @@ check "boot the image" boot || { done_tests; exit; }
 L=$TMPD/log
 out(){ grep -A1 -F "% $1" "$L" | tail -1; }
 
-check "GRUB -> kernel -> bootrc -> hjfs root -> rc" grep -q '^hjfs: fs is /dev/sdC0/fs' "$L"
+# 9bootfat prints plan9.ini, its load progress (a backspaced spinner)
+# and "boot" when it jumps to the a.out kernel, which prints "Plan 9"
+check "mbr -> pbs -> 9bootfat -> a.out kernel" bash -c "grep -a -B2 -m1 '^Plan 9\$' '$L' | grep -aq 'boot\$'"
+check "kernel -> bootrc -> hjfs root -> rc" grep -q '^hjfs: fs is /dev/sdC0/fs' "$L"
 check "booted from local!/dev/sdC0/fs" test "$(out 'echo $bootargs')" = 'local!/dev/sdC0/fs'
 check "system installed (sources, binaries, home)" bash -c "grep -A3 -F '% ls -d /sys/src' '$L' | grep -c '^/' | grep -qx 3"
 check "/amd64/lib empty as in 9front, gcc archives in /amd64/lib.gcc" \

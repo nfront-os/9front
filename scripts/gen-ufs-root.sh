@@ -20,6 +20,10 @@ rm -rf "$OUT"
 mkdir -p "$OUT"/amd64/bin "$OUT"/rc "$OUT"/lib "$OUT"/adm/timezone \
 	"$OUT"/usr/glenda/tmp "$OUT"/tmp "$OUT"/n "$OUT"/mnt "$OUT"/srv
 
+# directories a 9front root has, here empty: /386, /arm64 (where the
+# boot loaders install), /amd64/include, /sys/include, /sys/src (bound
+# over by a source tree in the guest)
+mkdir -p "$OUT"/386 "$OUT"/arm64 "$OUT"/amd64/include "$OUT"/sys/include "$OUT"/sys/src
 cp "$ROOT"/amd64/init "$OUT"/amd64/init
 cp -r "$ROOT"/amd64/bin/. "$OUT"/amd64/bin/
 rm -f "$OUT"/amd64/bin/9pc64	# the kernel

@@ -498,7 +498,7 @@ zname(Biobuf *b, Sym *s, int t)
 char*
 zaddr(char *bp, Adr *a, int s)
 {
-	long l;
+	s32int l;	/* GCC port: was long; the T_64 test needs kencc's 32 bits */
 	Ieee e;
 
 	if(a->type == D_CONST){

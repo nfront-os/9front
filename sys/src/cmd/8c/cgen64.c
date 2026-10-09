@@ -28,18 +28,18 @@ long
 hi64v(Node *n)
 {
 	if(align(0, types[TCHAR], Aarg1))	/* isbigendian */
-		return (long)(n->vconst) & ~0L;
+		return (s32int)(n->vconst) & ~0L;	/* GCC port: was (long), 32 bits under kencc */
 	else
-		return (long)((uvlong)n->vconst>>32) & ~0L;
+		return (s32int)((uvlong)n->vconst>>32) & ~0L;	/* GCC port: was (long) */
 }
 
 long
 lo64v(Node *n)
 {
 	if(align(0, types[TCHAR], Aarg1))	/* isbigendian */
-		return (long)((uvlong)n->vconst>>32) & ~0L;
+		return (s32int)((uvlong)n->vconst>>32) & ~0L;	/* GCC port: was (long) */
 	else
-		return (long)(n->vconst) & ~0L;
+		return (s32int)(n->vconst) & ~0L;	/* GCC port: was (long), 32 bits under kencc */
 }
 
 Node *

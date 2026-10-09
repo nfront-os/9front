@@ -12,10 +12,13 @@
 #            GUI_SCREENSHOT=file.png keeps the screen dump)
 #   disk     install image with hjfs (scripts/mkdisk.sh, minutes), booted
 #            on its own (DISKIMG=image skips building it)
+#   iso      install/live CD (scripts/mkiso.sh): booted as CD and as disk
+#            (hybrid), each with BIOS and UEFI, up to rio (ISO=image skips
+#            building it)
 #
 # usage: tests/run.sh [category...]     (default: all, in the order above)
 cd "$(dirname "$0")"
-cats=${*:-static asm syscall build guest boot gui disk}
+cats=${*:-static asm syscall build guest boot gui disk iso}
 failed=()
 for c in $cats; do
 	[ -x "$c/run.sh" ] || { echo "unknown category $c"; exit 2; }

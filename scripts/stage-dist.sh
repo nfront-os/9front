@@ -62,10 +62,11 @@ for f in "$ROOT"/sys/src/libc/ucd/rune*data; do
 	ln -s "$f" "$VIEW/sys/src/libc/ucd/$(basename "$f")"
 done
 
-# the kernel where 9front installs it
+# the kernel where 9front installs it: amd64/9pc64, the a.out from
+# scripts/build-cli.sh
+[ -s "$ROOT/amd64/9pc64" ] || { echo "stage-dist: no amd64/9pc64, run scripts/build-cli.sh" >&2; exit 1; }
 mkdir -p "$VIEW/.amd64"
 for f in "$ROOT"/amd64/*; do ln -s "$f" "$VIEW/.amd64/$(basename "$f")"; done
-ln -s "$ROOT/amd64/bin/9pc64" "$VIEW/.amd64/9pc64"
 rm "$VIEW/amd64"; mv "$VIEW/.amd64" "$VIEW/amd64"
 
 rm -rf "$OUT"
