@@ -58,7 +58,8 @@ echo "$(grep -c '^rm ' "$log") files removed from the source directories"
 
 if [ -n "$installed" ]; then
 	n=0
-	for f in $(python3 scripts/check-install.py -l) amd64/bin/9pc64 amd64/init \
+	expected=$(python3 scripts/check-install.py -l) || die "check-install.py -l failed"
+	for f in $expected amd64/bin/9pc64 amd64/init \
 		$(awk '/^386/ { s = 1; next } /^[^\t]/ { s = 0 } s && NF == 2 { print "386/" $1 }' \
 			sys/lib/sysconfig/proto/9bootproto) \
 		arm64/bootaa64.efi; do
