@@ -119,6 +119,7 @@
             "apbootstrap.i",
             "../pc/etherm10g2k.i",
             "../pc/etherm10g4k.i",
+            "../pc/sd53c8xx.i",
             "../port/initcode.i",
             "boot",
             "pc64.bootfs.paq"

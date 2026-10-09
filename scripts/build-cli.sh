@@ -11,8 +11,8 @@
 #      $CMDS: ape, /acme, cmd, games), with the files their install rules
 #      put in place (scripts/mkinstall.py); scripts/check-install.py
 #      checks that everything is there
-#   5. what the kernel embeds: rebootcode.i, apbootstrap.i, etherm10g*.i
-#      (scripts/gen-*-i.sh), initcode (scripts/gen-initcode-i.sh),
+#   5. what the kernel embeds: rebootcode.i, apbootstrap.i, etherm10g*.i,
+#      sd53c8xx.i (scripts/gen-*-i.sh; aux/na and cpp as host tools), initcode (scripts/gen-initcode-i.sh),
 #      /boot/boot and $CONF.bootfs.paq (scripts/gen-bootfs.sh)
 #   6. the pc64 kernel: amd64/bin/9pc64 (ELF, multiboot: scripts/boot-cli.sh)
 #      and amd64/9pc64, where 9front installs it, as the Plan 9 a.out that
@@ -71,9 +71,10 @@ done
 
 echo "initcode, boot, bootfs.paq"
 # what pc64/mkfile makes before the kernel objects: rebootcode.i,
-# apbootstrap.i, ../pc/etherm10g%.i (main.$O, mp.$O, etherm10g.$O)
-for g in gen-rebootcode-i.sh gen-apbootstrap-i.sh gen-etherm10g-i.sh; do
-	sh scripts/$g > "$CLI_DIR/log/$g.log" 2>&1 || { cat "$CLI_DIR/log/$g.log"; die "$g failed"; }
+# apbootstrap.i, ../pc/etherm10g%.i, ../pc/sd53c8xx.i (main.$O, mp.$O,
+# etherm10g.$O, sd53c8xx.$O)
+for g in gen-rebootcode-i.sh gen-apbootstrap-i.sh gen-etherm10g-i.sh gen-sd53c8xx-i.sh; do
+	bash scripts/$g > "$CLI_DIR/log/$g.log" 2>&1 || { cat "$CLI_DIR/log/$g.log"; die "$g failed"; }
 done
 bash scripts/gen-initcode-i.sh > "$CLI_DIR/log/gen-initcode-i.log" 2>&1 \
 	|| { cat "$CLI_DIR/log/gen-initcode-i.log"; die "gen-initcode-i.sh failed"; }

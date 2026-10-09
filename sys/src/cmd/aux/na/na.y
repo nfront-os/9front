@@ -894,7 +894,8 @@ main(int argc, char *argv[])
 	if (errors)
 		exits("pass1");
 	pass2 = 1;
-	printf("unsigned long na_script[] = {\n");
+	/* GCC port: ulong, 32 bits as with kencc; gcc's unsigned long is 64 */
+	printf("ulong na_script[] = {\n");
 	yyrewind();
 	yyparse();
 	printf("};\n");
