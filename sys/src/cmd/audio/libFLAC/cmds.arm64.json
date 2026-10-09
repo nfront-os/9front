@@ -1,0 +1,51 @@
+[
+	{
+		"Name": "cmd-audio-libFLAC-libFLAC.a7",
+		"Include": [
+			"/$ARCH/cflags.json",
+			"/$ARCH/ape.json"
+		],
+		"Install": "/sys/src/cmd/audio/libFLAC/",
+		"Cflags": [
+			"-I.",
+			"-I../libogg",
+			"-DPACKAGE_VERSION=\"1.4.0\"",
+			"-DPlan9",
+			"-DFLAC__NO_ASM",
+			"-DFLAC__HAS_OGG",
+			"-DFLAC__ALIGN_MALLOC_DATA",
+			"-D_C99_SNPRINTF_EXTENSION",
+			"-D_BSD_EXTENSION",
+			"-Dcosf=cos",
+			"-Dfabsf=fabs",
+			"-D_POSIX_SOURCE",
+			"-DHAVE_STDINT_H",
+			"-DNDEBUG"
+		],
+		"Ape": true,
+		"Library": "libFLAC.a7",
+		"SourceFiles": [
+			"bitmath.c",
+			"bitreader.c",
+			"bitwriter.c",
+			"cpu.c",
+			"crc.c",
+			"fixed.c",
+			"float.c",
+			"format.c",
+			"lpc.c",
+			"md5.c",
+			"memory.c",
+			"metadata_iterators.c",
+			"metadata_object.c",
+			"ogg_decoder_aspect.c",
+			"ogg_encoder_aspect.c",
+			"ogg_helper.c",
+			"ogg_mapping.c",
+			"stream_decoder.c",
+			"stream_encoder.c",
+			"stream_encoder_framing.c",
+			"window.c"
+		]
+	}
+]

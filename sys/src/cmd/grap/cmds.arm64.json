@@ -1,0 +1,61 @@
+[
+	{
+		"Name": "cmd-grap-grap",
+		"Include": [
+			"/$ARCH/cflags.json",
+			"/$ARCH/ape.json"
+		],
+		"Install": "/$ARCH/bin/",
+		"Pre": [
+			"bash ../../../../scripts/yacc.sh -d -S grap.y",
+			"mv y.tab.c grap.c",
+			"bash ../../../../scripts/lex.sh --out grapl.c -t grapl.lx"
+		],
+		"Ape": true,
+		"Oflags": [
+			"--entry=_main"
+		],
+		"Libs": [
+			"--start-group",
+			"/$ARCH/lib.gcc/ape/libdraw.a",
+			"/$ARCH/lib.gcc/ape/libplumb.a",
+			"/$ARCH/lib.gcc/ape/libauth.a",
+			"/$ARCH/lib.gcc/ape/libsec.a",
+			"/$ARCH/lib.gcc/ape/libmp.a",
+			"/$ARCH/lib.gcc/ape/libnet.a",
+			"/$ARCH/lib.gcc/ape/libbsd.a",
+			"/$ARCH/lib.gcc/ape/libl.a",
+			"/$ARCH/lib.gcc/ape/libv.a",
+			"/$ARCH/lib.gcc/ape/libz.a",
+			"/$ARCH/lib.gcc/ape/libbz2.a",
+			"/$ARCH/lib.gcc/ape/libbio.a",
+			"/$ARCH/lib.gcc/ape/lib9.a",
+			"/$ARCH/lib.gcc/ape/libfmt.a",
+			"/$ARCH/lib.gcc/ape/libutf.a",
+			"/$ARCH/lib.gcc/ape/libap.a",
+			"--end-group"
+		],
+		"Program": "grap",
+		"SourceFiles": [
+			"grap.c",
+			"grapl.c",
+			"main.c",
+			"input.c",
+			"print.c",
+			"frame.c",
+			"for.c",
+			"coord.c",
+			"ticks.c",
+			"plot.c",
+			"label.c",
+			"misc.c"
+		],
+		"Clean": [
+			"y.tab.c",
+			"y.tab.h",
+			"y.debug",
+			"y.output",
+			"grapl.c"
+		]
+	}
+]

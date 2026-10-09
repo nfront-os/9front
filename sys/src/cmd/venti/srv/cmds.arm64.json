@@ -1,0 +1,1160 @@
+[
+	{
+		"Name": "cmd-venti-srv-libvs.a7",
+		"Include": [
+			"/$ARCH/cflags.json"
+		],
+		"Install": "/sys/src/cmd/venti/srv/",
+		"Cflags": [
+			"-I."
+		],
+		"Library": "libvs.a7",
+		"SourceFiles": [
+			"arena.c",
+			"arenas.c",
+			"bloom.c",
+			"buildbuck.c",
+			"clump.c",
+			"config.c",
+			"conv.c",
+			"dcache.c",
+			"disksched.c",
+			"dump.c",
+			"graph.c",
+			"hdisk.c",
+			"hproc.c",
+			"httpd.c",
+			"icache.c",
+			"icachewrite.c",
+			"ifile.c",
+			"index.c",
+			"lump.c",
+			"lumpcache.c",
+			"lumpqueue.c",
+			"part.c",
+			"png.c",
+			"round.c",
+			"score.c",
+			"sortientry.c",
+			"stats.c",
+			"syncarena.c",
+			"syncindex0.c",
+			"trace.c",
+			"unwhack.c",
+			"utils.c",
+			"unittoull.c",
+			"whack.c",
+			"xml.c",
+			"zblock.c",
+			"zeropart.c"
+		]
+	},
+	{
+		"Name": "cmd-venti-srv-venti",
+		"Include": [
+			"/$ARCH/cflags.json"
+		],
+		"Install": "/$ARCH/bin/venti/",
+		"Cflags": [
+			"-I."
+		],
+		"Oflags": [
+			"--entry=_main"
+		],
+		"Libs": [
+			"--start-group",
+			"/sys/src/cmd/venti/srv/libvs.a7",
+			"/$ARCH/lib.gcc/libdisk.a",
+			"/$ARCH/lib.gcc/libcontrol.a",
+			"/$ARCH/lib.gcc/libhtml.a",
+			"/$ARCH/lib.gcc/libframe.a",
+			"/$ARCH/lib.gcc/libdraw.a",
+			"/$ARCH/lib.gcc/libmemlayer.a",
+			"/$ARCH/lib.gcc/libmemdraw.a",
+			"/$ARCH/lib.gcc/libplumb.a",
+			"/$ARCH/lib.gcc/libcomplete.a",
+			"/$ARCH/lib.gcc/lib9p.a",
+			"/$ARCH/lib.gcc/libventi.a",
+			"/$ARCH/lib.gcc/libsunrpc.a",
+			"/$ARCH/lib.gcc/libthread.a",
+			"/$ARCH/lib.gcc/libauth.a",
+			"/$ARCH/lib.gcc/libauthsrv.a",
+			"/$ARCH/lib.gcc/libndb.a",
+			"/$ARCH/lib.gcc/libip.a",
+			"/$ARCH/lib.gcc/libhttpd.a",
+			"/$ARCH/lib.gcc/libsec.a",
+			"/$ARCH/lib.gcc/libmp.a",
+			"/$ARCH/lib.gcc/libflate.a",
+			"/$ARCH/lib.gcc/libregexp.a",
+			"/$ARCH/lib.gcc/libString.a",
+			"/$ARCH/lib.gcc/libmach.a",
+			"/$ARCH/lib.gcc/libbin.a",
+			"/$ARCH/lib.gcc/libavl.a",
+			"/$ARCH/lib.gcc/libjson.a",
+			"/$ARCH/lib.gcc/libgeometry.a",
+			"/$ARCH/lib.gcc/libpcm.a",
+			"/$ARCH/lib.gcc/libttf.a",
+			"/$ARCH/lib.gcc/libsat.a",
+			"/$ARCH/lib.gcc/libscribble.a",
+			"/$ARCH/lib.gcc/liblex.a",
+			"/$ARCH/lib.gcc/libstdio.a",
+			"/$ARCH/lib.gcc/libdtracy.a",
+			"/$ARCH/lib.gcc/libaml.a",
+			"/$ARCH/lib.gcc/libfis.a",
+			"/$ARCH/lib.gcc/libbio.a",
+			"/$ARCH/lib.gcc/libc.a",
+			"--end-group"
+		],
+		"Program": "venti",
+		"SourceFiles": [
+			"venti.c"
+		]
+	},
+	{
+		"Name": "cmd-venti-srv-buildindex",
+		"Include": [
+			"/$ARCH/cflags.json"
+		],
+		"Install": "/$ARCH/bin/venti/",
+		"Cflags": [
+			"-I."
+		],
+		"Oflags": [
+			"--entry=_main"
+		],
+		"Libs": [
+			"--start-group",
+			"/sys/src/cmd/venti/srv/libvs.a7",
+			"/$ARCH/lib.gcc/libdisk.a",
+			"/$ARCH/lib.gcc/libcontrol.a",
+			"/$ARCH/lib.gcc/libhtml.a",
+			"/$ARCH/lib.gcc/libframe.a",
+			"/$ARCH/lib.gcc/libdraw.a",
+			"/$ARCH/lib.gcc/libmemlayer.a",
+			"/$ARCH/lib.gcc/libmemdraw.a",
+			"/$ARCH/lib.gcc/libplumb.a",
+			"/$ARCH/lib.gcc/libcomplete.a",
+			"/$ARCH/lib.gcc/lib9p.a",
+			"/$ARCH/lib.gcc/libventi.a",
+			"/$ARCH/lib.gcc/libsunrpc.a",
+			"/$ARCH/lib.gcc/libthread.a",
+			"/$ARCH/lib.gcc/libauth.a",
+			"/$ARCH/lib.gcc/libauthsrv.a",
+			"/$ARCH/lib.gcc/libndb.a",
+			"/$ARCH/lib.gcc/libip.a",
+			"/$ARCH/lib.gcc/libhttpd.a",
+			"/$ARCH/lib.gcc/libsec.a",
+			"/$ARCH/lib.gcc/libmp.a",
+			"/$ARCH/lib.gcc/libflate.a",
+			"/$ARCH/lib.gcc/libregexp.a",
+			"/$ARCH/lib.gcc/libString.a",
+			"/$ARCH/lib.gcc/libmach.a",
+			"/$ARCH/lib.gcc/libbin.a",
+			"/$ARCH/lib.gcc/libavl.a",
+			"/$ARCH/lib.gcc/libjson.a",
+			"/$ARCH/lib.gcc/libgeometry.a",
+			"/$ARCH/lib.gcc/libpcm.a",
+			"/$ARCH/lib.gcc/libttf.a",
+			"/$ARCH/lib.gcc/libsat.a",
+			"/$ARCH/lib.gcc/libscribble.a",
+			"/$ARCH/lib.gcc/liblex.a",
+			"/$ARCH/lib.gcc/libstdio.a",
+			"/$ARCH/lib.gcc/libdtracy.a",
+			"/$ARCH/lib.gcc/libaml.a",
+			"/$ARCH/lib.gcc/libfis.a",
+			"/$ARCH/lib.gcc/libbio.a",
+			"/$ARCH/lib.gcc/libc.a",
+			"--end-group"
+		],
+		"Program": "buildindex",
+		"SourceFiles": [
+			"buildindex.c"
+		]
+	},
+	{
+		"Name": "cmd-venti-srv-checkarenas",
+		"Include": [
+			"/$ARCH/cflags.json"
+		],
+		"Install": "/$ARCH/bin/venti/",
+		"Cflags": [
+			"-I."
+		],
+		"Oflags": [
+			"--entry=_main"
+		],
+		"Libs": [
+			"--start-group",
+			"/sys/src/cmd/venti/srv/libvs.a7",
+			"/$ARCH/lib.gcc/libdisk.a",
+			"/$ARCH/lib.gcc/libcontrol.a",
+			"/$ARCH/lib.gcc/libhtml.a",
+			"/$ARCH/lib.gcc/libframe.a",
+			"/$ARCH/lib.gcc/libdraw.a",
+			"/$ARCH/lib.gcc/libmemlayer.a",
+			"/$ARCH/lib.gcc/libmemdraw.a",
+			"/$ARCH/lib.gcc/libplumb.a",
+			"/$ARCH/lib.gcc/libcomplete.a",
+			"/$ARCH/lib.gcc/lib9p.a",
+			"/$ARCH/lib.gcc/libventi.a",
+			"/$ARCH/lib.gcc/libsunrpc.a",
+			"/$ARCH/lib.gcc/libthread.a",
+			"/$ARCH/lib.gcc/libauth.a",
+			"/$ARCH/lib.gcc/libauthsrv.a",
+			"/$ARCH/lib.gcc/libndb.a",
+			"/$ARCH/lib.gcc/libip.a",
+			"/$ARCH/lib.gcc/libhttpd.a",
+			"/$ARCH/lib.gcc/libsec.a",
+			"/$ARCH/lib.gcc/libmp.a",
+			"/$ARCH/lib.gcc/libflate.a",
+			"/$ARCH/lib.gcc/libregexp.a",
+			"/$ARCH/lib.gcc/libString.a",
+			"/$ARCH/lib.gcc/libmach.a",
+			"/$ARCH/lib.gcc/libbin.a",
+			"/$ARCH/lib.gcc/libavl.a",
+			"/$ARCH/lib.gcc/libjson.a",
+			"/$ARCH/lib.gcc/libgeometry.a",
+			"/$ARCH/lib.gcc/libpcm.a",
+			"/$ARCH/lib.gcc/libttf.a",
+			"/$ARCH/lib.gcc/libsat.a",
+			"/$ARCH/lib.gcc/libscribble.a",
+			"/$ARCH/lib.gcc/liblex.a",
+			"/$ARCH/lib.gcc/libstdio.a",
+			"/$ARCH/lib.gcc/libdtracy.a",
+			"/$ARCH/lib.gcc/libaml.a",
+			"/$ARCH/lib.gcc/libfis.a",
+			"/$ARCH/lib.gcc/libbio.a",
+			"/$ARCH/lib.gcc/libc.a",
+			"--end-group"
+		],
+		"Program": "checkarenas",
+		"SourceFiles": [
+			"checkarenas.c"
+		]
+	},
+	{
+		"Name": "cmd-venti-srv-checkindex",
+		"Include": [
+			"/$ARCH/cflags.json"
+		],
+		"Install": "/$ARCH/bin/venti/",
+		"Cflags": [
+			"-I."
+		],
+		"Oflags": [
+			"--entry=_main"
+		],
+		"Libs": [
+			"--start-group",
+			"/sys/src/cmd/venti/srv/libvs.a7",
+			"/$ARCH/lib.gcc/libdisk.a",
+			"/$ARCH/lib.gcc/libcontrol.a",
+			"/$ARCH/lib.gcc/libhtml.a",
+			"/$ARCH/lib.gcc/libframe.a",
+			"/$ARCH/lib.gcc/libdraw.a",
+			"/$ARCH/lib.gcc/libmemlayer.a",
+			"/$ARCH/lib.gcc/libmemdraw.a",
+			"/$ARCH/lib.gcc/libplumb.a",
+			"/$ARCH/lib.gcc/libcomplete.a",
+			"/$ARCH/lib.gcc/lib9p.a",
+			"/$ARCH/lib.gcc/libventi.a",
+			"/$ARCH/lib.gcc/libsunrpc.a",
+			"/$ARCH/lib.gcc/libthread.a",
+			"/$ARCH/lib.gcc/libauth.a",
+			"/$ARCH/lib.gcc/libauthsrv.a",
+			"/$ARCH/lib.gcc/libndb.a",
+			"/$ARCH/lib.gcc/libip.a",
+			"/$ARCH/lib.gcc/libhttpd.a",
+			"/$ARCH/lib.gcc/libsec.a",
+			"/$ARCH/lib.gcc/libmp.a",
+			"/$ARCH/lib.gcc/libflate.a",
+			"/$ARCH/lib.gcc/libregexp.a",
+			"/$ARCH/lib.gcc/libString.a",
+			"/$ARCH/lib.gcc/libmach.a",
+			"/$ARCH/lib.gcc/libbin.a",
+			"/$ARCH/lib.gcc/libavl.a",
+			"/$ARCH/lib.gcc/libjson.a",
+			"/$ARCH/lib.gcc/libgeometry.a",
+			"/$ARCH/lib.gcc/libpcm.a",
+			"/$ARCH/lib.gcc/libttf.a",
+			"/$ARCH/lib.gcc/libsat.a",
+			"/$ARCH/lib.gcc/libscribble.a",
+			"/$ARCH/lib.gcc/liblex.a",
+			"/$ARCH/lib.gcc/libstdio.a",
+			"/$ARCH/lib.gcc/libdtracy.a",
+			"/$ARCH/lib.gcc/libaml.a",
+			"/$ARCH/lib.gcc/libfis.a",
+			"/$ARCH/lib.gcc/libbio.a",
+			"/$ARCH/lib.gcc/libc.a",
+			"--end-group"
+		],
+		"Program": "checkindex",
+		"SourceFiles": [
+			"checkindex.c"
+		]
+	},
+	{
+		"Name": "cmd-venti-srv-clumpstats",
+		"Include": [
+			"/$ARCH/cflags.json"
+		],
+		"Install": "/$ARCH/bin/venti/",
+		"Cflags": [
+			"-I."
+		],
+		"Oflags": [
+			"--entry=_main"
+		],
+		"Libs": [
+			"--start-group",
+			"/sys/src/cmd/venti/srv/libvs.a7",
+			"/$ARCH/lib.gcc/libdisk.a",
+			"/$ARCH/lib.gcc/libcontrol.a",
+			"/$ARCH/lib.gcc/libhtml.a",
+			"/$ARCH/lib.gcc/libframe.a",
+			"/$ARCH/lib.gcc/libdraw.a",
+			"/$ARCH/lib.gcc/libmemlayer.a",
+			"/$ARCH/lib.gcc/libmemdraw.a",
+			"/$ARCH/lib.gcc/libplumb.a",
+			"/$ARCH/lib.gcc/libcomplete.a",
+			"/$ARCH/lib.gcc/lib9p.a",
+			"/$ARCH/lib.gcc/libventi.a",
+			"/$ARCH/lib.gcc/libsunrpc.a",
+			"/$ARCH/lib.gcc/libthread.a",
+			"/$ARCH/lib.gcc/libauth.a",
+			"/$ARCH/lib.gcc/libauthsrv.a",
+			"/$ARCH/lib.gcc/libndb.a",
+			"/$ARCH/lib.gcc/libip.a",
+			"/$ARCH/lib.gcc/libhttpd.a",
+			"/$ARCH/lib.gcc/libsec.a",
+			"/$ARCH/lib.gcc/libmp.a",
+			"/$ARCH/lib.gcc/libflate.a",
+			"/$ARCH/lib.gcc/libregexp.a",
+			"/$ARCH/lib.gcc/libString.a",
+			"/$ARCH/lib.gcc/libmach.a",
+			"/$ARCH/lib.gcc/libbin.a",
+			"/$ARCH/lib.gcc/libavl.a",
+			"/$ARCH/lib.gcc/libjson.a",
+			"/$ARCH/lib.gcc/libgeometry.a",
+			"/$ARCH/lib.gcc/libpcm.a",
+			"/$ARCH/lib.gcc/libttf.a",
+			"/$ARCH/lib.gcc/libsat.a",
+			"/$ARCH/lib.gcc/libscribble.a",
+			"/$ARCH/lib.gcc/liblex.a",
+			"/$ARCH/lib.gcc/libstdio.a",
+			"/$ARCH/lib.gcc/libdtracy.a",
+			"/$ARCH/lib.gcc/libaml.a",
+			"/$ARCH/lib.gcc/libfis.a",
+			"/$ARCH/lib.gcc/libbio.a",
+			"/$ARCH/lib.gcc/libc.a",
+			"--end-group"
+		],
+		"Program": "clumpstats",
+		"SourceFiles": [
+			"clumpstats.c"
+		]
+	},
+	{
+		"Name": "cmd-venti-srv-conf",
+		"Install": "",
+		"Cflags": [
+			"-I."
+		],
+		"Post": [
+			"install -D -m 755 conf.rc /$ARCH/bin/venti/conf"
+		]
+	},
+	{
+		"Name": "cmd-venti-srv-findscore",
+		"Include": [
+			"/$ARCH/cflags.json"
+		],
+		"Install": "/$ARCH/bin/venti/",
+		"Cflags": [
+			"-I."
+		],
+		"Oflags": [
+			"--entry=_main"
+		],
+		"Libs": [
+			"--start-group",
+			"/sys/src/cmd/venti/srv/libvs.a7",
+			"/$ARCH/lib.gcc/libdisk.a",
+			"/$ARCH/lib.gcc/libcontrol.a",
+			"/$ARCH/lib.gcc/libhtml.a",
+			"/$ARCH/lib.gcc/libframe.a",
+			"/$ARCH/lib.gcc/libdraw.a",
+			"/$ARCH/lib.gcc/libmemlayer.a",
+			"/$ARCH/lib.gcc/libmemdraw.a",
+			"/$ARCH/lib.gcc/libplumb.a",
+			"/$ARCH/lib.gcc/libcomplete.a",
+			"/$ARCH/lib.gcc/lib9p.a",
+			"/$ARCH/lib.gcc/libventi.a",
+			"/$ARCH/lib.gcc/libsunrpc.a",
+			"/$ARCH/lib.gcc/libthread.a",
+			"/$ARCH/lib.gcc/libauth.a",
+			"/$ARCH/lib.gcc/libauthsrv.a",
+			"/$ARCH/lib.gcc/libndb.a",
+			"/$ARCH/lib.gcc/libip.a",
+			"/$ARCH/lib.gcc/libhttpd.a",
+			"/$ARCH/lib.gcc/libsec.a",
+			"/$ARCH/lib.gcc/libmp.a",
+			"/$ARCH/lib.gcc/libflate.a",
+			"/$ARCH/lib.gcc/libregexp.a",
+			"/$ARCH/lib.gcc/libString.a",
+			"/$ARCH/lib.gcc/libmach.a",
+			"/$ARCH/lib.gcc/libbin.a",
+			"/$ARCH/lib.gcc/libavl.a",
+			"/$ARCH/lib.gcc/libjson.a",
+			"/$ARCH/lib.gcc/libgeometry.a",
+			"/$ARCH/lib.gcc/libpcm.a",
+			"/$ARCH/lib.gcc/libttf.a",
+			"/$ARCH/lib.gcc/libsat.a",
+			"/$ARCH/lib.gcc/libscribble.a",
+			"/$ARCH/lib.gcc/liblex.a",
+			"/$ARCH/lib.gcc/libstdio.a",
+			"/$ARCH/lib.gcc/libdtracy.a",
+			"/$ARCH/lib.gcc/libaml.a",
+			"/$ARCH/lib.gcc/libfis.a",
+			"/$ARCH/lib.gcc/libbio.a",
+			"/$ARCH/lib.gcc/libc.a",
+			"--end-group"
+		],
+		"Program": "findscore",
+		"SourceFiles": [
+			"findscore.c"
+		]
+	},
+	{
+		"Name": "cmd-venti-srv-fixarenas",
+		"Include": [
+			"/$ARCH/cflags.json"
+		],
+		"Install": "/$ARCH/bin/venti/",
+		"Cflags": [
+			"-I."
+		],
+		"Oflags": [
+			"--entry=_main"
+		],
+		"Libs": [
+			"--start-group",
+			"/sys/src/cmd/venti/srv/libvs.a7",
+			"/$ARCH/lib.gcc/libdisk.a",
+			"/$ARCH/lib.gcc/libcontrol.a",
+			"/$ARCH/lib.gcc/libhtml.a",
+			"/$ARCH/lib.gcc/libframe.a",
+			"/$ARCH/lib.gcc/libdraw.a",
+			"/$ARCH/lib.gcc/libmemlayer.a",
+			"/$ARCH/lib.gcc/libmemdraw.a",
+			"/$ARCH/lib.gcc/libplumb.a",
+			"/$ARCH/lib.gcc/libcomplete.a",
+			"/$ARCH/lib.gcc/lib9p.a",
+			"/$ARCH/lib.gcc/libventi.a",
+			"/$ARCH/lib.gcc/libsunrpc.a",
+			"/$ARCH/lib.gcc/libthread.a",
+			"/$ARCH/lib.gcc/libauth.a",
+			"/$ARCH/lib.gcc/libauthsrv.a",
+			"/$ARCH/lib.gcc/libndb.a",
+			"/$ARCH/lib.gcc/libip.a",
+			"/$ARCH/lib.gcc/libhttpd.a",
+			"/$ARCH/lib.gcc/libsec.a",
+			"/$ARCH/lib.gcc/libmp.a",
+			"/$ARCH/lib.gcc/libflate.a",
+			"/$ARCH/lib.gcc/libregexp.a",
+			"/$ARCH/lib.gcc/libString.a",
+			"/$ARCH/lib.gcc/libmach.a",
+			"/$ARCH/lib.gcc/libbin.a",
+			"/$ARCH/lib.gcc/libavl.a",
+			"/$ARCH/lib.gcc/libjson.a",
+			"/$ARCH/lib.gcc/libgeometry.a",
+			"/$ARCH/lib.gcc/libpcm.a",
+			"/$ARCH/lib.gcc/libttf.a",
+			"/$ARCH/lib.gcc/libsat.a",
+			"/$ARCH/lib.gcc/libscribble.a",
+			"/$ARCH/lib.gcc/liblex.a",
+			"/$ARCH/lib.gcc/libstdio.a",
+			"/$ARCH/lib.gcc/libdtracy.a",
+			"/$ARCH/lib.gcc/libaml.a",
+			"/$ARCH/lib.gcc/libfis.a",
+			"/$ARCH/lib.gcc/libbio.a",
+			"/$ARCH/lib.gcc/libc.a",
+			"--end-group"
+		],
+		"Program": "fixarenas",
+		"SourceFiles": [
+			"fixarenas.c"
+		]
+	},
+	{
+		"Name": "cmd-venti-srv-fmtarenas",
+		"Include": [
+			"/$ARCH/cflags.json"
+		],
+		"Install": "/$ARCH/bin/venti/",
+		"Cflags": [
+			"-I."
+		],
+		"Oflags": [
+			"--entry=_main"
+		],
+		"Libs": [
+			"--start-group",
+			"/sys/src/cmd/venti/srv/libvs.a7",
+			"/$ARCH/lib.gcc/libdisk.a",
+			"/$ARCH/lib.gcc/libcontrol.a",
+			"/$ARCH/lib.gcc/libhtml.a",
+			"/$ARCH/lib.gcc/libframe.a",
+			"/$ARCH/lib.gcc/libdraw.a",
+			"/$ARCH/lib.gcc/libmemlayer.a",
+			"/$ARCH/lib.gcc/libmemdraw.a",
+			"/$ARCH/lib.gcc/libplumb.a",
+			"/$ARCH/lib.gcc/libcomplete.a",
+			"/$ARCH/lib.gcc/lib9p.a",
+			"/$ARCH/lib.gcc/libventi.a",
+			"/$ARCH/lib.gcc/libsunrpc.a",
+			"/$ARCH/lib.gcc/libthread.a",
+			"/$ARCH/lib.gcc/libauth.a",
+			"/$ARCH/lib.gcc/libauthsrv.a",
+			"/$ARCH/lib.gcc/libndb.a",
+			"/$ARCH/lib.gcc/libip.a",
+			"/$ARCH/lib.gcc/libhttpd.a",
+			"/$ARCH/lib.gcc/libsec.a",
+			"/$ARCH/lib.gcc/libmp.a",
+			"/$ARCH/lib.gcc/libflate.a",
+			"/$ARCH/lib.gcc/libregexp.a",
+			"/$ARCH/lib.gcc/libString.a",
+			"/$ARCH/lib.gcc/libmach.a",
+			"/$ARCH/lib.gcc/libbin.a",
+			"/$ARCH/lib.gcc/libavl.a",
+			"/$ARCH/lib.gcc/libjson.a",
+			"/$ARCH/lib.gcc/libgeometry.a",
+			"/$ARCH/lib.gcc/libpcm.a",
+			"/$ARCH/lib.gcc/libttf.a",
+			"/$ARCH/lib.gcc/libsat.a",
+			"/$ARCH/lib.gcc/libscribble.a",
+			"/$ARCH/lib.gcc/liblex.a",
+			"/$ARCH/lib.gcc/libstdio.a",
+			"/$ARCH/lib.gcc/libdtracy.a",
+			"/$ARCH/lib.gcc/libaml.a",
+			"/$ARCH/lib.gcc/libfis.a",
+			"/$ARCH/lib.gcc/libbio.a",
+			"/$ARCH/lib.gcc/libc.a",
+			"--end-group"
+		],
+		"Program": "fmtarenas",
+		"SourceFiles": [
+			"fmtarenas.c"
+		]
+	},
+	{
+		"Name": "cmd-venti-srv-fmtbloom",
+		"Include": [
+			"/$ARCH/cflags.json"
+		],
+		"Install": "/$ARCH/bin/venti/",
+		"Cflags": [
+			"-I."
+		],
+		"Oflags": [
+			"--entry=_main"
+		],
+		"Libs": [
+			"--start-group",
+			"/sys/src/cmd/venti/srv/libvs.a7",
+			"/$ARCH/lib.gcc/libdisk.a",
+			"/$ARCH/lib.gcc/libcontrol.a",
+			"/$ARCH/lib.gcc/libhtml.a",
+			"/$ARCH/lib.gcc/libframe.a",
+			"/$ARCH/lib.gcc/libdraw.a",
+			"/$ARCH/lib.gcc/libmemlayer.a",
+			"/$ARCH/lib.gcc/libmemdraw.a",
+			"/$ARCH/lib.gcc/libplumb.a",
+			"/$ARCH/lib.gcc/libcomplete.a",
+			"/$ARCH/lib.gcc/lib9p.a",
+			"/$ARCH/lib.gcc/libventi.a",
+			"/$ARCH/lib.gcc/libsunrpc.a",
+			"/$ARCH/lib.gcc/libthread.a",
+			"/$ARCH/lib.gcc/libauth.a",
+			"/$ARCH/lib.gcc/libauthsrv.a",
+			"/$ARCH/lib.gcc/libndb.a",
+			"/$ARCH/lib.gcc/libip.a",
+			"/$ARCH/lib.gcc/libhttpd.a",
+			"/$ARCH/lib.gcc/libsec.a",
+			"/$ARCH/lib.gcc/libmp.a",
+			"/$ARCH/lib.gcc/libflate.a",
+			"/$ARCH/lib.gcc/libregexp.a",
+			"/$ARCH/lib.gcc/libString.a",
+			"/$ARCH/lib.gcc/libmach.a",
+			"/$ARCH/lib.gcc/libbin.a",
+			"/$ARCH/lib.gcc/libavl.a",
+			"/$ARCH/lib.gcc/libjson.a",
+			"/$ARCH/lib.gcc/libgeometry.a",
+			"/$ARCH/lib.gcc/libpcm.a",
+			"/$ARCH/lib.gcc/libttf.a",
+			"/$ARCH/lib.gcc/libsat.a",
+			"/$ARCH/lib.gcc/libscribble.a",
+			"/$ARCH/lib.gcc/liblex.a",
+			"/$ARCH/lib.gcc/libstdio.a",
+			"/$ARCH/lib.gcc/libdtracy.a",
+			"/$ARCH/lib.gcc/libaml.a",
+			"/$ARCH/lib.gcc/libfis.a",
+			"/$ARCH/lib.gcc/libbio.a",
+			"/$ARCH/lib.gcc/libc.a",
+			"--end-group"
+		],
+		"Program": "fmtbloom",
+		"SourceFiles": [
+			"fmtbloom.c"
+		]
+	},
+	{
+		"Name": "cmd-venti-srv-fmtindex",
+		"Include": [
+			"/$ARCH/cflags.json"
+		],
+		"Install": "/$ARCH/bin/venti/",
+		"Cflags": [
+			"-I."
+		],
+		"Oflags": [
+			"--entry=_main"
+		],
+		"Libs": [
+			"--start-group",
+			"/sys/src/cmd/venti/srv/libvs.a7",
+			"/$ARCH/lib.gcc/libdisk.a",
+			"/$ARCH/lib.gcc/libcontrol.a",
+			"/$ARCH/lib.gcc/libhtml.a",
+			"/$ARCH/lib.gcc/libframe.a",
+			"/$ARCH/lib.gcc/libdraw.a",
+			"/$ARCH/lib.gcc/libmemlayer.a",
+			"/$ARCH/lib.gcc/libmemdraw.a",
+			"/$ARCH/lib.gcc/libplumb.a",
+			"/$ARCH/lib.gcc/libcomplete.a",
+			"/$ARCH/lib.gcc/lib9p.a",
+			"/$ARCH/lib.gcc/libventi.a",
+			"/$ARCH/lib.gcc/libsunrpc.a",
+			"/$ARCH/lib.gcc/libthread.a",
+			"/$ARCH/lib.gcc/libauth.a",
+			"/$ARCH/lib.gcc/libauthsrv.a",
+			"/$ARCH/lib.gcc/libndb.a",
+			"/$ARCH/lib.gcc/libip.a",
+			"/$ARCH/lib.gcc/libhttpd.a",
+			"/$ARCH/lib.gcc/libsec.a",
+			"/$ARCH/lib.gcc/libmp.a",
+			"/$ARCH/lib.gcc/libflate.a",
+			"/$ARCH/lib.gcc/libregexp.a",
+			"/$ARCH/lib.gcc/libString.a",
+			"/$ARCH/lib.gcc/libmach.a",
+			"/$ARCH/lib.gcc/libbin.a",
+			"/$ARCH/lib.gcc/libavl.a",
+			"/$ARCH/lib.gcc/libjson.a",
+			"/$ARCH/lib.gcc/libgeometry.a",
+			"/$ARCH/lib.gcc/libpcm.a",
+			"/$ARCH/lib.gcc/libttf.a",
+			"/$ARCH/lib.gcc/libsat.a",
+			"/$ARCH/lib.gcc/libscribble.a",
+			"/$ARCH/lib.gcc/liblex.a",
+			"/$ARCH/lib.gcc/libstdio.a",
+			"/$ARCH/lib.gcc/libdtracy.a",
+			"/$ARCH/lib.gcc/libaml.a",
+			"/$ARCH/lib.gcc/libfis.a",
+			"/$ARCH/lib.gcc/libbio.a",
+			"/$ARCH/lib.gcc/libc.a",
+			"--end-group"
+		],
+		"Program": "fmtindex",
+		"SourceFiles": [
+			"fmtindex.c"
+		]
+	},
+	{
+		"Name": "cmd-venti-srv-fmtisect",
+		"Include": [
+			"/$ARCH/cflags.json"
+		],
+		"Install": "/$ARCH/bin/venti/",
+		"Cflags": [
+			"-I."
+		],
+		"Oflags": [
+			"--entry=_main"
+		],
+		"Libs": [
+			"--start-group",
+			"/sys/src/cmd/venti/srv/libvs.a7",
+			"/$ARCH/lib.gcc/libdisk.a",
+			"/$ARCH/lib.gcc/libcontrol.a",
+			"/$ARCH/lib.gcc/libhtml.a",
+			"/$ARCH/lib.gcc/libframe.a",
+			"/$ARCH/lib.gcc/libdraw.a",
+			"/$ARCH/lib.gcc/libmemlayer.a",
+			"/$ARCH/lib.gcc/libmemdraw.a",
+			"/$ARCH/lib.gcc/libplumb.a",
+			"/$ARCH/lib.gcc/libcomplete.a",
+			"/$ARCH/lib.gcc/lib9p.a",
+			"/$ARCH/lib.gcc/libventi.a",
+			"/$ARCH/lib.gcc/libsunrpc.a",
+			"/$ARCH/lib.gcc/libthread.a",
+			"/$ARCH/lib.gcc/libauth.a",
+			"/$ARCH/lib.gcc/libauthsrv.a",
+			"/$ARCH/lib.gcc/libndb.a",
+			"/$ARCH/lib.gcc/libip.a",
+			"/$ARCH/lib.gcc/libhttpd.a",
+			"/$ARCH/lib.gcc/libsec.a",
+			"/$ARCH/lib.gcc/libmp.a",
+			"/$ARCH/lib.gcc/libflate.a",
+			"/$ARCH/lib.gcc/libregexp.a",
+			"/$ARCH/lib.gcc/libString.a",
+			"/$ARCH/lib.gcc/libmach.a",
+			"/$ARCH/lib.gcc/libbin.a",
+			"/$ARCH/lib.gcc/libavl.a",
+			"/$ARCH/lib.gcc/libjson.a",
+			"/$ARCH/lib.gcc/libgeometry.a",
+			"/$ARCH/lib.gcc/libpcm.a",
+			"/$ARCH/lib.gcc/libttf.a",
+			"/$ARCH/lib.gcc/libsat.a",
+			"/$ARCH/lib.gcc/libscribble.a",
+			"/$ARCH/lib.gcc/liblex.a",
+			"/$ARCH/lib.gcc/libstdio.a",
+			"/$ARCH/lib.gcc/libdtracy.a",
+			"/$ARCH/lib.gcc/libaml.a",
+			"/$ARCH/lib.gcc/libfis.a",
+			"/$ARCH/lib.gcc/libbio.a",
+			"/$ARCH/lib.gcc/libc.a",
+			"--end-group"
+		],
+		"Program": "fmtisect",
+		"SourceFiles": [
+			"fmtisect.c"
+		]
+	},
+	{
+		"Name": "cmd-venti-srv-mirrorarenas",
+		"Include": [
+			"/$ARCH/cflags.json"
+		],
+		"Install": "/$ARCH/bin/venti/",
+		"Cflags": [
+			"-I."
+		],
+		"Oflags": [
+			"--entry=_main"
+		],
+		"Libs": [
+			"--start-group",
+			"/sys/src/cmd/venti/srv/libvs.a7",
+			"/$ARCH/lib.gcc/libdisk.a",
+			"/$ARCH/lib.gcc/libcontrol.a",
+			"/$ARCH/lib.gcc/libhtml.a",
+			"/$ARCH/lib.gcc/libframe.a",
+			"/$ARCH/lib.gcc/libdraw.a",
+			"/$ARCH/lib.gcc/libmemlayer.a",
+			"/$ARCH/lib.gcc/libmemdraw.a",
+			"/$ARCH/lib.gcc/libplumb.a",
+			"/$ARCH/lib.gcc/libcomplete.a",
+			"/$ARCH/lib.gcc/lib9p.a",
+			"/$ARCH/lib.gcc/libventi.a",
+			"/$ARCH/lib.gcc/libsunrpc.a",
+			"/$ARCH/lib.gcc/libthread.a",
+			"/$ARCH/lib.gcc/libauth.a",
+			"/$ARCH/lib.gcc/libauthsrv.a",
+			"/$ARCH/lib.gcc/libndb.a",
+			"/$ARCH/lib.gcc/libip.a",
+			"/$ARCH/lib.gcc/libhttpd.a",
+			"/$ARCH/lib.gcc/libsec.a",
+			"/$ARCH/lib.gcc/libmp.a",
+			"/$ARCH/lib.gcc/libflate.a",
+			"/$ARCH/lib.gcc/libregexp.a",
+			"/$ARCH/lib.gcc/libString.a",
+			"/$ARCH/lib.gcc/libmach.a",
+			"/$ARCH/lib.gcc/libbin.a",
+			"/$ARCH/lib.gcc/libavl.a",
+			"/$ARCH/lib.gcc/libjson.a",
+			"/$ARCH/lib.gcc/libgeometry.a",
+			"/$ARCH/lib.gcc/libpcm.a",
+			"/$ARCH/lib.gcc/libttf.a",
+			"/$ARCH/lib.gcc/libsat.a",
+			"/$ARCH/lib.gcc/libscribble.a",
+			"/$ARCH/lib.gcc/liblex.a",
+			"/$ARCH/lib.gcc/libstdio.a",
+			"/$ARCH/lib.gcc/libdtracy.a",
+			"/$ARCH/lib.gcc/libaml.a",
+			"/$ARCH/lib.gcc/libfis.a",
+			"/$ARCH/lib.gcc/libbio.a",
+			"/$ARCH/lib.gcc/libc.a",
+			"--end-group"
+		],
+		"Program": "mirrorarenas",
+		"SourceFiles": [
+			"mirrorarenas.c"
+		]
+	},
+	{
+		"Name": "cmd-venti-srv-printarena",
+		"Include": [
+			"/$ARCH/cflags.json"
+		],
+		"Install": "/$ARCH/bin/venti/",
+		"Cflags": [
+			"-I."
+		],
+		"Oflags": [
+			"--entry=_main"
+		],
+		"Libs": [
+			"--start-group",
+			"/sys/src/cmd/venti/srv/libvs.a7",
+			"/$ARCH/lib.gcc/libdisk.a",
+			"/$ARCH/lib.gcc/libcontrol.a",
+			"/$ARCH/lib.gcc/libhtml.a",
+			"/$ARCH/lib.gcc/libframe.a",
+			"/$ARCH/lib.gcc/libdraw.a",
+			"/$ARCH/lib.gcc/libmemlayer.a",
+			"/$ARCH/lib.gcc/libmemdraw.a",
+			"/$ARCH/lib.gcc/libplumb.a",
+			"/$ARCH/lib.gcc/libcomplete.a",
+			"/$ARCH/lib.gcc/lib9p.a",
+			"/$ARCH/lib.gcc/libventi.a",
+			"/$ARCH/lib.gcc/libsunrpc.a",
+			"/$ARCH/lib.gcc/libthread.a",
+			"/$ARCH/lib.gcc/libauth.a",
+			"/$ARCH/lib.gcc/libauthsrv.a",
+			"/$ARCH/lib.gcc/libndb.a",
+			"/$ARCH/lib.gcc/libip.a",
+			"/$ARCH/lib.gcc/libhttpd.a",
+			"/$ARCH/lib.gcc/libsec.a",
+			"/$ARCH/lib.gcc/libmp.a",
+			"/$ARCH/lib.gcc/libflate.a",
+			"/$ARCH/lib.gcc/libregexp.a",
+			"/$ARCH/lib.gcc/libString.a",
+			"/$ARCH/lib.gcc/libmach.a",
+			"/$ARCH/lib.gcc/libbin.a",
+			"/$ARCH/lib.gcc/libavl.a",
+			"/$ARCH/lib.gcc/libjson.a",
+			"/$ARCH/lib.gcc/libgeometry.a",
+			"/$ARCH/lib.gcc/libpcm.a",
+			"/$ARCH/lib.gcc/libttf.a",
+			"/$ARCH/lib.gcc/libsat.a",
+			"/$ARCH/lib.gcc/libscribble.a",
+			"/$ARCH/lib.gcc/liblex.a",
+			"/$ARCH/lib.gcc/libstdio.a",
+			"/$ARCH/lib.gcc/libdtracy.a",
+			"/$ARCH/lib.gcc/libaml.a",
+			"/$ARCH/lib.gcc/libfis.a",
+			"/$ARCH/lib.gcc/libbio.a",
+			"/$ARCH/lib.gcc/libc.a",
+			"--end-group"
+		],
+		"Program": "printarena",
+		"SourceFiles": [
+			"printarena.c"
+		]
+	},
+	{
+		"Name": "cmd-venti-srv-printarenapart",
+		"Include": [
+			"/$ARCH/cflags.json"
+		],
+		"Install": "/$ARCH/bin/venti/",
+		"Cflags": [
+			"-I."
+		],
+		"Oflags": [
+			"--entry=_main"
+		],
+		"Libs": [
+			"--start-group",
+			"/sys/src/cmd/venti/srv/libvs.a7",
+			"/$ARCH/lib.gcc/libdisk.a",
+			"/$ARCH/lib.gcc/libcontrol.a",
+			"/$ARCH/lib.gcc/libhtml.a",
+			"/$ARCH/lib.gcc/libframe.a",
+			"/$ARCH/lib.gcc/libdraw.a",
+			"/$ARCH/lib.gcc/libmemlayer.a",
+			"/$ARCH/lib.gcc/libmemdraw.a",
+			"/$ARCH/lib.gcc/libplumb.a",
+			"/$ARCH/lib.gcc/libcomplete.a",
+			"/$ARCH/lib.gcc/lib9p.a",
+			"/$ARCH/lib.gcc/libventi.a",
+			"/$ARCH/lib.gcc/libsunrpc.a",
+			"/$ARCH/lib.gcc/libthread.a",
+			"/$ARCH/lib.gcc/libauth.a",
+			"/$ARCH/lib.gcc/libauthsrv.a",
+			"/$ARCH/lib.gcc/libndb.a",
+			"/$ARCH/lib.gcc/libip.a",
+			"/$ARCH/lib.gcc/libhttpd.a",
+			"/$ARCH/lib.gcc/libsec.a",
+			"/$ARCH/lib.gcc/libmp.a",
+			"/$ARCH/lib.gcc/libflate.a",
+			"/$ARCH/lib.gcc/libregexp.a",
+			"/$ARCH/lib.gcc/libString.a",
+			"/$ARCH/lib.gcc/libmach.a",
+			"/$ARCH/lib.gcc/libbin.a",
+			"/$ARCH/lib.gcc/libavl.a",
+			"/$ARCH/lib.gcc/libjson.a",
+			"/$ARCH/lib.gcc/libgeometry.a",
+			"/$ARCH/lib.gcc/libpcm.a",
+			"/$ARCH/lib.gcc/libttf.a",
+			"/$ARCH/lib.gcc/libsat.a",
+			"/$ARCH/lib.gcc/libscribble.a",
+			"/$ARCH/lib.gcc/liblex.a",
+			"/$ARCH/lib.gcc/libstdio.a",
+			"/$ARCH/lib.gcc/libdtracy.a",
+			"/$ARCH/lib.gcc/libaml.a",
+			"/$ARCH/lib.gcc/libfis.a",
+			"/$ARCH/lib.gcc/libbio.a",
+			"/$ARCH/lib.gcc/libc.a",
+			"--end-group"
+		],
+		"Program": "printarenapart",
+		"SourceFiles": [
+			"printarenapart.c"
+		]
+	},
+	{
+		"Name": "cmd-venti-srv-rdarena",
+		"Include": [
+			"/$ARCH/cflags.json"
+		],
+		"Install": "/$ARCH/bin/venti/",
+		"Cflags": [
+			"-I."
+		],
+		"Oflags": [
+			"--entry=_main"
+		],
+		"Libs": [
+			"--start-group",
+			"/sys/src/cmd/venti/srv/libvs.a7",
+			"/$ARCH/lib.gcc/libdisk.a",
+			"/$ARCH/lib.gcc/libcontrol.a",
+			"/$ARCH/lib.gcc/libhtml.a",
+			"/$ARCH/lib.gcc/libframe.a",
+			"/$ARCH/lib.gcc/libdraw.a",
+			"/$ARCH/lib.gcc/libmemlayer.a",
+			"/$ARCH/lib.gcc/libmemdraw.a",
+			"/$ARCH/lib.gcc/libplumb.a",
+			"/$ARCH/lib.gcc/libcomplete.a",
+			"/$ARCH/lib.gcc/lib9p.a",
+			"/$ARCH/lib.gcc/libventi.a",
+			"/$ARCH/lib.gcc/libsunrpc.a",
+			"/$ARCH/lib.gcc/libthread.a",
+			"/$ARCH/lib.gcc/libauth.a",
+			"/$ARCH/lib.gcc/libauthsrv.a",
+			"/$ARCH/lib.gcc/libndb.a",
+			"/$ARCH/lib.gcc/libip.a",
+			"/$ARCH/lib.gcc/libhttpd.a",
+			"/$ARCH/lib.gcc/libsec.a",
+			"/$ARCH/lib.gcc/libmp.a",
+			"/$ARCH/lib.gcc/libflate.a",
+			"/$ARCH/lib.gcc/libregexp.a",
+			"/$ARCH/lib.gcc/libString.a",
+			"/$ARCH/lib.gcc/libmach.a",
+			"/$ARCH/lib.gcc/libbin.a",
+			"/$ARCH/lib.gcc/libavl.a",
+			"/$ARCH/lib.gcc/libjson.a",
+			"/$ARCH/lib.gcc/libgeometry.a",
+			"/$ARCH/lib.gcc/libpcm.a",
+			"/$ARCH/lib.gcc/libttf.a",
+			"/$ARCH/lib.gcc/libsat.a",
+			"/$ARCH/lib.gcc/libscribble.a",
+			"/$ARCH/lib.gcc/liblex.a",
+			"/$ARCH/lib.gcc/libstdio.a",
+			"/$ARCH/lib.gcc/libdtracy.a",
+			"/$ARCH/lib.gcc/libaml.a",
+			"/$ARCH/lib.gcc/libfis.a",
+			"/$ARCH/lib.gcc/libbio.a",
+			"/$ARCH/lib.gcc/libc.a",
+			"--end-group"
+		],
+		"Program": "rdarena",
+		"SourceFiles": [
+			"rdarena.c"
+		]
+	},
+	{
+		"Name": "cmd-venti-srv-syncindex",
+		"Include": [
+			"/$ARCH/cflags.json"
+		],
+		"Install": "/$ARCH/bin/venti/",
+		"Cflags": [
+			"-I."
+		],
+		"Oflags": [
+			"--entry=_main"
+		],
+		"Libs": [
+			"--start-group",
+			"/sys/src/cmd/venti/srv/libvs.a7",
+			"/$ARCH/lib.gcc/libdisk.a",
+			"/$ARCH/lib.gcc/libcontrol.a",
+			"/$ARCH/lib.gcc/libhtml.a",
+			"/$ARCH/lib.gcc/libframe.a",
+			"/$ARCH/lib.gcc/libdraw.a",
+			"/$ARCH/lib.gcc/libmemlayer.a",
+			"/$ARCH/lib.gcc/libmemdraw.a",
+			"/$ARCH/lib.gcc/libplumb.a",
+			"/$ARCH/lib.gcc/libcomplete.a",
+			"/$ARCH/lib.gcc/lib9p.a",
+			"/$ARCH/lib.gcc/libventi.a",
+			"/$ARCH/lib.gcc/libsunrpc.a",
+			"/$ARCH/lib.gcc/libthread.a",
+			"/$ARCH/lib.gcc/libauth.a",
+			"/$ARCH/lib.gcc/libauthsrv.a",
+			"/$ARCH/lib.gcc/libndb.a",
+			"/$ARCH/lib.gcc/libip.a",
+			"/$ARCH/lib.gcc/libhttpd.a",
+			"/$ARCH/lib.gcc/libsec.a",
+			"/$ARCH/lib.gcc/libmp.a",
+			"/$ARCH/lib.gcc/libflate.a",
+			"/$ARCH/lib.gcc/libregexp.a",
+			"/$ARCH/lib.gcc/libString.a",
+			"/$ARCH/lib.gcc/libmach.a",
+			"/$ARCH/lib.gcc/libbin.a",
+			"/$ARCH/lib.gcc/libavl.a",
+			"/$ARCH/lib.gcc/libjson.a",
+			"/$ARCH/lib.gcc/libgeometry.a",
+			"/$ARCH/lib.gcc/libpcm.a",
+			"/$ARCH/lib.gcc/libttf.a",
+			"/$ARCH/lib.gcc/libsat.a",
+			"/$ARCH/lib.gcc/libscribble.a",
+			"/$ARCH/lib.gcc/liblex.a",
+			"/$ARCH/lib.gcc/libstdio.a",
+			"/$ARCH/lib.gcc/libdtracy.a",
+			"/$ARCH/lib.gcc/libaml.a",
+			"/$ARCH/lib.gcc/libfis.a",
+			"/$ARCH/lib.gcc/libbio.a",
+			"/$ARCH/lib.gcc/libc.a",
+			"--end-group"
+		],
+		"Program": "syncindex",
+		"SourceFiles": [
+			"syncindex.c"
+		]
+	},
+	{
+		"Name": "cmd-venti-srv-verifyarena",
+		"Include": [
+			"/$ARCH/cflags.json"
+		],
+		"Install": "/$ARCH/bin/venti/",
+		"Cflags": [
+			"-I."
+		],
+		"Oflags": [
+			"--entry=_main"
+		],
+		"Libs": [
+			"--start-group",
+			"/sys/src/cmd/venti/srv/libvs.a7",
+			"/$ARCH/lib.gcc/libdisk.a",
+			"/$ARCH/lib.gcc/libcontrol.a",
+			"/$ARCH/lib.gcc/libhtml.a",
+			"/$ARCH/lib.gcc/libframe.a",
+			"/$ARCH/lib.gcc/libdraw.a",
+			"/$ARCH/lib.gcc/libmemlayer.a",
+			"/$ARCH/lib.gcc/libmemdraw.a",
+			"/$ARCH/lib.gcc/libplumb.a",
+			"/$ARCH/lib.gcc/libcomplete.a",
+			"/$ARCH/lib.gcc/lib9p.a",
+			"/$ARCH/lib.gcc/libventi.a",
+			"/$ARCH/lib.gcc/libsunrpc.a",
+			"/$ARCH/lib.gcc/libthread.a",
+			"/$ARCH/lib.gcc/libauth.a",
+			"/$ARCH/lib.gcc/libauthsrv.a",
+			"/$ARCH/lib.gcc/libndb.a",
+			"/$ARCH/lib.gcc/libip.a",
+			"/$ARCH/lib.gcc/libhttpd.a",
+			"/$ARCH/lib.gcc/libsec.a",
+			"/$ARCH/lib.gcc/libmp.a",
+			"/$ARCH/lib.gcc/libflate.a",
+			"/$ARCH/lib.gcc/libregexp.a",
+			"/$ARCH/lib.gcc/libString.a",
+			"/$ARCH/lib.gcc/libmach.a",
+			"/$ARCH/lib.gcc/libbin.a",
+			"/$ARCH/lib.gcc/libavl.a",
+			"/$ARCH/lib.gcc/libjson.a",
+			"/$ARCH/lib.gcc/libgeometry.a",
+			"/$ARCH/lib.gcc/libpcm.a",
+			"/$ARCH/lib.gcc/libttf.a",
+			"/$ARCH/lib.gcc/libsat.a",
+			"/$ARCH/lib.gcc/libscribble.a",
+			"/$ARCH/lib.gcc/liblex.a",
+			"/$ARCH/lib.gcc/libstdio.a",
+			"/$ARCH/lib.gcc/libdtracy.a",
+			"/$ARCH/lib.gcc/libaml.a",
+			"/$ARCH/lib.gcc/libfis.a",
+			"/$ARCH/lib.gcc/libbio.a",
+			"/$ARCH/lib.gcc/libc.a",
+			"--end-group"
+		],
+		"Program": "verifyarena",
+		"SourceFiles": [
+			"verifyarena.c"
+		]
+	},
+	{
+		"Name": "cmd-venti-srv-wrarena",
+		"Include": [
+			"/$ARCH/cflags.json"
+		],
+		"Install": "/$ARCH/bin/venti/",
+		"Cflags": [
+			"-I."
+		],
+		"Oflags": [
+			"--entry=_main"
+		],
+		"Libs": [
+			"--start-group",
+			"/sys/src/cmd/venti/srv/libvs.a7",
+			"/$ARCH/lib.gcc/libdisk.a",
+			"/$ARCH/lib.gcc/libcontrol.a",
+			"/$ARCH/lib.gcc/libhtml.a",
+			"/$ARCH/lib.gcc/libframe.a",
+			"/$ARCH/lib.gcc/libdraw.a",
+			"/$ARCH/lib.gcc/libmemlayer.a",
+			"/$ARCH/lib.gcc/libmemdraw.a",
+			"/$ARCH/lib.gcc/libplumb.a",
+			"/$ARCH/lib.gcc/libcomplete.a",
+			"/$ARCH/lib.gcc/lib9p.a",
+			"/$ARCH/lib.gcc/libventi.a",
+			"/$ARCH/lib.gcc/libsunrpc.a",
+			"/$ARCH/lib.gcc/libthread.a",
+			"/$ARCH/lib.gcc/libauth.a",
+			"/$ARCH/lib.gcc/libauthsrv.a",
+			"/$ARCH/lib.gcc/libndb.a",
+			"/$ARCH/lib.gcc/libip.a",
+			"/$ARCH/lib.gcc/libhttpd.a",
+			"/$ARCH/lib.gcc/libsec.a",
+			"/$ARCH/lib.gcc/libmp.a",
+			"/$ARCH/lib.gcc/libflate.a",
+			"/$ARCH/lib.gcc/libregexp.a",
+			"/$ARCH/lib.gcc/libString.a",
+			"/$ARCH/lib.gcc/libmach.a",
+			"/$ARCH/lib.gcc/libbin.a",
+			"/$ARCH/lib.gcc/libavl.a",
+			"/$ARCH/lib.gcc/libjson.a",
+			"/$ARCH/lib.gcc/libgeometry.a",
+			"/$ARCH/lib.gcc/libpcm.a",
+			"/$ARCH/lib.gcc/libttf.a",
+			"/$ARCH/lib.gcc/libsat.a",
+			"/$ARCH/lib.gcc/libscribble.a",
+			"/$ARCH/lib.gcc/liblex.a",
+			"/$ARCH/lib.gcc/libstdio.a",
+			"/$ARCH/lib.gcc/libdtracy.a",
+			"/$ARCH/lib.gcc/libaml.a",
+			"/$ARCH/lib.gcc/libfis.a",
+			"/$ARCH/lib.gcc/libbio.a",
+			"/$ARCH/lib.gcc/libc.a",
+			"--end-group"
+		],
+		"Program": "wrarena",
+		"SourceFiles": [
+			"wrarena.c"
+		]
+	}
+]

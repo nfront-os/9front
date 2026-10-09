@@ -1,0 +1,25 @@
+[
+	{
+		"Name": "klibfis-arm64",
+		"Cflags": [
+			"-mgeneral-regs-only",
+			"-fsigned-char",
+			"-mno-outline-atomics",
+			"-ffixed-x26",
+			"-ffixed-x27",
+			"-fno-pic",
+			"-fno-builtin",
+			"-nostdinc",
+			"-fplan9-extensions",
+			"-fno-asynchronous-unwind-tables",
+			"-fno-stack-protector",
+			"-fno-omit-frame-pointer",
+			"-fno-zero-initialized-in-bss",
+			"-Os",
+			"-gdwarf-2"
+		],
+		"SourceFiles": [
+			"fis.c"
+		]
+	}
+]

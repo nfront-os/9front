@@ -1,0 +1,11 @@
+[
+	{
+		"Name": "apeflags",
+		"Cflags": [
+			"-DUSED(...)=((void)(0, ##__VA_ARGS__))",
+			"-DSET(...)=((void)0)",
+			"-Wno-error=implicit-function-declaration",
+			"-U__GNUC__"
+		]
+	}
+]

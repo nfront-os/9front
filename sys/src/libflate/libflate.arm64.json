@@ -1,0 +1,23 @@
+[
+	{
+		"Name": "Flate",
+		"Include": [
+			"../lib.json"
+		],
+		"Install": "/$ARCH/lib.gcc/",
+		"Library": "libflate.a",
+		"SourceFiles": [
+			"deflate.c",
+			"deflatezlib.c",
+			"deflateblock.c",
+			"deflatezlibblock.c",
+			"inflate.c",
+			"inflatezlib.c",
+			"inflateblock.c",
+			"inflatezlibblock.c",
+			"flateerr.c",
+			"crc.c",
+			"adler.c"
+		]
+	}
+]

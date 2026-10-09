@@ -21,13 +21,17 @@ die(){ echo "build-boot: $*" >&2; exit 1; }
 S=$TMP/src9
 mkdir -p "$S/386" "$S/arm64"
 git -C "$ROOT" ls-files sys/include 386/include 386/mkfile amd64/include amd64/mkfile \
-	arm64/include arm64/mkfile sys/src/boot/pc sys/src/boot/efi sys/src/mkfile.proto \
+	arm64/include arm64/mkfile sys/src/boot/pc sys/src/boot/efi sys/src/boot/qemu \
+	sys/src/9/arm64/mkfile sys/src/mkfile.proto \
 	sys/src/cmd/mkone sys/src/cmd/mklib sys/src/cmd/mksyslib \
 	| (cd "$ROOT" && tar -cf - -T -) | tar -xf - -C "$S"
+# arm64 qemu: the a.out kernel (scripts/build-cli.sh with objtype=arm64)
+# gets its u-boot image, sys/src/boot/qemu its boot.scr
+[ ! -s "$ROOT/arm64/9qemu" ] || cp "$ROOT/arm64/9qemu" "$S/arm64/9qemu"
 
 mkdir -p "$TMP/extra/rc/bin"
 cp "$ROOT/scripts/boot/mkboot.rc" "$TMP/extra/rc/bin/mkboot"
-SRC9=$S UFS_EXTRA=$TMP/extra WAITFOR='mkboot: (done|failed)' WAITMAX=${WAITMAX:-1800} CMDWAIT=5 \
+objtype=amd64 SRC9=$S UFS_EXTRA=$TMP/extra WAITFOR='mkboot: (done|failed)' WAITMAX=${WAITMAX:-1800} CMDWAIT=5 \
 	bash "$ROOT/scripts/boot-cli.sh" 'mkboot' > "$CLI_DIR/mkboot.log" 2>&1 || true
 grep -q '^mkboot: done' "$CLI_DIR/mkboot.log" \
 	|| { tail -30 "$CLI_DIR/mkboot.log"; die "build failed (log: $CLI_DIR/mkboot.log)"; }
@@ -39,5 +43,11 @@ for f in mbr pbs 9bootiso 9bootfat 9boothyb 9bootpxe bootia32.efi bootx64.efi ef
 done
 [ -s "$S/arm64/bootaa64.efi" ] || die "missing /arm64/bootaa64.efi"
 cp "$S/arm64/bootaa64.efi" "$ROOT/arm64/bootaa64.efi"
+if [ -s "$S/arm64/9qemu" ]; then
+	[ -s "$S/arm64/9qemu.u" ] && [ -s "$S/sys/src/boot/qemu/boot.scr" ] || die "missing 9qemu.u or boot.scr"
+	cp "$S/arm64/9qemu.u" "$ROOT/arm64/9qemu.u"
+	cp "$S/sys/src/boot/qemu/boot.scr" "$ROOT/sys/src/boot/qemu/boot.scr"
+	ls -l "$ROOT/arm64/9qemu.u" "$ROOT/sys/src/boot/qemu/boot.scr" | awk '{print $5, $9}'
+fi
 ls -l "$ROOT"/386/{mbr,pbs,9boot*,*.efi,efiboot.fat} "$ROOT"/arm64/bootaa64.efi | awk '{print $5, $9}'
 echo "ok: boot loaders in 386/, arm64/"

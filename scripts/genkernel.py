@@ -67,8 +67,9 @@ ARCHS = {
 		# the user's), no outlined atomics (libgcc's need getauxval).
 		# -mcmodel=large: symbol addresses as absolute constants, as 7l
 		# emits them; the small model's PC-relative ones are physical in
-		# the C code _start runs before the MMU is on (mmu0init: end)
-		'Cflags': ['-fno-pie', '-fno-pic', '-mcmodel=large', '-mgeneral-regs-only', '-mno-outline-atomics',
+		# the C code _start runs before the MMU is on (mmu0init: end).
+		# -fsigned-char: Plan 9's char is signed (AAPCS64's is not)
+		'Cflags': ['-fsigned-char', '-fno-pie', '-fno-pic', '-mcmodel=large', '-mgeneral-regs-only', '-mno-outline-atomics',
 			'-ffixed-x26', '-ffixed-x27', '-fplan9-extensions', '-fcommon', '-fno-builtin',
 			'-fno-asynchronous-unwind-tables', '-fno-stack-protector', '-fno-omit-frame-pointer',
 			'-fno-zero-initialized-in-bss', '-Os', '-gdwarf-2'] + WARN,

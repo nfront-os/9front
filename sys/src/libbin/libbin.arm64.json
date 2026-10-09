@@ -1,0 +1,13 @@
+[
+	{
+		"Name": "Bin",
+		"Include": [
+			"../lib.json"
+		],
+		"Install": "/$ARCH/lib.gcc/",
+		"Library": "libbin.a",
+		"SourceFiles": [
+			"bin.c"
+		]
+	}
+]

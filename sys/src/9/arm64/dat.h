@@ -54,6 +54,17 @@ struct Label
 {
 	uintptr	sp;
 	uintptr	pc;
+#ifdef __GNUC__
+	/*
+	 * GCC port: 7c treats every register as caller-saved, so front's
+	 * Label is sp+pc. Under AAPCS64 x19-x28 and x29 (the frame
+	 * pointer) are callee-saved: frames above setlabel() keep live
+	 * values in them, which gotolabel() must give back (l.S). The
+	 * kernel is built -mgeneral-regs-only, d8-d15 are not used.
+	 */
+	uintptr	x19x28[10];
+	uintptr	fp;
+#endif
 };
 
 struct FPsave
@@ -171,8 +182,14 @@ struct
 
 #define MACHP(n)	((Mach*)MACHADDR(n))
 
+#ifdef __GNUC__
+/* GCC port: global register variables, the kernel and its libraries are compiled -ffixed-x26 -ffixed-x27 */
+register Mach *m __asm__("x27");		/* R27 */
+register Proc *up __asm__("x26");		/* R26 */
+#else
 extern register Mach* m;			/* R27 */
 extern register Proc* up;			/* R26 */
+#endif
 
 /*
  *  a parsed plan9.ini line

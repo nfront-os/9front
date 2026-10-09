@@ -1,0 +1,28 @@
+[
+	{
+		"Name": "cmd-audio-libtags-libtags.a7",
+		"Include": [
+			"/$ARCH/cflags.json"
+		],
+		"Install": "/sys/src/cmd/audio/libtags/",
+		"Library": "libtags.a7",
+		"SourceFiles": [
+			"437.c",
+			"8859.c",
+			"flac.c",
+			"id3genres.c",
+			"id3v1.c",
+			"id3v2.c",
+			"it.c",
+			"m4a.c",
+			"mod.c",
+			"opus.c",
+			"s3m.c",
+			"tags.c",
+			"utf16.c",
+			"vorbis.c",
+			"wav.c",
+			"xm.c"
+		]
+	}
+]

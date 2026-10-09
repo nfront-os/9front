@@ -1,0 +1,38 @@
+[
+	{
+		"Name": "ape-lib-ap-math-libap.a",
+		"Include": [
+			"/$ARCH/cflags.json",
+			"/$ARCH/ape.json"
+		],
+		"Install": "/$ARCH/lib.gcc/ape/",
+		"Cflags": [
+			"-D_POSIX_SOURCE"
+		],
+		"Ape": true,
+		"Library": "libap.a",
+		"SourceFiles": [
+			"asin.c",
+			"atan.c",
+			"atan2.c",
+			"erf.c",
+			"exp.c",
+			"fabs.c",
+			"floor.c",
+			"fmin.c",
+			"fmod.c",
+			"gamma.c",
+			"hypot.c",
+			"j0.c",
+			"j1.c",
+			"jn.c",
+			"log.c",
+			"pow.c",
+			"sin.c",
+			"sinh.c",
+			"tan.c",
+			"tanh.c"
+		],
+		"Append": true
+	}
+]

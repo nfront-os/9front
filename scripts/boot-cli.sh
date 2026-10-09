@@ -117,10 +117,29 @@ bash "$ROOT/scripts/gen-ufs-root.sh" "$CLI_DIR/ufsroot" > /dev/null
 [ -z "$UFS_EXTRA" ] || cp -r "$UFS_EXTRA"/. "$CLI_DIR/ufsroot/"
 
 if [ $objtype = arm64 ]; then
-	# no boot loader: QEMU loads the ELF kernel, and the kernel
-	# parameters go into the device tree's /chosen/bootargs (-append),
-	# which bootargs.c reads like plan9.ini
-	KCMD="console=0 service=$SERVICE nobootprompt=tcp fs=$FSADDR auth=$FSADDR $KARGS"
+	# 9front's arm64 qemu boot (sys/lib/dist/mkfile, %.arm64.qcow2):
+	# u-boot (scripts/build-uboot.sh) runs boot.scr from the FAT
+	# partition, which loads plan9.ini and the u-boot image 9qemu.u
+	# (scripts/build-boot.sh makes both with aux/txt2uimage, aux/aout2uimage)
+	for f in "$ROOT/sys/src/boot/qemu/boot.scr" "$ROOT/arm64/9qemu.u"; do
+		[ -s "$f" ] || die "$f missing, run scripts/build-boot.sh"
+	done
+	bash "$ROOT/scripts/build-uboot.sh" > "$CLI_DIR/uboot.log" 2>&1 \
+		|| die "u-boot build failed (log: $CLI_DIR/uboot.log)"
+	{
+		echo console=0
+		echo service=$SERVICE
+		echo nobootprompt=tcp
+		echo fs=$FSADDR
+		echo auth=$FSADDR
+		for a in $KARGS; do echo "$a"; done
+	} > "$CLI_DIR/plan9.ini"
+	FAT=$CLI_DIR/arm64boot.img
+	rm -f "$FAT"
+	truncate -s 64M "$FAT"
+	echo 'start=2048, type=c, bootable' | sfdisk -q "$FAT" > /dev/null
+	mformat -i "$FAT@@1M" -F :: > /dev/null
+	mcopy -i "$FAT@@1M" "$ROOT/sys/src/boot/qemu/boot.scr" "$CLI_DIR/plan9.ini" "$ROOT/arm64/9qemu.u" ::
 else
 	# GRUB multiboot ISO; GRUB itself also talks on the serial line, so a
 	# boot that stops at the grub> prompt is visible
@@ -153,11 +172,12 @@ disk=()
 
 if [ $objtype = arm64 ]; then
 	# pciqemu.c expects the low PCIe ECAM window (0x3f000000): highmem=off
-	[ -z "$DISK" ] || disk=(-drive "file=$DISK,format=raw,if=none,id=d0" -device virtio-blk-pci,drive=d0)
+	[ -z "$DISK" ] || disk=(-drive "file=$DISK,format=raw,if=none,id=d0" -device virtio-blk-pci,drive=d0,disable-legacy=on)
 	qemu=($QEMU -M virt,gic-version=3,highmem=off -cpu $CPU -m "$MEM"
-		-kernel "$KERNEL" -append "$KCMD"
+		-bios "$CLI_DIR/uboot/u-boot.bin"
+		-drive "file=$FAT,format=raw,if=none,id=fat" -device virtio-blk-pci,drive=fat,disable-legacy=on
 		-display none -no-reboot -monitor none
-		-netdev user,id=net0,$fwd -device virtio-net-pci,netdev=net0 "${disk[@]}")
+		-netdev user,id=net0,$fwd -device virtio-net-pci,netdev=net0,disable-legacy=on "${disk[@]}")	# virtio 1.0 only (ethervirtio10.c, sdvirtio10.c)
 else
 qemu=($QEMU "${fw[@]}" -cdrom "$CLI_DIR/$KNAME.iso" -m "$MEM"
 	-display none -no-reboot -monitor none

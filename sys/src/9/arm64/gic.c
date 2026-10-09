@@ -91,7 +91,7 @@ struct Vctl {
 
 static Lock vctllock;
 static Vctl *vctl[MAXMACH][32], *vfiq;
-static u32int *dregs = (u32int*)VIRTIO;
+static volatile u32int *dregs = (u32int*)VIRTIO;	/* GCC port: volatile, gcc keeps the value of a load in a loop (kencc reloads) */
 
 static u32int*
 getrregs(int machno)
@@ -132,7 +132,7 @@ intrsoff(void)
 void
 intrinit(void)
 {
-	u32int *rregs;
+	volatile u32int *rregs;	/* GCC port: volatile, gcc keeps the value of a load in a loop (kencc reloads) */
 	int i, n;
 
 	if(m->machno == 0){
@@ -292,7 +292,7 @@ intrenable(int irq, void (*f)(Ureg*, void*), void *a, int tbdf, char *)
 
 	/* setup */
 	if(intid < 32){
-		u32int *rregs = getrregs(cpu);
+		volatile u32int *rregs = getrregs(cpu);	/* GCC port: volatile, gcc keeps the value of a load in a loop (kencc reloads) */
 		rregs[GICR_IPRIORITYR0 + (intid/4)] |= prio << ((intid%4) << 3);
 		coherence();
 		rregs[GICR_ISENABLER0] = 1 << (intid%32);

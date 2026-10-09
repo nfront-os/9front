@@ -1,0 +1,37 @@
+[
+	{
+		"Name": "ape-lib-bio-libbio.a",
+		"Include": [
+			"/$ARCH/cflags.json",
+			"/$ARCH/ape.json"
+		],
+		"Install": "/$ARCH/lib.gcc/ape/",
+		"Cflags": [
+			"-D_PLAN9_SOURCE",
+			"-D_POSIX_SOURCE",
+			"-I.",
+			"-I../9"
+		],
+		"Ape": true,
+		"Library": "libbio.a",
+		"SourceFiles": [
+			"../../../libbio/bbuffered.c",
+			"../../../libbio/bfildes.c",
+			"../../../libbio/bflush.c",
+			"../../../libbio/bgetrune.c",
+			"../../../libbio/bgetc.c",
+			"../../../libbio/binit.c",
+			"../../../libbio/blethal.c",
+			"../../../libbio/boffset.c",
+			"../../../libbio/bprint.c",
+			"../../../libbio/bputrune.c",
+			"../../../libbio/bputc.c",
+			"../../../libbio/brdline.c",
+			"../../../libbio/brdstr.c",
+			"../../../libbio/bread.c",
+			"../../../libbio/bseek.c",
+			"../../../libbio/bwrite.c",
+			"../../../libbio/bvprint.c"
+		]
+	}
+]

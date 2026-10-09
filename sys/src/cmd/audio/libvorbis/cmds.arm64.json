@@ -1,0 +1,40 @@
+[
+	{
+		"Name": "cmd-audio-libvorbis-libvorbis.a7",
+		"Include": [
+			"/$ARCH/cflags.json",
+			"/$ARCH/ape.json"
+		],
+		"Install": "/sys/src/cmd/audio/libvorbis/",
+		"Cflags": [
+			"-I.",
+			"-I../libogg"
+		],
+		"Ape": true,
+		"Library": "libvorbis.a7",
+		"SourceFiles": [
+			"analysis.c",
+			"bitrate.c",
+			"block.c",
+			"codebook.c",
+			"envelope.c",
+			"floor0.c",
+			"floor1.c",
+			"info.c",
+			"lookup.c",
+			"lpc.c",
+			"lsp.c",
+			"mapping0.c",
+			"mdct.c",
+			"psy.c",
+			"registry.c",
+			"res0.c",
+			"sharedbook.c",
+			"smallft.c",
+			"synthesis.c",
+			"vorbisenc.c",
+			"vorbisfile.c",
+			"window.c"
+		]
+	}
+]

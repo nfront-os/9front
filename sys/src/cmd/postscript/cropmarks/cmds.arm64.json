@@ -1,0 +1,12 @@
+[
+	{
+		"Name": "cmd-postscript-cropmarks-install",
+		"Install": "",
+		"Post": [
+			"python3 ../../../../../scripts/mkinstall.py cmd/postscript/cropmarks"
+		],
+		"Clean": [
+			"cropmarks"
+		]
+	}
+]

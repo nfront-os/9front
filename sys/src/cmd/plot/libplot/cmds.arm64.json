@@ -1,0 +1,45 @@
+[
+	{
+		"Name": "cmd-plot-libplot.a7",
+		"Include": [
+			"/$ARCH/cflags.json"
+		],
+		"Install": "/sys/src/cmd/plot/",
+		"Library": "libplot.a7",
+		"SourceFiles": [
+			"box.c",
+			"cfill.c",
+			"circ.c",
+			"closepl.c",
+			"color.c",
+			"disk.c",
+			"doublebuffer.c",
+			"dpoint.c",
+			"erase.c",
+			"fill.c",
+			"frame.c",
+			"grade.c",
+			"line.c",
+			"machdep.c",
+			"move.c",
+			"openpl.c",
+			"parabola.c",
+			"pen.c",
+			"poly.c",
+			"ppause.c",
+			"pprompt.c",
+			"range.c",
+			"rarc.c",
+			"restore.c",
+			"rmove.c",
+			"rvec.c",
+			"save.c",
+			"sbox.c",
+			"spline.c",
+			"subr.c",
+			"text.c",
+			"vec.c",
+			"whoami.c"
+		]
+	}
+]

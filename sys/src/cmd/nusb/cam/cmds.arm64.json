@@ -1,0 +1,66 @@
+[
+	{
+		"Name": "cmd-nusb-cam-cam",
+		"Include": [
+			"/$ARCH/cflags.json"
+		],
+		"Install": "/$ARCH/bin/nusb/",
+		"Cflags": [
+			"-I../lib"
+		],
+		"Oflags": [
+			"--entry=_main"
+		],
+		"Libs": [
+			"--start-group",
+			"/sys/src/cmd/nusb/lib/usb.a7",
+			"/$ARCH/lib.gcc/libdisk.a",
+			"/$ARCH/lib.gcc/libcontrol.a",
+			"/$ARCH/lib.gcc/libhtml.a",
+			"/$ARCH/lib.gcc/libframe.a",
+			"/$ARCH/lib.gcc/libdraw.a",
+			"/$ARCH/lib.gcc/libmemlayer.a",
+			"/$ARCH/lib.gcc/libmemdraw.a",
+			"/$ARCH/lib.gcc/libplumb.a",
+			"/$ARCH/lib.gcc/libcomplete.a",
+			"/$ARCH/lib.gcc/lib9p.a",
+			"/$ARCH/lib.gcc/libventi.a",
+			"/$ARCH/lib.gcc/libsunrpc.a",
+			"/$ARCH/lib.gcc/libthread.a",
+			"/$ARCH/lib.gcc/libauth.a",
+			"/$ARCH/lib.gcc/libauthsrv.a",
+			"/$ARCH/lib.gcc/libndb.a",
+			"/$ARCH/lib.gcc/libip.a",
+			"/$ARCH/lib.gcc/libhttpd.a",
+			"/$ARCH/lib.gcc/libsec.a",
+			"/$ARCH/lib.gcc/libmp.a",
+			"/$ARCH/lib.gcc/libflate.a",
+			"/$ARCH/lib.gcc/libregexp.a",
+			"/$ARCH/lib.gcc/libString.a",
+			"/$ARCH/lib.gcc/libmach.a",
+			"/$ARCH/lib.gcc/libbin.a",
+			"/$ARCH/lib.gcc/libavl.a",
+			"/$ARCH/lib.gcc/libjson.a",
+			"/$ARCH/lib.gcc/libgeometry.a",
+			"/$ARCH/lib.gcc/libpcm.a",
+			"/$ARCH/lib.gcc/libttf.a",
+			"/$ARCH/lib.gcc/libsat.a",
+			"/$ARCH/lib.gcc/libscribble.a",
+			"/$ARCH/lib.gcc/liblex.a",
+			"/$ARCH/lib.gcc/libstdio.a",
+			"/$ARCH/lib.gcc/libdtracy.a",
+			"/$ARCH/lib.gcc/libaml.a",
+			"/$ARCH/lib.gcc/libfis.a",
+			"/$ARCH/lib.gcc/libbio.a",
+			"/$ARCH/lib.gcc/libc.a",
+			"--end-group"
+		],
+		"Program": "cam",
+		"SourceFiles": [
+			"cam.c",
+			"descprint.c",
+			"ctl.c",
+			"video.c"
+		]
+	}
+]

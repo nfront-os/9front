@@ -3,11 +3,14 @@
 # stand-in, init -c, cpurc, console rc
 . "$(dirname "$0")/../lib.sh"
 [ -f "$ROOT/$KBIN" ] || { skip "boot" "no kernel $KBIN, run scripts/build-cli.sh"; done_tests; exit; }
-# PC hardware (VESA BIOS, NCR 53C810) only on pc and pc64
-case $objtype in 386|amd64) pc=1 ;; *) pc= ;; esac
+# PC hardware (VESA BIOS, NCR 53C810) only on pc and pc64. arm64: one
+# CPU -- 9front's arm64 mpinit starts the others with PSCI CPU_ON, and
+# they wait in _start's wfe for an event nothing sends (bcm64 does
+# sev()); QEMU >= 11 models wfe exactly, older versions let it return
+case $objtype in 386|amd64) pc=1 ncpu=4 ;; *) pc= ncpu=1 ;; esac
 
 boot(){
-	QEMU_EXTRA="-smp 4" "$ROOT/scripts/boot-cli.sh" \
+	QEMU_EXTRA="-smp $ncpu" "$ROOT/scripts/boot-cli.sh" \
 		'echo hello' 'cat /dev/sysstat | wc -l' 'ls /bin | wc -l' 'date -i' 'ps | wc -l' 'cat /dev/sysname; echo' \
 		'cat /proc/$pid/segment | wc -l' \
 		${pc:+"bind -a '#v' /dev; aux/realemu && aux/vga -m vesa -l 1024x768x16 && grep size /dev/vgactl"} \
@@ -24,7 +27,7 @@ check "cpurc finished, console rc prompt" grep -q '^init: starting /bin/rc' "$L"
 check "cpurc: no errors besides the missing nvram" \
 	bash -c "! sed -n '/root is/,/init: starting/p' '$L' | grep -iE 'error|fail|can.t|null list|suicide|panic' | grep -vE 'nvram|unknown device in # filename'"
 check "echo" test "$(out 'echo hello')" = hello
-check "SMP: 4 processors active (/dev/sysstat)" test "$(out 'cat /dev/sysstat | wc -l' | tr -d ' ')" -eq 4
+check "SMP: $ncpu processors active (/dev/sysstat)" test "$(out 'cat /dev/sysstat | wc -l' | tr -d ' ')" -eq $ncpu
 check "ls /bin | wc -l > 100" test "$(out 'ls /bin | wc -l' | tr -d ' ')" -gt 100
 check "date: RTC/timesync year >= 2025" bash -c "[ \$(echo '$(out 'date -i')' | cut -c1-4) -ge 2025 ]"
 check "ps lists every process (> 20)" test "$(out 'ps | wc -l' | tr -d ' ')" -gt 20

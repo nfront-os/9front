@@ -1,0 +1,18 @@
+[
+	{
+		"Name": "Aml",
+		"Include": [
+			"../lib.json"
+		],
+		"Install": "/$ARCH/lib.gcc/",
+		"Library": "libaml.a",
+		"SourceFiles": [
+			"aml.c",
+			"amlmapio.c",
+			"amlunmapio.c",
+			"amlalloc.c",
+			"amldelay.c",
+			"amltime.c"
+		]
+	}
+]

@@ -1,0 +1,23 @@
+[
+	{
+		"Name": "ape-lib-v-libv.a",
+		"Include": [
+			"/$ARCH/cflags.json",
+			"/$ARCH/ape.json"
+		],
+		"Install": "/$ARCH/lib.gcc/ape/",
+		"Ape": true,
+		"Library": "libv.a",
+		"SourceFiles": [
+			"plan9/getpass.c",
+			"plan9/tty.c",
+			"rand.c",
+			"nrand.c",
+			"getfields.c",
+			"min.c",
+			"max.c",
+			"error.c",
+			"nap.c"
+		]
+	}
+]

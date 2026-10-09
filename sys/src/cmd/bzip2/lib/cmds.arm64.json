@@ -1,0 +1,30 @@
+[
+	{
+		"Name": "cmd-bzip2-lib-libbzip2.a7",
+		"Include": [
+			"/$ARCH/cflags.json"
+		],
+		"Install": "/sys/src/cmd/bzip2/lib/",
+		"Cflags": [
+			"-DPLAN9"
+		],
+		"Library": "libbzip2.a7",
+		"SourceFiles": [
+			"blocksort.c",
+			"bzassert.c",
+			"bzcompress.c",
+			"bzdecompress.c",
+			"bzfeof.c",
+			"bzlib.c",
+			"bzread.c",
+			"bzversion.c",
+			"bzwrite.c",
+			"bzzlib.c",
+			"compress.c",
+			"crctable.c",
+			"decompress.c",
+			"huffman.c",
+			"randtable.c"
+		]
+	}
+]

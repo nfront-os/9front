@@ -1,0 +1,16 @@
+[
+	{
+		"Name": "Html",
+		"Include": [
+			"../lib.json"
+		],
+		"Install": "/$ARCH/lib.gcc/",
+		"Library": "libhtml.a",
+		"SourceFiles": [
+			"build.c",
+			"lex.c",
+			"strinttab.c",
+			"utils.c"
+		]
+	}
+]

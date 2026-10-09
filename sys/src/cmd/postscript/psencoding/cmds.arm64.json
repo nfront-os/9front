@@ -1,0 +1,12 @@
+[
+	{
+		"Name": "cmd-postscript-psencoding-install",
+		"Install": "",
+		"Post": [
+			"python3 ../../../../../scripts/mkinstall.py cmd/postscript/psencoding"
+		],
+		"Clean": [
+			"psencoding"
+		]
+	}
+]

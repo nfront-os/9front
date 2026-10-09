@@ -1,0 +1,27 @@
+[
+	{
+		"Name": "archfiles",
+		"SourceFiles": [
+			"$ARCH/argv0.S",
+			"$ARCH/atom.S",
+			"$ARCH/atomic.S",
+			"$ARCH/atomic64.S",
+			"$ARCH/cycles.S",
+			"$ARCH/fabs.S",
+			"$ARCH/floor.S",
+			"$ARCH/getcallerpc.S",
+			"$ARCH/getfcr.S",
+			"$ARCH/main9.S",
+			"$ARCH/main9p.S",
+			"$ARCH/memmove.S",
+			"$ARCH/memset.S",
+			"$ARCH/setjmp.S",
+			"$ARCH/sqrt.S",
+			"$ARCH/tas.S",
+			"$ARCH/lock.c",
+			"$ARCH/notejmp.c",
+			"$ARCH/_seek.c",
+			"$ARCH/notetramp.S"
+		]
+	}
+]

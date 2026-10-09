@@ -1,0 +1,65 @@
+[
+	{
+		"Name": "ape-cmd-pdksh-sh",
+		"Include": [
+			"/$ARCH/cflags.json",
+			"/$ARCH/ape.json"
+		],
+		"Install": "/$ARCH/bin/ape/",
+		"Cflags": [
+			"-I.",
+			"-DHAVE_CONFIG_H"
+		],
+		"Ape": true,
+		"Oflags": [
+			"--entry=_main"
+		],
+		"Libs": [
+			"--start-group",
+			"/$ARCH/lib.gcc/ape/libdraw.a",
+			"/$ARCH/lib.gcc/ape/libplumb.a",
+			"/$ARCH/lib.gcc/ape/libauth.a",
+			"/$ARCH/lib.gcc/ape/libsec.a",
+			"/$ARCH/lib.gcc/ape/libmp.a",
+			"/$ARCH/lib.gcc/ape/libnet.a",
+			"/$ARCH/lib.gcc/ape/libbsd.a",
+			"/$ARCH/lib.gcc/ape/libl.a",
+			"/$ARCH/lib.gcc/ape/libv.a",
+			"/$ARCH/lib.gcc/ape/libz.a",
+			"/$ARCH/lib.gcc/ape/libbz2.a",
+			"/$ARCH/lib.gcc/ape/libbio.a",
+			"/$ARCH/lib.gcc/ape/lib9.a",
+			"/$ARCH/lib.gcc/ape/libfmt.a",
+			"/$ARCH/lib.gcc/ape/libutf.a",
+			"/$ARCH/lib.gcc/ape/libap.a",
+			"--end-group"
+		],
+		"Program": "sh",
+		"SourceFiles": [
+			"alloc.c",
+			"c_ksh.c",
+			"c_sh.c",
+			"c_test.c",
+			"c_ulimit.c",
+			"eval.c",
+			"exec.c",
+			"expr.c",
+			"history.c",
+			"io.c",
+			"jobs.c",
+			"lex.c",
+			"mail.c",
+			"main.c",
+			"misc.c",
+			"path.c",
+			"shf.c",
+			"syn.c",
+			"table.c",
+			"trap.c",
+			"tree.c",
+			"tty.c",
+			"var.c",
+			"version.c"
+		]
+	}
+]

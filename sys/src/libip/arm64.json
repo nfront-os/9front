@@ -1,0 +1,37 @@
+[
+	{
+		"Name": "klibip-arm64",
+		"Cflags": [
+			"-mgeneral-regs-only",
+			"-fsigned-char",
+			"-mno-outline-atomics",
+			"-ffixed-x26",
+			"-ffixed-x27",
+			"-fno-pic",
+			"-fno-builtin",
+			"-nostdinc",
+			"-fplan9-extensions",
+			"-fno-asynchronous-unwind-tables",
+			"-fno-stack-protector",
+			"-fno-omit-frame-pointer",
+			"-fno-zero-initialized-in-bss",
+			"-Os",
+			"-gdwarf-2"
+		],
+		"SourceFiles": [
+			"bo.c",
+			"classmask.c",
+			"eipfmt.c",
+			"equivip.c",
+			"ipaux.c",
+			"iplocalonifc.c",
+			"ipremoteonifc.c",
+			"myetheraddr.c",
+			"myipaddr.c",
+			"parseether.c",
+			"parseip.c",
+			"ptclbsum.c",
+			"readipifc.c"
+		]
+	}
+]

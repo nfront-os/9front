@@ -1,0 +1,12 @@
+[
+	{
+		"Name": "cmd-postscript-hardcopy-install",
+		"Install": "",
+		"Post": [
+			"python3 ../../../../../scripts/mkinstall.py cmd/postscript/hardcopy"
+		],
+		"Clean": [
+			"hardcopy"
+		]
+	}
+]

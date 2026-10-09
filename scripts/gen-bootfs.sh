@@ -42,6 +42,7 @@ fi
 case $objtype in
 amd64)	ARCHFLAGS=-mcmodel=small LDEMUL= ;;
 386)	ARCHFLAGS="-m32 -march=pentium -mno-sse" LDEMUL="-m elf_i386" ;;
+arm64)	ARCHFLAGS="-fsigned-char -mno-outline-atomics" LDEMUL= ;;	# as arm64/cflags.json
 *)	ARCHFLAGS= LDEMUL= ;;
 esac
 CFLAGS="-std=gnu17 -fno-asm -ffreestanding -nostdinc -fno-builtin -fplan9-extensions

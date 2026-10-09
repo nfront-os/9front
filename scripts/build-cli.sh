@@ -123,25 +123,29 @@ arm64)
 	python3 scripts/genkernel.py arm64 > /dev/null || die "genkernel.py arm64 failed"
 	gen gen-bootfs.sh qemu arm64
 
-	# the ELF arm64/bin/9qemu: QEMU -kernel (scripts/boot-cli.sh)
+	# the ELF arm64/bin/9qemu, and arm64/9qemu where 9front installs
+	# it, the 7l a.out; its u-boot image 9qemu.u is made by
+	# scripts/build-boot.sh (aux/aout2uimage, below)
 	CONF=qemu build sys/src/9/arm64/build.json '^qemu$'
-	echo "ok: arm64/bin/9qemu"
+	python3 scripts/elf2aout.py arm64/bin/9qemu arm64/9qemu > /dev/null || die "elf2aout failed"
+	echo "ok: arm64/bin/9qemu, arm64/9qemu"
 	;;
 *)
 	die "no kernel for objtype=$objtype yet"
 	;;
 esac
 
-# everything mk install would install (stale files of older builds,
-# at places no rule installs to, are removed)
-python3 scripts/check-install.py -r > "$CLI_DIR/log/check-install.log" 2>&1 \
-	|| { grep -v '^removed' "$CLI_DIR/log/check-install.log"; die "check-install failed"; }
-tail -1 "$CLI_DIR/log/check-install.log"
-
 # 9front's boot loaders, built by the amd64 system's own compilers
-if [ $objtype = amd64 ]; then
+# (needs its build); for arm64 also boot.scr and 9qemu.u
+if [ $objtype = amd64 ] || [ $objtype = arm64 ]; then
 	echo "boot loaders"
 	bash scripts/build-boot.sh > "$CLI_DIR/log/build-boot.log" 2>&1 \
 		|| { tail -20 "$CLI_DIR/log/build-boot.log"; die "build-boot.sh failed"; }
 	tail -1 "$CLI_DIR/log/build-boot.log"
 fi
+
+# everything mk install would install (stale files of older builds,
+# at places no rule installs to, are removed)
+python3 scripts/check-install.py -r > "$CLI_DIR/log/check-install.log" 2>&1 \
+	|| { grep -v '^removed' "$CLI_DIR/log/check-install.log"; die "check-install failed"; }
+tail -1 "$CLI_DIR/log/check-install.log"

@@ -1,0 +1,31 @@
+[
+	{
+		"Name": "ape-lib-ap-arm64-libap.a",
+		"Include": [
+			"/$ARCH/cflags.json",
+			"/$ARCH/ape.json"
+		],
+		"Install": "/$ARCH/lib.gcc/ape/",
+		"Cflags": [
+			"-D_POSIX_SOURCE",
+			"-D_PLAN9_SOURCE"
+		],
+		"Ape": true,
+		"Library": "libap.a",
+		"SourceFiles": [
+			"_seek.c",
+			"cycles.S",
+			"getfcr.S",
+			"lock.c",
+			"main9.S",
+			"main9p.S",
+			"memmove.S",
+			"memset.S",
+			"notetramp.c",
+			"setjmp.S",
+			"tas.S",
+			"notify.S"
+		],
+		"Append": true
+	}
+]

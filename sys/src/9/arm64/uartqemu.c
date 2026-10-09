@@ -290,7 +290,7 @@ donothing(Uart*, int)
 static void
 putc(Uart *uart, int c)
 {
-	u32int *reg = (u32int*)uart->regs;
+	volatile u32int *reg = (u32int*)uart->regs;	/* GCC port: volatile, gcc keeps the value of a load in a loop (kencc reloads) */
 
 	while((reg[FR] & TXFF) != 0)
 		;
@@ -300,7 +300,7 @@ putc(Uart *uart, int c)
 static int
 getc(Uart *uart)
 {
-	u32int *reg = (u32int*)uart->regs;
+	volatile u32int *reg = (u32int*)uart->regs;	/* GCC port: volatile, gcc keeps the value of a load in a loop (kencc reloads) */
 
 	while((reg[FR] & RXFE) != 0)
 		;

@@ -34,7 +34,7 @@ arm64)
 	# 7l: header of 0x28 bytes, touser enters at UTZERO+0x28 (0x10028)
 	UTZERO=0x10000
 	HDR=0x28
-	CC=aarch64-linux-musl-gcc
+	CC="aarch64-linux-musl-gcc -fsigned-char -mno-outline-atomics"	# as arm64/cflags.json
 	LD=aarch64-linux-musl-ld
 	OBJCOPY=aarch64-linux-musl-objcopy
 	INIT9=arm64/init9.S

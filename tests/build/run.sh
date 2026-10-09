@@ -15,7 +15,7 @@ libc(){
 	d=$(dupsyms $L/libc.a); [ -z "$d" ] || { echo "duplicate symbols: $d"; return 1; }
 	# _notify: the raw stub behind the trampoline notify() (amd64, arm64)
 	for s in _main _callmain _tos argv0 seek _seek notify $( [ $objtype != 386 ] && echo _notify ) nsec _nsec _exits \
-		memmove memcpy strlen getfcr setjmp longjmp _tas cas64 toupperrune tmfmt calloc; do
+		memmove memcpy strlen getfcr setjmp longjmp _tas $( [ $objtype != arm64 ] && echo cas64 ) toupperrune tmfmt calloc; do
 		nm $L/libc.a 2>/dev/null | grep -qE " [TC] $s$" || { echo "libc.a lacks $s"; return 1; }
 	done
 }

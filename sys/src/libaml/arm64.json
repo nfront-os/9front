@@ -1,0 +1,31 @@
+[
+	{
+		"Name": "klibaml-arm64",
+		"Cflags": [
+			"-mgeneral-regs-only",
+			"-fsigned-char",
+			"-mno-outline-atomics",
+			"-ffixed-x26",
+			"-ffixed-x27",
+			"-fno-pic",
+			"-fcommon",
+			"-fplan9-extensions",
+			"-fno-builtin",
+			"-nostdinc",
+			"-fno-asynchronous-unwind-tables",
+			"-fno-stack-protector",
+			"-fno-omit-frame-pointer",
+			"-fno-zero-initialized-in-bss",
+			"-Os",
+			"-gdwarf-2"
+		],
+		"SourceFiles": [
+			"aml.c",
+			"amlalloc.c",
+			"amldelay.c",
+			"amlmapio.c",
+			"amltime.c",
+			"amlunmapio.c"
+		]
+	}
+]
