@@ -3,7 +3,11 @@ typedef	unsigned long long uvlong;
 typedef 	unsigned char uchar;
 typedef	unsigned short ushort;
 typedef 	unsigned int uint;
-typedef	unsigned int ulong;	/* GCC port: was unsigned long, 32 bits with kencc */
+#ifdef __x86_64__
+typedef	unsigned int ulong;	/* GCC port: 32 bits, as with kencc (sys/include/ape/u.h) */
+#else
+typedef	unsigned long ulong;
+#endif
 
 #define	GBIT8(p)	((p)[0])
 #define	GBIT16(p)	((p)[0]|((p)[1]<<8))

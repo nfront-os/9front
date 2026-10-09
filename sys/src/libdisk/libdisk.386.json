@@ -1,0 +1,15 @@
+[
+	{
+		"Name": "Disk",
+		"Include": [
+			"../lib.json"
+		],
+		"Install": "/$ARCH/lib.gcc/",
+		"Library": "libdisk.a",
+		"SourceFiles": [
+			"disk.c",
+			"proto.c",
+			"scsi.c"
+		]
+	}
+]

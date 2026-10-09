@@ -1,0 +1,37 @@
+[
+	{
+		"Name": "Thread",
+		"Include": [
+			"../lib.json"
+		],
+		"Install": "/$ARCH/lib.gcc/",
+		"Library": "libthread.a",
+		"SourceFiles": [
+			"386.c",
+			"channel.c",
+			"chanprint.c",
+			"create.c",
+			"debug.c",
+			"exec.c",
+			"exit.c",
+			"id.c",
+			"iocall.c",
+			"ioclose.c",
+			"iodial.c",
+			"ioopen.c",
+			"ioproc.c",
+			"ioread.c",
+			"ioreadn.c",
+			"iosleep.c",
+			"iowrite.c",
+			"ioflush.c",
+			"kill.c",
+			"lib.c",
+			"main.c",
+			"note.c",
+			"ref.c",
+			"rendez.c",
+			"sched.c"
+		]
+	}
+]

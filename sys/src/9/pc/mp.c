@@ -152,7 +152,7 @@ syncclock(void)
 		m->tscticks = 0;
 	} else {
 		x = MACHP(0)->tscticks;
-		while(x == MACHP(0)->tscticks)
+		while(x == *(volatile uvlong*)&MACHP(0)->tscticks)	/* GCC port: volatile, gcc hoists the load (jmp .) */
 			;
 		wrmsr(0x10, MACHP(0)->tscticks);
 		cycles(&m->tscticks);

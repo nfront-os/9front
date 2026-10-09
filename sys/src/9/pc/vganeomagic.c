@@ -333,7 +333,7 @@ enum {
 static void
 waitforidle(VGAscr *scr)
 {
-	ulong *mmio;
+	volatile ulong *mmio;	/* GCC port: volatile, gcc keeps the value of a load in a loop (kencc reloads) */
 	long x;
 
 	mmio = scr->mmio;
@@ -347,7 +347,7 @@ waitforidle(VGAscr *scr)
 static void
 waitforfifo(VGAscr *scr, int entries)
 {
-	ulong *mmio;
+	volatile ulong *mmio;	/* GCC port: volatile, gcc keeps the value of a load in a loop (kencc reloads) */
 	long x;
 
 	mmio = scr->mmio;

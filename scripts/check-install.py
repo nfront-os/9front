@@ -12,7 +12,8 @@ files those rules install, scripts/mkinstall.py) and the kernel.
            it there (left from an older build: telnet before it moved
            from /amd64/bin/ip to /amd64/bin, as ip/mkfile installs it)
 
-Targets in scripts/cmds-broken.txt are reported as broken, not missing.
+$objtype (scripts/arch.py) selects the architecture.
+Targets in scripts/cmds-broken.txt (.386.txt, ...) are reported as broken, not missing.
 
 usage: scripts/check-install.py [-r] [-d dist] [-i iso]
        scripts/check-install.py -l	list the expected files
@@ -32,16 +33,22 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import gencmds as g
+from arch import OBJTYPE as A
+
+# the kernel mk install puts in /$objtype, and the ELF the build keeps
+# beside the programs for boot-cli.sh's multiboot / QEMU -kernel
+KERNELS = {'amd64': ['9pc64'], '386': ['9pc'], 'arm64': ['9qemu', '9qemu.u']}[A]
 
 def expected():
 	"""{9front path: target name}"""
 	out = {}
 	for l in g.variables(g.readmk('.'))['LIBS']:
-		out['/amd64/lib.gcc/%s.a' % l] = l
+		out['/%s/lib.gcc/%s.a' % (A, l)] = l
 	for k in sorted(glob.glob(os.path.join(g.SRC, 'lib*', 'klib.json'))):	# the kernel's
 		for b in json.load(open(k)):
-			out['/amd64/lib.gcc/' + b['Library']] = os.path.relpath(k, g.SRC)
-	out['/amd64/9pc64'] = 'kernel'
+			out['/%s/lib.gcc/' % A + b['Library']] = os.path.relpath(k, g.SRC)
+	for k in KERNELS:
+		out['/%s/%s' % (A, k)] = 'kernel'
 	for d in g.dirs([]):
 		for name, e in g.entries(d):
 			if 'library' in e:
@@ -55,7 +62,7 @@ def expected():
 				p = e['Install'] + e['single'][:-2]
 			else:
 				p = e['Install'] + (e.get('program') or os.path.basename(name))
-			out[p.replace('/$ARCH', '/amd64')] = name
+			out[p.replace('/$ARCH', '/' + A)] = name
 	return out
 
 def isofiles(iso):
@@ -90,8 +97,8 @@ def main():
 				break
 	# stale: what no rule installs in the program directories (the kernel
 	# build's ELF amd64/bin/9pc64 is for boot-cli.sh's multiboot)
-	keep = {'/amd64/bin/9pc64'}
-	for top in ('/amd64/bin', '/acme/bin/amd64'):
+	keep = {'/%s/bin/%s' % (A, KERNELS[0])}
+	for top in ('/%s/bin' % A, '/acme/bin/' + A):
 		for dp, dn, fn in os.walk(g.ROOT + top):
 			for f in fn:
 				p = os.path.join(dp, f)[len(g.ROOT):]

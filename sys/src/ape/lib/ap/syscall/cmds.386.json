@@ -1,0 +1,62 @@
+[
+	{
+		"Name": "ape-lib-ap-syscall-libap.a",
+		"Include": [
+			"/$ARCH/cflags.json",
+			"/$ARCH/ape.json"
+		],
+		"Install": "/$ARCH/lib.gcc/ape/",
+		"Pre": [
+			"bash ../../../../../../scripts/gen-9syscall.sh --ape ."
+		],
+		"Ape": true,
+		"Library": "libap.a",
+		"SourceFiles": [
+			"_SYSR1.S",
+			"_BIND.S",
+			"_CHDIR.S",
+			"_CLOSE.S",
+			"_DUP.S",
+			"_ALARM.S",
+			"_EXEC.S",
+			"_EXITS.S",
+			"_FAUTH.S",
+			"_SEGBRK.S",
+			"_OPEN.S",
+			"_OSEEK.S",
+			"_SLEEP.S",
+			"_RFORK.S",
+			"_PIPE.S",
+			"_CREATE.S",
+			"_FD2PATH.S",
+			"_BRK_.S",
+			"_REMOVE.S",
+			"_NOTIFY.S",
+			"_NOTED.S",
+			"_SEGATTACH.S",
+			"_SEGDETACH.S",
+			"_SEGFREE.S",
+			"_SEGFLUSH.S",
+			"_RENDEZVOUS.S",
+			"_UNMOUNT.S",
+			"_SEMACQUIRE.S",
+			"_SEMRELEASE.S",
+			"_SEEK.S",
+			"_FVERSION.S",
+			"_ERRSTR.S",
+			"_STAT.S",
+			"_FSTAT.S",
+			"_WSTAT.S",
+			"_FWSTAT.S",
+			"_MOUNT.S",
+			"_AWAIT.S",
+			"_PREAD.S",
+			"_PWRITE.S",
+			"_TSEMACQUIRE.S"
+		],
+		"Append": true,
+		"Clean": [
+			"_*.S"
+		]
+	}
+]

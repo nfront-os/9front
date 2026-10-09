@@ -285,7 +285,7 @@ promiscuous(void* arg, int on)
 	ctlr->init = 1;
 	iunlock(&ctlr->Lock);
 
-	while(ctlr->ntq)
+	while(*(volatile int*)&ctlr->ntq)	/* GCC port: volatile, gcc keeps the value of a load in a loop (kencc reloads) */
 		;
 
 	ctlr->iow(ctlr, Rdp, Stop);

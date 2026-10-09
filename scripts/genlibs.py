@@ -5,7 +5,8 @@ for the gcc build tool (sys/src/cmd/build).
 
 Two source-list origins, mirroring how 9front builds the library:
   - mkfile: the library's own mkfile OFILES list (x.$O -> x.c; an
-    "$objtype.$O" entry -> amd64.c).
+    "$objtype.$O" entry -> amd64.c; $objtype from the environment,
+    see arch.py: lib<name>.386.json for objtype=386).
   - reduce: libraries built from port/ plus a per-arch dir (libsec,
     libmp): port/mkfile's CFILES or FILES list, minus files the arch
     dir replaces (9front's port/reduce). Only arch files ported to gcc
@@ -13,7 +14,7 @@ Two source-list origins, mirroring how 9front builds the library:
     version. (The kernel manifests <lib>/amd64.json drop those C
     fallbacks, e.g. libmp's mpvecsub, so they are not reused here.)
 
-The userspace flags come from ../lib.json (amd64/cflags.json).
+The userspace flags come from ../lib.json (/$objtype/cflags.json).
 
 usage: scripts/genlibs.py [lib...]     (default: all libraries below)
        scripts/genlibs.py --list      print them in build order
@@ -23,7 +24,9 @@ import os
 import re
 import sys
 
+import arch
 import genclean
+from arch import OBJTYPE
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 SRC = os.path.join(ROOT, 'sys', 'src')
@@ -65,7 +68,7 @@ def mkfile_sources(lib):
 		words += defs.get(v.group(1), [o]) if v and v.group(1) != 'objtype' else [o]
 	files = []
 	for o in words:
-		o = o.replace('$objtype', 'amd64').replace('${objtype}', 'amd64')
+		o = o.replace('$objtype', OBJTYPE).replace('${objtype}', OBJTYPE)
 		if not o.endswith('.$O'):
 			sys.exit('%s: unexpected OFILES entry %r' % (lib, o))
 		c = o[:-len('.$O')] + '.c'
@@ -96,12 +99,12 @@ def reduce_sources(lib):
 		if m is None:
 			sys.exit('%s: no CFILES/FILES in port/mkfile' % lib)
 		names = m.group(1).split()
-	archdir = os.path.join(SRC, lib, 'amd64')
+	archdir = os.path.join(SRC, lib, OBJTYPE)
 	ported = {}
 	for f in os.listdir(archdir):
 		base, ext = os.path.splitext(f)
 		if ext in ('.c', '.S'):
-			ported[base] = 'amd64/' + f
+			ported[base] = OBJTYPE + '/' + f
 	files = []
 	for n in names:
 		if n in ported:
@@ -142,7 +145,7 @@ def main():
 		if lib in PRE:
 			manifest[0]['Pre'] = ['bash ../../../scripts/' + PRE[lib]]
 			manifest[0]['Clean'] = genclean.clean(manifest[0]['Pre'], os.path.join(SRC, lib))
-		out = os.path.join(SRC, lib, lib + '.json')
+		out = os.path.join(SRC, lib, lib + arch.SUFFIX + '.json')	# per architecture, see arch.py
 		open(out, 'w').write(json.dumps(manifest, indent='\t') + '\n')
 		print('%s: %d files' % (os.path.relpath(out, ROOT), len(files)))
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Generate the amd64 libc manifests for the gcc build tool from 9front's
+Generate the $objtype (arch.py) libc manifests for the gcc build tool from 9front's
 own mkfiles, so libc.a has exactly the members 9front's libc.a has:
 
   sys/src/libc/libc.json         9sys, fmt (OFILES), port (CFILES after
@@ -20,20 +20,25 @@ Deviations from 9front, each needed for the System V ABI:
   amd64/notetramp.S  notify() as a trampoline between the kernel's
                      note-handler call and a System V handler; the raw
                      stub is _notify (see the file)
+  386/_seek.c        seek() returns its vlong in %edx:%eax (8c: through
+                     a hidden pointer the kernel fills); the raw stub
+                     is _seek, as on amd64
 
-usage: scripts/genlibc.py
+usage: scripts/genlibc.py            (objtype=386: libc.386.json, 386/build.json)
 """
 import json
 import os
 import re
 import sys
 
+import arch as archdef
 import genclean
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 LIBC = os.path.join(ROOT, 'sys', 'src', 'libc')
-ARCH = 'amd64'
-EXTRA_ARCH = ['notetramp.S']
+ARCH = archdef.OBJTYPE	# $objtype, see arch.py
+# per-architecture deviations (see the docstring)
+EXTRA_ARCH = {'amd64': ['notetramp.S'], '386': ['_seek.c'], 'arm64': ['notetramp.S']}.get(ARCH, [])
 
 def mkvar(d, name):
 	text = open(os.path.join(LIBC, d, 'mkfile')).read().replace('\\\n', ' ')
@@ -96,7 +101,7 @@ def main():
 		'SourceFiles': src,
 	}]
 	archjson = [{'Name': 'archfiles', 'SourceFiles': arch}]
-	for path, data in (('libc.json', libc), (ARCH + '/build.json', archjson)):
+	for path, data in (('libc%s.json' % archdef.SUFFIX, libc), (ARCH + '/build.json', archjson)):
 		open(os.path.join(LIBC, path), 'w').write(json.dumps(data, indent='\t') + '\n')
 		print('sys/src/libc/%s: %d files' % (path, len(data[0]['SourceFiles'])))
 

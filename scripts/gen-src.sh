@@ -69,9 +69,19 @@ cmd/gs)
 	# $objtype.h: $O.genarch	./$O.genarch $target (objtype = cputype):
 	# genarch measures the compiler's types, so it is built with the
 	# host's gcc, whose amd64 ABI (LP64, System V) the port's gcc shares
-	gcc -std=gnu17 -DHAVE_LONG_LONG -o genarch.host src/genarch.c
-	./genarch.host amd64.h
-	rm -f genarch.host
+	# (386: gcc -m32, which the host runs too); else, as the mkfile
+	# does for objtype != cputype, default.$objtype.h
+	case ${objtype:-amd64} in
+	amd64|386)
+		m=; [ ${objtype:-amd64} = 386 ] && m=-m32
+		gcc $m -std=gnu17 -DHAVE_LONG_LONG -o genarch.host src/genarch.c
+		./genarch.host ${objtype:-amd64}.h
+		rm -f genarch.host
+		;;
+	*)
+		cp default.$objtype.h $objtype.h && chmod 664 $objtype.h
+		;;
+	esac
 	;;
 *)
 	echo "gen-src.sh: no rules for $1" >&2

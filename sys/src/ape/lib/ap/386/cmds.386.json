@@ -1,0 +1,38 @@
+[
+	{
+		"Name": "ape-lib-ap-386-libap.a",
+		"Include": [
+			"/$ARCH/cflags.json",
+			"/$ARCH/ape.json"
+		],
+		"Install": "/$ARCH/lib.gcc/ape/",
+		"Cflags": [
+			"-D_POSIX_SOURCE",
+			"-D_PLAN9_SOURCE"
+		],
+		"Ape": true,
+		"Library": "libap.a",
+		"SourceFiles": [
+			"cycles.S",
+			"lock.c",
+			"main9.S",
+			"main9p.S",
+			"memchr.S",
+			"memcmp.S",
+			"memcpy.S",
+			"memmove.S",
+			"memset.S",
+			"notetramp.c",
+			"setjmp.S",
+			"strcat.S",
+			"strchr.S",
+			"strcpy.S",
+			"strlen.S",
+			"tas.S",
+			"vlop.S",
+			"vlrt.c",
+			"_seek.c"
+		],
+		"Append": true
+	}
+]

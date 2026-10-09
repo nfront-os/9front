@@ -110,7 +110,7 @@ ilock(Lock *l)
 		 */
 		for(;;){
 			splx(x);
-			while(l->key)
+			while(*(volatile ulong*)&l->key)	/* GCC port: volatile, gcc keeps the value of a load in a loop (kencc reloads) */
 				;
 			x = splhi();
 			if(tas(&l->key) == 0)

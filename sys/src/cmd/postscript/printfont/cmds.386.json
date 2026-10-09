@@ -1,0 +1,12 @@
+[
+	{
+		"Name": "cmd-postscript-printfont-install",
+		"Install": "",
+		"Post": [
+			"python3 ../../../../../scripts/mkinstall.py cmd/postscript/printfont"
+		],
+		"Clean": [
+			"printfont"
+		]
+	}
+]

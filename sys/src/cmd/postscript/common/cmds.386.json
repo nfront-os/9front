@@ -1,0 +1,24 @@
+[
+	{
+		"Name": "cmd-postscript-common-com.a8",
+		"Include": [
+			"/$ARCH/cflags.json",
+			"/$ARCH/ape.json"
+		],
+		"Install": "/sys/src/cmd/postscript/common/",
+		"Cflags": [
+			"-Dplan9",
+			"-D_POSIX_SOURCE"
+		],
+		"Ape": true,
+		"Library": "com.a8",
+		"SourceFiles": [
+			"bbox.c",
+			"glob.c",
+			"misc.c",
+			"request.c",
+			"tempnam.c",
+			"getopt.c"
+		]
+	}
+]

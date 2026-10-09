@@ -282,7 +282,7 @@ enum {
 	BCM5906M = 0x1713,
 };
 
-#define csr32(c, r)	((c)->nic[(r)/4])
+#define csr32(c, r)	(((volatile ulong*)(c)->nic)[(r)/4])	/* GCC port: volatile, gcc keeps the value of a load in a loop (kencc reloads) */
 #define mem32(c, r) csr32(c, (r)+0x8000)
 
 static Ctlr *bcmhead, *bcmtail;

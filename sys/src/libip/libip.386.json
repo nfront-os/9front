@@ -1,0 +1,25 @@
+[
+	{
+		"Name": "Ip",
+		"Include": [
+			"../lib.json"
+		],
+		"Install": "/$ARCH/lib.gcc/",
+		"Library": "libip.a",
+		"SourceFiles": [
+			"eipfmt.c",
+			"equivip.c",
+			"parseip.c",
+			"parseether.c",
+			"myetheraddr.c",
+			"myipaddr.c",
+			"classmask.c",
+			"bo.c",
+			"readipifc.c",
+			"ipaux.c",
+			"iplocalonifc.c",
+			"ipremoteonifc.c",
+			"ptclbsum.c"
+		]
+	}
+]

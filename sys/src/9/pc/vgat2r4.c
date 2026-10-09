@@ -306,7 +306,7 @@ static void
 waitforfifo(VGAscr *scr)
 {
 	int x;
-	ulong *d;
+	volatile ulong *d;	/* GCC port: volatile, gcc keeps the value of a load in a loop (kencc reloads) */
 	x = 0;
 
 	d = scr->mmio + RBaseD;
@@ -321,7 +321,7 @@ static void
 waitforcmd(VGAscr *scr)
 {
 	int x;
-	ulong *d;
+	volatile ulong *d;	/* GCC port: volatile, gcc keeps the value of a load in a loop (kencc reloads) */
 	x = 0;
 
 	d = scr->mmio + RBaseD;
@@ -336,7 +336,7 @@ static void
 waitformem(VGAscr *scr)
 {
 	int x;
-	ulong *d;
+	volatile ulong *d;	/* GCC port: volatile, gcc keeps the value of a load in a loop (kencc reloads) */
 	x = 0;
 
 	d = scr->mmio + RBaseD;

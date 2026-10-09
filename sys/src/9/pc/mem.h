@@ -64,23 +64,8 @@
 #define	CPU0GDT		(KZERO+0x17000)		/* bootstrap processor GDT */
 #define	MACHADDR	(KZERO+0x18000)		/* as seen by current processor */
 #define	CPU0MACH	(KZERO+0x19000)		/* Mach for bootstrap processor */
-/*
- * GCC port: front's original MACHSIZE is exactly BY2PG (4K) -- the Mach
- * struct and the bootstrap processor's entire early-boot stack (main()'s
- * call chain up through userinit()) share that one page, stack growing
- * down from the top while Mach's own fields sit at the bottom. kencc's
- * leaner codegen fit comfortably; gcc's (bigger frames even at -Os, plus
- * -fno-omit-frame-pointer overhead) does not -- observed as flaky,
- * stack-layout-sensitive corruption of the Mach struct itself once
- * real calls (print()'s fmt machinery, etc.) got deep enough. Matches
- * the same category of fix pc64 already needed (its MACHSIZE is
- * 2*KSTACK, not BY2PG, for the same reason). The pages beyond the first
- * need no extra page-table work: they fall within l.S's mode32bit's
- * existing identity-style mapping of the first few MB of physical
- * memory, which is otherwise unclaimed this early in boot.
- */
-#define	MACHSIZE	(4*BY2PG)
-#define	CPU0END		(CPU0MACH+MACHSIZE)
+#define	MACHSIZE	BY2PG
+#define	CPU0END		(CPU0MACH+BY2PG)
 /*
  * N.B.  ramscan knows that CPU0END is the end of reserved data
  * N.B.  _startPADDR knows that CPU0PDB is the first reserved page

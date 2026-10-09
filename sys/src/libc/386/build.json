@@ -1,0 +1,34 @@
+[
+	{
+		"Name": "archfiles",
+		"SourceFiles": [
+			"$ARCH/argv0.S",
+			"$ARCH/atom.S",
+			"$ARCH/atomic.S",
+			"$ARCH/atomic64.S",
+			"$ARCH/getfcr.S",
+			"$ARCH/main9.S",
+			"$ARCH/main9p.S",
+			"$ARCH/memccpy.S",
+			"$ARCH/memchr.S",
+			"$ARCH/memcmp.S",
+			"$ARCH/memcpy.S",
+			"$ARCH/memmove.S",
+			"$ARCH/memset.S",
+			"$ARCH/muldiv.S",
+			"$ARCH/cycles.S",
+			"$ARCH/setjmp.S",
+			"$ARCH/sqrt.S",
+			"$ARCH/strcat.S",
+			"$ARCH/strchr.S",
+			"$ARCH/strcpy.S",
+			"$ARCH/strlen.S",
+			"$ARCH/tas.S",
+			"$ARCH/vlop.S",
+			"$ARCH/getcallerpc.S",
+			"$ARCH/notejmp.c",
+			"$ARCH/vlrt.c",
+			"$ARCH/_seek.c"
+		]
+	}
+]

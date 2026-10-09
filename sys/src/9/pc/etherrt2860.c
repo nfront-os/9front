@@ -1242,8 +1242,8 @@ enum {
 	AwtRT2890 = 0x1059,
 };
 
-#define csr32r(c, r)	(*((c)->nic+((r)/4)))
-#define csr32w(c, r, v)	(*((c)->nic+((r)/4)) = (v))
+#define csr32r(c, r)	(*((volatile u32int*)(c)->nic+((r)/4)))	/* GCC port: volatile, gcc keeps the value of a load in a loop (kencc reloads) */
+#define csr32w(c, r, v)	(*((volatile u32int*)(c)->nic+((r)/4)) = (v))
 
 static int rbplant(Ctlr*, int);
 static void setchan(Ctlr*, uint);

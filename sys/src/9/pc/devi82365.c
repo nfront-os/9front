@@ -155,7 +155,7 @@ slotinfo(PCMslot *pp)
 	pp->battery = (isr & 3) == 3;
 	pp->wrprot = isr & (1<<4);
 	pp->busy = isr & (1<<5);
-	pp->msec = TK2MS(MACHP(0)->ticks);
+	pp->msec = TK2MS(MACHP(0)->PMach.ticks);
 }
 
 static int
@@ -369,7 +369,7 @@ pcmcia_pcmspecial(char *idstr, ISAConf *isa)
 		 *  in them.  We'll reread every two minutes if necessary
 		 */
 		enabled = 0;
-		if (pp->msec == ~0 || TK2MS(MACHP(0)->ticks) - pp->msec > 120000){
+		if (pp->msec == ~0 || TK2MS(MACHP(0)->PMach.ticks) - pp->msec > 120000){
 			increfp(pp);
 			enabled++;
 		}

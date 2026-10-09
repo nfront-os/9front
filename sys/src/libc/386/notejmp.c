@@ -12,5 +12,12 @@ notejmp(void *vr, jmp_buf j, int ret)
 		r->ax = 1;
 	r->pc = j[JMPBUFPC];
 	r->sp = j[JMPBUFSP] + 4;
+#ifdef __GNUC__
+	/* GCC port: callee-saved registers, see jmp_buf in 386/include/u.h */
+	r->bp = j[2];
+	r->bx = j[3];
+	r->si = j[4];
+	r->di = j[5];
+#endif
 	noted(NCONT);
 }

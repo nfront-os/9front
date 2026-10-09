@@ -2,18 +2,19 @@
 # build: results of scripts/build-cli.sh
 . "$(dirname "$0")/../lib.sh"
 cd "$ROOT"
-L=amd64/lib.gcc
+L=$objtype/lib.gcc
 
 dupsyms(){ nm "$1" 2>/dev/null | awk '$2=="T"{print $3}' | sort | uniq -d; }
 
 libc(){
 	[ -f $L/libc.a ] || { echo "$L/libc.a missing (run scripts/build-cli.sh)"; return 1; }
 	local want got d
-	want=$(python3 -c 'import json; print(sum(len(e["SourceFiles"]) for f in ("sys/src/libc/libc.json","sys/src/libc/amd64/build.json") for e in json.load(open(f))))')
+	want=$(python3 -c 'import json, os; print(sum(len(e["SourceFiles"]) for f in ("sys/src/libc/libc%s.json" % os.environ["SUFFIX"], "sys/src/libc/%s/build.json" % os.environ["objtype"]) for e in json.load(open(f))))')
 	got=$(ar t $L/libc.a | wc -l)
 	[ "$want" -eq "$got" ] || { echo "libc.a has $got members, the manifests list $want sources"; return 1; }
 	d=$(dupsyms $L/libc.a); [ -z "$d" ] || { echo "duplicate symbols: $d"; return 1; }
-	for s in _main _callmain _tos argv0 seek _seek notify _notify nsec _nsec _exits \
+	# _notify: the raw stub behind the trampoline notify() (amd64, arm64)
+	for s in _main _callmain _tos argv0 seek _seek notify $( [ $objtype != 386 ] && echo _notify ) nsec _nsec _exits \
 		memmove memcpy strlen getfcr setjmp longjmp _tas cas64 toupperrune tmfmt calloc; do
 		nm $L/libc.a 2>/dev/null | grep -qE " [TC] $s$" || { echo "libc.a lacks $s"; return 1; }
 	done
@@ -35,12 +36,13 @@ cmds(){
 import json, os, subprocess, sys
 bad = n = 0
 for dp, _, fs in [w for top in ('sys/src/cmd', 'sys/src/games', 'sys/src/ape') for w in os.walk(top)]:
-	if 'cmds.json' not in fs:
+	m = 'cmds%s.json' % os.environ['SUFFIX']
+	if m not in fs:
 		continue
-	for e in json.load(open(os.path.join(dp, 'cmds.json'))):
+	for e in json.load(open(os.path.join(dp, m))):
 		if 'Library' in e or not e.get('Install'):	# archives; rc scripts (Post install)
 			continue
-		inst = e['Install'].replace('$ARCH', 'amd64').lstrip('/')
+		inst = e['Install'].replace('$ARCH', os.environ['objtype']).lstrip('/')
 		names = [os.path.splitext(f)[0] for f in e.get('SourceFilesCmd', [])] or [e['Program']]
 		for t in names:
 			n += 1
@@ -48,23 +50,25 @@ for dp, _, fs in [w for top in ('sys/src/cmd', 'sys/src/games', 'sys/src/ape') f
 			if not os.path.isfile(p):
 				print('missing', p); bad += 1; continue
 			h = subprocess.run(['readelf', '-h', p], capture_output=True, text=True).stdout
-			if 'ELF64' not in h or 'EXEC' not in h or 'X86-64' not in h:
-				print('not an x86-64 ELF64 executable:', p); bad += 1
+			cls, mach = {'amd64': ('ELF64', 'X86-64'), '386': ('ELF32', '80386'), 'arm64': ('ELF64', 'AArch64')}[os.environ['objtype']]
+			if cls not in h or 'EXEC' not in h or mach not in h:
+				print('not an %s %s executable:' % (mach, cls), p); bad += 1
 print(n, 'commands checked')
 sys.exit(bad != 0)
 PY
 }
-check "every command of the cmds.json manifests installed as ELF64 executable" cmds
+check "every command of the cmds.json manifests installed as $objtype ELF executable" cmds
 
-# amd64/plan9.ld: like 8l, a code segment (R E) and a data segment (RW)
+# /$objtype/plan9.ld: like 8l, a code segment (R E) and a data segment (RW)
 # with .rodata -- string literals writable, nothing writable+executable
 segments(){
 	python3 - <<'PY'
 import os, subprocess, sys
 bad = n = 0
-paths = ['amd64/init'] + [os.path.join(dp, f) for dp, _, fs in os.walk('amd64/bin') for f in fs]
+A = os.environ['objtype']
+paths = [A + '/init'] + [os.path.join(dp, f) for dp, _, fs in os.walk(A + '/bin') for f in fs]
 for p in paths:
-	if p.endswith('9pc64') or open(p, 'rb').read(4) != b'\x7fELF':
+	if p == os.environ['KBIN'] or open(p, 'rb').read(4) != b'\x7fELF':
 		continue
 	n += 1
 	out = subprocess.run(['readelf', '-lSW', p], capture_output=True, text=True).stdout
@@ -83,7 +87,7 @@ for p in paths:
 		bad += 1
 	for l in out.splitlines():
 		w = l.replace('[', ' ').replace(']', ' ').split()
-		if '.rodata' in w and 'PROGBITS' in w and int(w[w.index('.rodata') + 2], 16) < 0x600000:
+		if '.rodata' in w and 'PROGBITS' in w and int(w[w.index('.rodata') + 2], 16) < int(ld[2], 16):
 			print(p, '.rodata in the text segment')
 			bad += 1
 print(n, 'programs checked')
@@ -93,9 +97,22 @@ PY
 check "programs: a R E code and a RW data segment holding .rodata, end at its end (plan9.ld)" segments
 
 kernel(){
-	local k=amd64/bin/9pc64
+	local k=$KBIN kz
 	[ -f $k ] || { echo "$k missing"; return 1; }
-	readelf -lW $k | awk '$1=="LOAD"{ v=strtonum($3); p=strtonum($4); if(v-p != 0xffffffff80000000){ print "LOAD vaddr " $3 " paddr " $4; bad=1 } } END{ exit bad }'
+	kz=$(sed -n 's/^#define[ \t]*KZERO[ \t]*(*\(0x[0-9a-fA-F]*\).*/\1/p' sys/src/9/$KDIR/mem.h 2>/dev/null | head -1)
+	readelf -lW $k | awk -v kz=$kz '$1=="LOAD"{ v=strtonum($3); p=strtonum($4); if(v-p != strtonum(kz)){ print "LOAD vaddr " $3 " paddr " $4; bad=1 } } END{ exit bad }'
 }
 check "kernel: LOAD segments with paddr = vaddr - KZERO (multiboot)" kernel
+
+# gcc may hoist the load of a kencc-style busy-wait (`while(l->key) ;')
+# out of the loop: a branch to itself (scripts/port/find-spinloops.sh)
+spinloops(){
+	local k bad=0
+	for k in amd64/bin/9pc64 386/bin/9pc arm64/bin/9qemu arm64/bin/9pi3 arm64/bin/9pi4; do
+		[ -f $k ] || continue
+		scripts/port/find-spinloops.sh $k || { echo "in $k"; bad=1; }
+	done
+	return $bad
+}
+check "kernels: no busy-wait compiled into a branch to itself" spinloops
 done_tests

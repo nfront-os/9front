@@ -8,26 +8,44 @@
 # bytes -- same approach as gen-rebootcode-i.sh, see that script for the
 # full rationale.
 #
-# Usage: run from the repo root (or pass PLAN9=<root>).
+# Usage: scripts/gen-apbootstrap-i.sh [pc64|pc]   (default pc64; from the
+# repo root, or pass PLAN9=<root>).
 set -e
 
 ROOT=${PLAN9:-$(git rev-parse --show-toplevel)}
-PC64=$ROOT/sys/src/9/pc64
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 
-APBOOTSTRAP=0xffffffff80007000
+# pc (objtype 386): apbootstrap.S at its APBOOTSTRAP (pc/mem.h, pc/mkfile)
+case ${1:-pc64} in
+pc64)
+	KDIR=$ROOT/sys/src/9/pc64
+	APBOOTSTRAP=0xffffffff80007000
+	CFLAGS="-m64 -mno-red-zone"
+	LDFLAGS=
+	;;
+pc)
+	KDIR=$ROOT/sys/src/9/pc
+	APBOOTSTRAP=0xF0007000
+	CFLAGS=-m32
+	LDFLAGS=-m32
+	;;
+*)
+	echo "usage: gen-apbootstrap-i.sh [pc64|pc]" >&2
+	exit 1
+	;;
+esac
 
-gcc -c -std=c11 -m64 -mno-red-zone -fno-pic -fno-pie \
-    -I "$PC64" -I "$PC64/../port" -I "$ROOT/sys/include" \
-    "$PC64/apbootstrap.S" -o "$TMP/apbootstrap.o"
+gcc -c -std=c11 $CFLAGS -fno-pic -fno-pie \
+    -I "$KDIR" -I "$KDIR/../port" -I "$ROOT/sys/include" \
+    "$KDIR/apbootstrap.S" -o "$TMP/apbootstrap.o"
 
-gcc -nostdlib -static -Wl,-Ttext=$APBOOTSTRAP -Wl,--entry=apbootstrap -Wl,-N \
+gcc $LDFLAGS -nostdlib -static -Wl,-Ttext=$APBOOTSTRAP -Wl,--entry=apbootstrap -Wl,-N \
     -o "$TMP/apbootstrap.elf" "$TMP/apbootstrap.o"
 
 objcopy -O binary --only-section=.text "$TMP/apbootstrap.elf" "$TMP/apbootstrap.bin"
 
-python3 - "$TMP/apbootstrap.bin" "$PC64/apbootstrap.i" <<'PYEOF'
+python3 - "$TMP/apbootstrap.bin" "$KDIR/apbootstrap.i" <<'PYEOF'
 import sys
 binpath, outpath = sys.argv[1], sys.argv[2]
 data = open(binpath, 'rb').read()

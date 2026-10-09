@@ -1,5 +1,5 @@
 #!/bin/bash
-# Boot the gcc-built pc64 kernel in QEMU into the system, with the root
+# Boot the gcc-built pc64 kernel (objtype=386: pc) in QEMU into the system, with the root
 # file system served by the build host: an rc on the serial console
 # (service=cpu) or rio (service=terminal, see KARGS).
 #
@@ -50,7 +50,14 @@ set -e
 
 ROOT=${PLAN9:-$(git -C "$(dirname "$0")" rev-parse --show-toplevel)}
 CLI_DIR=${CLI_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/9front-cli}
-KERNEL=$ROOT/amd64/bin/9pc64
+# objtype: the system to boot, amd64 (pc64) or 386 (pc)
+case ${objtype:=amd64} in
+amd64)	KNAME=9pc64 QEMU=qemu-system-x86_64 CPU=qemu64,+rdrand ;;
+386)	KNAME=9pc QEMU=qemu-system-i386 CPU=qemu32,+rdrand ;;
+*)	echo "boot-cli: objtype=$objtype: no kernel" >&2; exit 1 ;;
+esac
+export objtype
+KERNEL=$ROOT/$objtype/bin/$KNAME
 UFS=${UFS:-$(command -v ufs 2>/dev/null || echo "$HOME/go/bin/ufs")}
 UFS_PORT=5640
 SERVICE=${SERVICE:-cpu}
@@ -70,7 +77,7 @@ port_open(){ timeout 2 bash -c "exec 3<>/dev/tcp/127.0.0.1/$UFS_PORT" 2>/dev/nul
 cmds=("$@")
 
 [ -f "$KERNEL" ] || die "$KERNEL missing, run scripts/build-cli.sh"
-command -v qemu-system-x86_64 >/dev/null || die "qemu-system-x86_64 missing"
+command -v $QEMU >/dev/null || die "$QEMU missing"
 mkdir -p "$CLI_DIR"
 pids=()
 cleanup(){ [ ${#pids[@]} -gt 0 ] && kill "${pids[@]}" 2>/dev/null; wait 2>/dev/null; return 0; }
@@ -94,10 +101,10 @@ if [ -n "$BOOTDISK$BOOTISO" ]; then
 		[ -f "$BOOTDISK" ] || die "$BOOTDISK missing"
 		media=(-drive "file=$BOOTDISK,format=raw,if=ide,index=0")
 	fi
-	qemu=(qemu-system-x86_64 "${fw[@]}" "${media[@]}" -m "$MEM"
+	qemu=($QEMU "${fw[@]}" "${media[@]}" -m "$MEM"
 		-display none -no-reboot -monitor none
 		-netdev user,id=net0 -device "$NIC",netdev=net0
-		-cpu qemu64,+rdrand "${accel[@]}")
+		-cpu $CPU "${accel[@]}")
 else
 command -v grub-mkrescue >/dev/null || die "grub-mkrescue missing"
 [ -x "$UFS" ] || die "ufs missing (go install github.com/Harvey-OS/ninep/cmd/ufs@latest, or set UFS)"
@@ -112,15 +119,15 @@ bash "$ROOT/scripts/gen-ufs-root.sh" "$CLI_DIR/ufsroot" > /dev/null
 # boot that stops at the grub> prompt is visible
 rm -rf "$CLI_DIR/iso"
 mkdir -p "$CLI_DIR/iso/boot/grub"
-cp "$KERNEL" "$CLI_DIR/iso/boot/9pc64"
+cp "$KERNEL" "$CLI_DIR/iso/boot/$KNAME"
 cat > "$CLI_DIR/iso/boot/grub/grub.cfg" <<EOF
 set timeout=0
 serial --speed=115200 --unit=0 --word=8 --parity=no --stop=1
 terminal_output serial console
-multiboot /boot/9pc64 console=0 service=$SERVICE nobootprompt=tcp fs=$FSADDR auth=$FSADDR $KARGS
+multiboot /boot/$KNAME console=0 service=$SERVICE nobootprompt=tcp fs=$FSADDR auth=$FSADDR $KARGS
 boot
 EOF
-grub-mkrescue -o "$CLI_DIR/9pc64.iso" "$CLI_DIR/iso" > "$CLI_DIR/grub-mkrescue.log" 2>&1 \
+grub-mkrescue -o "$CLI_DIR/$KNAME.iso" "$CLI_DIR/iso" > "$CLI_DIR/grub-mkrescue.log" 2>&1 \
 	|| die "grub-mkrescue failed (log: $CLI_DIR/grub-mkrescue.log)"
 
 "$UFS" -root="$CLI_DIR/ufsroot" -addr=":$UFS_PORT" > "$CLI_DIR/ufs.log" 2>&1 &
@@ -136,10 +143,10 @@ fi
 disk=()
 [ -z "$DISK" ] || disk=(-drive "file=$DISK,format=raw,if=ide,index=0,media=disk")
 
-qemu=(qemu-system-x86_64 "${fw[@]}" -cdrom "$CLI_DIR/9pc64.iso" -m "$MEM"
+qemu=($QEMU "${fw[@]}" -cdrom "$CLI_DIR/$KNAME.iso" -m "$MEM"
 	-display none -no-reboot -monitor none
 	-netdev user,id=net0,$fwd -device "$NIC",netdev=net0 "${disk[@]}"
-	-cpu qemu64,+rdrand "${accel[@]}")	# RDRAND: kernel entropy fast path, dial() needs it
+	-cpu $CPU "${accel[@]}")	# RDRAND: kernel entropy fast path, dial() needs it
 fi
 
 if [ ${#cmds[@]} -eq 0 ]; then

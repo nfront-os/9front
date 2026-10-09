@@ -5,7 +5,9 @@
  * ABI (System V Application Binary Interface, Intel386/AMD64 processor
  * supplements) -- not adapted from any other kernel's loader. Lives in
  * port/ and dispatches on EI_CLASS at runtime so the same code serves
- * both pc (ELFCLASS32/EM_386) and pc64 (ELFCLASS64/EM_X86_64); the two
+ * both pc (ELFCLASS32/EM_386) and pc64 (ELFCLASS64/EM_X86_64), and the
+ * arm64 kernels (ELFCLASS64/EM_AARCH64: the machine of the kernel's own
+ * compiler, __aarch64__); the two
  * classes' Ehdr/Phdr layouts differ in field order, not just width
  * (p_flags moves from offset 4 in Elf64_Phdr to offset 24 in
  * Elf32_Phdr), so each field is read at its class-specific offset
@@ -39,6 +41,12 @@ enum {
 
 	EM_386		= 3,
 	EM_X86_64	= 62,
+	EM_AARCH64	= 183,
+#ifdef __aarch64__
+	EM_64		= EM_AARCH64,
+#else
+	EM_64		= EM_X86_64,
+#endif
 
 	PT_LOAD		= 1,
 	PT_INTERP	= 3,
@@ -117,7 +125,7 @@ elf64load(Chan *tc, uchar *hdr, int hdrlen, uintptr *entryp, ElfSeg *seg, long m
 	case ELFCLASS64:
 		ehdrsz = Ehdrsz64;
 		phdrsz = Phdrsz64;
-		if(get16(hdr+18) != EM_X86_64)
+		if(get16(hdr+18) != EM_64)
 			error(Ebadexec);
 		break;
 	}

@@ -207,6 +207,7 @@ var (
 	arch = map[string]bool{
 		"386":   true,
 		"amd64": true,
+		"arm64": true,
 	}
 	debugPrint     = flag.Bool("debug", false, "enable debug prints")
 	depends        = flag.Bool("D", false, "Do dependency checking")
@@ -624,7 +625,15 @@ func presolve(b *build, out string, objs []string) string {
 		}
 	}
 	r := out + ".r.o"
-	run(b, *shellhack, exec.Command(tools["ld"], append([]string{"-r", "-d", "-o", r}, objs...)...))
+	// the emulation the final link names (386: -m elf_i386), else ld's
+	// default (x86-64) refuses 32-bit objects
+	var emul []string
+	for i := 0; i+1 < len(b.Oflags); i++ {
+		if b.Oflags[i] == "-m" {
+			emul = []string{"-m", b.Oflags[i+1]}
+		}
+	}
+	run(b, *shellhack, exec.Command(tools["ld"], append(append(emul, "-r", "-d", "-o", r), objs...)...))
 	if len(commons) > 0 {
 		w := out + ".weak"
 		fail(os.WriteFile(w, []byte(strings.Join(commons, "\n")+"\n"), 0644))

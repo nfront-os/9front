@@ -14,6 +14,8 @@ import os
 import re
 import subprocess
 
+import arch
+
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 SRC = os.path.join(ROOT, 'sys', 'src')
 
@@ -44,7 +46,7 @@ def gensrc(sub, d):
 	if sub == 'games/blabs':
 		return ['*.bits']
 	if sub == 'cmd/gs':
-		return ['amd64.h']
+		return [arch.OBJTYPE + '.h']	# $objtype.h
 	if re.match(r'^cmd/[0-9a-z]c$', sub):
 		return ['enam.c']
 	if re.match(r'^cmd/[0-9a-z]l$', sub):

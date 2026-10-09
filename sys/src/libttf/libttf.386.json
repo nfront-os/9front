@@ -1,0 +1,19 @@
+[
+	{
+		"Name": "Ttf",
+		"Include": [
+			"../lib.json"
+		],
+		"Install": "/$ARCH/lib.gcc/",
+		"Library": "libttf.a",
+		"SourceFiles": [
+			"head.c",
+			"cmap.c",
+			"hint.c",
+			"scan.c",
+			"glyf.c",
+			"render.c",
+			"bit.c"
+		]
+	}
+]

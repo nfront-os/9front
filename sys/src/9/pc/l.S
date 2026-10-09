@@ -1236,7 +1236,7 @@ _vmout2:
 .globl touser
 touser:
 	pushl	$UDSEL				/* old ss */
-	movl	4(%esp), %eax			/* old sp (note: +4 for the pushl above) */
+	movl	8(%esp), %eax			/* old sp (sp+0(FP): 4(%esp) at entry, +4 for the pushl above) */
 	pushl	%eax
 	movl	$0x200, %eax			/* interrupt enable flag */
 	pushl	%eax				/* old flags */

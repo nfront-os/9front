@@ -3,6 +3,7 @@
         "Name": "klibaml-386",
         "Cflags": [
             "-m32",
+            "-nostdinc",
             "-mno-sse",
             "-mno-sse2",
             "-mno-mmx",

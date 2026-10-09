@@ -41,11 +41,14 @@ import re
 import subprocess
 import sys
 
+import arch
 import genclean
+from arch import OBJTYPE, O
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 SRC = os.path.join(ROOT, 'sys', 'src')
-BROKEN = os.path.join(ROOT, 'scripts', 'cmds-broken.txt')
+BROKEN = os.path.join(ROOT, 'scripts', 'cmds-broken%s.txt' % arch.SUFFIX)
+CMDS = 'cmds%s.json' % arch.SUFFIX	# per architecture, see arch.py
 CLI_DIR = os.environ.get('CLI_DIR', os.path.join(
 	os.environ.get('XDG_CACHE_HOME', os.path.expanduser('~/.cache')), '9front-cli'))
 
@@ -61,8 +64,8 @@ LIBS = ['libdisk', 'libcontrol', 'libhtml', 'libframe', 'libdraw', 'libmemlayer'
 	'liblex', 'libstdio', 'libdtracy', 'libaml', 'libfis', 'libbio', 'libc']
 
 # per-architecture directories of other machines
-ARCHS = ['386', '68000', '68020', 'arm', 'arm64', 'mips', 'mips2', 'power', 'power64',
-	'sparc', 'sparc64', 'spim', 'alpha', '3210', '29000']
+ARCHS = [a for a in ['386', '68000', '68020', 'amd64', 'arm', 'arm64', 'mips', 'mips2', 'power', 'power64',
+	'sparc', 'sparc64', 'spim', 'alpha', '3210', '29000'] if a != OBJTYPE]
 
 # APE's libraries, linked as one group like LIBS (pcc: -lX is
 # /$objtype/lib/ape/libX.a, libap always; the rest via #pragma lib)
@@ -73,10 +76,10 @@ APELIBS = ['libdraw', 'libplumb', 'libauth', 'libsec', 'libmp', 'libnet', 'libbs
 # first directory starts it, the others add to it (later ones replace
 # members of the same name: stdio/strtod over gen/strtod, as with ar)
 APEDIRS = ['ape/lib/ap/gen', 'ape/lib/ap/math', 'ape/lib/ap/plan9', 'ape/lib/ap/posix',
-	'ape/lib/ap/stdio', 'ape/lib/ap/syscall', 'ape/lib/ap/amd64']
+	'ape/lib/ap/stdio', 'ape/lib/ap/syscall', 'ape/lib/ap/' + OBJTYPE]
 # sources outside the mkfile's OFILES: system call stubs (genall),
 # the note trampolines of the gcc port
-APEEXTRA = {'ape/lib/ap/amd64': ['notify.S']}
+APEEXTRA = {'ape/lib/ap/amd64': ['notify.S'], 'ape/lib/ap/386': ['_seek.c']}
 
 # directories whose mkfile runs a generator before compiling
 PRE = {
@@ -95,12 +98,12 @@ for d in sorted(os.listdir(os.path.join(SRC, 'cmd'))):
 	if re.match(r'^[0-9a-z][cl]$', d) and d != 'rc':
 		PRE['cmd/' + d] = ['gen-src.sh cmd/' + d]
 # not target programs: compilers and assemblers, test data, the build tool
-SKIP = re.compile(r'^(cmd/build|.*/test|ape/lib/(mp|sec)/amd64)(/|$)')	# the build tool, test data, unported asm
+SKIP = re.compile(r'^(cmd/build|.*/test|ape/lib/(mp|sec)/%s)(/|$)' % OBJTYPE)	# the build tool, test data, unported asm
 
 def rel(path):
 	return os.path.relpath(path, SRC)
 
-STDMK = re.compile(r'^/(\$objtype|amd64)/mkfile$|^/sys/src/cmd/mk(one|many|lib|syslib|dirs)$')
+STDMK = re.compile(r'^/(\$objtype|' + OBJTYPE + r')/mkfile$|^/sys/src/cmd/mk(one|many|lib|syslib|dirs)$')
 
 def uncomment(l):
 	# # outside rc quotes (gs: `{sed 's#^./obj/...#'})
@@ -213,9 +216,9 @@ def isape(text):
 	return bool(re.search(r'^<\s*/?\$APE/config|^CC\s*=\s*pcc\b|^CFLAGS\s*=.*-I/sys/include/ape', text, re.M))
 
 def variables(text):
-	v = {'objtype': ['amd64'], 'O': ['6'], 'cputype': ['amd64'], 'CPUS': ['amd64']}
+	v = {'objtype': [OBJTYPE], 'O': [O], 'cputype': [OBJTYPE], 'CPUS': [OBJTYPE]}
 	if isape(text):	# sys/src/ape/config
-		v.update({'APE': ['/sys/src/ape'], 'APEBIN': ['/amd64/bin/ape'], 'FAMILY': ['plan9'],
+		v.update({'APE': ['/sys/src/ape'], 'APEBIN': ['/%s/bin/ape' % OBJTYPE], 'FAMILY': ['plan9'],
 			'APELIB': ['/rc/bin/ape'], 'CC': ['pcc'], 'CFLAGS': ['-Fw']})
 	for m in re.finditer(r'^(\w+)\s*=(.*)$', text, re.M):
 		# rc quoting: FS='64', FS='', -D'PROGRAMNAME="troff, Plan 9 edition"'
@@ -238,7 +241,7 @@ def evalvars(text, v, d):
 		def run(b):
 			r = subprocess.run([os.path.join(P9P, 'bin', 'rc'), '-c', b.group(1)], cwd=os.path.join(SRC, d),
 				env=dict(os.environ, PLAN9=P9P, PATH=os.path.join(P9P, 'bin') + ':' + os.environ['PATH'],
-				objtype='amd64', O='6', cputype='amd64'),
+				objtype=OBJTYPE, O=O, cputype=OBJTYPE),
 				capture_output=True, text=True, check=True)
 			return ' '.join(r.stdout.split())
 		out[name] = [w for w in rcwords(expand(re.sub(r'`\{([^}]*)\}', run, m.group(1)), v)) if w]
@@ -263,16 +266,16 @@ def objs2src(objs, d, text='', v={}):
 		if not ps or not recipe:	# scat.$O: strings.c is a dependency only
 			continue
 		for t in ts:
-			if t.endswith('%.6'):	# %.$O, gs: obj/%.$O: src/%.c
+			if t.endswith('%.' + O):	# %.$O, gs: obj/%.$O: src/%.c
 				meta.append((t[:-3], tree(ps[0], d)))
-			elif t.endswith('.6') and '%' not in t:
+			elif t.endswith('.' + O) and '%' not in t:
 				explicit[t[:-2]] = tree(ps[0], d)
 	out = []
 	for o in objs:
 		if o.endswith(('.c', '.s', '.S')):
 			out.append(gasport(o, d))
 			continue
-		base = o[:-2] if o.endswith('.6') else o
+		base = o[:-2] if o.endswith('.' + O) else o
 		if base == 'y.tab':
 			out.append('y.tab.c')
 			continue
@@ -316,7 +319,7 @@ def locallibs(v, d):
 	# LIB may also name plain objects (vac's error.$O ...): those are sources
 	# and archives of other source dirs (bzfs: /sys/src/cmd/bzip2/lib/libbzip2.a$O)
 	return [os.path.normpath(os.path.join('/sys/src', d, l)) for l in v.get('LIB', [])
-		if (not l.startswith('/') or l.startswith('/sys/src/')) and not l.endswith('.6')]
+		if (not l.startswith('/') or l.startswith('/sys/src/')) and not l.endswith('.' + O)]
 
 def pragmalibs(cf, d):
 	"""#pragma lib of local headers (map.h: /sys/src/cmd/map/libmap/libmap.a$O);
@@ -329,21 +332,21 @@ def pragmalibs(cf, d):
 		for h in sorted(os.listdir(p)):
 			if h.endswith('.h'):
 				for m in re.finditer(r'^#pragma\s+lib\s+"(/sys/src/[^"]+)"', open(os.path.join(p, h), errors='replace').read(), re.M):
-					out.append(m.group(1).replace('$O', '6'))
+					out.append(m.group(1).replace('$O', O))
 	return out
 
 def libobjs(v):
-	return [l for l in v.get('LIB', []) if not l.startswith('/') and l.endswith('.6')]
+	return [l for l in v.get('LIB', []) if not l.startswith('/') and l.endswith('.' + O)]
 
 def dirlibs(text, v, d, common):
 	"""archives of LIB that a rule of this mkfile builds (httpd's libhttps.a$O)"""
 	out = []
 	for l in v.get('LIB', []):
-		if '/' in l or l.endswith('.6'):
+		if '/' in l or l.endswith('.' + O):
 			continue
 		for targets, prereq, recipe in rules(text):
 			if recipe and l in expand(' '.join(targets), v).split():
-				objs = [o for o in expand(prereq, v).split() if o.endswith('.6')]
+				objs = [o for o in expand(prereq, v).split() if o.endswith('.' + O)]
 				if not objs:	# cmd/auth: $LIB: cd lib; mk (a mklib directory)
 					break
 				out.append((os.path.join(d, l), dict(common, Libs=[], library=l, libdir=d,
@@ -382,9 +385,9 @@ def lexpre(text, v, d):
 	return out
 
 def install(v, d):
-	b = (v.get('BIN') or ['/amd64/bin'])[0]
+	b = (v.get('BIN') or ['/%s/bin' % OBJTYPE])[0]
 	b = os.path.normpath(os.path.join(nine(d), b))	# acme: BIN=../$objtype
-	return b.replace('/amd64', '/$ARCH', 1).rstrip('/') + '/'
+	return b.replace('/' + OBJTYPE, '/$ARCH', 1).rstrip('/') + '/'
 
 def attrless(prereq):
 	# `install:V:	$BIN/status': rules() leaves the attributes in front
@@ -462,7 +465,7 @@ def installfiles(d):
 	v = variables(text)
 	out = []
 	for t, (recipe, prereq, stem) in mkinstalls(text, v, d):
-		if any(p.startswith('6.') for p in prereq):
+		if any(p.startswith(O + '.') for p in prereq):
 			continue	# a program: entries()
 		dest = t if t.startswith('/') else cpdest(recipe, v, t, prereq, stem)
 		out.append((t, recipe, prereq, stem, dest))
@@ -477,30 +480,30 @@ def entries(d):
 	text = readmk(d)
 	v = variables(text)
 	rs = rules(text)
-	bindir = install(v, d).replace('/$ARCH', '/amd64', 1)
+	bindir = install(v, d).replace('/$ARCH', '/' + OBJTYPE, 1)
 	progs = {e.get('program') or os.path.basename(n): e for n, e in es if 'library' not in e and 'script' not in e}
 	# $BIN/telnet:V:	$O.telnet
 	#	cp $prereq /$objtype/bin/telnet
 	for t, e in progs.items():
 		r = findrule(rs, v, bindir + t)
-		if r and '6.' + t in r[1]:
+		if r and O + '.' + t in r[1]:
 			dest = cpdest(r[0], v, bindir + t, r[1], r[2])
 			if dest and dest != bindir + t:
-				e['Install'] = os.path.dirname(dest).replace('/amd64', '/$ARCH', 1) + '/'
+				e['Install'] = os.path.dirname(dest).replace('/' + OBJTYPE, '/$ARCH', 1) + '/'
 	# programs only the install rule names (vmx: $BIN/vmxgdb: $O.vmxgdb)
 	common = dict(es[-1][1]) if es else {}
 	for t, (recipe, prereq, stem) in mkinstalls(text, v, d):
-		ps = [p[2:] for p in prereq if p.startswith('6.')]
+		ps = [p[2:] for p in prereq if p.startswith(O + '.')]
 		if not ps or ps[0] in progs:
 			continue
-		link = findrule(rs, v, '6.' + ps[0])
+		link = findrule(rs, v, O + '.' + ps[0])
 		dest = cpdest(recipe, v, t, prereq, stem) or t
 		if not link:
 			print('gencmds: %s: no rule links 6.%s' % (d, ps[0]), file=sys.stderr)
 			continue
-		objs = [o for o in link[1] if o.endswith(('.6', '.c'))]
+		objs = [o for o in link[1] if o.endswith(('.' + O, '.c'))]
 		e = {k: common[k] for k in ('Cflags', 'Libs', 'Pre', 'ape') if k in common}
-		e.update(program=ps[0], Install=os.path.dirname(dest).replace('/amd64', '/$ARCH', 1) + '/',
+		e.update(program=ps[0], Install=os.path.dirname(dest).replace('/' + OBJTYPE, '/$ARCH', 1) + '/',
 			src=objs2src(objs, d, text, v))
 		es.append((d + '/' + ps[0], e))
 	if installfiles(d):
@@ -542,20 +545,20 @@ def mkentries(d):
 		if re.search(r'^OFILES\s*=\s*`\{rc \./reduce', text, re.M):
 			# ape/lib/ap/gen/reduce: ALLOFILES minus what ../$objtype
 			# has as .c/.s (grep -v ^name, a prefix match)
-			md = os.path.join(SRC, d, '..', 'amd64')
+			md = os.path.join(SRC, d, '..', OBJTYPE)
 			drop = [f[:-2] for f in os.listdir(md) if f.endswith(('.c', '.s'))]
 			ofiles = [o for o in v.get('ALLOFILES', []) if not any(o.startswith(x) for x in drop)]
 		elif re.search(r'^OFILES\s*=\s*`\{.*/port/reduce', text, re.M):
-			# APE libmp, libsec: reduce against the native lib's amd64
+			# APE libmp, libsec: reduce against the native lib's $objtype
 			# assembly, which the port does not use (as genlibs.py)
 			ofiles = v.get('ALLOFILES', [])
 		src = objs2src(ofiles, d, text, v) + APEEXTRA.get(d, [])
 		if v['LIB'][0].startswith('/'):	# mksyslib: LIB=/$objtype/lib/ape/libap.a
 			L = v['LIB'][0]
 			return [(d + '/' + os.path.basename(L), dict(common, library=os.path.basename(L),
-				libinstall=os.path.dirname(L).replace('/amd64/lib', '/$ARCH/lib.gcc', 1) + '/',	# gcc archives beside the native /$ARCH/lib
+				libinstall=os.path.dirname(L).replace('/%s/lib' % OBJTYPE, '/$ARCH/lib.gcc', 1) + '/',	# gcc archives beside the native /$ARCH/lib
 				append=d in APEDIRS[1:], src=src))]
-		lib = os.path.normpath(os.path.join(d, v['LIB'][0].replace('$O', '6')))
+		lib = os.path.normpath(os.path.join(d, v['LIB'][0].replace('$O', O)))
 		return [(lib, dict(common, library=os.path.basename(lib), libdir=os.path.dirname(lib),
 			src=src))]
 	if k == 'mkone':
@@ -574,10 +577,10 @@ def mkentries(d):
 		# (ndb's dns), one without adds to them ($O.4s $O.5s: xs.$O)
 		objs, extra, script, pcc = None, [], None, False
 		for targets, prereq, recipe in rs:
-			if '6.' + t in expand(' '.join(targets), v).split():
+			if O + '.' + t in expand(' '.join(targets), v).split():
 				pcc = pcc or bool(re.match(r'pcc\b', recipe))
 				pp = expand(prereq, v).split()
-				p = [o for o in pp if o.endswith(('.6', '.c'))]
+				p = [o for o in pp if o.endswith(('.' + O, '.c'))]
 				rc = [o for o in pp if o.endswith('.rc')]
 				if recipe and rc and not p:
 					script = rc[0]
@@ -591,7 +594,7 @@ def mkentries(d):
 		if objs == []:
 			continue
 		if objs is None:
-			objs = [t + '.6'] + v.get('OFILES', []) + extra
+			objs = [t + '.' + O] + v.get('OFILES', []) + extra
 		objs += libobjs(v)
 		src = objs2src(list(dict.fromkeys(objs)), d, text, v)
 		if pcc:	# lp: $O.lpdsend: lpdsend.$O	pcc -o $target ...
@@ -670,7 +673,7 @@ def buildentry(e, name):
 	m['Oflags'] = ['--entry=_main']
 	syslibs = ['/$ARCH/lib.gcc/ape/%s.a' % l for l in APELIBS] if e.get('ape') else \
 		['/$ARCH/lib.gcc/%s.a' % l for l in LIBS]
-	m['Libs'] = ['--start-group'] + [l.replace('$O', '6') for l in e.get('Libs', [])] + \
+	m['Libs'] = ['--start-group'] + [l.replace('$O', O) for l in e.get('Libs', [])] + \
 		syslibs + ['--end-group']
 	if 'single' in e:
 		m['SourceFilesCmd'] = [e['single']]
@@ -694,7 +697,7 @@ def subdirs(d):
 			and kind(readmk(os.path.join(d, s))) in ('mklib', 'mksyslib')]
 		ds = expand(m.group(1), v).split()
 		if re.search(r'for\s*\(\s*i\s+in\s+\$DIRS\s+\$objtype\s*\)', text):
-			ds.append('amd64')	# ape/lib/ap: for(i in $DIRS $objtype)
+			ds.append(OBJTYPE)	# ape/lib/ap: for(i in $DIRS $objtype)
 		return ds + [l for l in libs if l not in ds]
 	ds = []
 	for m in re.finditer(r'for\s*\(\s*i\s+in\s+\$(\w+)\s*\)\s*@\{[^}]*?\bcd\s+\$i\b', text):
@@ -742,7 +745,7 @@ def probe(d, name, e):
 		m['Install'] = '/tests/.probe/'
 	path = os.path.join(SRC, d, '.probe.json')
 	open(path, 'w').write(json.dumps([m]))
-	env = dict(os.environ, PLAN9=ROOT, ARCH='amd64', CPUS='4', CC='gcc', TOOLPREFIX='', TOOLPFX='')
+	env = dict(os.environ, PLAN9=ROOT, ARCH=OBJTYPE, objtype=OBJTYPE, CPUS='4', CC='gcc', TOOLPREFIX=arch.TOOLPREFIX, TOOLPFX='')
 	try:
 		r = subprocess.run([os.path.join(CLI_DIR, 'build.exe'), '.probe.json'],
 			cwd=os.path.join(SRC, d), env=env, capture_output=True, text=True, timeout=900)
@@ -763,7 +766,7 @@ def buildorder():
 	"""the cmds.json manifests, directories holding archives first"""
 	libs, rest = [], []
 	for d in dirs([]):
-		f = os.path.join(SRC, d, 'cmds.json')
+		f = os.path.join(SRC, d, CMDS)
 		if os.path.exists(f):
 			(libs if any('Library' in m for m in json.load(open(f))) else rest).append(rel(f))
 	return [os.path.relpath(os.path.join(SRC, f), ROOT) for f in libs + rest]
@@ -801,7 +804,7 @@ def main():
 					result.setdefault(d, []).append((name, e))
 	for d, es in alldirs:
 		good = result.get(d, [])
-		out = os.path.join(SRC, d, 'cmds.json')
+		out = os.path.join(SRC, d, CMDS)
 		if not good:
 			if os.path.exists(out):
 				os.remove(out)
@@ -823,8 +826,8 @@ def main():
 		walked = set(d for d, es in alldirs)
 		for top in topdirs():
 			for dp, dn, fn in os.walk(os.path.join(SRC, top)):
-				if 'cmds.json' in fn and rel(dp) not in walked:
-					os.remove(os.path.join(dp, 'cmds.json'))
+				if CMDS in fn and rel(dp) not in walked:
+					os.remove(os.path.join(dp, CMDS))
 	if doprobe:
 		with open(BROKEN, 'w') as f:
 			f.write('# targets that do not build yet (scripts/gencmds.py --probe): target<TAB>first error\n')

@@ -306,7 +306,7 @@ static u32int
 {
 	u32int µ;
 	do {
-		µ = (ctlr->rts[MFINDEX] & (1<<14)-1) |
+		µ = (((volatile u32int*)ctlr->rts)[MFINDEX] & (1<<14)-1) |	/* GCC port: volatile, gcc keeps the value of a load in a loop (kencc reloads) */
 			(ctlr->µframe & ~((1<<14)-1));
 	} while((int)(µ - ctlr->µframe) < 0);
 	return µ;

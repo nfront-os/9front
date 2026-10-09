@@ -142,8 +142,8 @@ _ap64:
 	popfq
 
 	movq	_apvector, %rax
-	movq	_apapic, RARG
-	pushq	RARG
+	movq	_apapic, %rdi			/* GCC port: squidboy(apic) is a System V function, was RARG (%rbp, 6c) */
+	pushq	%rdi
 
 	call	*%rax
 

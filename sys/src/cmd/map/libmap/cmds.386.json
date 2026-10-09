@@ -1,0 +1,53 @@
+[
+	{
+		"Name": "cmd-map-libmap-libmap.a8",
+		"Include": [
+			"/$ARCH/cflags.json"
+		],
+		"Install": "/sys/src/cmd/map/libmap/",
+		"Cflags": [
+			"-I.."
+		],
+		"Library": "libmap.a8",
+		"SourceFiles": [
+			"aitoff.c",
+			"albers.c",
+			"azequalarea.c",
+			"azequidist.c",
+			"bicentric.c",
+			"bonne.c",
+			"ccubrt.c",
+			"complex.c",
+			"conic.c",
+			"cubrt.c",
+			"cylequalarea.c",
+			"cylindrical.c",
+			"elco2.c",
+			"elliptic.c",
+			"fisheye.c",
+			"gall.c",
+			"gilbert.c",
+			"guyou.c",
+			"harrison.c",
+			"hex.c",
+			"homing.c",
+			"lagrange.c",
+			"lambert.c",
+			"laue.c",
+			"lune.c",
+			"mercator.c",
+			"mollweide.c",
+			"newyorker.c",
+			"orthographic.c",
+			"perspective.c",
+			"polyconic.c",
+			"rectangular.c",
+			"simpleconic.c",
+			"sinusoidal.c",
+			"tetra.c",
+			"trapezoidal.c",
+			"twocirc.c",
+			"zcoord.c"
+		]
+	}
+]

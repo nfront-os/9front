@@ -361,7 +361,7 @@ mgawrite32(uchar *mga, ulong reg, ulong val)
 static ulong
 mgaread32(uchar *mga, ulong reg)
 {
-	return *((ulong*)(&mga[reg]));
+	return *((volatile ulong*)(&mga[reg]));	/* GCC port: volatile, gcc keeps the value of a load in a loop (kencc reloads) */
 }
 
 static void

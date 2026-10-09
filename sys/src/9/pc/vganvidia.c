@@ -257,7 +257,7 @@ writeput(VGAscr *scr, int data)
 ulong
 readget(VGAscr *scr)
 {
-	ulong	*fifo;
+	volatile ulong	*fifo;	/* GCC port: volatile, gcc keeps the value of a load in a loop (kencc reloads) */
 
 	fifo = (void*)((uchar*)scr->mmio + Fifo);
 	return (fifo[0x0011] >> 2);
@@ -320,7 +320,7 @@ nvdmastart(VGAscr *scr, ulong tag, int size)
 static void
 waitforidle(VGAscr *scr)
 {
-	ulong*	pgraph;
+	volatile ulong*	pgraph;	/* GCC port: volatile, gcc keeps the value of a load in a loop (kencc reloads) */
 	int x;
 
 	pgraph = (void*)((uchar*)scr->mmio + Pgraph);

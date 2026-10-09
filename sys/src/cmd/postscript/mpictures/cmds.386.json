@@ -1,0 +1,12 @@
+[
+	{
+		"Name": "cmd-postscript-mpictures-install",
+		"Install": "",
+		"Post": [
+			"python3 ../../../../../scripts/mkinstall.py cmd/postscript/mpictures"
+		],
+		"Clean": [
+			"tmac.pictures"
+		]
+	}
+]

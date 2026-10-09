@@ -23,10 +23,6 @@ SECTIONS
 		*(.text .text.* .gnu.linkonce.t.*)
 	}
 
-	.rodata : AT(ADDR(.rodata) - KZERO) {
-		*(.rodata .rodata.* .gnu.linkonce.r.*)
-	}
-
 	PROVIDE(etext = .);
 
 	/*
@@ -36,8 +32,15 @@ SECTIONS
 	 */
 	. = ALIGN(0x1000);
 
+	/*
+	 * constants and string literals in the data segment, as 8l puts
+	 * them: kernel code writes literals (devuart's uartctl(p, "b9600")
+	 * tokenizes its argument in place), the text segment is mapped
+	 * read-only (the same for programs: 386/plan9.ld)
+	 */
 	.data : AT(ADDR(.data) - KZERO) {
 		*(.data .data.* .gnu.linkonce.d.*)
+		*(.rodata .rodata.* .gnu.linkonce.r.*)
 	}
 
 	PROVIDE(edata = .);

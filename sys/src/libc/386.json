@@ -3,6 +3,7 @@
         "Name": "klibc-386",
         "Cflags": [
             "-m32",
+            "-nostdinc",
             "-fplan9-extensions",
             "-fno-pie",
             "-mno-sse",

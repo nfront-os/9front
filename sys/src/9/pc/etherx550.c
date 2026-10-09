@@ -231,7 +231,7 @@ typedef struct {
 	Pcidev	*p;
 	Ether	*edev;
 	uintptr	io;
-	u32int	*reg;
+	volatile u32int	*reg;	/* GCC port: volatile, gcc keeps the value of a load in a loop (kencc reloads) */
 	u32int	*regmsi;
 	uchar	flag;
 	int	nrd;

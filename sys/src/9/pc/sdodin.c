@@ -528,7 +528,7 @@ struct Ctlr {
 	uchar	enabled;
 	SDev	*sdev;
 	Pcidev	*pci;
-	uint	*reg;
+	volatile uint	*reg;	/* GCC port: volatile, gcc keeps the value of a load in a loop (kencc reloads) */
 
 	uint	dq[Nqueue];
 	uint	dqwp;

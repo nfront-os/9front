@@ -1,10 +1,10 @@
 #!/bin/bash
 # Build the host-side root tree that Harvey's `ufs` 9P server exports
-# to the pc64 kernel booted by scripts/boot-cli.sh (bootrc's tcp root,
-# srv tcp!fs!564).
+# to the kernel booted by scripts/boot-cli.sh (bootrc's tcp root,
+# srv tcp!fs!564), for $objtype (default amd64).
 #
 # Layout follows the stock 9front root:
-#   /amd64/init, /amd64/bin/... gcc-built binaries from $ROOT/amd64/bin
+#   /$objtype/init, /$objtype/bin/... gcc-built binaries from $ROOT/$objtype/bin
 #   /rc/lib/rcmain, /rc/bin     stock rc library/scripts
 #   /lib/namespace, /lib/ndb    stock name space file (newns), network db
 #   /adm/timezone/local         init copies it into #e/timezone
@@ -15,18 +15,19 @@
 set -e
 ROOT=${PLAN9:-$(git rev-parse --show-toplevel)}
 OUT=${1:?usage: $0 outdir}
+A=${objtype:-amd64}
 
 rm -rf "$OUT"
-mkdir -p "$OUT"/amd64/bin "$OUT"/rc "$OUT"/lib "$OUT"/adm/timezone \
+mkdir -p "$OUT"/$A/bin "$OUT"/rc "$OUT"/lib "$OUT"/adm/timezone \
 	"$OUT"/usr/glenda/tmp "$OUT"/tmp "$OUT"/n "$OUT"/mnt "$OUT"/srv
 
 # directories a 9front root has, here empty: /386, /arm64 (where the
-# boot loaders install), /amd64/include, /sys/include, /sys/src (bound
+# boot loaders install), /$objtype/include, /sys/include, /sys/src (bound
 # over by a source tree in the guest)
-mkdir -p "$OUT"/386 "$OUT"/arm64 "$OUT"/amd64/include "$OUT"/sys/include "$OUT"/sys/src
-cp "$ROOT"/amd64/init "$OUT"/amd64/init
-cp -r "$ROOT"/amd64/bin/. "$OUT"/amd64/bin/
-rm -f "$OUT"/amd64/bin/9pc64	# the kernel
+mkdir -p "$OUT"/386 "$OUT"/arm64 "$OUT"/$A/include "$OUT"/sys/include "$OUT"/sys/src
+cp "$ROOT"/$A/init "$OUT"/$A/init
+cp -r "$ROOT"/$A/bin/. "$OUT"/$A/bin/
+rm -f "$OUT"/$A/bin/9pc64 "$OUT"/$A/bin/9pc "$OUT"/$A/bin/9qemu	# the kernel
 
 cp -r "$ROOT"/rc/lib "$ROOT"/rc/bin "$OUT"/rc/
 cp -r "$ROOT"/lib/. "$OUT"/lib/	# namespace, vgadb, fonts, keyboard, ...
@@ -35,7 +36,7 @@ cp "$ROOT"/sys/lib/dist/ndb/* "$OUT"/lib/ndb/ && rm -f "$OUT"/lib/ndb/mkfile
 cp "$ROOT"/adm/timezone/GMT "$OUT"/adm/timezone/local
 # like the dist install: the user's home from sys/lib/dist/usr/glenda
 cp -r "$ROOT"/sys/lib/dist/usr/glenda/. "$OUT"/usr/glenda/
-mkdir -p "$OUT"/usr/glenda/bin/amd64
+mkdir -p "$OUT"/usr/glenda/bin/$A
 # /sys/lib: plumbing rules, troff macros, ...
 mkdir -p "$OUT"/sys
 cp -r "$ROOT"/sys/lib "$OUT"/sys/
@@ -44,4 +45,4 @@ cp -r "$ROOT"/sys/lib "$OUT"/sys/
 [ ! -d "$ROOT"/tests/guest/root ] || cp -r "$ROOT"/tests/guest/root/. "$OUT"/
 
 echo "ufs root in $OUT:"
-ls "$OUT"/amd64/bin
+ls "$OUT"/$A/bin

@@ -1,5 +1,5 @@
 #!/bin/bash
-# The kernel's boot files (bootdir in sys/src/9/pc64/pc64), as
+# The kernel's boot files (bootdir in sys/src/9/pc64/pc64, ...), as
 # sys/src/9/boot/bootmkfile makes them:
 #
 #   boot              ../boot/boot.c, the first program initcode execs
@@ -14,14 +14,17 @@
 # writes none), so the image is stripped -- bootmkfile has the strip
 # commented out.
 #
-# usage: scripts/gen-bootfs.sh [conf]	(default pc64; needs scripts/build-cli.sh's programs)
+# usage: scripts/gen-bootfs.sh [conf [dir]]	(default pc64; dir below
+#	sys/src/9, default conf; needs scripts/build-cli.sh's programs)
 set -e
 ROOT=${PLAN9:-$(git -C "$(dirname "$0")" rev-parse --show-toplevel)}
 CLI_DIR=${CLI_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/9front-cli}
 P9P=${PLAN9PORT:-$ROOT/../plan9port}
 CONF=${1:-pc64}
-KDIR=$ROOT/sys/src/9/pc64
-export objtype=amd64
+KDIR=$ROOT/sys/src/9/${2:-$CONF}
+# objtype as the kernel's mkfile sets it
+export objtype=$(sed -n 's/^objtype=//p' "$KDIR/mkfile")
+eval "$(python3 "$ROOT/scripts/arch.py")"
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 
@@ -36,17 +39,24 @@ if [ ! -x "$HOST/mkpaqfs" ] || [ "$ROOT/sys/src/cmd/paqfs/mkpaqfs.c" -nt "$HOST/
 fi
 
 # boot: boot.$O: ../boot/boot.c	$CC -I../boot $CFLAGS ../boot/boot.c
+case $objtype in
+amd64)	ARCHFLAGS=-mcmodel=small LDEMUL= ;;
+386)	ARCHFLAGS="-m32 -march=pentium -mno-sse" LDEMUL="-m elf_i386" ;;
+*)	ARCHFLAGS= LDEMUL= ;;
+esac
 CFLAGS="-std=gnu17 -fno-asm -ffreestanding -nostdinc -fno-builtin -fplan9-extensions
-	-fno-omit-frame-pointer -fno-stack-protector -fno-pie -mcmodel=small -fcommon
-	-I$ROOT/amd64/include -I$ROOT/sys/include -I$ROOT/sys/src/9/boot"
-gcc $CFLAGS -c -o "$TMP/boot.o" "$ROOT/sys/src/9/boot/boot.c"
-ld -o "$KDIR/boot" --entry=_main -z noseparate-code -z max-page-size=0x1000 \
-	-T "$ROOT/amd64/plan9.ld" "$TMP/boot.o" "$ROOT/amd64/lib.gcc/libc.a"
+	-fno-omit-frame-pointer -fno-stack-protector -fno-pie $ARCHFLAGS -fcommon
+	-I$ROOT/$objtype/include -I$ROOT/sys/include -I$ROOT/sys/src/9/boot"
+${TOOLPREFIX}gcc $CFLAGS -c -o "$TMP/boot.o" "$ROOT/sys/src/9/boot/boot.c"
+${TOOLPREFIX}ld $LDEMUL -o "$KDIR/boot" --entry=_main -z noseparate-code -z max-page-size=0x1000 \
+	-T "$ROOT/$objtype/plan9.ld" "$TMP/boot.o" "$ROOT/$objtype/lib.gcc/libc.a" \
+	$( [ -f "$ROOT/$objtype/lib.gcc/libgcc.a" ] && echo "$ROOT/$objtype/lib.gcc/libgcc.a")
 
 # the kernel's objects ($OBJ): source files and configuration lines
-OBJ=$(python3 - "$KDIR/build.json" <<'PY'
+OBJ=$(python3 - "$KDIR/build.json" $CONF <<'PY'
 import json, os, sys
-m = json.load(open(sys.argv[1]))[0]
+ms = json.load(open(sys.argv[1]))
+m = ([x for x in ms if x['Name'] == sys.argv[2]] or ms)[0]
 objs = set(os.path.splitext(os.path.basename(f))[0] for f in m.get('SourceFiles', []))
 c = m['Kernel']['Config']
 objs |= set('dev' + l.split()[0] for l in c.get('Dev', []))
@@ -68,6 +78,6 @@ done
 echo "protos: $PROTOS"
 
 python3 "$ROOT/scripts/proto.py" -s "$ROOT" -d "$TMP/$CONF.bootfs" -e tmp -e lib/firmware $PROTOS
-find "$TMP/$CONF.bootfs" -type f -exec sh -c 'file -b "$1" | grep -q ^ELF && strip "$1"' _ {} \;
+find "$TMP/$CONF.bootfs" -type f -exec sh -c 'file -b "$1" | grep -q ^ELF && '"${TOOLPREFIX}"'strip "$1"' _ {} \;
 "$HOST/mkpaqfs" -9 -b 65536 -o "$KDIR/$CONF.bootfs.paq" "$TMP/$CONF.bootfs"
 ls -l "$KDIR/boot" "$KDIR/$CONF.bootfs.paq"

@@ -1149,7 +1149,7 @@ write_mismatch_recover(Controller *c, Ncr *n, Dsa *dsa)
 	/* clear the dma fifo */
 	n->ctest3 |= (1 << 2);
 	/* wait till done */
-	while ((n->dstat & Dfe) == 0)
+	while ((((volatile Ncr*)n)->dstat & Dfe) == 0)	/* GCC port: volatile, gcc keeps the value of a load in a loop (kencc reloads) */
 		;
 	return dbc + inchip;
 }

@@ -1,0 +1,45 @@
+[
+	{
+		"Name": "buildflags",
+		"Cflags": [
+			"-m32",
+			"-march=pentium",
+			"-mfpmath=387",
+			"-mno-sse",
+			"-mincoming-stack-boundary=2",
+			"-std=gnu17",
+			"-fno-asm",
+			"-ffreestanding",
+			"-nostdinc",
+			"-fno-builtin",
+			"-fno-omit-frame-pointer",
+			"-fno-stack-protector",
+			"-fplan9-extensions",
+			"-fcommon",
+			"-Wno-error=implicit-int",
+			"-Wno-error=incompatible-pointer-types",
+			"-Wno-error=int-conversion",
+			"-g",
+			"-gdwarf-2",
+			"-ggdb",
+			"-O0",
+			"-static"
+		],
+		"Oflags": [
+			"-m",
+			"elf_i386",
+			"-z",
+			"noseparate-code",
+			"-z",
+			"max-page-size=0x1000",
+			"-T",
+			"/$ARCH/plan9.ld"
+		],
+		"Libs": [
+			"/$ARCH/lib.gcc/libgcc.a"
+		],
+		"Include": [
+			"/$ARCH/$CC.json"
+		]
+	}
+]

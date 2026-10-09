@@ -1,0 +1,50 @@
+[
+	{
+		"Name": "ape-cmd-cmds",
+		"Include": [
+			"/$ARCH/cflags.json",
+			"/$ARCH/ape.json"
+		],
+		"Install": "/$ARCH/bin/ape/",
+		"Cflags": [
+			"-D_POSIX_SOURCE"
+		],
+		"Ape": true,
+		"Oflags": [
+			"--entry=_main"
+		],
+		"Libs": [
+			"--start-group",
+			"/$ARCH/lib.gcc/ape/libdraw.a",
+			"/$ARCH/lib.gcc/ape/libplumb.a",
+			"/$ARCH/lib.gcc/ape/libauth.a",
+			"/$ARCH/lib.gcc/ape/libsec.a",
+			"/$ARCH/lib.gcc/ape/libmp.a",
+			"/$ARCH/lib.gcc/ape/libnet.a",
+			"/$ARCH/lib.gcc/ape/libbsd.a",
+			"/$ARCH/lib.gcc/ape/libl.a",
+			"/$ARCH/lib.gcc/ape/libv.a",
+			"/$ARCH/lib.gcc/ape/libz.a",
+			"/$ARCH/lib.gcc/ape/libbz2.a",
+			"/$ARCH/lib.gcc/ape/libbio.a",
+			"/$ARCH/lib.gcc/ape/lib9.a",
+			"/$ARCH/lib.gcc/ape/libfmt.a",
+			"/$ARCH/lib.gcc/ape/libutf.a",
+			"/$ARCH/lib.gcc/ape/libap.a",
+			"--end-group"
+		],
+		"SourceFilesCmd": [
+			"basename.c",
+			"dirname.c",
+			"kill.c",
+			"uname.c"
+		]
+	},
+	{
+		"Name": "ape-cmd-install",
+		"Install": "",
+		"Post": [
+			"python3 ../../../../scripts/mkinstall.py ape/cmd"
+		]
+	}
+]
