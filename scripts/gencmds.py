@@ -79,7 +79,7 @@ APEDIRS = ['ape/lib/ap/gen', 'ape/lib/ap/math', 'ape/lib/ap/plan9', 'ape/lib/ap/
 	'ape/lib/ap/stdio', 'ape/lib/ap/syscall', 'ape/lib/ap/' + OBJTYPE]
 # sources outside the mkfile's OFILES: system call stubs (genall),
 # the note trampolines of the gcc port
-APEEXTRA = {'ape/lib/ap/amd64': ['notify.S'], 'ape/lib/ap/386': ['_seek.c']}
+APEEXTRA = {'ape/lib/ap/amd64': ['notify.S'], 'ape/lib/ap/386': ['_seek.c'], 'ape/lib/ap/arm64': ['notify.S']}
 
 # directories whose mkfile runs a generator before compiling
 PRE = {

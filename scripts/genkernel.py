@@ -62,6 +62,19 @@ ARCHS = {
 		'Oflags': ['-T', 'kernel.ld', '-z', 'max-page-size=0x1000'],
 		'Libs': [],
 	},
+	'arm64': {
+		# m, up in x27, x26 (dat.h); no FP/SIMD in the kernel (fpu.c saves
+		# the user's), no outlined atomics (libgcc's need getauxval).
+		# -mcmodel=large: symbol addresses as absolute constants, as 7l
+		# emits them; the small model's PC-relative ones are physical in
+		# the C code _start runs before the MMU is on (mmu0init: end)
+		'Cflags': ['-fno-pie', '-fno-pic', '-mcmodel=large', '-mgeneral-regs-only', '-mno-outline-atomics',
+			'-ffixed-x26', '-ffixed-x27', '-fplan9-extensions', '-fcommon', '-fno-builtin',
+			'-fno-asynchronous-unwind-tables', '-fno-stack-protector', '-fno-omit-frame-pointer',
+			'-fno-zero-initialized-in-bss', '-Os', '-gdwarf-2'] + WARN,
+		'Oflags': ['-T', 'kernel.ld', '-z', 'max-page-size=0x1000'],
+		'Libs': ['libgcc.a'],
+	},
 }
 
 # GCC port: objects every kernel gets besides the mkfile's: the ELF
@@ -71,6 +84,9 @@ PORTEXTRA = ['sysexecelf.$O']
 # per kernel directory: further Pre steps, Clean globs (files of the
 # scripts/gen-*-i.sh generators and gen-bootfs.sh)
 EXTRA = {
+	'arm64': {
+		'Clean': ['rebootcode.i', '../port/initcode.i', 'boot', '$CONF.bootfs.paq'],
+	},
 	'pc': {
 		# vgaradeon.c: front includes "/sys/src/cmd/aux/vga/radeon.h"
 		'Pre': ['cp ../../cmd/aux/vga/radeon.h radeon.h'],
@@ -80,7 +96,9 @@ EXTRA = {
 }
 
 def mkvars(text):
-	"""the mkfile's plain variable definitions (continuations joined)"""
+	"""the mkfile's plain variable definitions (continuations joined,
+	comments dropped: arm64's LIB lists a #/$objtype/lib/libfis.a)"""
+	text = re.sub(r'#[^\n]*', '', text)
 	text = text.replace('\\\n', ' ')
 	return {m.group(1): m.group(2).split() for m in re.finditer(r'^(\w+)\s*=([^\n]*)$', text, re.M)}
 

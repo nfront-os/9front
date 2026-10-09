@@ -116,6 +116,17 @@ amd64)
 	python3 scripts/elf2aout.py 386/bin/9pc 386/9pc > /dev/null || die "elf2aout failed"
 	echo "ok: 386/bin/9pc, 386/9pc"
 	;;
+arm64)
+	# arm64/mkfile (CONF qemu): rebootcode.i (with cache.v8), initcode
+	gen gen-rebootcode-i.sh arm64
+	gen gen-initcode-i.sh
+	python3 scripts/genkernel.py arm64 > /dev/null || die "genkernel.py arm64 failed"
+	gen gen-bootfs.sh qemu arm64
+
+	# the ELF arm64/bin/9qemu: QEMU -kernel (scripts/boot-cli.sh)
+	CONF=qemu build sys/src/9/arm64/build.json '^qemu$'
+	echo "ok: arm64/bin/9qemu"
+	;;
 *)
 	die "no kernel for objtype=$objtype yet"
 	;;

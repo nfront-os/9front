@@ -54,12 +54,13 @@ CLI_DIR=${CLI_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/9front-cli}
 case ${objtype:=amd64} in
 amd64)	KNAME=9pc64 QEMU=qemu-system-x86_64 CPU=qemu64,+rdrand ;;
 386)	KNAME=9pc QEMU=qemu-system-i386 CPU=qemu32,+rdrand ;;
+arm64)	KNAME=9qemu QEMU=qemu-system-aarch64 CPU=cortex-a72 ;;
 *)	echo "boot-cli: objtype=$objtype: no kernel" >&2; exit 1 ;;
 esac
 export objtype
 KERNEL=$ROOT/$objtype/bin/$KNAME
 UFS=${UFS:-$(command -v ufs 2>/dev/null || echo "$HOME/go/bin/ufs")}
-UFS_PORT=5640
+UFS_PORT=${UFS_PORT:-5640}	# host ports of the ufs servers (another boot-cli may run)
 SERVICE=${SERVICE:-cpu}
 MEM=${MEM:-256}
 NIC=${NIC:-e1000}
@@ -69,7 +70,7 @@ SRC9ADDR=10.0.2.101
 # KVM when the host has it (KVM=0: emulation only); same CPU model either way
 accel=()
 [ "${KVM:-1}" != 0 ] && [ -w /dev/kvm ] && accel=(-accel kvm)
-SRC9_PORT=5641
+SRC9_PORT=${SRC9_PORT:-5641}
 
 die(){ echo "boot-cli: $*" >&2; exit 1; }
 port_open(){ timeout 2 bash -c "exec 3<>/dev/tcp/127.0.0.1/$UFS_PORT" 2>/dev/null; }
@@ -106,7 +107,7 @@ if [ -n "$BOOTDISK$BOOTISO" ]; then
 		-netdev user,id=net0 -device "$NIC",netdev=net0
 		-cpu $CPU "${accel[@]}")
 else
-command -v grub-mkrescue >/dev/null || die "grub-mkrescue missing"
+[ $objtype = arm64 ] || command -v grub-mkrescue >/dev/null || die "grub-mkrescue missing"
 [ -x "$UFS" ] || die "ufs missing (go install github.com/Harvey-OS/ninep/cmd/ufs@latest, or set UFS)"
 # a ufs left over from an earlier run would serve a stale root
 port_open && die "port $UFS_PORT is in use (old ufs still running?)"
@@ -115,20 +116,27 @@ port_open && die "port $UFS_PORT is in use (old ufs still running?)"
 bash "$ROOT/scripts/gen-ufs-root.sh" "$CLI_DIR/ufsroot" > /dev/null
 [ -z "$UFS_EXTRA" ] || cp -r "$UFS_EXTRA"/. "$CLI_DIR/ufsroot/"
 
-# GRUB multiboot ISO; GRUB itself also talks on the serial line, so a
-# boot that stops at the grub> prompt is visible
-rm -rf "$CLI_DIR/iso"
-mkdir -p "$CLI_DIR/iso/boot/grub"
-cp "$KERNEL" "$CLI_DIR/iso/boot/$KNAME"
-cat > "$CLI_DIR/iso/boot/grub/grub.cfg" <<EOF
-set timeout=0
-serial --speed=115200 --unit=0 --word=8 --parity=no --stop=1
-terminal_output serial console
-multiboot /boot/$KNAME console=0 service=$SERVICE nobootprompt=tcp fs=$FSADDR auth=$FSADDR $KARGS
-boot
-EOF
-grub-mkrescue -o "$CLI_DIR/$KNAME.iso" "$CLI_DIR/iso" > "$CLI_DIR/grub-mkrescue.log" 2>&1 \
-	|| die "grub-mkrescue failed (log: $CLI_DIR/grub-mkrescue.log)"
+if [ $objtype = arm64 ]; then
+	# no boot loader: QEMU loads the ELF kernel, and the kernel
+	# parameters go into the device tree's /chosen/bootargs (-append),
+	# which bootargs.c reads like plan9.ini
+	KCMD="console=0 service=$SERVICE nobootprompt=tcp fs=$FSADDR auth=$FSADDR $KARGS"
+else
+	# GRUB multiboot ISO; GRUB itself also talks on the serial line, so a
+	# boot that stops at the grub> prompt is visible
+	rm -rf "$CLI_DIR/iso"
+	mkdir -p "$CLI_DIR/iso/boot/grub"
+	cp "$KERNEL" "$CLI_DIR/iso/boot/$KNAME"
+	cat > "$CLI_DIR/iso/boot/grub/grub.cfg" <<-EOF
+	set timeout=0
+	serial --speed=115200 --unit=0 --word=8 --parity=no --stop=1
+	terminal_output serial console
+	multiboot /boot/$KNAME console=0 service=$SERVICE nobootprompt=tcp fs=$FSADDR auth=$FSADDR $KARGS
+	boot
+	EOF
+	grub-mkrescue -o "$CLI_DIR/$KNAME.iso" "$CLI_DIR/iso" > "$CLI_DIR/grub-mkrescue.log" 2>&1 \
+		|| die "grub-mkrescue failed (log: $CLI_DIR/grub-mkrescue.log)"
+fi
 
 "$UFS" -root="$CLI_DIR/ufsroot" -addr=":$UFS_PORT" > "$CLI_DIR/ufs.log" 2>&1 &
 pids+=($!)
@@ -143,10 +151,19 @@ fi
 disk=()
 [ -z "$DISK" ] || disk=(-drive "file=$DISK,format=raw,if=ide,index=0,media=disk")
 
+if [ $objtype = arm64 ]; then
+	# pciqemu.c expects the low PCIe ECAM window (0x3f000000): highmem=off
+	[ -z "$DISK" ] || disk=(-drive "file=$DISK,format=raw,if=none,id=d0" -device virtio-blk-pci,drive=d0)
+	qemu=($QEMU -M virt,gic-version=3,highmem=off -cpu $CPU -m "$MEM"
+		-kernel "$KERNEL" -append "$KCMD"
+		-display none -no-reboot -monitor none
+		-netdev user,id=net0,$fwd -device virtio-net-pci,netdev=net0 "${disk[@]}")
+else
 qemu=($QEMU "${fw[@]}" -cdrom "$CLI_DIR/$KNAME.iso" -m "$MEM"
 	-display none -no-reboot -monitor none
 	-netdev user,id=net0,$fwd -device "$NIC",netdev=net0 "${disk[@]}"
 	-cpu $CPU "${accel[@]}")	# RDRAND: kernel entropy fast path, dial() needs it
+fi
 fi
 
 if [ ${#cmds[@]} -eq 0 ]; then

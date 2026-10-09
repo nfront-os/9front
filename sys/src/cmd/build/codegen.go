@@ -34,6 +34,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"os"
 	"regexp"
 	"sort"
 	"strings"
@@ -185,15 +186,17 @@ func confcode(b *build) []byte {
 	// bootlinks + ramfile data.
 	write("%s", ramfiles(b))
 
-	// knownarch.
-	for _, name := range arch {
-		write("extern PCArch %s;\n", name)
+	// knownarch, as mkdevc: if(narch || objtype ~ "(386|amd64)")
+	if a := os.Getenv("ARCH"); len(arch) > 0 || a == "386" || a == "amd64" {
+		for _, name := range arch {
+			write("extern PCArch %s;\n", name)
+		}
+		write("PCArch* knownarch[] = {\n")
+		for _, name := range arch {
+			write("\t&%s,\n", name)
+		}
+		write("\tnil,\n};\n\n")
 	}
-	write("PCArch* knownarch[] = {\n")
-	for _, name := range arch {
-		write("\t&%s,\n", name)
-	}
-	write("\tnil,\n};\n\n")
 
 	// ADifc* adifc[].
 	if devad {

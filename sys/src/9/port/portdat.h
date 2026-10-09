@@ -131,9 +131,12 @@ struct Sargs
  * kencc va_list/va_arg macros used to do exactly this (va_list was
  * literally char*, with word-stride pointer arithmetic); __builtin_va_arg
  * doesn't apply to this raw buffer at all. ARG() replaces both: advance
- * by one word, then read T from the slot's original (low) address.
+ * by the argument's size in whole words, as kencc's va_arg did (one word,
+ * or sizeof(T) for wider types: a vlong takes two slots on 386), then
+ * read T from the slot's original (low) address.
  */
-#define ARG(list, T) (((list) += BY2WD), *(T*)((list) - BY2WD))
+#define ARGSZ(T) (sizeof(T) < BY2WD ? BY2WD : sizeof(T))
+#define ARG(list, T) (((list) += ARGSZ(T)), *(T*)((list) - ARGSZ(T)))
 /*
  * GCC port: 6c's va_arg read a type narrower than BY2WD from the low
  * half of its slot; a 6c caller stores only that half (MOVL), the upper

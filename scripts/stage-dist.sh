@@ -21,7 +21,7 @@
 # binaries carry DWARF (8l writes none) and are stripped. The guest's install script
 # (scripts/boot/mkdisk.rc) reads the result as /n/src9.
 #
-# usage: scripts/stage-dist.sh dir
+# usage: [objtype=386] scripts/stage-dist.sh dir
 set -e
 ROOT=${PLAN9:-$(git -C "$(dirname "$0")" rev-parse --show-toplevel)}
 OUT=${1:?usage: stage-dist.sh dir}
@@ -62,16 +62,18 @@ for f in "$ROOT"/sys/src/libc/ucd/rune*data; do
 	ln -s "$f" "$VIEW/sys/src/libc/ucd/$(basename "$f")"
 done
 
-# the kernel where 9front installs it: amd64/9pc64, the a.out from
-# scripts/build-cli.sh
-[ -s "$ROOT/amd64/9pc64" ] || { echo "stage-dist: no amd64/9pc64, run scripts/build-cli.sh" >&2; exit 1; }
-mkdir -p "$VIEW/.amd64"
-for f in "$ROOT"/amd64/*; do ln -s "$f" "$VIEW/.amd64/$(basename "$f")"; done
-rm "$VIEW/amd64"; mv "$VIEW/.amd64" "$VIEW/amd64"
+# the kernel where 9front installs it: amd64/9pc64 (386/9pc), the a.out
+# from scripts/build-cli.sh
+A=${objtype:-amd64}
+case $A in amd64) K=9pc64 ;; 386) K=9pc ;; *) echo "stage-dist: objtype=$A unknown" >&2; exit 1 ;; esac
+[ -s "$ROOT/$A/$K" ] || { echo "stage-dist: no $A/$K, run scripts/build-cli.sh" >&2; exit 1; }
+mkdir -p "$VIEW/.$A"
+for f in "$ROOT"/$A/*; do ln -s "$f" "$VIEW/.$A/$(basename "$f")"; done
+rm "$VIEW/$A"; mv "$VIEW/.$A" "$VIEW/$A"
 
 rm -rf "$OUT"
 mkdir -p "$OUT"
-export objtype=amd64
+export objtype=$A
 python3 "$ROOT/scripts/proto.py" -s "$VIEW" -d "$OUT" \
 	-e tmp -e lib/firmware -e n -e mnt \
 	"$ROOT/sys/lib/sysconfig/proto/distproto" "$ROOT/sys/lib/sysconfig/proto/9bootproto" \

@@ -107,3 +107,6 @@ void satfree(SATSolve *);
 void satreset(SATSolve *);
 int satget(SATSolve *, int, int *, int);
 void satvafix(va_list);
+#ifdef __GNUC__
+int *satvaints(SATSolve *, va_list);	/* GCC port: the variadic ints as an array (libsat/satadd.c) */
+#endif

@@ -46,8 +46,18 @@ satandv(SATSolve *sat, ...)
 	va_list va;
 	
 	va_start(va, sat);
+#ifdef __GNUC__
+	{
+		int *a;
+
+		a = satvaints(sat, va);	/* GCC port: see satvafix in libsat/satadd.c */
+		r = satand1(sat, a, -1);
+		free(a);
+	}
+#else
 	satvafix(va);
 	r = satand1(sat, (int*)va, -1);
+#endif
 	va_end(va);
 	return r;
 }
@@ -91,8 +101,18 @@ satorv(SATSolve *sat, ...)
 	int r;
 	
 	va_start(va, sat);
+#ifdef __GNUC__
+	{
+		int *a;
+
+		a = satvaints(sat, va);	/* GCC port: see satvafix in libsat/satadd.c */
+		r = sator1(sat, a, -1);
+		free(a);
+	}
+#else
 	satvafix(va);
 	r = sator1(sat, (int*)va, -1);
+#endif
 	va_end(va);
 	return r;
 }
@@ -269,8 +289,18 @@ satlogicv(SATSolve *sat, u64int op, ...)
 	int r;
 	
 	va_start(va, op);
+#ifdef __GNUC__
+	{
+		int *a;
+
+		a = satvaints(sat, va);	/* GCC port: see satvafix in libsat/satadd.c */
+		r = satlogic1(sat, op, a, -1);
+		free(a);
+	}
+#else
 	satvafix(va);
 	r = satlogic1(sat, op, (int*)va, -1);
+#endif
 	va_end(va);
 	return r;
 }

@@ -93,8 +93,10 @@ def rio_up():
 def inkernel():
 	# 9boot (or bootx64.efi) has jumped to the kernel; a key pressed
 	# while the loader still runs stops its automatic boot at its > prompt
+	# (KZERO: pc64 0xffffffff80000000, pc 0xf0000000)
 	r = cmd({'execute': 'human-monitor-command', 'arguments': {'command-line': 'info registers'}})
-	return 'RIP=ffffffff8' in r.get('return', '')
+	reg = r.get('return', '')
+	return 'RIP=ffffffff8' in reg or 'EIP=f0' in reg	# 32-bit mode: EIP
 
 def marked():
 	try:

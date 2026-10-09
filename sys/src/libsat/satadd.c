@@ -217,6 +217,34 @@ satadd1(SATSolve *s, int *a, int n)
 	return s;
 }
 
+#ifdef __GNUC__
+/*
+ * GCC port: the variadic ints are no array in memory under gcc's ABIs
+ * (va_list is a descriptor, the arguments partly in registers), which
+ * satvafix and the casts of va to int* below assume. satvaints copies
+ * them, through the terminating 0, into an array the caller frees.
+ */
+void
+satvafix(va_list)
+{
+}
+
+int *
+satvaints(SATSolve *s, va_list va)
+{
+	va_list c;
+	int n, i, *a;
+
+	va_copy(c, va);
+	for(n = 1; va_arg(c, int) != 0; n++)
+		;
+	va_end(c);
+	a = satrealloc(s, nil, n * sizeof(int));
+	for(i = 0; i < n; i++)
+		a[i] = va_arg(va, int);
+	return a;
+}
+#else
 void
 satvafix(va_list va)
 {
@@ -231,6 +259,7 @@ satvafix(va_list va)
 	while((int)*s++ != 0);
 		
 }
+#endif
 
 SATSolve *
 sataddv(SATSolve *s, ...)
@@ -238,9 +267,19 @@ sataddv(SATSolve *s, ...)
 	va_list va;
 	
 	va_start(va, s);
+#ifdef __GNUC__
+	{
+		int *a;
+
+		a = satvaints(s, va);	/* GCC port: see satvafix */
+		s = satadd1(s, a, -1);
+		free(a);
+	}
+#else
 	/* horrible hack */
 	satvafix(va);
 	s = satadd1(s, (int*)va, -1);
+#endif
 	va_end(va);
 	return s;
 }

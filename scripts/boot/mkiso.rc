@@ -1,6 +1,6 @@
 #!/bin/rc
 # Make the 9front install/live CD, run inside the guest by
-# scripts/mkiso.sh: sys/lib/dist/mkfile's recipe for %.amd64.iso
+# scripts/mkiso.sh: sys/lib/dist/mkfile's recipe for %.amd64.iso and %.386.iso
 # (%.pc.iso) with this port's tools, the distribution tree served by
 # the build host as /n/src9 (scripts/stage-dist.sh, after mk binds),
 # the boot loaders from scripts/build-boot.sh in /n/src9/386.
@@ -9,7 +9,7 @@
 # it takes most of an hour. Then it goes onto the disk sdC0, from where
 # scripts/mkiso.sh takes its first SIZE bytes ("mkiso: done SIZE").
 #
-# usage: mkiso
+# usage: mkiso [objtype]	(amd64: %.amd64.iso, 386: %.386.iso)
 rfork en
 fn fail{
 	echo mkiso: failed: $*
@@ -21,12 +21,21 @@ test -f $d/data || fail no disk $d
 ramfs -m /n/ram || fail ramfs
 target=/n/ram/9front.iso
 objtype=amd64
-kernel=/n/src9/$objtype/9pc64
+if(! ~ $#* 0)
+	objtype=$1
+switch($objtype){
+case amd64
+	kernel=/n/src9/$objtype/9pc64
+case 386
+	kernel=/n/src9/$objtype/9pc
+case *
+	fail objtype $objtype
+}
 proto=/n/src9/sys/lib/sysconfig/proto/distproto
 bootproto=/n/src9/sys/lib/sysconfig/proto/9bootproto
-gccproto=/n/src9/gccproto	# /amd64/lib.gcc (scripts/boot/gccproto)
+gccproto=/n/src9/gccproto	# /$objtype/lib.gcc (scripts/boot/gccproto)
 
-if(! test -d /n/src9/amd64)
+if(! test -d /n/src9/$objtype)
 	srv tcp!10.0.2.101!5641 src9 && mount -nc /srv/src9 /n/src9 || fail mount src9
 
 @{rfork n

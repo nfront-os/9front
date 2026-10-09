@@ -798,14 +798,11 @@ shi:
 	jz	alreadyhi
 	movl	$(MACHADDR+0x04), %ecx		/* save PC in m->splpc */
 	/*
-	 * GCC port: %ebx is callee-saved under cdecl -- this is one of
-	 * the hottest paths in the kernel (every lock acquisition), so an
-	 * unprotected clobber here would be both severe and very hard to
-	 * localize. %eax's value (the eflags test result) is dead by this
-	 * point, so reuse it instead of introducing a push/pop.
+	 * GCC port: %ebx is callee-saved under cdecl; %edx (caller-saved)
+	 * instead. Not %eax: it holds the flags splhi returns.
 	 */
-	movl	(%esp), %eax
-	movl	%eax, (%ecx)
+	movl	(%esp), %edx
+	movl	%edx, (%ecx)
 	cli
 alreadyhi:
 	ret
@@ -1282,6 +1279,7 @@ intrcommon:
 	pushl	%gs
 	pushal
 
+	cld				/* GCC port: gcc code expects DF=0 (ABI), the interrupted user code may have set it; the saved flags restore it */
 	pushl	%esp			/* Ureg* argument to trap */
 	call	trap
 
@@ -1331,6 +1329,7 @@ _syscallintr:
 	movw	%ax, %ds
 	movw	%ax, %es
 
+	cld				/* GCC port: gcc code expects DF=0 (ABI), the interrupted user code may have set it; the saved flags restore it */
 	pushl	%esp			/* Ureg* argument to syscall */
 	pushl	$forkret		/* return pc */
 	jmp	syscall

@@ -12,6 +12,16 @@ typedef long long jmp_buf[8];
 #ifdef _POSIX_SOURCE
 typedef long long sigjmp_buf[10];
 #endif
+#elif defined(__aarch64__)
+/*
+ * GCC port: arm64's setjmp also saves the AAPCS64 callee-saved
+ * registers: sp, pc, x19-x29, d8-d15; sigjmp_buf adds savemask and
+ * blocked as 32-bit words (ape/lib/ap/arm64/setjmp.S, notetramp.c)
+ */
+typedef long long jmp_buf[22];
+#ifdef _POSIX_SOURCE
+typedef long long sigjmp_buf[23];
+#endif
 #else
 typedef int jmp_buf[10];
 #ifdef _POSIX_SOURCE

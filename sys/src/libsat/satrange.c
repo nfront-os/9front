@@ -61,9 +61,19 @@ satrangev(SATSolve *s, int min, int max, ...)
 	va_list va;
 	
 	va_start(va, max);
+#ifdef __GNUC__
+	{
+		int *a;
+
+		a = satvaints(s, va);	/* GCC port: see satvafix in satadd.c */
+		s = satrange1(s, a, -1, min, max);
+		free(a);
+	}
+#else
 	/* horrible hack */
 	satvafix(va);
 	s = satrange1(s, (int*)va, -1, min, max);
+#endif
 	va_end(va);
 	return s;
 }

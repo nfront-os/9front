@@ -11,6 +11,8 @@ set -e
 ROOT=${PLAN9:-$(git -C "$(dirname "$0")" rev-parse --show-toplevel)}
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
+OBJCOPY=objcopy
+ENTRY=_main
 case ${objtype:=amd64} in
 amd64)
 	UTZERO=0x200000
@@ -28,6 +30,16 @@ amd64)
 	LD="ld -m elf_i386"
 	INIT9=pc/init9.c
 	;;
+arm64)
+	# 7l: header of 0x28 bytes, touser enters at UTZERO+0x28 (0x10028)
+	UTZERO=0x10000
+	HDR=0x28
+	CC=aarch64-linux-musl-gcc
+	LD=aarch64-linux-musl-ld
+	OBJCOPY=aarch64-linux-musl-objcopy
+	INIT9=arm64/init9.S
+	ENTRY=main
+	;;
 *)
 	echo "gen-initcode-i.sh: objtype=$objtype unknown" >&2
 	exit 1
@@ -39,9 +51,10 @@ CFLAGS="-std=gnu17 -fno-asm -ffreestanding -nostdinc -fno-builtin -fplan9-extens
 $CC $CFLAGS -c -o "$TMP/init9.o" "$ROOT/sys/src/9/$INIT9"
 $CC $CFLAGS -c -o "$TMP/initcode.o" "$ROOT/sys/src/9/port/initcode.c"
 # -N: text and data contiguous, like 8l -R1
-$LD -N -static -Ttext=$(printf "%#x" $((UTZERO + HDR))) --entry=_main -o "$TMP/initcode.elf" \
-	"$TMP/init9.o" "$TMP/initcode.o" "$ROOT/$objtype/lib.gcc/libc.a"
-objcopy -O binary -R .bss -R .comment -R .note.gnu.property "$TMP/initcode.elf" "$TMP/initcode.bin"
+$LD -N -static -Ttext=$(printf "%#x" $((UTZERO + HDR))) --entry=$ENTRY -o "$TMP/initcode.elf" \
+	"$TMP/init9.o" "$TMP/initcode.o" "$ROOT/$objtype/lib.gcc/libc.a" \
+	$( [ -f "$ROOT/$objtype/lib.gcc/libgcc.a" ] && echo "$ROOT/$objtype/lib.gcc/libgcc.a")
+$OBJCOPY -O binary -R .bss -R .comment -R .note.gnu.property "$TMP/initcode.elf" "$TMP/initcode.bin"
 python3 - "$TMP/initcode.bin" "$ROOT/sys/src/9/port/initcode.i" $HDR $INIT9 <<'PY'
 import sys
 data = bytes(int(sys.argv[3], 0)) + open(sys.argv[1], 'rb').read()

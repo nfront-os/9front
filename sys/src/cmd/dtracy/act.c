@@ -446,20 +446,42 @@ execprintf(Node **arg, int narg, uchar *p, uchar *e, Enab *en)
 		default: abort();
 		}
 	}
-#ifdef __x86_64__
+#ifdef __GNUC__
 	{
 		/*
-		 * GCC port: was vfprint(1, (*arg)->str, (va_list) x). 8c's va_list
-		 * is a pointer to the arguments; the System V one is a descriptor.
-		 * With the register areas used up, va_arg reads x as the stack area.
+		 * GCC port: was vfprint(1, (*arg)->str, (va_list) x), x read
+		 * as 8c's va_list, a pointer to the arguments. gcc's va_list
+		 * is no such pointer, so each conversion of the format
+		 * prepprintf made (%[flags]ll[xXobd] or %[flags]s, every %
+		 * starts one) is printed with its own value instead.
 		 */
-		va_list va;
+		Fmt f;
+		char buf[256], spec[32], *s, *t;
 
-		va[0].gp_offset = 6*8;
-		va[0].fp_offset = 6*8 + 8*16;
-		va[0].overflow_arg_area = x;
-		va[0].reg_save_area = nil;
-		vfprint(1, (*arg)->str, va);
+		fmtfdinit(&f, 1, buf, sizeof buf);
+		xp = x;
+		for(s = (*arg)->str; *s != 0; s++){
+			for(t = s; *s != 0 && *s != '%'; s++)
+				;
+			if(s > t)
+				fmtprint(&f, "%.*s", (int)(s - t), t);
+			if(*s == 0)
+				break;
+			for(t = s++; *s != 0 && strchr("0123456789u+-,# .l", *s) != nil; s++)
+				;
+			if(*s == 0 || s - t + 2 > sizeof spec)
+				abort();
+			memmove(spec, t, s - t + 1);
+			spec[s - t + 1] = 0;
+			if(*s == 's'){
+				fmtprint(&f, spec, *(char**)xp);
+				xp += sizeof(char*);
+			}else{
+				fmtprint(&f, spec, *(uvlong*)xp);
+				xp += sizeof(uvlong);
+			}
+		}
+		fmtfdflush(&f);
 	}
 #else
 	vfprint(1, (*arg)->str, (va_list) x);

@@ -1182,6 +1182,7 @@ syscallentry:
 
 	leaq	8(%rsp), %rdi			/* Ureg* arg for CALL syscall below, via System V %rdi */
 
+	cld				/* GCC port: gcc code expects DF=0 (ABI), the interrupted user code may have set it; the saved flags restore it */
 	call	syscall
 
 .globl forkret
@@ -1255,6 +1256,7 @@ _intrnested:
 
 	movq	%rsp, %rdi			/* Ureg* arg for CALL trap below, via System V %rdi */
 	pushq	%rsp
+	cld				/* GCC port: gcc code expects DF=0 (ABI), the interrupted user code may have set it; the saved flags restore it */
 	call	trap
 
 .globl noteret
