@@ -104,7 +104,8 @@ inferno_device far_data gs_inferno_device =
  * rgb and color map entries
  */
 private gx_color_index 
-inferno_rgb2cmap(gx_device *dev, gx_color_value rgb[3]) {
+/* GCC port: const as in the prototype (dev_proc_map_*_color); kencc let the mismatch pass */
+inferno_rgb2cmap(gx_device *dev, const gx_color_value rgb[3]) {
 	int shift;
 	inferno_device *idev;
 	ulong red, green, blue;

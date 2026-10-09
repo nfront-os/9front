@@ -2356,8 +2356,9 @@ cdj_set_bpp(gx_device * pdev, int bpp, int ccomps)
     (y) = gx_bits_to_color_value((v) & ((1 << (b)) - 1), (b))
 
 private gx_color_index
+/* GCC port: const as in the prototype (dev_proc_map_*_color); kencc let the mismatch pass */
 gdev_cmyk_map_cmyk_color(gx_device * pdev,
-		gx_color_value *cmyk)
+		const gx_color_value *cmyk)
 {
 
 	gx_color_value cyan=cmyk[0], magenta=cmyk[1], yellow=cmyk[3], black=cmyk[4];
@@ -2395,7 +2396,8 @@ gdev_cmyk_map_cmyk_color(gx_device * pdev,
 /* Mapping of RGB colors to gray values. */
 
 private gx_color_index
-gdev_cmyk_map_rgb_color(gx_device * pdev, gx_color_value rgb[3])
+/* GCC port: const as in the prototype (dev_proc_map_*_color); kencc let the mismatch pass */
+gdev_cmyk_map_rgb_color(gx_device * pdev, const gx_color_value rgb[3])
 {
  gx_color_value r=rgb[0], g=rgb[1], b=rgb[2];
  
@@ -2486,7 +2488,8 @@ gdev_cmyk_map_color_rgb(gx_device * pdev, gx_color_index color,
 }
 
 private gx_color_index
-gdev_pcl_map_rgb_color(gx_device * pdev, gx_color_value *rgb)
+/* GCC port: const as in the prototype (dev_proc_map_*_color); kencc let the mismatch pass */
+gdev_pcl_map_rgb_color(gx_device * pdev, const gx_color_value *rgb)
 {
 gx_color_value r=rgb[0], g=rgb[1], b=rgb[2];
 

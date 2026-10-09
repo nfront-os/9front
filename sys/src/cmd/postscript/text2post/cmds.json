@@ -60,5 +60,12 @@
 		"SourceFiles": [
 			"text2post.c"
 		]
+	},
+	{
+		"Name": "cmd-postscript-text2post-install",
+		"Install": "",
+		"Post": [
+			"python3 ../../../../../scripts/mkinstall.py cmd/postscript/text2post"
+		]
 	}
 ]

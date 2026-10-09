@@ -876,7 +876,7 @@
 		"Include": [
 			"/$ARCH/cflags.json"
 		],
-		"Install": "/$ARCH/bin/auth/",
+		"Install": "/$ARCH/bin/",
 		"Oflags": [
 			"--entry=_main"
 		],
@@ -1050,7 +1050,7 @@
 		"Include": [
 			"/$ARCH/cflags.json"
 		],
-		"Install": "/$ARCH/bin/auth/",
+		"Install": "/$ARCH/bin/",
 		"Oflags": [
 			"--entry=_main"
 		],
@@ -2210,6 +2210,13 @@
 		"Program": "x5092pub",
 		"SourceFiles": [
 			"x5092pub.c"
+		]
+	},
+	{
+		"Name": "cmd-auth-install",
+		"Install": "",
+		"Post": [
+			"python3 ../../../../scripts/mkinstall.py cmd/auth"
 		]
 	}
 ]

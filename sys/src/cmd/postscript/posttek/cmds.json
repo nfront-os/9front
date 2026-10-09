@@ -40,5 +40,12 @@
 		"SourceFiles": [
 			"posttek.c"
 		]
+	},
+	{
+		"Name": "cmd-postscript-posttek-install",
+		"Install": "",
+		"Post": [
+			"python3 ../../../../../scripts/mkinstall.py cmd/postscript/posttek"
+		]
 	}
 ]

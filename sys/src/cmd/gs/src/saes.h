@@ -23,7 +23,14 @@
 #include "scommon.h"
 
 #define _PLAN9_SOURCE
+/*
+ * GCC port: libsec.h (APE u.h) has a 32-bit ulong, the ABI of the APE
+ * libsec; stdpre.h's ulong is unsigned long, 64 bits under gcc (6c: both
+ * 32 bits, the same type)
+ */
+#define ulong _ape_ulong
 #include <libsec.h>
+#undef ulong
 
 /* maximum supported key length in bytes */
 #define SAES_MAX_KEYLENGTH 32

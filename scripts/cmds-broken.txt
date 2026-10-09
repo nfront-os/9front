@@ -1,3 +1,1 @@
 # targets that do not build yet (scripts/gencmds.py --probe): target<TAB>first error
-cmd/gs/gs	obj/gs.c: Datei oder Verzeichnis nicht gefunden
-games/blabs/blabs	andrew.bits: Datei oder Verzeichnis nicht gefunden

@@ -56,5 +56,12 @@
 			"pm.c",
 			"shortcuts.c"
 		]
+	},
+	{
+		"Name": "cmd-reform-install",
+		"Install": "",
+		"Post": [
+			"python3 ../../../../scripts/mkinstall.py cmd/reform"
+		]
 	}
 ]

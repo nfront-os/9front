@@ -6,7 +6,10 @@
 #   2. manifests, regenerated from 9front's mkfiles: scripts/genlibc.py,
 #      scripts/genlibs.py, scripts/gencmds.py
 #   3. userspace libraries: libc, then those of genlibs.py
-#   4. programs: the manifests of gencmds.py (sys/src/cmd, games, ape)
+#   4. programs: the manifests of gencmds.py (sys/src/mkfile's $SUBSYS
+#      $CMDS: ape, /acme, cmd, games), with the files their install rules
+#      put in place (scripts/mkinstall.py); scripts/check-install.py
+#      checks that everything is there
 #   5. what the kernel embeds: initcode (scripts/gen-initcode-i.sh),
 #      /boot/boot and $CONF.bootfs.paq (scripts/gen-bootfs.sh)
 #   6. the pc64 kernel: amd64/bin/9pc64 (ELF, multiboot: scripts/boot-cli.sh)
@@ -22,8 +25,8 @@
 #   env:  CLI_DIR   work dir for the build tool and logs
 #                   (default ${XDG_CACHE_HOME:-~/.cache}/9front-cli)
 #         CPUS      parallel compiles (default: nproc)
-#   needs: go, gcc, binutils, bison, plan9port (host tools: yacc, mpc,
-#          mkrunetype, mklatin, maketab)
+#   needs: go, gcc, binutils, bison, bwrap, plan9port (host tools: yacc,
+#          mpc, mkrunetype, mklatin, maketab, rc, iconv)
 set -e
 
 ROOT=${PLAN9:-$(git -C "$(dirname "$0")" rev-parse --show-toplevel)}
@@ -72,6 +75,12 @@ bash scripts/gen-bootfs.sh pc64 > "$CLI_DIR/log/gen-bootfs.log" 2>&1 \
 objtype=amd64 CONF=pc64 build sys/src/9/pc64/build.json
 python3 scripts/elf2aout.py amd64/bin/9pc64 amd64/9pc64 > /dev/null || die "elf2aout failed"
 echo "ok: amd64/bin/9pc64, amd64/9pc64"
+
+# everything mk install would install (stale files of older builds,
+# at places no rule installs to, are removed)
+python3 scripts/check-install.py -r > "$CLI_DIR/log/check-install.log" 2>&1 \
+	|| { grep -v '^removed' "$CLI_DIR/log/check-install.log"; die "check-install failed"; }
+tail -1 "$CLI_DIR/log/check-install.log"
 
 echo "boot loaders"
 bash scripts/build-boot.sh > "$CLI_DIR/log/build-boot.log" 2>&1 \

@@ -13,11 +13,21 @@ if [ -z "$DISKIMG" ]; then
 	check "install: no kernel process shortage" bash -c "! grep -q 'no procs for kproc' '$CLI_DIR/mkdisk.log'"
 fi
 
+# installed by mkfile install rules beside the programs' $BIN (rc
+# scripts, wrappers), elsewhere ($BIN/telnet: /bin/telnet), by other
+# subsystems (/acme) or with generated sources (gs, blabs)
+INSTALLED='/bin/gs /bin/telnet /bin/passwd /bin/vmxgdb /bin/git/clone /bin/replica/pull
+	/bin/upas/spam /bin/auth/status /bin/ape/psh /bin/aux/cropmarks /bin/games/blabs
+	/acme/bin/amd64/winfs /acme/bin/amd64/News'
+INSTALLED=$(echo $INSTALLED)
 boot(){
 	BOOTDISK=$IMG MEM=1024 "$ROOT/scripts/boot-cli.sh" \
 		'echo $bootargs' 'ls -d /sys/src/9/pc64 /amd64/bin/rc /usr/glenda/lib/profile' \
 		'sleep 10; ps | grep -c closeproc' 'ls /srv | grep -c hjfs' \
-		'echo lib `{ls /amd64/lib | wc -l} gcc `{ls /amd64/lib.gcc/libc.a}' > "$TMPD/console" 2>&1
+		'echo lib `{ls /amd64/lib | wc -l} gcc `{ls /amd64/lib.gcc/libc.a}' \
+		"ls $INSTALLED | wc -l" "echo '3 4 add = quit' | gs -q -dNODISPLAY -" \
+		'git/init /tmp/gt && test -f /tmp/gt/.git/HEAD && echo git/init ok' \
+		"ape/psh -c 'echo psh ok'" > "$TMPD/console" 2>&1
 	tr -d '\r' < "$TMPD/console" > "$TMPD/log"
 }
 check "boot the image" boot || { done_tests; exit; }
@@ -34,5 +44,10 @@ check "/amd64/lib empty as in 9front, gcc archives in /amd64/lib.gcc" \
 	test "$(out 'echo lib')" = 'lib 1 gcc /amd64/lib.gcc/libc.a'
 # closeprocs come and go while rio starts; count them once it is idle
 check "at most a few closeprocs" test "$(out 'sleep 10; ps | grep -c closeproc' | tr -d ' ')" -le 4
+check "all of mk install: scripts, acme, gs, blabs ($(echo $INSTALLED | wc -w) samples)" \
+	test "$(out "ls $INSTALLED" | tr -d ' ')" = "$(echo $INSTALLED | wc -w)"
+check "gs runs (3 4 add = 7)" test "$(out "echo '3 4 add")" = 7
+check "git/init (an rc script of git's install rule)" test "$(out 'git/init /tmp/gt')" = 'git/init ok'
+check "ape/psh" test "$(out "ape/psh -c")" = 'psh ok'
 check "no kernel panic" bash -c "! grep -q '^panic:' '$L'"
 done_tests

@@ -82,4 +82,7 @@ python3 "$ROOT/scripts/proto.py" -s "$VIEW" -d "$OUT" \
 cp "$ROOT/scripts/boot/gccproto" "$OUT/gccproto"
 find "$OUT" -type f -perm -u+x -exec sh -c 'file -b "$1" | grep -q ^ELF && strip "$1"' _ {} \;
 echo "$(grep -c . "$OUT.warnings") proto warnings ($OUT.warnings)"
+# everything mk install installs made it into the distribution
+python3 "$ROOT/scripts/check-install.py" -d "$OUT" | grep -v '^broken' | tail -20
+[ "${PIPESTATUS[0]}" = 0 ] || { echo "stage-dist: distribution incomplete" >&2; exit 1; }
 du -sh "$OUT"

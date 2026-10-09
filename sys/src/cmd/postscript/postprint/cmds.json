@@ -40,5 +40,12 @@
 		"SourceFiles": [
 			"postprint.c"
 		]
+	},
+	{
+		"Name": "cmd-postscript-postprint-install",
+		"Install": "",
+		"Post": [
+			"python3 ../../../../../scripts/mkinstall.py cmd/postscript/postprint"
+		]
 	}
 ]

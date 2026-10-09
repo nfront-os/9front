@@ -105,7 +105,8 @@ plan9_device far_data gs_plan9_device =
  * rgb and color map entries
  */
 private gx_color_index 
-plan9_rgb2cmap(gx_device *dev, gx_color_value *rgb)
+/* GCC port: const as in the prototype (dev_proc_map_*_color); kencc let the mismatch pass */
+plan9_rgb2cmap(gx_device *dev, const gx_color_value *rgb)
 {
 	gx_color_value r, g, b;
 	int shift;

@@ -39,5 +39,12 @@
 			"kill.c",
 			"uname.c"
 		]
+	},
+	{
+		"Name": "ape-cmd-install",
+		"Install": "",
+		"Post": [
+			"python3 ../../../../scripts/mkinstall.py ape/cmd"
+		]
 	}
 ]

@@ -55,5 +55,12 @@
 			"screamenc.c",
 			"screamdec.c"
 		]
+	},
+	{
+		"Name": "cmd-audio-scream-install",
+		"Install": "",
+		"Post": [
+			"python3 ../../../../../scripts/mkinstall.py cmd/audio/scream"
+		]
 	}
 ]

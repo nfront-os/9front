@@ -40,5 +40,12 @@
 		"SourceFiles": [
 			"postgif.c"
 		]
+	},
+	{
+		"Name": "cmd-postscript-postgif-install",
+		"Install": "",
+		"Post": [
+			"python3 ../../../../../scripts/mkinstall.py cmd/postscript/postgif"
+		]
 	}
 ]

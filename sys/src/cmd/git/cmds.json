@@ -638,5 +638,12 @@
 			"util.c",
 			"ref.c"
 		]
+	},
+	{
+		"Name": "cmd-git-install",
+		"Install": "",
+		"Post": [
+			"python3 ../../../../scripts/mkinstall.py cmd/git"
+		]
 	}
 ]

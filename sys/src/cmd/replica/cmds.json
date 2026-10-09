@@ -235,5 +235,12 @@
 			"db.c",
 			"util.c"
 		]
+	},
+	{
+		"Name": "cmd-replica-install",
+		"Install": "",
+		"Post": [
+			"python3 ../../../../scripts/mkinstall.py cmd/replica"
+		]
 	}
 ]

@@ -16,6 +16,8 @@ if [ -z "$ISO" ]; then
 	check "scripts/mkiso.sh builds the CD" bash "$ROOT/scripts/mkiso.sh" "$IMG" || { done_tests; exit; }
 fi
 check "ISO 9660 with El Torito boot record" bash -c "file '$IMG' | grep -q 'ISO 9660.*bootable'"
+check "the CD holds everything mk install installs (scripts/check-install.py)" \
+	bash -c "python3 '$ROOT/scripts/check-install.py' -i '$IMG' > '$TMPD/check-install' || { grep -v '^ok' '$TMPD/check-install' | head; false; }"
 check "hybrid MBR: active ESP partition" python3 -c "
 import sys
 m = open('$IMG', 'rb').read(512)

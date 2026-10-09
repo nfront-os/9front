@@ -57,6 +57,22 @@ cmd/[0-9a-z]c|cmd/[0-9a-z]l)
 		p9 rc ./mkcname
 	fi
 	;;
+games/blabs)
+	# %.bits: ./mkface $stem, for $FACES (mkface reads /lib/face)
+	sed "s#/lib/face#$ROOT/lib/face#g" mkface >mkface.host
+	for f in $(mkvar FACES); do
+		p9 rc ./mkface.host "${f%.bits}"
+	done
+	rm -f mkface.host
+	;;
+cmd/gs)
+	# $objtype.h: $O.genarch	./$O.genarch $target (objtype = cputype):
+	# genarch measures the compiler's types, so it is built with the
+	# host's gcc, whose amd64 ABI (LP64, System V) the port's gcc shares
+	gcc -std=gnu17 -DHAVE_LONG_LONG -o genarch.host src/genarch.c
+	./genarch.host amd64.h
+	rm -f genarch.host
+	;;
 *)
 	echo "gen-src.sh: no rules for $1" >&2
 	exit 1
