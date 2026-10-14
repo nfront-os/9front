@@ -201,7 +201,7 @@ struct Ring
 	u32int	wp;
 
 	u32int	*ctx;
-	u32int	*doorbell;
+	volatile u32int	*doorbell;	/* GCC port: volatile, MMIO (see Xhci.mmio) */
 
 	int	stopped;
 
@@ -230,16 +230,16 @@ struct Port
 	char	spec[4];
 	int	proto;
 
-	u32int	*reg;
+	volatile u32int	*reg;	/* GCC port: volatile, MMIO (see Xhci.mmio) */
 };
 
 struct Ctlr
 {
 	Xhci;
 
-	u32int	*opr;	/* operational registers */
-	u32int	*rts;	/* runtime registers */
-	u32int	*dba;	/* doorbell array */
+	volatile u32int	*opr;	/* operational registers */	/* GCC port: volatile, MMIO (see Xhci.mmio) */
+	volatile u32int	*rts;	/* runtime registers */
+	volatile u32int	*dba;	/* doorbell array */
 
 	u64int	*dcba;	/* device context base array */
 
@@ -294,7 +294,7 @@ static char*
 ctlrcmd(Ctlr *ctlr, u32int c, u32int s, u64int p, u32int *er);
 
 static void
-setrptr(u32int *reg, u64int pa)
+setrptr(volatile u32int *reg, u64int pa)	/* GCC port: volatile, MMIO */
 {
 	coherence();
 	reg[0] = pa;
@@ -379,10 +379,11 @@ resetring(Ring *r)
 	return pa;
 }
 
-static u32int*
-xecp(Xhci *ctlr, uchar id, u32int *p)
+static volatile u32int*	/* GCC port: volatile, MMIO */
+xecp(Xhci *ctlr, uchar id, volatile u32int *p)
 {
-	u32int x, *e;
+	u32int x;
+	volatile u32int *e;
 
 	e = &ctlr->mmio[ctlr->size/4];
 	if(p == nil){
@@ -408,7 +409,7 @@ xecp(Xhci *ctlr, uchar id, u32int *p)
 void
 xhcihandoff(Xhci *ctlr)
 {
-	u32int *r;
+	volatile u32int *r;	/* GCC port: volatile, MMIO */
 	int i;
 
 	if((r = xecp(ctlr, 1, nil)) == nil)
@@ -468,7 +469,8 @@ xhciinit(Hci *hp)
 {
 	Ctlr *ctlr;
 	Port *pp;
-	u32int *x, u;
+	volatile u32int *x;	/* GCC port: volatile, MMIO */
+	u32int u;
 	uchar *p;
 	int i, j;
 
@@ -576,7 +578,7 @@ if(0)	print("usbxhci %llux: csz=%d pagesize=%d nscratch=%d nintrs=%d nslots=%d n
 		(ctlr->opr[CRCR] & CRCR_PRES));
 
 	for(i=0; i<ctlr->nintrs; i++){
-		u32int *irs = &ctlr->rts[IR0 + i*8];
+		volatile u32int *irs = &ctlr->rts[IR0 + i*8];	/* GCC port: volatile, MMIO */
 
 		/* disable interrupt */
 		irs[IMAN] = irs[IMAN] & (IP | IMAN_PRES);
@@ -916,7 +918,8 @@ interrupt(Ureg*, void *arg)
 	Ctlr *ctlr = hp->Hciimpl.aux;
 	Ring *ring = ctlr->er;
 	Slot *slot;
-	u32int *irs, *td, x;
+	volatile u32int *irs;	/* GCC port: volatile, MMIO */
+	u32int *td, x;
 
 	if(ring->base == nil || ring->ctlr != ctlr)
 		return;
@@ -1837,7 +1840,7 @@ static void
 portenable(Hci *hp, int port, int on)
 {
 	Ctlr *ctlr = hp->Hciimpl.aux;
-	u32int *portsc;
+	volatile u32int *portsc;	/* GCC port: volatile, MMIO */
 
 	if(on || ctlr->port == nil || needrecover(ctlr))
 		return;
@@ -1849,7 +1852,7 @@ static void
 portreset(Hci *hp, int port, int on)
 {
 	Ctlr *ctlr = hp->Hciimpl.aux;
-	u32int *portsc;
+	volatile u32int *portsc;	/* GCC port: volatile, MMIO */
 
 	if(!on || ctlr->port == nil || needrecover(ctlr))
 		return;
@@ -1861,7 +1864,7 @@ static void
 bhportreset(Hci *hp, int port, int on)
 {
 	Ctlr *ctlr = hp->Hciimpl.aux;
-	u32int *portsc;
+	volatile u32int *portsc;	/* GCC port: volatile, MMIO */
 
 	if(!on || ctlr->port == nil || needrecover(ctlr))
 		return;
@@ -1873,7 +1876,7 @@ static void
 portpower(Hci *hp, int port, int on)
 {
 	Ctlr *ctlr = hp->Hciimpl.aux;
-	u32int *portsc;
+	volatile u32int *portsc;	/* GCC port: volatile, MMIO */
 
 	if(ctlr->port == nil || needrecover(ctlr))
 		return;
@@ -1891,7 +1894,7 @@ physaddr(void *va)
 }
 
 Xhci*
-xhcialloc(u32int *mmio, u64int base, u64int size)
+xhcialloc(volatile u32int *mmio, u64int base, u64int size)	/* GCC port: volatile, MMIO */
 {
 	Ctlr *ctlr;
 
