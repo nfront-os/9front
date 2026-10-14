@@ -87,7 +87,10 @@ link
 	usbuhci		pci
 	usbohci		pci
 	usbehci		pci usbehcipc
-	usbxhci		pci usbxhcipci
+# GCC port (also a 9front bug): the link line calls only its first name's
+#	link function; usbxhcilink() is empty, usbxhcipcilink() registers
+#	the controller (addhcitype "xhci"), as in pc64
+	usbxhcipci	pci usbxhci
 
 	audiosb16	dma
 	audioac97	pci audioac97mix
