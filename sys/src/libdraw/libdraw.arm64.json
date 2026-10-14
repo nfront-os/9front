@@ -33,6 +33,7 @@
 			"font.c",
 			"freesubfont.c",
 			"genenter.c",
+			"gengetrect.c",
 			"genmenuhit.c",
 			"getdefont.c",
 			"getrect.c",
