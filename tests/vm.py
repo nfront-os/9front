@@ -80,8 +80,10 @@ class VM:
 	def _ev(self, *e):
 		self.cmd({'execute': 'input-send-event', 'arguments': {'events': list(e)}})
 
-	def move(self, dx, dy, step=50, pause=0.02):
-		"""relative mouse motion, in pieces of at most step"""
+	def move(self, dx, dy, step=3, pause=0.005):
+		"""relative mouse motion, in pieces of at most step: the kernel
+		accelerates steps of more than 3 (devmouse.c scale()), so small
+		ones land where they are meant to"""
 		while dx or dy:
 			sx, sy = max(-step, min(step, dx)), max(-step, min(step, dy))
 			self._ev({'type': 'rel', 'data': {'axis': 'x', 'value': sx}},
@@ -130,6 +132,12 @@ class VM:
 		if not self.rio_up():
 			return False
 		time.sleep(3)	# riostart's windows
+		# click into the first window: keyboard focus, as a user would
+		self.move(-3000, -3000, step=100)	# corner: overshoot is clamped
+		self.move(200, 250)
+		self.button('left', True)
+		self.button('left', False)
+		time.sleep(0.5)
 		self.type("rc -i <'#t/eia0' >'#t/eia0' >[2=1] &\n")
 		time.sleep(2)
 		return 'serial-ok' in self.serial('echo serial-ok', 3)

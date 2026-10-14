@@ -17,7 +17,7 @@
 #            building it)
 #   rio      mouse and keyboard in rio on the CD: select, type, New + sweep
 #            (ISO=image, else the last CD made by scripts/guest/mkiso.sh)
-#   usb      USB stick on xHCI, EHCI, UHCI, OHCI: root hub, /dev/sdU*,
+#   usb      USB stick on xHCI, EHCI, UHCI: root hub, /dev/sdU*,
 #            sector 0 (same CD; USB_CTLRS="xhci ehci" for fewer)
 #
 # usage: tests/run.sh [category...]     (default: all, in the order above)

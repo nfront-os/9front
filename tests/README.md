@@ -40,7 +40,7 @@ file system of the guest: in `PATH` or `~/go/bin/ufs`).
 | `disk` | install image with hjfs (`scripts/guest/mkdisk.sh`), booted on its own | a build, boot loaders | minutes |
 | `iso` | install/live CD (`scripts/guest/mkiso.sh`) booted as CD and as USB stick, BIOS and UEFI, up to rio, then typing into rio | a build, boot loaders, OVMF | minutes |
 | `rio` | mouse and keyboard in rio on the CD: select text, type, New + sweep a window, type into it | a CD | ~1 min |
-| `usb` | a USB stick on xHCI, EHCI, UHCI and OHCI: root hub in `#u`, the stick as `/dev/sdU*`, sector 0 read back | a CD | ~1 min per controller |
+| `usb` | a USB stick on xHCI, EHCI and UHCI: root hub in `#u`, the stick as `/dev/sdU*`, sector 0 read back (`USB_CTLRS=ohci`: fails in QEMU with 9front's own release too) | a CD | ~1 min per controller |
 
 Options (environment):
 

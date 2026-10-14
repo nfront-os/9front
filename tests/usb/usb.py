@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-A USB stick (QEMU usb-storage) on each USB host controller the kernels
-have drivers for: xHCI, EHCI, UHCI, OHCI. Per controller the CD boots to
+A USB stick (QEMU usb-storage) on the USB host controllers the kernels
+have drivers for: xHCI, EHCI, UHCI (OHCI on request, see below). Per controller the CD boots to
 rio once; checked through the serial rc: the controller is found, its
 root hub is in #u, the stick is enumerated and nusb/disk serves it as
 /dev/sdU*, and its first sector reads back what the image holds.
@@ -25,7 +25,10 @@ CTLRS = {	# QEMU device: what #u/usb/ctl names the root hub's controller
 MARK = 'USB-STICK-MARKER-9front'
 
 iso, work, objtype = sys.argv[1:4]
-which = sys.argv[4:] or list(CTLRS)
+# OHCI is not in the default: with QEMU's pci-ohci the stick is never
+# enumerated, with 9front's own release (11952) as well -- not a fault
+# of the port; USB_CTLRS=ohci runs it
+which = sys.argv[4:] or ['xhci', 'ehci', 'uhci']
 os.makedirs(work, exist_ok=True)
 stick = os.path.join(work, 'stick.img')
 with open(stick, 'wb') as f:	# 64 MB, the marker in sector 0

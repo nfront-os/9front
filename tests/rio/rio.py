@@ -28,7 +28,7 @@ def typed(marker):
 try:
 	if not result(vm.boot(), 'boot to rio, serial rc'):
 		sys.exit(0)
-	vm.move(-3000, -3000)		# top left corner
+	vm.move(-3000, -3000, step=100)	# top left corner (clamped)
 	vm.move(300, 250)		# into the first window
 	vm.button('left', True)
 	vm.move(120, 0, step=2, pause=0.01)	# select by dragging

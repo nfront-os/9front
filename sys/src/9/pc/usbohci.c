@@ -342,7 +342,7 @@ struct Ctlr
 	Ctlr*	next;
 	int	nports;
 
-	Ohci*	ohci;		/* base I/O address */
+	volatile Ohci*	ohci;		/* base I/O address */	/* GCC port: volatile, MMIO: gcc reads a register bit as one byte, unaligned (control & Cir: byte 5), which QEMU's OHCI answers with ~0 */
 	Hcca*	hcca;		/* intr/done Td lists (used by hardware) */
 	int	overrun;	/* sched. overrun */
 	Ed*	intrhd;		/* list of intr. eds in tree */
@@ -2294,7 +2294,7 @@ static void
 dumpohci(Ctlr *ctlr)
 {
 	int i;
-	ulong *ohci;
+	volatile ulong *ohci;	/* GCC port: volatile, MMIO (see Ctlr.ohci) */
 
 	ohci = &ctlr->ohci->revision;
 	print("ohci registers: \n");
@@ -2308,7 +2308,7 @@ static void
 init(Hci *hp)
 {
 	Ctlr *ctlr;
-	Ohci *ohci;
+	volatile Ohci *ohci;	/* GCC port: volatile, MMIO (see Ctlr.ohci) */
 	int i;
 	ulong ival, ctrl, fmi;
 

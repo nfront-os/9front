@@ -800,3 +800,11 @@ Neue Ordnung (Pfade in den Teilen davor sind die alten): `scripts/gen/` (genlibc
 - `tests/rio` (5 Prüfungen): im Fenster markieren + tippen, New + Aufziehen + tippen, im neuen Fenster markieren + tippen, rio läuft noch — Regression für den readmouse-Fehler (Teil 36).
 - `tests/usb` (5 je Controller): Stick an xHCI (`qemu-xhci`), EHCI (`usb-ehci`), UHCI (`piix3-usb-uhci`), OHCI (`pci-ohci`); Root-Hub in `#u`, `storage` aufgezählt, `/dev/sdU*`, Sektor 0. `USB_CTLRS` wählt aus. CD aus `ISO=` oder `$CLI_DIR/9front.$objtype.iso`.
 - Ergebnis amd64 + 386: rio 5/5; xHCI, EHCI, UHCI je 5/5; **OHCI scheitert**: Root-Hub (3 Ports) da, QEMU meldet den Stick (12 Mb/s), aber jedes GET_DESCRIPTOR „no data from device“, dann „too many attaches“. Offen, s. Teil 40.
+
+## 2026-10-14 (Teil 40): OHCI — gcc-Fehler gefixt, Rest ist QEMU/9front
+
+- **gcc-Fehler (gefixt):** `pc/usbohci.c` (pc64 kopiert ihn) las Registerbits als unausgerichtete Bytes: `control & Cir` → `testb $1,5(…)`, `rhportsts[i] & Prsc` → `testb $0x10,0x56(…)`. QEMUs OHCI liefert dafür ~0 → „ohci: smm takeover timed out“, Port-Reset sofort „fertig“. Fix: `volatile` an `Ctlr.ohci`, am lokalen `ohci` in `init()` und am Wortzeiger in `dumpohci()` (`volatile` auf einen Struct-Zeiger erzwingt volle Breite, gcc 16 verkürzt dann nur noch Loads des niedrigsten Bytes). Die smm-Meldung ist weg.
+- **Rest kein Port-Fehler:** auch danach zählt OHCI in QEMU (`pci-ohci`) den Stick nicht auf („getdesc … no data from device“, „too many attaches“). Gegenprobe mit dem offiziellen ISO `9front-11952.amd64.iso` (9front.org) im selben Test: OHCI dasselbe Fehlerbild, UHCI ok → 9front-Treiber + QEMU-OHCI. `tests/usb` testet OHCI daher nur auf Wunsch (`USB_CTLRS=ohci`).
+- `tests/vm.py`: Mausbewegung in Schritten ≤ 3 (9fronts `devmouse.c scale()` beschleunigt größere: 200 → 400 px); vor dem Tippen Klick ins erste Fenster (beim Original-ISO hat es anfangs keinen Fokus).
+- **Falle (beim Testen passiert):** nur `sys/src/9/pc64/build.json` neu gebaut, nachdem zuletzt 386 voll gebaut war → `sys/src/9/port/initcode.i` (beide Arches teilen die Datei) war 386-Code → amd64-Kernel panict „boot process died: … pc=0x200028“. Kernel immer mit dem vollen `build.exe`-Aufruf bauen (in AGENTS.md/CLAUDE.md).
+- Ergebnis nach vollem Neubau + ISOs: amd64 und 386 je rio 5/5, usb 15/15 (xHCI, EHCI, UHCI).
