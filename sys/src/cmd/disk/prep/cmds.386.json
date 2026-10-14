@@ -6,7 +6,7 @@
 		],
 		"Install": "/$ARCH/bin/disk/",
 		"Pre": [
-			"bash ../../../../../scripts/yacc.sh -d calc.y"
+			"bash ../../../../../scripts/build/yacc.sh -d calc.y"
 		],
 		"Oflags": [
 			"--entry=_main"
@@ -74,7 +74,7 @@
 		],
 		"Install": "/$ARCH/bin/disk/",
 		"Pre": [
-			"bash ../../../../../scripts/yacc.sh -d calc.y"
+			"bash ../../../../../scripts/build/yacc.sh -d calc.y"
 		],
 		"Oflags": [
 			"--entry=_main"
@@ -142,7 +142,7 @@
 		],
 		"Install": "/$ARCH/bin/disk/",
 		"Pre": [
-			"bash ../../../../../scripts/yacc.sh -d calc.y"
+			"bash ../../../../../scripts/build/yacc.sh -d calc.y"
 		],
 		"Oflags": [
 			"--entry=_main"

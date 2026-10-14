@@ -9,7 +9,7 @@
 			"-I../common"
 		],
 		"Pre": [
-			"bash ../../../../../scripts/gen-upas-yacc.sh"
+			"bash ../../../../../scripts/build/gen-upas-yacc.sh"
 		],
 		"Oflags": [
 			"--entry=_main"
@@ -85,7 +85,7 @@
 			"-I../common"
 		],
 		"Pre": [
-			"bash ../../../../../scripts/gen-upas-yacc.sh"
+			"bash ../../../../../scripts/build/gen-upas-yacc.sh"
 		],
 		"Oflags": [
 			"--entry=_main"

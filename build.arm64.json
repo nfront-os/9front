@@ -2,7 +2,7 @@
 	{
 		"Name": "prep",
 		"Pre": [
-			"bash scripts/prep-objtype.sh"
+			"bash scripts/build/prep-objtype.sh"
 		]
 	},
 	{
@@ -357,9 +357,9 @@
 	{
 		"Name": "kernelgen",
 		"Pre": [
-			"bash scripts/gen-rebootcode-i.sh arm64",
-			"bash scripts/gen-initcode-i.sh",
-			"bash scripts/gen-bootfs.sh qemu arm64"
+			"bash scripts/build/gen-rebootcode-i.sh arm64",
+			"bash scripts/build/gen-initcode-i.sh",
+			"bash scripts/build/gen-bootfs.sh qemu arm64"
 		]
 	},
 	{
@@ -371,8 +371,8 @@
 	{
 		"Name": "install",
 		"Post": [
-			"python3 scripts/elf2aout.py arm64/bin/9qemu arm64/9qemu",
-			"python3 scripts/check-install.py -r"
+			"python3 scripts/build/elf2aout.py arm64/bin/9qemu arm64/9qemu",
+			"python3 scripts/build/check-install.py -r"
 		]
 	}
 ]

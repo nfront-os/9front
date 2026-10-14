@@ -2,7 +2,7 @@
 	{
 		"Name": "prep",
 		"Pre": [
-			"bash scripts/prep-objtype.sh"
+			"bash scripts/build/prep-objtype.sh"
 		]
 	},
 	{
@@ -358,12 +358,12 @@
 	{
 		"Name": "kernelgen",
 		"Pre": [
-			"bash scripts/gen-rebootcode-i.sh",
-			"bash scripts/gen-apbootstrap-i.sh",
-			"bash scripts/gen-etherm10g-i.sh",
-			"bash scripts/gen-sd53c8xx-i.sh",
-			"bash scripts/gen-initcode-i.sh",
-			"bash scripts/gen-bootfs.sh pc64"
+			"bash scripts/build/gen-rebootcode-i.sh",
+			"bash scripts/build/gen-apbootstrap-i.sh",
+			"bash scripts/build/gen-etherm10g-i.sh",
+			"bash scripts/build/gen-sd53c8xx-i.sh",
+			"bash scripts/build/gen-initcode-i.sh",
+			"bash scripts/build/gen-bootfs.sh pc64"
 		]
 	},
 	{
@@ -375,8 +375,8 @@
 	{
 		"Name": "install",
 		"Post": [
-			"python3 scripts/elf2aout.py amd64/bin/9pc64 amd64/9pc64",
-			"python3 scripts/check-install.py -r"
+			"python3 scripts/build/elf2aout.py amd64/bin/9pc64 amd64/9pc64",
+			"python3 scripts/build/check-install.py -r"
 		]
 	}
 ]

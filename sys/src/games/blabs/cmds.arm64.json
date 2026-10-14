@@ -6,7 +6,7 @@
 		],
 		"Install": "/$ARCH/bin/games/",
 		"Pre": [
-			"bash ../../../../scripts/gen-src.sh games/blabs"
+			"bash ../../../../scripts/build/gen-src.sh games/blabs"
 		],
 		"Oflags": [
 			"--entry=_main"

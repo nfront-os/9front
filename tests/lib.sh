@@ -1,10 +1,10 @@
 # shared helpers for tests/*/run.sh (sourced)
 ROOT=$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)
 CLI_DIR=${CLI_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/9front-cli}
-# the architecture under test (scripts/arch.py): objtype, O, TOOLPREFIX,
+# the architecture under test (scripts/gen/arch.py): objtype, O, TOOLPREFIX,
 # KERNEL (its configuration: pc64, pc, qemu), QEMU, SUFFIX (manifests);
 # KBIN the ELF kernel the build leaves in /$objtype/bin
-eval "$(python3 "$ROOT/scripts/arch.py")" || exit 1
+eval "$(python3 "$ROOT/scripts/gen/arch.py")" || exit 1
 KBIN=$objtype/bin/9$KERNEL
 case $objtype in amd64) KDIR=pc64 ;; 386) KDIR=pc ;; *) KDIR=$objtype ;; esac	# sys/src/9/$KDIR
 export objtype SUFFIX KERNEL KBIN KDIR

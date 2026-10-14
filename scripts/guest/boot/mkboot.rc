@@ -1,0 +1,38 @@
+#!/bin/rc
+# Build 9front's boot loaders natively, run inside the guest by
+# scripts/guest/build-boot.sh: sys/src/boot/pc (mbr, pbs, 9bootiso, 9bootfat,
+# 9boothyb, 9bootpxe -> /386) and sys/src/boot/efi (bootia32.efi,
+# bootx64.efi, efiboot.fat -> /386, bootaa64.efi -> /arm64) with their
+# own mkfiles and 9front's compilers (8c/8a/8l, 6c/6a/6l, 7c/7a/7l,
+# aux/aout2efi), and for arm64 qemu boot.scr and 9qemu.u (aux/txt2uimage,
+# aux/aout2uimage). The sources and the install directories are the build
+# host's, served as /n/src9.
+rfork en
+fn fail{
+	echo mkboot: failed: $*
+	exit failed
+}
+
+if(! test -d /n/src9/sys)
+	srv tcp!10.0.2.101!5641 src9 && mount -c /srv/src9 /n/src9 || fail mount src9
+bind -c /n/src9/sys/include /sys/include || fail bind include
+bind -c /n/src9/sys/src /sys/src || fail bind src
+bind -bc /n/src9/386 /386 || fail bind 386
+bind -bc /n/src9/arm64 /arm64 || fail bind arm64
+bind -b /n/src9/amd64/include /amd64/include || fail bind amd64/include
+
+for(d in pc efi){
+	cd /sys/src/boot/$d || fail cd $d
+	mk install || fail mk $d
+}
+# arm64 qemu (sys/lib/dist/mkfile, %.arm64.qcow2): u-boot's boot.scr
+# (sys/src/boot/qemu/mkfile) and, as arm64/mkfile's $p$CONF.u rule,
+# the u-boot image of the a.out kernel /arm64/9qemu
+if(test -r /arm64/9qemu){
+	cd /sys/src/boot/qemu || fail cd qemu
+	mk || fail mk qemu
+	kzero=`{sed -n 's/^kzero=//p' /sys/src/9/arm64/mkfile}
+	cd /arm64 || fail cd /arm64
+	aux/aout2uimage -Z$kzero 9qemu || fail aout2uimage
+}
+echo mkboot: done

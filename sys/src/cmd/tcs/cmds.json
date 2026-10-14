@@ -9,7 +9,7 @@
 			"-DPLAN9"
 		],
 		"Pre": [
-			"bash ../../../../scripts/gen-src.sh cmd/tcs"
+			"bash ../../../../scripts/build/gen-src.sh cmd/tcs"
 		],
 		"Oflags": [
 			"--entry=_main"

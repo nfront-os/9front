@@ -212,7 +212,7 @@ var (
 		"arm64": true,
 	}
 	// per $ARCH defaults for the environment of the manifests and of
-	// their Pre/Post steps (scripts/arch.py has the same table):
+	// their Pre/Post steps (scripts/gen/arch.py has the same table):
 	// objtype as 9front's mkfiles name it, O the object letter, SUFFIX
 	// of the generated per-arch manifests (none for amd64), CONF the
 	// kernel configuration, TOOLPREFIX of the gcc/binutils

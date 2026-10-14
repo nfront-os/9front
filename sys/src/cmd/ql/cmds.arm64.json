@@ -6,7 +6,7 @@
 		],
 		"Install": "/$ARCH/bin/",
 		"Pre": [
-			"bash ../../../../scripts/gen-src.sh cmd/ql"
+			"bash ../../../../scripts/build/gen-src.sh cmd/ql"
 		],
 		"Oflags": [
 			"--entry=_main"

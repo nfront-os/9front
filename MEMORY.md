@@ -785,3 +785,11 @@ Wunsch: `CC=gcc ARCH=amd64 sys/src/cmd/build/build.exe` statt `scripts/build-cli
 - **Falle:** nie zwei Builds gleichzeitig im selben Baum — sie teilen sich die `.o`-Dateien (mein Testlauf scheiterte bei `klibdraw` an `ar: alloc.o: not found`, weil parallel ein zweiter build.exe lief).
 - `amd64/cflags.json`: `-Wno-error=comment` (Nutzerwunsch; zuerst mit Tippfehler `-Wno-error=-comment`, den gcc ablehnt).
 - Getestet: amd64 komplett mit dem neuen Aufruf (Nutzer), 386 komplett (s. u.), `tests/static` 13/13.
+
+## 2026-10-14 (Teil 38): scripts/ nach Kategorien, READMEs
+
+Neue Ordnung (Pfade in den Teilen davor sind die alten): `scripts/gen/` (genlibc, genlibs, gencmds, genkernel, genbuild, genclean, arch.py, cmds-broken*.txt), `scripts/build/` (prep-objtype.sh, alle gen-*.sh, kheader.sh, yacc.sh, lex.sh, mkinstall.py, elf2aout.py, check-install.py, clean.sh), `scripts/guest/` (boot-cli, guest-cmd, build-boot, build-uboot, gen-ufs-root, stage-dist, proto.py, mkiso, mkdisk, boot/*.rc, gccproto), `scripts/check/` (cmp-struct-layout, cmp-lp64, find-*), `scripts/fix/` (fixdesig, fixidents, fixabsincludes, fixulongmax, localize-pc-sources), `scripts/debug/` (qemu-ctl, thread-dump). Übersicht: `scripts/README.md`; Tests: `tests/README.md` (beide englisch).
+- Gelöscht: `port/find-anon-struct-collisions.py` (Umbenennungsweg durch `-fplan9-extensions` ersetzt). `scripts/.gitignore`: `__pycache__/`.
+- Python-Generatoren in `gen/`: ROOT eine Ebene höher; `check-install.py`/`mkinstall.py` importieren `gencmds` aus `../gen`; zusammengesetzte Pfade (`scripts/build/` + PRE) in genlibs/gencmds. Alle Manifeste (amd64, 386, arm64) neu erzeugt = byte-gleich mit den umgeschriebenen.
+- `scripts/build/kheader.sh` neu: `genkernel.py` rief für die echo-Header-Regeln des bcm64-mkfiles (`screen.h`, `dwcotg.h`) ein nie vorhandenes `scripts/kheader.sh` auf. bcm64 selbst noch nicht generierbar („l.s not ported“).
+- Geprüft: tests/static 13/13, Build amd64 + 386 (813/813) und beide ISOs nach dem Umzug.

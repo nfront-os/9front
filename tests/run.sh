@@ -3,16 +3,16 @@
 #
 #   static   source checks, no build needed
 #   asm      host unit tests of the GAS ports of libc's amd64 assembly
-#   syscall  generated system call stubs (scripts/gen-9syscall.sh)
+#   syscall  generated system call stubs (scripts/build/gen-9syscall.sh)
 #   build    results of the build tool (libraries, commands, kernel)
 #   guest    libc unit tests built with the port toolchain, run in 9front
 #            under QEMU (needs a build; boots once)
-#   boot     CLI boot smoke test via scripts/boot-cli.sh (boots once)
+#   boot     CLI boot smoke test via scripts/guest/boot-cli.sh (boots once)
 #   gui      terminal boot: VESA via aux/realemu, rio (boots once;
 #            GUI_SCREENSHOT=file.png keeps the screen dump)
-#   disk     install image with hjfs (scripts/mkdisk.sh, minutes), booted
+#   disk     install image with hjfs (scripts/guest/mkdisk.sh, minutes), booted
 #            on its own (DISKIMG=image skips building it)
-#   iso      install/live CD (scripts/mkiso.sh): booted as CD and as disk
+#   iso      install/live CD (scripts/guest/mkiso.sh): booted as CD and as disk
 #            (hybrid), each with BIOS and UEFI, up to rio (ISO=image skips
 #            building it)
 #

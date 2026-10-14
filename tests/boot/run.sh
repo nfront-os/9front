@@ -1,5 +1,5 @@
 #!/bin/bash
-# boot: CLI boot smoke test (scripts/boot-cli.sh, service=cpu): bootrc
+# boot: CLI boot smoke test (scripts/guest/boot-cli.sh, service=cpu): bootrc
 # stand-in, init -c, cpurc, console rc
 . "$(dirname "$0")/../lib.sh"
 [ -f "$ROOT/$KBIN" ] || { skip "boot" "no kernel $KBIN, run $BUILDHOW"; done_tests; exit; }
@@ -10,7 +10,7 @@
 case $objtype in 386|amd64) pc=1 ncpu=4 ;; *) pc= ncpu=1 ;; esac
 
 boot(){
-	QEMU_EXTRA="-smp $ncpu" "$ROOT/scripts/boot-cli.sh" \
+	QEMU_EXTRA="-smp $ncpu" "$ROOT/scripts/guest/boot-cli.sh" \
 		'echo hello' 'cat /dev/sysstat | wc -l' 'ls /bin | wc -l' 'date -i' 'ps | wc -l' 'cat /dev/sysname; echo' \
 		'cat /proc/$pid/segment | wc -l' \
 		${pc:+"bind -a '#v' /dev; aux/realemu && aux/vga -m vesa -l 1024x768x16 && grep size /dev/vgactl"} \
@@ -23,7 +23,7 @@ L=$TMPD/log
 out(){ grep -A1 -F "# $1" "$L" | tail -1; }
 
 check "cpurc finished, console rc prompt" grep -q '^init: starting /bin/rc' "$L"
-# readnvram: QEMU has no nvram, factotum asks (scripts/boot-cli.sh answers)
+# readnvram: QEMU has no nvram, factotum asks (scripts/guest/boot-cli.sh answers)
 check "cpurc: no errors besides the missing nvram" \
 	bash -c "! sed -n '/root is/,/init: starting/p' '$L' | grep -iE 'error|fail|can.t|null list|suicide|panic' | grep -vE 'nvram|unknown device in # filename'"
 check "echo" test "$(out 'echo hello')" = hello
@@ -45,7 +45,7 @@ truncate -s 64M "$SCSI"
 printf 'SD53C8XX-MARKER' | dd of="$SCSI" conv=notrunc 2>/dev/null
 scsi(){
 	QEMU_EXTRA="-device lsi53c810,id=scsi0 -drive if=none,id=sd0,file=$SCSI,format=raw -device scsi-hd,bus=scsi0.0,drive=sd0" \
-	MEM=1024 "$ROOT/scripts/boot-cli.sh" 'grep inquiry /dev/sd00/ctl' \
+	MEM=1024 "$ROOT/scripts/guest/boot-cli.sh" 'grep inquiry /dev/sd00/ctl' \
 		'dd -if /dev/sd00/data -count 1 -quiet 1 | sed 1q' \
 		'echo written-by-9front | dd -of /dev/sd00/data -oseek 8 -quiet 1' \
 		'dd -if /dev/sd00/data -of /dev/null -count 4096 -bs 8192' > "$TMPD/scsi-console" 2>&1

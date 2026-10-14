@@ -19,7 +19,7 @@
 			"-DGS_INIT=\"gs_init.ps\""
 		],
 		"Pre": [
-			"bash ../../../../scripts/gen-src.sh cmd/gs"
+			"bash ../../../../scripts/build/gen-src.sh cmd/gs"
 		],
 		"Ape": true,
 		"Oflags": [

@@ -1,5 +1,5 @@
 #!/bin/bash
-# iso: the install/live CD (scripts/mkiso.sh: 9front's %.amd64.iso, %.386.iso
+# iso: the install/live CD (scripts/guest/mkiso.sh: 9front's %.amd64.iso, %.386.iso
 # recipe run in the guest) boots the way the release's does -- as a CD
 # (9bootiso, El Torito; bootx64.efi from efiboot.fat) and as a disk or
 # USB stick (hybrid MBR: mbr, pbs, 9boothyb; the ESP's efi/boot), each
@@ -9,17 +9,17 @@
 # objtype=386: the 386 CD, booted on an x86-64 PC as well (BIOS and
 # 64-bit UEFI both start 9pc; there is no 32-bit OVMF here)
 for f in $objtype/9$KERNEL 386/9bootiso 386/efiboot.fat; do
-	[ -f "$ROOT/$f" ] || { skip "iso" "no $f, run $BUILDHOW and scripts/build-boot.sh"; done_tests; exit; }
+	[ -f "$ROOT/$f" ] || { skip "iso" "no $f, run $BUILDHOW and scripts/guest/build-boot.sh"; done_tests; exit; }
 done
 OVMF_CODE=${OVMF_CODE:-/usr/share/edk2/x64/OVMF_CODE.4m.fd}
 
 IMG=${ISO:-$TMPD/9front.$objtype.iso}
 if [ -z "$ISO" ]; then
-	check "scripts/mkiso.sh builds the CD" bash "$ROOT/scripts/mkiso.sh" "$IMG" || { done_tests; exit; }
+	check "scripts/guest/mkiso.sh builds the CD" bash "$ROOT/scripts/guest/mkiso.sh" "$IMG" || { done_tests; exit; }
 fi
 check "ISO 9660 with El Torito boot record" bash -c "file '$IMG' | grep -q 'ISO 9660.*bootable'"
-check "the CD holds everything mk install installs (scripts/check-install.py)" \
-	bash -c "python3 '$ROOT/scripts/check-install.py' -i '$IMG' > '$TMPD/check-install' || { grep -v '^ok' '$TMPD/check-install' | head; false; }"
+check "the CD holds everything mk install installs (scripts/build/check-install.py)" \
+	bash -c "python3 '$ROOT/scripts/build/check-install.py' -i '$IMG' > '$TMPD/check-install' || { grep -v '^ok' '$TMPD/check-install' | head; false; }"
 check "hybrid MBR: active ESP partition" python3 -c "
 import sys
 m = open('$IMG', 'rb').read(512)

@@ -3,7 +3,7 @@
 		"Name": "cmd-postscript-printfont-install",
 		"Install": "",
 		"Post": [
-			"python3 ../../../../../scripts/mkinstall.py cmd/postscript/printfont"
+			"python3 ../../../../../scripts/build/mkinstall.py cmd/postscript/printfont"
 		],
 		"Clean": [
 			"printfont"

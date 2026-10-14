@@ -1,2 +1,0 @@
-# targets that do not build yet (scripts/gencmds.py --probe): target<TAB>first error
-cmd/syscall/syscall	ISO C requires a named argument before ‘...’

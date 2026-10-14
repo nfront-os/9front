@@ -6,8 +6,8 @@
 		],
 		"Install": "/sys/src/cmd/cc/",
 		"Pre": [
-			"bash ../../../../scripts/yacc.sh -d cc.y",
-			"bash ../../../../scripts/gen-src.sh cmd/cc"
+			"bash ../../../../scripts/build/yacc.sh -d cc.y",
+			"bash ../../../../scripts/build/gen-src.sh cmd/cc"
 		],
 		"Library": "cc.a6",
 		"SourceFiles": [

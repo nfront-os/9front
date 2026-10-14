@@ -9,7 +9,7 @@
 			"-DPlan9"
 		],
 		"Pre": [
-			"bash ../../../../scripts/yacc.sh -d syn.y"
+			"bash ../../../../scripts/build/yacc.sh -d syn.y"
 		],
 		"Oflags": [
 			"--entry=_main"

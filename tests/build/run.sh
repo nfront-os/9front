@@ -23,7 +23,7 @@ check "libc.a: one member per manifest source, no duplicate symbols, entry point
 
 libs(){
 	local bad=0 d
-	for l in $(python3 scripts/genlibs.py --list); do
+	for l in $(python3 scripts/gen/genlibs.py --list); do
 		[ -f $L/$l.a ] || { echo "$L/$l.a missing"; bad=1; continue; }
 		d=$(dupsyms $L/$l.a); [ -z "$d" ] || { echo "$l.a: duplicate symbols $d"; bad=1; }
 	done
@@ -105,12 +105,12 @@ kernel(){
 check "kernel: LOAD segments with paddr = vaddr - KZERO (multiboot)" kernel
 
 # gcc may hoist the load of a kencc-style busy-wait (`while(l->key) ;')
-# out of the loop: a branch to itself (scripts/port/find-spinloops.sh)
+# out of the loop: a branch to itself (scripts/check/find-spinloops.sh)
 spinloops(){
 	local k bad=0
 	for k in amd64/bin/9pc64 386/bin/9pc arm64/bin/9qemu arm64/bin/9pi3 arm64/bin/9pi4; do
 		[ -f $k ] || continue
-		scripts/port/find-spinloops.sh $k || { echo "in $k"; bad=1; }
+		scripts/check/find-spinloops.sh $k || { echo "in $k"; bad=1; }
 	done
 	return $bad
 }

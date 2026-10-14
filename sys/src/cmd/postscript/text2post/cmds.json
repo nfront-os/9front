@@ -65,7 +65,7 @@
 		"Name": "cmd-postscript-text2post-install",
 		"Install": "",
 		"Post": [
-			"python3 ../../../../../scripts/mkinstall.py cmd/postscript/text2post"
+			"python3 ../../../../../scripts/build/mkinstall.py cmd/postscript/text2post"
 		]
 	}
 ]

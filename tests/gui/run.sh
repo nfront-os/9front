@@ -1,5 +1,5 @@
 #!/bin/bash
-# gui: terminal boot with graphics (scripts/boot-cli.sh, service=terminal,
+# gui: terminal boot with graphics (scripts/guest/boot-cli.sh, service=terminal,
 # vgasize/monitor/mouseport as plan9.ini would set them): screenrc runs
 # aux/realemu and aux/vga -m vesa, the profile starts rio with riostart.
 # The commands are typed into rio's window; they write their output to
@@ -12,7 +12,7 @@
 boot(){
 	SERVICE=terminal KARGS="vgasize=1024x768x16 monitor=vesa mouseport=ps2" \
 	SCREENSHOT="$TMPD/screen.png" CMDWAIT=${CMDWAIT:-30} \
-		"$ROOT/scripts/boot-cli.sh" \
+		"$ROOT/scripts/guest/boot-cli.sh" \
 		"sleep 3;{grep size /dev/vgactl;ps}>'#c/cons'" \
 		> "$TMPD/console" 2>&1
 	tr -d '\r' < "$TMPD/console" > "$TMPD/log"

@@ -29,7 +29,7 @@
 			"readcons.c"
 		],
 		"Pre": [
-			"bash ../../../scripts/gen-mpc.sh"
+			"bash ../../../scripts/build/gen-mpc.sh"
 		],
 		"Clean": [
 			"../libsec/port/jacobian.c",

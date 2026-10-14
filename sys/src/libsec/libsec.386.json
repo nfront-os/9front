@@ -92,7 +92,7 @@
 			"port/mlkem.c"
 		],
 		"Pre": [
-			"bash ../../../scripts/gen-mpc.sh"
+			"bash ../../../scripts/build/gen-mpc.sh"
 		],
 		"Clean": [
 			"port/jacobian.c",

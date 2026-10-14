@@ -1,5 +1,5 @@
 #!/bin/bash
-# disk: the install image (scripts/mkdisk.sh: 9front's %.amd64.qcow2
+# disk: the install image (scripts/guest/mkdisk.sh: 9front's %.amd64.qcow2
 # recipe run in the guest, hjfs root, 9front's boot code mbr, pbs,
 # 9bootfat) boots on its own -- no host root -- and serves the
 # installed system. Builds the image (minutes)
@@ -9,7 +9,7 @@
 
 IMG=${DISKIMG:-$TMPD/9front.amd64.img}
 if [ -z "$DISKIMG" ]; then
-	check "scripts/mkdisk.sh builds the image" bash "$ROOT/scripts/mkdisk.sh" "$IMG" || { done_tests; exit; }
+	check "scripts/guest/mkdisk.sh builds the image" bash "$ROOT/scripts/guest/mkdisk.sh" "$IMG" || { done_tests; exit; }
 	check "install: no kernel process shortage" bash -c "! grep -q 'no procs for kproc' '$CLI_DIR/mkdisk.log'"
 fi
 
@@ -21,7 +21,7 @@ INSTALLED='/bin/gs /bin/telnet /bin/passwd /bin/vmxgdb /bin/git/clone /bin/repli
 	/acme/bin/amd64/winfs /acme/bin/amd64/News'
 INSTALLED=$(echo $INSTALLED)
 boot(){
-	BOOTDISK=$IMG MEM=1024 "$ROOT/scripts/boot-cli.sh" \
+	BOOTDISK=$IMG MEM=1024 "$ROOT/scripts/guest/boot-cli.sh" \
 		'echo $bootargs' 'ls -d /sys/src/9/pc64 /amd64/bin/rc /usr/glenda/lib/profile' \
 		'sleep 10; ps | grep -c closeproc' 'ls /srv | grep -c hjfs' \
 		'echo lib `{ls /amd64/lib | wc -l} gcc `{ls /amd64/lib.gcc/libc.a}' \

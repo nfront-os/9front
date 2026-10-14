@@ -45,7 +45,7 @@
 		"Name": "cmd-postscript-posttek-install",
 		"Install": "",
 		"Post": [
-			"python3 ../../../../../scripts/mkinstall.py cmd/postscript/posttek"
+			"python3 ../../../../../scripts/build/mkinstall.py cmd/postscript/posttek"
 		]
 	}
 ]

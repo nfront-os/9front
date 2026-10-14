@@ -6,7 +6,7 @@
 		],
 		"Install": "/$ARCH/bin/aux/",
 		"Pre": [
-			"bash ../../../../../scripts/yacc.sh -d na.y"
+			"bash ../../../../../scripts/build/yacc.sh -d na.y"
 		],
 		"Oflags": [
 			"--entry=_main"

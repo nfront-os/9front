@@ -10,7 +10,7 @@
 			"-DSHELLCOM=\"/bin/sh\""
 		],
 		"Pre": [
-			"bash ../../../../../scripts/yacc.sh -S gram.y",
+			"bash ../../../../../scripts/build/yacc.sh -S gram.y",
 			"mv y.tab.c gram.c"
 		],
 		"Ape": true,

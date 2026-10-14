@@ -45,7 +45,7 @@ generated per-arch manifests, none for amd64), CONF (the kernel
 configuration: pc, pc64, qemu), TOOLPREFIX (arm64: aarch64-linux-musl-)
 and CPUS. PLAN9 defaults to the git checkout. Without an argument the
 tool builds build.json of the current directory, else the tree's, which
-builds everything for ARCH (build.$ARCH.json, scripts/genbuild.py):
+builds everything for ARCH (build.$ARCH.json, scripts/gen/genbuild.py):
 
 	CC=gcc ARCH=amd64 sys/src/cmd/build/build.exe
 

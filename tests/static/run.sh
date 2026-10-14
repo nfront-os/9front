@@ -9,8 +9,8 @@ manifests(){
 		$(ls sys/src/lib*/lib*.json) $(find sys/src/cmd -name cmds.json)
 		build.json build.amd64.json build.386.json build.arm64.json"
 	for f in $files; do cp "$f" "$TMPD/$(echo $f | tr / _)"; done
-	python3 scripts/genlibc.py >/dev/null && python3 scripts/genlibs.py >/dev/null &&
-		python3 scripts/gencmds.py >/dev/null && python3 scripts/genbuild.py >/dev/null || return 1
+	python3 scripts/gen/genlibc.py >/dev/null && python3 scripts/gen/genlibs.py >/dev/null &&
+		python3 scripts/gen/gencmds.py >/dev/null && python3 scripts/gen/genbuild.py >/dev/null || return 1
 	local bad=0
 	for f in $files; do
 		if ! cmp -s "$f" "$TMPD/$(echo $f | tr / _)"; then
@@ -20,9 +20,9 @@ manifests(){
 	done
 	return $bad
 }
-check "manifests match scripts/gen{libc,libs,cmds,build}.py" manifests
+check "manifests match scripts/gen/gen{libc,libs,cmds,build}.py" manifests
 
-# 2. no 32-bit ulong compared against the 64-bit ~0UL (scripts/port/fixulongmax.py)
+# 2. no 32-bit ulong compared against the 64-bit ~0UL (scripts/fix/fixulongmax.py)
 ulongmax(){
 	! grep -rnP "[!=]=\s*~0UL\b(?!L)|~0UL\s*[!=]=" sys/src/9/port sys/src/9/pc sys/src/9/ip \
 		sys/src/lib* sys/src/cmd --include=*.c | grep -vE "/cmd/(cc|[5678kqv][ac]|gs)/"
@@ -32,7 +32,7 @@ check "no ulong == / != ~0UL (kernel, libraries, commands)" ulongmax
 # 3. explicit casts to an unnamed member's type: gcc does not adjust the
 #    address like 8c; every remaining cast must be reviewed (allow list)
 casts(){
-	python3 scripts/port/find-embedded-casts.py sys/src/lib* sys/src/cmd sys/src/9/port \
+	python3 scripts/check/find-embedded-casts.py sys/src/lib* sys/src/cmd sys/src/9/port \
 		sys/src/9/pc sys/src/9/ip | grep -v '^	' | sed 's/:[0-9]*:/:/' | sort -u > "$TMPD/casts"
 	comm -23 "$TMPD/casts" <(sort -u tests/static/embedded-casts.allow) | grep . && return 1
 	return 0
@@ -45,7 +45,7 @@ check "no unreviewed casts to embedded member types" casts
 #     conversions must stay implicit as in 9front (gcc's
 #     -fplan9-extensions does them right, an explicit cast does not)
 addedcasts(){
-	python3 scripts/port/find-added-casts.py | grep -v '\*\*)' | grep -v 'GCC port' | grep . && return 1
+	python3 scripts/check/find-added-casts.py | grep -v '\*\*)' | grep -v 'GCC port' | grep . && return 1
 	return 0
 }
 check "no casts added to 9front sources except T** conversions" addedcasts
@@ -53,7 +53,7 @@ check "mouse.h embeds Mouse like 9front" grep -qP '^\tMouse;' sys/include/mouse.
 
 # 3c. member paths must not lose a level against 9front (clunkq.q.head ->
 #     clunkq.head changed the kernel's closeproc logic)
-check "no member path shortened against 9front" python3 scripts/port/find-shortened-members.py
+check "no member path shortened against 9front" python3 scripts/check/find-shortened-members.py
 
 # 4. enumerators with a vlong value: kencc keeps the type, gcc makes them int
 enums(){
@@ -78,7 +78,7 @@ check "no (u)vlong-valued enumerators" enums
 # 4b. on-disk/on-wire structs laid out as kencc does: long 32 bit,
 #     #pragma pack on honored (cwfs, scat, doom, snoopy, nusb/disk,
 #     bootexec.h, libmach's ureg.h; amd64 and 386)
-check "file and wire struct layouts match kencc's" scripts/port/cmp-struct-layout.sh
+check "file and wire struct layouts match kencc's" scripts/check/cmp-struct-layout.sh
 
 # 5. amd64 u.h: 8c intrinsics and the System V jmp_buf
 # arguments through ... are promoted to int (double); va_arg of a

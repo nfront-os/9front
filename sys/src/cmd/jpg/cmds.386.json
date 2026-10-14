@@ -6,7 +6,7 @@
 		],
 		"Install": "/$ARCH/bin/",
 		"Pre": [
-			"bash ../../../../scripts/gen-jpg-tables.sh"
+			"bash ../../../../scripts/build/gen-jpg-tables.sh"
 		],
 		"Oflags": [
 			"--entry=_main"
@@ -74,7 +74,7 @@
 		],
 		"Install": "/$ARCH/bin/",
 		"Pre": [
-			"bash ../../../../scripts/gen-jpg-tables.sh"
+			"bash ../../../../scripts/build/gen-jpg-tables.sh"
 		],
 		"Oflags": [
 			"--entry=_main"
@@ -140,7 +140,7 @@
 		],
 		"Install": "/$ARCH/bin/",
 		"Pre": [
-			"bash ../../../../scripts/gen-jpg-tables.sh"
+			"bash ../../../../scripts/build/gen-jpg-tables.sh"
 		],
 		"Oflags": [
 			"--entry=_main"
@@ -208,7 +208,7 @@
 		],
 		"Install": "/$ARCH/bin/",
 		"Pre": [
-			"bash ../../../../scripts/gen-jpg-tables.sh"
+			"bash ../../../../scripts/build/gen-jpg-tables.sh"
 		],
 		"Oflags": [
 			"--entry=_main"
@@ -275,7 +275,7 @@
 		],
 		"Install": "/$ARCH/bin/",
 		"Pre": [
-			"bash ../../../../scripts/gen-jpg-tables.sh"
+			"bash ../../../../scripts/build/gen-jpg-tables.sh"
 		],
 		"Oflags": [
 			"--entry=_main"
@@ -343,7 +343,7 @@
 		],
 		"Install": "/$ARCH/bin/",
 		"Pre": [
-			"bash ../../../../scripts/gen-jpg-tables.sh"
+			"bash ../../../../scripts/build/gen-jpg-tables.sh"
 		],
 		"Oflags": [
 			"--entry=_main"
@@ -409,7 +409,7 @@
 		],
 		"Install": "/$ARCH/bin/",
 		"Pre": [
-			"bash ../../../../scripts/gen-jpg-tables.sh"
+			"bash ../../../../scripts/build/gen-jpg-tables.sh"
 		],
 		"Oflags": [
 			"--entry=_main"
@@ -476,7 +476,7 @@
 		],
 		"Install": "/$ARCH/bin/",
 		"Pre": [
-			"bash ../../../../scripts/gen-jpg-tables.sh"
+			"bash ../../../../scripts/build/gen-jpg-tables.sh"
 		],
 		"Oflags": [
 			"--entry=_main"
@@ -541,7 +541,7 @@
 		],
 		"Install": "/$ARCH/bin/",
 		"Pre": [
-			"bash ../../../../scripts/gen-jpg-tables.sh"
+			"bash ../../../../scripts/build/gen-jpg-tables.sh"
 		],
 		"Oflags": [
 			"--entry=_main"
@@ -608,7 +608,7 @@
 		],
 		"Install": "/$ARCH/bin/",
 		"Pre": [
-			"bash ../../../../scripts/gen-jpg-tables.sh"
+			"bash ../../../../scripts/build/gen-jpg-tables.sh"
 		],
 		"Oflags": [
 			"--entry=_main"
@@ -673,7 +673,7 @@
 		],
 		"Install": "/$ARCH/bin/",
 		"Pre": [
-			"bash ../../../../scripts/gen-jpg-tables.sh"
+			"bash ../../../../scripts/build/gen-jpg-tables.sh"
 		],
 		"Oflags": [
 			"--entry=_main"
@@ -741,7 +741,7 @@
 		],
 		"Install": "/$ARCH/bin/",
 		"Pre": [
-			"bash ../../../../scripts/gen-jpg-tables.sh"
+			"bash ../../../../scripts/build/gen-jpg-tables.sh"
 		],
 		"Oflags": [
 			"--entry=_main"
@@ -806,7 +806,7 @@
 		],
 		"Install": "/$ARCH/bin/",
 		"Pre": [
-			"bash ../../../../scripts/gen-jpg-tables.sh"
+			"bash ../../../../scripts/build/gen-jpg-tables.sh"
 		],
 		"Oflags": [
 			"--entry=_main"
@@ -870,7 +870,7 @@
 		],
 		"Install": "/$ARCH/bin/",
 		"Pre": [
-			"bash ../../../../scripts/gen-jpg-tables.sh"
+			"bash ../../../../scripts/build/gen-jpg-tables.sh"
 		],
 		"Oflags": [
 			"--entry=_main"
@@ -938,7 +938,7 @@
 		],
 		"Install": "/$ARCH/bin/",
 		"Pre": [
-			"bash ../../../../scripts/gen-jpg-tables.sh"
+			"bash ../../../../scripts/build/gen-jpg-tables.sh"
 		],
 		"Oflags": [
 			"--entry=_main"
@@ -1006,7 +1006,7 @@
 		],
 		"Install": "/$ARCH/bin/",
 		"Pre": [
-			"bash ../../../../scripts/gen-jpg-tables.sh"
+			"bash ../../../../scripts/build/gen-jpg-tables.sh"
 		],
 		"Oflags": [
 			"--entry=_main"

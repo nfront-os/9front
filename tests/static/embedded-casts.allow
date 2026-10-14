@@ -1,4 +1,4 @@
-# Reviewed casts to unnamed-member types (scripts/port/find-embedded-casts.py),
+# Reviewed casts to unnamed-member types (scripts/check/find-embedded-casts.py),
 # all with the member first or not a struct conversion; see MEMORY.md Teil 18.
 # libaml/aml.c: its own struct Ref, casts from void* (not the embedded libc Ref).
 sys/src/9/pc/devtv.c: (Frame*) -- Frame not first in: Text, Window

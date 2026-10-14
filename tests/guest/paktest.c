@@ -1,6 +1,6 @@
 /*
  * The dp9ik PAK curve code of libauthsrv (sys/src/libauthsrv/*.mpc,
- * generated from *.mp by scripts/gen-mpc.sh) step by step, each step in
+ * generated from *.mp by scripts/build/gen-mpc.sh) step by step, each step in
  * its own process with a time limit, built with the gcc port toolchain
  * and run inside 9front (tests/guest/run.sh). authpak_hash, which
  * factotum -S runs for its nvram key, is built from these steps.

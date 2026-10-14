@@ -6,7 +6,7 @@
 		],
 		"Install": "/$ARCH/bin/aux/",
 		"Pre": [
-			"bash ../../../../../scripts/gen-latin1-h.sh"
+			"bash ../../../../../scripts/build/gen-latin1-h.sh"
 		],
 		"Oflags": [
 			"--entry=_main"

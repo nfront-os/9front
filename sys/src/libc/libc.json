@@ -14,7 +14,7 @@
 			"9syscall/9syscall.json"
 		],
 		"Pre": [
-			"bash ../../../scripts/gen-runetype.sh"
+			"bash ../../../scripts/build/gen-runetype.sh"
 		],
 		"Clean": [
 			"ucd/runenormdata",

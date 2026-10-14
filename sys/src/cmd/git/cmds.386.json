@@ -643,7 +643,7 @@
 		"Name": "cmd-git-install",
 		"Install": "",
 		"Post": [
-			"python3 ../../../../scripts/mkinstall.py cmd/git"
+			"python3 ../../../../scripts/build/mkinstall.py cmd/git"
 		]
 	}
 ]

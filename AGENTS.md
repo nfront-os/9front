@@ -7,15 +7,15 @@ The **9front** OS source tree (Plan 9 fork). Branch `front` = mirror of github.c
 - `386/ amd64/ arm64/`: per arch `include/u.h`, `include/ureg.h`; built files land in `<arch>/bin`, `<arch>/lib.gcc`.
 - `sys/src/`: `lib*` libraries, `cmd` + `games` programs, `9` kernel (`9/port` common, `9/pc` 386, `9/pc64` amd64, `9/arm64` qemu), `ape` POSIX layer, `boot` loaders.
 - `sys/include/`: shared headers. `rc/`, `lib/`, `acme/`: scripts and data.
-- `scripts/`: build steps and manifest generators; `scripts/port/`: checks and source fixers. `tests/`: test suites.
+- `scripts/`: `gen/` manifest generators, `build/` build steps, `guest/` QEMU/CD/boot loaders, `check/` + `fix/` porting tools, `debug/` (see `scripts/README.md`). `tests/`: test suites.
 
 ## Build (gcc port)
 - Build tool (Go) once: `cd sys/src/cmd/build && GO111MODULE=off go build -o build.exe .`
 - Everything for one arch, from the tree root: `CC=gcc ARCH=amd64 sys/src/cmd/build/build.exe` (or `ARCH=386`, `ARCH=arm64`). Ends with `NNN files expected, ok`.
 - One manifest: `CC=gcc ARCH=amd64 sys/src/cmd/build/build.exe <path/to/x.json>`.
 - Never run two builds in the same tree at once (they share object files).
-- Manifests (`*.json`) are generated from 9front's mkfiles and checked in. Never hand-edit; regenerate: `scripts/genlibc.py genlibs.py gencmds.py genkernel.py genbuild.py` (other arch: `objtype=386 python3 scripts/...`).
-- Boot loaders: `scripts/build-boot.sh` (in a QEMU guest). Install CD: `objtype=amd64 scripts/mkiso.sh`.
+- Manifests (`*.json`) are generated from 9front's mkfiles and checked in. Never hand-edit; regenerate: `scripts/gen/genlibc.py genlibs.py gencmds.py genkernel.py genbuild.py` (other arch: `objtype=386 python3 scripts/...`).
+- Boot loaders: `scripts/guest/build-boot.sh` (in a QEMU guest). Install CD: `objtype=amd64 scripts/guest/mkiso.sh`.
 - Tests: `bash tests/static/run.sh` (no build needed), `bash tests/run.sh [static asm syscall build guest boot gui disk iso]`.
 
 ## Plan 9 C
@@ -28,7 +28,7 @@ The **9front** OS source tree (Plan 9 fork). Branch `front` = mirror of github.c
 - Prefer a cast or a type change over rewriting code. Do not reformat.
 - Generated files: change the generator, not the output (e.g. `sd53c8xx.c` from `sd53c8xx.n`).
 - Assembly: keep 9front's `.s`, add a GAS `.S` port beside it (System V ABI).
-- New helper scripts go in `scripts/` (checks/fixers in `scripts/port/`).
+- New helper scripts go in the matching `scripts/` subdirectory; list them in `scripts/README.md`.
 - Log fixes and findings in `MEMORY.md`.
 
 ## gcc vs 9front's compilers: known traps
@@ -38,4 +38,4 @@ The **9front** OS source tree (Plan 9 fork). Branch `front` = mirror of github.c
 - Busy-wait loops on memory need `volatile` (gcc hoists the load).
 - Embedded structs (`Lock;`) need `-fplan9-extensions`; keep member paths exactly as in 9front (`&mc->Mouse`, not `&mc`).
 - `uchar`/`ushort` promote to unsigned in 9front, to `int` in gcc.
-- Checks for these: `tests/static/run.sh`, `scripts/port/cmp-struct-layout.sh`.
+- Checks for these: `tests/static/run.sh`, `scripts/check/cmp-struct-layout.sh`.

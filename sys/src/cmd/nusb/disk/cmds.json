@@ -9,7 +9,7 @@
 			"-I../lib"
 		],
 		"Pre": [
-			"bash ../../../../../scripts/gen-src.sh cmd/nusb/disk"
+			"bash ../../../../../scripts/build/gen-src.sh cmd/nusb/disk"
 		],
 		"Oflags": [
 			"--entry=_main"

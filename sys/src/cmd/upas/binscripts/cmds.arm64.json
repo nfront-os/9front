@@ -3,7 +3,7 @@
 		"Name": "cmd-upas-binscripts-install",
 		"Install": "",
 		"Post": [
-			"python3 ../../../../../scripts/mkinstall.py cmd/upas/binscripts"
+			"python3 ../../../../../scripts/build/mkinstall.py cmd/upas/binscripts"
 		]
 	}
 ]

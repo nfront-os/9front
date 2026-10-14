@@ -7,7 +7,7 @@
 		],
 		"Install": "/$ARCH/bin/",
 		"Pre": [
-			"bash ../../../../scripts/yacc.sh -d -S eqn.y"
+			"bash ../../../../scripts/build/yacc.sh -d -S eqn.y"
 		],
 		"Ape": true,
 		"Oflags": [

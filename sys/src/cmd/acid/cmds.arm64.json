@@ -6,7 +6,7 @@
 		],
 		"Install": "/$ARCH/bin/",
 		"Pre": [
-			"bash ../../../../scripts/yacc.sh -d dbg.y"
+			"bash ../../../../scripts/build/yacc.sh -d dbg.y"
 		],
 		"Oflags": [
 			"--entry=_main"
