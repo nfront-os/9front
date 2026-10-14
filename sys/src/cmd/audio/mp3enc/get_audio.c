@@ -186,6 +186,11 @@ SwapBytesInWords(short *ptr, int short_words)
 
     assert(sizeof(short) == 2);
 
+/* GCC port: the mkfile's SIZEOF_UNSIGNED_LONG=4 is kencc's long; gcc's (APE, LP64) is 8 on amd64/arm64 */
+#ifdef __SIZEOF_LONG__
+#undef SIZEOF_UNSIGNED_LONG
+#define SIZEOF_UNSIGNED_LONG __SIZEOF_LONG__
+#endif
 
 #if defined(SIZEOF_UNSIGNED_LONG) && SIZEOF_UNSIGNED_LONG == 4
     for (; short_words >= 2; short_words -= 2, p++) {

@@ -39,15 +39,15 @@ main(int argc, char *argv[])
 		print("cant open %s: %r\n", file);
 		exits("open");
 	}
-	l = seek(f, 0, 2) / sizeof(long);
+	l = seek(f, 0, 2) / sizeof(ulong);	/* GCC port: was sizeof(long), the file holds 32-bit words (b is ulong*) */
 
-	b = malloc(l*sizeof(long));
+	b = malloc(l*sizeof(ulong));
 	if(b == 0) {
 		print("cant malloc %s: %r\n", file);
 		exits("malloc");
 	}
 	seek(f, 0, 0);
-	if(read(f, b, l*sizeof(long)) != l*sizeof(long)) {
+	if(read(f, b, l*sizeof(ulong)) != l*sizeof(ulong)) {
 		print("short read %s: %r\n", file);
 		exits("read");
 	}
@@ -95,7 +95,7 @@ main(int argc, char *argv[])
 		if(hibits > lobits)
 			swapem(b, l);
 		seek(f, 0, 0);
-		if(write(f, b, l*sizeof(long)) != l*sizeof(long)) {
+		if(write(f, b, l*sizeof(ulong)) != l*sizeof(ulong)) {
 			print("short write %s\n", file);
 			exits("write");
 		}

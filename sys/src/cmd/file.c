@@ -693,7 +693,7 @@ fileoffmagic(Fileoffmag *tab, int ntab)
 	int i;
 	ulong x;
 	Fileoffmag *tp;
-	uchar buf[sizeof(long)];
+	uchar buf[sizeof(ulong)];	/* GCC port: was sizeof(long), LENDIAN reads 4 bytes */
 
 	for(i=0; i<ntab; i++) {
 		tp = tab + i;

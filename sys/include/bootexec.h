@@ -16,30 +16,30 @@ struct coffsect
 /*
  * proprietary exec headers, needed to bootstrap various machines
  */
-struct mipsexec
+struct mipsexec	/* GCC port: long -> s32int, file format, kencc long is 32 bit */
 {
 	short	mmagic;		/* (0x160) mips magic number */
 	short	nscns;		/* (unused) number of sections */
-	long	timdat;		/* (unused) time & date stamp */
-	long	symptr;		/* offset to symbol table */
-	long	nsyms;		/* size of symbol table */
+	s32int	timdat;		/* (unused) time & date stamp */
+	s32int	symptr;		/* offset to symbol table */
+	s32int	nsyms;		/* size of symbol table */
 	short	opthdr;		/* (0x38) sizeof(optional hdr) */
 	short	pcszs;		/* flags */
 	short	amagic;		/* see above */
 	short	vstamp;		/* version stamp */
-	long	tsize;		/* text size in bytes */
-	long	dsize;		/* initialized data */
-	long	bsize;		/* uninitialized data */
-	long	mentry;		/* entry pt.				*/
-	long	text_start;	/* base of text used for this file	*/
-	long	data_start;	/* base of data used for this file	*/
-	long	bss_start;	/* base of bss used for this file	*/
-	long	gprmask;	/* general purpose register mask	*/
+	s32int	tsize;		/* text size in bytes */
+	s32int	dsize;		/* initialized data */
+	s32int	bsize;		/* uninitialized data */
+	s32int	mentry;		/* entry pt.				*/
+	s32int	text_start;	/* base of text used for this file	*/
+	s32int	data_start;	/* base of data used for this file	*/
+	s32int	bss_start;	/* base of bss used for this file	*/
+	s32int	gprmask;	/* general purpose register mask	*/
 union{
-	long	cprmask[4];	/* co-processor register masks		*/
-	long	pcsize;
+	s32int	cprmask[4];	/* co-processor register masks		*/
+	s32int	pcsize;
 };
-	long	gp_value;	/* the gp value used for this object    */
+	s32int	gp_value;	/* the gp value used for this object    */
 };
 
 struct mips4kexec

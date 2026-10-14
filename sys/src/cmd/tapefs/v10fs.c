@@ -22,7 +22,7 @@
 #define	VNAMELEN	14
 #define	BLSIZE	4096
 #define	LINOPB	(BLSIZE/sizeof(struct v10dinode))
-#define	LNINDIR	(BLSIZE/sizeof(unsigned long))
+#define	LNINDIR	(BLSIZE/sizeof(u32int))	/* GCC port: was sizeof(unsigned long), on-tape words are 32 bit */
 
 struct v10dinode {
 	unsigned char flags[2];
@@ -207,7 +207,7 @@ getblk(Ram *r, long bno, char *buf)
 long
 bmap(Ram *r, long bno)
 {
-	unsigned char indbuf[LNINDIR][sizeof(long)];
+	unsigned char indbuf[LNINDIR][sizeof(u32int)];	/* GCC port: was sizeof(long) */
 
 	if (bno < VNADDR-3)
 		return ((long*)r->data)[bno];

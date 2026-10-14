@@ -10,7 +10,7 @@ enum {
 /* more fundamental types */
 typedef vlong Wideoff; /* type to widen Off to for printing; ≥ as wide as Off */
 typedef short	Userid;		/* signed internal representation of user-id */
-typedef long	Timet;		/* in seconds since epoch */
+typedef s32int	Timet;		/* in seconds since epoch */	/* GCC port: was long, on-disk (Cache), kencc long is 32 bit */
 typedef vlong	Devsize;	/* in bytes */
 
 
@@ -70,6 +70,9 @@ typedef	struct	Uid	Uid;
 typedef	struct	Wpath	Wpath;
 
 #pragma pack on
+#ifdef __GNUC__
+#pragma pack(push,1)	/* GCC port: gcc ignores kencc's pack on */
+#endif
 
 /* DONT TOUCH, this is the disk structure */
 struct	Tag
@@ -130,11 +133,14 @@ struct	Dentry
 	Off	size;
 	Off	dblock[NDBLOCK];
 	Off	iblocks[NIBLOCK];
-	long	atime;
-	long	mtime;
+	s32int	atime;		/* GCC port: was long, on-disk, kencc long is 32 bit */
+	s32int	mtime;
 };
 
 #pragma pack off
+#ifdef __GNUC__
+#pragma pack(pop)
+#endif
 
 /*
  * derived constants
@@ -397,6 +403,9 @@ struct	Uid
 };
 
 #pragma pack on
+#ifdef __GNUC__
+#pragma pack(push,1)	/* GCC port: gcc ignores kencc's pack on */
+#endif
 
 /* DONT TOUCH, this is the disk structure */
 struct	Fbuf
@@ -413,6 +422,9 @@ struct	Superb
 };
 
 #pragma pack off
+#ifdef __GNUC__
+#pragma pack(pop)
+#endif
 
 struct	Conf
 {
@@ -532,6 +544,9 @@ typedef struct
  * cw device
  */
 #pragma pack on
+#ifdef __GNUC__
+#pragma pack(push,1)	/* GCC port: gcc ignores kencc's pack on */
+#endif
 
 /* DONT TOUCH, this is the disk structure */
 struct	Cache
@@ -555,7 +570,7 @@ struct	Cache
 /* DONT TOUCH, this is the disk structure */
 struct	Bucket
 {
-	long	agegen;		/* generator for ages in this bkt */
+	s32int	agegen;		/* generator for ages in this bkt */	/* GCC port: was long, on-disk */
 	Centry	entry[CEPERBK];
 };
 
@@ -572,6 +587,9 @@ struct Label			/* label block on Devlworms, in last block */
 };
 
 #pragma pack off
+#ifdef __GNUC__
+#pragma pack(pop)
+#endif
 
 typedef struct Map Map;
 struct Map {

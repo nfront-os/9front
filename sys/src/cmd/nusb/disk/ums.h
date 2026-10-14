@@ -105,8 +105,8 @@ struct Ums
 struct Cbw
 {
 	char	signature[4];		/* "USBC" */
-	long	tag;
-	long	datalen;
+	s32int	tag;		/* GCC port: wire format, kencc long is 32 bit, gcc long on amd64 64 bit */
+	s32int	datalen;
 	uchar	flags;
 	uchar	lun;
 	uchar	len;
@@ -116,7 +116,7 @@ struct Cbw
 struct Csw
 {
 	char	signature[4];		/* "USBS" */
-	long	tag;
-	long	dataresidue;
+	s32int	tag;		/* GCC port: wire format, see Cbw */
+	s32int	dataresidue;
 	uchar	status;
 };

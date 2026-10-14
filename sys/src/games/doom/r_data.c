@@ -86,7 +86,7 @@ typedef struct
 	boolean		masked;	
 	short		width;
 	short		height;
-	long		columndirectory;	// OBSOLETE
+	s32int		columndirectory;	// OBSOLETE	/* GCC port: was long, WAD format, kencc long is 32 bit */
 	short		patchcount;
 	mappatch_t	patches[1];
 } maptexture_t;

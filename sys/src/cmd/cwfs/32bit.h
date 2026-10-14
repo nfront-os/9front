@@ -14,7 +14,7 @@ enum {
 	NIBLOCK		= 2,		/* max depth of indirect blocks */
 };
 
-typedef long Off;	/* file offsets & sizes, in bytes & blocks */
+typedef s32int Off;	/* file offsets & sizes, in bytes & blocks */	/* GCC port: on-disk, kencc long is 32 bit, gcc long on amd64 64 bit */
 
 #define COMPAT32
 #define swaboff swab4

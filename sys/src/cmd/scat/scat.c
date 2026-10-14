@@ -26,7 +26,7 @@ char		ngctype[NNGCrec];
 Mindexrec	mindex[NMrec];
 Namerec		name[NName];
 Bayerec		bayer[NBayer];
-long		con[MAXcon];
+s32int		con[MAXcon];	/* GCC port: was long, read as 4-byte words */
 ushort		conindex[Ncon+1];
 long		patchaddr[Npatch+1];
 
@@ -156,7 +156,7 @@ skipstr(char *s, char *t)
 
 /* produce little-endian long at address l */
 long
-Long(long *l)
+Long(s32int *l)	/* GCC port: was long *l, a 4-byte word on disk */
 {
 	uchar *p;
 

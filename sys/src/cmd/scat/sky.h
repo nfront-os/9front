@@ -135,11 +135,14 @@ enum
 #define	NPlanet			20
 
 typedef float	Angle;	/* in radians */
-typedef long	DAngle;	/* on disk: in units of milliarcsec */
+typedef s32int	DAngle;	/* on disk: in units of milliarcsec */	/* GCC port: was long, kencc long is 32 bit */
 typedef short	Mag;	/* multiplied by 10 */
-typedef long	Key;	/* known to be 4 bytes, unfortunately */
+typedef s32int	Key;	/* known to be 4 bytes, unfortunately */	/* GCC port: was long */
 
 #pragma pack on
+#ifdef __GNUC__
+#pragma pack(push,1)	/* GCC port: gcc ignores kencc's pack on */
+#endif
 
 /*
  * All integers are stored in little-endian order.
@@ -205,7 +208,7 @@ struct SAOrec{
 	char	compid[2];
 	char	hdcode;
 	char	pad1;
-	long	hd;		/* HD catalog number */
+	s32int	hd;		/* HD catalog number */	/* GCC port: was long, on disk */
 	char	name[3];	/* name[0]=alpha name[1]=2 name[3]=ori */
 	char	nname;		/* number of prose names */
 	/* 36 bytes to here */
@@ -220,12 +223,15 @@ struct Mindexrec{	/* code knows the bit patterns in here; this is a long */
 
 typedef struct Bayerec Bayerec;
 struct Bayerec{
-	long	sao;
+	s32int	sao;	/* GCC port: was long, on disk */
 	char	name[3];
 	char	pad;
 };
 
 #pragma pack off
+#ifdef __GNUC__
+#pragma pack(pop)
+#endif
 
 /*
  * Internal form
@@ -247,7 +253,7 @@ struct Namerec{
 typedef struct Patchrec Patchrec;
 struct Patchrec{
 	int	nkey;
-	long	key[60];
+	s32int	key[60];	/* GCC port: was long, read as 4-byte words (loadpatch) */
 };
 
 typedef struct Record Record;
@@ -376,7 +382,7 @@ extern char*hm(Angle);
 extern char*dm(Angle);
 extern char*deg(Angle);
 extern char*hm5(Angle);
-extern long dangle(Angle);
+extern DAngle dangle(Angle);	/* GCC port: was long, DAngle is s32int now */
 extern Angle angle(DAngle);
 extern void prdesc(char*, char*(*)[2], short*);
 extern double	xsqrt(double);

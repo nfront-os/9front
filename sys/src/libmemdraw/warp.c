@@ -747,10 +747,10 @@ correlate(Sampler *s, Point p)
 {
 	Point sp;
 	int r, g, b, a, Σr, Σg, Σb, Σa;
-	long *kp, kv;
+	s32int *kp, kv;	/* GCC port: was long, the kernel image is 32 bits per pixel (RGBA32), kencc long is 32 bit */
 	ulong v;
 
-	kp = (long*)(s->k->data->bdata + s->k->zero);
+	kp = (s32int*)(s->k->data->bdata + s->k->zero);	/* GCC port: was (long*), 32-bit pixels */
 	Σr = Σg = Σb = Σa = 0;
 
 	for(sp.y = 0; sp.y < s->k->r.max.y; sp.y++)
@@ -911,7 +911,7 @@ Memimage *
 allocmemimagekernel(double *k, int dx, int dy, double denom)
 {
 	Memimage *ik;
-	long *kern;
+	s32int *kern;	/* GCC port: was long, see correlate */
 	double t;
 	int x, y;
 
@@ -933,7 +933,7 @@ allocmemimagekernel(double *k, int dx, int dy, double denom)
 	}
 	denom = denom? 1/denom: 1;
 
-	kern = (long*)(ik->data->bdata + ik->zero);
+	kern = (s32int*)(ik->data->bdata + ik->zero);	/* GCC port: was (long*), 32-bit pixels */
 	for(y = 0; y < dy; y++)
 	for(x = 0; x < dx; x++){
 		t = k[y*dx + x];

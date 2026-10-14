@@ -278,7 +278,7 @@ struct pcap_file_header {
 	ulong		magic;
 	ushort		version_major;
 	ushort		version_minor;
-	long		thiszone;    /* gmt to local correction */
+	s32int		thiszone;    /* gmt to local correction */	/* GCC port: was long, pcap file format */
 	ulong		sigfigs;    /* accuracy of timestamps */
 	ulong		snaplen;    /* max length saved portion of each pkt */
 	ulong		linktype;   /* data link type (DLT_*) */

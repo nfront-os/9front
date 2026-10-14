@@ -74,6 +74,11 @@ PY
 }
 check "no (u)vlong-valued enumerators" enums
 
+# 4b. on-disk/on-wire structs laid out as kencc does: long 32 bit,
+#     #pragma pack on honored (cwfs, scat, doom, snoopy, nusb/disk,
+#     bootexec.h, libmach's ureg.h; amd64 and 386)
+check "file and wire struct layouts match kencc's" scripts/port/cmp-struct-layout.sh
+
 # 5. amd64 u.h: 8c intrinsics and the System V jmp_buf
 # arguments through ... are promoted to int (double); va_arg of a
 # narrower type is undefined -- gcc compiles it into a trap (ud2), kencc
