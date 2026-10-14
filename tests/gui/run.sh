@@ -7,7 +7,7 @@
 # after a pause, as the console window echoes the typed line meanwhile.
 # Typed input reaches rio's window slowly (kbdfs), so the line is short.
 . "$(dirname "$0")/../lib.sh"
-[ -f "$ROOT/amd64/bin/9pc64" ] || { skip "gui" "no kernel, run scripts/build-cli.sh"; done_tests; exit; }
+[ -f "$ROOT/amd64/bin/9pc64" ] || { skip "gui" "no kernel, run $BUILDHOW"; done_tests; exit; }
 
 boot(){
 	SERVICE=terminal KARGS="vgasize=1024x768x16 monitor=vesa mouseport=ps2" \

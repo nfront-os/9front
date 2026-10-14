@@ -9,7 +9,7 @@
 # installed into $ROOT/386 and $ROOT/arm64 like a native mk install.
 # The compilers' LP64 safety is checked by scripts/port/cmp-lp64.sh.
 #
-# usage: scripts/build-boot.sh   (needs scripts/build-cli.sh first)
+# usage: scripts/build-boot.sh   (needs the build first: CC=gcc ARCH=amd64 sys/src/cmd/build/build.exe)
 set -e
 ROOT=${PLAN9:-$(git -C "$(dirname "$0")" rev-parse --show-toplevel)}
 CLI_DIR=${CLI_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/9front-cli}
@@ -25,7 +25,7 @@ git -C "$ROOT" ls-files sys/include 386/include 386/mkfile amd64/include amd64/m
 	sys/src/9/arm64/mkfile sys/src/mkfile.proto \
 	sys/src/cmd/mkone sys/src/cmd/mklib sys/src/cmd/mksyslib \
 	| (cd "$ROOT" && tar -cf - -T -) | tar -xf - -C "$S"
-# arm64 qemu: the a.out kernel (scripts/build-cli.sh with objtype=arm64)
+# arm64 qemu: the a.out kernel (the build with ARCH=arm64)
 # gets its u-boot image, sys/src/boot/qemu its boot.scr
 [ ! -s "$ROOT/arm64/9qemu" ] || cp "$ROOT/arm64/9qemu" "$S/arm64/9qemu"
 

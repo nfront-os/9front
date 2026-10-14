@@ -39,6 +39,16 @@ The environment variables PLAN9 (HARVEY is honoured as a fallback) and ARCH
 are guaranteed to be set for the buildfile. PATH is modified so that
 "$PLAN9/util" is included.
 
+From ARCH the tool sets, unless they are in the environment already,
+objtype (9front's name for it), O (the object letter), SUFFIX (of the
+generated per-arch manifests, none for amd64), CONF (the kernel
+configuration: pc, pc64, qemu), TOOLPREFIX (arm64: aarch64-linux-musl-)
+and CPUS. PLAN9 defaults to the git checkout. Without an argument the
+tool builds build.json of the current directory, else the tree's, which
+builds everything for ARCH (build.$ARCH.json, scripts/genbuild.py):
+
+	CC=gcc ARCH=amd64 sys/src/cmd/build/build.exe
+
 Any key that takes a path or array of paths as its value has absolute paths
 re-rooted to the plan9 tree and variables in the string expanded once.
 

@@ -9,7 +9,7 @@
 # objtype=386: the 386 CD, booted on an x86-64 PC as well (BIOS and
 # 64-bit UEFI both start 9pc; there is no 32-bit OVMF here)
 for f in $objtype/9$KERNEL 386/9bootiso 386/efiboot.fat; do
-	[ -f "$ROOT/$f" ] || { skip "iso" "no $f, run scripts/build-cli.sh and scripts/build-boot.sh"; done_tests; exit; }
+	[ -f "$ROOT/$f" ] || { skip "iso" "no $f, run $BUILDHOW and scripts/build-boot.sh"; done_tests; exit; }
 done
 OVMF_CODE=${OVMF_CODE:-/usr/share/edk2/x64/OVMF_CODE.4m.fd}
 

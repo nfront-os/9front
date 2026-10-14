@@ -14,7 +14,8 @@
 #      are the ISO
 #
 # usage: [objtype=386] scripts/mkiso.sh [iso]	(default $CLI_DIR/9front.$objtype.iso).
-#        Needs scripts/build-cli.sh and scripts/build-boot.sh.
+#        Needs the build (CC=gcc ARCH=$objtype sys/src/cmd/build/build.exe)
+#        and scripts/build-boot.sh.
 set -e
 ROOT=${PLAN9:-$(git -C "$(dirname "$0")" rev-parse --show-toplevel)}
 CLI_DIR=${CLI_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/9front-cli}

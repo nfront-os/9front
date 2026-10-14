@@ -5,7 +5,7 @@
 # -- with the port toolchain: pc64/init9.S (GCC port of ../pc/init9.c),
 # port/initcode.c and libc's system call stubs. proc0() starts it at
 # UTZERO+0x28, past where the a.out header was, so the image is preceded
-# by 0x28 bytes. Needs amd64/lib.gcc/libc.a (scripts/build-cli.sh).
+# by 0x28 bytes. Needs amd64/lib.gcc/libc.a (the build tool builds it first).
 # objtype=386: pc/init9.c, 8l's 32-byte header, 386/lib.gcc/libc.a.
 set -e
 ROOT=${PLAN9:-$(git -C "$(dirname "$0")" rev-parse --show-toplevel)}

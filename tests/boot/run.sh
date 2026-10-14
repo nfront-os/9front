@@ -2,7 +2,7 @@
 # boot: CLI boot smoke test (scripts/boot-cli.sh, service=cpu): bootrc
 # stand-in, init -c, cpurc, console rc
 . "$(dirname "$0")/../lib.sh"
-[ -f "$ROOT/$KBIN" ] || { skip "boot" "no kernel $KBIN, run scripts/build-cli.sh"; done_tests; exit; }
+[ -f "$ROOT/$KBIN" ] || { skip "boot" "no kernel $KBIN, run $BUILDHOW"; done_tests; exit; }
 # PC hardware (VESA BIOS, NCR 53C810) only on pc and pc64. arm64: one
 # CPU -- 9front's arm64 mpinit starts the others with PSCI CPU_ON, and
 # they wait in _start's wfe for an event nothing sends (bcm64 does

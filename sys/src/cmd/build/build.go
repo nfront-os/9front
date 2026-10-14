@@ -62,6 +62,8 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"runtime"
+	"strconv"
 	"strings"
 )
 
@@ -208,6 +210,16 @@ var (
 		"386":   true,
 		"amd64": true,
 		"arm64": true,
+	}
+	// per $ARCH defaults for the environment of the manifests and of
+	// their Pre/Post steps (scripts/arch.py has the same table):
+	// objtype as 9front's mkfiles name it, O the object letter, SUFFIX
+	// of the generated per-arch manifests (none for amd64), CONF the
+	// kernel configuration, TOOLPREFIX of the gcc/binutils
+	archEnv = map[string]map[string]string{
+		"386":   {"objtype": "386", "O": "8", "SUFFIX": ".386", "CONF": "pc", "TOOLPREFIX": ""},
+		"amd64": {"objtype": "amd64", "O": "6", "SUFFIX": "", "CONF": "pc64", "TOOLPREFIX": ""},
+		"arm64": {"objtype": "arm64", "O": "7", "SUFFIX": ".arm64", "CONF": "qemu", "TOOLPREFIX": "aarch64-linux-musl-"},
 	}
 	debugPrint     = flag.Bool("debug", false, "enable debug prints")
 	depends        = flag.Bool("D", false, "Do dependency checking")
@@ -884,7 +896,6 @@ func main() {
 
 	flag.Parse()
 	setup()
-	findTools(os.Getenv("TOOLPREFIX"))
 
 	if os.Getenv("CC") == "" {
 		log.Fatalf("You need to set the CC environment variable (e.g. gcc, clang, clang-3.6, ...)")
@@ -898,6 +909,17 @@ func main() {
 		}
 		log.Fatalf("You need to set the ARCH environment variable from: %v", s)
 	}
+	// the environment of the manifests and their steps: an unset variable gets
+	// $ARCH's default, one set in the environment (even empty) stays
+	for k, v := range archEnv[a] {
+		if _, ok := os.LookupEnv(k); !ok {
+			os.Setenv(k, v)
+		}
+	}
+	if _, ok := os.LookupEnv("CPUS"); !ok {
+		os.Setenv("CPUS", strconv.Itoa(runtime.NumCPU()))
+	}
+	findTools(os.Getenv("TOOLPREFIX"))
 
 	// ensure this is exported, in case we used a default value
 	os.Setenv("PLAN9", plan9)
@@ -928,7 +950,11 @@ func main() {
 			bf = f
 		}
 	} else {
+		// build.json here, else the tree's: everything for $ARCH
 		f, err := findBuildfile("build.json")
+		if err != nil {
+			f, err = findBuildfile(path.Join(plan9, "build.json"))
+		}
 		fail(err)
 		bf = f
 	}

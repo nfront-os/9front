@@ -6,10 +6,11 @@ cd "$ROOT"
 # 1. manifests are what the generators produce from 9front's mkfiles
 manifests(){
 	local files="sys/src/libc/libc.json sys/src/libc/amd64/build.json
-		$(ls sys/src/lib*/lib*.json) $(find sys/src/cmd -name cmds.json)"
+		$(ls sys/src/lib*/lib*.json) $(find sys/src/cmd -name cmds.json)
+		build.json build.amd64.json build.386.json build.arm64.json"
 	for f in $files; do cp "$f" "$TMPD/$(echo $f | tr / _)"; done
 	python3 scripts/genlibc.py >/dev/null && python3 scripts/genlibs.py >/dev/null &&
-		python3 scripts/gencmds.py >/dev/null || return 1
+		python3 scripts/gencmds.py >/dev/null && python3 scripts/genbuild.py >/dev/null || return 1
 	local bad=0
 	for f in $files; do
 		if ! cmp -s "$f" "$TMPD/$(echo $f | tr / _)"; then
@@ -19,7 +20,7 @@ manifests(){
 	done
 	return $bad
 }
-check "manifests match scripts/gen{libc,libs,cmds}.py" manifests
+check "manifests match scripts/gen{libc,libs,cmds,build}.py" manifests
 
 # 2. no 32-bit ulong compared against the 64-bit ~0UL (scripts/port/fixulongmax.py)
 ulongmax(){

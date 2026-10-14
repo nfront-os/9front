@@ -15,7 +15,7 @@
 # commented out.
 #
 # usage: scripts/gen-bootfs.sh [conf [dir]]	(default pc64; dir below
-#	sys/src/9, default conf; needs scripts/build-cli.sh's programs)
+#	sys/src/9, default conf; needs the programs of the build)
 set -e
 ROOT=${PLAN9:-$(git -C "$(dirname "$0")" rev-parse --show-toplevel)}
 CLI_DIR=${CLI_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/9front-cli}

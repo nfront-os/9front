@@ -4,11 +4,10 @@
 # be started by hand in a running system: /tests/run [test...]
 . "$(dirname "$0")/../lib.sh"
 HERE=$(cd "$(dirname "$0")" && pwd)
-[ -x "$CLI_DIR/build.exe" ] || { skip "guest tests" "no build tool, run scripts/build-cli.sh"; done_tests; exit; }
+[ -x "$BUILDEXE" ] || { skip "guest tests" "no build tool $BUILDEXE"; done_tests; exit; }
 
 buildtests(){
-	(cd "$HERE" && env PLAN9="$ROOT" ARCH=amd64 CPUS=$(nproc) CC=gcc TOOLPREFIX= TOOLPFX= \
-		"$CLI_DIR/build.exe" build.json) &&
+	(cd "$HERE" && env PLAN9="$ROOT" ARCH=amd64 CC=gcc "$BUILDEXE" build.json) &&
 	install -m 755 "$HERE/run.rc" "$HERE/root/tests/run"
 }
 check "build tests/guest with the port toolchain" buildtests || { done_tests; exit; }

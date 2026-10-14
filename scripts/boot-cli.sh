@@ -77,7 +77,7 @@ port_open(){ timeout 2 bash -c "exec 3<>/dev/tcp/127.0.0.1/$UFS_PORT" 2>/dev/nul
 
 cmds=("$@")
 
-[ -f "$KERNEL" ] || die "$KERNEL missing, run scripts/build-cli.sh"
+[ -f "$KERNEL" ] || die "$KERNEL missing, run CC=gcc ARCH=$objtype sys/src/cmd/build/build.exe"
 command -v $QEMU >/dev/null || die "$QEMU missing"
 mkdir -p "$CLI_DIR"
 pids=()

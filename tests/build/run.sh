@@ -1,5 +1,5 @@
 #!/bin/bash
-# build: results of scripts/build-cli.sh
+# build: results of the build tool (CC=gcc ARCH=$objtype sys/src/cmd/build/build.exe)
 . "$(dirname "$0")/../lib.sh"
 cd "$ROOT"
 L=$objtype/lib.gcc
@@ -7,7 +7,7 @@ L=$objtype/lib.gcc
 dupsyms(){ nm "$1" 2>/dev/null | awk '$2=="T"{print $3}' | sort | uniq -d; }
 
 libc(){
-	[ -f $L/libc.a ] || { echo "$L/libc.a missing (run scripts/build-cli.sh)"; return 1; }
+	[ -f $L/libc.a ] || { echo "$L/libc.a missing (run $BUILDHOW)"; return 1; }
 	local want got d
 	want=$(python3 -c 'import json, os; print(sum(len(e["SourceFiles"]) for f in ("sys/src/libc/libc%s.json" % os.environ["SUFFIX"], "sys/src/libc/%s/build.json" % os.environ["objtype"]) for e in json.load(open(f))))')
 	got=$(ar t $L/libc.a | wc -l)

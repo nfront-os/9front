@@ -30,7 +30,7 @@ Only targets that build are written to the manifests. `--probe' builds
 every target on its own with the build tool and records the ones that
 fail in scripts/cmds-broken.txt (target, reason); without it, the
 broken list from the last probe is used. Probing needs the libraries
-(scripts/build-cli.sh) and $CLI_DIR/build.exe.
+and the build tool (sys/src/cmd/build/build.exe, see build.json).
 
 usage: scripts/gencmds.py [--probe] [dir...]   (dirs relative to sys/src)
        scripts/gencmds.py --list               manifests in build order
@@ -49,8 +49,7 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 SRC = os.path.join(ROOT, 'sys', 'src')
 BROKEN = os.path.join(ROOT, 'scripts', 'cmds-broken%s.txt' % arch.SUFFIX)
 CMDS = 'cmds%s.json' % arch.SUFFIX	# per architecture, see arch.py
-CLI_DIR = os.environ.get('CLI_DIR', os.path.join(
-	os.environ.get('XDG_CACHE_HOME', os.path.expanduser('~/.cache')), '9front-cli'))
+BUILD = os.path.join(SRC, 'cmd', 'build', 'build.exe')
 
 # linked as one group (--start-group ... --end-group): 8l rescans the
 # libraries until nothing is undefined, GNU ld would scan each archive
@@ -747,7 +746,7 @@ def probe(d, name, e):
 	open(path, 'w').write(json.dumps([m]))
 	env = dict(os.environ, PLAN9=ROOT, ARCH=OBJTYPE, objtype=OBJTYPE, CPUS='4', CC='gcc', TOOLPREFIX=arch.TOOLPREFIX, TOOLPFX='')
 	try:
-		r = subprocess.run([os.path.join(CLI_DIR, 'build.exe'), '.probe.json'],
+		r = subprocess.run([BUILD, '.probe.json'],
 			cwd=os.path.join(SRC, d), env=env, capture_output=True, text=True, timeout=900)
 		out, rc = r.stdout + r.stderr, r.returncode
 	except subprocess.TimeoutExpired:

@@ -12,8 +12,8 @@
 #   plan9.ini has only bootfile and console, so bootrc asks for bootargs.
 #
 # usage: scripts/mkdisk.sh [image]	(default $CLI_DIR/9front.amd64.img;
-#        .qcow2 converts with qemu-img). Needs scripts/build-cli.sh and
-#        scripts/build-boot.sh.
+#        .qcow2 converts with qemu-img). Needs the build
+#        (CC=gcc ARCH=amd64 sys/src/cmd/build/build.exe) and scripts/build-boot.sh.
 set -e
 ROOT=${PLAN9:-$(git -C "$(dirname "$0")" rev-parse --show-toplevel)}
 CLI_DIR=${CLI_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/9front-cli}

@@ -5,7 +5,7 @@
 # installed system. Builds the image (minutes)
 # unless DISKIMG names one.
 . "$(dirname "$0")/../lib.sh"
-[ -f "$ROOT/amd64/bin/9pc64" ] || { skip "disk" "no kernel, run scripts/build-cli.sh"; done_tests; exit; }
+[ -f "$ROOT/amd64/bin/9pc64" ] || { skip "disk" "no kernel, run $BUILDHOW"; done_tests; exit; }
 
 IMG=${DISKIMG:-$TMPD/9front.amd64.img}
 if [ -z "$DISKIMG" ]; then

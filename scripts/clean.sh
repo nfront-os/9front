@@ -1,12 +1,11 @@
 #!/bin/bash
 # Remove the build's artefacts from the tree, as `mk clean' in sys/src
-# does: for every manifest scripts/build-cli.sh builds -- libc, the
-# libraries, the programs (scripts/gencmds.py --list), the kernel
-# libraries (klib.json) and the pc64 kernel -- the build tool's -clean
-# removes the objects, links not yet installed, program-local archives,
-# generated sources (the manifests' Clean: y.tab.[ch], enam.c, ...) and
-# the kernel's copied and generated files. The manifests stay (they are
-# checked in).
+# does: for every manifest the build of build.amd64.json covers -- libc,
+# the libraries, the kernel libraries (klib.json), the programs and the
+# pc64 kernel -- the build tool's -clean removes the objects, links not
+# yet installed, program-local archives, generated sources (the
+# manifests' Clean: y.tab.[ch], enam.c, ...) and the kernel's copied and
+# generated files. The manifests stay (they are checked in).
 #
 # -i also removes what the build installs (like a fresh checkout): every
 # file scripts/check-install.py expects (programs, scripts, gcc archives
@@ -15,7 +14,7 @@
 # Files the repository tracks are never removed.
 #
 # usage: scripts/clean.sh [-i]
-#   env:  CLI_DIR   where build-cli.sh put the build tool
+#   env:  CLI_DIR   where the log goes
 #                   (default ${XDG_CACHE_HOME:-~/.cache}/9front-cli)
 set -e
 ROOT=${PLAN9:-$(git -C "$(dirname "$0")" rev-parse --show-toplevel)}
@@ -29,31 +28,16 @@ case $* in
 esac
 
 cd "$ROOT"
-if [ ! -x "$CLI_DIR/build.exe" ] || [ sys/src/cmd/build/build.go -nt "$CLI_DIR/build.exe" ]; then
-	mkdir -p "$CLI_DIR"
-	(cd sys/src/cmd/build && GO111MODULE=off go build -o "$CLI_DIR/build.exe" .)
+BUILD=sys/src/cmd/build/build.exe
+if [ ! -x $BUILD ] || [ -n "$(find sys/src/cmd/build -name '*.go' -newer $BUILD)" ]; then
+	(cd sys/src/cmd/build && GO111MODULE=off go build -o build.exe .)
 fi
 mkdir -p "$CLI_DIR/log"
 log=$CLI_DIR/log/clean.log
-: > "$log"
-
-clean(){
-	env PLAN9="$ROOT" ARCH=amd64 CC=gcc TOOLPREFIX= TOOLPFX= \
-		"$CLI_DIR/build.exe" -clean "$1" >> "$log" 2>&1 \
-		|| { tail -5 "$log"; die "$1 failed (log: $log)"; }
-}
-
-clean sys/src/libc/libc.json
-for l in $(python3 scripts/genlibs.py --list); do
-	clean "sys/src/$l/$l.json"
-done
-for m in $(python3 scripts/gencmds.py --list); do
-	clean "$m"
-done
-for k in sys/src/lib*/klib.json; do
-	clean "$k"
-done
-objtype=amd64 CONF=pc64 clean sys/src/9/pc64/build.json
+# the per-arch manifest: its prep, kernelgen and install steps are not
+# run by -clean, its Projects are
+env PLAN9="$ROOT" ARCH=amd64 CC=gcc $BUILD -clean build.amd64.json > "$log" 2>&1 \
+	|| { tail -5 "$log"; die "failed (log: $log)"; }
 echo "$(grep -c '^rm ' "$log") files removed from the source directories"
 
 if [ -n "$installed" ]; then

@@ -63,10 +63,10 @@ for f in "$ROOT"/sys/src/libc/ucd/rune*data; do
 done
 
 # the kernel where 9front installs it: amd64/9pc64 (386/9pc), the a.out
-# from scripts/build-cli.sh
+# the build's install step makes (scripts/elf2aout.py)
 A=${objtype:-amd64}
 case $A in amd64) K=9pc64 ;; 386) K=9pc ;; *) echo "stage-dist: objtype=$A unknown" >&2; exit 1 ;; esac
-[ -s "$ROOT/$A/$K" ] || { echo "stage-dist: no $A/$K, run scripts/build-cli.sh" >&2; exit 1; }
+[ -s "$ROOT/$A/$K" ] || { echo "stage-dist: no $A/$K, run CC=gcc ARCH=$A sys/src/cmd/build/build.exe" >&2; exit 1; }
 mkdir -p "$VIEW/.$A"
 for f in "$ROOT"/$A/*; do ln -s "$f" "$VIEW/.$A/$(basename "$f")"; done
 rm "$VIEW/$A"; mv "$VIEW/.$A" "$VIEW/$A"

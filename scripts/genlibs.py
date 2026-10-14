@@ -118,7 +118,7 @@ def reduce_sources(lib):
 	return files + sorted(ported.values())
 
 def main():
-	if sys.argv[1:] == ['--list']:	# build order for scripts/build-cli.sh
+	if sys.argv[1:] == ['--list']:	# build order for scripts/genbuild.py
 		print(' '.join(LIBS))
 		return
 	libs = sys.argv[1:] or LIBS

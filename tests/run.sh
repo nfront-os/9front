@@ -4,7 +4,7 @@
 #   static   source checks, no build needed
 #   asm      host unit tests of the GAS ports of libc's amd64 assembly
 #   syscall  generated system call stubs (scripts/gen-9syscall.sh)
-#   build    results of scripts/build-cli.sh (libraries, commands, kernel)
+#   build    results of the build tool (libraries, commands, kernel)
 #   guest    libc unit tests built with the port toolchain, run in 9front
 #            under QEMU (needs a build; boots once)
 #   boot     CLI boot smoke test via scripts/boot-cli.sh (boots once)
