@@ -22,7 +22,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Guest, CD, tests
 - `scripts/guest/boot-cli.sh` boots the built kernel in QEMU (serial console, Harvey's ufs as root); `scripts/guest/mkiso.sh` / `scripts/guest/mkdisk.sh` make the install CD / disk image in the guest, as 9front's `sys/lib/dist/mkfile` does. Work dir `$CLI_DIR` (`~/.cache/9front-cli`).
-- `tests/run.sh` categories: static, asm, syscall, build, guest, boot, gui, disk, iso. `tests/iso/drive.py` boots the CD to rio and types into it.
+- `tests/run.sh` categories: static, asm, syscall, build, guest, boot, gui, disk, iso, rio, usb (`tests/README.md`). `tests/iso/drive.py` boots the CD to rio and types into it; `tests/vm.py` is the module for guest tests on the CD (rio, usb): boot to rio, QMP keys/mouse, an rc on the serial line.
 
 ## Debugging a hung guest
 - `scripts/debug/qemu-ctl.py DIR type|ser|shot|hmp`: keys via QMP, screendumps, monitor commands, and a second rc on the serial line (QEMU needs `-qmp unix:DIR/qmp.sock,...` and the serial line as `DIR/serial.sock`; socket paths < 108 bytes).

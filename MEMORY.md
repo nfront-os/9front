@@ -793,3 +793,10 @@ Neue Ordnung (Pfade in den Teilen davor sind die alten): `scripts/gen/` (genlibc
 - Python-Generatoren in `gen/`: ROOT eine Ebene höher; `check-install.py`/`mkinstall.py` importieren `gencmds` aus `../gen`; zusammengesetzte Pfade (`scripts/build/` + PRE) in genlibs/gencmds. Alle Manifeste (amd64, 386, arm64) neu erzeugt = byte-gleich mit den umgeschriebenen.
 - `scripts/build/kheader.sh` neu: `genkernel.py` rief für die echo-Header-Regeln des bcm64-mkfiles (`screen.h`, `dwcotg.h`) ein nie vorhandenes `scripts/kheader.sh` auf. bcm64 selbst noch nicht generierbar („l.s not ported“).
 - Geprüft: tests/static 13/13, Build amd64 + 386 (813/813) und beide ISOs nach dem Umzug.
+
+## 2026-10-14 (Teil 39): Testframework — rio und usb
+
+- `tests/vm.py`: gemeinsames Modul für Gast-Tests auf dem CD: bootet wie ein Nutzer (Enter an jedem Prompt) bis rio, startet `rc -i <'#t/eia0' >'#t/eia0'` als Zugang über die serielle Schnittstelle (Socket in kurzem tempdir, < 108 Byte), Tasten/Maus per QMP, Screendumps; `CPU`/`SMP`/`MEM`/`KVM=0`.
+- `tests/rio` (5 Prüfungen): im Fenster markieren + tippen, New + Aufziehen + tippen, im neuen Fenster markieren + tippen, rio läuft noch — Regression für den readmouse-Fehler (Teil 36).
+- `tests/usb` (5 je Controller): Stick an xHCI (`qemu-xhci`), EHCI (`usb-ehci`), UHCI (`piix3-usb-uhci`), OHCI (`pci-ohci`); Root-Hub in `#u`, `storage` aufgezählt, `/dev/sdU*`, Sektor 0. `USB_CTLRS` wählt aus. CD aus `ISO=` oder `$CLI_DIR/9front.$objtype.iso`.
+- Ergebnis amd64 + 386: rio 5/5; xHCI, EHCI, UHCI je 5/5; **OHCI scheitert**: Root-Hub (3 Ports) da, QEMU meldet den Stick (12 Mb/s), aber jedes GET_DESCRIPTOR „no data from device“, dann „too many attaches“. Offen, s. Teil 40.

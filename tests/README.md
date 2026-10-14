@@ -17,7 +17,7 @@ prerequisite is missing (no kernel, no CD, no OVMF) is skipped.
 		cd sys/src/cmd/build && GO111MODULE=off go build -o build.exe . && cd -
 		CC=gcc ARCH=amd64 sys/src/cmd/build/build.exe
 
-2. For `iso` and `disk` also 9front's boot loaders (built in a QEMU guest):
+2. For `iso`, `disk`, `rio` and `usb` also 9front's boot loaders (built in a QEMU guest) and, for `rio`/`usb`, a CD (`scripts/guest/mkiso.sh`):
 
 		scripts/guest/build-boot.sh
 
@@ -39,10 +39,14 @@ file system of the guest: in `PATH` or `~/go/bin/ufs`).
 | `gui` | terminal boot: VESA via aux/realemu, rio, typing into a window | a build, QEMU | ~1 min |
 | `disk` | install image with hjfs (`scripts/guest/mkdisk.sh`), booted on its own | a build, boot loaders | minutes |
 | `iso` | install/live CD (`scripts/guest/mkiso.sh`) booted as CD and as USB stick, BIOS and UEFI, up to rio, then typing into rio | a build, boot loaders, OVMF | minutes |
+| `rio` | mouse and keyboard in rio on the CD: select text, type, New + sweep a window, type into it | a CD | ~1 min |
+| `usb` | a USB stick on xHCI, EHCI, UHCI and OHCI: root hub in `#u`, the stick as `/dev/sdU*`, sector 0 read back | a CD | ~1 min per controller |
 
 Options (environment):
 
-- `ISO=file.iso` — `iso` tests this CD instead of building one. `objtype=386 ISO=~/.cache/9front-cli/9front.386.iso bash tests/run.sh iso`
+- `ISO=file.iso` — `iso` tests this CD instead of building one; `rio` and `usb` use it, else the last CD `scripts/guest/mkiso.sh` made (`~/.cache/9front-cli/9front.$objtype.iso`). `objtype=386 ISO=~/.cache/9front-cli/9front.386.iso bash tests/run.sh iso`
+- `USB_CTLRS="xhci ehci"` — `usb` tests only these controllers.
+- `CPU`, `SMP`, `MEM` — QEMU's `-cpu`, `-smp`, `-m` for `rio` and `usb` (e.g. `CPU=n270 SMP=2` for an Atom netbook).
 - `DISKIMG=file.img` — `disk` boots this image instead of building one.
 - `GUI_SCREENSHOT=file.png` — `gui` keeps the screen dump.
 - `KVM=0` — QEMU without KVM (TCG; slower, but checks instructions against the emulated CPU).
@@ -57,6 +61,7 @@ Options (environment):
 		scripts/guest/boot-cli.sh 'ls /bin' 'ps'  # type the lines, print the console
 
 - The guest unit tests in a running system: `/tests/run [test...]`.
+- `tests/vm.py`: the Python module `rio` and `usb` use — boots a CD to rio, keys and mouse through QMP, an rc on the serial line; a base for new guest tests.
 - Boot a CD in QEMU like `iso` does and see where it stops: `tests/iso/drive.py`
   (`python3 tests/iso/drive.py file.iso cd bios workdir`; the screen dumps
   `screen.ppm` and `final.ppm` end up in `workdir`).

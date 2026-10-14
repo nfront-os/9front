@@ -16,7 +16,7 @@ The **9front** OS source tree (Plan 9 fork). Branch `front` = mirror of github.c
 - Never run two builds in the same tree at once (they share object files).
 - Manifests (`*.json`) are generated from 9front's mkfiles and checked in. Never hand-edit; regenerate: `scripts/gen/genlibc.py genlibs.py gencmds.py genkernel.py genbuild.py` (other arch: `objtype=386 python3 scripts/...`).
 - Boot loaders: `scripts/guest/build-boot.sh` (in a QEMU guest). Install CD: `objtype=amd64 scripts/guest/mkiso.sh`.
-- Tests: `bash tests/static/run.sh` (no build needed), `bash tests/run.sh [static asm syscall build guest boot gui disk iso]`.
+- Tests: `bash tests/static/run.sh` (no build needed), `bash tests/run.sh [static asm syscall build guest boot gui disk iso rio usb]` (see `tests/README.md`).
 
 ## Plan 9 C
 - `#include <u.h>` then `<libc.h>`; `nil` not NULL; errors via `werrstr`/`%r`, `sysfatal`.

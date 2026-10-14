@@ -15,10 +15,14 @@
 #   iso      install/live CD (scripts/guest/mkiso.sh): booted as CD and as disk
 #            (hybrid), each with BIOS and UEFI, up to rio (ISO=image skips
 #            building it)
+#   rio      mouse and keyboard in rio on the CD: select, type, New + sweep
+#            (ISO=image, else the last CD made by scripts/guest/mkiso.sh)
+#   usb      USB stick on xHCI, EHCI, UHCI, OHCI: root hub, /dev/sdU*,
+#            sector 0 (same CD; USB_CTLRS="xhci ehci" for fewer)
 #
 # usage: tests/run.sh [category...]     (default: all, in the order above)
 cd "$(dirname "$0")"
-cats=${*:-static asm syscall build guest boot gui disk iso}
+cats=${*:-static asm syscall build guest boot gui disk iso rio usb}
 failed=()
 for c in $cats; do
 	[ -x "$c/run.sh" ] || { echo "unknown category $c"; exit 2; }
