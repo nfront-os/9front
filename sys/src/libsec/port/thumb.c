@@ -1,9 +1,13 @@
 #include "os.h"
 #include <bio.h>
+#ifdef __GNUC_MINOR__	/* GCC port: APE's libsec (ape/lib/sec) gets no libc.h; kencc would call "nelem redefined" */
+#ifndef nelem
 #define nelem(x) (sizeof(x)/sizeof((x)[0]))
+#endif
 extern int tokenize(char*, char**, int);
 extern int dec16(uchar*, int, char*, int);
 extern int dec64(uchar*, int, char*, int);
+#endif
 #include <libsec.h>
 
 enum{ ThumbTab = 1<<10 };

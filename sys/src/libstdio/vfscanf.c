@@ -57,8 +57,10 @@ icvt_x,	0,	0,	0,	0,	0,	0,	0,	/*  x  y  z  {  |  }  ~ ^? */
 static int nread, ncvt;
 static const char *fmtp;
 
-int vfscanf(FILE *f, const char *s, va_list args){
+int vfscanf(FILE *f, const char *s, va_list args0){
 	int c, width, type, store;
+	va_list args;	/* GCC port: the System V va_list parameter is a pointer, &args0 no va_list* (as ape/lib/ap/stdio/vfscanf.c) */
+	va_copy(args, args0);
 	nread=0;
 	ncvt=0;
 	fmtp=s;

@@ -1,13 +1,20 @@
 /* https://en.wikipedia.org/wiki/Code_page_437 */
 #include "tagspriv.h"
 
-/* GCC port: U"", not L"": kencc's L"" is Rune[], gcc's is wchar_t (int)[] */
 static Rune rh[129] =
+#ifdef __GNUC__	/* GCC port: kencc's L"" is Rune[], gcc's wchar_t (int)[]: U"" (char32_t, unsigned) there */
 	U"ΔÇüéâäàåçêëèïîìÄÅÉæÆôöòûùÿÖÜ¢£¥₧"
 	U"ƒáíóúñÑªº¿⌐¬½¼¡«»░▒▓│┤╡╢╖╕╣║╗╝╜"
 	U"╛┐└┴┬├─┼╞╟╚╔╩╦╠═╬╧╨╤╥╙╘╒╓╫╪┘┌█▄▌"
 	U"▐▀αßΓπΣσµτΦΘΩδ∞φε∩≡±≥≤⌠"
 	U"⌡÷≈°∙·√ⁿ²■ ";
+#else
+	L"ΔÇüéâäàåçêëèïîìÄÅÉæÆôöòûùÿÖÜ¢£¥₧"
+	L"ƒáíóúñÑªº¿⌐¬½¼¡«»░▒▓│┤╡╢╖╕╣║╗╝╜"
+	L"╛┐└┴┬├─┼╞╟╚╔╩╦╠═╬╧╨╤╥╙╘╒╓╫╪┘┌█▄▌"
+	L"▐▀αßΓπΣσµτΦΘΩδ∞φε∩≡±≥≤⌠"
+	L"⌡÷≈°∙·√ⁿ²■ ";
+#endif
 
 int
 cp437toutf8(uchar *o, int osz, const uchar *s, int sz)

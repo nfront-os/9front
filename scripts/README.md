@@ -47,12 +47,13 @@ Called by `build.exe` (Pre/Post steps); rarely run by hand.
 | `boot-cli.sh` | boot the built kernel in QEMU; with arguments, type them and print the output. `scripts/guest/boot-cli.sh 'ls /bin'` |
 | `guest-cmd.sh` | one command line into a guest kept running (`HOLD=1 boot-cli.sh`). `scripts/guest/guest-cmd.sh 'ps'` |
 | `build-boot.sh` | build 9front's boot loaders in the guest with its own compilers (mbr, pbs, 9boot*, efi). `scripts/guest/build-boot.sh` |
+| `build-kencc.sh` | check that the tree still builds with 9front's own compilers: in the guest `mk install` of `/sys/src` and the kernel pc64 with 6c/6a/6l (`boot/mkkencc.rc`). `scripts/guest/build-kencc.sh [kernel]` |
 | `build-uboot.sh` | u-boot for QEMU arm64 (used by `boot-cli.sh`) |
 | `mkiso.sh` | install/live CD, made in the guest. `objtype=386 scripts/guest/mkiso.sh` |
 | `mkdisk.sh` | installed disk image (hjfs). `scripts/guest/mkdisk.sh` |
 | `stage-dist.sh` | the distribution tree the guest gets for mkiso/mkdisk |
 | `gen-ufs-root.sh`, `proto.py` | root tree for the guest; files of a 9front proto |
-| `boot/` | rc scripts run inside the guest (`mkboot.rc`, `mkiso.rc`, `mkdisk.rc`) and `gccproto` |
+| `boot/` | rc scripts run inside the guest (`mkboot.rc`, `mkiso.rc`, `mkdisk.rc`), `gccproto` (`/$objtype/lib.gcc`) and `gnuproto` (`/$objtype/gnu`, the native gcc of `../9front-gcc`) |
 
 ## check/ — gcc vs. 9front's compilers
 

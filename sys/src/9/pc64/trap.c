@@ -429,10 +429,17 @@ syscall(Ureg* ureg)
 	 * this the return went through forkret, which zeroes %rbp, and note
 	 * handlers got no Ureg*.
 	 */
+#ifdef __GNUC__
 	if(dosyscall(scallnr, (Sargs*)(ureg->sp+BY2WD), &ureg->ax))
 		((void**)__builtin_frame_address(0))[1] = (void*)noteret;	/* loads RARG */
 	if((up->procctl || up->nnote) && donotify(ureg))
 		((void**)__builtin_frame_address(0))[1] = (void*)noteret;	/* loads RARG */
+#else
+	if(dosyscall(scallnr, (Sargs*)(ureg->sp+BY2WD), &ureg->ax))
+		((void**)&ureg)[-1] = (void*)noteret;	/* loads RARG */
+	if((up->procctl || up->nnote) && donotify(ureg))
+		((void**)&ureg)[-1] = (void*)noteret;	/* loads RARG */
+#endif
 	/* if we delayed sched because we held a lock, sched now */
 	if(up->delaysched)
 		sched();

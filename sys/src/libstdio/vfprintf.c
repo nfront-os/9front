@@ -147,10 +147,12 @@ static int nprint;
 QLock _stdiolk;
 
 int
-vfprintf(FILE *f, const char *s, va_list args)
+vfprintf(FILE *f, const char *s, va_list args0)
 {
 	int tfl, flags, width, precision;
+	va_list args;	/* GCC port: the System V va_list parameter is a pointer, &args0 no va_list* (as ape/lib/ap/stdio/vfprintf.c) */
 
+	va_copy(args, args0);
 	qlock(&_stdiolk);
 
 	nprint = 0;

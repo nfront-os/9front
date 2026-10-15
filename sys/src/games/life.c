@@ -187,7 +187,11 @@ interest(int rc[NLIFE], int i)
  * Generate returns 0 if there was no change from the last generation,
  * and 1 if there were changes.
  */
-#define	neighbour(di, dj, op) lp[(di)*NLIFE+(dj)] op##= 2	/* GCC port: op= pasted, ISO cpp keeps + and = apart */
+#ifdef __GNUC__	/* GCC port: op= pasted, ISO cpp keeps + and = apart; kencc pastes by juxtaposition */
+#define	neighbour(di, dj, op) lp[(di)*NLIFE+(dj)] op##= 2
+#else
+#define	neighbour(di, dj, op) lp[(di)*NLIFE+(dj)] op= 2
+#endif
 #define	neighbours(op)\
 	neighbour(-1, -1, op);\
 	neighbour(-1,  0, op);\

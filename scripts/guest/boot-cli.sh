@@ -33,6 +33,8 @@
 #                     "vgasize=1024x768x16 monitor=vesa mouseport=ps2"
 #         MEM NIC     QEMU memory (256) and NIC model (e1000)
 #         QEMU_EXTRA  extra QEMU flags (e.g. "-s -S" for gdb)
+#         BOOTKERNEL  the kernel to boot (default: the build's
+#                     $objtype/bin/$KNAME; e.g. one built with kencc)
 #         UFS_EXTRA   directory whose contents are added to the root
 #                     (tests/guest puts its test programs in /tests)
 #         BOOTWAIT    seconds at most for the boot: until rc prompts (300);
@@ -58,7 +60,7 @@ arm64)	KNAME=9qemu QEMU=qemu-system-aarch64 CPU=cortex-a72 ;;
 *)	echo "boot-cli: objtype=$objtype: no kernel" >&2; exit 1 ;;
 esac
 export objtype
-KERNEL=$ROOT/$objtype/bin/$KNAME
+KERNEL=${BOOTKERNEL:-$ROOT/$objtype/bin/$KNAME}
 UFS=${UFS:-$(command -v ufs 2>/dev/null || echo "$HOME/go/bin/ufs")}
 UFS_PORT=${UFS_PORT:-5640}	# host ports of the ufs servers (another boot-cli may run)
 SERVICE=${SERVICE:-cpu}

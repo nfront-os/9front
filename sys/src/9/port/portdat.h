@@ -1086,9 +1086,10 @@ enum
 
 #define DEVDOTDOT -1
 
-/* gcc port: USED and SET macros */
+#ifdef __GNUC__	/* gcc port: USED and SET macros; 6c's are intrinsics */
 #define USED(...) ((void)(0, ##__VA_ARGS__))
 #define SET(x) ((x)=0)
+#endif
 
 #pragma	varargck	type	"I"	uchar*
 #pragma	varargck	type	"V"	uchar*

@@ -95,4 +95,6 @@ typedef	char*	va_list;
 	(sizeof(mode) == 2)?\
 		((list += 4), (mode*)list)[-2]:\
 		((list += sizeof(mode)), (mode*)list)[-1])
+/* GCC port: for the sources that copy a va_list (libc/fmt, libbio, libstdio), as amd64 */
+#define va_copy(dst, src) ((dst) = (src))
 #endif

@@ -33,6 +33,7 @@ PORT=\
 	segment.$O\
 	sysfile.$O\
 	sysproc.$O\
+	sysexecelf.$O\
 	taslock.$O\
 	tod.$O\
 	xalloc.$O\

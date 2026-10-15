@@ -350,12 +350,12 @@ Mach* machp[MAXMACH];
 	
 #define	MACHP(n)	(machp[n])
 
-#if defined(__GNUC__) && !defined(__clang__)
+#ifdef __GNUC__	/* GCC port: gcc's global register variables; 9front's for 6c below */
 register Mach *m __asm__("r15");			/* R15 */
 register Proc *up __asm__("r14");			/* R14 */
 #else
-extern Mach *m;				/* current machine */
-extern Proc *up;			/* current process */
+extern register Mach* m;			/* R15 */
+extern register Proc* up;			/* R14 */
 #endif
 
 /*

@@ -1,0 +1,55 @@
+#!/bin/rc
+# Build the system with 9front's own compilers, run inside the guest by
+# scripts/guest/build-kencc.sh: the gcc-built 9front runs 9front's
+# mkfiles with 6c/6a/6l (objtype=amd64) as 9front builds itself --
+# cd /sys/src; mk install (libraries, ape, acme, cmd, games) and the
+# kernel pc64 (mk in sys/src/9/pc64); "mkkencc kernel" only the
+# libraries and the kernel. The sources are the build host's
+# copy, served as /n/src9; mk install installs into the guest's root
+# (scripts/guest/gen-ufs-root.sh makes it anew for every boot), over the
+# gcc-built programs, as 9front's own build does: what is built later
+# uses what was built before, and the kernel's bootfs takes them.
+rfork en
+fn fail{
+	echo mkkencc: failed: $*
+	exit failed
+}
+
+if(! test -d /n/src9/sys)
+	srv tcp!10.0.2.101!5641 src9 && mount -c /srv/src9 /n/src9 || fail mount src9
+bind -c /n/src9/sys/include /sys/include || fail bind include
+bind -c /n/src9/sys/src /sys/src || fail bind src
+# every arch's include (libmach includes each ureg.h)
+for(a in 386 arm64)
+	bind -bc /n/src9/$a /$a || fail bind $a
+bind -b /n/src9/amd64/include /amd64/include || fail bind amd64/include
+bind -c /n/src9/acme /acme || fail bind acme
+
+# sys/src/mkfile's install, but each directory with mk -k and without
+# stopping at the first failure (its recipe runs under rc -e): every
+# break shows in one run
+objtype=amd64
+NPROC=`{wc -l </dev/sysstat}	# mk's parallelism, as termrc/cpurc set it
+cd /sys/src || fail cd /sys/src
+fn mkvar{
+	sed -n '/^'^$1^'=/,/^$/p' mkfile | sed 's/^'^$1^'=//; s/\\$//'
+}
+dirs=(`{mkvar LIBS} `{mkvar SUBSYS} `{mkvar CMDS})
+if(~ $1 kernel)	# the libraries and the kernel (its bootfs: the guest's gcc-built programs)
+	dirs=(`{mkvar LIBS})
+echo mkkencc: mk install $dirs
+bad=()
+for(i in $dirs){
+	echo mkkencc: dir $i
+	@{cd $i && mk -k install >[2=1]}
+	if(! ~ $status ''){
+		bad=($bad $i)
+		echo mkkencc: status $i $status
+	}
+}
+echo mkkencc: dirs with errors: $bad
+cd /sys/src/9/pc64 || fail cd pc64
+echo mkkencc: kernel pc64
+mk >[2=1]
+echo mkkencc: status kernel pc64 $status
+echo mkkencc: done

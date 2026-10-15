@@ -21,7 +21,11 @@ Rune	sep1	= ' ';	/* default field separator */
 Rune	sep2	= '\t';
 char *sepstr=" ";
 int	discard;	/* count of truncated lines */
-Rune	null[BUFSIZ]	= U"";	/* GCC port: U"", not L"": kencc's L"" is Rune[], gcc's is wchar_t (int)[] */
+#ifdef __GNUC__	/* GCC port: kencc's L"" is Rune[], gcc's wchar_t (int)[]: U"" (char32_t, unsigned) there */
+Rune	null[BUFSIZ]	= U"";
+#else
+Rune	null[BUFSIZ]	= L"";
+#endif
 int	a1;
 int 	a2;
 

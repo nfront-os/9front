@@ -78,10 +78,6 @@ ARCHS = {
 	},
 }
 
-# GCC port: objects every kernel gets besides the mkfile's: the ELF
-# loader of sysexec (port/sysexecelf.c; the gcc-built programs are ELF)
-PORTEXTRA = ['sysexecelf.$O']
-
 # per kernel directory: further Pre steps, Clean globs (files of the
 # scripts/gen-*-i.sh generators and gen-bootfs.sh)
 EXTRA = {
@@ -237,7 +233,7 @@ def entry(d, conf, text, v, objtype):
 		if o == '$DEVS':
 			objs += [x + '.$O' for x in devlist(c) if x + '.$O' not in objs]
 		elif o == '$PORT':
-			objs += [x for x in v['PORT'] + PORTEXTRA if x not in objs]
+			objs += [x for x in v['PORT'] if x not in objs]
 		elif o not in objs:
 			objs.append(o)
 	src, pre = sources(d, text, v, objs)

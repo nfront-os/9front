@@ -316,7 +316,7 @@ int
 oclass(Adr *a)
 {
 	vlong v;
-	long l;
+	s32int l;	/* GCC port: was long; below "(vlong)l == v" asks whether v fits in 32 bits (kencc's long) */
 
 	if(a->type >= D_INDIR || a->index != D_NONE) {
 		if(a->index != D_NONE && a->scale == 0) {

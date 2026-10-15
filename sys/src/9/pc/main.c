@@ -89,7 +89,7 @@ machinit(void)
 	m->machno = machno;
 	m->pdb = pdb;
 	m->gdt = gdt;
-	// m->perf.period = 1;  /* perf struct not defined */
+	m->PMach.perf.period = 1;	/* GCC port: PMach named (dat.h), as pc64 */
 
 	/*
 	 * For polled uart output at boot, need

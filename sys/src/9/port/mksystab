@@ -5,7 +5,7 @@ file=/sys/src/libc/9syscall/sys.h
 cat <<'!'
 #include "../../libc/9syscall/sys.h"
 
-typedef uintptr Syscall(va_list);
+typedef uintptr Syscall(uchar*);	/* GCC port: was va_list (kencc: char*); the system calls take uchar *list, as the build tool's systab.h */
 
 !
 

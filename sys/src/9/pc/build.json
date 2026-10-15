@@ -447,11 +447,11 @@
 			"../port/syscallfmt.c",
 			"../port/sysfile.c",
 			"../port/sysproc.c",
+			"../port/sysexecelf.c",
 			"../port/taslock.c",
 			"../port/tod.c",
 			"../port/xalloc.c",
-			"../port/userinit.c",
-			"../port/sysexecelf.c"
+			"../port/userinit.c"
 		]
 	}
 ]

@@ -370,7 +370,11 @@ void		setkernur(Ureg*, Proc*);
  * that gotolabel()'s jump never restores, corrupting arbitrary state
  * the next time execution resumes here via the "second return".
  */
+#ifdef __GNUC__
 int		setlabel(Label*) __attribute__((returns_twice));
+#else
+int		setlabel(Label*);
+#endif
 void		setmalloctag(void*, uintptr);
 ulong		setnoteid(Proc*, ulong);
 void		setrealloctag(void*, uintptr);

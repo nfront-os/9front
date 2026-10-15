@@ -17,7 +17,7 @@
 #include <cursor.h>
 #include "screen.h"
 
-#include "radeon.h"
+#include "../../cmd/aux/vga/radeon.h"	/* GCC port: was "/sys/src/cmd/aux/vga/radeon.h", a Plan 9 absolute path (ugh) */
 
 /* #define HW_ACCEL */
 

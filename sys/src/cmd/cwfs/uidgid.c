@@ -18,7 +18,11 @@ struct {
 };
 
 static char buf[4096];
-static Rune ichar[] = U"?=+-/:";	/* GCC port: U"", not L"": kencc's L"" is Rune[], gcc's is wchar_t (int)[] */
+#ifdef __GNUC__	/* GCC port: kencc's L"" is Rune[], gcc's wchar_t (int)[]: U"" (char32_t, unsigned) there */
+static Rune ichar[] = U"?=+-/:";
+#else
+static Rune ichar[] = L"?=+-/:";
+#endif
 
 Uid*	chkuid(char *name, int chk);
 void	do_newuser(int, char*[]);
