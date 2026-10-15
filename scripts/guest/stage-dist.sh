@@ -16,7 +16,9 @@
 # tree); /sys/src holds the repository's files only, not the gcc build's
 # objects in the working tree; scripts/guest/boot/gccproto adds /amd64/lib.gcc,
 # the gcc build's archives (distproto ships /amd64/lib empty, as 9front
-# does: libraries are built with mk on the installed system);
+# does: libraries are built with mk on the installed system), and
+# scripts/guest/boot/gnuproto /amd64/gnu, the native gcc and binutils of
+# ../9front-gcc (its out/$objtype; GCC_OUT, if it exists);
 # scripts/guest/proto.py expands the protos. Our
 # binaries carry DWARF (8l writes none) and are stripped. The guest's install script
 # (scripts/guest/boot/mkdisk.rc) reads the result as /n/src9.
@@ -70,6 +72,15 @@ case $A in amd64) K=9pc64 ;; 386) K=9pc ;; *) echo "stage-dist: objtype=$A unkno
 mkdir -p "$VIEW/.$A"
 for f in "$ROOT"/$A/*; do ln -s "$f" "$VIEW/.$A/$(basename "$f")"; done
 rm "$VIEW/$A"; mv "$VIEW/.$A" "$VIEW/$A"
+# the native toolchain (../9front-gcc: build.sh native) as /$objtype/gnu
+GCC_OUT=${GCC_OUT:-$ROOT/../9front-gcc/out/$A}
+PROTOS=("$ROOT/scripts/guest/boot/gccproto")
+if [ -d "$GCC_OUT/$A/gnu" ]; then
+	ln -s "$GCC_OUT/$A/gnu" "$VIEW/$A/gnu"
+	PROTOS+=("$ROOT/scripts/guest/boot/gnuproto")
+else
+	echo "stage-dist: no $GCC_OUT/$A/gnu, the distribution has no gcc" >&2
+fi
 
 rm -rf "$OUT"
 mkdir -p "$OUT"
@@ -77,11 +88,11 @@ export objtype=$A
 python3 "$ROOT/scripts/guest/proto.py" -s "$VIEW" -d "$OUT" \
 	-e tmp -e lib/firmware -e n -e mnt \
 	"$ROOT/sys/lib/sysconfig/proto/distproto" "$ROOT/sys/lib/sysconfig/proto/9bootproto" \
-	"$ROOT/scripts/guest/boot/gccproto" \
+	"${PROTOS[@]}" \
 	2> "$OUT.warnings" || { cat "$OUT.warnings"; exit 1; }
 # for the guest's disk/mkfs (scripts/guest/boot/mkdisk.rc); no proto lists it,
 # so it stays off the disk
-cp "$ROOT/scripts/guest/boot/gccproto" "$OUT/gccproto"
+cat "${PROTOS[@]}" > "$OUT/gccproto"
 find "$OUT" -type f -perm -u+x -exec sh -c 'file -b "$1" | grep -q ^ELF && strip "$1"' _ {} \;
 echo "$(grep -c . "$OUT.warnings") proto warnings ($OUT.warnings)"
 # everything mk install installs made it into the distribution

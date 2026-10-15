@@ -7,7 +7,7 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 [ -x "$BUILDEXE" ] || { skip "guest tests" "no build tool $BUILDEXE"; done_tests; exit; }
 
 buildtests(){
-	(cd "$HERE" && env PLAN9="$ROOT" ARCH=amd64 CC=gcc "$BUILDEXE" build.json) &&
+	(cd "$HERE" && env PLAN9="$ROOT" ARCH=$objtype CC=gcc "$BUILDEXE" build.json) &&
 	install -m 755 "$HERE/run.rc" "$HERE/root/tests/run"
 }
 check "build tests/guest with the port toolchain" buildtests || { done_tests; exit; }

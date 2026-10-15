@@ -22,6 +22,15 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 
+/* $cputype of the system the test runs on (tests/guest/run.sh: ARCH=$objtype) */
+#if defined(__x86_64__)
+#define CPUTYPE	"amd64"
+#elif defined(__i386__)
+#define CPUTYPE	"386"
+#else
+#define CPUTYPE	"arm64"
+#endif
+
 static int nok, nfail;
 
 static void
@@ -51,7 +60,7 @@ testmain(int argc, char **argv, char **envp)
 	check("argv[0]", argc >= 1 && argv[0] != NULL && strstr(argv[0], "apetest") != NULL,
 		"argc %d argv[0] %s", argc, argc > 0 ? argv[0] : "nil");
 	check("argv[argc] == NULL", argv[argc] == NULL, NULL);
-	check("environ/getenv", envp != NULL && getenv("cputype") != NULL && strcmp(getenv("cputype"), "amd64") == 0,
+	check("environ/getenv", envp != NULL && getenv("cputype") != NULL && strcmp(getenv("cputype"), CPUTYPE) == 0,
 		"%s", getenv("cputype") ? getenv("cputype") : "nil");
 }
 

@@ -8,14 +8,22 @@
 #define UCHAR_MAX	0xff
 #define USHRT_MAX	0xffff
 #define UINT_MAX	0xffffffffU
+#ifdef __LONG_MAX__	/* GCC port: long is 64 bit under gcc on amd64 and arm64 (LP64); 8c/6c/7c's is 32 */
+#define ULONG_MAX	(__LONG_MAX__*2UL+1UL)
+#else
 #define ULONG_MAX	0xffffffffUL
+#endif
 #define ULLONG_MAX	0xffffffffffffffffULL
 
 #define CHAR_MAX	SCHAR_MAX
 #define SCHAR_MAX	0x7f
 #define SHRT_MAX	0x7fff
 #define INT_MAX		0x7fffffff
+#ifdef __LONG_MAX__	/* GCC port: see ULONG_MAX */
+#define LONG_MAX	__LONG_MAX__
+#else
 #define LONG_MAX	0x7fffffffL
+#endif
 #define LLONG_MAX	0x7fffffffffffffffLL
 
 #define CHAR_MIN	SCHAR_MIN

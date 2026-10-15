@@ -31,6 +31,14 @@ SECTIONS
 		*(.data .data.*)
 		*(.rodata .rodata.* .gnu.linkonce.r.*)
 	} :data
+	/* C++ constructors: 9front's C has none; the native gcc
+	 * (../9front-gcc) runs them from __wrap_main before main */
+	.init_array : {
+		PROVIDE(__init_array_start = .);
+		KEEP(*(SORT_BY_INIT_PRIORITY(.init_array.*)))
+		KEEP(*(.init_array))
+		PROVIDE(__init_array_end = .);
+	} :data
 	PROVIDE(edata = .);
 	.bss : {
 		*(.bss .bss.* COMMON)

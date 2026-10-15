@@ -14,7 +14,7 @@ d=/dev/sdC0
 s=newfs
 proto=/n/src9/sys/lib/sysconfig/proto/distproto
 bootproto=/n/src9/sys/lib/sysconfig/proto/9bootproto
-gccproto=/n/src9/gccproto	# /amd64/lib.gcc (scripts/guest/boot/gccproto)
+gccproto=/n/src9/gccproto	# /amd64/lib.gcc, /amd64/gnu (scripts/guest/boot/gccproto, gnuproto)
 kernel=/n/src9/amd64/9pc64
 
 test -f $d/data || fail no disk $d

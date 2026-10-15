@@ -19,10 +19,12 @@
 #            (ISO=image, else the last CD made by scripts/guest/mkiso.sh)
 #   usb      USB stick on xHCI, EHCI, UHCI: root hub, /dev/sdU*,
 #            sector 0 (same CD; USB_CTLRS="xhci ehci" for fewer)
+#   gcc      the native gcc on the CD (/$objtype/gnu, ../9front-gcc): a POSIX
+#            and a native Plan 9 program compiled, linked and run (same CD)
 #
 # usage: tests/run.sh [category...]     (default: all, in the order above)
 cd "$(dirname "$0")"
-cats=${*:-static asm syscall build guest boot gui disk iso rio usb}
+cats=${*:-static asm syscall build guest boot gui disk iso rio usb gcc}
 failed=()
 for c in $cats; do
 	[ -x "$c/run.sh" ] || { echo "unknown category $c"; exit 2; }

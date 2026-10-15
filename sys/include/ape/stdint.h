@@ -113,6 +113,10 @@ typedef _uintptr_t uintptr_t;
  * 64 bit architectures.
  */
 #define SIZE_MIN	UINT32_MIN
+#ifdef __SIZE_MAX__	/* GCC port: size_t is unsigned long, 64 bit under gcc on amd64 and arm64; 8c/6c/7c's is 32 */
+#define SIZE_MAX	__SIZE_MAX__
+#else
 #define SIZE_MAX	UINT32_MAX
+#endif
 
 #endif

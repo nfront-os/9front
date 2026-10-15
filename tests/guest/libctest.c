@@ -238,8 +238,12 @@ testatomic(void)
 	check("adec(long) goes negative", adec(&x) == -1 && x == -1, "x=%ld", x);
 	check("ainc(long) back to 0", ainc(&x) == 0 && x == 0, "x=%ld", x);
 	a.v = -5;
-	check("aincl/agetl/acasl on 64-bit long", aincl(&a, 2) == -3 && agetl(&a) == -3
-		&& acasl(&a, -3, 1LL<<40) && a.v == 1LL<<40, "v=%lld", (vlong)a.v);
+	if(sizeof(long) == 8)
+		check("aincl/agetl/acasl on 64-bit long", aincl(&a, 2) == -3 && agetl(&a) == -3
+			&& acasl(&a, -3, 1LL<<40) && a.v == 1LL<<40, "v=%lld", (vlong)a.v);
+	else	/* 386: long is 32 bits under gcc -m32 too */
+		check("aincl/agetl/acasl on 32-bit long", aincl(&a, 2) == -3 && agetl(&a) == -3
+			&& acasl(&a, -3, 1L<<30) && a.v == 1L<<30, "v=%lld", (vlong)a.v);
 }
 
 static uchar bigbss[0x100000+4];	/* like aux/realemu's memory[] */
