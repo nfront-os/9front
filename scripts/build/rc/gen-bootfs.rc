@@ -13,6 +13,9 @@ switch($objtype){
 case amd64
 	O=6
 	ARCHFLAGS=-mcmodel'='small
+case 386
+	O=8
+	ARCHFLAGS=(-m32 '-march=pentium' -mno-sse)
 case *
 	die 'objtype='$objtype not done
 }

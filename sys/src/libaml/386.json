@@ -3,6 +3,8 @@
         "Name": "klibaml-386",
         "Cflags": [
             "-m32",
+            "-march=pentium",
+            "-mincoming-stack-boundary=4",
             "-nostdinc",
             "-mno-sse",
             "-mno-sse2",

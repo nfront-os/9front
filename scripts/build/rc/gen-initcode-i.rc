@@ -9,6 +9,13 @@ case amd64
 	CC=($GNU/gcc '-mcmodel=small')
 	LD=$GNU/ld
 	INIT9=pc64/init9.S
+case 386
+	# 8l: pc/init9.c as it is, header of 32 bytes (touser: UTZERO+32)
+	TEXT=0x1020	# UTZERO 0x1000 + 0x20
+	HDR=32
+	CC=($GNU/gcc -m32 '-march=pentium' -mno-sse)
+	LD=$GNU/ld
+	INIT9=pc/init9.c
 case *
 	die 'objtype='$objtype not done
 }

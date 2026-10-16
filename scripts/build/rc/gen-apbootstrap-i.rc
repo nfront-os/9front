@@ -1,7 +1,7 @@
 #!/bin/rc
 # gen-apbootstrap-i.sh: the kernel's apbootstrap.i, linked at
 # APBOOTSTRAP (KZERO+0x7000)
-#	gen-apbootstrap-i.rc [pc64]
+#	gen-apbootstrap-i.rc [pc64|pc]
 . $PLAN9/scripts/build/rc/lib.rc
 k=$1
 ~ $#k 0 && k=pc64
@@ -10,6 +10,10 @@ case pc64
 	KDIR=$PLAN9/sys/src/9/pc64
 	APBOOTSTRAP=0xffffffff80007000
 	CFLAGS=(-m64 -mno-red-zone)
+case pc
+	KDIR=$PLAN9/sys/src/9/pc
+	APBOOTSTRAP=0xF0007000
+	CFLAGS=-m32
 case *
 	die $k not done
 }

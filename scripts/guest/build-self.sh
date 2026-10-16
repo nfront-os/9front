@@ -2,35 +2,43 @@
 # The system builds itself: boots the gcc-built system with the native
 # gcc and binutils of ../9front-gcc (/$objtype/gnu) and runs the build
 # tool there (scripts/guest/boot/mkself.rc) on a copy of the tree's
-# sources ($CLI_DIR/self: git ls-files) -- the build of
-# CC=gcc ARCH=amd64 sys/src/cmd/build/build.exe, on 9front. The build
+# sources ($CLI_DIR/self.$objtype: git ls-files) -- the build of
+# CC=gcc ARCH=$objtype sys/src/cmd/build/build.exe, on 9front (amd64:
+# 9pc64, 386: 9pc with /386/gnu, i686-pc-plan9). The build
 # tool for Plan 9 is built here (GOOS=plan9), the build steps are
 # scripts/build/rc/*.rc, the expected files check-install.py -l's.
-# The guest gets the copy as an ext4 disk ($CLI_DIR/self.img, made by
-# mkfs.ext4 -d, served by 9front's ext4srv: much faster than ufs over
-# the network); afterwards the image's tree goes back to $CLI_DIR/self
-# (debugfs rdump). The result stays there (amd64/bin, the kernel); its
-# objects are compared with this tree's (the Linux build's, if built for
-# amd64).
+# The guest gets the copy as an ext4 disk ($CLI_DIR/self.$objtype.img,
+# made by mkfs.ext4 -d, served by 9front's ext4srv: much faster than ufs
+# over the network); afterwards the image's tree goes back to the copy
+# (debugfs rdump). The result stays there ($objtype/bin, the kernel);
+# its objects are compared with this tree's (the Linux build's, if built
+# for $objtype).
 #
-# usage: scripts/guest/build-self.sh [buildfile...]   (needs the build, the
-#        native toolchain: ../9front-gcc's out/amd64, GCC_OUT)
+# usage: [objtype=386] scripts/guest/build-self.sh [buildfile...]   (needs
+#        the build for objtype, the native toolchain: ../9front-gcc's
+#        out/$objtype, GCC_OUT)
 #        buildfile: only these manifests (relative to the tree, e.g.
 #        sys/src/ape/cmd/cmds.json), else the whole build.json
 #   env: WAITMAX  seconds at most for the build in the guest (28800)
 #        SMP      CPUs of the guest (4)
+#        MEM      its memory in MB (amd64 4096, 386 3072)
 #        KEEP     1: build in the copy of the last run (scripts/, the
 #                 build tool and the manifests renewed), e.g. after a fix
 set -e
 ROOT=${PLAN9:-$(git -C "$(dirname "$0")" rev-parse --show-toplevel)}
 CLI_DIR=${CLI_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/9front-cli}
-A=amd64
+A=${objtype:-amd64}
+case $A in
+amd64)	mem=4096 ;;
+386)	mem=3072 ;;	# 9pc: below the PCI hole
+*)	echo "build-self: objtype=$A: no native gcc" >&2; exit 1 ;;
+esac
 GCC_OUT=${GCC_OUT:-$ROOT/../9front-gcc/out/$A}
 die(){ echo "build-self: $*" >&2; exit 1; }
 [ -x "$GCC_OUT/$A/gnu/bin/gcc" ] || die "no $GCC_OUT/$A/gnu/bin/gcc (../9front-gcc: build.sh native)"
 [ -s "$ROOT/$A/lib.gcc/libc.a" ] || die "no $A/lib.gcc/libc.a, run CC=gcc ARCH=$A sys/src/cmd/build/build.exe"
 
-S=$CLI_DIR/self
+S=$CLI_DIR/self.$A
 if [ "$KEEP" = 1 ] && [ -d "$S/sys/src" ]; then
 	git -C "$ROOT" ls-files -z scripts '*.json' | (cd "$ROOT" && tar -cf - --null -T -) | tar -xf - -C "$S"
 else
@@ -53,14 +61,14 @@ cp "$ROOT/scripts/guest/boot/mkself.rc" "$T/extra/rc/bin/mkself"
 # the copy as an ext4 file system with room for the build (virtio disk:
 # sdF0 in the guest). No journal, orphan file or metadata checksums:
 # ext4srv (lwext4) need not know them, the image is scratch
-IMG=$CLI_DIR/self.img
+IMG=$CLI_DIR/self.$A.img
 mb=$(( $(du -sm "$S" | cut -f1) + 4096 ))
 rm -f "$IMG"
 mkfs.ext4 -q -F -L src9 -O ^has_journal,^orphan_file,^metadata_csum,^metadata_csum_seed \
 	-E root_owner=$(id -u):$(id -g) -d "$S" "$IMG" ${mb}M || die "mkfs.ext4 $IMG"
 
-LOG=$CLI_DIR/mkself.log
-objtype=$A MEM=${MEM:-4096} UFS_EXTRA=$T/extra \
+LOG=$CLI_DIR/mkself.$A.log
+objtype=$A MEM=${MEM:-$mem} UFS_EXTRA=$T/extra \
 	QEMU_EXTRA="-smp ${SMP:-4} -drive file=$IMG,format=raw,if=virtio,cache=unsafe $QEMU_EXTRA" \
 	WAITFOR='mkself: (done|failed:)' WAITMAX=${WAITMAX:-28800} CMDWAIT=5 \
 	bash "$ROOT/scripts/guest/boot-cli.sh" "mkself $*" > "$LOG" 2>&1 || true
@@ -78,18 +86,21 @@ grep -qE 'files expected, ok' "$LOG.txt" || { grep -B5 -E 'exit status|failed' "
 echo "ok: the system built itself ($S)"
 
 # the same code as the build on Linux: every object of the tree, without
-# debug information and .comment (the compilers' version strings)
+# debug information, .comment (the compilers' version strings), notes
+# and unwind tables (the Linux gcc for i386 makes them, i686-pc-plan9
+# not), symbols no relocation needs
+STRIP="--strip-unneeded -R .comment -R .note.gnu.property -R .eh_frame -R .rel.eh_frame -R .rela.eh_frame"
 same=0 diff=0
-: > "$CLI_DIR/self.diff"
+: > "$CLI_DIR/self.$A.diff"
 while IFS= read -r o; do
 	[ -f "$ROOT/$o" ] || continue
-	objcopy --strip-debug -R .comment -R .note.gnu.property "$S/$o" "$T/a.o" 2>/dev/null || continue
-	objcopy --strip-debug -R .comment -R .note.gnu.property "$ROOT/$o" "$T/b.o" 2>/dev/null || continue
+	objcopy $STRIP "$S/$o" "$T/a.o" 2>/dev/null || continue
+	objcopy $STRIP "$ROOT/$o" "$T/b.o" 2>/dev/null || continue
 	if cmp -s "$T/a.o" "$T/b.o"; then
 		same=$((same+1))
 	else
 		diff=$((diff+1))
-		echo "$o" >> "$CLI_DIR/self.diff"
+		echo "$o" >> "$CLI_DIR/self.$A.diff"
 	fi
 done < <(cd "$S" && find sys/src acme -name '*.o' | sort)
-echo "objects as on Linux: $same, different: $diff ($CLI_DIR/self.diff)"
+echo "objects as on Linux: $same, different: $diff ($CLI_DIR/self.$A.diff)"

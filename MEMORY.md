@@ -857,3 +857,12 @@ Zweiter Weg neben build.exe für die Arbeit am Userland auf 9front selbst. Lebt 
 - `ar` nennt die Archivmitglieder `x.o` wie build.exe: sonst landen `x.6` neben den alten `x.o`.
 - Geht nicht: Kernel, libc als Ganzes (`9syscall` schreibt 6a-Assembler), libmp/libsec (Assembler ohne GAS-Port; build.exe nimmt C).
 - Tests: `../9front-gcc/tests/mk.sh` (amd64, 386: libbio, gleicher Code, libc-Assembler über GAS-Ports, hoc, ape/cmd/expr) und `tests/gcc` auf der CD (hoc mit gccmk).
+
+## 2026-10-16 (Teil 45): Selbstbau auch für 386
+
+`objtype=386 scripts/guest/build-self.sh`: 9pc-Gast (3 GB, 4 CPUs) mit dem nativen i686-gcc (`/386/gnu`), ext4-Platte wie amd64. Ergebnis: 813 Dateien ok, 5005 Objekte gleich dem Linux-Build, der dort gebaute `9pc` bootet. Kopien je Architektur: `$CLI_DIR/self.$objtype` (+ `.img`, `.diff`, `mkself.$objtype.log`).
+- rc-Schritte mit 386-Zweig: `gen-initcode-i.rc` (`pc/init9.c`, Text 0x1020, 32-Byte-Header), `gen-apbootstrap-i.rc pc` (0xF0007000), `gen-rebootcode-i.rc pc` + `gen-rebootcode-pc-i.rc`, `gen-bootfs.rc` (`O=8`). Falle: neue Skripte müssen in git stehen (`git add`), die Kopie ist `git ls-files`.
+- Objektvergleich (`build-self.sh`, `../9front-gcc/tests/mk.sh`) jetzt mit `--strip-unneeded` ohne `.eh_frame`: der Linux-gcc für i386 erzeugt Unwind-Tabellen per Default, i686-pc-plan9 nicht.
+- **Kernel-Flags 386 waren vom Compiler-Default abhängig** (698 Abweichungen im ersten Lauf, Kernel + klib*): ohne `-march` nahm der Linux-gcc x86-64 → `cmov` im 9pc (läuft nicht auf Pentium/P5), der native i686-gcc `pentium`. Jetzt `genkernel.py` (pc) und die handgepflegten `sys/src/lib*/386.json`: `-march=pentium -mincoming-stack-boundary=4`. Rest-`cmov`: `__ctzdi2` aus der libgcc des Linux-Hosts (`prep-objtype.sh` kopiert `gcc -m32 -print-libgcc-file-name`).
+- **Offen:** mit `-mincoming-stack-boundary=2` (Default des i686-pc-plan9-gcc, wie im 386-Userland) richtet gcc Kernel-Frames neu aus (`and $-16,%esp`, DRAP) und **9pc panict beim Booten** („corrupt tail ptr“ im Pool nach `post...`). Ursache nicht untersucht (Verdacht: Code, der sich auf das Frame-Layout verlässt, z. B. Labels/waserror); daher explizit `=4` wie bisher unter Linux.
+- Restliche 90 Abweichungen wie amd64 (yacc/lex, gs-`linux`, initcode/bootfs), dazu `acme/disk.o`, `sam/disk.o`, 4 gs-Dateien: andere Registerwahl, gleichwertig — Host-gcc 16.2.1 (Arch) gegen 16.2.0 im Gast.
