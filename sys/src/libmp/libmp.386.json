@@ -24,12 +24,12 @@
 			"port/mpmul.c",
 			"port/mpleft.c",
 			"port/mpright.c",
-			"port/mpvecadd.c",
-			"port/mpvecsub.c",
-			"port/mpvecdigmuladd.c",
+			"386/mpvecadd.S",
+			"386/mpvecsub.S",
+			"386/mpvecdigmuladd.S",
 			"port/mpveccmp.c",
 			"port/mpvectscmp.c",
-			"port/mpdigdiv.c",
+			"386/mpdigdiv.S",
 			"port/mpdiv.c",
 			"port/mpexp.c",
 			"port/mpmod.c",
@@ -47,7 +47,8 @@
 			"port/cnfield.c",
 			"port/gmfield.c",
 			"port/mplogic.c",
-			"port/mptod.c"
+			"port/mptod.c",
+			"386/mpvecdigmulsub.S"
 		]
 	}
 ]

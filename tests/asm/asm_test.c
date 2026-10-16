@@ -13,7 +13,7 @@
 #include <string.h>
 #include <stdint.h>
 
-long callcheck(void *fn, long a, long b, long c, long d);
+long callcheck(void *fn, long a, long b, long c, long d, ...);
 
 void *p9_memmove(void*, const void*, long);
 void *p9_memcpy(void*, const void*, long);

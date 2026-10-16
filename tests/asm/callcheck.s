@@ -1,6 +1,6 @@
 /*
- * long callcheck(void *fn, long a, long b, long c, long d)
- * Calls fn(a, b, c, d) with %rbx, %rbp, %r12-%r15 holding known values
+ * long callcheck(void *fn, long a, long b, long c, long d, long e)
+ * Calls fn(a, b, c, d, e) with %rbx, %rbp, %r12-%r15 holding known values
  * and returns a bit mask of the callee-saved registers fn did not
  * preserve (bit 0 rbx, 1 rbp, 2 r12, 3 r13, 4 r14, 5 r15) or'ed with
  * 0x40 if the direction flag was left set.
@@ -18,6 +18,7 @@ callcheck:
 	movq	%rdx, %rsi
 	movq	%rcx, %rdx
 	movq	%r8, %rcx
+	movq	%r9, %r8
 	movq	$0x1111111111111111, %rbx
 	movq	$0x2222222222222222, %rbp
 	movq	$0x3333333333333333, %r12

@@ -89,11 +89,14 @@ check "no va_arg of a promoted type (char, short, float)" bash -c \
 check "u.h: SET/USED are variadic no-ops" grep -q '^#define SET(...) ((void)0)' amd64/include/u.h
 check "u.h: jmp_buf holds sp, pc and 6 callee-saved registers" grep -q 'jmp_buf\[8\]' amd64/include/u.h
 
-# 6. the 6a sources stay 9front's (for 6a on Plan 9), each with its GAS
-#    port beside it (foo.S, as the kernel's l.S beside l.s)
+# 6. the 6a/8a sources stay 9front's (for 6a/8a on Plan 9), each with its
+#    GAS port beside it (foo.S, as the kernel's l.S beside l.s)
+ASMDIRS="sys/src/libc/amd64 sys/src/ape/lib/ap/amd64 sys/src/ape/lib/9/amd64
+	sys/src/libmp/amd64 sys/src/libmp/386 sys/src/libsec/amd64 sys/src/libsec/386
+	sys/src/libc/386/387"
 asmpairs(){
 	local bad=0
-	for d in sys/src/libc/amd64 sys/src/ape/lib/ap/amd64 sys/src/ape/lib/9/amd64; do
+	for d in $ASMDIRS; do
 		git diff --quiet front -- "$d"/*.s || { echo "$d: .s differs from front"; bad=1; }
 		for s in "$d"/*.s; do
 			[ -f "${s%.s}.S" ] || { echo "$s: no GAS port ${s%.s}.S"; bad=1; }
@@ -101,9 +104,14 @@ asmpairs(){
 	done
 	return $bad
 }
-check "amd64 assembly: 9front's .s unchanged, each with a GAS .S" asmpairs
-check "GAS ports: no 6a assembly in them" \
-	bash -c '! grep -nP "^(TEXT|GLOBL)\s|^\t[A-Z]{2,}[A-Z0-9]*\t" sys/src/libc/amd64/*.S sys/src/ape/lib/ap/amd64/*.S sys/src/ape/lib/9/amd64/*.S'
+check "assembly (libc, ape, libmp, libsec, lib387): 9front's .s unchanged, each with a GAS .S" asmpairs
+gasonly(){
+	local d
+	for d in $ASMDIRS; do
+		! grep -nP "^(TEXT|GLOBL)\s|^\t[A-Z]{2,}[A-Z0-9]*\t" "$d"/*.S || return 1
+	done
+}
+check "GAS ports: no 6a/8a assembly in them" gasonly
 
 # 7. the build steps for 9front itself (self-hosting) and the guest
 #    scripts parse as rc: a syntax error does not fail rc's status
