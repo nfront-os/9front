@@ -4,7 +4,8 @@
         "Cflags": [
             "-m32",
             "-march=pentium",
-            "-mincoming-stack-boundary=4",
+            "-mincoming-stack-boundary=2",
+            "-mpreferred-stack-boundary=2",
             "-nostdinc",
             "-mno-sse",
             "-mno-sse2",

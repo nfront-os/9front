@@ -47,11 +47,11 @@ WARN = ['-Wno-error=implicit-int', '-Wall', '-Wno-missing-braces', '-Wno-parenth
 ARCHS = {
 	'386': {
 		# the machine as for userspace (386/cflags.json): a Pentium, else
-		# the compiler's default (Linux: x86-64's cmov). 16-byte aligned
-		# stacks assumed, as gcc for Linux does: i686-pc-plan9's default
-		# (4 bytes, as userspace) has gcc realign frames, and that kernel
-		# panics at boot (corrupt tail ptr; cause open, MEMORY.md)
-		'Cflags': ['-m32', '-march=pentium', '-mincoming-stack-boundary=4',
+		# the compiler's default (Linux: x86-64's cmov). Stacks 4-byte
+		# aligned, as 8c keeps them: with only incoming=2 gcc realigns
+		# every frame to 16 bytes and overflows the 4K kernel stack
+		# (MEMORY.md); with neither, the compilers' defaults differ
+		'Cflags': ['-m32', '-march=pentium', '-mincoming-stack-boundary=2', '-mpreferred-stack-boundary=2',
 			'-fno-pie', '-fno-pic', '-mno-sse', '-mno-sse2', '-mno-mmx',
 			'-fplan9-extensions', '-fcommon', '-fno-builtin', '-fno-asynchronous-unwind-tables',
 			'-fno-stack-protector', '-fno-omit-frame-pointer', '-fno-zero-initialized-in-bss',

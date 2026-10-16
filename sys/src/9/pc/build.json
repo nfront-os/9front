@@ -20,7 +20,8 @@
 		"Cflags": [
 			"-m32",
 			"-march=pentium",
-			"-mincoming-stack-boundary=4",
+			"-mincoming-stack-boundary=2",
+			"-mpreferred-stack-boundary=2",
 			"-fno-pie",
 			"-fno-pic",
 			"-mno-sse",
