@@ -1,0 +1,12 @@
+#!/bin/rc
+# prep-objtype.sh: the install directories the manifests expect; on
+# amd64 libgcc.a comes with the native gcc's link (no copy)
+. $PLAN9/scripts/build/rc/lib.rc
+cd $PLAN9
+mkdir -p $objtype/bin/aux $objtype/lib.gcc
+switch($objtype){
+case 386 arm64
+	f=`{$GNU/gcc -print-libgcc-file-name}
+	cp $f $objtype/lib.gcc/libgcc.a || die libgcc.a
+}
+exit ''

@@ -15,7 +15,7 @@ char Einval[] = "invalid operation";
 char Eio[] = "i/o error";
 char Enomem[] = "no memory";
 char Enospc[] = "no space";
-char Enotfound[] = "file not found";
+char Enotfound[] = "file does not exist";	/* GCC port: upstream bug, was "file not found": APE (gcc) maps "does not exist" to ENOENT */
 char Eperm[] = "permission denied";
 char Erdonlyfs[] = "read-only fs";
 
@@ -1445,7 +1445,7 @@ int ext4_fread(ext4_file *file, void *buf, usize size, usize *rcnt)
 
 			iblock_idx++;
 
-			if (!fblock_start)
+			if (fblock_count == 0)	/* GCC port: upstream bug, was !fblock_start: a hole is block 0 */
 				fblock_start = fblock;
 
 			if ((fblock_start + fblock_count) != fblock)
@@ -1454,7 +1454,11 @@ int ext4_fread(ext4_file *file, void *buf, usize size, usize *rcnt)
 			fblock_count++;
 		}
 
-		r = ext4_blocks_get_direct(file->mp->fs.bdev, u8_buf, fblock_start,
+		/* GCC port: upstream bug, a hole (block 0) read block 0 of the disk */
+		if (fblock_start == 0)
+			memset(u8_buf, 0, block_size * fblock_count);
+		else
+			r = ext4_blocks_get_direct(file->mp->fs.bdev, u8_buf, fblock_start,
 					   fblock_count);
 		if (r != 0)
 			goto Finish;
@@ -1477,7 +1481,11 @@ int ext4_fread(ext4_file *file, void *buf, usize size, usize *rcnt)
 			goto Finish;
 
 		off = fblock * block_size;
-		r = ext4_block_readbytes(file->mp->fs.bdev, off, u8_buf, size);
+		/* GCC port: upstream bug, a hole (block 0) read block 0 of the disk */
+		if (fblock == 0)
+			memset(u8_buf, 0, size);
+		else
+			r = ext4_block_readbytes(file->mp->fs.bdev, off, u8_buf, size);
 		if (r != 0)
 			goto Finish;
 

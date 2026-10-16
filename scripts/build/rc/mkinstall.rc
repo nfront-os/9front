@@ -1,0 +1,33 @@
+#!/bin/rc
+# mkinstall.py: the files (not programs) an install rule puts in place,
+# made by mk itself from the directory's mkfile; the tree is bound over
+# the system's /sys/src and /sys/include (the mkfiles include
+# </sys/src/cmd/mkmany, ...) and /$objtype/bin, /rc/bin and /sys/lib,
+# where the rules install
+#	mkinstall.rc dir -- target...	(targets as gencmds.py lists them)
+. $PLAN9/scripts/build/rc/lib.rc
+d=$1
+shift
+~ $1 -- || die usage: mkinstall.rc dir -- target...
+shift
+cd $PLAN9/sys/src/$d || die no $d
+rfork n
+mkdir -p $PLAN9/$objtype/bin $PLAN9/rc/bin $PLAN9/sys/lib
+bind $PLAN9/sys/src /sys/src || die bind
+bind $PLAN9/sys/include /sys/include || die bind
+bind $PLAN9/$objtype/mkfile /$objtype/mkfile || die bind
+bind -bc $PLAN9/$objtype/bin /$objtype/bin || die bind
+bind -bc $PLAN9/rc/bin /rc/bin || die bind
+bind -bc $PLAN9/sys/lib /sys/lib || die bind
+for(t){
+	# the build tool roots absolute paths in $PLAN9; mk names them as
+	# the mkfile does
+	t=`{echo $t | sed 's|^'$PLAN9'||'}
+	echo $d: $t
+	# the directory in the tree, else a new file goes to the system's
+	# below the union (/rc/bin/postscript only there); /isspam: none
+	td=`{basename -d $t}
+	mkdir -p $PLAN9$"td
+	mk -a $t || die $d: $t
+}
+exit ''

@@ -44,7 +44,7 @@
 		"Name": "ape-cmd-install",
 		"Install": "",
 		"Post": [
-			"python3 ../../../../scripts/build/mkinstall.py ape/cmd"
+			"python3 ../../../../scripts/build/mkinstall.py ape/cmd -- /386/bin/ape/psh"
 		]
 	}
 ]

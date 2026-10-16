@@ -1,0 +1,51 @@
+#!/bin/rc
+# The system builds itself: run inside the guest by scripts/guest/
+# build-self.sh, the build tool (built for Plan 9) with the native gcc
+# and binutils (/$objtype/gnu, ../9front-gcc) on a copy of the tree,
+# served as /n/src9 -- what CC=gcc ARCH=$objtype build.exe does on Linux.
+# The build steps are scripts/build/rc/*.rc there (build.exe: plan9step).
+rfork en
+fn fail{
+	echo mkself: failed: $*
+	exit failed
+}
+# the tree: the ext4 disk of build-self.sh (sdF0), else a directory
+# boot-cli.sh serves (SRC9)
+if(! test -d /n/src9/sys){
+	if(test -e /dev/sdF0/data){
+		ext4srv -S -n src9 || fail ext4srv
+		mount -c /srv/src9 /n/src9 /dev/sdF0/data || fail mount sdF0
+	}
+	if not
+		srv tcp!10.0.2.101!5641 src9 && mount -c /srv/src9 /n/src9 || fail mount src9
+}
+objtype=$cputype
+G=/$objtype/gnu/bin
+test -x $G/gcc || fail no $G/gcc
+cd /n/src9
+echo mkself: build
+# a fresh environment: the build tool hands its own on to its commands
+# as Go sees it, and rc cannot read functions back from that. CC=gcc
+# names the flags too (/$ARCH/$CC.json); the GNU tools first in $path
+# (ar, ld, nm, ...), 9front's own programs call theirs by full path.
+@{
+	rfork E
+	path=($G /bin .)
+	PLAN9=/n/src9
+	ARCH=$objtype
+	objtype=$objtype
+	cputype=$cputype
+	CC=gcc
+	NPROC=`{wc -l </dev/sysstat}
+	CPUS=$NPROC
+	user=$user
+	home=/tmp
+	# no arguments: build.json, the whole build; else the given manifests
+	if(~ $#* 0)
+		sys/src/cmd/build/build.exe >[2=1]
+	if not
+		for(f)
+			sys/src/cmd/build/build.exe $f >[2=1]
+}
+echo mkself: status $status
+echo mkself: done

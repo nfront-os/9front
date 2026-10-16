@@ -61,7 +61,7 @@
 		"Name": "cmd-reform-install",
 		"Install": "",
 		"Post": [
-			"python3 ../../../../scripts/build/mkinstall.py cmd/reform"
+			"python3 ../../../../scripts/build/mkinstall.py cmd/reform -- /amd64/bin/reform"
 		]
 	}
 ]

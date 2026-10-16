@@ -240,7 +240,7 @@
 		"Name": "cmd-replica-install",
 		"Install": "",
 		"Post": [
-			"python3 ../../../../scripts/build/mkinstall.py cmd/replica"
+			"python3 ../../../../scripts/build/mkinstall.py cmd/replica -- /arm64/bin/replica/changes /arm64/bin/replica/pull /arm64/bin/replica/push /arm64/bin/replica/scan /arm64/bin/replica/setupdirs"
 		]
 	}
 ]

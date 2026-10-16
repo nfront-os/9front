@@ -15,7 +15,8 @@ are 9front paths, so they run in a bwrap namespace whose / holds the
 tree's top-level directories (the host's /usr for the tools). Local
 prerequisites a rule makes (cropmarks from cropmarks.rc) are made first.
 
-usage: scripts/build/mkinstall.py dir...	(relative to sys/src, as gencmds.py)
+usage: scripts/build/mkinstall.py dir... [-- target...]	(dirs relative to sys/src,
+	as gencmds.py; the targets are for 9front, scripts/build/rc/mkinstall.rc)
 """
 import os
 import subprocess
@@ -67,7 +68,11 @@ def make(d, v, rs, f, depth=0):
 def main():
 	if len(sys.argv) < 2:
 		sys.exit('usage: mkinstall.py dir...')
-	for d in sys.argv[1:]:
+	# the targets after -- are for 9front's scripts/build/rc/mkinstall.rc
+	args = sys.argv[1:]
+	if '--' in args:
+		args = args[:args.index('--')]
+	for d in args:
 		text = g.readmk(d)
 		v = g.variables(text)
 		rs = g.rules(text)

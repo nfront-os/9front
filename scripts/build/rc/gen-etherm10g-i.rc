@@ -1,0 +1,13 @@
+#!/bin/rc
+# gen-etherm10g-i.sh: the firmware of etherm10g as C arrays
+. $PLAN9/scripts/build/rc/lib.rc
+PC=$PLAN9/sys/src/9/pc
+for(stem in 2k 4k){
+	{
+		echo 'static char fw'$stem'[] = {'
+		bin2c $PC/etherm10g$stem.fw 0
+		echo '};'
+	} >$PC/etherm10g$stem.i
+	echo wrote `{ls -l $PC/etherm10g$stem.fw | awk '{print $6}'} bytes to $PC/etherm10g$stem.i
+}
+exit ''

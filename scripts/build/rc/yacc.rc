@@ -1,0 +1,3 @@
+#!/bin/rc
+# yacc.sh: 9front's yacc with its own parser templates (/sys/lib/yaccpar)
+exec yacc $*

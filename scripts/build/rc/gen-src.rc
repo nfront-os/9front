@@ -1,0 +1,64 @@
+#!/bin/rc
+# gen-src.sh: generated sources of single commands, by their mkfiles'
+# own rules (mkenam, mkcname, mktab.awk, ...) with 9front's tools
+#	gen-src.rc <dir below sys/src>
+. $PLAN9/scripts/build/rc/lib.rc
+cd $PLAN9/sys/src/$1 || die no $1
+switch($1){
+case cmd/ip/snoopy
+	# protos.h, protos.c: from $PROTOS
+	PROTOS=`{mkvar PROTOS}
+	{
+		for(i in $PROTOS)
+			echo 'extern Proto '$i';'
+	} >protos.h
+	{
+		echo '#include <u.h>'
+		echo '#include <libc.h>'
+		echo '#include "dat.h"'
+		echo '#include "protos.h"'
+		echo 'Proto *protos[] ='
+		echo '{'
+		for(i in $PROTOS)
+			echo '	&'$i','
+		echo '	0,'
+		echo '};'
+	} >protos.c
+case cmd/syscall
+	awk -f mktab.awk $PLAN9/sys/src/libc/9syscall/sys.h >tab.h || die tab.h
+case cmd/tcs
+	awk -f charsets.awk charsets.xml alias.txt >alias.h || die alias.h
+case cmd/nusb/disk
+	rc ./mkscsierrs >scsierrs.c || die scsierrs.c
+case cmd/[0-9a-z]c cmd/[0-9a-z]l
+	# compilers: enam.c (rc ../cc/mkenam with T from the mkfile); loaders:
+	# the compiler's enam.c; 7l: cnam.c (rc ./mkcname)
+	d=.
+	if(~ $1 cmd/[0-9a-z]l)
+		d=`{sed -n 's,^\.\./([0-9a-z]c)/enam\.c:.*,../\1,p' mkfile | sed 1q}
+	@{
+		cd $d
+		T=`{sed -n 's/^T=//p' mkfile}
+		rc ../cc/mkenam || die enam.c
+	}
+	if(grep -s '^cnam.c:' mkfile)
+		rc ./mkcname || die cnam.c
+case games/blabs
+	# %.bits: ./mkface $stem, for $FACES
+	for(f in `{mkvar FACES})
+		rc ./mkface `{basename $f .bits} || die $f
+case cmd/gs
+	# $objtype.h: genarch measures the compiler's types; the native gcc
+	# compiles it as a POSIX program (APE), with this tree's headers
+	switch($objtype){
+	case $cputype
+		$GNU/gcc -I$PLAN9/$cputype/include/ape -I$PLAN9/sys/include/ape \
+			-DHAVE_LONG_LONG -o $TMP/genarch src/genarch.c || die genarch
+		$TMP/genarch $objtype.h || die $objtype.h
+	case *
+		cp default.$objtype.h $objtype.h && chmod 664 $objtype.h
+	}
+case *
+	die no rules for $1
+}
+exit ''

@@ -139,6 +139,10 @@ def readmk(d, name='mkfile'):
 
 def rules(text):
 	"""[(targets, prerequisites, recipe text or '')] of the mkfile's rules"""
+	return [r[:3] for r in rulelines(text)]
+
+def rulelines(text):
+	"""rules() with the line of each rule"""
 	out = []
 	lines = text.split('\n')
 	for i, l in enumerate(lines):
@@ -155,7 +159,7 @@ def rules(text):
 			if not r.startswith('\t'):
 				break
 			recipe.append(r.strip())
-		out.append((targets.split(), prereq, '\n'.join(recipe)))
+		out.append((targets.split(), prereq, '\n'.join(recipe), i))
 	return out
 
 def rcquote(w):
@@ -643,11 +647,35 @@ def installtemps(d):
 				walk(p, 0)
 	return out
 
+def mknames(d, ts):
+	"""the targets ts as mk names them: it expands a rule's prerequisites
+	when it reads the rule, with the variables set so far (upas/binscripts
+	includes ../mkupas, which sets $BIN, after its rules: install's
+	${RCFILES:%=$BIN/%} is /isspam ..., whose recipe copies to $BIN)"""
+	text = readmk(d)
+	v = variables(text)
+	lines = text.split('\n')
+	out = []
+	for t in ts:
+		name = t
+		for targets, prereq, recipe, i in rulelines(text):
+			full = expand(attrless(prereq), v).split()
+			if t in full:
+				read = expand(attrless(prereq), variables('\n'.join(lines[:i]))).split()
+				if len(read) == len(full):
+					name = read[full.index(t)]
+				break
+		out.append(name)
+	return out
+
 def buildentry(e, name):
 	name = re.sub(r'^(\.\./)+', '', name)	# /acme: ../../acme/...
 	if 'install' in e:	# the files of the install rule, by its recipes
+		# the targets after -- for 9front, where mk itself makes them
+		# (scripts/build/rc/mkinstall.rc); mkinstall.py finds them again
+		ts = mknames(e['install'], [t for t, recipe, prereq, stem, dest in installfiles(e['install'])])
 		return {'Name': name.replace('/', '-'), 'Install': '',
-			'Post': ['python3 %sscripts/build/mkinstall.py %s' % (up(e['install']), e['install'])]}
+			'Post': ['python3 %sscripts/build/mkinstall.py %s -- %s' % (up(e['install']), e['install'], ' '.join(ts))]}
 	m = {'Name': name.replace('/', '-'), 'Include': ['/$ARCH/cflags.json'], 'Install': e['Install']}
 	if e.get('ape'):	# kencc's USED/SET intrinsics (native: u.h)
 		m['Include'].append('/$ARCH/ape.json')

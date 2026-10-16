@@ -3,7 +3,7 @@
 		"Name": "cmd-postscript-psencoding-install",
 		"Install": "",
 		"Post": [
-			"python3 ../../../../../scripts/build/mkinstall.py cmd/postscript/psencoding"
+			"python3 ../../../../../scripts/build/mkinstall.py cmd/postscript/psencoding -- /rc/bin/postscript/psencoding /sys/lib/postscript/prologues/Latin1.enc /sys/lib/postscript/prologues/UTF.enc"
 		],
 		"Clean": [
 			"psencoding"

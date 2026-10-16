@@ -2216,7 +2216,7 @@
 		"Name": "cmd-auth-install",
 		"Install": "",
 		"Post": [
-			"python3 ../../../../scripts/build/mkinstall.py cmd/auth"
+			"python3 ../../../../scripts/build/mkinstall.py cmd/auth -- /amd64/bin/auth/status /amd64/bin/auth/enable /amd64/bin/auth/disable"
 		]
 	}
 ]

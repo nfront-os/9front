@@ -1,0 +1,11 @@
+#!/bin/rc
+# gen-runetype.sh: libc's Unicode tables (ucd/rune*data) from
+# mkrunetype, which reads /lib/ucd/...: this tree's
+. $PLAN9/scripts/build/rc/lib.rc
+UCD=$PLAN9/sys/src/libc/ucd
+sed 's|"/lib/ucd/|"'$PLAN9'/lib/ucd/|' $UCD/mkrunetype.c >$TMP/mkrunetype.c
+hostcc $TMP/mkrunetype $TMP/mkrunetype.c
+cd $UCD
+$TMP/mkrunetype || die mkrunetype
+ls -l runenormdata runetotypedata runeistypedata runebreakdata
+exit ''

@@ -1,0 +1,8 @@
+#!/bin/rc
+# lex.sh: 9front's lex; --out file writes lex's standard output to file
+if(~ $1 --out){
+	out=$2
+	shift 2
+	exec lex $* >$out
+}
+exec lex $*

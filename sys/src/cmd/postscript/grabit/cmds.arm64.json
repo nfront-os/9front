@@ -3,7 +3,7 @@
 		"Name": "cmd-postscript-grabit-install",
 		"Install": "",
 		"Post": [
-			"python3 ../../../../../scripts/build/mkinstall.py cmd/postscript/grabit"
+			"python3 ../../../../../scripts/build/mkinstall.py cmd/postscript/grabit -- /arm64/bin/aux/grabit /sys/lib/postscript/prologues/grabit.ps"
 		],
 		"Clean": [
 			"grabit"

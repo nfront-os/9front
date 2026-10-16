@@ -1,0 +1,21 @@
+#!/bin/rc
+# gen-mpc.sh: the C 9front's mkfiles make from .mp files with mpc
+# (libsec/port/%.c, libauthsrv/%.mpc); the system's mpc
+. $PLAN9/scripts/build/rc/lib.rc
+cd $PLAN9/sys/src/libsec/port
+for(f in *.mp){
+	c=`{basename $f .mp}^.c
+	{
+		echo '#include "os.h"'
+		echo '#include <mp.h>'
+		mpc $f || die mpc $f
+	} >$c
+	echo libsec/port/$c
+}
+cd $PLAN9/sys/src/libauthsrv
+for(f in *.mp){
+	m=`{basename $f .mp}^.mpc
+	mpc $f >$m || die mpc $f
+	echo libauthsrv/$m
+}
+exit ''

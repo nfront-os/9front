@@ -45,7 +45,7 @@
 		"Name": "cmd-postscript-postprint-install",
 		"Install": "",
 		"Post": [
-			"python3 ../../../../../scripts/build/mkinstall.py cmd/postscript/postprint"
+			"python3 ../../../../../scripts/build/mkinstall.py cmd/postscript/postprint -- /sys/lib/postscript/prologues/postprint.ps"
 		]
 	}
 ]

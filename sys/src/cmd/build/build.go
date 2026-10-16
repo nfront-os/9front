@@ -751,7 +751,7 @@ func install(b *build) {
 			final := path.Join(dir, path.Base(exe))
 			log.Printf("move %s %s\n", exe+".out", final)
 			_ = os.Remove(final)
-			fail(os.Rename(exe+".out", final))
+			fail(mv(exe+".out", final))
 		}
 	case len(b.Program) > 0:
 		move(b.Program, b.Install)
@@ -772,8 +772,37 @@ func move(from, to string) {
 	final := path.Join(to, from)
 	log.Printf("move %s %s\n", from, final)
 	_ = os.Remove(final)
-	fail(os.Link(from, final))
-	fail(os.Remove(from))
+	fail(mv(from, final))
+}
+
+// mv renames from to final, or copies it there (with its mode) and
+// removes it: Plan 9 has no hard links and renames only within a
+// directory
+func mv(from, final string) error {
+	if runtime.GOOS != "plan9" || path.Dir(from) == path.Dir(final) {
+		return os.Rename(from, final)
+	}
+	fi, err := os.Stat(from)
+	if err != nil {
+		return err
+	}
+	in, err := os.Open(from)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	out, err := os.OpenFile(final, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, fi.Mode().Perm())
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(out, in); err != nil {
+		out.Close()
+		return err
+	}
+	if err := out.Close(); err != nil {
+		return err
+	}
+	return os.Remove(from)
 }
 
 func run(b *build, pipe bool, cmd *exec.Cmd) {
@@ -783,7 +812,7 @@ func run(b *build, pipe bool, cmd *exec.Cmd) {
 	}
 
 	if b != nil {
-		cmd.Env = append(os.Environ(), b.Env...)
+		cmd.Env = append(environ(), b.Env...)
 	}
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -854,8 +883,43 @@ func runCmds(b *build, s []string) {
 				exp = append(exp, e...)
 			}
 		}
+		if runtime.GOOS == "plan9" {
+			exp = plan9step(exp)
+		}
 		run(b, *shellhack, exec.Command(exp[0], exp[1:]...))
 	}
+}
+
+// environ: os.Environ without rc's functions (fn#name) on Plan 9 --
+// Go hands them on as plain variables, which a child rc cannot parse
+func environ() []string {
+	if runtime.GOOS != "plan9" {
+		return os.Environ()
+	}
+	var env []string
+	for _, e := range os.Environ() {
+		if !strings.HasPrefix(e, "fn#") {
+			env = append(env, e)
+		}
+	}
+	return env
+}
+
+// plan9step: on 9front the build steps of the manifests are the rc
+// scripts beside the Linux ones -- bash .../scripts/build/X.sh and
+// python3 .../scripts/build/X.py run as rc .../scripts/build/rc/X.rc,
+// which do the same with 9front's own tools (mk, yacc, awk, ...);
+// install(1), which 9front has not, as rc .../scripts/build/rc/install.rc.
+func plan9step(exp []string) []string {
+	if (exp[0] == "bash" || exp[0] == "python3") && len(exp) > 1 && strings.Contains(exp[1], "scripts/build/") {
+		dir, f := path.Split(exp[1])
+		name := strings.TrimSuffix(strings.TrimSuffix(f, ".sh"), ".py")
+		return append([]string{"rc", dir + "rc/" + name + ".rc"}, exp[2:]...)
+	}
+	if exp[0] == "install" {
+		return append([]string{"rc", fromRoot("/scripts/build/rc/install.rc")}, exp[1:]...)
+	}
+	return exp
 }
 
 // assumes we are in the wd of the project.
@@ -894,6 +958,13 @@ func project(bf string, which []*regexp.Regexp) {
 func main() {
 	log.SetFlags(0)
 
+	// a build step for 9front, which has no python (elf2aout.go)
+	if len(os.Args) == 4 && os.Args[1] == "-elf2aout" {
+		if err := elf2aout(os.Args[2], os.Args[3]); err != nil {
+			log.Fatalf("elf2aout: %v", err)
+		}
+		return
+	}
 	flag.Parse()
 	setup()
 

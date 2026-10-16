@@ -1,0 +1,49 @@
+#!/bin/rc
+# gen-bootfs.sh: the kernel's boot program and bootfs ($CONF.bootfs.paq),
+# as boot/bootmkfile makes them, from this tree's programs
+#	gen-bootfs.rc conf [kernel dir]
+. $PLAN9/scripts/build/rc/lib.rc
+CONF=$1
+~ $#CONF 0 && CONF=pc64
+d=$2
+~ $#d 0 && d=$CONF
+KDIR=$PLAN9/sys/src/9/$d
+objtype=`{sed -n 's/^objtype=//p' $KDIR/mkfile}
+switch($objtype){
+case amd64
+	O=6
+	ARCHFLAGS=-mcmodel'='small
+case *
+	die 'objtype='$objtype not done
+}
+# boot: boot.$O: ../boot/boot.c
+$GNU/gcc '-std=gnu17' -fno-asm -ffreestanding -nostdinc -fno-builtin -fplan9-extensions \
+	-fno-omit-frame-pointer -fno-stack-protector -fno-pie $ARCHFLAGS -fcommon \
+	-I$PLAN9/$objtype/include -I$PLAN9/sys/include -I$PLAN9/sys/src/9/boot \
+	-c -o $TMP/boot.o $PLAN9/sys/src/9/boot/boot.c || die cc boot
+libgcc=()
+test -f $PLAN9/$objtype/lib.gcc/libgcc.a && libgcc=$PLAN9/$objtype/lib.gcc/libgcc.a
+$GNU/ld -o $KDIR/boot --entry'='_main -z noseparate-code -z 'max-page-size=0x1000' \
+	-T $PLAN9/$objtype/plan9.ld $TMP/boot.o $PLAN9/$objtype/lib.gcc/libc.a $libgcc || die ld boot
+
+# the protos, as BOOTFSPROTOS in boot/bootmkfile ($OBJ: the
+# configuration's devices, ../port/mkdevlist: names with .$O)
+cd $KDIR
+OBJ=`{rc ../port/mkdevlist $CONF | sed 's/\.'$O'$//'}
+PROTOS=()
+for(i in $CONF.bootfs.proto bootfs.proto ../boot/bootfs.proto)
+	if(~ $#PROTOS 0 && test -r $i)
+		PROTOS=$i
+if(~ devfs $OBJ || ~ devsd $OBJ || ~ devusb $OBJ)
+	PROTOS=($PROTOS ../boot/disk.proto)
+for(j in ../boot/*.proto)
+	if(~ `{basename $j .proto} $OBJ)
+		PROTOS=($PROTOS $j)
+echo protos: $PROTOS
+mkdir -p $TMP/$CONF.bootfs
+disk/mkfs -s $PLAN9 -d $TMP/$CONF.bootfs $PROTOS >[2=1] | grep -v 'lib/firmware'
+for(f in `{du -a $TMP/$CONF.bootfs | awk '{print $2}'})
+	test -f $f && $GNU/strip $f >[2]/dev/null
+mkpaqfs -9 -b 65536 -o $KDIR/$CONF.bootfs.paq $TMP/$CONF.bootfs || die mkpaqfs
+ls -l $KDIR/boot $KDIR/$CONF.bootfs.paq
+exit ''

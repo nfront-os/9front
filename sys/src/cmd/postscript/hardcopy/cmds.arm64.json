@@ -3,7 +3,7 @@
 		"Name": "cmd-postscript-hardcopy-install",
 		"Install": "",
 		"Post": [
-			"python3 ../../../../../scripts/build/mkinstall.py cmd/postscript/hardcopy"
+			"python3 ../../../../../scripts/build/mkinstall.py cmd/postscript/hardcopy -- /arm64/bin/aux/hardcopy /sys/lib/postscript/prologues/hardcopy.ps"
 		],
 		"Clean": [
 			"hardcopy"

@@ -1,0 +1,9 @@
+#!/bin/rc
+# gen-awk-proctab.sh: awk's proctab.c from maketab (reads ./y.tab.h)
+. $PLAN9/scripts/build/rc/lib.rc
+AWK=$PLAN9/sys/src/cmd/awk
+hostcc $TMP/maketab -I$AWK $AWK/maketab.c
+cd $AWK
+$TMP/maketab >proctab.c || die maketab
+echo wrote sys/src/cmd/awk/proctab.c
+exit ''

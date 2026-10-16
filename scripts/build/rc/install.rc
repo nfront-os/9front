@@ -1,0 +1,23 @@
+#!/bin/rc
+# install -D -m mode src dst, the form the manifests use: 9front has no
+# install(1)
+. $PLAN9/scripts/build/rc/lib.rc
+mode=()
+while(~ $1 -*){
+	switch($1){
+	case -D
+		;
+	case -m
+		mode=$2
+		shift
+	case *
+		die unknown option $1
+	}
+	shift
+}
+~ $#* 2 || die usage: install [-D] [-m mode] src dst
+mkdir -p `{basename -d $2}
+cp $1 $2 || die cp $1 $2
+if(! ~ $#mode 0)
+	chmod $mode $2
+exit ''

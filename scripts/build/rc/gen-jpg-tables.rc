@@ -1,0 +1,12 @@
+#!/bin/rc
+# gen-jpg-tables.sh: jpg's rgbv.h and ycbcr.h from its helper programs
+. $PLAN9/scripts/build/rc/lib.rc
+JPG=$PLAN9/sys/src/cmd/jpg
+for(t in rgbrgbv:rgbv.h rgbycc:ycbcr.h){
+	tool=`{echo $t | sed 's/:.*//'}
+	out=`{echo $t | sed 's/.*://'}
+	hostcc $TMP/$tool $JPG/$tool.c
+	$TMP/$tool >$JPG/$out || die $tool
+	echo wrote sys/src/cmd/jpg/$out
+}
+exit ''

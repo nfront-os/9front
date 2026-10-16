@@ -105,4 +105,19 @@ check "amd64 assembly: 9front's .s unchanged, each with a GAS .S" asmpairs
 check "GAS ports: no 6a assembly in them" \
 	bash -c '! grep -nP "^(TEXT|GLOBL)\s|^\t[A-Z]{2,}[A-Z0-9]*\t" sys/src/libc/amd64/*.S sys/src/ape/lib/ap/amd64/*.S sys/src/ape/lib/9/amd64/*.S'
 
+# 7. the build steps for 9front itself (self-hosting) and the guest
+#    scripts parse as rc: a syntax error does not fail rc's status
+#    there, the build would go on without the step's output.
+#    plan9port's rc has no -n: each file becomes a function's body
+rcsyntax(){
+	local p9p=${PLAN9PORT:-$ROOT/../plan9port} bad=0 f
+	[ -x "$p9p/bin/rc" ] || { echo "no $p9p/bin/rc"; return 1; }
+	for f in scripts/build/rc/*.rc scripts/guest/boot/*.rc; do
+		{ echo 'fn __syntax {'; cat "$f"; echo; echo '}'; } |
+			PLAN9=$p9p "$p9p/bin/rc" 2>&1 | sed "s|/dev/stdin|$f|" | grep . && bad=1
+	done
+	return $bad
+}
+check "rc scripts (scripts/build/rc, scripts/guest/boot) parse" rcsyntax
+
 done_tests

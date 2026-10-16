@@ -1,0 +1,9 @@
+#!/bin/rc
+# gen-sd53c8xx-i.sh: the NCR 53C8xx microcode (sd53c8xx.i) from
+# sd53c8xx.n with 9front's aux/na, as pc/mkfile does
+. $PLAN9/scripts/build/rc/lib.rc
+cd $PLAN9/sys/src/9/pc
+aux/na sd53c8xx.n >$TMP/sd53c8xx.i || die na
+mv $TMP/sd53c8xx.i sd53c8xx.i
+grep '^#define NA_(SCRIPT_SIZE|PATCHES)' sd53c8xx.i
+exit ''

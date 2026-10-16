@@ -1,0 +1,8 @@
+#!/bin/rc
+# gen-latin1-h.sh: kbdfs's latin1.h (compose table) from mklatin
+. $PLAN9/scripts/build/rc/lib.rc
+K=$PLAN9/sys/src/cmd/aux/kbdfs
+hostcc $TMP/mklatin $K/mklatin.c
+$TMP/mklatin $PLAN9/lib/keyboard >$K/latin1.h || die mklatin
+echo wrote `{wc -l <$K/latin1.h} lines to sys/src/cmd/aux/kbdfs/latin1.h
+exit ''

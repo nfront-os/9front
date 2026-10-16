@@ -1,0 +1,24 @@
+#!/bin/rc
+# check-install.py: everything mk install installs is in the tree. The
+# list of expected files is check-install.py -l's, written beside the
+# tree ($PLAN9/check-install.$objtype, scripts/guest/build-self.sh)
+# where it was made on the build host (the mkfile parser is python's).
+#	check-install.rc [-r]
+. $PLAN9/scripts/build/rc/lib.rc
+list=$PLAN9/check-install.$objtype
+test -r $list || die no $list
+bad=0
+n=0
+for(p in `{cat $list}){
+	n=`{echo $n + 1 | hoc}
+	if(! test -e $PLAN9$p){
+		echo missing tree $p
+		bad=1
+	}
+}
+if(~ $bad 0){
+	echo $n files expected, ok
+	exit ''
+}
+echo $n files expected
+exit missing

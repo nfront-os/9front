@@ -1,0 +1,79 @@
+# Shared by the build steps on 9front (scripts/build/rc/*.rc), the rc
+# counterparts of scripts/build/*.sh and *.py that the build tool runs
+# there (sys/src/cmd/build: plan9step). $PLAN9 is the tree being built
+# (the build tool's environment), $objtype the architecture built,
+# $cputype the one the helper programs run on.
+rfork e
+# the step's name ($0 is this file's in a script that sources it)
+prog=`{basename `{awk '{print $2}' /proc/$pid/args} .rc}
+fn die{
+	echo $prog: $* >[1=2]
+	exit $prog
+}
+if(~ $#PLAN9 0)
+	die PLAN9 not set
+if(~ $#objtype 0)
+	objtype=$cputype
+# the native gcc and binutils (../9front-gcc), not Plan 9's ar, nm, ...
+GNU=/$cputype/gnu/bin
+TMP=/tmp/build.$prog.$pid
+fn sigexit{
+	rm -rf $TMP
+}
+mkdir -p $TMP
+
+# words of variable $1 of ./mkfile (continued lines joined)
+fn mkvar{
+	sed -e :a -e '/\\$/N; s/\\\n//; ta' mkfile | sed -n 's/^'^$1^'=//p' | tr -s ' 	' '\012\012' | grep -v '^$'
+}
+
+# hostcc out [cc flags] file.c ...: a helper program for this machine,
+# as the mkfiles' $O.tool rules build them, with the native gcc, this
+# tree's headers and linker script and the installed libraries (the
+# tree's are not built yet when libc's own Pre step needs mkrunetype);
+# the libraries are those the headers name in #pragma lib, which gcc
+# ignores and kencc's loader follows. rc has no local variables: the
+# function's variables start with hc, not to change the caller's
+fn hostcc{
+	hcout=$1
+	shift
+	hcobjs=()
+	hcflags=()
+	hclibs=()
+	for(hca){
+		switch($hca){
+		case *.c
+			hco=$TMP/`{basename $hca .c}^.o
+			hccc=($GNU/gcc '-std=gnu17' -ffreestanding -nostdinc -fno-builtin -fplan9-extensions \
+				-fcommon -fno-pie -fno-stack-protector -O1 -w \
+				-I$PLAN9/$cputype/include -I$PLAN9/sys/include $hcflags)
+			$hccc -c -o $hco $hca || die cc $hca
+			hclibs=($hclibs `{$hccc -E $hca | sed -n 's/^#pragma[ 	]+lib[ 	]+"lib([^"]*)\.a".*/-l\1/p'})
+			hcobjs=($hcobjs $hco)
+		case *
+			hcflags=($hcflags $hca)
+		}
+	}
+	$GNU/ld -static -z noseparate-code -z 'max-page-size=0x1000' -T $PLAN9/$cputype/plan9.ld -e _main \
+		-o $hcout $hcobjs -L/$cputype/lib.gcc --start-group $hclibs -lc --end-group \
+		`{$GNU/gcc -print-libgcc-file-name} || die ld $hcout
+}
+
+# bin2c file skip: the bytes of file as C initialiser lines, 12 per line
+# ("\t0x00, 0x01, ...,"), after skip zero bytes (an a.out header's room)
+fn bin2c{
+	{
+		if(! ~ $2 0)
+			dd -if /dev/zero -bs $2 -count 1 -quiet 1
+		cat $1
+	} | xd -1x | sed 's/^[0-9a-f]+ *//' | awk '
+	{ for(i = 1; i <= NF; i++) b[n++] = $i }
+	END {
+		for(i = 0; i < n; i += 12){
+			s = "\t"
+			for(j = i; j < i+12 && j < n; j++)
+				s = s (j > i ? ", " : "") "0x" b[j]
+			print s ","
+		}
+	}'
+}

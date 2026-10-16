@@ -643,7 +643,7 @@
 		"Name": "cmd-git-install",
 		"Install": "",
 		"Post": [
-			"python3 ../../../../scripts/build/mkinstall.py cmd/git"
+			"python3 ../../../../scripts/build/mkinstall.py cmd/git -- add.rcinstall branch.rcinstall clone.rcinstall commit.rcinstall compat.rcinstall diff.rcinstall export.rcinstall hist.rcinstall import.rcinstall init.rcinstall merge.rcinstall pull.rcinstall push.rcinstall rebase.rcinstall revert.rcinstall rm.rcinstall"
 		]
 	}
 ]

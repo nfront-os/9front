@@ -3,7 +3,7 @@
 		"Name": "cmd-postscript-cropmarks-install",
 		"Install": "",
 		"Post": [
-			"python3 ../../../../../scripts/build/mkinstall.py cmd/postscript/cropmarks"
+			"python3 ../../../../../scripts/build/mkinstall.py cmd/postscript/cropmarks -- /386/bin/aux/cropmarks /sys/lib/postscript/prologues/cropmarks.ps"
 		],
 		"Clean": [
 			"cropmarks"

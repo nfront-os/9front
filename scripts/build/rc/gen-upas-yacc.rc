@@ -1,0 +1,9 @@
+#!/bin/rc
+# gen-upas-yacc.sh: the parsers of upas/smtp as its mkfile makes them
+. $PLAN9/scripts/build/rc/lib.rc
+cd $PLAN9/sys/src/cmd/upas/smtp
+yacc -o xxx smtpd.y || die yacc smtpd.y
+sed 's/yy/zz/g' <xxx >smtpd.tab.c
+rm -f xxx
+yacc -d -s rfc822 rfc822.y || die yacc rfc822.y
+exit ''

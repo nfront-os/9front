@@ -60,7 +60,7 @@
 		"Name": "cmd-audio-scream-install",
 		"Install": "",
 		"Post": [
-			"python3 ../../../../../scripts/build/mkinstall.py cmd/audio/scream"
+			"python3 ../../../../../scripts/build/mkinstall.py cmd/audio/scream -- screamsend.rcinstall screamrecv.rcinstall"
 		]
 	}
 ]

@@ -1,0 +1,4 @@
+#!/bin/rc
+# elf2aout.py: the a.out kernel from the ELF kernel, by the build tool
+# (sys/src/cmd/build/elf2aout.go)
+exec $PLAN9/sys/src/cmd/build/build.exe -elf2aout $*

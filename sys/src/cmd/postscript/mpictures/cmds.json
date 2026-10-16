@@ -3,7 +3,7 @@
 		"Name": "cmd-postscript-mpictures-install",
 		"Install": "",
 		"Post": [
-			"python3 ../../../../../scripts/build/mkinstall.py cmd/postscript/mpictures"
+			"python3 ../../../../../scripts/build/mkinstall.py cmd/postscript/mpictures -- /sys/lib/tmac/tmac.pictures"
 		],
 		"Clean": [
 			"tmac.pictures"
