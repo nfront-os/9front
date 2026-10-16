@@ -3,6 +3,7 @@
 		"Name": "klibdraw",
 		"Install": "/$ARCH/lib.gcc/",
 		"Library": "klibdraw.a",
+		"Objtag": "k",
 		"Include": [
 			"$ARCH.json"
 		]

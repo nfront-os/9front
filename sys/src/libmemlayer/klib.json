@@ -3,6 +3,7 @@
 		"Name": "klibmemlayer",
 		"Install": "/$ARCH/lib.gcc/",
 		"Library": "klibmemlayer.a",
+		"Objtag": "k",
 		"Include": [
 			"$ARCH.json"
 		]

@@ -3,6 +3,7 @@
 		"Name": "klibip",
 		"Install": "/$ARCH/lib.gcc/",
 		"Library": "klibip.a",
+		"Objtag": "k",
 		"Include": [
 			"$ARCH.json"
 		]

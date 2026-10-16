@@ -363,6 +363,15 @@
 			"bash scripts/build/gen-sd53c8xx-i.sh",
 			"bash scripts/build/gen-initcode-i.sh",
 			"bash scripts/build/gen-bootfs.sh pc"
+		],
+		"Clean": [
+			"sys/src/9/pc/rebootcode.i",
+			"sys/src/9/pc/apbootstrap.i",
+			"sys/src/9/pc/sd53c8xx.i",
+			"sys/src/9/port/initcode.i",
+			"sys/src/9/pc/boot",
+			"sys/src/9/pc/pc.bootfs.paq",
+			"sys/src/9/pc/pc.bootfs.sum"
 		]
 	},
 	{

@@ -66,6 +66,9 @@
 			"../5c/enam.c",
 			"thumb.c",
 			"compat.c"
+		],
+		"Clean": [
+			"../5c/enam.c"
 		]
 	}
 ]

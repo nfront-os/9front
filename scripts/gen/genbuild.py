@@ -23,6 +23,8 @@ usage: scripts/gen/genbuild.py
 """
 import json, os, subprocess, sys
 
+import genclean
+
 ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..'))
 
 # per objtype: the kernel's generators (as pc64/mkfile, pc/mkfile,
@@ -70,7 +72,7 @@ def main():
 			{'Name': 'libs', 'Projects': libs},
 			{'Name': 'klibs', 'Projects': klibs},
 			{'Name': 'cmds', 'Projects': cmds},
-			{'Name': 'kernelgen', 'Pre': gens},
+			{'Name': 'kernelgen', 'Pre': gens, 'Clean': genclean.clean(gens, ROOT)},
 			{'Name': 'kernel', 'Projects': [kern]},
 			{'Name': 'install', 'Post': ['python3 scripts/build/elf2aout.py %s %s' % (elf, aout),
 				'python3 scripts/build/check-install.py -r']},

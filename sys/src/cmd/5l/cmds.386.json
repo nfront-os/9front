@@ -65,6 +65,9 @@
 			"span.c",
 			"../5c/enam.c",
 			"compat.c"
+		],
+		"Clean": [
+			"../5c/enam.c"
 		]
 	}
 ]

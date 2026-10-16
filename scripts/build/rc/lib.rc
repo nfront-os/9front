@@ -59,6 +59,15 @@ fn hostcc{
 		`{$GNU/gcc -print-libgcc-file-name} || die ld $hcout
 }
 
+# update file: the standard input into file, only when it changes (its
+# time is what build.exe -D compares)
+fn update{
+	cat >$TMP/update
+	if(! cmp -s $TMP/update $1)
+		cp $TMP/update $1
+	rm -f $TMP/update
+}
+
 # bin2c file skip: the bytes of file as C initialiser lines, 12 per line
 # ("\t0x00, 0x01, ...,"), after skip zero bytes (an a.out header's room)
 fn bin2c{

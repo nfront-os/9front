@@ -51,11 +51,20 @@ cmd/[0-9a-z]c|cmd/[0-9a-z]l)
 	*c)	d=. ;;
 	*l)	d=$(sed -n 's,^\.\./\([0-9a-z]c\)/enam\.c:.*,../\1,p' mkfile | head -1) ;;
 	esac
+	# made again on every build; one that comes out as it was keeps its
+	# time (build.exe -D: 9l's and ql's cnam.c are checked in, not Clean)
+	K=$(mktemp -d)
+	trap 'rm -rf "$K"' EXIT
+	for f in $d/enam.c cnam.c; do [ -f "$f" ] && cp -p "$f" "$K/$(echo $f | tr / _)"; done
 	(cd "$d" && T=$(sed -n 's/^T=//p' mkfile) && export T && p9 rc ../cc/mkenam)
 	# 7l: cnam.c: l.h mkcname	rc ./mkcname
 	if grep -q '^cnam.c:' mkfile; then
 		p9 rc ./mkcname
 	fi
+	for f in $d/enam.c cnam.c; do
+		k=$K/$(echo $f | tr / _)
+		if [ -f "$k" ] && cmp -s "$k" "$f"; then touch -r "$k" "$f"; fi
+	done
 	;;
 games/blabs)
 	# %.bits: ./mkface $stem, for $FACES (mkface reads /lib/face)

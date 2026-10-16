@@ -47,6 +47,25 @@ mkdir -p $TMP/$CONF.bootfs
 disk/mkfs -s $PLAN9 -d $TMP/$CONF.bootfs $PROTOS >[2=1] | grep -v 'lib/firmware'
 for(f in `{du -a $TMP/$CONF.bootfs | awk '{print $2}'})
 	test -f $f && $GNU/strip $f >[2]/dev/null
-mkpaqfs -9 -b 65536 -o $KDIR/$CONF.bootfs.paq $TMP/$CONF.bootfs || die mkpaqfs
+# a new image only when what goes into it changes (names, modes,
+# contents): mkpaqfs records the times, every image differs (build.exe -D)
+sum=`{
+	@{
+		cd $TMP/$CONF.bootfs
+		for(f in `{du -a . | awk '{print $2}' | sort}){
+			echo $f `{ls -ld $f | awk '{print $1}'}
+			if(test -f $f)
+				sha1sum <$f
+		}
+	} | sha1sum
+}
+old=()
+test -f $KDIR/$CONF.bootfs.sum && old=`{cat $KDIR/$CONF.bootfs.sum}
+if(test -f $KDIR/$CONF.bootfs.paq && ~ $"old $"sum)
+	echo $CONF.bootfs.paq: unchanged
+if not{
+	mkpaqfs -9 -b 65536 -o $KDIR/$CONF.bootfs.paq $TMP/$CONF.bootfs || die mkpaqfs
+	echo $sum >$KDIR/$CONF.bootfs.sum
+}
 ls -l $KDIR/boot $KDIR/$CONF.bootfs.paq
 exit ''

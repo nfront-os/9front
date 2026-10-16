@@ -59,6 +59,7 @@
 			"strxfrm.c",
 			"toupper.c",
 			"strdup.c"
-		]
+		],
+		"Shared": true
 	}
 ]

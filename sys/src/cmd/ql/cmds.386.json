@@ -68,6 +68,9 @@
 			"cnam.c",
 			"sched.c",
 			"compat.c"
+		],
+		"Clean": [
+			"../qc/enam.c"
 		]
 	}
 ]

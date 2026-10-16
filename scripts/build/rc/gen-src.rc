@@ -36,6 +36,12 @@ case cmd/[0-9a-z]c cmd/[0-9a-z]l
 	d=.
 	if(~ $1 cmd/[0-9a-z]l)
 		d=`{sed -n 's,^\.\./([0-9a-z]c)/enam\.c:.*,../\1,p' mkfile | sed 1q}
+	# one that comes out as it was keeps its time (build.exe -D)
+	for(f in $d/enam.c cnam.c)
+		if(test -f $f){
+			cp $f $TMP/`{echo $f | tr / _}
+			mtime $f >$TMP/`{echo $f | tr / _}^.t
+		}
 	@{
 		cd $d
 		T=`{sed -n 's/^T=//p' mkfile}
@@ -43,6 +49,13 @@ case cmd/[0-9a-z]c cmd/[0-9a-z]l
 	}
 	if(grep -s '^cnam.c:' mkfile)
 		rc ./mkcname || die cnam.c
+	for(f in $d/enam.c cnam.c){
+		k=$TMP/`{echo $f | tr / _}
+		if(test -f $k && cmp -s $k $f){
+			t=`{cat $k.t}
+			touch -t $t(1) $f
+		}
+	}
 case games/blabs
 	# %.bits: ./mkface $stem, for $FACES
 	for(f in `{mkvar FACES})

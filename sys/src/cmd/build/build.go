@@ -50,6 +50,9 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 package main
 
 import (
+	"bytes"
+	"crypto/sha1"
+	"debug/elf"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -65,6 +68,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type kernconfig struct {
@@ -95,6 +99,9 @@ type build struct {
 	// jsons is unexported so can not be set in a .json file
 	jsons []string
 	path  string
+	// -D: the commands of SourceFilesCmd to compile (the others are
+	// linked again only)
+	cmdstale map[string]bool
 	Name  string
 	// Projects name a whole subproject which is built independently of
 	// this one. We'll need to be able to use environment variables at some point.
@@ -120,10 +127,17 @@ type build struct {
 	// Append adds to an existing Library archive instead of starting a
 	// new one (libap: one archive from several directories, like mk's ar)
 	Append bool
+	// Shared: other manifests Append to this one's Library (libap's base
+	// part); -D does not expect the archive to hold its objects only
+	Shared bool
 	// Clean names (globs, relative to the manifest's directory) the
 	// files its Pre steps generate: yacc's y.tab.[ch], enam.c, ...
 	// -clean removes them with what the build itself makes there.
 	Clean []string
+	// Objtag names the objects x.<Objtag>.o: the kernel's libraries
+	// (klib.json) compile the userspace ones' sources in the same
+	// directory with other flags; their objects stay apart (-D)
+	Objtag string
 	Kernel *kernel
 }
 
@@ -222,7 +236,7 @@ var (
 		"arm64": {"objtype": "arm64", "O": "7", "SUFFIX": ".arm64", "CONF": "qemu", "TOOLPREFIX": "aarch64-linux-musl-"},
 	}
 	debugPrint     = flag.Bool("debug", false, "enable debug prints")
-	depends        = flag.Bool("D", false, "Do dependency checking")
+	depends        = flag.Bool("D", false, "build only what is out of date, as mk: objects older than their sources or of another $ARCH, libraries and programs older than their objects or libraries")
 	staticAnalysis = flag.Bool("analyze", false, "Do static analysis")
 	shellhack      = flag.Bool("shellhack", false, "spawn every command in a shell (forced on if LD_PRELOAD is set)")
 	cleanMode      = flag.Bool("clean", false, "remove what the build makes in the source directories instead of building (mk clean): objects, links, generated sources; installed targets stay")
@@ -310,13 +324,7 @@ func include(f string, targ string, b *build) {
 		b.Libs = append(b.Libs, build.Libs...)
 		b.Projects = append(b.Projects, build.Projects...)
 		b.Env = append(b.Env, build.Env...)
-		for _, v := range build.SourceFilesCmd {
-			_, t := cmdTarget(&build, v)
-			if uptodate(t, append(b.SourceDeps, v)) {
-				continue
-			}
-			b.SourceFilesCmd = append(b.SourceFilesCmd, v)
-		}
+		b.SourceFilesCmd = append(b.SourceFilesCmd, build.SourceFilesCmd...)
 		if build.Install != "" {
 			if b.Install != "" && build.Install != b.Install {
 				log.Fatalf("In file %s (target %s) included by %s (target %s): redefined Install: was %s, redefined to %s.", f, b.Name, build.path, build.Name, b.Install, build.Install)
@@ -328,30 +336,9 @@ func include(f string, targ string, b *build) {
 		// with 'o'. We can get smarter later.
 		b.SourceDeps = append(b.SourceDeps, build.SourceDeps...)
 
-		var s []string
-		for _, v := range build.SourceFiles {
-			if uptodate(targ, append(b.SourceDeps, v)) {
-				continue
-			}
-			s = append(s, v)
-		}
-		if *depends && build.Program != "" {
-			if len(s) == 0 {
-				build.SourceFiles = []string{}
-				build.Program = ""
-			}
-		}
-
-		if *depends && b.Library != "" {
-			build.SourceFiles = s
-		}
-
 		for _, v := range build.SourceFiles {
 			b.SourceFiles = append(b.SourceFiles, v)
-			fi := path.Base(v)
-			ext := path.Ext(v)
-			o := fi[:len(fi)-len(ext)+1] + "o"
-			b.ObjectFiles = append(b.ObjectFiles, o)
+			b.ObjectFiles = append(b.ObjectFiles, objectOf(b, v))
 		}
 
 		for _, v := range build.Include {
@@ -366,6 +353,7 @@ func include(f string, targ string, b *build) {
 		b.Clean = append(b.Clean, build.Clean...)
 		b.Ape = b.Ape || build.Ape
 		b.Append = b.Append || build.Append
+		b.Shared = b.Shared || build.Shared
 	}
 }
 
@@ -410,45 +398,12 @@ func process(f string, r []*regexp.Regexp) []build {
 		build.jsons = append(build.jsons, f)
 		build.path = path.Dir(f)
 
-		// Figure out which of these are up to date.
-		var s []string
-		for _, v := range build.SourceFilesCmd {
-			_, targ := cmdTarget(&build, v)
-			if uptodate(targ, append(build.SourceDeps, v)) {
-				continue
-			}
-			s = append(s, v)
-		}
-		build.SourceFilesCmd = s
 		// For each source file, assume we create an object file with the last char replaced
 		// with 'o'. We can get smarter later.
 		t := target(&build)
-		deps := targetDepends(&build)
-		debug("\ttarget is '%s', deps are '%v'", t, deps)
+		debug("\ttarget is '%s'", t)
 		for _, v := range build.SourceFiles {
-			if uptodate(t, append(deps, v)) {
-				continue
-			}
-			s = append(s, v)
-		}
-
-		if *depends && build.Program != "" {
-			if len(s) == 0 {
-				build.SourceFiles = []string{}
-				build.Program = ""
-			}
-		}
-
-		if *depends && build.Library != "" {
-			build.SourceFiles = s
-		}
-
-		for _, v := range build.SourceFiles {
-			f := path.Base(v)
-			ext := path.Ext(f)
-			l := len(f) - len(ext) + 1
-			o := f[:l]
-			o += "o"
+			o := objectOf(&build, v)
 			if !contains(build.ObjectFiles, o) {
 				build.ObjectFiles = append(build.ObjectFiles, o)
 			}
@@ -474,7 +429,7 @@ func buildkernel(b *build) {
 	errstr(b)
 	systab(b)
 	codebuf := confcode(b)
-	fail(ioutil.WriteFile(b.Name+".c", codebuf, 0666))
+	fail(writeconf(b.Name+".c", codebuf))
 	o := b.Name + ".c"
 	if !contains(b.SourceFiles, o) {
 		b.SourceFiles = append(b.SourceFiles, o)
@@ -485,45 +440,120 @@ func buildkernel(b *build) {
 	}
 }
 
-func uptodate(n string, d []string) bool {
-	debug("uptodate: %s, %v\n", n, d)
-	if !*depends {
-		debug("\t no\n")
-		return false
-	}
-
+// stale: n is missing, or one of d is missing or not older than n
+func stale(n string, d []string) bool {
 	fi, err := os.Stat(n)
-	// If it does not exist, by definition it's not up to date
 	if err != nil {
-		debug("\t target '%s' doesn't exist\n", n)
-		return false
+		debug("stale: %s: %v", n, err)
+		return true
 	}
-
-	m := fi.ModTime()
-
-	debug("older: time is %v\n", m)
-	if len(d) == 0 {
-		log.Fatalf("update has nothing to check for %v", n)
-	}
-	for _, d := range d {
-		debug("\tCheck %s:", d)
-		di, err := os.Stat(d)
-		if err != nil {
-			return false
+	for _, f := range d {
+		di, err := os.Stat(f)
+		if err != nil || !di.ModTime().Before(fi.ModTime()) {
+			debug("stale: %s: %s is newer", n, f)
+			return true
 		}
-		if !di.ModTime().Before(m) {
-			debug("%v is newer\n", di.ModTime())
-			return false
-		}
-		debug("%v is older\n", di.ModTime())
 	}
-
-	debug("all is older\n")
-	return true
+	return false
 }
 
-func targetDepends(b *build) []string {
-	return append(b.SourceDeps, fromRoot("/sys/include/libc.h"), fromRoot("/$ARCH/include/u.h"))
+// outofdate (-D) cuts b down to what is out of date, as mk decides from
+// the files' times: a source is compiled when its object is missing,
+// for another $ARCH, made by another command (flags), or older than the
+// source or a header it read (gcc's x.d); a library is archived again,
+// from all its objects, when one of them is newer than it; a program is
+// linked again when one of its objects or libraries is; each command of
+// SourceFilesCmd by its object and its installed program. Pre and Post
+// steps always run (keeptimes: unchanged output keeps its time). It
+// reports whether b's program is to be linked and its library archived.
+func outofdate(b *build) (link, archive bool) {
+	command, cArgs, asmArgs := compileArgs(b)
+	csig, asig := signature(command, cArgs), signature(tools["cc"], asmArgs)
+	objstale := func(f string) bool {
+		o := objectOf(b, f)
+		want := csig
+		if isasm(f) && len(b.SourceFilesCmd) == 0 {
+			want = asig
+		}
+		deps, sig, ok := readdeps(b, f)
+		return !ok || sig != want || !thisarch(o) || stale(o, append(deps, f))
+	}
+	var libs []string
+	for _, l := range b.Libs {
+		if !strings.HasPrefix(l, "-") {
+			libs = append(libs, l)
+		}
+	}
+	var srcs []string
+	for _, f := range b.SourceFiles {
+		if objstale(f) {
+			srcs = append(srcs, f)
+		}
+	}
+	b.SourceFiles = srcs
+	if b.Library != "" {
+		lib := path.Join(b.Install, b.Library)
+		archive = len(srcs) > 0 || stale(lib, b.ObjectFiles) || !members(lib, b.ObjectFiles, !b.Append && !b.Shared)
+	}
+	if b.Program != "" {
+		link = len(srcs) > 0 || stale(target(b), append(append([]string{}, b.ObjectFiles...), libs...))
+	}
+	var cmds []string
+	b.cmdstale = map[string]bool{}
+	for _, f := range b.SourceFilesCmd {
+		exe, dir := cmdTarget(b, f)
+		if objstale(f) {
+			b.cmdstale[f] = true
+			cmds = append(cmds, f)
+		} else if stale(path.Join(dir, path.Base(exe)), append([]string{objectOf(b, f)}, libs...)) {
+			cmds = append(cmds, f)
+		}
+	}
+	b.SourceFilesCmd = cmds
+	return link, archive
+}
+
+// members: archive a holds the objects os -- exactly those unless it is
+// one part of an archive (Append, Shared). A base part archived again
+// starts the archive anew, and the other parts are then missing from it.
+func members(a string, os []string, exact bool) bool {
+	out, err := exec.Command(tools["ar"], "t", a).Output()
+	if err != nil {
+		return false
+	}
+	have := map[string]bool{}
+	for _, m := range strings.Fields(string(out)) {
+		have[m] = true
+	}
+	for _, o := range os {
+		if !have[o] {
+			return false
+		}
+		delete(have, o)
+	}
+	return !exact || len(have) == 0
+}
+
+// thisarch: object o is for $ARCH -- the objects of every architecture
+// are named x.o, one built for another is not up to date
+func thisarch(o string) bool {
+	f, err := elf.Open(o)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+	m := map[string]elf.Machine{"386": elf.EM_386, "amd64": elf.EM_X86_64, "arm64": elf.EM_AARCH64}
+	return f.Machine == m[os.Getenv("ARCH")]
+}
+
+// objectOf: the object of b's source f, in the working directory
+func objectOf(b *build, f string) string {
+	f = path.Base(f)
+	f = f[:len(f)-len(path.Ext(f))]
+	if b.Objtag != "" {
+		f += "." + b.Objtag
+	}
+	return f + ".o"
 }
 
 func target(b *build) string {
@@ -542,9 +572,10 @@ func cmdTarget(b *build, n string) (string, string) {
 	return exe, b.Install
 }
 
-func compile(b *build) {
-	log.Printf("Building %s\n", b.Name)
-
+// compileArgs: the compiler and its arguments for b's C sources and for
+// its assembly (.s/.S), without the files. -MMD: gcc writes x.d beside
+// x.o, the headers it read, for -D.
+func compileArgs(b *build) (command string, cArgs, asmArgs []string) {
 	// N.B. Plan 9 has a very well defined include structure, just three things:
 	// /$ARCH/include, /sys/include, .
 	incArgs := []string{
@@ -560,24 +591,47 @@ func compile(b *build) {
 			"-I", ".",
 		}
 	}
-	args := []string{
+	cArgs = []string{
 		"-std=c11",
 		"-c",
+		"-MMD",
 	}
-	args = append(args, incArgs...)
+	cArgs = append(cArgs, incArgs...)
 
-	ccCommand := tools["cc"]
-	command := ccCommand
+	command = tools["cc"]
 	if *staticAnalysis {
 		command = "scan-build"
-		args = append([]string{ccCommand}, args...)
+		cArgs = append([]string{tools["cc"]}, cArgs...)
 	}
+	cArgs = append(cArgs, b.Cflags...)
 
-	args = append(args, b.Cflags...)
+	asmArgs = []string{"-c", "-MMD"}
+	// Same include structure as C so #include works in assembly.
+	asmArgs = append(asmArgs, incArgs...)
+	// Pass architecture/model flags that the C compiler would use
+	for _, flag := range b.Cflags {
+		if strings.HasPrefix(flag, "-m") || strings.HasPrefix(flag, "-fzero") || strings.HasPrefix(flag, "-fcommon") || flag == "-fno-pie" {
+			asmArgs = append(asmArgs, flag)
+		}
+	}
+	return command, cArgs, asmArgs
+}
+
+func isasm(f string) bool {
+	return strings.HasSuffix(f, ".s") || strings.HasSuffix(f, ".S")
+}
+
+func compile(b *build) {
+	log.Printf("Building %s\n", b.Name)
+	command, args, asmArgs := compileArgs(b)
 	if len(b.SourceFilesCmd) > 0 {
 		for _, sourceFile := range b.SourceFilesCmd {
+			if b.cmdstale != nil && !b.cmdstale[sourceFile] {
+				continue // -D: only to be linked again
+			}
 			cmd := exec.Command(command, append(args, sourceFile)...)
 			run(b, *shellhack, cmd)
+			signdeps(b, sourceFile, command, args)
 		}
 		return
 	}
@@ -586,7 +640,7 @@ func compile(b *build) {
 	var asmFiles []string
 	var cFiles []string
 	for _, f := range b.SourceFiles {
-		if strings.HasSuffix(f, ".s") || strings.HasSuffix(f, ".S") {
+		if isasm(f) {
 			asmFiles = append(asmFiles, f)
 		} else {
 			cFiles = append(cFiles, f)
@@ -595,25 +649,74 @@ func compile(b *build) {
 
 	// Assemble .s/.S files with gcc (uses gas)
 	if len(asmFiles) > 0 {
-		asmArgs := []string{"-c"}
-		// Same include structure as C so #include works in assembly.
-		asmArgs = append(asmArgs, incArgs...)
-		// Pass architecture/model flags that the C compiler would use
-		for _, flag := range b.Cflags {
-			if strings.HasPrefix(flag, "-m") || strings.HasPrefix(flag, "-fzero") || strings.HasPrefix(flag, "-fcommon") || flag == "-fno-pie" {
-				asmArgs = append(asmArgs, flag)
-			}
-		}
-		asmArgs = append(asmArgs, asmFiles...)
-		cmd := exec.Command(ccCommand, asmArgs...)
-		run(b, *shellhack, cmd)
+		cc(b, tools["cc"], asmArgs, asmFiles)
 	}
 
 	// Compile .c files
 	if len(cFiles) > 0 {
-		cmd := exec.Command(command, append(args, cFiles...)...)
-		run(b, *shellhack, cmd)
+		cc(b, command, args, cFiles)
 	}
+}
+
+// cc compiles the files fs in one run of the compiler; with an Objtag
+// each by itself into its x.<Objtag>.o (-o), which leaves the x.o of
+// the same source, and gcc names the dependency file after it
+func cc(b *build, command string, args, fs []string) {
+	if b.Objtag == "" {
+		run(b, *shellhack, exec.Command(command, append(args, fs...)...))
+	} else {
+		for _, f := range fs {
+			run(b, *shellhack, exec.Command(command, append(args, "-o", objectOf(b, f), f)...))
+		}
+	}
+	for _, f := range fs {
+		signdeps(b, f, command, args)
+	}
+}
+
+// the dependency file gcc -MMD writes for source f's object
+func depfile(b *build, f string) string {
+	o := objectOf(b, f)
+	return o[:len(o)-len(".o")] + ".d"
+}
+
+// signature of a compile command (without its files)
+func signature(command string, args []string) string {
+	return fmt.Sprintf("%x", sha1.Sum([]byte(strings.Join(append([]string{command}, args...), "\x00"))))
+}
+
+const sigTag = "# build.exe "
+
+// signdeps notes in f's dependency file the command that compiled it:
+// the same sources are built with other flags into the same x.o (klibc,
+// libc), -D compiles again when the command differs
+func signdeps(b *build, f, command string, args []string) {
+	d, err := os.OpenFile(depfile(b, f), os.O_WRONLY|os.O_APPEND, 0)
+	if err != nil {
+		return // no dependency file: -D compiles f again
+	}
+	defer d.Close()
+	fmt.Fprintf(d, "%s%s\n", sigTag, signature(command, args))
+}
+
+// readdeps: the files f's object depends on (gcc's x.d: the source and
+// the headers it read) and the signature of the command that made it;
+// ok is false without a dependency file
+func readdeps(b *build, f string) (deps []string, sig string, ok bool) {
+	data, err := os.ReadFile(depfile(b, f))
+	if err != nil {
+		return nil, "", false
+	}
+	text := string(data)
+	if i := strings.Index(text, sigTag); i >= 0 {
+		sig = strings.TrimSpace(strings.SplitN(text[i+len(sigTag):], "\n", 2)[0])
+		text = text[:i]
+	}
+	text = strings.ReplaceAll(text, "\\\n", " ")
+	if i := strings.Index(text, ":"); i >= 0 {
+		text = text[i+1:]
+	}
+	return strings.Fields(text), sig, true
 }
 
 // presolve links a program's objects into one relocatable object with
@@ -655,17 +758,20 @@ func presolve(b *build, out string, objs []string) string {
 }
 
 // clean removes what building b makes in its directory, as mk clean
-// does: the objects, presolve's .r.o/.weak, links not yet installed,
-// archives installed into a source directory (program-local libraries,
+// does: the objects and their dependency files (.d), presolve's
+// .r.o/.weak, links not yet installed, archives installed into a
+// source directory (program-local libraries,
 // cmd/map/libmap/libmap.a6), a kernel's <Name>.c, errstr.h and
 // ../port/systab.h, the targets of the Pre steps' cp and mv, and the
 // Clean globs. Installed programs and libraries (/$ARCH/...) stay.
 func clean(b *build) {
 	var files []string
-	files = append(files, b.ObjectFiles...)
+	for _, o := range b.ObjectFiles {
+		files = append(files, o, o[:len(o)-len(path.Ext(o))]+".d")
+	}
 	for _, n := range b.SourceFilesCmd {
 		n = n[:len(n)-len(filepath.Ext(n))]
-		files = append(files, path.Base(n)+".o", n+".out", n+".r.o", n+".weak")
+		files = append(files, path.Base(n)+".o", path.Base(n)+".d", n+".out", n+".r.o", n+".weak")
 	}
 	if b.Program != "" {
 		files = append(files, b.Program, b.Program+".r.o", b.Program+".weak")
@@ -676,6 +782,20 @@ func clean(b *build) {
 	if b.Kernel != nil {
 		files = append(files, b.Name+".c", b.Name+".o", "errstr.h", "../port/systab.h")
 	}
+	files = append(files, generated(b)...)
+	for _, f := range files {
+		if d, err := isDir(f); err != nil || d {
+			continue
+		}
+		log.Printf("rm %s\n", f)
+		fail(os.Remove(f))
+	}
+}
+
+// generated: what b's Pre steps make in its directory -- the targets of
+// their cp and mv, and the Clean globs
+func generated(b *build) []string {
+	var files []string
 	for _, c := range b.Pre {
 		w := strings.Fields(c)
 		if len(w) != 3 || (w[0] != "cp" && w[0] != "mv") {
@@ -687,14 +807,64 @@ func clean(b *build) {
 		}
 		files = append(files, t)
 	}
-	files = append(files, globby(b.Clean)...)
+	return append(files, globby(b.Clean)...)
+}
+
+type filestate struct {
+	data  []byte
+	mtime time.Time
+}
+
+// snapshot and keeptimes: a file the Pre steps write again with the
+// same content gets its old time back, so that what depends on it is
+// not out of date (mk makes generated files only when their sources
+// change; the steps here make them every time)
+func snapshot(files []string) map[string]filestate {
+	m := map[string]filestate{}
 	for _, f := range files {
-		if d, err := isDir(f); err != nil || d {
+		fi, err := os.Stat(f)
+		if err != nil || fi.IsDir() {
 			continue
 		}
-		log.Printf("rm %s\n", f)
-		fail(os.Remove(f))
+		data, err := os.ReadFile(f)
+		if err != nil {
+			continue
+		}
+		m[f] = filestate{data, fi.ModTime()}
 	}
+	return m
+}
+
+func keeptimes(m map[string]filestate) {
+	for f, st := range m {
+		data, err := os.ReadFile(f)
+		if err != nil || !bytes.Equal(data, st.data) {
+			continue
+		}
+		fail(os.Chtimes(f, time.Now(), st.mtime))
+	}
+}
+
+var kerndateRE = regexp.MustCompile(`(?m)^ulong kerndate = [0-9]+;$`)
+
+// writeconf writes a kernel's configuration C file: unless it differs
+// from f in more than kerndate (its build time, as mkdevc writes it),
+// f stays as it is -- with its date and time
+func writeconf(f string, data []byte) error {
+	if old, err := os.ReadFile(f); err == nil {
+		if m := kerndateRE.Find(old); m != nil && bytes.Equal(kerndateRE.ReplaceAll(data, m), old) {
+			return nil
+		}
+	}
+	return os.WriteFile(f, data, 0666)
+}
+
+// writefile writes data to f, unless f has it already (keeps its time)
+func writefile(f string, data []byte) error {
+	if old, err := os.ReadFile(f); err == nil && bytes.Equal(old, data) {
+		return nil
+	}
+	return os.WriteFile(f, data, 0666)
 }
 
 func link(b *build) {
@@ -736,8 +906,13 @@ func link(b *build) {
 	run(b, *shellhack, exec.Command(tools["ld"], args...))
 }
 
-func install(b *build) {
+// install puts the targets in place: with -D only a program linked anew
+// (dolink) and a library archived anew (doarchive)
+func install(b *build, dolink, doarchive bool) {
 	if b.Install == "" {
+		return
+	}
+	if len(b.SourceFilesCmd) == 0 && (b.Program != "" && !dolink || b.Program == "" && b.Library != "" && !doarchive) {
 		return
 	}
 
@@ -759,6 +934,7 @@ func install(b *build) {
 		libpath := path.Join(b.Install, b.Library)
 		// start from an empty archive: ar -r only adds/replaces members,
 		// so objects of sources dropped from a manifest would linger
+		// (-D: the Append parts see their members missing, members)
 		if !b.Append {
 			_ = os.Remove(libpath)
 		}
@@ -942,15 +1118,22 @@ func project(bf string, which []*regexp.Regexp) {
 			continue
 		}
 		projects(&b, regexpAll)
+		// also without -D: a full build leaves the times for the next -D
+		snap := snapshot(generated(&b))
 		runCmds(&b, b.Pre)
+		keeptimes(snap)
 		buildkernel(&b)
+		dolink, doarchive := true, true
+		if *depends {
+			dolink, doarchive = outofdate(&b)
+		}
 		if len(b.SourceFiles) > 0 || len(b.SourceFilesCmd) > 0 {
 			compile(&b)
 		}
-		if b.Program != "" || len(b.SourceFilesCmd) > 0 {
+		if b.Program != "" && dolink || len(b.SourceFilesCmd) > 0 {
 			link(&b)
 		}
-		install(&b)
+		install(&b, dolink, doarchive)
 		runCmds(&b, b.Post)
 	}
 }

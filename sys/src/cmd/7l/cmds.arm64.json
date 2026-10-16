@@ -72,6 +72,7 @@
 			"mod.c"
 		],
 		"Clean": [
+			"../7c/enam.c",
 			"cnam.c"
 		]
 	}

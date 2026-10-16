@@ -3,6 +3,7 @@
 		"Name": "klibsec",
 		"Install": "/$ARCH/lib.gcc/",
 		"Library": "klibsec.a",
+		"Objtag": "k",
 		"Include": [
 			"$ARCH.json"
 		]

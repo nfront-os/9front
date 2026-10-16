@@ -10,7 +10,10 @@ ROOT=${PLAN9:-$(git -C "$(dirname "$0")" rev-parse --show-toplevel)}
 objtype=${objtype:?objtype not set}
 cd "$ROOT"
 mkdir -p $objtype/bin/aux $objtype/lib.gcc
+# copied only when it differs: every program links it, a new time would
+# make them all out of date for build.exe -D
+copy(){ cmp -s "$1" "$2" || cp "$1" "$2"; }
 case $objtype in
-386)	cp "$(gcc -m32 -print-libgcc-file-name)" 386/lib.gcc/libgcc.a ;;
-arm64)	cp "$(${TOOLPREFIX-aarch64-linux-musl-}gcc -print-libgcc-file-name)" arm64/lib.gcc/libgcc.a ;;
+386)	copy "$(gcc -m32 -print-libgcc-file-name)" 386/lib.gcc/libgcc.a ;;
+arm64)	copy "$(${TOOLPREFIX-aarch64-linux-musl-}gcc -print-libgcc-file-name)" arm64/lib.gcc/libgcc.a ;;
 esac

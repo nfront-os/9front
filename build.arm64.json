@@ -360,6 +360,13 @@
 			"bash scripts/build/gen-rebootcode-i.sh arm64",
 			"bash scripts/build/gen-initcode-i.sh",
 			"bash scripts/build/gen-bootfs.sh qemu arm64"
+		],
+		"Clean": [
+			"sys/src/9/arm64/rebootcode.i",
+			"sys/src/9/port/initcode.i",
+			"sys/src/9/arm64/boot",
+			"sys/src/9/arm64/qemu.bootfs.paq",
+			"sys/src/9/arm64/qemu.bootfs.sum"
 		]
 	},
 	{

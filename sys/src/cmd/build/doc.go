@@ -79,6 +79,9 @@ A build object has the following keys and types:
 	Install         string
 	Ape             bool
 	Append          bool
+	Shared          bool
+	Objtag          string
+	Clean           []string
 	Kernel          kernel
 
 These are the steps taken, in order:
@@ -134,6 +137,15 @@ members of the same name, instead of creating the archive anew. It
 builds one archive from several directories the way mk's ar does
 (APE's libap).
 
+"Shared" marks the manifest that starts such an archive (libap's gen):
+other manifests "Append" to its "Library", so -D does not expect the
+archive to hold this manifest's objects only.
+
+"Objtag" names the objects x.<Objtag>.o instead of x.o. The kernel's
+libraries (klib.json, "k") compile the userspace libraries' sources in
+the same directory with other flags; with their own names both sets of
+objects stay, and -D finds each up to date.
+
 "Program" is the name of the final executable for the files specified by
 "SourceFiles".
 
@@ -165,6 +177,23 @@ removes them together with what it makes there itself -- objects, links
 not yet installed, archives installed into a source directory, a kernel's
 generated C file and headers, the targets of "Pre" cp and mv commands --
 and builds nothing, like mk clean. Installed targets stay.
+
+DEPENDENCIES (-D)
+
+Every compile writes, beside x.o, gcc's dependency file x.d (-MMD: the
+source and the headers it read) with a signature of the compile command.
+With -D the build tool does only what is out of date, as mk does: it
+compiles a source whose object is missing, of another $ARCH, made by
+another command, or older than the source or one of its headers;
+archives a library again (from all its objects) when one of them is
+newer than the archive; links a program again when one of its objects
+or libraries is newer; and each command of "SourceFilesCmd" by its
+object and installed program; an archive also when its members are
+not its objects (an "Append" part: when its own are missing, after the
+base part made the archive anew). "Pre" and "Post" commands always run;
+a file named by "Clean" (or a "Pre" cp/mv target) that they write again
+with the same content keeps its time, as do a kernel's generated C file
+(but for its kerndate) and headers.
 
 KERNEL OBJECT
 
@@ -215,6 +244,8 @@ The buildfile is looked for at these positions, in this order:
 If the buildfile argument is not provided, it defaults to "build.json".
 
 -clean removes the build's artefacts instead of building (see "Clean").
+
+-D builds only what is out of date (see DEPENDENCIES in the godoc).
 
 After the buildfile, a number of regexps specifying targets may be provided.
 If a target matches any supplied regexp, it is acted on. These regexps only

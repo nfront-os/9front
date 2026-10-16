@@ -3,6 +3,7 @@
 		"Name": "klibaml",
 		"Install": "/$ARCH/lib.gcc/",
 		"Library": "klibaml.a",
+		"Objtag": "k",
 		"Include": [
 			"$ARCH.json"
 		]

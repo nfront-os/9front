@@ -80,12 +80,17 @@ PLAN9=$P9P "$P9P/bin/9c" -o strtomp0.o strtomp0.c
 PLAN9=$P9P "$P9P/bin/9l" -o mpc mpc.o strtomp0.o
 
 cd "$ROOT/sys/src/libsec/port"
+# replace a file only when its content changes: its time is what build.exe -D
+# compares (libsec and libauthsrv both run this step)
+update(){ if cmp -s "$TMP/out" "$1"; then rm "$TMP/out"; else mv "$TMP/out" "$1"; fi; }
 for f in *.mp; do
-	{ echo '#include "os.h"'; echo '#include <mp.h>'; "$TMP/mpc" "$f"; } > "${f%.mp}.c"
+	{ echo '#include "os.h"'; echo '#include <mp.h>'; "$TMP/mpc" "$f"; } > "$TMP/out"
+	update "${f%.mp}.c"
 	echo "libsec/port/${f%.mp}.c"
 done
 cd "$ROOT/sys/src/libauthsrv"
 for f in *.mp; do
-	"$TMP/mpc" "$f" > "${f%.mp}.mpc"
+	"$TMP/mpc" "$f" > "$TMP/out"
+	update "${f%.mp}.mpc"
 	echo "libauthsrv/${f%.mp}.mpc"
 done

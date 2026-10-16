@@ -50,9 +50,11 @@ def gensrc(sub, d):
 	if re.match(r'^cmd/[0-9a-z]c$', sub):
 		return ['enam.c']
 	if re.match(r'^cmd/[0-9a-z]l$', sub):
-		# gen-src.sh: rc ./mkcname if the mkfile has a cnam.c rule
+		# gen-src.sh: the compiler's enam.c (../Xc/enam.c: rule), and
+		# rc ./mkcname if the mkfile has a cnam.c rule
 		mk = open(os.path.join(d, 'mkfile')).read()
-		return ['cnam.c'] if re.search(r'^cnam\.c:', mk, re.M) else []
+		out = ['../%s/enam.c' % m for m in re.findall(r'^\.\./([0-9a-z]c)/enam\.c:', mk, re.M)[:1]]
+		return out + (['cnam.c'] if re.search(r'^cnam\.c:', mk, re.M) else [])
 	return []
 
 def generator(name, args, d):
@@ -80,6 +82,23 @@ def generator(name, args, d):
 			for mp in sorted(glob.glob(os.path.join(SRC, lib, '*.mp'))):
 				out.append(rel(mp[:-3] + ext, d))
 		return out
+	# the kernel's (build.$objtype.json kernelgen)
+	k = lambda *f: rel(os.path.join(SRC, '9', *f), d)
+	if name == 'gen-rebootcode-i.sh':	# [pc64|arm64|bcm64]
+		return [k(args[0] if args else 'pc64', 'rebootcode.i')]
+	if name == 'gen-rebootcode-pc-i.sh':
+		return [k('pc', 'rebootcode.i')]
+	if name == 'gen-apbootstrap-i.sh':	# [pc64|pc]
+		return [k(args[0] if args else 'pc64', 'apbootstrap.i')]
+	if name == 'gen-etherm10g-i.sh':
+		return [k('pc', 'etherm10g2k.i'), k('pc', 'etherm10g4k.i')]
+	if name == 'gen-sd53c8xx-i.sh':
+		return [k('pc', 'sd53c8xx.i')]
+	if name == 'gen-initcode-i.sh':
+		return [k('port', 'initcode.i')]
+	if name == 'gen-bootfs.sh':	# conf [kernel dir]
+		kd = args[1] if len(args) > 1 else args[0]
+		return [k(kd, 'boot'), k(kd, args[0] + '.bootfs.paq'), k(kd, args[0] + '.bootfs.sum')]
 	if name == 'gen-runetype.sh':
 		return [rel(os.path.join(SRC, 'libc/ucd', f), d) for f in
 			('runenormdata', 'runetotypedata', 'runeistypedata', 'runebreakdata')]

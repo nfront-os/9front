@@ -14,7 +14,7 @@ mkfile kinds, following /sys/src/cmd/mk{one,many,lib,syslib}:
 APE (sys/src/ape, and programs whose mkfile sets CC=pcc or reads
 $APE/config) compiles like pcc (manifest key Ape: only the ape include
 directories) and links APE's libraries; libap is one archive from
-several directories (Append, see APEDIRS).
+several directories (the first Shared, the others Append, see APEDIRS).
 YFILES run through scripts/build/yacc.sh (Plan 9 yacc with 9front's yaccpar);
 generators needed by a few directories are listed in PRE.
 
@@ -560,7 +560,7 @@ def mkentries(d):
 			L = v['LIB'][0]
 			return [(d + '/' + os.path.basename(L), dict(common, library=os.path.basename(L),
 				libinstall=os.path.dirname(L).replace('/%s/lib' % OBJTYPE, '/$ARCH/lib.gcc', 1) + '/',	# gcc archives beside the native /$ARCH/lib
-				append=d in APEDIRS[1:], src=src))]
+				append=d in APEDIRS[1:], shared=d == APEDIRS[0], src=src))]
 		lib = os.path.normpath(os.path.join(d, v['LIB'][0].replace('$O', O)))
 		return [(lib, dict(common, library=os.path.basename(lib), libdir=os.path.dirname(lib),
 			src=src))]
@@ -690,6 +690,8 @@ def buildentry(e, name):
 			'Library': e['library'], 'SourceFiles': e['src']})
 		if e.get('append'):
 			m['Append'] = True
+		if e.get('shared'):	# the base part: the others Append to it
+			m['Shared'] = True
 		return m
 	if 'script' in e:
 		# rc script installed as the program (venti's conf gets no header)

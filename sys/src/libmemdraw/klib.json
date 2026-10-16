@@ -3,6 +3,7 @@
 		"Name": "klibmemdraw",
 		"Install": "/$ARCH/lib.gcc/",
 		"Library": "klibmemdraw.a",
+		"Objtag": "k",
 		"Include": [
 			"$ARCH.json"
 		]

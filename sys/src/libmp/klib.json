@@ -3,6 +3,7 @@
 		"Name": "klibmp",
 		"Install": "/$ARCH/lib.gcc/",
 		"Library": "klibmp.a",
+		"Objtag": "k",
 		"Include": [
 			"$ARCH.json"
 		]

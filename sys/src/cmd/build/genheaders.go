@@ -66,7 +66,7 @@ func errstr(b *build) {
 	}
 
 	log.Printf("Writing errstr.h in %s", b.path)
-	fail(ioutil.WriteFile(filepath.Join(b.path, "errstr.h"), out, 0666))
+	fail(writefile(filepath.Join(b.path, "errstr.h"), out))
 }
 
 // systab generates ../port/systab.h from the syscall header, the 9front
@@ -145,7 +145,7 @@ func systab(b *build) {
 
 	dst := filepath.Join(b.path, "../port/systab.h")
 	log.Printf("Writing %s", dst)
-	fail(ioutil.WriteFile(dst, out, 0666))
+	fail(writefile(dst, out))
 }
 
 // sysname is the mksystab transform of a syscall macro name to the

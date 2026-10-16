@@ -3,6 +3,7 @@
 		"Name": "klibdtracy",
 		"Install": "/$ARCH/lib.gcc/",
 		"Library": "klibdtracy.a",
+		"Objtag": "k",
 		"Include": [
 			"$ARCH.json"
 		]

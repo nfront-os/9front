@@ -64,6 +64,9 @@
 			"list.c",
 			"../8c/enam.c",
 			"compat.c"
+		],
+		"Clean": [
+			"../8c/enam.c"
 		]
 	}
 ]

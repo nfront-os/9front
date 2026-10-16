@@ -6,7 +6,9 @@ cd $PLAN9
 mkdir -p $objtype/bin/aux $objtype/lib.gcc
 switch($objtype){
 case 386 arm64
+	# only when it differs: every program links it (build.exe -D)
 	f=`{$GNU/gcc -print-libgcc-file-name}
-	cp $f $objtype/lib.gcc/libgcc.a || die libgcc.a
+	if(! cmp -s $f $objtype/lib.gcc/libgcc.a)
+		cp $f $objtype/lib.gcc/libgcc.a || die libgcc.a
 }
 exit ''

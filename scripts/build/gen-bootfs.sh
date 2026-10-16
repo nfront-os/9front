@@ -80,5 +80,15 @@ echo "protos: $PROTOS"
 
 python3 "$ROOT/scripts/guest/proto.py" -s "$ROOT" -d "$TMP/$CONF.bootfs" -e tmp -e lib/firmware $PROTOS
 find "$TMP/$CONF.bootfs" -type f -exec sh -c 'file -b "$1" | grep -q ^ELF && '"${TOOLPREFIX}"'strip "$1"' _ {} \;
-"$HOST/mkpaqfs" -9 -b 65536 -o "$KDIR/$CONF.bootfs.paq" "$TMP/$CONF.bootfs"
+# a new image only when what goes into it changes (names, modes, contents):
+# mkpaqfs records the time and the files' times, so every image differs, and
+# the kernel embedding it would always be out of date (build.exe -D)
+sum=$(cd "$TMP/$CONF.bootfs" && find . | LC_ALL=C sort | while read -r f; do
+	echo "$f $(stat -c %a "$f")"; [ -f "$f" ] && sha1sum < "$f"; done | sha1sum)
+if [ -f "$KDIR/$CONF.bootfs.paq" ] && [ "$(cat "$KDIR/$CONF.bootfs.sum" 2>/dev/null)" = "$sum" ]; then
+	echo "$CONF.bootfs.paq: unchanged"
+else
+	"$HOST/mkpaqfs" -9 -b 65536 -o "$KDIR/$CONF.bootfs.paq" "$TMP/$CONF.bootfs"
+	echo "$sum" > "$KDIR/$CONF.bootfs.sum"
+fi
 ls -l "$KDIR/boot" "$KDIR/$CONF.bootfs.paq"
