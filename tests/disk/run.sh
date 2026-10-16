@@ -5,6 +5,8 @@
 # installed system. Builds the image (minutes)
 # unless DISKIMG names one.
 . "$(dirname "$0")/../lib.sh"
+# 9front makes disk images for amd64 only (sys/lib/dist/mkfile: %.amd64.qcow2)
+[ "$objtype" = amd64 ] || { skip "disk" "objtype=$objtype: 9front has no $objtype disk image"; done_tests; exit; }
 [ -f "$ROOT/amd64/bin/9pc64" ] || { skip "disk" "no kernel, run $BUILDHOW"; done_tests; exit; }
 
 IMG=${DISKIMG:-$TMPD/9front.amd64.img}

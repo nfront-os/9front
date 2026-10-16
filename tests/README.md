@@ -32,12 +32,12 @@ file system of the guest: in `PATH` or `~/go/bin/ufs`).
 |---|---|---|---|
 | `static` | source checks: manifests match their generators, no `ulong == ~0UL`, no unreviewed casts, member paths as in 9front, struct layouts of file/wire formats as kencc's (`scripts/check/cmp-struct-layout.sh`), GAS ports beside 9front's `.s`, the rc build steps parse (plan9port rc) | nothing | seconds |
 | `asm` | the GAS ports of 9front's assembly (libc amd64, libmp and libsec amd64/386, lib387) as host unit tests, against glibc or the portable C | gcc | seconds |
-| `syscall` | the generated system call stubs (`scripts/build/gen-9syscall.sh`) | gcc | seconds |
+| `syscall` | the generated amd64 system call stubs (`scripts/build/gen-9syscall.sh`), whatever objtype | gcc | seconds |
 | `build` | the build's results: libraries, programs, kernel; kernel without endless busy-waits (`scripts/check/find-spinloops.sh`) | a build | seconds |
 | `guest` | unit tests built with the port and run inside 9front: libc, libthread, libmp, auth, pak, APE (`tests/guest/*.c`) | a build, QEMU | ~1 min |
 | `boot` | boot to the console rc (cpu service), run commands | a build, QEMU | ~1 min |
 | `gui` | terminal boot: VESA via aux/realemu, rio, typing into a window | a build, QEMU | ~1 min |
-| `disk` | install image with hjfs (`scripts/guest/mkdisk.sh`), booted on its own | a build, boot loaders | minutes |
+| `disk` | install image with hjfs (`scripts/guest/mkdisk.sh`, amd64 only, as 9front's dist mkfile), booted on its own | a build, boot loaders | minutes |
 | `iso` | install/live CD (`scripts/guest/mkiso.sh`) booted as CD and as USB stick, BIOS and UEFI, up to rio, then typing into rio | a build, boot loaders, OVMF | minutes |
 | `rio` | mouse and keyboard in rio on the CD: select text, type, New + sweep a window, type into it | a CD | ~1 min |
 | `usb` | a USB stick on xHCI, EHCI and UHCI: root hub in `#u`, the stick as `/dev/sdU*`, sector 0 read back (`USB_CTLRS=ohci`: fails in QEMU with 9front's own release too) | a CD | ~1 min per controller |
