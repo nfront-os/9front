@@ -1,7 +1,8 @@
 #!/bin/bash
 # gcc: the native gcc and binutils on the install CD (/$objtype/gnu, from
 # ../9front-gcc via scripts/guest/boot/gnuproto) compile, link and run a
-# POSIX and a native Plan 9 program (tests/gcc/gcc.py).
+# POSIX and a native Plan 9 program, and gccmk builds hoc from its mkfile
+# (tests/gcc/gcc.py).
 # Uses ISO, else the last CD scripts/guest/mkiso.sh made.
 . "$(dirname "$0")/../lib.sh"
 IMG=${ISO:-$CLI_DIR/9front.$objtype.iso}

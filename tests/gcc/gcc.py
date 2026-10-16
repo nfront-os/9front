@@ -3,7 +3,7 @@
 The native gcc on the install CD (/$objtype/gnu, ../9front-gcc): boot to
 rio, then over the serial rc: gcc runs, compiles and links a POSIX program
 over APE, and a native Plan 9 program (/sys/src/cmd/echo.c with libc.a
-from /$objtype/lib.gcc); both run.
+from /$objtype/lib.gcc); both run; gccmk builds hoc from its mkfile.
 
 usage: tests/gcc/gcc.py iso workdir objtype
    prints one line per check: ok|fail <name>
@@ -43,5 +43,12 @@ try:
 		' -L/%s/lib.gcc -lc -lgcc && ./echo9 native plan9 echo') % (objtype, objtype)
 	out = run(p9, 'p9-done', 300)
 	result('native plan9 echo' in out.replace(p9, ''), 'native Plan 9 program: compile, link, run')
+
+	# 9front's mkfile with gcc (the CD's /sys/src is read-only: a copy)
+	O = {'amd64': '6', '386': '8'}[objtype]
+	mk = ("mkdir /tmp/hoc && dircp /sys/src/cmd/hoc /tmp/hoc && cd /tmp/hoc && gccmk >/tmp/hoc.log"
+		" && echo '6*7' | ./%s.out | sed 's/^/hoc says /'") % O
+	out = run(mk, 'mk-done', 600)
+	result('hoc says 42' in out, 'gccmk: hoc from its mkfile, runs')
 finally:
 	vm.close()

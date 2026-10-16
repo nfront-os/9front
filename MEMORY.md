@@ -849,3 +849,11 @@ Plan „Lösung 1“: erst `build.exe` auf 9front fertig, danach mk-Wrapper. **E
   - `ext4_fread`: ein Loch (sparse Block, `fblock == 0`) las in der Hauptschleife und im Restblock **physischen Block 0** der Platte; außerdem begann ein Lauf mit `if (!fblock_start)`, so dass ein Loch zwischen Datenblöcken die Daten des nächsten Blocks bekam (Fix: `fblock_count == 0`). `mkfs.ext4 -d` legt jeden Null-Block als Loch an → falsches a.out, Archive, Objekte.
   - Fehlertext „file not found“ statt Plan 9s „file does not exist“: APE bildet nur Letzteres auf `ENOENT` ab → gcc brach bei `#include "String.h"` ab statt im nächsten -I-Verzeichnis zu suchen.
 - **Restliche 82 Objekt-Abweichungen = Werkzeuge, nicht Compiler:** yacc/lex (Linux: plan9ports, Gast: 9fronts — `static const`-Tabellen, `#line`-Pfade, lex-Gerüst), gs (`linux`-Makro des Linux-gcc, Teil 41), `initcode.i` (Host-ld x86_64-linux vs. Plan-9-ld: 0x30 Byte Ausrichtung vor `.rodata`, Code gleich), `pc64.o` (bootfs-paq). Kernel-Blobs `rebootcode.i`, `apbootstrap.i`, `etherm10g*.i`, `sd53c8xx.i` byte-gleich.
+
+## 2026-10-16 (Teil 44): gccmk — 9fronts mkfiles mit gcc auf 9front
+
+Zweiter Weg neben build.exe für die Arbeit am Userland auf 9front selbst. Lebt in `../9front-gcc/plan9/` (installiert mit `build.sh plan9` nach `/$objtype/gnu/bin/gccmk` und `/$objtype/gnu/plan9`, damit auf der CD); Log dort `NOTES.md`.
+- `gccmk` = mk in einem Namensraum: eigenes `/$objtype/mkfile` (`CC=gcc-cc LD=gcc-ld AS=gcc-as`), `pcc`/`ar`-Wrapper vor `/bin`, `/$objtype/lib.gcc` auf `/$objtype/lib`. Flags und Bibliotheksliste aus den Manifesten des Baums (`$objtype/cflags.json`, `gcc.json`, `ape.json`, `sys/src/cmd/cmds.json`) → dieselben Objekte wie build.exe; Linken wie build.exes `presolve` (Common-Symbole schwach).
+- `ar` nennt die Archivmitglieder `x.o` wie build.exe: sonst landen `x.6` neben den alten `x.o`.
+- Geht nicht: Kernel, libc als Ganzes (`9syscall` schreibt 6a-Assembler), libmp/libsec (Assembler ohne GAS-Port; build.exe nimmt C).
+- Tests: `../9front-gcc/tests/mk.sh` (amd64, 386: libbio, gleicher Code, libc-Assembler über GAS-Ports, hoc, ape/cmd/expr) und `tests/gcc` auf der CD (hoc mit gccmk).
