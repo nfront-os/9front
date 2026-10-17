@@ -12,7 +12,7 @@
  * to the supervisor context of cpu0's hart (2*hart+1 on qemu's virt).
  */
 enum {
-	Nirq		= 128,
+	Nirq		= 96,		/* sources on qemu's virt machine */
 
 	Priority	= 0x000000,	/* per irq */
 	Pending		= 0x001000,

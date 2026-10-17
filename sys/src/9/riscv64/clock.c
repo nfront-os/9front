@@ -96,10 +96,10 @@ synccycles(void)
 	s = splhi();
 	r2.ref = 0;
 	incref(&r1);
-	while(r1.ref != conf.nmach)
+	while(*(volatile long*)&r1.ref != conf.nmach)	/* GCC port: volatile, gcc keeps the value of a load in a loop (kencc reloads) */
 		;
 	incref(&r2);
-	while(r2.ref != conf.nmach)
+	while(*(volatile long*)&r2.ref != conf.nmach)	/* GCC port: volatile, gcc keeps the value of a load in a loop (kencc reloads) */
 		;
 	r1.ref = 0;
 	splx(s);

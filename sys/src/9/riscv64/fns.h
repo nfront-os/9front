@@ -3,6 +3,10 @@
 /* l.s */
 extern int tas(void *);
 extern int cmpswap(long*, long, long);
+#ifdef __GNUC__
+extern int cas(int*, int, int);	/* GCC port: 32 bits; cmpswap is 64 bits with gcc's long (l.S) */
+#define semcas(p, o, n)	cas((p), (o), (n))	/* GCC port: 32-bit user semaphores (port/sysproc.c) */
+#endif
 extern void coherence(void);
 extern void idlehands(void);
 extern uvlong vcycles(void);

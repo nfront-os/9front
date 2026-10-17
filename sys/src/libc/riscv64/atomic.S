@@ -1,8 +1,12 @@
-/* GCC port: GAS translation of atomic.s (long is 32 bits) */
+/*
+ * GCC port: GAS translation of atomic.s; the long variants
+ * (long agetl(Along*), ...) are 64-bit operations: gcc's long is 64
+ * bits (as libc/arm64/atomic.S); jc's are 32-bit.
+ */
 .globl agetl
 agetl:
 	fence	rw, rw
-	lw	a0, 0(a0)
+	ld	a0, 0(a0)
 	fence	rw, rw
 	ret
 
@@ -16,7 +20,7 @@ agetp:
 .globl aswapl
 aswapl:
 	fence	rw, rw
-	amoswap.w.aqrl	a0, a1, (a0)
+	amoswap.d.aqrl	a0, a1, (a0)
 	fence	rw, rw
 	ret
 
@@ -30,18 +34,17 @@ aswapp:
 .globl aincl
 aincl:
 	fence	rw, rw
-	amoadd.w.aqrl	t0, a1, (a0)
+	amoadd.d.aqrl	t0, a1, (a0)
 	fence	rw, rw
-	addw	a0, t0, a1
+	add	a0, t0, a1
 	ret
 
 .globl acasl
 acasl:
-	sext.w	a1, a1
 	fence	rw, rw
-1:	lr.w.aq	t0, (a0)
+1:	lr.d.aq	t0, (a0)
 	bne	t0, a1, 2f
-	sc.w.aqrl	t1, a2, (a0)
+	sc.d.aqrl	t1, a2, (a0)
 	bnez	t1, 1b
 	fence	rw, rw
 	li	a0, 1

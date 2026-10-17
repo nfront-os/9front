@@ -359,14 +359,32 @@ _tas:
 	fence	rw, rw
 	ret
 
-/* int cmpswap(long *p, long ov, long nv): long is 32 bits (s32int) */
-.globl cmpswap
-cmpswap:
+/*
+ * int cmpswap(long *p, long ov, long nv): a long is 64 bits with gcc
+ * (Ref, Proc pids); int cas(int *p, int ov, int nv) stays 32-bit
+ * (semcas in fns.h), as on arm64
+ */
+.globl cas
+cas:
 	sext.w	a1, a1
 	fence	rw, rw
 1:	lr.w.aq	t0, (a0)
 	bne	t0, a1, 2f
 	sc.w.aqrl	t1, a2, (a0)
+	bnez	t1, 1b
+	fence	rw, rw
+	li	a0, 1
+	ret
+2:	fence	rw, rw
+	li	a0, 0
+	ret
+
+.globl cmpswap
+cmpswap:
+	fence	rw, rw
+1:	lr.d.aq	t0, (a0)
+	bne	t0, a1, 2f
+	sc.d.aqrl	t1, a2, (a0)
 	bnez	t1, 1b
 	fence	rw, rw
 	li	a0, 1

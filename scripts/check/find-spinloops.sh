@@ -5,7 +5,7 @@
 # `while(l->key) ;' did, so did syncclock's and arm64's synccycles).
 # Reported are backward branches whose loop body only compares or tests
 # what is already in registers -- a branch to itself (x86: jmp ., jne .)
-# or `cmp x1, x0; b.ne <the cmp>' (arm64) -- except the intentional
+# or `cmp x1, x0; b.ne <the cmp>' (arm64), `bnez a5, .' (riscv64) -- except the intentional
 # `for(;;);' (panic, rebootjump, abort), data in the vector table and
 # arm64's _v*patch branches, which trap.c rewrites at run time.
 #
@@ -16,6 +16,11 @@ case $(readelf -h "$k" | awk '/Machine:/{print $2}') in
 AArch64)
 	OBJDUMP=aarch64-linux-musl-objdump ADDR2LINE=aarch64-linux-musl-addr2line
 	BR='^(b|b[.][a-z]+|cbn?z|tbn?z)$' CMP='^(cmp|cmn|tst|ccmp)$'
+	;;
+RISC-V)
+	# the compare is the branch itself: a loop of just the branch
+	OBJDUMP=riscv64-linux-gnu-objdump ADDR2LINE=riscv64-linux-gnu-addr2line
+	BR='^(j|b[a-z]+)$' CMP='^$'
 	;;
 *)
 	OBJDUMP=objdump ADDR2LINE=addr2line

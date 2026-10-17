@@ -28,6 +28,8 @@
 #define CPUTYPE	"amd64"
 #elif defined(__i386__)
 #define CPUTYPE	"386"
+#elif defined(__riscv)
+#define CPUTYPE	"riscv64"
 #else
 #define CPUTYPE	"arm64"
 #endif

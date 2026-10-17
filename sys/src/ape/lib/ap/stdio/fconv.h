@@ -15,7 +15,7 @@
 #include <errno.h>
 #include <float.h>
 #include <math.h>
-#if defined(__x86_64__) || defined(__aarch64__)	/* GCC port: LP64 */
+#if defined(__x86_64__) || defined(__aarch64__) || defined(__riscv)	/* GCC port: LP64 */
 /*
  * GCC port: this code keeps 32 bits per long (Pack_32, ULong words,
  * the IEEE word overlay) -- kencc's long is 32 bits, gcc's 64. The

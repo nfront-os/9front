@@ -1,6 +1,8 @@
 /*
  * GCC port: GAS translation of atom.s, rv64a; the fences around
- * each operation as in the original.
+ * each operation as in the original. long ainc(long*), long
+ * adec(long*) (libc.h) are 64-bit operations: gcc's long is 64 bits
+ * (as libc/arm64/atom.S); jc's are 32-bit.
  */
 /* long ainc(long*), long adec(long*): the new value */
 .globl ainc
@@ -11,9 +13,9 @@ ainc:
 adec:
 	li	t0, -1
 1:	fence	rw, rw
-	amoadd.w.aqrl	t1, t0, (a0)
+	amoadd.d.aqrl	t1, t0, (a0)
 	fence	rw, rw
-	addw	a0, t1, t0
+	add	a0, t1, t0
 	ret
 
 /* int cas(uint *p, int ov, int nv): 1 if *p was ov and is now nv, else 0 */

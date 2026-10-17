@@ -5,7 +5,8 @@
 [ -f "$ROOT/$KBIN" ] || { skip "boot" "no kernel $KBIN, run $BUILDHOW"; done_tests; exit; }
 # PC hardware (VESA BIOS, NCR 53C810) only on pc and pc64. arm64: 4 CPUs
 # since mpinit sends sev() until each new one runs (they wait in _start's
-# wfe; QEMU >= 11 models wfe exactly)
+# wfe; QEMU >= 11 models wfe exactly); riscv64 starts its harts with sbi's
+# hart_start (main.c: mpinit)
 case $objtype in 386|amd64) pc=1 ncpu=4 ;; *) pc= ncpu=4 ;; esac
 
 boot(){

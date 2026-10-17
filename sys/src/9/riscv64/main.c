@@ -151,7 +151,8 @@ mpinit(void)
 		memset(mm, 0, MACHSIZE);
 		mm->machno = i;
 		mm->hartid = hart;
-		mm->regsave[0] = Sv39 | PADDR(MACHP(0)->mmutop)>>PGSHIFT;
+		/* L1: still has the identity map of l.s, the cpus' mmutops do not */
+		mm->regsave[0] = Sv39 | PADDR(L1)>>PGSHIFT;
 		coherence();
 		if(sbihartstart(hart, PADDR(_secondary), PADDR(mm)) < 0){
 			print("cpu%d: hart %d did not start\n", i, hart);

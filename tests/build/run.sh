@@ -15,7 +15,7 @@ libc(){
 	d=$(dupsyms $L/libc.a); [ -z "$d" ] || { echo "duplicate symbols: $d"; return 1; }
 	# _notify: the raw stub behind the trampoline notify() (amd64, arm64)
 	for s in _main _callmain _tos argv0 seek _seek notify $( [ $objtype != 386 ] && echo _notify ) nsec _nsec _exits \
-		memmove memcpy strlen getfcr setjmp longjmp _tas $( [ $objtype != arm64 ] && echo cas64 ) toupperrune tmfmt calloc; do
+		memmove memcpy strlen getfcr setjmp longjmp _tas $( [ $objtype != arm64 ] && [ $objtype != riscv64 ] && echo cas64 ) toupperrune tmfmt calloc; do
 		nm $L/libc.a 2>/dev/null | grep -qE " [TC] $s$" || { echo "libc.a lacks $s"; return 1; }
 	done
 }
@@ -50,7 +50,7 @@ for dp, _, fs in [w for top in ('sys/src/cmd', 'sys/src/games', 'sys/src/ape') f
 			if not os.path.isfile(p):
 				print('missing', p); bad += 1; continue
 			h = subprocess.run(['readelf', '-h', p], capture_output=True, text=True).stdout
-			cls, mach = {'amd64': ('ELF64', 'X86-64'), '386': ('ELF32', '80386'), 'arm64': ('ELF64', 'AArch64')}[os.environ['objtype']]
+			cls, mach = {'amd64': ('ELF64', 'X86-64'), '386': ('ELF32', '80386'), 'arm64': ('ELF64', 'AArch64'), 'riscv64': ('ELF64', 'RISC-V')}[os.environ['objtype']]
 			if cls not in h or 'EXEC' not in h or mach not in h:
 				print('not an %s %s executable:' % (mach, cls), p); bad += 1
 print(n, 'commands checked')
@@ -100,7 +100,15 @@ kernel(){
 	local k=$KBIN kz
 	[ -f $k ] || { echo "$k missing"; return 1; }
 	kz=$(sed -n 's/^#define[ \t]*KZERO[ \t]*(*\(0x[0-9a-fA-F]*\).*/\1/p' sys/src/9/$KDIR/mem.h 2>/dev/null | head -1)
-	readelf -lW $k | awk -v kz=$kz '$1=="LOAD"{ v=strtonum($3); p=strtonum($4); if(v-p != strtonum(kz)){ print "LOAD vaddr " $3 " paddr " $4; bad=1 } } END{ exit bad }'
+	# exact 64-bit arithmetic (awk's doubles round riscv64's addresses)
+	readelf -lW $k | python3 -c '
+import sys
+kz, bad = int(sys.argv[1], 16), 0
+for l in sys.stdin:
+	w = l.split()
+	if w and w[0] == "LOAD" and int(w[2], 16) - int(w[3], 16) != kz:
+		print("LOAD vaddr", w[2], "paddr", w[3]); bad = 1
+sys.exit(bad)' $kz
 }
 check "kernel: LOAD segments with paddr = vaddr - KZERO (multiboot)" kernel
 
@@ -108,7 +116,7 @@ check "kernel: LOAD segments with paddr = vaddr - KZERO (multiboot)" kernel
 # out of the loop: a branch to itself (scripts/check/find-spinloops.sh)
 spinloops(){
 	local k bad=0
-	for k in amd64/bin/9pc64 386/bin/9pc arm64/bin/9qemu arm64/bin/9pi3 arm64/bin/9pi4; do
+	for k in amd64/bin/9pc64 386/bin/9pc arm64/bin/9qemu arm64/bin/9pi3 arm64/bin/9pi4 riscv64/bin/9virt; do
 		[ -f $k ] || continue
 		scripts/check/find-spinloops.sh $k || { echo "in $k"; bad=1; }
 	done

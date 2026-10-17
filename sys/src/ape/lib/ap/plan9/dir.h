@@ -3,7 +3,7 @@ typedef	unsigned long long uvlong;
 typedef 	unsigned char uchar;
 typedef	unsigned short ushort;
 typedef 	unsigned int uint;
-#if defined(__x86_64__) || defined(__aarch64__)	/* GCC port: LP64 */
+#if defined(__x86_64__) || defined(__aarch64__) || defined(__riscv)	/* GCC port: LP64 */
 typedef	unsigned int ulong;	/* GCC port: 32 bits, as with kencc (sys/include/ape/u.h) */
 #else
 typedef	unsigned long ulong;

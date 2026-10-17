@@ -211,7 +211,7 @@ if [ $objtype = arm64 ]; then
 		-netdev user,id=net0,$fwd -device virtio-net-pci,netdev=net0,disable-legacy=on "${disk[@]}")	# virtio 1.0 only (ethervirtio10.c, sdvirtio10.c)
 elif [ $objtype = riscv64 ]; then
 	[ -z "$DISK" ] || disk=(-drive "file=$DISK,format=raw,if=none,id=d0" -device virtio-blk-pci,drive=d0,disable-legacy=on)
-	qemu=($QEMU -M virt -cpu $CPU -m "$MEM" -smp ${SMP:-1}
+	qemu=($QEMU -M virt -cpu $CPU -m "$MEM"
 		-bios default -kernel "$KERNEL"
 		-append "console=0 service=$SERVICE nobootprompt=tcp fs=$FSADDR auth=$FSADDR $KARGS"
 		-display none -no-reboot -monitor none
