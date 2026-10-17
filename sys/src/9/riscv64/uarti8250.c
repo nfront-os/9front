@@ -7,7 +7,7 @@
 #include "../port/error.h"
 
 /*
- * 16550 UART, memory mapped (qemu's virt machine), byte registers;
+ * 8250/16550 UART, memory mapped (qemu's virt machine), byte registers;
  * from ../pc/uarti8250.c
  */
 enum {

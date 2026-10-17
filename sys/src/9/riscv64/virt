@@ -38,7 +38,7 @@ ip
 	ipmux
 misc
 	plic
-	uart16550
+	uarti8250
 	sdvirtio10	pci sdscsi virtio10mem
 port
 	int cpuserver = 0;

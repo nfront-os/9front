@@ -99,14 +99,18 @@ _zmachdone:
 	MOV	R9, CSR(SATP)
 	SFENCEVMA
 
-	/* continue at KZERO+ */
+	/*
+	 * continue at KZERO+: jl makes $sym(SB) pc-relative, so the
+	 * address is physical here; R3 is set again up there
+	 */
 	MOV	$KZERO, R12
-	ADD	R12, R3
 	ADD	R12, R22
-	MOV	$_virtual(SB), R9		/* relative to the new R3 */
+	MOV	$_virtual(SB), R9
+	ADD	R12, R9
 	JMP	(R9)
 
 TEXT _virtual(SB), 1, $-4
+	MOV	$setSB(SB), R3
 	MOV	R22, R7				/* m = MACHADDR(0) */
 	MOV	R0, R6				/* up = nil */
 	ADD	$MACHSIZE, R7, R2
@@ -134,12 +138,13 @@ TEXT _secondary(SB), 1, $-4
 	MOV	R9, CSR(SATP)
 	SFENCEVMA
 	MOV	$KZERO, R12
-	ADD	R12, R3
 	ADD	R12, R11
 	MOV	$_virtual2(SB), R9
+	ADD	R12, R9
 	JMP	(R9)
 
 TEXT _virtual2(SB), 1, $-4
+	MOV	$setSB(SB), R3
 	MOV	R11, R7
 	MOV	R0, R6
 	ADD	$MACHSIZE, R7, R2

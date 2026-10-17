@@ -102,7 +102,7 @@
 				],
 				"Misc": [
 					"plic",
-					"uart16550",
+					"uarti8250",
 					"sdvirtio10 pci sdscsi virtio10mem"
 				]
 			},
@@ -171,7 +171,7 @@
 			"../port/sdscsi.c",
 			"../port/sdvirtio10.c",
 			"../ip/tcp.c",
-			"uart16550.c",
+			"uarti8250.c",
 			"../ip/udp.c",
 			"../port/virtio10mem.c",
 			"../port/alarm.c",

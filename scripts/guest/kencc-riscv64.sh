@@ -24,7 +24,7 @@ grep -qx '/.guest/' "$(git -C "$ROOT" rev-parse --git-path info/exclude)" 2>/dev
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
 # mount points the guest's root lacks
-mkdir -p "$T/extra/riscv64" "$T/extra/amd64/lib"
+mkdir -p "$T/extra/riscv64" "$T/extra/amd64/lib" "$T/extra/acme" "$T/extra/lib/firmware"
 # every architecture's include directory (libmach includes every ureg.h)
 archs=$(git -C "$ROOT" ls-files '*/include/*' | cut -d/ -f1 | sort -u | grep -v '^sys$')
 for a in $archs; do mkdir -p "$T/extra/$a/include"; done
@@ -32,7 +32,7 @@ for a in $archs; do mkdir -p "$T/extra/$a/include"; done
 setup='srv tcp!10.0.2.101!5641 src9; mount -c /srv/src9 /n/src9;'
 setup="$setup bind /n/src9/sys/src /sys/src; bind /n/src9/sys/include /sys/include;"
 setup="$setup bind -c /n/src9/riscv64 /riscv64; bind -c /n/src9/.guest/amd64/lib /amd64/lib;"
-setup="$setup bind -a /n/src9/amd64 /amd64;"
+setup="$setup bind -a /n/src9/amd64 /amd64; bind -c /n/src9/acme /acme;"
 for a in $archs; do setup="$setup bind -a /n/src9/$a/include /$a/include;"; done
 
 if [ $# -eq 0 ]; then
