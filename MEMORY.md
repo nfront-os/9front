@@ -894,3 +894,10 @@ Der Linux-gcc (und aarch64-linux-musl-gcc) definiert `linux`, `__linux`, `__linu
 - x87 (lib387): **GAS vertauscht fsub/fsubr bei `%st(i)`-Ziel** (AT&T-Altlast): `FSUBRDP F0,F1` = `fsubp %st,%st(1)`, `FSUBD F0,F1` = `fsubr %st,%st(1)`; per Mutationstest abgesichert. Konstanten als `double` aus dem Speicher wie im Original (nicht `fldln2`).
 - 9front-Eigenheit: `mpvecdigmuladd` in Assembler *addiert* auf `p[n]`, die C-Fassung *setzt* es; alle Aufrufer übergeben `p[n] = 0`.
 - Tests: `tests/asm` jetzt auch libmp/libsec (amd64, 386 mit `-m32`) gegen die port-C (`objcopy --prefix-symbols`), lib387 gegen die x87-libm des Hosts (Stack-Balance über 100000 Aufrufe), callee-saved/DF (`callcheck.s` mit 5. Argument, neu `callcheck386.s`); tests/static prüft die neuen Paare; `../9front-gcc/tests/mk.sh` baut libmp/libsec-Assembler mit gccmk (gleich dem Tree-Build). amd64 und 386: build/guest/boot grün. Falle: neue Dateien vor Gast-Tests `git add` (Kopie = `git ls-files`).
+
+## 2026-10-16 (Teil 50): g++ nativ auf 9front, C++-Exceptions
+
+`../9front-gcc` baut den nativen gcc jetzt mit C++ (amd64, 386): `g++`, `cc1plus`, libstdc++ unter `/$objtype/gnu` (Details dort in `NOTES.md`). Exceptions endeten bisher (auch beim Cross-g++) in `abort`: ohne crt-Dateien registrierte niemand `.eh_frame`. Jetzt `crtbegin.o`/`crtend.o` aus libgcc (Registrierung aus `.init_array`, das `__wrap_main` abarbeitet; Tree-Build mit `-nostdlib` unberührt).
+- **Änderung hier:** `amd64/plan9.ld`, `386/plan9.ld` sammeln `.gcc_except_table*` im Textsegment (vorher Orphan-Sektionen); Kommentar zu `.eh_frame` (nicht mehr nur für Debugger). C-Programme linken byte-gleich wie vorher (geprüft mit altem/neuem Skript); tests/static grün.
+- Gast: `../9front-gcc/tests/cross.sh` und `tests/native.sh` für amd64 und 386 grün (nativ: cxx, eh, Objekt byte-gleich mit dem Cross-g++). Die ISO nimmt den größeren `/$objtype/gnu` (≈150 MB) über `gnuproto` von selbst mit.
+

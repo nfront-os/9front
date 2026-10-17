@@ -25,9 +25,14 @@ SECTIONS
 	.text : {
 		*(.text .text.*)
 	} :text
-	/* unwind tables: read-only, only for debuggers */
+	/* unwind tables: read-only; for debuggers, and for C++ exceptions
+	 * of the native gcc (../9front-gcc): its crtbegin.o registers
+	 * .eh_frame, crtend.o ends it; the language-specific data with it */
 	.eh_frame : {
 		KEEP(*(.eh_frame))
+	} :text
+	.gcc_except_table : {
+		*(.gcc_except_table .gcc_except_table.*)
 	} :text
 	PROVIDE(etext = .);
 
