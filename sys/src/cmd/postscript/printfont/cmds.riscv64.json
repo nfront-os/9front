@@ -1,0 +1,12 @@
+[
+	{
+		"Name": "cmd-postscript-printfont-install",
+		"Install": "",
+		"Post": [
+			"python3 ../../../../../scripts/build/mkinstall.py cmd/postscript/printfont -- /rc/bin/printfont /sys/lib/postscript/prologues/printfont.ps"
+		],
+		"Clean": [
+			"printfont"
+		]
+	}
+]

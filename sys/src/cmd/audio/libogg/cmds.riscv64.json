@@ -1,0 +1,19 @@
+[
+	{
+		"Name": "cmd-audio-libogg-libogg.aj",
+		"Include": [
+			"/$ARCH/cflags.json",
+			"/$ARCH/ape.json"
+		],
+		"Install": "/sys/src/cmd/audio/libogg/",
+		"Cflags": [
+			"-I."
+		],
+		"Ape": true,
+		"Library": "libogg.aj",
+		"SourceFiles": [
+			"framing.c",
+			"bitwise.c"
+		]
+	}
+]

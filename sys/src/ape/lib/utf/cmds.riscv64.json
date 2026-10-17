@@ -1,0 +1,39 @@
+[
+	{
+		"Name": "ape-lib-utf-libutf.a",
+		"Include": [
+			"/$ARCH/cflags.json",
+			"/$ARCH/ape.json"
+		],
+		"Install": "/$ARCH/lib.gcc/ape/",
+		"Cflags": [
+			"-D_POSIX_SOURCE",
+			"-D_PLAN9_SOURCE",
+			"-D_BSD_EXTENSION"
+		],
+		"Ape": true,
+		"Library": "libutf.a",
+		"SourceFiles": [
+			"rune.c",
+			"runestrcat.c",
+			"runestrchr.c",
+			"runestrcmp.c",
+			"runestrcpy.c",
+			"runestrdup.c",
+			"runestrlen.c",
+			"runestrecpy.c",
+			"runestrncat.c",
+			"runestrncmp.c",
+			"runestrncpy.c",
+			"runestrrchr.c",
+			"runestrstr.c",
+			"runetype.c",
+			"utfecpy.c",
+			"utflen.c",
+			"utfnlen.c",
+			"utfrrune.c",
+			"utfrune.c",
+			"utfutf.c"
+		]
+	}
+]

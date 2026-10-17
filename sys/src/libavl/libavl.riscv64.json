@@ -1,0 +1,13 @@
+[
+	{
+		"Name": "Avl",
+		"Include": [
+			"../lib.json"
+		],
+		"Install": "/$ARCH/lib.gcc/",
+		"Library": "libavl.a",
+		"SourceFiles": [
+			"avl.c"
+		]
+	}
+]

@@ -233,6 +233,7 @@ var (
 		"386":   true,
 		"amd64": true,
 		"arm64": true,
+		"riscv64": true,
 	}
 	// per $ARCH defaults for the environment of the manifests and of
 	// their Pre/Post steps (scripts/gen/arch.py has the same table):
@@ -243,6 +244,7 @@ var (
 		"386":   {"objtype": "386", "O": "8", "SUFFIX": ".386", "CONF": "pc", "TOOLPREFIX": ""},
 		"amd64": {"objtype": "amd64", "O": "6", "SUFFIX": "", "CONF": "pc64", "TOOLPREFIX": ""},
 		"arm64": {"objtype": "arm64", "O": "7", "SUFFIX": ".arm64", "CONF": "qemu", "TOOLPREFIX": "aarch64-linux-musl-"},
+		"riscv64": {"objtype": "riscv64", "O": "j", "SUFFIX": ".riscv64", "CONF": "virt", "TOOLPREFIX": "riscv64-linux-gnu-"},
 	}
 	debugPrint     = flag.Bool("debug", false, "enable debug prints")
 	depends        = flag.Bool("D", false, "build only what is out of date, as mk: objects older than their sources or of another $ARCH, libraries and programs older than their objects or libraries")
@@ -552,7 +554,7 @@ func thisarch(o string) bool {
 		return false
 	}
 	defer f.Close()
-	m := map[string]elf.Machine{"386": elf.EM_386, "amd64": elf.EM_X86_64, "arm64": elf.EM_AARCH64}
+	m := map[string]elf.Machine{"386": elf.EM_386, "amd64": elf.EM_X86_64, "arm64": elf.EM_AARCH64, "riscv64": elf.EM_RISCV}
 	return f.Machine == m[os.Getenv("ARCH")]
 }
 

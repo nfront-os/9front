@@ -37,7 +37,7 @@ from arch import OBJTYPE as A
 
 # the kernel mk install puts in /$objtype, and the ELF the build keeps
 # beside the programs for boot-cli.sh's multiboot / QEMU -kernel
-KERNELS = {'amd64': ['9pc64'], '386': ['9pc'], 'arm64': ['9qemu', '9qemu.u']}[A]
+KERNELS = {'amd64': ['9pc64'], '386': ['9pc'], 'arm64': ['9qemu', '9qemu.u'], 'riscv64': ['9virt', '9virt.bin']}[A]
 
 def expected():
 	"""{9front path: target name}"""

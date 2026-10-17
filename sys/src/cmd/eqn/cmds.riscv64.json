@@ -1,0 +1,69 @@
+[
+	{
+		"Name": "cmd-eqn-eqn",
+		"Include": [
+			"/$ARCH/cflags.json",
+			"/$ARCH/ape.json"
+		],
+		"Install": "/$ARCH/bin/",
+		"Pre": [
+			"bash ../../../../scripts/build/yacc.sh -d -S eqn.y"
+		],
+		"Ape": true,
+		"Oflags": [
+			"--entry=_main"
+		],
+		"Libs": [
+			"--start-group",
+			"/$ARCH/lib.gcc/ape/libdraw.a",
+			"/$ARCH/lib.gcc/ape/libplumb.a",
+			"/$ARCH/lib.gcc/ape/libauth.a",
+			"/$ARCH/lib.gcc/ape/libsec.a",
+			"/$ARCH/lib.gcc/ape/libmp.a",
+			"/$ARCH/lib.gcc/ape/libnet.a",
+			"/$ARCH/lib.gcc/ape/libbsd.a",
+			"/$ARCH/lib.gcc/ape/libl.a",
+			"/$ARCH/lib.gcc/ape/libv.a",
+			"/$ARCH/lib.gcc/ape/libz.a",
+			"/$ARCH/lib.gcc/ape/libbz2.a",
+			"/$ARCH/lib.gcc/ape/libbio.a",
+			"/$ARCH/lib.gcc/ape/lib9.a",
+			"/$ARCH/lib.gcc/ape/libfmt.a",
+			"/$ARCH/lib.gcc/ape/libutf.a",
+			"/$ARCH/lib.gcc/ape/libap.a",
+			"--end-group"
+		],
+		"Program": "eqn",
+		"SourceFiles": [
+			"main.c",
+			"tuning.c",
+			"diacrit.c",
+			"eqnbox.c",
+			"font.c",
+			"fromto.c",
+			"funny.c",
+			"glob.c",
+			"integral.c",
+			"input.c",
+			"lex.c",
+			"lookup.c",
+			"mark.c",
+			"matrix.c",
+			"move.c",
+			"over.c",
+			"paren.c",
+			"pile.c",
+			"shift.c",
+			"size.c",
+			"sqrt.c",
+			"text.c",
+			"y.tab.c"
+		],
+		"Clean": [
+			"y.tab.c",
+			"y.tab.h",
+			"y.debug",
+			"y.output"
+		]
+	}
+]

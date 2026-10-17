@@ -63,11 +63,14 @@ case ${objtype:=amd64} in
 amd64)	KNAME=9pc64 QEMU=qemu-system-x86_64 CPU=qemu64,+rdrand ;;
 386)	KNAME=9pc QEMU=qemu-system-i386 CPU=qemu32,+rdrand ;;
 arm64)	KNAME=9qemu QEMU=qemu-system-aarch64 CPU=cortex-a72 ;;
+riscv64)	KNAME=9virt.bin QEMU=qemu-system-riscv64 CPU=rv64 ;;
 *)	echo "boot-cli: objtype=$objtype: no kernel" >&2; exit 1 ;;
 esac
 [ "${PMU:-0}" = 0 ] || [ $objtype = arm64 ] || CPU=$CPU,pmu=on,+perfctr-core	# pmc(3) tests (tests/pmc)
 export objtype
 KERNEL=${BOOTKERNEL:-$ROOT/$objtype/bin/$KNAME}
+# riscv64: the raw image beside the a.out the install step makes (elf2aout.py, jl -H1)
+[ $objtype = riscv64 ] && KERNEL=${BOOTKERNEL:-$ROOT/riscv64/9virt.bin}
 UFS=${UFS:-$(command -v ufs 2>/dev/null || echo "$HOME/go/bin/ufs")}
 UFS_PORT=${UFS_PORT:-5640}	# host ports of the ufs servers (another boot-cli may run)
 SERVICE=${SERVICE:-cpu}
@@ -119,7 +122,7 @@ if [ -n "$BOOTDISK$BOOTISO" ]; then
 		-netdev user,id=net0 -device "$NIC",netdev=net0
 		-cpu $CPU "${accel[@]}")
 else
-[ $objtype = arm64 ] || command -v grub-mkrescue >/dev/null || die "grub-mkrescue missing"
+[ $objtype = arm64 ] || [ $objtype = riscv64 ] || command -v grub-mkrescue >/dev/null || die "grub-mkrescue missing"
 [ -x "$UFS" ] || die "ufs missing (go install github.com/Harvey-OS/ninep/cmd/ufs@latest, or set UFS)"
 # a ufs left over from an earlier run would serve a stale root
 port_open && die "port $UFS_PORT is in use (old ufs still running?)"
@@ -159,6 +162,11 @@ if [ $objtype = arm64 ]; then
 	mformat -i "$FAT@@1M" -F :: > /dev/null
 	cp "$UIMAGE" "$CLI_DIR/9qemu.u"
 	mcopy -i "$FAT@@1M" "$ROOT/sys/src/boot/qemu/boot.scr" "$CLI_DIR/plan9.ini" "$CLI_DIR/9qemu.u" ::
+elif [ $objtype = riscv64 ]; then
+	# OpenSBI (qemu's -bios default) loads the raw kernel at 0x80200000
+	# and passes the device tree, whose /chosen/bootargs is -append
+	# (riscv64/bootargs.c)
+	:
 else
 	# GRUB multiboot ISO; GRUB itself also talks on the serial line, so a
 	# boot that stops at the grub> prompt is visible
@@ -199,6 +207,13 @@ if [ $objtype = arm64 ]; then
 	qemu=($QEMU -M virt,gic-version=3,highmem=off -cpu $CPU -m "$MEM" ${SMP:+-smp "$SMP"}
 		-bios "$CLI_DIR/uboot/u-boot.bin"
 		-drive "file=$FAT,format=raw,if=none,id=fat" -device virtio-blk-pci,drive=fat,disable-legacy=on
+		-display none -no-reboot -monitor none
+		-netdev user,id=net0,$fwd -device virtio-net-pci,netdev=net0,disable-legacy=on "${disk[@]}")	# virtio 1.0 only (ethervirtio10.c, sdvirtio10.c)
+elif [ $objtype = riscv64 ]; then
+	[ -z "$DISK" ] || disk=(-drive "file=$DISK,format=raw,if=none,id=d0" -device virtio-blk-pci,drive=d0,disable-legacy=on)
+	qemu=($QEMU -M virt -cpu $CPU -m "$MEM" -smp ${SMP:-1}
+		-bios default -kernel "$KERNEL"
+		-append "console=0 service=$SERVICE nobootprompt=tcp fs=$FSADDR auth=$FSADDR $KARGS"
 		-display none -no-reboot -monitor none
 		-netdev user,id=net0,$fwd -device virtio-net-pci,netdev=net0,disable-legacy=on "${disk[@]}")	# virtio 1.0 only (ethervirtio10.c, sdvirtio10.c)
 else

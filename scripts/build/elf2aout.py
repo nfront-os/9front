@@ -12,6 +12,10 @@
 # R_MAGIC; its data segment starts on the next 64K boundary (7l's
 # default -R0x10000), and since kernel.ld makes the ELF entry _start's
 # physical address (QEMU -kernel), the a.out's is the start of text.
+# A RISC-V ELF (riscv64 virt) gets jl's header with -X: B_MAGIC, the
+# fat header; jl -R8 puts the data right after the text (8-byte
+# aligned), and the raw image OpenSBI loads (text and data) goes to
+# a.out.bin; the ELF entry is the physical one, the a.out's the text's.
 # A 32-bit ELF (pc) gets 8l's plain header (pc/mkfile: $LD -T$KTZERO
 # -l): magic I_MAGIC, the sizes, no symbols, the 32-bit entry.
 #
@@ -23,6 +27,8 @@ PGSZ = 4096
 S_MAGIC = (4*26*26 + 7) | 0x8000	# 6l: 4*26*26+7, fat header
 R_MAGIC = (4*28*28 + 7) | 0x8000	# 7l
 EM_AARCH64 = 183
+B_MAGIC = (4*30*30 + 7) | 0x8000	# jl -X
+EM_RISCV = 243
 I_MAGIC = 4*11*11 + 7			# 8l
 
 def die(msg):
@@ -34,6 +40,7 @@ if f[:4] != b'\x7fELF' or f[4] not in (1, 2) or f[5] != 1:
 	die('%s: not a little-endian ELF' % src)
 elf64 = f[4] == 2
 arm64 = struct.unpack_from('<H', f, 18)[0] == EM_AARCH64
+riscv64 = struct.unpack_from('<H', f, 18)[0] == EM_RISCV
 load = []
 if elf64:
 	entry, phoff = struct.unpack_from('<QQ', f, 24)
@@ -52,8 +59,8 @@ else:
 if len(load) != 2:
 	die('want 2 loadable segments (text, data), have %d' % len(load))
 (tva, toff, tfsz, tmsz, tfl), (dva, doff, dfsz, dmsz, dfl) = sorted(load)
-rnd = 0x10000 if arm64 else PGSZ
-if arm64:
+rnd = 0x10000 if arm64 else 8 if riscv64 else PGSZ
+if arm64 or riscv64:
 	entry = tva
 if tva != entry:
 	die('text at %#x, entry at %#x' % (tva, entry))
@@ -63,11 +70,16 @@ if dva != (tva + tfsz + rnd - 1) & ~(rnd - 1):
 	die('data at %#x, not at the page after the text (%#x)' % (dva, tva + tfsz))
 if elf64:
 	paddr = entry & ~0xfffffffff0000000	# 6l's PADDR
-	hdr = struct.pack('>8I', R_MAGIC if arm64 else S_MAGIC, tfsz, dfsz, dmsz - dfsz, 0, paddr, 0, 0) + struct.pack('>Q', entry)
+	magic = R_MAGIC if arm64 else B_MAGIC if riscv64 else S_MAGIC
+	hdr = struct.pack('>8I', magic, tfsz, dfsz, dmsz - dfsz, 0, paddr, 0, 0) + struct.pack('>Q', entry)
 else:
 	hdr = struct.pack('>8I', I_MAGIC, tfsz, dfsz, dmsz - dfsz, 0, entry, 0, 0)
 with open(dst, 'wb') as o:
 	o.write(hdr)
 	o.write(f[toff:toff + tfsz])
 	o.write(f[doff:doff + dfsz])
+if riscv64:
+	with open(dst + '.bin', 'wb') as o:
+		o.write(f[toff:toff + tfsz])
+		o.write(f[doff:doff + dfsz])
 print('%s: text %#x data %#x bss %#x entry %#x' % (dst, tfsz, dfsz, dmsz - dfsz, entry))

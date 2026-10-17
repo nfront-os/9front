@@ -29,7 +29,7 @@ YFILES=cc.y\
 CLEANFILES=$LIB
 
 CURCC=6c 8c qc vc
-OTHERCC=1c 2c 5c 7c kc
+OTHERCC=1c 2c 5c 7c jc kc
 
 </sys/src/cmd/mklib
 

@@ -20,6 +20,7 @@ OFILES=\
 	5.$O\
 	6.$O\
 	7.$O\
+	j.$O\
 	8.$O\
 	9.$O\
 	tdb.$O\
@@ -30,6 +31,7 @@ OFILES=\
 	2db.$O\
 	5db.$O\
 	7db.$O\
+	jdb.$O\
 	8db.$O\
 	vobj.$O\
 	kobj.$O\
@@ -38,6 +40,7 @@ OFILES=\
 	5obj.$O\
 	6obj.$O\
 	7obj.$O\
+	jobj.$O\
 	8obj.$O\
 	9obj.$O\
 	qobj.$O\
@@ -54,6 +57,8 @@ CFLAGS=$CFLAGS -I/sys/src/cmd
 6obj.$O: /sys/src/cmd/6c/6.out.h
 7obj.$O: /sys/src/cmd/7c/7.out.h
 8obj.$O: /sys/src/cmd/8c/8.out.h
+jobj.$O: /sys/src/cmd/jc/j.out.h
+jdb.$O: /sys/src/cmd/jc/j.out.h
 kobj.$O: /sys/src/cmd/kc/k.out.h
 qobj.$O: /sys/src/cmd/qc/q.out.h
 vobj.$O: /sys/src/cmd/vc/v.out.h

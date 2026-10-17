@@ -1,0 +1,13 @@
+[
+	{
+		"Name": "Fis",
+		"Include": [
+			"../lib.json"
+		],
+		"Install": "/$ARCH/lib.gcc/",
+		"Library": "libfis.a",
+		"SourceFiles": [
+			"fis.c"
+		]
+	}
+]

@@ -69,6 +69,7 @@ extern	Mach	mamd64;
 extern	Mach	marm;
 extern	Mach	mthumb;
 extern	Mach	marm64;
+extern	Mach	mriscv64;
 extern	Mach	mpower;
 extern	Mach	mpower64;
 
@@ -245,6 +246,24 @@ ExecTable exectab[] =
 		sizeof(Exec)+8,
 		nil,
 		commonllp64 },
+	{ Y_MAGIC,			/* riscv64 j.out */
+		"riscv64 plan 9 executable",
+		"riscv64 plan 9 dlm",
+		FRISCV64,
+		1,
+		&mriscv64,
+		sizeof(Exec),
+		beswal,
+		common },
+	{ B_MAGIC,			/* riscv64 j.out with 64-bit entry and boot image */
+		"riscv64 plan 9 executable",
+		"riscv64 plan 9 dlm",
+		FRISCV64,
+		1,
+		&mriscv64,
+		sizeof(Exec)+8,
+		nil,
+		commonllp64 },
 	{ 0 },
 };
 
@@ -373,6 +392,12 @@ commonboot(Fhdr *fp)
 		fp->type = FARM64B;
 		fp->txtaddr = fp->entry;
 		fp->name = "arm64 plan 9 boot image";
+		fp->dataddr = _round(fp->txtaddr+fp->txtsz, mach->pgsize);
+		return;
+	case FRISCV64:
+		fp->type = FRISCV64B;
+		fp->txtaddr = fp->entry;
+		fp->name = "riscv64 plan 9 boot image";
 		fp->dataddr = _round(fp->txtaddr+fp->txtsz, mach->pgsize);
 		return;
 	case FPOWER:

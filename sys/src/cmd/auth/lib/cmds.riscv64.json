@@ -1,0 +1,31 @@
+[
+	{
+		"Name": "cmd-auth-lib.j.a",
+		"Include": [
+			"/$ARCH/cflags.json"
+		],
+		"Install": "/sys/src/cmd/auth/",
+		"Cflags": [
+			"-I.."
+		],
+		"Library": "lib.j.a",
+		"SourceFiles": [
+			"answer.c",
+			"keyfmt.c",
+			"netcheck.c",
+			"okpasswd.c",
+			"private.c",
+			"readwrite.c",
+			"readarg.c",
+			"getpass.c",
+			"getauthkey.c",
+			"log.c",
+			"error.c",
+			"fs.c",
+			"rdbio.c",
+			"querybio.c",
+			"wrbio.c",
+			"getexpiration.c"
+		]
+	}
+]

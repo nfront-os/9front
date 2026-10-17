@@ -1,0 +1,46 @@
+[
+    {
+        "Name": "klibmemdraw-riscv64",
+        "Cflags": [
+            "-march=rv64imac_zicsr_zifencei",
+            "-mabi=lp64",
+            "-mcmodel=medany",
+            "-mno-relax",
+            "-fsigned-char",
+            "-ffixed-s10",
+            "-ffixed-s11",
+            "-fno-pic",
+            "-fno-builtin",
+            "-nostdinc",
+            "-fplan9-extensions",
+            "-fno-asynchronous-unwind-tables",
+            "-fno-stack-protector",
+            "-fno-omit-frame-pointer",
+            "-fno-zero-initialized-in-bss",
+            "-Os",
+            "-gdwarf-2"
+        ],
+        "SourceFiles": [
+            "alloc.c",
+            "arc.c",
+            "cload.c",
+            "cmap.c",
+            "cread.c",
+            "defont.c",
+            "draw.c",
+            "ellipse.c",
+            "fillpoly.c",
+            "hwdraw.c",
+            "line.c",
+            "load.c",
+            "openmemsubfont.c",
+            "poly.c",
+            "read.c",
+            "string.c",
+            "subfont.c",
+            "unload.c",
+            "warp.c",
+            "write.c"
+        ]
+    }
+]

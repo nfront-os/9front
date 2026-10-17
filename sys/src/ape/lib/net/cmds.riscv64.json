@@ -1,0 +1,23 @@
+[
+	{
+		"Name": "ape-lib-net-libnet.a",
+		"Include": [
+			"/$ARCH/cflags.json",
+			"/$ARCH/ape.json"
+		],
+		"Install": "/$ARCH/lib.gcc/ape/",
+		"Cflags": [
+			"-D_POSIX_SOURCE",
+			"-D_RESEARCH_SOURCE",
+			"-D_NET_EXTENSION"
+		],
+		"Ape": true,
+		"Library": "libnet.a",
+		"SourceFiles": [
+			"dial.c",
+			"announce.c",
+			"netmkaddr.c",
+			"hangup.c"
+		]
+	}
+]

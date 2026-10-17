@@ -115,6 +115,27 @@ install:V:
 			echo MOV '$'$n, R0
 			echo SVC
 			echo RETURN
+		case riscv64
+			j=$i
+			if(~ $i seek) j=_seek
+			echo TEXT $j'(SB)', 1, '$0'
+			# jc passes the first argument in R8 and does not widen
+			# int and long to vlong on the stack: spill R8 as wide
+			# as the first argument is (none for no arguments)
+			switch($i){
+			case sysr1 _nsec
+				;
+			case _errstr bind chdir exec _exits segbrk _stat open pipe \
+			    create brk_ remove _wstat notify segdetach segfree \
+			    segflush rendezvous unmount _wait semacquire semrelease \
+			    seek errstr stat wstat await tsemacquire
+				echo MOV R8, '0(FP)'	# pointer
+			case *
+				echo MOVW R8, '0(FP)'	# int, long
+			}
+			echo MOV '$'$n, R8
+			echo ECALL
+			echo RET
 		case power
 			echo TEXT $i'(SB)', 1, '$0'
 			echo MOVW R3, '0(FP)'

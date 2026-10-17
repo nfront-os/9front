@@ -38,7 +38,7 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 LIBC = os.path.join(ROOT, 'sys', 'src', 'libc')
 ARCH = archdef.OBJTYPE	# $objtype, see arch.py
 # per-architecture deviations (see the docstring)
-EXTRA_ARCH = {'amd64': ['notetramp.S'], '386': ['_seek.c'], 'arm64': ['notetramp.S']}.get(ARCH, [])
+EXTRA_ARCH = {'amd64': ['notetramp.S'], '386': ['_seek.c'], 'arm64': ['notetramp.S'], 'riscv64': ['notetramp.S']}.get(ARCH, [])
 
 def mkvar(d, name):
 	text = open(os.path.join(LIBC, d, 'mkfile')).read().replace('\\\n', ' ')

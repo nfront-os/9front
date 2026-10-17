@@ -40,9 +40,12 @@ struct	Exec
 #define	S_MAGIC		_MAGIC(HDR_MAGIC, 26)	/* amd64 */
 #define	T_MAGIC		_MAGIC(HDR_MAGIC, 27)	/* powerpc64 */
 #define	R_MAGIC		_MAGIC(HDR_MAGIC, 28)	/* arm64 */
+#define	Z_MAGIC		_MAGIC(0, 29)		/* riscv */
+#define	Y_MAGIC		_MAGIC(0, 30)		/* riscv64 */
+#define	B_MAGIC		_MAGIC(HDR_MAGIC, 30)	/* riscv64, 64-bit entry */
 
 #define	MIN_MAGIC	8
-#define	MAX_MAGIC	28			/* <= 90 */
+#define	MAX_MAGIC	30			/* <= 90 */
 
 #define	DYN_MAGIC	0x80000000		/* dlm */
 

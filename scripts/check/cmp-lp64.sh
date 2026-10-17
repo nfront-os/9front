@@ -113,7 +113,8 @@ run(){	# arch, args...
 cd "$ROOT"
 case $N in	# the target's u.h
 5) INCARCH=arm/include ;; 6) INCARCH=amd64/include ;; 7) INCARCH=arm64/include ;;
-8) INCARCH=386/include ;; q) INCARCH=power/include ;; v) INCARCH=mips/include ;;
+8) INCARCH=386/include ;; j) INCARCH=riscv64/include ;; q) INCARCH=power/include ;;
+v) INCARCH=mips/include ;;
 *) INCARCH=$N/include ;;
 esac
 if [ "$K" = l ]; then

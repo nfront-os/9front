@@ -43,6 +43,9 @@ KERNEL = {
 	'arm64': (['bash scripts/build/gen-rebootcode-i.sh arm64', 'bash scripts/build/gen-initcode-i.sh',
 		'bash scripts/build/gen-bootfs.sh qemu arm64'],
 		'/sys/src/9/arm64/build.json', 'arm64/bin/9qemu', 'arm64/9qemu'),
+	'riscv64': (['bash scripts/build/gen-rebootcode-i.sh riscv64', 'bash scripts/build/gen-initcode-i.sh',
+		'bash scripts/build/gen-bootfs.sh virt riscv64'],
+		'/sys/src/9/riscv64/build.json', 'riscv64/bin/9virt', 'riscv64/9virt'),
 }
 
 def listing(script, objtype):

@@ -1,0 +1,45 @@
+[
+	{
+		"Name": "ape-lib-9-lib9.a",
+		"Include": [
+			"/$ARCH/cflags.json",
+			"/$ARCH/ape.json"
+		],
+		"Install": "/$ARCH/lib.gcc/ape/",
+		"Cflags": [
+			"-D_POSIX_SOURCE",
+			"-D_PLAN9_SOURCE"
+		],
+		"Ape": true,
+		"Library": "lib9.a",
+		"SourceFiles": [
+			"argv0.c",
+			"bind.c",
+			"../../../libc/port/crypt.c",
+			"ctime.c",
+			"errstr.c",
+			"rerrstr.c",
+			"riscv64/getcallerpc.S",
+			"riscv64/getfcr.S",
+			"../../../libc/port/getfields.c",
+			"../../../libc/9sys/idn.c",
+			"mount.c",
+			"rendezvous.c",
+			"rfork.c",
+			"segattach.c",
+			"segdetach.c",
+			"segflush.c",
+			"segfree.c",
+			"setmalloctag.c",
+			"setrealloctag.c",
+			"../../../libc/9sys/sysfatal.c",
+			"../../../libc/port/tokenize.c",
+			"../../../libc/9sys/truerand.c",
+			"../../../libc/port/u16.c",
+			"../../../libc/port/u32.c",
+			"../../../libc/port/u64.c",
+			"unmount.c",
+			"fd2path.c"
+		]
+	}
+]

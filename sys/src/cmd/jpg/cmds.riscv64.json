@@ -1,0 +1,1070 @@
+[
+	{
+		"Name": "cmd-jpg-jpg",
+		"Include": [
+			"/$ARCH/cflags.json"
+		],
+		"Install": "/$ARCH/bin/",
+		"Pre": [
+			"bash ../../../../scripts/build/gen-jpg-tables.sh"
+		],
+		"Oflags": [
+			"--entry=_main"
+		],
+		"Libs": [
+			"--start-group",
+			"/$ARCH/lib.gcc/libdisk.a",
+			"/$ARCH/lib.gcc/libcontrol.a",
+			"/$ARCH/lib.gcc/libhtml.a",
+			"/$ARCH/lib.gcc/libframe.a",
+			"/$ARCH/lib.gcc/libdraw.a",
+			"/$ARCH/lib.gcc/libmemlayer.a",
+			"/$ARCH/lib.gcc/libmemdraw.a",
+			"/$ARCH/lib.gcc/libplumb.a",
+			"/$ARCH/lib.gcc/libcomplete.a",
+			"/$ARCH/lib.gcc/lib9p.a",
+			"/$ARCH/lib.gcc/libventi.a",
+			"/$ARCH/lib.gcc/libsunrpc.a",
+			"/$ARCH/lib.gcc/libthread.a",
+			"/$ARCH/lib.gcc/libauth.a",
+			"/$ARCH/lib.gcc/libauthsrv.a",
+			"/$ARCH/lib.gcc/libndb.a",
+			"/$ARCH/lib.gcc/libip.a",
+			"/$ARCH/lib.gcc/libhttpd.a",
+			"/$ARCH/lib.gcc/libsec.a",
+			"/$ARCH/lib.gcc/libmp.a",
+			"/$ARCH/lib.gcc/libflate.a",
+			"/$ARCH/lib.gcc/libregexp.a",
+			"/$ARCH/lib.gcc/libString.a",
+			"/$ARCH/lib.gcc/libmach.a",
+			"/$ARCH/lib.gcc/libbin.a",
+			"/$ARCH/lib.gcc/libavl.a",
+			"/$ARCH/lib.gcc/libjson.a",
+			"/$ARCH/lib.gcc/libgeometry.a",
+			"/$ARCH/lib.gcc/libpcm.a",
+			"/$ARCH/lib.gcc/libttf.a",
+			"/$ARCH/lib.gcc/libsat.a",
+			"/$ARCH/lib.gcc/libscribble.a",
+			"/$ARCH/lib.gcc/liblex.a",
+			"/$ARCH/lib.gcc/libstdio.a",
+			"/$ARCH/lib.gcc/libdtracy.a",
+			"/$ARCH/lib.gcc/libaml.a",
+			"/$ARCH/lib.gcc/libfis.a",
+			"/$ARCH/lib.gcc/libbio.a",
+			"/$ARCH/lib.gcc/libc.a",
+			"--end-group"
+		],
+		"Program": "jpg",
+		"SourceFiles": [
+			"jpg.c",
+			"torgbv.c",
+			"totruecolor.c",
+			"writerawimage.c",
+			"readjpg.c"
+		],
+		"Clean": [
+			"rgbv.h",
+			"ycbcr.h"
+		]
+	},
+	{
+		"Name": "cmd-jpg-tojpg",
+		"Include": [
+			"/$ARCH/cflags.json"
+		],
+		"Install": "/$ARCH/bin/",
+		"Pre": [
+			"bash ../../../../scripts/build/gen-jpg-tables.sh"
+		],
+		"Oflags": [
+			"--entry=_main"
+		],
+		"Libs": [
+			"--start-group",
+			"/$ARCH/lib.gcc/libdisk.a",
+			"/$ARCH/lib.gcc/libcontrol.a",
+			"/$ARCH/lib.gcc/libhtml.a",
+			"/$ARCH/lib.gcc/libframe.a",
+			"/$ARCH/lib.gcc/libdraw.a",
+			"/$ARCH/lib.gcc/libmemlayer.a",
+			"/$ARCH/lib.gcc/libmemdraw.a",
+			"/$ARCH/lib.gcc/libplumb.a",
+			"/$ARCH/lib.gcc/libcomplete.a",
+			"/$ARCH/lib.gcc/lib9p.a",
+			"/$ARCH/lib.gcc/libventi.a",
+			"/$ARCH/lib.gcc/libsunrpc.a",
+			"/$ARCH/lib.gcc/libthread.a",
+			"/$ARCH/lib.gcc/libauth.a",
+			"/$ARCH/lib.gcc/libauthsrv.a",
+			"/$ARCH/lib.gcc/libndb.a",
+			"/$ARCH/lib.gcc/libip.a",
+			"/$ARCH/lib.gcc/libhttpd.a",
+			"/$ARCH/lib.gcc/libsec.a",
+			"/$ARCH/lib.gcc/libmp.a",
+			"/$ARCH/lib.gcc/libflate.a",
+			"/$ARCH/lib.gcc/libregexp.a",
+			"/$ARCH/lib.gcc/libString.a",
+			"/$ARCH/lib.gcc/libmach.a",
+			"/$ARCH/lib.gcc/libbin.a",
+			"/$ARCH/lib.gcc/libavl.a",
+			"/$ARCH/lib.gcc/libjson.a",
+			"/$ARCH/lib.gcc/libgeometry.a",
+			"/$ARCH/lib.gcc/libpcm.a",
+			"/$ARCH/lib.gcc/libttf.a",
+			"/$ARCH/lib.gcc/libsat.a",
+			"/$ARCH/lib.gcc/libscribble.a",
+			"/$ARCH/lib.gcc/liblex.a",
+			"/$ARCH/lib.gcc/libstdio.a",
+			"/$ARCH/lib.gcc/libdtracy.a",
+			"/$ARCH/lib.gcc/libaml.a",
+			"/$ARCH/lib.gcc/libfis.a",
+			"/$ARCH/lib.gcc/libbio.a",
+			"/$ARCH/lib.gcc/libc.a",
+			"--end-group"
+		],
+		"Program": "tojpg",
+		"SourceFiles": [
+			"tojpg.c",
+			"writejpg.c",
+			"multichan.c"
+		],
+		"Clean": [
+			"rgbv.h",
+			"ycbcr.h"
+		]
+	},
+	{
+		"Name": "cmd-jpg-gif",
+		"Include": [
+			"/$ARCH/cflags.json"
+		],
+		"Install": "/$ARCH/bin/",
+		"Pre": [
+			"bash ../../../../scripts/build/gen-jpg-tables.sh"
+		],
+		"Oflags": [
+			"--entry=_main"
+		],
+		"Libs": [
+			"--start-group",
+			"/$ARCH/lib.gcc/libdisk.a",
+			"/$ARCH/lib.gcc/libcontrol.a",
+			"/$ARCH/lib.gcc/libhtml.a",
+			"/$ARCH/lib.gcc/libframe.a",
+			"/$ARCH/lib.gcc/libdraw.a",
+			"/$ARCH/lib.gcc/libmemlayer.a",
+			"/$ARCH/lib.gcc/libmemdraw.a",
+			"/$ARCH/lib.gcc/libplumb.a",
+			"/$ARCH/lib.gcc/libcomplete.a",
+			"/$ARCH/lib.gcc/lib9p.a",
+			"/$ARCH/lib.gcc/libventi.a",
+			"/$ARCH/lib.gcc/libsunrpc.a",
+			"/$ARCH/lib.gcc/libthread.a",
+			"/$ARCH/lib.gcc/libauth.a",
+			"/$ARCH/lib.gcc/libauthsrv.a",
+			"/$ARCH/lib.gcc/libndb.a",
+			"/$ARCH/lib.gcc/libip.a",
+			"/$ARCH/lib.gcc/libhttpd.a",
+			"/$ARCH/lib.gcc/libsec.a",
+			"/$ARCH/lib.gcc/libmp.a",
+			"/$ARCH/lib.gcc/libflate.a",
+			"/$ARCH/lib.gcc/libregexp.a",
+			"/$ARCH/lib.gcc/libString.a",
+			"/$ARCH/lib.gcc/libmach.a",
+			"/$ARCH/lib.gcc/libbin.a",
+			"/$ARCH/lib.gcc/libavl.a",
+			"/$ARCH/lib.gcc/libjson.a",
+			"/$ARCH/lib.gcc/libgeometry.a",
+			"/$ARCH/lib.gcc/libpcm.a",
+			"/$ARCH/lib.gcc/libttf.a",
+			"/$ARCH/lib.gcc/libsat.a",
+			"/$ARCH/lib.gcc/libscribble.a",
+			"/$ARCH/lib.gcc/liblex.a",
+			"/$ARCH/lib.gcc/libstdio.a",
+			"/$ARCH/lib.gcc/libdtracy.a",
+			"/$ARCH/lib.gcc/libaml.a",
+			"/$ARCH/lib.gcc/libfis.a",
+			"/$ARCH/lib.gcc/libbio.a",
+			"/$ARCH/lib.gcc/libc.a",
+			"--end-group"
+		],
+		"Program": "gif",
+		"SourceFiles": [
+			"gif.c",
+			"torgbv.c",
+			"totruecolor.c",
+			"writerawimage.c",
+			"readgif.c"
+		],
+		"Clean": [
+			"rgbv.h",
+			"ycbcr.h"
+		]
+	},
+	{
+		"Name": "cmd-jpg-togif",
+		"Include": [
+			"/$ARCH/cflags.json"
+		],
+		"Install": "/$ARCH/bin/",
+		"Pre": [
+			"bash ../../../../scripts/build/gen-jpg-tables.sh"
+		],
+		"Oflags": [
+			"--entry=_main"
+		],
+		"Libs": [
+			"--start-group",
+			"/$ARCH/lib.gcc/libdisk.a",
+			"/$ARCH/lib.gcc/libcontrol.a",
+			"/$ARCH/lib.gcc/libhtml.a",
+			"/$ARCH/lib.gcc/libframe.a",
+			"/$ARCH/lib.gcc/libdraw.a",
+			"/$ARCH/lib.gcc/libmemlayer.a",
+			"/$ARCH/lib.gcc/libmemdraw.a",
+			"/$ARCH/lib.gcc/libplumb.a",
+			"/$ARCH/lib.gcc/libcomplete.a",
+			"/$ARCH/lib.gcc/lib9p.a",
+			"/$ARCH/lib.gcc/libventi.a",
+			"/$ARCH/lib.gcc/libsunrpc.a",
+			"/$ARCH/lib.gcc/libthread.a",
+			"/$ARCH/lib.gcc/libauth.a",
+			"/$ARCH/lib.gcc/libauthsrv.a",
+			"/$ARCH/lib.gcc/libndb.a",
+			"/$ARCH/lib.gcc/libip.a",
+			"/$ARCH/lib.gcc/libhttpd.a",
+			"/$ARCH/lib.gcc/libsec.a",
+			"/$ARCH/lib.gcc/libmp.a",
+			"/$ARCH/lib.gcc/libflate.a",
+			"/$ARCH/lib.gcc/libregexp.a",
+			"/$ARCH/lib.gcc/libString.a",
+			"/$ARCH/lib.gcc/libmach.a",
+			"/$ARCH/lib.gcc/libbin.a",
+			"/$ARCH/lib.gcc/libavl.a",
+			"/$ARCH/lib.gcc/libjson.a",
+			"/$ARCH/lib.gcc/libgeometry.a",
+			"/$ARCH/lib.gcc/libpcm.a",
+			"/$ARCH/lib.gcc/libttf.a",
+			"/$ARCH/lib.gcc/libsat.a",
+			"/$ARCH/lib.gcc/libscribble.a",
+			"/$ARCH/lib.gcc/liblex.a",
+			"/$ARCH/lib.gcc/libstdio.a",
+			"/$ARCH/lib.gcc/libdtracy.a",
+			"/$ARCH/lib.gcc/libaml.a",
+			"/$ARCH/lib.gcc/libfis.a",
+			"/$ARCH/lib.gcc/libbio.a",
+			"/$ARCH/lib.gcc/libc.a",
+			"--end-group"
+		],
+		"Program": "togif",
+		"SourceFiles": [
+			"togif.c",
+			"writegif.c",
+			"onechan.c",
+			"torgbv.c"
+		],
+		"Clean": [
+			"rgbv.h",
+			"ycbcr.h"
+		]
+	},
+	{
+		"Name": "cmd-jpg-ppm",
+		"Include": [
+			"/$ARCH/cflags.json"
+		],
+		"Install": "/$ARCH/bin/",
+		"Pre": [
+			"bash ../../../../scripts/build/gen-jpg-tables.sh"
+		],
+		"Oflags": [
+			"--entry=_main"
+		],
+		"Libs": [
+			"--start-group",
+			"/$ARCH/lib.gcc/libdisk.a",
+			"/$ARCH/lib.gcc/libcontrol.a",
+			"/$ARCH/lib.gcc/libhtml.a",
+			"/$ARCH/lib.gcc/libframe.a",
+			"/$ARCH/lib.gcc/libdraw.a",
+			"/$ARCH/lib.gcc/libmemlayer.a",
+			"/$ARCH/lib.gcc/libmemdraw.a",
+			"/$ARCH/lib.gcc/libplumb.a",
+			"/$ARCH/lib.gcc/libcomplete.a",
+			"/$ARCH/lib.gcc/lib9p.a",
+			"/$ARCH/lib.gcc/libventi.a",
+			"/$ARCH/lib.gcc/libsunrpc.a",
+			"/$ARCH/lib.gcc/libthread.a",
+			"/$ARCH/lib.gcc/libauth.a",
+			"/$ARCH/lib.gcc/libauthsrv.a",
+			"/$ARCH/lib.gcc/libndb.a",
+			"/$ARCH/lib.gcc/libip.a",
+			"/$ARCH/lib.gcc/libhttpd.a",
+			"/$ARCH/lib.gcc/libsec.a",
+			"/$ARCH/lib.gcc/libmp.a",
+			"/$ARCH/lib.gcc/libflate.a",
+			"/$ARCH/lib.gcc/libregexp.a",
+			"/$ARCH/lib.gcc/libString.a",
+			"/$ARCH/lib.gcc/libmach.a",
+			"/$ARCH/lib.gcc/libbin.a",
+			"/$ARCH/lib.gcc/libavl.a",
+			"/$ARCH/lib.gcc/libjson.a",
+			"/$ARCH/lib.gcc/libgeometry.a",
+			"/$ARCH/lib.gcc/libpcm.a",
+			"/$ARCH/lib.gcc/libttf.a",
+			"/$ARCH/lib.gcc/libsat.a",
+			"/$ARCH/lib.gcc/libscribble.a",
+			"/$ARCH/lib.gcc/liblex.a",
+			"/$ARCH/lib.gcc/libstdio.a",
+			"/$ARCH/lib.gcc/libdtracy.a",
+			"/$ARCH/lib.gcc/libaml.a",
+			"/$ARCH/lib.gcc/libfis.a",
+			"/$ARCH/lib.gcc/libbio.a",
+			"/$ARCH/lib.gcc/libc.a",
+			"--end-group"
+		],
+		"Program": "ppm",
+		"SourceFiles": [
+			"ppm.c",
+			"torgbv.c",
+			"totruecolor.c",
+			"writerawimage.c",
+			"readppm.c"
+		],
+		"Clean": [
+			"rgbv.h",
+			"ycbcr.h"
+		]
+	},
+	{
+		"Name": "cmd-jpg-toppm",
+		"Include": [
+			"/$ARCH/cflags.json"
+		],
+		"Install": "/$ARCH/bin/",
+		"Pre": [
+			"bash ../../../../scripts/build/gen-jpg-tables.sh"
+		],
+		"Oflags": [
+			"--entry=_main"
+		],
+		"Libs": [
+			"--start-group",
+			"/$ARCH/lib.gcc/libdisk.a",
+			"/$ARCH/lib.gcc/libcontrol.a",
+			"/$ARCH/lib.gcc/libhtml.a",
+			"/$ARCH/lib.gcc/libframe.a",
+			"/$ARCH/lib.gcc/libdraw.a",
+			"/$ARCH/lib.gcc/libmemlayer.a",
+			"/$ARCH/lib.gcc/libmemdraw.a",
+			"/$ARCH/lib.gcc/libplumb.a",
+			"/$ARCH/lib.gcc/libcomplete.a",
+			"/$ARCH/lib.gcc/lib9p.a",
+			"/$ARCH/lib.gcc/libventi.a",
+			"/$ARCH/lib.gcc/libsunrpc.a",
+			"/$ARCH/lib.gcc/libthread.a",
+			"/$ARCH/lib.gcc/libauth.a",
+			"/$ARCH/lib.gcc/libauthsrv.a",
+			"/$ARCH/lib.gcc/libndb.a",
+			"/$ARCH/lib.gcc/libip.a",
+			"/$ARCH/lib.gcc/libhttpd.a",
+			"/$ARCH/lib.gcc/libsec.a",
+			"/$ARCH/lib.gcc/libmp.a",
+			"/$ARCH/lib.gcc/libflate.a",
+			"/$ARCH/lib.gcc/libregexp.a",
+			"/$ARCH/lib.gcc/libString.a",
+			"/$ARCH/lib.gcc/libmach.a",
+			"/$ARCH/lib.gcc/libbin.a",
+			"/$ARCH/lib.gcc/libavl.a",
+			"/$ARCH/lib.gcc/libjson.a",
+			"/$ARCH/lib.gcc/libgeometry.a",
+			"/$ARCH/lib.gcc/libpcm.a",
+			"/$ARCH/lib.gcc/libttf.a",
+			"/$ARCH/lib.gcc/libsat.a",
+			"/$ARCH/lib.gcc/libscribble.a",
+			"/$ARCH/lib.gcc/liblex.a",
+			"/$ARCH/lib.gcc/libstdio.a",
+			"/$ARCH/lib.gcc/libdtracy.a",
+			"/$ARCH/lib.gcc/libaml.a",
+			"/$ARCH/lib.gcc/libfis.a",
+			"/$ARCH/lib.gcc/libbio.a",
+			"/$ARCH/lib.gcc/libc.a",
+			"--end-group"
+		],
+		"Program": "toppm",
+		"SourceFiles": [
+			"toppm.c",
+			"writeppm.c",
+			"multichan.c"
+		],
+		"Clean": [
+			"rgbv.h",
+			"ycbcr.h"
+		]
+	},
+	{
+		"Name": "cmd-jpg-png",
+		"Include": [
+			"/$ARCH/cflags.json"
+		],
+		"Install": "/$ARCH/bin/",
+		"Pre": [
+			"bash ../../../../scripts/build/gen-jpg-tables.sh"
+		],
+		"Oflags": [
+			"--entry=_main"
+		],
+		"Libs": [
+			"--start-group",
+			"/$ARCH/lib.gcc/libdisk.a",
+			"/$ARCH/lib.gcc/libcontrol.a",
+			"/$ARCH/lib.gcc/libhtml.a",
+			"/$ARCH/lib.gcc/libframe.a",
+			"/$ARCH/lib.gcc/libdraw.a",
+			"/$ARCH/lib.gcc/libmemlayer.a",
+			"/$ARCH/lib.gcc/libmemdraw.a",
+			"/$ARCH/lib.gcc/libplumb.a",
+			"/$ARCH/lib.gcc/libcomplete.a",
+			"/$ARCH/lib.gcc/lib9p.a",
+			"/$ARCH/lib.gcc/libventi.a",
+			"/$ARCH/lib.gcc/libsunrpc.a",
+			"/$ARCH/lib.gcc/libthread.a",
+			"/$ARCH/lib.gcc/libauth.a",
+			"/$ARCH/lib.gcc/libauthsrv.a",
+			"/$ARCH/lib.gcc/libndb.a",
+			"/$ARCH/lib.gcc/libip.a",
+			"/$ARCH/lib.gcc/libhttpd.a",
+			"/$ARCH/lib.gcc/libsec.a",
+			"/$ARCH/lib.gcc/libmp.a",
+			"/$ARCH/lib.gcc/libflate.a",
+			"/$ARCH/lib.gcc/libregexp.a",
+			"/$ARCH/lib.gcc/libString.a",
+			"/$ARCH/lib.gcc/libmach.a",
+			"/$ARCH/lib.gcc/libbin.a",
+			"/$ARCH/lib.gcc/libavl.a",
+			"/$ARCH/lib.gcc/libjson.a",
+			"/$ARCH/lib.gcc/libgeometry.a",
+			"/$ARCH/lib.gcc/libpcm.a",
+			"/$ARCH/lib.gcc/libttf.a",
+			"/$ARCH/lib.gcc/libsat.a",
+			"/$ARCH/lib.gcc/libscribble.a",
+			"/$ARCH/lib.gcc/liblex.a",
+			"/$ARCH/lib.gcc/libstdio.a",
+			"/$ARCH/lib.gcc/libdtracy.a",
+			"/$ARCH/lib.gcc/libaml.a",
+			"/$ARCH/lib.gcc/libfis.a",
+			"/$ARCH/lib.gcc/libbio.a",
+			"/$ARCH/lib.gcc/libc.a",
+			"--end-group"
+		],
+		"Program": "png",
+		"SourceFiles": [
+			"png.c",
+			"torgbv.c",
+			"writerawimage.c",
+			"readpng.c"
+		],
+		"Clean": [
+			"rgbv.h",
+			"ycbcr.h"
+		]
+	},
+	{
+		"Name": "cmd-jpg-topng",
+		"Include": [
+			"/$ARCH/cflags.json"
+		],
+		"Install": "/$ARCH/bin/",
+		"Pre": [
+			"bash ../../../../scripts/build/gen-jpg-tables.sh"
+		],
+		"Oflags": [
+			"--entry=_main"
+		],
+		"Libs": [
+			"--start-group",
+			"/$ARCH/lib.gcc/libdisk.a",
+			"/$ARCH/lib.gcc/libcontrol.a",
+			"/$ARCH/lib.gcc/libhtml.a",
+			"/$ARCH/lib.gcc/libframe.a",
+			"/$ARCH/lib.gcc/libdraw.a",
+			"/$ARCH/lib.gcc/libmemlayer.a",
+			"/$ARCH/lib.gcc/libmemdraw.a",
+			"/$ARCH/lib.gcc/libplumb.a",
+			"/$ARCH/lib.gcc/libcomplete.a",
+			"/$ARCH/lib.gcc/lib9p.a",
+			"/$ARCH/lib.gcc/libventi.a",
+			"/$ARCH/lib.gcc/libsunrpc.a",
+			"/$ARCH/lib.gcc/libthread.a",
+			"/$ARCH/lib.gcc/libauth.a",
+			"/$ARCH/lib.gcc/libauthsrv.a",
+			"/$ARCH/lib.gcc/libndb.a",
+			"/$ARCH/lib.gcc/libip.a",
+			"/$ARCH/lib.gcc/libhttpd.a",
+			"/$ARCH/lib.gcc/libsec.a",
+			"/$ARCH/lib.gcc/libmp.a",
+			"/$ARCH/lib.gcc/libflate.a",
+			"/$ARCH/lib.gcc/libregexp.a",
+			"/$ARCH/lib.gcc/libString.a",
+			"/$ARCH/lib.gcc/libmach.a",
+			"/$ARCH/lib.gcc/libbin.a",
+			"/$ARCH/lib.gcc/libavl.a",
+			"/$ARCH/lib.gcc/libjson.a",
+			"/$ARCH/lib.gcc/libgeometry.a",
+			"/$ARCH/lib.gcc/libpcm.a",
+			"/$ARCH/lib.gcc/libttf.a",
+			"/$ARCH/lib.gcc/libsat.a",
+			"/$ARCH/lib.gcc/libscribble.a",
+			"/$ARCH/lib.gcc/liblex.a",
+			"/$ARCH/lib.gcc/libstdio.a",
+			"/$ARCH/lib.gcc/libdtracy.a",
+			"/$ARCH/lib.gcc/libaml.a",
+			"/$ARCH/lib.gcc/libfis.a",
+			"/$ARCH/lib.gcc/libbio.a",
+			"/$ARCH/lib.gcc/libc.a",
+			"--end-group"
+		],
+		"Program": "topng",
+		"SourceFiles": [
+			"topng.c",
+			"writepng.c"
+		],
+		"Clean": [
+			"rgbv.h",
+			"ycbcr.h"
+		]
+	},
+	{
+		"Name": "cmd-jpg-tif",
+		"Include": [
+			"/$ARCH/cflags.json"
+		],
+		"Install": "/$ARCH/bin/",
+		"Pre": [
+			"bash ../../../../scripts/build/gen-jpg-tables.sh"
+		],
+		"Oflags": [
+			"--entry=_main"
+		],
+		"Libs": [
+			"--start-group",
+			"/$ARCH/lib.gcc/libdisk.a",
+			"/$ARCH/lib.gcc/libcontrol.a",
+			"/$ARCH/lib.gcc/libhtml.a",
+			"/$ARCH/lib.gcc/libframe.a",
+			"/$ARCH/lib.gcc/libdraw.a",
+			"/$ARCH/lib.gcc/libmemlayer.a",
+			"/$ARCH/lib.gcc/libmemdraw.a",
+			"/$ARCH/lib.gcc/libplumb.a",
+			"/$ARCH/lib.gcc/libcomplete.a",
+			"/$ARCH/lib.gcc/lib9p.a",
+			"/$ARCH/lib.gcc/libventi.a",
+			"/$ARCH/lib.gcc/libsunrpc.a",
+			"/$ARCH/lib.gcc/libthread.a",
+			"/$ARCH/lib.gcc/libauth.a",
+			"/$ARCH/lib.gcc/libauthsrv.a",
+			"/$ARCH/lib.gcc/libndb.a",
+			"/$ARCH/lib.gcc/libip.a",
+			"/$ARCH/lib.gcc/libhttpd.a",
+			"/$ARCH/lib.gcc/libsec.a",
+			"/$ARCH/lib.gcc/libmp.a",
+			"/$ARCH/lib.gcc/libflate.a",
+			"/$ARCH/lib.gcc/libregexp.a",
+			"/$ARCH/lib.gcc/libString.a",
+			"/$ARCH/lib.gcc/libmach.a",
+			"/$ARCH/lib.gcc/libbin.a",
+			"/$ARCH/lib.gcc/libavl.a",
+			"/$ARCH/lib.gcc/libjson.a",
+			"/$ARCH/lib.gcc/libgeometry.a",
+			"/$ARCH/lib.gcc/libpcm.a",
+			"/$ARCH/lib.gcc/libttf.a",
+			"/$ARCH/lib.gcc/libsat.a",
+			"/$ARCH/lib.gcc/libscribble.a",
+			"/$ARCH/lib.gcc/liblex.a",
+			"/$ARCH/lib.gcc/libstdio.a",
+			"/$ARCH/lib.gcc/libdtracy.a",
+			"/$ARCH/lib.gcc/libaml.a",
+			"/$ARCH/lib.gcc/libfis.a",
+			"/$ARCH/lib.gcc/libbio.a",
+			"/$ARCH/lib.gcc/libc.a",
+			"--end-group"
+		],
+		"Program": "tif",
+		"SourceFiles": [
+			"tif.c",
+			"torgbv.c",
+			"writerawimage.c",
+			"readtif.c"
+		],
+		"Clean": [
+			"rgbv.h",
+			"ycbcr.h"
+		]
+	},
+	{
+		"Name": "cmd-jpg-totif",
+		"Include": [
+			"/$ARCH/cflags.json"
+		],
+		"Install": "/$ARCH/bin/",
+		"Pre": [
+			"bash ../../../../scripts/build/gen-jpg-tables.sh"
+		],
+		"Oflags": [
+			"--entry=_main"
+		],
+		"Libs": [
+			"--start-group",
+			"/$ARCH/lib.gcc/libdisk.a",
+			"/$ARCH/lib.gcc/libcontrol.a",
+			"/$ARCH/lib.gcc/libhtml.a",
+			"/$ARCH/lib.gcc/libframe.a",
+			"/$ARCH/lib.gcc/libdraw.a",
+			"/$ARCH/lib.gcc/libmemlayer.a",
+			"/$ARCH/lib.gcc/libmemdraw.a",
+			"/$ARCH/lib.gcc/libplumb.a",
+			"/$ARCH/lib.gcc/libcomplete.a",
+			"/$ARCH/lib.gcc/lib9p.a",
+			"/$ARCH/lib.gcc/libventi.a",
+			"/$ARCH/lib.gcc/libsunrpc.a",
+			"/$ARCH/lib.gcc/libthread.a",
+			"/$ARCH/lib.gcc/libauth.a",
+			"/$ARCH/lib.gcc/libauthsrv.a",
+			"/$ARCH/lib.gcc/libndb.a",
+			"/$ARCH/lib.gcc/libip.a",
+			"/$ARCH/lib.gcc/libhttpd.a",
+			"/$ARCH/lib.gcc/libsec.a",
+			"/$ARCH/lib.gcc/libmp.a",
+			"/$ARCH/lib.gcc/libflate.a",
+			"/$ARCH/lib.gcc/libregexp.a",
+			"/$ARCH/lib.gcc/libString.a",
+			"/$ARCH/lib.gcc/libmach.a",
+			"/$ARCH/lib.gcc/libbin.a",
+			"/$ARCH/lib.gcc/libavl.a",
+			"/$ARCH/lib.gcc/libjson.a",
+			"/$ARCH/lib.gcc/libgeometry.a",
+			"/$ARCH/lib.gcc/libpcm.a",
+			"/$ARCH/lib.gcc/libttf.a",
+			"/$ARCH/lib.gcc/libsat.a",
+			"/$ARCH/lib.gcc/libscribble.a",
+			"/$ARCH/lib.gcc/liblex.a",
+			"/$ARCH/lib.gcc/libstdio.a",
+			"/$ARCH/lib.gcc/libdtracy.a",
+			"/$ARCH/lib.gcc/libaml.a",
+			"/$ARCH/lib.gcc/libfis.a",
+			"/$ARCH/lib.gcc/libbio.a",
+			"/$ARCH/lib.gcc/libc.a",
+			"--end-group"
+		],
+		"Program": "totif",
+		"SourceFiles": [
+			"totif.c",
+			"writetif.c"
+		],
+		"Clean": [
+			"rgbv.h",
+			"ycbcr.h"
+		]
+	},
+	{
+		"Name": "cmd-jpg-yuv",
+		"Include": [
+			"/$ARCH/cflags.json"
+		],
+		"Install": "/$ARCH/bin/",
+		"Pre": [
+			"bash ../../../../scripts/build/gen-jpg-tables.sh"
+		],
+		"Oflags": [
+			"--entry=_main"
+		],
+		"Libs": [
+			"--start-group",
+			"/$ARCH/lib.gcc/libdisk.a",
+			"/$ARCH/lib.gcc/libcontrol.a",
+			"/$ARCH/lib.gcc/libhtml.a",
+			"/$ARCH/lib.gcc/libframe.a",
+			"/$ARCH/lib.gcc/libdraw.a",
+			"/$ARCH/lib.gcc/libmemlayer.a",
+			"/$ARCH/lib.gcc/libmemdraw.a",
+			"/$ARCH/lib.gcc/libplumb.a",
+			"/$ARCH/lib.gcc/libcomplete.a",
+			"/$ARCH/lib.gcc/lib9p.a",
+			"/$ARCH/lib.gcc/libventi.a",
+			"/$ARCH/lib.gcc/libsunrpc.a",
+			"/$ARCH/lib.gcc/libthread.a",
+			"/$ARCH/lib.gcc/libauth.a",
+			"/$ARCH/lib.gcc/libauthsrv.a",
+			"/$ARCH/lib.gcc/libndb.a",
+			"/$ARCH/lib.gcc/libip.a",
+			"/$ARCH/lib.gcc/libhttpd.a",
+			"/$ARCH/lib.gcc/libsec.a",
+			"/$ARCH/lib.gcc/libmp.a",
+			"/$ARCH/lib.gcc/libflate.a",
+			"/$ARCH/lib.gcc/libregexp.a",
+			"/$ARCH/lib.gcc/libString.a",
+			"/$ARCH/lib.gcc/libmach.a",
+			"/$ARCH/lib.gcc/libbin.a",
+			"/$ARCH/lib.gcc/libavl.a",
+			"/$ARCH/lib.gcc/libjson.a",
+			"/$ARCH/lib.gcc/libgeometry.a",
+			"/$ARCH/lib.gcc/libpcm.a",
+			"/$ARCH/lib.gcc/libttf.a",
+			"/$ARCH/lib.gcc/libsat.a",
+			"/$ARCH/lib.gcc/libscribble.a",
+			"/$ARCH/lib.gcc/liblex.a",
+			"/$ARCH/lib.gcc/libstdio.a",
+			"/$ARCH/lib.gcc/libdtracy.a",
+			"/$ARCH/lib.gcc/libaml.a",
+			"/$ARCH/lib.gcc/libfis.a",
+			"/$ARCH/lib.gcc/libbio.a",
+			"/$ARCH/lib.gcc/libc.a",
+			"--end-group"
+		],
+		"Program": "yuv",
+		"SourceFiles": [
+			"yuv.c",
+			"torgbv.c",
+			"totruecolor.c",
+			"writerawimage.c",
+			"readyuv.c"
+		],
+		"Clean": [
+			"rgbv.h",
+			"ycbcr.h"
+		]
+	},
+	{
+		"Name": "cmd-jpg-ico",
+		"Include": [
+			"/$ARCH/cflags.json"
+		],
+		"Install": "/$ARCH/bin/",
+		"Pre": [
+			"bash ../../../../scripts/build/gen-jpg-tables.sh"
+		],
+		"Oflags": [
+			"--entry=_main"
+		],
+		"Libs": [
+			"--start-group",
+			"/$ARCH/lib.gcc/libdisk.a",
+			"/$ARCH/lib.gcc/libcontrol.a",
+			"/$ARCH/lib.gcc/libhtml.a",
+			"/$ARCH/lib.gcc/libframe.a",
+			"/$ARCH/lib.gcc/libdraw.a",
+			"/$ARCH/lib.gcc/libmemlayer.a",
+			"/$ARCH/lib.gcc/libmemdraw.a",
+			"/$ARCH/lib.gcc/libplumb.a",
+			"/$ARCH/lib.gcc/libcomplete.a",
+			"/$ARCH/lib.gcc/lib9p.a",
+			"/$ARCH/lib.gcc/libventi.a",
+			"/$ARCH/lib.gcc/libsunrpc.a",
+			"/$ARCH/lib.gcc/libthread.a",
+			"/$ARCH/lib.gcc/libauth.a",
+			"/$ARCH/lib.gcc/libauthsrv.a",
+			"/$ARCH/lib.gcc/libndb.a",
+			"/$ARCH/lib.gcc/libip.a",
+			"/$ARCH/lib.gcc/libhttpd.a",
+			"/$ARCH/lib.gcc/libsec.a",
+			"/$ARCH/lib.gcc/libmp.a",
+			"/$ARCH/lib.gcc/libflate.a",
+			"/$ARCH/lib.gcc/libregexp.a",
+			"/$ARCH/lib.gcc/libString.a",
+			"/$ARCH/lib.gcc/libmach.a",
+			"/$ARCH/lib.gcc/libbin.a",
+			"/$ARCH/lib.gcc/libavl.a",
+			"/$ARCH/lib.gcc/libjson.a",
+			"/$ARCH/lib.gcc/libgeometry.a",
+			"/$ARCH/lib.gcc/libpcm.a",
+			"/$ARCH/lib.gcc/libttf.a",
+			"/$ARCH/lib.gcc/libsat.a",
+			"/$ARCH/lib.gcc/libscribble.a",
+			"/$ARCH/lib.gcc/liblex.a",
+			"/$ARCH/lib.gcc/libstdio.a",
+			"/$ARCH/lib.gcc/libdtracy.a",
+			"/$ARCH/lib.gcc/libaml.a",
+			"/$ARCH/lib.gcc/libfis.a",
+			"/$ARCH/lib.gcc/libbio.a",
+			"/$ARCH/lib.gcc/libc.a",
+			"--end-group"
+		],
+		"Program": "ico",
+		"SourceFiles": [
+			"ico.c",
+			"readpng.c"
+		],
+		"Clean": [
+			"rgbv.h",
+			"ycbcr.h"
+		]
+	},
+	{
+		"Name": "cmd-jpg-toico",
+		"Include": [
+			"/$ARCH/cflags.json"
+		],
+		"Install": "/$ARCH/bin/",
+		"Pre": [
+			"bash ../../../../scripts/build/gen-jpg-tables.sh"
+		],
+		"Oflags": [
+			"--entry=_main"
+		],
+		"Libs": [
+			"--start-group",
+			"/$ARCH/lib.gcc/libdisk.a",
+			"/$ARCH/lib.gcc/libcontrol.a",
+			"/$ARCH/lib.gcc/libhtml.a",
+			"/$ARCH/lib.gcc/libframe.a",
+			"/$ARCH/lib.gcc/libdraw.a",
+			"/$ARCH/lib.gcc/libmemlayer.a",
+			"/$ARCH/lib.gcc/libmemdraw.a",
+			"/$ARCH/lib.gcc/libplumb.a",
+			"/$ARCH/lib.gcc/libcomplete.a",
+			"/$ARCH/lib.gcc/lib9p.a",
+			"/$ARCH/lib.gcc/libventi.a",
+			"/$ARCH/lib.gcc/libsunrpc.a",
+			"/$ARCH/lib.gcc/libthread.a",
+			"/$ARCH/lib.gcc/libauth.a",
+			"/$ARCH/lib.gcc/libauthsrv.a",
+			"/$ARCH/lib.gcc/libndb.a",
+			"/$ARCH/lib.gcc/libip.a",
+			"/$ARCH/lib.gcc/libhttpd.a",
+			"/$ARCH/lib.gcc/libsec.a",
+			"/$ARCH/lib.gcc/libmp.a",
+			"/$ARCH/lib.gcc/libflate.a",
+			"/$ARCH/lib.gcc/libregexp.a",
+			"/$ARCH/lib.gcc/libString.a",
+			"/$ARCH/lib.gcc/libmach.a",
+			"/$ARCH/lib.gcc/libbin.a",
+			"/$ARCH/lib.gcc/libavl.a",
+			"/$ARCH/lib.gcc/libjson.a",
+			"/$ARCH/lib.gcc/libgeometry.a",
+			"/$ARCH/lib.gcc/libpcm.a",
+			"/$ARCH/lib.gcc/libttf.a",
+			"/$ARCH/lib.gcc/libsat.a",
+			"/$ARCH/lib.gcc/libscribble.a",
+			"/$ARCH/lib.gcc/liblex.a",
+			"/$ARCH/lib.gcc/libstdio.a",
+			"/$ARCH/lib.gcc/libdtracy.a",
+			"/$ARCH/lib.gcc/libaml.a",
+			"/$ARCH/lib.gcc/libfis.a",
+			"/$ARCH/lib.gcc/libbio.a",
+			"/$ARCH/lib.gcc/libc.a",
+			"--end-group"
+		],
+		"Program": "toico",
+		"SourceFiles": [
+			"toico.c"
+		],
+		"Clean": [
+			"rgbv.h",
+			"ycbcr.h"
+		]
+	},
+	{
+		"Name": "cmd-jpg-bmp",
+		"Include": [
+			"/$ARCH/cflags.json"
+		],
+		"Install": "/$ARCH/bin/",
+		"Pre": [
+			"bash ../../../../scripts/build/gen-jpg-tables.sh"
+		],
+		"Oflags": [
+			"--entry=_main"
+		],
+		"Libs": [
+			"--start-group",
+			"/$ARCH/lib.gcc/libdisk.a",
+			"/$ARCH/lib.gcc/libcontrol.a",
+			"/$ARCH/lib.gcc/libhtml.a",
+			"/$ARCH/lib.gcc/libframe.a",
+			"/$ARCH/lib.gcc/libdraw.a",
+			"/$ARCH/lib.gcc/libmemlayer.a",
+			"/$ARCH/lib.gcc/libmemdraw.a",
+			"/$ARCH/lib.gcc/libplumb.a",
+			"/$ARCH/lib.gcc/libcomplete.a",
+			"/$ARCH/lib.gcc/lib9p.a",
+			"/$ARCH/lib.gcc/libventi.a",
+			"/$ARCH/lib.gcc/libsunrpc.a",
+			"/$ARCH/lib.gcc/libthread.a",
+			"/$ARCH/lib.gcc/libauth.a",
+			"/$ARCH/lib.gcc/libauthsrv.a",
+			"/$ARCH/lib.gcc/libndb.a",
+			"/$ARCH/lib.gcc/libip.a",
+			"/$ARCH/lib.gcc/libhttpd.a",
+			"/$ARCH/lib.gcc/libsec.a",
+			"/$ARCH/lib.gcc/libmp.a",
+			"/$ARCH/lib.gcc/libflate.a",
+			"/$ARCH/lib.gcc/libregexp.a",
+			"/$ARCH/lib.gcc/libString.a",
+			"/$ARCH/lib.gcc/libmach.a",
+			"/$ARCH/lib.gcc/libbin.a",
+			"/$ARCH/lib.gcc/libavl.a",
+			"/$ARCH/lib.gcc/libjson.a",
+			"/$ARCH/lib.gcc/libgeometry.a",
+			"/$ARCH/lib.gcc/libpcm.a",
+			"/$ARCH/lib.gcc/libttf.a",
+			"/$ARCH/lib.gcc/libsat.a",
+			"/$ARCH/lib.gcc/libscribble.a",
+			"/$ARCH/lib.gcc/liblex.a",
+			"/$ARCH/lib.gcc/libstdio.a",
+			"/$ARCH/lib.gcc/libdtracy.a",
+			"/$ARCH/lib.gcc/libaml.a",
+			"/$ARCH/lib.gcc/libfis.a",
+			"/$ARCH/lib.gcc/libbio.a",
+			"/$ARCH/lib.gcc/libc.a",
+			"--end-group"
+		],
+		"Program": "bmp",
+		"SourceFiles": [
+			"bmp.c",
+			"torgbv.c",
+			"totruecolor.c",
+			"writerawimage.c",
+			"readbmp.c"
+		],
+		"Clean": [
+			"rgbv.h",
+			"ycbcr.h"
+		]
+	},
+	{
+		"Name": "cmd-jpg-tga",
+		"Include": [
+			"/$ARCH/cflags.json"
+		],
+		"Install": "/$ARCH/bin/",
+		"Pre": [
+			"bash ../../../../scripts/build/gen-jpg-tables.sh"
+		],
+		"Oflags": [
+			"--entry=_main"
+		],
+		"Libs": [
+			"--start-group",
+			"/$ARCH/lib.gcc/libdisk.a",
+			"/$ARCH/lib.gcc/libcontrol.a",
+			"/$ARCH/lib.gcc/libhtml.a",
+			"/$ARCH/lib.gcc/libframe.a",
+			"/$ARCH/lib.gcc/libdraw.a",
+			"/$ARCH/lib.gcc/libmemlayer.a",
+			"/$ARCH/lib.gcc/libmemdraw.a",
+			"/$ARCH/lib.gcc/libplumb.a",
+			"/$ARCH/lib.gcc/libcomplete.a",
+			"/$ARCH/lib.gcc/lib9p.a",
+			"/$ARCH/lib.gcc/libventi.a",
+			"/$ARCH/lib.gcc/libsunrpc.a",
+			"/$ARCH/lib.gcc/libthread.a",
+			"/$ARCH/lib.gcc/libauth.a",
+			"/$ARCH/lib.gcc/libauthsrv.a",
+			"/$ARCH/lib.gcc/libndb.a",
+			"/$ARCH/lib.gcc/libip.a",
+			"/$ARCH/lib.gcc/libhttpd.a",
+			"/$ARCH/lib.gcc/libsec.a",
+			"/$ARCH/lib.gcc/libmp.a",
+			"/$ARCH/lib.gcc/libflate.a",
+			"/$ARCH/lib.gcc/libregexp.a",
+			"/$ARCH/lib.gcc/libString.a",
+			"/$ARCH/lib.gcc/libmach.a",
+			"/$ARCH/lib.gcc/libbin.a",
+			"/$ARCH/lib.gcc/libavl.a",
+			"/$ARCH/lib.gcc/libjson.a",
+			"/$ARCH/lib.gcc/libgeometry.a",
+			"/$ARCH/lib.gcc/libpcm.a",
+			"/$ARCH/lib.gcc/libttf.a",
+			"/$ARCH/lib.gcc/libsat.a",
+			"/$ARCH/lib.gcc/libscribble.a",
+			"/$ARCH/lib.gcc/liblex.a",
+			"/$ARCH/lib.gcc/libstdio.a",
+			"/$ARCH/lib.gcc/libdtracy.a",
+			"/$ARCH/lib.gcc/libaml.a",
+			"/$ARCH/lib.gcc/libfis.a",
+			"/$ARCH/lib.gcc/libbio.a",
+			"/$ARCH/lib.gcc/libc.a",
+			"--end-group"
+		],
+		"Program": "tga",
+		"SourceFiles": [
+			"tga.c",
+			"torgbv.c",
+			"totruecolor.c",
+			"writerawimage.c",
+			"readtga.c"
+		],
+		"Clean": [
+			"rgbv.h",
+			"ycbcr.h"
+		]
+	},
+	{
+		"Name": "cmd-jpg-v210",
+		"Include": [
+			"/$ARCH/cflags.json"
+		],
+		"Install": "/$ARCH/bin/",
+		"Pre": [
+			"bash ../../../../scripts/build/gen-jpg-tables.sh"
+		],
+		"Oflags": [
+			"--entry=_main"
+		],
+		"Libs": [
+			"--start-group",
+			"/$ARCH/lib.gcc/libdisk.a",
+			"/$ARCH/lib.gcc/libcontrol.a",
+			"/$ARCH/lib.gcc/libhtml.a",
+			"/$ARCH/lib.gcc/libframe.a",
+			"/$ARCH/lib.gcc/libdraw.a",
+			"/$ARCH/lib.gcc/libmemlayer.a",
+			"/$ARCH/lib.gcc/libmemdraw.a",
+			"/$ARCH/lib.gcc/libplumb.a",
+			"/$ARCH/lib.gcc/libcomplete.a",
+			"/$ARCH/lib.gcc/lib9p.a",
+			"/$ARCH/lib.gcc/libventi.a",
+			"/$ARCH/lib.gcc/libsunrpc.a",
+			"/$ARCH/lib.gcc/libthread.a",
+			"/$ARCH/lib.gcc/libauth.a",
+			"/$ARCH/lib.gcc/libauthsrv.a",
+			"/$ARCH/lib.gcc/libndb.a",
+			"/$ARCH/lib.gcc/libip.a",
+			"/$ARCH/lib.gcc/libhttpd.a",
+			"/$ARCH/lib.gcc/libsec.a",
+			"/$ARCH/lib.gcc/libmp.a",
+			"/$ARCH/lib.gcc/libflate.a",
+			"/$ARCH/lib.gcc/libregexp.a",
+			"/$ARCH/lib.gcc/libString.a",
+			"/$ARCH/lib.gcc/libmach.a",
+			"/$ARCH/lib.gcc/libbin.a",
+			"/$ARCH/lib.gcc/libavl.a",
+			"/$ARCH/lib.gcc/libjson.a",
+			"/$ARCH/lib.gcc/libgeometry.a",
+			"/$ARCH/lib.gcc/libpcm.a",
+			"/$ARCH/lib.gcc/libttf.a",
+			"/$ARCH/lib.gcc/libsat.a",
+			"/$ARCH/lib.gcc/libscribble.a",
+			"/$ARCH/lib.gcc/liblex.a",
+			"/$ARCH/lib.gcc/libstdio.a",
+			"/$ARCH/lib.gcc/libdtracy.a",
+			"/$ARCH/lib.gcc/libaml.a",
+			"/$ARCH/lib.gcc/libfis.a",
+			"/$ARCH/lib.gcc/libbio.a",
+			"/$ARCH/lib.gcc/libc.a",
+			"--end-group"
+		],
+		"Program": "v210",
+		"SourceFiles": [
+			"v210.c",
+			"torgbv.c",
+			"totruecolor.c",
+			"writerawimage.c",
+			"readv210.c"
+		],
+		"Clean": [
+			"rgbv.h",
+			"ycbcr.h"
+		]
+	}
+]

@@ -20,6 +20,7 @@ func elf2aout(src, dst string) error {
 		pgsz   = 4096
 		sMagic = (4*26*26 + 7) | 0x8000 // 6l, fat header
 		rMagic = (4*28*28 + 7) | 0x8000 // 7l
+		bMagic = (4*30*30 + 7) | 0x8000 // jl -X
 		iMagic = 4*11*11 + 7            // 8l
 	)
 	f, err := elf.Open(src)
@@ -32,6 +33,7 @@ func elf2aout(src, dst string) error {
 	}
 	elf64 := f.Class == elf.ELFCLASS64
 	arm64 := f.Machine == elf.EM_AARCH64
+	riscv64 := f.Machine == elf.EM_RISCV
 	var load []*elf.Prog
 	for _, p := range f.Progs {
 		if p.Type == elf.PT_LOAD {
@@ -47,6 +49,10 @@ func elf2aout(src, dst string) error {
 	rnd := uint64(pgsz)
 	if arm64 {
 		rnd = 0x10000
+		entry = t.Vaddr
+	}
+	if riscv64 { // jl -R8: the data right after the text
+		rnd = 8
 		entry = t.Vaddr
 	}
 	if t.Vaddr != entry {
@@ -72,6 +78,9 @@ func elf2aout(src, dst string) error {
 		if arm64 {
 			magic = rMagic
 		}
+		if riscv64 {
+			magic = bMagic
+		}
 		paddr := entry &^ 0xfffffffff0000000 // 6l's PADDR
 		hdr = []uint32{magic, uint32(t.Filesz), uint32(d.Filesz), uint32(d.Memsz - d.Filesz), 0, uint32(paddr), 0, 0}
 	} else {
@@ -89,6 +98,17 @@ func elf2aout(src, dst string) error {
 	o.Write(data)
 	if err := o.Close(); err != nil {
 		return err
+	}
+	if riscv64 { // the raw image OpenSBI loads: text and data
+		b, err := os.Create(dst + ".bin")
+		if err != nil {
+			return err
+		}
+		b.Write(text)
+		b.Write(data)
+		if err := b.Close(); err != nil {
+			return err
+		}
 	}
 	fmt.Printf("%s: text %#x data %#x bss %#x entry %#x\n", dst, t.Filesz, d.Filesz, d.Memsz-d.Filesz, entry)
 	return nil

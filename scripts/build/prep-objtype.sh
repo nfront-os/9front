@@ -11,7 +11,7 @@
 # Pentium has neither, the kernel does not save the SSE registers). Without
 # ../9front-gcc the host's stays, with a warning.
 #
-# usage: objtype=386|amd64|arm64 scripts/build/prep-objtype.sh   (build.exe sets objtype)
+# usage: objtype=386|amd64|arm64|riscv64 scripts/build/prep-objtype.sh   (build.exe sets objtype)
 set -e
 ROOT=${PLAN9:-$(git -C "$(dirname "$0")" rev-parse --show-toplevel)}
 objtype=${objtype:?objtype not set}
@@ -33,6 +33,7 @@ case $objtype in
 	copy "$lib" 386/lib.gcc/libgcc.a
 	;;
 arm64)	copy "$(${TOOLPREFIX-aarch64-linux-musl-}gcc -print-libgcc-file-name)" arm64/lib.gcc/libgcc.a ;;
+riscv64)	copy "$(${TOOLPREFIX-riscv64-linux-gnu-}gcc -march=rv64gc -mabi=lp64d -print-libgcc-file-name)" riscv64/lib.gcc/libgcc.a ;;
 esac
 # POSIX's names of libraries whose functions are all in libap (gcc's APE,
 # as musl): empty archives, for builds that name them (-lm -lpthread -lrt

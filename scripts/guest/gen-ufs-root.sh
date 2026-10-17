@@ -27,7 +27,7 @@ mkdir -p "$OUT"/$A/bin "$OUT"/rc "$OUT"/lib "$OUT"/adm/timezone \
 mkdir -p "$OUT"/386 "$OUT"/arm64 "$OUT"/$A/include "$OUT"/sys/include "$OUT"/sys/src
 cp "$ROOT"/$A/init "$OUT"/$A/init
 cp -r "$ROOT"/$A/bin/. "$OUT"/$A/bin/
-rm -f "$OUT"/$A/bin/9pc64 "$OUT"/$A/bin/9pc "$OUT"/$A/bin/9qemu	# the kernel
+rm -f "$OUT"/$A/bin/9pc64 "$OUT"/$A/bin/9pc "$OUT"/$A/bin/9qemu "$OUT"/$A/bin/9virt	# the kernel
 
 cp -r "$ROOT"/rc/lib "$ROOT"/rc/bin "$OUT"/rc/
 cp -r "$ROOT"/lib/. "$OUT"/lib/	# namespace, vgadb, fonts, keyboard, ...

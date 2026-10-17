@@ -82,12 +82,30 @@ ARCHS = {
 		'Oflags': ['-T', 'kernel.ld', '-z', 'max-page-size=0x1000'],
 		'Libs': ['libgcc.a'],
 	},
+	'riscv64': {
+		# m, up in s11, s10 (dat.h); no floating point in the kernel
+		# (fpu.c saves the user's; l.S and getfcr.S switch it on for
+		# themselves): rv64imac, soft-float ABI. -mcmodel=medany: the
+		# pc-relative addresses are physical in l.S before paging is
+		# on. No linker relaxation (gp is not set up).
+		# -fsigned-char: Plan 9's char is signed (the psABI's is not)
+		'Cflags': ['-march=rv64imac_zicsr_zifencei', '-mabi=lp64', '-mcmodel=medany', '-mno-relax',
+			'-fsigned-char', '-fno-pie', '-fno-pic', '-ffixed-s10', '-ffixed-s11',
+			'-fplan9-extensions', '-fcommon', '-fno-builtin', '-fno-asynchronous-unwind-tables',
+			'-fno-stack-protector', '-fno-omit-frame-pointer', '-fno-zero-initialized-in-bss',
+			'-Os', '-gdwarf-2'] + WARN,
+		'Oflags': ['-T', 'kernel.ld', '-z', 'max-page-size=0x1000', '--no-relax'],
+		'Libs': [],
+	},
 }
 
 # per kernel directory: further Pre steps, Clean globs (files of the
 # scripts/gen-*-i.sh generators and gen-bootfs.sh)
 EXTRA = {
 	'arm64': {
+		'Clean': ['rebootcode.i', '../port/initcode.i', 'boot', '$CONF.bootfs.paq'],
+	},
+	'riscv64': {
 		'Clean': ['rebootcode.i', '../port/initcode.i', 'boot', '$CONF.bootfs.paq'],
 	},
 	'pc': {

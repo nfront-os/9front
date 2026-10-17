@@ -22,6 +22,16 @@ typedef long long jmp_buf[22];
 #ifdef _POSIX_SOURCE
 typedef long long sigjmp_buf[23];
 #endif
+#elif defined(__riscv)
+/*
+ * GCC port: riscv64's setjmp also saves the psABI callee-saved
+ * registers: sp, pc, s0-s11, fs0-fs11; sigjmp_buf adds savemask and
+ * blocked as 32-bit words (ape/lib/ap/riscv64/setjmp.S, notetramp.c)
+ */
+typedef long long jmp_buf[26];
+#ifdef _POSIX_SOURCE
+typedef long long sigjmp_buf[27];
+#endif
 #else
 typedef int jmp_buf[10];
 #ifdef _POSIX_SOURCE

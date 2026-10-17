@@ -1,0 +1,9 @@
+[
+	{
+		"Name": "cmd-upas-binscripts-install",
+		"Install": "",
+		"Post": [
+			"python3 ../../../../../scripts/build/mkinstall.py cmd/upas/binscripts -- /isspam /msgcat /spam /tfmt /unspam"
+		]
+	}
+]

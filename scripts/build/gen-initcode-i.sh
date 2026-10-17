@@ -40,6 +40,16 @@ arm64)
 	INIT9=arm64/init9.S
 	ENTRY=main
 	;;
+riscv64)
+	# jl: header of 32 bytes, touser enters at UTZERO+32 (0x1020)
+	UTZERO=0x1000
+	HDR=0x20
+	CC="riscv64-linux-gnu-gcc -march=rv64gc -mabi=lp64d -mcmodel=medany -mno-relax -fsigned-char"	# as riscv64/cflags.json
+	LD="riscv64-linux-gnu-ld --no-relax"
+	OBJCOPY=riscv64-linux-gnu-objcopy
+	INIT9=riscv64/init9.S
+	ENTRY=main
+	;;
 *)
 	echo "gen-initcode-i.sh: objtype=$objtype unknown" >&2
 	exit 1
@@ -54,7 +64,7 @@ $CC $CFLAGS -c -o "$TMP/initcode.o" "$ROOT/sys/src/9/port/initcode.c"
 $LD -N -static -Ttext=$(printf "%#x" $((UTZERO + HDR))) --entry=$ENTRY -o "$TMP/initcode.elf" \
 	"$TMP/init9.o" "$TMP/initcode.o" "$ROOT/$objtype/lib.gcc/libc.a" \
 	$( [ -f "$ROOT/$objtype/lib.gcc/libgcc.a" ] && echo "$ROOT/$objtype/lib.gcc/libgcc.a")
-$OBJCOPY -O binary -R .bss -R .comment -R .note.gnu.property "$TMP/initcode.elf" "$TMP/initcode.bin"
+$OBJCOPY -O binary -R .bss -R .sbss -R .comment -R .note.gnu.property -R .riscv.attributes "$TMP/initcode.elf" "$TMP/initcode.bin"
 python3 - "$TMP/initcode.bin" "$ROOT/sys/src/9/port/initcode.i" $HDR $INIT9 <<'PY'
 import sys
 data = bytes(int(sys.argv[3], 0)) + open(sys.argv[1], 'rb').read()

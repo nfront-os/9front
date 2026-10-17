@@ -1,0 +1,17 @@
+[
+	{
+		"Name": "Lex",
+		"Include": [
+			"../lib.json"
+		],
+		"Install": "/$ARCH/lib.gcc/",
+		"Library": "liblex.a",
+		"SourceFiles": [
+			"allprint.c",
+			"main.c",
+			"reject.c",
+			"yyless.c",
+			"yywrap.c"
+		]
+	}
+]

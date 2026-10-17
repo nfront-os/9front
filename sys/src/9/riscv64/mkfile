@@ -1,0 +1,103 @@
+CONF=virt
+CONFLIST=virt
+
+# KTZERO (mem.h); the firmware loads 9$CONF.bin at its physical address
+loadaddr=0xffffffc080200000
+
+objtype=riscv64
+</$objtype/mkfile
+p=9
+
+DEVS=`{rc ../port/mkdevlist $CONF}
+
+PORT=\
+	alarm.$O\
+	alloc.$O\
+	allocb.$O\
+	auth.$O\
+	cache.$O\
+	chan.$O\
+	dev.$O\
+	edf.$O\
+	fault.$O\
+	mul64fract.$O\
+	page.$O\
+	parse.$O\
+	pgrp.$O\
+	portclock.$O\
+	print.$O\
+	proc.$O\
+	qio.$O\
+	qlock.$O\
+	rdb.$O\
+	rebootcmd.$O\
+	segment.$O\
+	syscallfmt.$O\
+	sysfile.$O\
+	sysexecelf.$O\
+	sysproc.$O\
+	taslock.$O\
+	tod.$O\
+	xalloc.$O\
+	userinit.$O\
+
+OBJ=\
+	l.$O\
+	clock.$O\
+	fpu.$O\
+	main.$O\
+	mmu.$O\
+	random.$O\
+	sbi.$O\
+	trap.$O\
+	bootargs.$O\
+	$CONF.root.$O\
+	$CONF.rootc.$O\
+	$DEVS\
+	$PORT\
+
+HFILES=mem.h dat.h fns.h io.h riscv.h
+
+LIB=\
+	/$objtype/lib/libmemlayer.a\
+	/$objtype/lib/libmemdraw.a\
+	/$objtype/lib/libdraw.a\
+	/$objtype/lib/libip.a\
+	/$objtype/lib/libsec.a\
+	/$objtype/lib/libmp.a\
+	/$objtype/lib/libc.a\
+
+9:V:	$p$CONF $p$CONF.bin
+
+# -X: the 64-bit entry in the a.out header; -R8: data follows text,
+# as in the raw image for the firmware
+$p$CONF:D:	$OBJ $CONF.$O $LIB
+	$LD -o $target -X -T$loadaddr -R8 -l $prereq
+	size $target
+
+$p$CONF.bin:D:	$OBJ $CONF.$O $LIB
+	$LD -o $target -H1 -T$loadaddr -R8 -l $OBJ $CONF.$O $LIB
+
+$OBJ: $HFILES
+
+install:V: /$objtype/$p$CONF
+
+/$objtype/$p$CONF:D: $p$CONF $p$CONF.bin
+	cp -x $p$CONF $p$CONF.bin /$objtype/
+
+<../boot/bootmkfile
+<../port/portmkfile
+<|../port/mkbootrules $CONF
+
+main.$O: rebootcode.i
+
+pcivirt.$O: ../port/pci.h
+
+initcode.out:		init9.$O initcode.$O /$objtype/lib/libc.a
+	$LD -l -R1 -s -o $target $prereq
+
+rebootcode.out:		rebootcode.$O
+	$LD -l -H1 -R1 -T0 -s -o $target $prereq
+
+$CONF.clean:
+	rm -rf $p$CONF $p$CONF.bin errstr.h $CONF.c boot$CONF.c

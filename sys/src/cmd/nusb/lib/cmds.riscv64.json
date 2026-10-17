@@ -1,0 +1,15 @@
+[
+	{
+		"Name": "cmd-nusb-lib-usb.aj",
+		"Include": [
+			"/$ARCH/cflags.json"
+		],
+		"Install": "/sys/src/cmd/nusb/lib/",
+		"Library": "usb.aj",
+		"SourceFiles": [
+			"dev.c",
+			"dump.c",
+			"parse.c"
+		]
+	}
+]

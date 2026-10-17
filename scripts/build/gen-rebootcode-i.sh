@@ -11,7 +11,7 @@
 # the gcc/binutils equivalent: a normal ELF link at the same address,
 # then objcopy to pull out the raw bytes.
 #
-# Usage: scripts/build/gen-rebootcode-i.sh [pc64|arm64|bcm64]  (default pc64;
+# Usage: scripts/build/gen-rebootcode-i.sh [pc64|arm64|bcm64|riscv64]  (default pc64;
 # from the repo root, or pass PLAN9=<root>).
 set -e
 
@@ -38,8 +38,17 @@ arm64|bcm64)
 	SRC="$KDIR/rebootcode.S $ROOT/sys/src/9/arm64/cache.v8.S"
 	ENTRY=_start
 	;;
+riscv64)
+	# position independent, copied to a page of its own (main.c)
+	KDIR=$ROOT/sys/src/9/riscv64
+	REBOOTADDR=0
+	CC="riscv64-linux-gnu-gcc -march=rv64imac_zicsr_zifencei -mabi=lp64"
+	OBJCOPY=riscv64-linux-gnu-objcopy
+	SRC="$KDIR/rebootcode.S"
+	ENTRY=main
+	;;
 *)
-	echo "usage: gen-rebootcode-i.sh [pc64|arm64|bcm64]" >&2
+	echo "usage: gen-rebootcode-i.sh [pc64|arm64|bcm64|riscv64]" >&2
 	exit 1
 	;;
 esac

@@ -1,0 +1,33 @@
+[
+    {
+        "Name": "klibaml-riscv64",
+        "Cflags": [
+            "-march=rv64imac_zicsr_zifencei",
+            "-mabi=lp64",
+            "-mcmodel=medany",
+            "-mno-relax",
+            "-fsigned-char",
+            "-ffixed-s10",
+            "-ffixed-s11",
+            "-fno-pic",
+            "-fcommon",
+            "-fplan9-extensions",
+            "-fno-builtin",
+            "-nostdinc",
+            "-fno-asynchronous-unwind-tables",
+            "-fno-stack-protector",
+            "-fno-omit-frame-pointer",
+            "-fno-zero-initialized-in-bss",
+            "-Os",
+            "-gdwarf-2"
+        ],
+        "SourceFiles": [
+            "aml.c",
+            "amlalloc.c",
+            "amldelay.c",
+            "amlmapio.c",
+            "amltime.c",
+            "amlunmapio.c"
+        ]
+    }
+]

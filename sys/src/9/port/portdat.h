@@ -135,8 +135,10 @@ struct Sargs
  * or sizeof(T) for wider types: a vlong takes two slots on 386), then
  * read T from the slot's original (low) address.
  */
+#ifndef ARG	/* GCC port: riscv64's dat.h has jc's */
 #define ARGSZ(T) (sizeof(T) < BY2WD ? BY2WD : sizeof(T))
 #define ARG(list, T) (((list) += ARGSZ(T)), *(T*)((list) - ARGSZ(T)))
+#endif
 /*
  * GCC port: 6c's va_arg read a type narrower than BY2WD from the low
  * half of its slot; a 6c caller stores only that half (MOVL), the upper

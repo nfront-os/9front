@@ -1,0 +1,49 @@
+[
+	{
+		"Name": "buildflags",
+		"Cflags": [
+			"-march=rv64gc",
+			"-mabi=lp64d",
+			"-mcmodel=medany",
+			"-mno-relax",
+			"-fsigned-char",
+			"-std=gnu17",
+			"-fno-asm",
+			"-ffreestanding",
+			"-nostdinc",
+			"-Ulinux",
+			"-U__linux",
+			"-U__linux__",
+			"-U__gnu_linux__",
+			"-D__plan9__",
+			"-fno-builtin",
+			"-fno-omit-frame-pointer",
+			"-fno-stack-protector",
+			"-fplan9-extensions",
+			"-fcommon",
+			"-Wno-error=implicit-int",
+			"-Wno-error=incompatible-pointer-types",
+			"-Wno-error=int-conversion",
+			"-g",
+			"-gdwarf-2",
+			"-ggdb",
+			"-O0",
+			"-static"
+		],
+		"Oflags": [
+			"--no-relax",
+			"-z",
+			"noseparate-code",
+			"-z",
+			"max-page-size=0x1000",
+			"-T",
+			"/$ARCH/plan9.ld"
+		],
+		"Libs": [
+			"/$ARCH/lib.gcc/libgcc.a"
+		],
+		"Include": [
+			"/$ARCH/$CC.json"
+		]
+	}
+]

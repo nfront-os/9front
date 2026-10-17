@@ -64,7 +64,7 @@ LIBS = ['libdisk', 'libcontrol', 'libhtml', 'libframe', 'libdraw', 'libmemlayer'
 
 # per-architecture directories of other machines
 ARCHS = [a for a in ['386', '68000', '68020', 'amd64', 'arm', 'arm64', 'mips', 'mips2', 'power', 'power64',
-	'sparc', 'sparc64', 'spim', 'alpha', '3210', '29000'] if a != OBJTYPE]
+	'riscv64', 'sparc', 'sparc64', 'spim', 'alpha', '3210', '29000'] if a != OBJTYPE]
 
 # APE's libraries, linked as one group like LIBS (pcc: -lX is
 # /$objtype/lib/ape/libX.a, libap always; the rest via #pragma lib)
@@ -79,7 +79,8 @@ APEDIRS = ['ape/lib/ap/gen', 'ape/lib/ap/math', 'ape/lib/ap/plan9', 'ape/lib/ap/
 	'ape/lib/ap/stdio', 'ape/lib/ap/syscall', 'ape/lib/ap/' + OBJTYPE, 'ape/lib/ap/gnu']
 # sources outside the mkfile's OFILES: system call stubs (genall),
 # the note trampolines of the gcc port
-APEEXTRA = {'ape/lib/ap/amd64': ['notify.S'], 'ape/lib/ap/386': ['_seek.c'], 'ape/lib/ap/arm64': ['notify.S']}
+APEEXTRA = {'ape/lib/ap/amd64': ['notify.S'], 'ape/lib/ap/386': ['_seek.c'], 'ape/lib/ap/arm64': ['notify.S'],
+	'ape/lib/ap/riscv64': ['notify.S']}
 
 # directories whose mkfile runs a generator before compiling
 PRE = {

@@ -2,8 +2,8 @@
 The architecture the gcc port builds for: $objtype (default amd64), as
 9front's /$objtype/mkfile defines it, plus what the host needs for it.
 
-  OBJTYPE   386, amd64, arm64
-  O         the object letter of 9front's compilers (8, 6, 7): x.$O,
+  OBJTYPE   386, amd64, arm64, riscv64
+  O         the object letter of 9front's compilers (8, 6, 7, j): x.$O,
             $O.out, the program-local libraries' lib*.a$O
   TOOLPREFIX  the gcc/binutils prefix for the build tool
   SUFFIX    ''  for amd64, '.<objtype>' otherwise: generated manifests
@@ -21,6 +21,7 @@ ARCHS = {
 	'386':	('8', '', 'pc', 'qemu-system-i386'),
 	'amd64':	('6', '', 'pc64', 'qemu-system-x86_64'),
 	'arm64':	('7', 'aarch64-linux-musl-', 'qemu', 'qemu-system-aarch64'),
+	'riscv64':	('j', 'riscv64-linux-gnu-', 'virt', 'qemu-system-riscv64'),
 }
 
 OBJTYPE = os.environ.get('objtype') or 'amd64'

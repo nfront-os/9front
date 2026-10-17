@@ -1,0 +1,27 @@
+[
+    {
+        "Name": "klibfis-riscv64",
+        "Cflags": [
+            "-march=rv64imac_zicsr_zifencei",
+            "-mabi=lp64",
+            "-mcmodel=medany",
+            "-mno-relax",
+            "-fsigned-char",
+            "-ffixed-s10",
+            "-ffixed-s11",
+            "-fno-pic",
+            "-fno-builtin",
+            "-nostdinc",
+            "-fplan9-extensions",
+            "-fno-asynchronous-unwind-tables",
+            "-fno-stack-protector",
+            "-fno-omit-frame-pointer",
+            "-fno-zero-initialized-in-bss",
+            "-Os",
+            "-gdwarf-2"
+        ],
+        "SourceFiles": [
+            "fis.c"
+        ]
+    }
+]

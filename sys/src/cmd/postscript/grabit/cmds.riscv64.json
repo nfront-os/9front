@@ -1,0 +1,12 @@
+[
+	{
+		"Name": "cmd-postscript-grabit-install",
+		"Install": "",
+		"Post": [
+			"python3 ../../../../../scripts/build/mkinstall.py cmd/postscript/grabit -- /riscv64/bin/aux/grabit /sys/lib/postscript/prologues/grabit.ps"
+		],
+		"Clean": [
+			"grabit"
+		]
+	}
+]

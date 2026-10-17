@@ -164,7 +164,6 @@ Per `/plan` geplant (drei parallele Explore-Agents: Syscall-Mechanismus, a.out-v
 
 **Weiterhin bewusst nicht committet** (braucht eigenes Review, siehe vorherige Session-Notiz): `sys/src/libc/9syscall/sys.h` (andere Syscall-Nummerierung, von einem `mksys`-Lauf gegen `sysconf.json` — `mksys` selbst fehlt im Repo, nur sein Output ist da; Teil des separaten, unverdrahteten Userspace-libc-Scaffoldings).
 
-
 ## 2026-10-01 (Teil 4): dtracy-Bug war nie dtracy — echte Root Cause gefunden+gefixt, Kernel bootet jetzt sauber durch
 
 **Auftrag:** "fixe den dtracy bug zuerst" (explizite Korrektur eines vorherigen Workaround-Versuchs, der `"dtracy"` aus der `Dev`-Config entfernt hatte und damit den Build brach — zurückgerollt, stattdessen richtig root-caused).
@@ -604,7 +603,6 @@ Generatoren: `scripts/gen-upas-yacc.sh` (rfc822/smtpd), `scripts/gen-src.sh` (sn
 
 **Offen:** blabs (braucht `iconv -u`), gs; Userspace-Atomics (ainc/adec 32 Bit auf 64-bit-long); temporäre Debug-Ausgaben in `pc64/trap.c` (fault bei addr >= USTKTOP) entfernen; weitere `long`-Vorzeichenstellen ohne expliziten Cast (`long d = a - b;`), Grafik/rio, eigenes Root-FS + Image. (Behoben: natives `notetramp.S` installierte bei `notify(nil)` trotzdem das Trampolin → Note rief nil auf.)
 
-
 ## 2026-10-08 (Teil 23): VESA über aux/realemu, Boot-Segmente, Userspace-Atomics
 
 - **vgavesa wieder im pc64-Kernel:** Eine frühere Sitzung hatte `vgavesa.c` entfernt ("Ureg386 inkompatibel mit amd64") und nur `vesabootscreenconf` als `pc64/vesabootscreen.c` extrahiert. Falsch: 9front baut vgavesa für pc64; der Treiber spricht über `/dev/realmode` mit aux/realemu im 386-Ureg-Layout (pc64/mkfile: `vgavesa.$O: /386/include/ureg.h`). Jetzt `pc/vgavesa.c` mit explizitem Include der 386-ureg.h (wie realemu), in `pc64/build.json` Pre/SourceFiles/Misc (`vgavesa`) ergänzt, `vesabootscreen.c` gelöscht. Der Kernel-Manifest-Generator (`genmanifest.py`) liegt nicht im Repo → build.json von Hand (minimaler Diff).
@@ -662,7 +660,6 @@ Symptom: Disk-/gui-Test, Terminal-Boot: `term%` erscheint seriell, getippte Zeil
 - **9front-Race in `riostart`** (`sys/lib/dist/usr/glenda/bin/rc/riostart`): Mit `console=0` öffnet riostart zuletzt `window -scroll console` (rc an der seriellen Konsole; seine Eingabe ist die Tastatur des aktuellen rio-Fensters, kbdfs leitet serielle Runen bei offenem /dev/kbd an rio). Das stats-Fenster entsteht aber per alter Syntax `window 0,0,161,117 …` → `mflag` → Hintergrund-Job (`mount $wsys 'new …' &`) und wird manchmal NACH dem Konsolenfenster fertig; jedes neue Fenster wird aktuell (`new()`: `wcurrent`) → stats hat den Fokus, Eingabe verpufft. Fix: `window -r 0 0 161 117 stats -lmisce` (synchron über wctl). Upstream-Fehler, nicht gcc-bedingt — melden.
 - **boot-cli.sh:** `cat $pts > console.log &` leerte das Log erst im Hintergrund-Job; die Promptprüfung las manchmal noch das Log des vorigen Boots (`term% `) und tippte sofort — die Zeile landete als Antwort im `user[glenda]:`-Prompt. Jetzt `: > console.log` synchron vorher. Bisher kaschiert durch feste Pausen.
 - **Wartezeiten ereignisgesteuert:** `BOOTWAIT` (300) und `CMDWAIT` (60) sind nur noch Obergrenzen — Boot-Phase endet am rc-Prompt, jede Zeile am nächsten Prompt nach ihrer Ausgabe. Tests ohne feste Pausen (gui behält CMDWAIT=30 als Grenze). Boot bis Prompt ~12 s statt 130 s; ganze Suite inkl. Image-Bau 221 s. 10/10 Disk-Boots ohne Eingabeverlust.
-
 
 ## 2026-10-08 (Teil 29): Rebase auf front (dd17bf052)
 
@@ -1020,3 +1017,13 @@ Vorher war eine Bibliothek **ein** gcc-Aufruf mit allen Dateien (gcc übersetzt 
 
 ## 2026-11-10: Rebase auf front 82ddeb288
 - `front` auf origin/front vorgespult (17 Commits: smtpd STARTTLS/Schmuggel, factotum ohne ecdsa, vcrop entfernt, arm64 CPU_ON/SEVL, gefs, libsec mlkem/sha3, cwfs Gfmt, ktrans hangul, devsegment-Rechte), `gcc` darauf (189 Commits, ohne Konflikte; vorher 6bd69d14b). Manifeste neu: `vcrop` und factotums `ecdsa.c` fallen weg. static 14/14. Gebaut: amd64 811/811, 386 811/811, arm64 812/812; danach ../9front-gcc's Cross-gccs amd64/386/arm64 neu dagegen, Rust run.sh amd64 13/13. `riscv` ist darauf rebased (dort Teil 66); `upstream` noch auf dem alten Stand.
+## 2026-10-17 (Teil 53, Branch riscv in ../9front-riscv): RISC-V-Port begonnen
+Quelle: Geoff Collyers `dist.9k-rv.tgz` (9p.io/sources/contrib/geoff/riscv, Stand 28.11.2025): Richard Millers Compiler ic/jc (gleiche Quellen), Geoffs 9k-Kernel `sys/src/9k/rv` (tinyemu + Boards), libc/libmach/libthread/APE für riscv64. Entscheidungen (mit dem Nutzer): Kernel auf 9fronts `port/` (nicht 9k), zuerst QEMU virt, nur riscv64, Worktree `../9front-riscv` Branch `riscv` von `gcc`.
+- **Compiler:** `sys/src/cmd/jc ja jl` aus Millers ic/ia/il, nur riscv64 (`thechar='j'` fest, `ewidth[TIND]=8` statisch statt Millers argv[0]-main). Backend kompiliert unverändert gegen 9fronts `cc.h`. Labs-ELF-Writer (`8l/elf.c`) als `jl/elf.c`. a.out-Magics `Y_MAGIC` (User, 32-Bit-Entry) und `B_MAGIC` (HDR, Kernel, `jl -X`) in `a.out.h`, `MAX_MAGIC 30`.
+- **LP64:** `scripts/check/cmp-lp64.sh jc|ja|jl` (j → riscv64/include): Ieee/zaddr-VCONST/naddr/mulcon/`mul.c` (ganz s32int), ja `Gen.offset`/`Sym.value` s32int, jl VCONST-Lesen, jdb Vorzeichenerweiterung. 1048 Quellen: 0 Unterschiede -m32/-m64; Listings gleich Millers Original bis auf 9fronts Frontend (noreturn-Schleifen, Registerwahl).
+- **Fehler in Millers jc (auch im Original):** `int += double` (clock.c `circlept`: `ADDD F0,R9`, jl "illegal combination"). Behoben durch 9fronts vc-Fixes: `genasop()` (a29a03edc/1e243b10f, Forsyth b4069dc30: `uncomma`, OSTRUCT `side()`, `complex=FNX`, Ergebnis `gmove(&nod2,nn)`), `.safe`-Typ (d060f74a5), explizites `gmove(...,nn)` für OAS/OPREINC/OPOSTINC (c4ad409e2), `regalloc(&nod,l,nn)` im sconst-Zweig (sonst `vlong += 1` auf 32 Bit).
+- **ABI:** jc übergibt Arg1 in R8 (x8!), Rest auf dem Stack, `int/long` in 4-Byte-Slots, 8-Byte-Typen 8-ausgerichtet; Rückgabe R8. Syscall: Nummer in R8, `ECALL`, Args ab sp+8 (jcs Layout) → Kernel-`ARG()` muss jcs va_arg nachbilden (offen, für gcc-Kernel), gcc-Stubs brauchen Typtabelle (offen). `_tos` kommt in R8, `UTZERO=0x1000` (jl-Default 0x1000+HEADR).
+- **libc/APE:** 9front-`_main` → `_callmain` (main9.s: sp-2*XLEN), atomic.s/atomic64.s neu, lock.c mit Fence, usize-Offsets in memchr/memcmp/memmove/memccpy, cycles.s schrieb nicht nach *p (auch bei Geoff). APE ohne memmove/memset-asm (size_t 4 Byte unter jc). pcc kennt riscv64.
+- **libmach:** j.c/jdb.c/jobj.c (anames inline), mach.h-Enums angehängt.
+- **Gast:** `scripts/guest/kencc-riscv64.sh` (amd64-Gast, Tree als src9 gebunden, `.guest/amd64/lib` für kencc-amd64-Hilfsprogramme). Alle riscv64-Bibliotheken, APE und cmd bauen mit kencc.
+- **Kernel** `sys/src/9/riscv64` (virt): neu nach arm64-Vorbild, Teile von Geoff (CSRs, strap). Sv39, KZERO=0xffffffc000000000, Kernel bei phys 0x80200000 (OpenSBI), Boot-Seitentabelle in l.s (Gigapages), sscratch=m immer, jeder Trap sichert alle Register (gcc: s0-s11 über Syscalls/fork), FS in sstatus = Lazy-FPU (Illinst bei FS=off → mathtrap), PLIC, SBI-Timer/HSM/SRST, 16550 MMIO (aus pc/uarti8250.c), pcivirt (aus pciqemu.c), DTB über arm64/bootargs.c. `port/sysexecelf.c`: `ELFMACHINE` aus mem.h; `port/rebootcmd.c`: `B_MAGIC`, align 8 (jl -R8).

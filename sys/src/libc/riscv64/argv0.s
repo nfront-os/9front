@@ -1,0 +1,2 @@
+GLOBL	argv0(SB), $XLEN
+GLOBL	_tos(SB), $XLEN

@@ -64,6 +64,10 @@ rebootcmd(int argc, char *argv[])
 		case S_MAGIC:
 			if((I_MAGIC == AOUT_MAGIC) || (S_MAGIC == AOUT_MAGIC))
 				break;
+			error(Ebadexec);
+		case B_MAGIC:	/* riscv64 kernels: 64-bit entry */
+			if(Y_MAGIC == AOUT_MAGIC)
+				break;
 		default:
 			error(Ebadexec);
 		}
@@ -74,6 +78,9 @@ rebootcmd(int argc, char *argv[])
 	switch(magic){
 	case R_MAGIC:
 		align = 0x10000;	/* 64k segment alignment for arm64 */
+		break;
+	case B_MAGIC:
+		align = 8;		/* riscv64: data follows text (jl -R8) */
 		break;
 	default:
 		align = BY2PG;
