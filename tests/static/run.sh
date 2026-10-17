@@ -7,12 +7,13 @@ cd "$ROOT"
 #    for every arch (objtype=386, arm64: the .386.json/.arm64.json ones),
 #    the kernels' too (genkernel.py pc, arm64; pc64's is hand-made)
 manifests(){
-	local files="$(ls sys/src/libc/libc*.json sys/src/libc/amd64/build.json)
-		$(ls sys/src/lib*/lib*.json) $(find sys/src/cmd sys/src/ape -name 'cmds*.json')
+	# every architecture's: a new library or program changes all of them
+	local files="$(ls sys/src/libc/libc*.json sys/src/libc/*/build.json)
+		$(ls sys/src/lib*/lib*.json) $(find sys/src/cmd sys/src/games sys/src/ape -name 'cmds*.json')
 		$(ls build*.json) sys/src/9/pc/build.json sys/src/9/arm64/build.json"
 	for f in $files; do cp "$f" "$TMPD/$(echo $f | tr / _)"; done
 	local a
-	for a in amd64 386 arm64; do
+	for a in amd64 386 arm64 riscv64; do
 		objtype=$a python3 scripts/gen/genlibc.py >/dev/null && objtype=$a python3 scripts/gen/genlibs.py >/dev/null &&
 			objtype=$a python3 scripts/gen/gencmds.py >/dev/null && objtype=$a python3 scripts/gen/genbuild.py >/dev/null || return 1
 	done
