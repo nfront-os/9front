@@ -43,6 +43,23 @@ static Arena arena;
 
 extern	void	*sbrk(unsigned long);
 
+/*
+ * GCC port: blocks 16-byte aligned, as the header above means them to be:
+ * gcc's ABIs (amd64 and 386) align max_align_t to 16, and g++ takes that
+ * from new (__STDCPP_DEFAULT_NEW_ALIGNMENT__; aligned SSE accesses). The
+ * stride was rounded to 8 and sbrk's break is only 4-byte aligned.
+ */
+static void*
+sbrk16(unsigned long n)
+{
+	uintptr_t p;
+
+	p = (uintptr_t)sbrk(n+15);
+	if(p == (uintptr_t)-1)
+		return (void*)-1;
+	return (void*)((p+15) & ~(uintptr_t)15);
+}
+
 void*
 malloc(size_t size)
 {
@@ -72,12 +89,12 @@ good:
 	}
 
 	size = sizeof(Bucket)+(1<<pow);
-	size += 7;
-	size &= ~7;
+	size += 15;	/* GCC port: was 7, 8-byte stride (sbrk16) */
+	size &= ~15;
 
 	if(pow < CUTOFF) {
 		n = (CUTOFF-pow)+2;
-		bp = sbrk(size*n);
+		bp = sbrk16(size*n);	/* GCC port: was sbrk */
 		if(bp == (void*)-1){
 			unlock(&arena);
 			return nil;
@@ -95,7 +112,7 @@ good:
 		nbp->size = pow;
 	}
 	else {
-		bp = sbrk(size);
+		bp = sbrk16(size);	/* GCC port: was sbrk */
 		if(bp == (void*)-1){
 			unlock(&arena);
 			return nil;
