@@ -13,13 +13,20 @@ ENTRY(_mainphys)
 
 KZERO = 0xffffffc000000000;
 
+/* two segments, text and data, also where they share a page (jl -R8) */
+PHDRS
+{
+	text PT_LOAD FLAGS(5);	/* R E */
+	data PT_LOAD FLAGS(6);	/* RW */
+}
+
 SECTIONS
 {
 	. = 0xffffffc080200000;	/* KTZERO, see mkfile and mem.h */
 
 	.text : AT(ADDR(.text) - KZERO) {
 		*(.text .text.* .gnu.linkonce.t.*)
-	}
+	} :text
 
 	PROVIDE(etext = .);
 	_mainphys = _main - KZERO;
@@ -30,7 +37,7 @@ SECTIONS
 		*(.data .data.* .gnu.linkonce.d.*)
 		*(.sdata .sdata.*)
 		*(.rodata .rodata.* .srodata .srodata.* .gnu.linkonce.r.*)
-	}
+	} :data
 
 	. = ALIGN(8);
 	PROVIDE(edata = .);
@@ -38,7 +45,7 @@ SECTIONS
 	.bss : AT(ADDR(.bss) - KZERO) {
 		*(.sbss .sbss.* .bss .bss.* .gnu.linkonce.b.*)
 		*(COMMON)
-	}
+	} :data
 
 	. = ALIGN(8);
 	PROVIDE(end = .);

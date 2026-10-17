@@ -5,6 +5,7 @@
 			"-DUSED(...)=((void)(0, ##__VA_ARGS__))",
 			"-DSET(...)=((void)0)",
 			"-Wno-error=implicit-function-declaration",
+			"-Wno-error=return-mismatch",
 			"-U__GNUC__"
 		]
 	}

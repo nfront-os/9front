@@ -87,6 +87,12 @@ cmd/gs)
 		./genarch.host ${objtype:-amd64}.h
 		rm -f genarch.host
 		;;
+	riscv64)
+		# the port's gcc (riscv64, LP64) under qemu's user mode
+		riscv64-linux-gnu-gcc -static -std=gnu17 -DHAVE_LONG_LONG -o genarch.host src/genarch.c
+		qemu-riscv64 ./genarch.host riscv64.h
+		rm -f genarch.host
+		;;
 	*)
 		cp default.$objtype.h $objtype.h && chmod 664 $objtype.h
 		;;

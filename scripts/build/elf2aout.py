@@ -79,7 +79,8 @@ with open(dst, 'wb') as o:
 	o.write(f[toff:toff + tfsz])
 	o.write(f[doff:doff + dfsz])
 if riscv64:
-	with open(dst + '.bin', 'wb') as o:
+	with open(dst + '.bin', 'wb') as o:	# as in memory: the data at its 8-byte boundary
 		o.write(f[toff:toff + tfsz])
+		o.write(bytes(dva - tva - tfsz))
 		o.write(f[doff:doff + dfsz])
 print('%s: text %#x data %#x bss %#x entry %#x' % (dst, tfsz, dfsz, dmsz - dfsz, entry))

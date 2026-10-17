@@ -105,6 +105,7 @@ func elf2aout(src, dst string) error {
 			return err
 		}
 		b.Write(text)
+		b.Write(make([]byte, d.Vaddr-t.Vaddr-t.Filesz)) // as in memory: the data at its 8-byte boundary
 		b.Write(data)
 		if err := b.Close(); err != nil {
 			return err
