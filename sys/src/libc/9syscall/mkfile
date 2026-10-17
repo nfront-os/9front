@@ -122,13 +122,19 @@ install:V:
 			# jc passes the first argument in R8 and does not widen
 			# int and long to vlong on the stack: spill R8 as wide
 			# as the first argument is (none for no arguments)
+			# (the second list: ape/lib/ap/syscall's names, its gencall
+			# is made from this, with seek as _SEEK)
 			switch($i){
-			case sysr1 _nsec
+			case sysr1 _nsec _SYSR1
 				;
 			case _errstr bind chdir exec _exits segbrk _stat open pipe \
 			    create brk_ remove _wstat notify segdetach segfree \
 			    segflush rendezvous unmount _wait semacquire semrelease \
-			    seek errstr stat wstat await tsemacquire
+			    seek errstr stat wstat await tsemacquire \
+			    _BIND _CHDIR _EXEC _EXITS _SEGBRK _OPEN _PIPE _CREATE \
+			    _BRK_ _REMOVE _NOTIFY _SEGDETACH _SEGFREE _SEGFLUSH \
+			    _RENDEZVOUS _UNMOUNT _SEMACQUIRE _SEMRELEASE _ERRSTR \
+			    _STAT _WSTAT _AWAIT _TSEMACQUIRE
 				echo MOV R8, '0(FP)'	# pointer
 			case *
 				echo MOVW R8, '0(FP)'	# int, long

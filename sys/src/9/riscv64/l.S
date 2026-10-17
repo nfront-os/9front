@@ -74,6 +74,13 @@ _main:
 	li	t1, 256*8
 	add	t1, s5, t1
 	sd	t0, (2*8)(t1)			/* PTLX(KZERO+PHYSDRAM, 2) */
+	li	t2, GiB>>PGSHIFT<<PTEPPNSHIFT	/* and three more GB, see l.s */
+	add	t0, t0, t2
+	sd	t0, (3*8)(t1)
+	add	t0, t0, t2
+	sd	t0, (4*8)(t1)
+	add	t0, t0, t2
+	sd	t0, (5*8)(t1)
 	li	t0, PTEVALID|PTEREAD|PTEWRITE|PTEKERNEL
 	sd	t0, 0(t1)			/* PTLX(KZERO, 2) */
 	li	t0, BY2PG

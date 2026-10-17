@@ -18,7 +18,7 @@ OUT=${1:?usage: $0 outdir}
 A=${objtype:-amd64}
 
 rm -rf "$OUT"
-mkdir -p "$OUT"/$A/bin "$OUT"/rc "$OUT"/lib "$OUT"/adm/timezone \
+mkdir -p "$OUT"/$A/bin "$OUT"/$A/lib/ape "$OUT"/rc "$OUT"/lib "$OUT"/adm/timezone \
 	"$OUT"/usr/glenda/tmp "$OUT"/tmp "$OUT"/n "$OUT"/mnt "$OUT"/srv
 
 # directories a 9front root has, here empty: /386, /arm64 (where the

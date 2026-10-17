@@ -74,9 +74,11 @@ _zmach:
 _zmachdone:
 
 	/*
-	 * boot page table: gigapages for the first GB of ram, at its
-	 * physical address (to turn paging on) and at KZERO+; devices
-	 * (the first GB) at KZERO; the level 1 table of VMAP.
+	 * boot page table: a gigapage for the first GB of ram at its
+	 * physical address (to turn paging on), four at KZERO+ (the
+	 * device tree is near the top of ram, bootargsinit reads it
+	 * before meminit maps the rest); devices (the first GB) at
+	 * KZERO; the level 1 table of VMAP.
 	 */
 	MOV	$PHYSDRAM, R14
 	SRL	$PGSHIFT, R14
@@ -84,6 +86,13 @@ _zmachdone:
 	OR	$PTEKRWX, R14
 	MOV	R14, (2*XLEN)(R13)		/* PTLX(PHYSDRAM, 2) */
 	MOV	R14, (258*XLEN)(R13)		/* PTLX(KZERO+PHYSDRAM, 2) */
+	MOV	$(GiB>>PGSHIFT<<PTEPPNSHIFT), R15
+	ADD	R15, R14
+	MOV	R14, (259*XLEN)(R13)
+	ADD	R15, R14
+	MOV	R14, (260*XLEN)(R13)
+	ADD	R15, R14
+	MOV	R14, (261*XLEN)(R13)
 	MOV	$(PTEVALID|PTEREAD|PTEWRITE|PTEKERNEL), R14
 	MOV	R14, (256*XLEN)(R13)		/* PTLX(KZERO, 2) */
 	ADD	$BY2PG, R13, R14
