@@ -1594,7 +1594,8 @@ makecontig(Xfile *f, int nextra)
 				break;
 		if(i == nextra) {	/* they were all free */
 			chat("eclust=%#lx, getfat eclust-1 = %#lux\n", eclust, getfat(xf, eclust-1));
-			assert(getfat(xf, eclust-1) == 0xffffffff);
+			/* GCC port: 0xffffffff is 32-bit; getfat returns long (64-bit on amd64) */
+			assert(getfat(xf, eclust-1) == -1);
 			putfat(xf, eclust-1, eclust);
 			putfat(xf, eclust, 0xffffffff);
 			bp->freeptr = clust+1;	/* to help keep the blocks free */
