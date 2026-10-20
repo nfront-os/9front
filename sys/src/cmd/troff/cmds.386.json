@@ -6,7 +6,10 @@
 		],
 		"Install": "/$ARCH/bin/",
 		"Cflags": [
-			"-DUNICODE"
+			"-DUNICODE",
+			"-DTMACDIR=\"sys/lib/tmac/tmac.\"",
+			"-DFONTDIR=\"sys/lib/troff/font\"",
+			"-DNTERMDIR=\"sys/lib/troff/term/tab.\""
 		],
 		"Oflags": [
 			"--entry=_main"

@@ -318,6 +318,17 @@ def cflags(v, d):
 	return ['-I' + tree(f[2:], d) if f.startswith('-I') else f
 		for f in v.get('CFLAGS', []) if f.startswith(('-I', '-D'))]
 
+def recipecflags(text, v, d):
+	"""-D flags that appear in rule recipes but not in $CFLAGS (troff: per-file -DTMACDIR etc.)"""
+	out = []
+	for targets, prereq, recipe in rules(text):
+		if not recipe:
+			continue
+		for w in rcwords(expand(recipe, v)):
+			if w.startswith('-D') and '`' not in w and w not in out:
+				out.append(w)
+	return out
+
 def locallibs(v, d):
 	# LIB may also name plain objects (vac's error.$O ...): those are sources
 	# and archives of other source dirs (bzfs: /sys/src/cmd/bzip2/lib/libbzip2.a$O)
@@ -538,7 +549,8 @@ def mkentries(d):
 		return []
 	v = variables(text)
 	v.update(evalvars(text, v, d))
-	common = {'Cflags': cflags(v, d), 'Libs': locallibs(v, d) + pragmalibs(cflags(v, d), d), 'Install': install(v, d),
+	cf = cflags(v, d)
+	common = {'Cflags': cf + [f for f in recipecflags(text, v, d) if f not in cf], 'Libs': locallibs(v, d) + pragmalibs(cf, d), 'Install': install(v, d),
 		'Pre': yaccpre(text, v, d) + lexpre(text, v, d) + ['bash %sscripts/build/%s' % (up(d), s) for s in PRE.get(d, [])],
 		'ape': isape(text)}
 	if k in ('mklib', 'mksyslib'):
