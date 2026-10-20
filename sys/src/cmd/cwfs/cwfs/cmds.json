@@ -6,7 +6,8 @@
 		],
 		"Install": "/$ARCH/bin/",
 		"Cflags": [
-			"-I.."
+			"-I..",
+			"-DDATE=1792528263L"
 		],
 		"Oflags": [
 			"--entry=_main"

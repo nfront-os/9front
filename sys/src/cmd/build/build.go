@@ -118,6 +118,9 @@ type build struct {
 	SourceDeps  []string
 	// cmd's
 	SourceFilesCmd []string
+	// CflagsShell: shell commands whose stdout (one flag per line) is
+	// appended to Cflags at build time (rc `{...}` substitutions).
+	CflagsShell []string
 	// Targets.
 	Program string
 	Library string
@@ -603,7 +606,19 @@ func compileArgs(b *build) (command string, cArgs, asmArgs []string) {
 		command = "scan-build"
 		cArgs = append([]string{tools["cc"]}, cArgs...)
 	}
-	cArgs = append(cArgs, b.Cflags...)
+	cflags := b.Cflags
+	for _, sh := range b.CflagsShell {
+		out, err := exec.Command("sh", "-c", sh).Output()
+		if err != nil {
+			log.Panicf("CflagsShell %q: %v", sh, err)
+		}
+		for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+			if line != "" {
+				cflags = append(cflags, line)
+			}
+		}
+	}
+	cArgs = append(cArgs, cflags...)
 
 	asmArgs = []string{"-c", "-MMD"}
 	// Same include structure as C so #include works in assembly.

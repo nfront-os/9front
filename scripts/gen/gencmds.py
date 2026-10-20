@@ -329,6 +329,29 @@ def recipecflags(text, v, d):
 				out.append(w)
 	return out
 
+def recipeshellflags(text, v, d):
+	"""-D flags with rc command substitutions (`{...}): (static_cflags, shell_commands).
+	Commands the generator can evaluate itself (date) become static flags;
+	unknown commands become CflagsShell entries."""
+	import time
+	static = []
+	shell = []
+	for targets, prereq, recipe in rules(text):
+		if not recipe:
+			continue
+		expanded = expand(recipe, v)
+		for name, cmd in re.findall(r"-D(\w+)(?:'='|=)\s*`(\{[^}]+\})", expanded):
+			c = cmd[1:-1]  # strip { }
+			# commands we can evaluate at generation time
+			if c.strip() in ('date', 'date -n'):
+				static.append('-D%s=%dL' % (name, int(time.time())))
+			else:
+				cc = c.replace(' -n', '')
+				sh = 'echo -D%s="$(%s)"' % (name, cc)
+				if sh not in shell:
+					shell.append(sh)
+	return static, shell
+
 def locallibs(v, d):
 	# LIB may also name plain objects (vac's error.$O ...): those are sources
 	# and archives of other source dirs (bzfs: /sys/src/cmd/bzip2/lib/libbzip2.a$O)
@@ -516,7 +539,7 @@ def entries(d):
 			print('gencmds: %s: no rule links 6.%s' % (d, ps[0]), file=sys.stderr)
 			continue
 		objs = [o for o in link[1] if o.endswith(('.' + O, '.c'))]
-		e = {k: common[k] for k in ('Cflags', 'Libs', 'Pre', 'ape') if k in common}
+		e = {k: common[k] for k in ('Cflags', 'CflagsShell', 'Libs', 'Pre', 'ape') if k in common}
 		e.update(program=ps[0], Install=os.path.dirname(dest).replace('/' + OBJTYPE, '/$ARCH', 1) + '/',
 			src=objs2src(objs, d, text, v))
 		es.append((d + '/' + ps[0], e))
@@ -550,7 +573,10 @@ def mkentries(d):
 	v = variables(text)
 	v.update(evalvars(text, v, d))
 	cf = cflags(v, d)
-	common = {'Cflags': cf + [f for f in recipecflags(text, v, d) if f not in cf], 'Libs': locallibs(v, d) + pragmalibs(cf, d), 'Install': install(v, d),
+	shellstatic, shellcmds = recipeshellflags(text, v, d)
+	common = {'Cflags': cf + [f for f in recipecflags(text, v, d) if f not in cf] + shellstatic,
+		'CflagsShell': shellcmds,
+		'Libs': locallibs(v, d) + pragmalibs(cf, d), 'Install': install(v, d),
 		'Pre': yaccpre(text, v, d) + lexpre(text, v, d) + ['bash %sscripts/build/%s' % (up(d), s) for s in PRE.get(d, [])],
 		'ape': isape(text)}
 	if k in ('mklib', 'mksyslib'):
@@ -693,6 +719,8 @@ def buildentry(e, name):
 		m['Include'].append('/$ARCH/ape.json')
 	if e.get('Cflags'):
 		m['Cflags'] = e['Cflags']
+	if e.get('CflagsShell'):
+		m['CflagsShell'] = e['CflagsShell']
 	if e.get('Pre'):
 		m['Pre'] = e['Pre']
 	if e.get('ape'):
