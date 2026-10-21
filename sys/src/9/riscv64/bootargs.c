@@ -155,6 +155,9 @@ devtreeprop(char *path, char *key, void *val, int len)
 				soc.etherirq[i] = beget4(p);
 		if(addr != 0 && addr == (soc.sdhc & ~0xFFF))
 			soc.sdhcirq = beget4(p);
+		for(i = 0; i < nelem(soc.dwmmc); i++)
+			if(addr != 0 && addr == soc.dwmmc[i])
+				soc.dwmmcirq[i] = beget4(p);
 		return;
 	}
 	/* the plic's sources (plic.c): FU540 53, FU740 69, the icicle 186 */

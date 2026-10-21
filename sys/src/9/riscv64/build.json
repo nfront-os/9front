@@ -694,6 +694,7 @@
 					"sd"
 				],
 				"Link": [
+					"etherdwmac ethermii",
 					"ethersink",
 					"ethermedium",
 					"loopbackmedium",
@@ -712,7 +713,8 @@
 				"Misc": [
 					"socvf",
 					"plic",
-					"uarti8250"
+					"uarti8250",
+					"sdmmc sddwmmc"
 				]
 			},
 			"Ramfiles": {
@@ -752,7 +754,9 @@
 			"../port/devswap.c",
 			"../port/devtls.c",
 			"../port/devuart.c",
+			"etherdwmac.c",
 			"../ip/ethermedium.c",
+			"../port/ethermii.c",
 			"../port/ethersink.c",
 			"../ip/icmp.c",
 			"../ip/icmp6.c",
@@ -773,6 +777,8 @@
 			"../ip/nullmedium.c",
 			"../ip/pktmedium.c",
 			"plic.c",
+			"sddwmmc.c",
+			"../port/sdmmc.c",
 			"socvf.c",
 			"../ip/tcp.c",
 			"uarti8250.c",

@@ -174,6 +174,14 @@ struct Soc {
 	int	sdhcirq;
 	int	cip1200;	/* SiFive U54/U74 erratum: sfence.vma by address unreliable */
 	int	uartdw;		/* the 16550 is DesignWare's (busy detect interrupt) */
+	uintptr	dwmmc[2];	/* DesignWare mobile storage hosts (sddwmmc.c), 0 ends */
+	int	dwmmcirq[2];
+	ulong	dwmmcclk;	/* their card clock (ciu) */
+	struct {		/* the board's Motorcomm YT8531 phys (etherdwmac.c) */
+		int	rxdly;	/* rgmii delays, ps */
+		int	txdly;
+		int	txinv;	/* tx clock inverted at: 1<<0 10, 1<<1 100, 1<<2 1000Mb/s */
+	} etherphy[2];
 };
 extern Soc soc;
 
