@@ -38,8 +38,9 @@
 #                     has none by default. arm64 (TCG) always has PMUv3
 #         SMP         QEMU processors (QEMU's default: 1; tests/lib.sh sets 4)
 #         QEMU_EXTRA  extra QEMU flags (e.g. "-s -S" for gdb)
-#         MACHINE     riscv64: virt (default) or pf, qemu's PolarFire
-#                     Icicle Kit with the kernel 9pf (needs dtc, cpp)
+#         MACHINE     riscv64: virt (default), pf (qemu's PolarFire Icicle
+#                     Kit, the kernel 9pf; needs dtc, cpp) or um (qemu's
+#                     sifive_u, the kernel 9um of the HiFive Unmatched)
 #         BOOT        riscv64: "uboot" boots through u-boot and a FAT disk
 #                     with boot.scr, plan9.ini and 9virt.u (as the disk image
 #                     does; scripts/guest/build-boot.sh) instead of -kernel
@@ -75,7 +76,7 @@ esac
 export objtype
 KERNEL=${BOOTKERNEL:-$ROOT/$objtype/bin/$KNAME}
 # riscv64: the raw image beside the a.out the install step makes (elf2aout.py, jl -H1)
-# riscv64 MACHINE: virt (default) or pf (qemu's microchip-icicle-kit)
+# riscv64 MACHINE: virt (default), pf (qemu's microchip-icicle-kit), um (sifive_u)
 [ $objtype = riscv64 ] && KERNEL=${BOOTKERNEL:-$ROOT/riscv64/9${MACHINE:-virt}.bin}
 UFS=${UFS:-$(command -v ufs 2>/dev/null || echo "$HOME/go/bin/ufs")}
 UFS_PORT=${UFS_PORT:-5640}	# host ports of the ufs servers (another boot-cli may run)
@@ -102,7 +103,7 @@ cmds=("$@")
 command -v $QEMU >/dev/null || die "$QEMU missing"
 mkdir -p "$CLI_DIR"
 pids=()
-cleanup(){ [ ${#pids[@]} -gt 0 ] && kill "${pids[@]}" 2>/dev/null; wait 2>/dev/null; return 0; }
+cleanup(){ [ ${#pids[@]} -gt 0 ] && kill "${pids[@]}" 2>/dev/null; wait 2>/dev/null; rm -f /tmp/boot-cli.$$.qmp; return 0; }
 trap cleanup EXIT
 
 fw=()
@@ -258,7 +259,13 @@ elif [ $objtype = riscv64 ]; then
 		boot=(-bios default -kernel "$KERNEL"
 			-append "console=0 service=$SERVICE nobootprompt=tcp fs=$FSADDR auth=$FSADDR $KARGS")
 	fi
-	if [ "$MACHINE" = pf ]; then
+	if [ "$MACHINE" = um ]; then
+		# qemu's FU540 for the Unmatched's FU740: harts 1-4 (U54) and
+		# the E51, which makes its device tree and takes -append
+		qemu=($QEMU -M sifive_u -smp 5 -m 2G -bios default -kernel "$KERNEL"
+			-append "console=0 service=$SERVICE nobootprompt=tcp fs=$FSADDR auth=$FSADDR $KARGS"
+			-display none -no-reboot -monitor none -nic user,$fwd)
+	elif [ "$MACHINE" = pf ]; then
 		# harts 1-4 (U54) and the E51; 1GB low memory and 1GB high;
 		# the console is mmuart1, the second serial line; the nic gem0
 		qemu=($QEMU -M microchip-icicle-kit -smp 5 -m 2G
@@ -285,9 +292,17 @@ if [ ${#cmds[@]} -eq 0 ]; then
 	exit
 fi
 
-# scripted: serial console on a pty, type the commands, collect output
-qmp=()
-[ -z "$SCREENSHOT" ] || { rm -f "$CLI_DIR/qmp.sock"; qmp=(-qmp "unix:$CLI_DIR/qmp.sock,server,nowait"); }
+# scripted: serial console on a pty, type the commands, collect output.
+# QEMU starts stopped (-S) and runs on (QMP cont) once the pty is read
+# and QEMU has seen that: its pty backend drops output until its 1s
+# poll finds the reader, and a uart whose bytes are dropped may never
+# send again (qemu's sifive uart, sifive_u: OpenSBI waits on a full
+# fifo); the 16550 just loses them. The QMP socket's path must stay
+# short (108 bytes)
+qsock=$CLI_DIR/qmp.sock
+[ ${#qsock} -lt 100 ] || qsock=/tmp/boot-cli.$$.qmp
+rm -f "$qsock"
+qmp=(-S -qmp "unix:$qsock,server,nowait")
 "${qemu[@]}" -serial pty "${qmp[@]}" $QEMU_EXTRA > "$CLI_DIR/qemu.log" 2>&1 &
 pids+=($!)
 for _ in $(seq 50); do
@@ -302,6 +317,23 @@ stty -F "$pts" raw -echo
 : > "$CLI_DIR/console.log"
 cat "$pts" >> "$CLI_DIR/console.log" &
 pids+=($!)
+python3 - "$qsock" <<'PY' || die "QMP cont failed (log: $CLI_DIR/qemu.log)"
+import json, socket, sys, time
+s = socket.socket(socket.AF_UNIX)
+for _ in range(50):
+	try:
+		s.connect(sys.argv[1])
+		break
+	except OSError:
+		time.sleep(0.1)
+f = s.makefile('rw')
+f.readline()
+time.sleep(1.5)		# the pty backend's poll (see above)
+for cmd in ({'execute': 'qmp_capabilities'}, {'execute': 'cont'}):
+	f.write(json.dumps(cmd) + '\n')
+	f.flush()
+	f.readline()
+PY
 # type a line only when rc prompts for it (term% , sysname# ): input that
 # arrives while init and cpurc/termrc still run gets lost
 prompted(){
@@ -375,7 +407,7 @@ if [ -n "$WAITFOR" ]; then
 fi
 sleep 1
 if [ -n "$SCREENSHOT" ]; then	# QMP screendump (PPM), stored as PNG
-	python3 - "$CLI_DIR/qmp.sock" "$CLI_DIR/screen.ppm" "$SCREENSHOT" <<'PY'
+	python3 - "$qsock" "$CLI_DIR/screen.ppm" "$SCREENSHOT" <<'PY'
 import json, socket, struct, sys, zlib
 s = socket.socket(socket.AF_UNIX)
 s.connect(sys.argv[1])

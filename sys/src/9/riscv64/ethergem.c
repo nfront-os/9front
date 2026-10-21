@@ -1,6 +1,7 @@
 /*
  * Cadence Gigabit Ethernet MAC (GEM, Linux's cdns,macb): PolarFire
- * SoC (qemu's microchip-icicle-kit) and SiFive FU540/FU740. Ported from
+ * SoC (qemu's microchip-icicle-kit, sgmii) and SiFive FU540/FU740 (qemu's
+ * sifive_u, the HiFive Unmatched; rgmii, soc.gemsgmii 0). Ported from
  * Geoff Collyer's ethergem.c (9k, riscv): 9front's Ether and Bpool, the
  * controllers where the machine has them (soc.ether, socpf.c).
  * 32-bit descriptors, so the buffers must be below 4GB (low memory).
@@ -240,7 +241,8 @@ lproc(void *v)
 		ienable(ctlr, Linkchange);
 		sleep(&ctlr->lrendez, lim, ctlr);
 		ctlr->lim = 0;
-		if (ctlr->regs[Pcssts] & Andone)
+		/* the pcs knows the link on sgmii only (no mdio phy driver yet) */
+		if (soc.gemsgmii && ctlr->regs[Pcssts] & Andone)
 			ethersetlink(edev, (ctlr->regs[Pcssts] & Linksts) != 0);
 	}
 }
@@ -425,11 +427,14 @@ rxinit(Ctlr *ctlr)
 	ctlr->rdfree = 0;
 
 	ilock(&ctlr->reglock);
-	regs[Pcsctl] |= Pcsenan;
 	cfg = regs[Cfg];
-	cfg &= ~(Rxnobcast|Rxckoffl|Mdcclkdiv);
-	cfg |= Pcsmand | Rxomitfcs | Fd | Gbmode | Sgmii |
+	cfg &= ~(Rxnobcast|Rxckoffl|Mdcclkdiv|Pcsmand|Sgmii);
+	cfg |= Rxomitfcs | Fd | Gbmode |
 		Rxunihashfilt | Rxmultihashfilt | 4<<Mdcclkdivshft;
+	if(soc.gemsgmii){	/* PolarFire; FU540/FU740's phys are on (r)gmii */
+		regs[Pcsctl] |= Pcsenan;
+		cfg |= Pcsmand | Sgmii;
+	}
 	regs[Cfg] = cfg;
 
 	cfg = regs[Dmacfg];

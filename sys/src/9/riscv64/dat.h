@@ -169,6 +169,7 @@ struct Soc {
 	ulong	uartfreq;
 	uintptr	ether[2];	/* ethernet controllers (ethergem.c), 0 ends */
 	int	etherirq[2];
+	int	gemsgmii;	/* the GEM's phy on sgmii (PolarFire), else (r)gmii */
 	uintptr	sdhc;		/* standard sd host controller registers (sdhcimmio.c) */
 	int	sdhcirq;
 };

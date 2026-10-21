@@ -127,6 +127,8 @@ devtreeprop(char *path, char *key, void *val, int len)
 {
 	uvlong addr;
 	uchar *p = val;
+	char *q;
+	int i;
 
 	if((strncmp(path, "/memory", 7) == 0 || strncmp(path, "/memory@0", 9) == 0)
 	&& strcmp(key, "reg") == 0){
@@ -137,6 +139,27 @@ devtreeprop(char *path, char *key, void *val, int len)
 			snprint(maxmem, sizeof(maxmem), "%#llux", addr);
 			addconf("*maxmem", maxmem);
 		}
+		return;
+	}
+	/*
+	 * the interrupts of the machine's devices (soc), from their nodes
+	 * (name@address): the same registers on a board and in qemu's
+	 * model, but other interrupts (FU740's uart0 39, FU540's 4)
+	 */
+	if(strcmp(key, "interrupts") == 0 && len >= 4 && (q = strrchr(path, '@')) != nil){
+		addr = strtoull(q+1, nil, 16);
+		if(addr == soc.uart)
+			soc.uartirq = beget4(p);
+		for(i = 0; i < nelem(soc.ether); i++)
+			if(addr != 0 && addr == soc.ether[i])
+				soc.etherirq[i] = beget4(p);
+		if(addr != 0 && addr == (soc.sdhc & ~0xFFF))
+			soc.sdhcirq = beget4(p);
+		return;
+	}
+	/* the plic's sources (plic.c): FU540 53, FU740 69, the icicle 186 */
+	if(strcmp(key, "riscv,ndev") == 0 && len == 4){
+		soc.nirq = beget4(p) + 1;
 		return;
 	}
 	/* the time csr's frequency (clock.c): 10MHz on qemu's virt, 1MHz on the icicle */

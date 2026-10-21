@@ -12,9 +12,9 @@ buildtests(){
 }
 check "build tests/guest with the port toolchain" buildtests || { done_tests; exit; }
 
-# qemu's icicle (riscv64 MACHINE=pf) has no rtc: the time starts at 0
+# qemu's icicle and sifive_u (riscv64 MACHINE=pf, um) have no rtc: the time starts at 0
 run=/tests/run
-[ "$objtype/$MACHINE" != riscv64/pf ] || run="nortc=1 /tests/run"
+case $objtype/$MACHINE in riscv64/pf|riscv64/um) run="nortc=1 /tests/run" ;; esac
 boot(){ "$ROOT/scripts/guest/boot-cli.sh" "$run" > "$TMPD/console" 2>&1; }
 check "boot and run /tests/run" boot || { done_tests; exit; }
 tr -d '\r' < "$TMPD/console" | sed -n '/^== /,/^tests: /p' > "$TMPD/log"

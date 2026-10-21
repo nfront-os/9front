@@ -45,9 +45,10 @@ KERNEL = {
 		'/sys/src/9/arm64/build.json', 'arm64/bin/9qemu', 'arm64/9qemu'),
 	# riscv64: a kernel per machine (sys/src/9/riscv64/mkfile's CONFLIST)
 	'riscv64': (['bash scripts/build/gen-rebootcode-i.sh riscv64', 'bash scripts/build/gen-initcode-i.sh',
-		'bash scripts/build/gen-bootfs.sh virt riscv64', 'bash scripts/build/gen-bootfs.sh pf riscv64'],
-		'/sys/src/9/riscv64/build.json', ['riscv64/bin/9virt', 'riscv64/bin/9pf'],
-		['riscv64/9virt', 'riscv64/9pf']),
+		'bash scripts/build/gen-bootfs.sh virt riscv64', 'bash scripts/build/gen-bootfs.sh pf riscv64',
+		'bash scripts/build/gen-bootfs.sh um riscv64'],
+		'/sys/src/9/riscv64/build.json', ['riscv64/bin/9virt', 'riscv64/bin/9pf', 'riscv64/bin/9um'],
+		['riscv64/9virt', 'riscv64/9pf', 'riscv64/9um']),
 }
 
 def listing(script, objtype):

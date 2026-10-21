@@ -10,7 +10,7 @@
 case $objtype in 386|amd64) pc=1 ncpu=4 ;; *) pc= ncpu=4 ;; esac
 # the board's harts (riscv64 MACHINE=pf: the icicle's 4 U54 and the E51, which the kernel leaves out)
 smp="-smp $ncpu"
-[ "$objtype/$MACHINE" != riscv64/pf ] || smp=
+case $objtype/$MACHINE in riscv64/pf|riscv64/um) smp= ;; esac
 
 boot(){
 	QEMU_EXTRA="$smp" KARGS="${KARGS:+$KARGS }*ncpu=$ncpu" "$ROOT/scripts/guest/boot-cli.sh" \
@@ -33,9 +33,9 @@ check "cpurc: no errors besides the missing nvram" \
 check "echo" test "$(out 'echo hello')" = hello
 check "SMP: $ncpu processors active (/dev/sysstat)" test "$(out 'cat /dev/sysstat | wc -l' | tr -d ' ')" -eq $ncpu
 check "ls /bin | wc -l > 100" test "$(out 'ls /bin | wc -l' | tr -d ' ')" -gt 100
-# qemu's icicle (MACHINE=pf) emulates no rtc, the board's mpfs rtc
-if [ "$objtype/$MACHINE" = riscv64/pf ]; then
-	skip "date: RTC/timesync year >= 2025" "qemu's microchip-icicle-kit has no rtc"
+# qemu's icicle (MACHINE=pf) and sifive_u (um) emulate no rtc
+if [ "$objtype/$MACHINE" = riscv64/pf ] || [ "$objtype/$MACHINE" = riscv64/um ]; then
+	skip "date: RTC/timesync year >= 2025" "qemu's $MACHINE machine has no rtc"
 else
 check "date: RTC/timesync year >= 2025" bash -c "[ \$(echo '$(out 'date -i')' | cut -c1-4) -ge 2025 ]"
 fi

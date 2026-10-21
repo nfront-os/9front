@@ -585,6 +585,7 @@ i8250enable(Uart* uart, int ie)
 	 */
 	if(ie){
 		if(ctlr->iena == 0){
+			ctlr->irq = soc.uartirq;	/* the device tree's, by now (bootargs.c) */
 			intrenable(ctlr->irq, i8250interrupt, uart, ctlr->tbdf, uart->name);
 			ctlr->iena = 1;
 		}
