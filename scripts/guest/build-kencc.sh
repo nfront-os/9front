@@ -49,14 +49,17 @@ objtype=amd64 MEM=${MEM:-2048} QEMU_EXTRA="-smp ${SMP:-4} $QEMU_EXTRA" SRC9=$S U
 tr -d '\r' < "$LOG" > "$LOG.txt"
 grep -qE '^mkkencc: (done|failed:)' "$LOG.txt" || { tail -30 "$LOG.txt"; die "did not finish (log: $LOG.txt)"; }
 
-n=$(grep -c 'mk: .*exit status' "$LOG.txt" || true)
-# the kernel's mk may fail without an "exit status" line (a missing target)
+# failures: "exit status" lines, and missing targets ("don't know how to
+# make"), which in a directory loop of mk -k print no "exit status"
+fails="mk: .*exit status|mk: don't know how to make"
+n=$(grep -cE "$fails" "$LOG.txt" || true)
+# the kernel's mk may fail without such a line
 grep -qE '^mkkencc: status kernel pc64 *$' "$LOG.txt" || n=$((n+1))
 grep '^mkkencc: status' "$LOG.txt"
 echo "built: $(grep -c '^cp 6\.' "$LOG.txt" || true) programs installed, kernel: $(grep -c '^mkkencc: status kernel pc64 *$' "$LOG.txt" || true) ok"
 ls -l "$S"/sys/src/9/pc64/9pc64 2>/dev/null | awk '{print $5, $9}' || true
 if [ "$n" != 0 ]; then
-	grep -B3 'mk: .*exit status' "$LOG.txt" | head -150
+	grep -B3 -E "$fails" "$LOG.txt" | head -150
 	die "$n failed mk targets (log: $LOG.txt)"
 fi
 echo "ok: the tree builds with kencc"
