@@ -11,6 +11,39 @@ static int nconf;
 static char maxmem[256];
 static int cpus;
 static char ncpu[256];
+static char timebase[32];
+
+/*
+ * the harts the kernel can run on: /cpus/cpu@N nodes not "disabled"
+ * (PolarFire's E51 monitor core is); reg and status come in any order,
+ * a node is done when the next one starts
+ */
+static int harts[MAXMACH];
+static int nharts;
+static struct {
+	char	path[64];
+	int	hart;
+	int	off;
+} cpunode = { "", -1, 0 };
+
+static void
+cpunodeend(void)
+{
+	if(cpunode.hart >= 0 && !cpunode.off && nharts < nelem(harts))
+		harts[nharts++] = cpunode.hart;
+	cpunode.path[0] = 0;
+	cpunode.hart = -1;
+	cpunode.off = 0;
+}
+
+/* the i'th hart of the device tree, -1 after the last */
+int
+dthart(int i)
+{
+	if(i < 0 || i >= nharts)
+		return -1;
+	return harts[i];
+}
 
 /* the device tree from the firmware (l.s); its /chosen/bootargs */
 uintptr dtbpa;
@@ -106,8 +139,23 @@ devtreeprop(char *path, char *key, void *val, int len)
 		}
 		return;
 	}
-	if(strncmp(path, "/cpus/cpu", 9) == 0 && strcmp(key, "reg") == 0){
-		cpus++;
+	/* the time csr's frequency (clock.c): 10MHz on qemu's virt, 1MHz on the icicle */
+	if(strcmp(path, "/cpus") == 0 && strcmp(key, "timebase-frequency") == 0 && len == 4){
+		if(findconf("*timebase") < 0){
+			snprint(timebase, sizeof(timebase), "%ud", beget4(p));
+			addconf("*timebase", timebase);
+		}
+		return;
+	}
+	if(strncmp(path, "/cpus/cpu@", 10) == 0 && strchr(path+10, '/') == nil){
+		if(strcmp(path, cpunode.path) != 0){
+			cpunodeend();
+			strncpy(cpunode.path, path, sizeof(cpunode.path)-1);
+		}
+		if(strcmp(key, "reg") == 0 && len >= 4)
+			cpunode.hart = beget4(p);
+		else if(strcmp(key, "status") == 0)
+			cpunode.off = strcmp(val, "disabled") == 0;
 		return;
 	}
 	if(strncmp(path, "/chosen", 7) == 0 && strcmp(key, "bootargs") == 0){
@@ -178,6 +226,8 @@ parsedevtree(uchar *base, uintptr len)
 	if(t->stab >= (char*)t->end)
 		return -1;
 	devtreenode(t, base + beget4(base+8), t->path);
+	cpunodeend();
+	cpus = nharts;
 	return  0;
 }
 

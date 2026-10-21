@@ -363,14 +363,13 @@
 		"Pre": [
 			"bash scripts/build/gen-rebootcode-i.sh riscv64",
 			"bash scripts/build/gen-initcode-i.sh",
-			"bash scripts/build/gen-bootfs.sh virt riscv64"
+			"bash scripts/build/gen-bootfs.sh virt riscv64",
+			"bash scripts/build/gen-bootfs.sh pf riscv64"
 		],
 		"Clean": [
-			"sys/src/9/riscv64/rebootcode.i",
 			"sys/src/9/port/initcode.i",
-			"sys/src/9/riscv64/boot",
-			"sys/src/9/riscv64/virt.bootfs.paq",
-			"sys/src/9/riscv64/virt.bootfs.sum"
+			"sys/src/9/riscv64/pf.bootfs.paq",
+			"sys/src/9/riscv64/pf.bootfs.sum"
 		]
 	},
 	{
@@ -383,6 +382,7 @@
 		"Name": "install",
 		"Post": [
 			"python3 scripts/build/elf2aout.py riscv64/bin/9virt riscv64/9virt",
+			"python3 scripts/build/elf2aout.py riscv64/bin/9pf riscv64/9pf",
 			"python3 scripts/build/check-install.py -r"
 		]
 	}

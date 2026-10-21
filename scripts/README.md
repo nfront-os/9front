@@ -56,13 +56,14 @@ Called by `build.exe` (Pre/Post steps); rarely run by hand.
 
 | script | what it does |
 |---|---|
-| `boot-cli.sh` | boot the built kernel in QEMU; with arguments, type them and print the output (riscv64: `BOOT=uboot` through u-boot and a FAT disk; `BOOTDISK=` an installed image). `scripts/guest/boot-cli.sh 'ls /bin'` |
+| `boot-cli.sh` | boot the built kernel in QEMU; with arguments, type them and print the output (riscv64: `MACHINE=pf` qemu's PolarFire Icicle Kit, `BOOT=uboot` through u-boot and a FAT disk; `BOOTDISK=` an installed image). `scripts/guest/boot-cli.sh 'ls /bin'` |
 | `guest-cmd.sh` | one command line into a guest kept running (`HOLD=1 boot-cli.sh`). `scripts/guest/guest-cmd.sh 'ps'` |
 | `build-boot.sh` | build 9front's boot loaders in the guest with its own compilers (mbr, pbs, 9boot*, efi); u-boot's boot.scr and the kernel images 9qemu.u (arm64), 9virt.u (riscv64). `scripts/guest/build-boot.sh` |
 | `build-kencc.sh` | check that the tree still builds with 9front's own compilers: in the guest `mk install` of `/sys/src` and the kernel pc64 with 6c/6a/6l (`boot/mkkencc.rc`). `scripts/guest/build-kencc.sh [kernel]` |
 | `kencc-riscv64.sh` | an amd64 guest in which 9front's own tools build riscv64 (jc/ja/jl, mk) on a copy of the sources (`$CLI_DIR/src`, git ls-files: the gcc build leaves `cc.aj`, `virt.c`, ... under mk's names), bound over `/sys/src`, `/sys/include` and `/riscv64`; mk installs land in the copy. No arguments: the guest stays up for `guest-cmd.sh` (`CLI_DIR=~/.cache/9front-riscv-cli`); `KEEP=1` reuses the copy. `scripts/guest/kencc-riscv64.sh ['cd /sys/src/libc && objtype=riscv64 mk install']` |
 | `build-self.sh` | self-hosting: the guest builds the whole tree with `build.exe` and the native gcc of `../9front-gcc` (`boot/mkself.rc`) on an ext4 disk made from the copy in `$CLI_DIR/self.$objtype` (`mkfs.ext4 -d`, served by `ext4srv`, read back with `debugfs rdump`), then compares every object with the Linux build (`$CLI_DIR/self.diff`). `KEEP=1` reuses the copy. `[objtype=386] scripts/guest/build-self.sh [x.json ...]` |
 | `build-uboot.sh` | u-boot for QEMU arm64, with `objtype=riscv64` for QEMU virt in S-mode (used by `boot-cli.sh`) |
+| `build-dtb.sh` | the device tree of a board qemu emulates without making one (`icicle`: Linux's mpfs-icicle-kit.dts, fetched, cpp + dtc), for `boot-cli.sh MACHINE=pf`. `scripts/guest/build-dtb.sh icicle` |
 | `mkiso.sh` | install/live CD, made in the guest. `objtype=386 scripts/guest/mkiso.sh` |
 | `mkdisk.sh` | installed disk image (hjfs); riscv64 as 9front's arm64 image (FAT with boot.scr, plan9.ini, 9virt.u). `[objtype=riscv64] scripts/guest/mkdisk.sh` |
 | `stage-dist.sh` | the distribution tree the guest gets for mkiso/mkdisk |

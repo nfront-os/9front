@@ -8,7 +8,8 @@
 #include "riscv.h"
 
 /*
- * the time csr counts at the timebase frequency, 10MHz on
+ * the time csr counts at the timebase frequency (the device tree's,
+ * bootargs.c: *timebase), 10MHz on
  * qemu's virt machine; sbi's set_timer raises the supervisor
  * timer interrupt.
  */

@@ -135,18 +135,25 @@ machinit(void)
 /*
  * start the other harts with sbi's hsm extension; they enter
  * _secondary (l.s) with the physical address of their Mach,
- * whose regsave[0] gives them the kernel's page table.
+ * whose regsave[0] gives them the kernel's page table. The harts
+ * are the device tree's (dthart: not hart 0 on PolarFire), else
+ * 0, 1, ...
  */
 void
 mpinit(void)
 {
 	extern void _secondary(void);
-	int i, hart;
+	int i, j, hart;
 	Mach *mm;
 
-	for(i = 1, hart = 0; i < conf.nmach; i++, hart++){
-		if(hart == boothart)
-			hart++;
+	for(i = 1, j = 0; i < conf.nmach; i++, j++){
+		if((hart = dthart(j)) < 0)
+			hart = j;
+		if(hart == boothart){
+			j++;
+			if((hart = dthart(j)) < 0)
+				hart = j;
+		}
 		mm = (Mach*)MACHADDR(i);
 		memset(mm, 0, MACHSIZE);
 		mm->machno = i;

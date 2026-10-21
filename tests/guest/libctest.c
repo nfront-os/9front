@@ -127,7 +127,12 @@ testtime(void)
 	b = nsec();
 	check("nsec monotonic, sleep(20)", b - a >= 15*1000*1000LL, "delta %lld", b - a);
 	t = time(nil);
-	check("time vs nsec", t - b/1000000000LL <= 1 && t > 1600000000, "time %ld", t);
+	check("time vs nsec", t - b/1000000000LL <= 1, "time %ld", t);
+	/* a machine without rtc (qemu's icicle) starts at 0: tests/guest/run.sh sets nortc */
+	if(getenv("nortc") == nil)
+		check("time is the date", t > 1600000000, "time %ld", t);
+	else
+		print("libctest: SKIP time is the date (no rtc)\n");
 }
 
 static void

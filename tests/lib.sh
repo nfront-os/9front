@@ -5,6 +5,8 @@ CLI_DIR=${CLI_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/9front-cli}
 # KERNEL (its configuration: pc64, pc, qemu), QEMU, SUFFIX (manifests);
 # KBIN the ELF kernel the build leaves in /$objtype/bin
 eval "$(python3 "$ROOT/scripts/gen/arch.py")" || exit 1
+# riscv64 MACHINE=pf: the PolarFire kernel (scripts/guest/boot-cli.sh)
+[ "$objtype" != riscv64 ] || [ -z "$MACHINE" ] || KERNEL=$MACHINE
 KBIN=$objtype/bin/9$KERNEL
 case $objtype in amd64) KDIR=pc64 ;; 386) KDIR=pc ;; *) KDIR=$objtype ;; esac	# sys/src/9/$KDIR
 export objtype SUFFIX KERNEL KBIN KDIR

@@ -121,3 +121,4 @@ extern void pciintrdisable(int tbdf, void (*f)(Ureg*, void*), void *a);
 /* bootargs */
 extern void bootargsinit(void);
 extern uintptr dtbpa;
+int	dthart(int);

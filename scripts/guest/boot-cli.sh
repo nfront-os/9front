@@ -38,6 +38,8 @@
 #                     has none by default. arm64 (TCG) always has PMUv3
 #         SMP         QEMU processors (QEMU's default: 1; tests/lib.sh sets 4)
 #         QEMU_EXTRA  extra QEMU flags (e.g. "-s -S" for gdb)
+#         MACHINE     riscv64: virt (default) or pf, qemu's PolarFire
+#                     Icicle Kit with the kernel 9pf (needs dtc, cpp)
 #         BOOT        riscv64: "uboot" boots through u-boot and a FAT disk
 #                     with boot.scr, plan9.ini and 9virt.u (as the disk image
 #                     does; scripts/guest/build-boot.sh) instead of -kernel
@@ -73,7 +75,8 @@ esac
 export objtype
 KERNEL=${BOOTKERNEL:-$ROOT/$objtype/bin/$KNAME}
 # riscv64: the raw image beside the a.out the install step makes (elf2aout.py, jl -H1)
-[ $objtype = riscv64 ] && KERNEL=${BOOTKERNEL:-$ROOT/riscv64/9virt.bin}
+# riscv64 MACHINE: virt (default) or pf (qemu's microchip-icicle-kit)
+[ $objtype = riscv64 ] && KERNEL=${BOOTKERNEL:-$ROOT/riscv64/9${MACHINE:-virt}.bin}
 UFS=${UFS:-$(command -v ufs 2>/dev/null || echo "$HOME/go/bin/ufs")}
 UFS_PORT=${UFS_PORT:-5640}	# host ports of the ufs servers (another boot-cli may run)
 SERVICE=${SERVICE:-cpu}
@@ -188,8 +191,21 @@ if [ $objtype = arm64 ] || { [ $objtype = riscv64 ] && [ "$BOOT" = uboot ]; }; t
 elif [ $objtype = riscv64 ]; then
 	# OpenSBI (qemu's -bios default) loads the raw kernel at 0x80200000
 	# and passes the device tree, whose /chosen/bootargs is -append
-	# (riscv64/bootargs.c); BOOT=uboot above
-	:
+	# (riscv64/bootargs.c); BOOT=uboot above. MACHINE=pf: qemu makes no
+	# device tree for the icicle (Linux's, scripts/guest/build-dtb.sh)
+	# and passes no -append: plan9.ini goes to CONFADDR (riscv64/mem.h)
+	if [ "$MACHINE" = pf ]; then
+		bash "$ROOT/scripts/guest/build-dtb.sh" icicle > "$CLI_DIR/dtb.log" 2>&1 \
+			|| die "device tree failed (log: $CLI_DIR/dtb.log)"
+		{
+			echo console=0
+			echo service=$SERVICE
+			echo nobootprompt=tcp
+			echo fs=$FSADDR
+			echo auth=$FSADDR
+			for a in $KARGS; do echo "$a"; done
+		} > "$CLI_DIR/plan9.ini"
+	fi
 else
 	# GRUB multiboot ISO; GRUB itself also talks on the serial line, so a
 	# boot that stops at the grub> prompt is visible
@@ -242,9 +258,19 @@ elif [ $objtype = riscv64 ]; then
 		boot=(-bios default -kernel "$KERNEL"
 			-append "console=0 service=$SERVICE nobootprompt=tcp fs=$FSADDR auth=$FSADDR $KARGS")
 	fi
+	if [ "$MACHINE" = pf ]; then
+		# harts 1-4 (U54) and the E51; 1GB low memory and 1GB high;
+		# the console is mmuart1, the second serial line; the nic gem0
+		qemu=($QEMU -M microchip-icicle-kit -smp 5 -m 2G
+			-bios default -kernel "$KERNEL" -dtb "$CLI_DIR/dtb/icicle.dtb"
+			-device loader,file="$CLI_DIR/plan9.ini",addr=0x80100000,force-raw=on
+			-display none -no-reboot -monitor none
+			-nic user,$fwd -serial null)
+	else
 	qemu=($QEMU -M virt -cpu $CPU -m "$MEM" "${boot[@]}"
 		-display none -no-reboot -monitor none
 		-netdev user,id=net0,$fwd -device virtio-net-pci,netdev=net0,disable-legacy=on "${disk[@]}")	# virtio 1.0 only (ethervirtio10.c, sdvirtio10.c)
+	fi
 else
 qemu=($QEMU "${fw[@]}" -cdrom "$CLI_DIR/$KNAME.iso" -m "$MEM" ${SMP:+-smp "$SMP"}
 	-display none -no-reboot -monitor none

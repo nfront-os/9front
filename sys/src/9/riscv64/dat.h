@@ -167,6 +167,8 @@ struct Soc {
 	int	uartwidth;	/* accessed as bytes (1) or words (4) */
 	int	uartirq;
 	ulong	uartfreq;
+	uintptr	ether[2];	/* ethernet controllers (ethergem.c), 0 ends */
+	int	etherirq[2];
 };
 extern Soc soc;
 
