@@ -22,7 +22,8 @@ PHDRS
 
 SECTIONS
 {
-	. = 0xffffffc080200000;	/* KTZERO, see mkfile and mem.h */
+	/* KTZERO, see mkfile and mem.h: the board's (the CONF's #loadaddr, --defsym) */
+	. = DEFINED(KTZERO) ? KTZERO : 0xffffffc080200000;
 
 	.text : AT(ADDR(.text) - KZERO) {
 		*(.text .text.* .gnu.linkonce.t.*)

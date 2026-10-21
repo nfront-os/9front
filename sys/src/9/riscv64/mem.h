@@ -44,7 +44,15 @@
 #define VMAP		(KLIMIT)		/* vmap(): 1GB */
 #define VMAPSIZE	GiB
 
-#define PHYSKTZERO	0x80200000		/* where the firmware puts the kernel */
+/*
+ * the board's ram (the CONF's #physdram: 0x80000000 on qemu's machines,
+ * 0x40000000 on the VisionFive 2 and the D1, 0 on the Jupiter); the
+ * firmware puts the kernel 2MB into it (mkfile: loadaddr)
+ */
+#ifndef PHYSDRAM
+#define	PHYSDRAM	0x80000000
+#endif
+#define PHYSKTZERO	(PHYSDRAM+0x200000)
 #define	KTZERO		(KZERO+PHYSKTZERO)	/* kernel text start */
 
 /*
@@ -112,7 +120,6 @@
 /*
  * Physical machine information from here on.
  */
-#define	PHYSDRAM	0x80000000
 
 #define ELFMACHINE	243			/* EM_RISCV, for ../port/sysexecelf.c */
 

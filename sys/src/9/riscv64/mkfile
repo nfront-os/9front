@@ -2,12 +2,16 @@ CONF=virt
 CONFLIST=virt pf um
 
 # KTZERO (mem.h); the firmware loads 9$CONF.bin at its physical address
-# (or u-boot 9$CONF.u, sys/src/boot/virt)
+# (or u-boot 9$CONF.u, sys/src/boot/virt). A board whose ram is not at
+# 2GB says where in its CONF: #physdram and #loadaddr (KZERO+ram+2MB)
 kzero=0xffffffc000000000
-loadaddr=0xffffffc080200000
+loadaddr=`{awk 'BEGIN{v="0xffffffc080200000"} $1=="#loadaddr"{v=$2} END{print v}' $CONF}
+physdram=`{awk 'BEGIN{v="0x80000000"} $1=="#physdram"{v=$2} END{print v}' $CONF}
 
 objtype=riscv64
 </$objtype/mkfile
+CFLAGS=$CFLAGS -DPHYSDRAM'='$physdram
+AFLAGS=$AFLAGS -DPHYSDRAM'='$physdram
 p=9
 
 DEVS=`{rc ../port/mkdevlist $CONF}

@@ -65,24 +65,24 @@ _main:
 	addi	t0, t0, 8
 	j	3b
 4:
-	/* boot page table, as l.s */
+	/* boot page table, as l.s: devices first, the ram's slots from PHYSDRAM */
+	li	t1, 256*8
+	add	t1, s5, t1
+	li	t0, PTEVALID|PTEREAD|PTEWRITE|PTEKERNEL
+	sd	t0, 0(t1)			/* PTLX(KZERO, 2) */
 	li	t0, PHYSDRAM
 	srli	t0, t0, PGSHIFT
 	slli	t0, t0, PTEPPNSHIFT
 	ori	t0, t0, PTEKRWX
-	sd	t0, (2*8)(s5)			/* PTLX(PHYSDRAM, 2) */
-	li	t1, 256*8
-	add	t1, s5, t1
-	sd	t0, (2*8)(t1)			/* PTLX(KZERO+PHYSDRAM, 2) */
+	sd	t0, ((PHYSDRAM>>30)*8)(s5)	/* PTLX(PHYSDRAM, 2) */
+	sd	t0, ((PHYSDRAM>>30)*8)(t1)	/* PTLX(KZERO+PHYSDRAM, 2) */
 	li	t2, GiB>>PGSHIFT<<PTEPPNSHIFT	/* and three more GB, see l.s */
 	add	t0, t0, t2
-	sd	t0, (3*8)(t1)
+	sd	t0, (((PHYSDRAM>>30)+1)*8)(t1)
 	add	t0, t0, t2
-	sd	t0, (4*8)(t1)
+	sd	t0, (((PHYSDRAM>>30)+2)*8)(t1)
 	add	t0, t0, t2
-	sd	t0, (5*8)(t1)
-	li	t0, PTEVALID|PTEREAD|PTEWRITE|PTEKERNEL
-	sd	t0, 0(t1)			/* PTLX(KZERO, 2) */
+	sd	t0, (((PHYSDRAM>>30)+3)*8)(t1)
 	li	t0, BY2PG
 	add	t0, s5, t0
 	srli	t0, t0, PGSHIFT

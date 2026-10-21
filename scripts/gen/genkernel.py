@@ -292,6 +292,13 @@ def entry(d, conf, text, v, objtype):
 		},
 		'SourceFiles': src,
 	}
+	# the board's ram and the kernel's address (riscv64: the CONF's
+	# #physdram and #loadaddr lines, as the mkfile reads them)
+	board = dict(re.findall(r'^#(physdram|loadaddr)\s+(\S+)', open(os.path.join(K, d, conf)).read(), re.M))
+	if 'physdram' in board:
+		e['Cflags'] = e['Cflags'] + ['-DPHYSDRAM=' + board['physdram']]
+	if 'loadaddr' in board:
+		e['Oflags'] = e['Oflags'] + ['--defsym=KTZERO=' + board['loadaddr']]
 	if not e['Clean']:
 		del e['Clean']
 	return e
