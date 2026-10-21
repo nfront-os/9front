@@ -20,9 +20,14 @@ SECTIONS
 	.text : {
 		*(.text .text.*)
 	} :text
-	/* unwind tables: read-only, only for debuggers */
+	/* unwind tables: read-only; for debuggers, and for C++ exceptions
+	 * of the native gcc (../9front-gcc): its crtbegin.o registers
+	 * .eh_frame, crtend.o ends it; the language-specific data with it */
 	.eh_frame : {
 		KEEP(*(.eh_frame))
+	} :text
+	.gcc_except_table : {
+		*(.gcc_except_table .gcc_except_table.*)
 	} :text
 	PROVIDE(etext = .);
 
@@ -31,6 +36,14 @@ SECTIONS
 		*(.data .data.*)
 		*(.sdata .sdata.*)
 		*(.rodata .rodata.* .srodata .srodata.* .gnu.linkonce.r.*)
+	} :data
+	/* C++ constructors: 9front's C has none; the native gcc
+	 * (../9front-gcc) runs them from __wrap_main before main */
+	.init_array : {
+		PROVIDE(__init_array_start = .);
+		KEEP(*(SORT_BY_INIT_PRIORITY(.init_array.*)))
+		KEEP(*(.init_array))
+		PROVIDE(__init_array_end = .);
 	} :data
 	PROVIDE(edata = .);
 	.bss : {
