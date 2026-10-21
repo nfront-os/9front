@@ -8,8 +8,9 @@
 # /sys/src, /sys/include and /riscv64, so mk installs land in the copy
 # (riscv64/lib, riscv64/bin, the kernel in sys/src/9/riscv64).
 # Host programs that mkfiles build on the way (libc/ucd's mkrunetype)
-# need kencc amd64 libraries: the setup builds libc and libbio with 6c
-# into .guest/amd64/lib of the copy, bound on /amd64/lib.
+# need kencc amd64 libraries, as 9front's /amd64/lib has them: the setup
+# builds them (mk libs, 6c) into .guest/amd64/lib of the copy, bound on
+# /amd64/lib.
 #
 # usage: scripts/guest/kencc-riscv64.sh [cmd ...]
 #   no cmd: the guest stays up (HOLD=1); type lines with
@@ -48,7 +49,7 @@ setup="$setup bind /n/src9/sys/src /sys/src; bind /n/src9/sys/include /sys/inclu
 setup="$setup bind -c /n/src9/riscv64 /riscv64; bind -c /n/src9/.guest/amd64/lib /amd64/lib;"
 setup="$setup bind -a /n/src9/amd64 /amd64; bind -c /n/src9/acme /acme;"
 for a in $archs; do setup="$setup bind -a /n/src9/$a/include /$a/include;"; done
-setup="$setup test -e /amd64/lib/libbio.a || for(d in libc libbio) @{cd /sys/src/\$d && objtype=amd64 mk install >/n/src9/.glog/amd64-\$d.log >[2=1]};"
+setup="$setup test -e /amd64/lib/.libs || @{cd /sys/src && objtype=amd64 mk libs >/n/src9/.glog/amd64-libs.log >[2=1] && touch /amd64/lib/.libs};"
 
 if [ $# -eq 0 ]; then
 	HOLD=1
