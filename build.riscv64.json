@@ -391,6 +391,7 @@
 			"python3 scripts/build/elf2aout.py riscv64/bin/9virt riscv64/9virt",
 			"python3 scripts/build/elf2aout.py riscv64/bin/9pf riscv64/9pf",
 			"python3 scripts/build/elf2aout.py riscv64/bin/9um riscv64/9um",
+			"python3 scripts/build/elf2aout.py riscv64/bin/9vf riscv64/9vf",
 			"python3 scripts/build/check-install.py -r"
 		]
 	}

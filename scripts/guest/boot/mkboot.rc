@@ -5,7 +5,8 @@
 # bootx64.efi, efiboot.fat -> /386, bootaa64.efi -> /arm64) with their
 # own mkfiles and 9front's compilers (8c/8a/8l, 6c/6a/6l, 7c/7a/7l,
 # aux/aout2efi), and for arm64 qemu boot.scr and 9qemu.u (aux/txt2uimage,
-# aux/aout2uimage), the same for riscv64 virt (sys/src/boot/virt, 9virt.u).
+# aux/aout2uimage), the same for riscv64 virt and vf (sys/src/boot/virt, vf;
+# 9virt.u, 9vf.u).
 # The sources and the install directories are the build host's, served
 # as /n/src9.
 rfork en
@@ -38,13 +39,14 @@ if(test -r /arm64/9qemu){
 	cd /arm64 || fail cd /arm64
 	aux/aout2uimage -Z$kzero 9qemu || fail aout2uimage
 }
-# riscv64 virt: the same with u-boot for qemu-riscv64_smode
-# (sys/src/boot/virt, riscv64's mkfile's $p$CONF.u rule)
-if(test -r /riscv64/9virt){
-	cd /sys/src/boot/virt || fail cd virt
-	mk || fail mk virt
+# riscv64 virt and the VisionFive 2: the same with u-boot (qemu's
+# qemu-riscv64_smode, the board's own; sys/src/boot/$conf, riscv64's
+# mkfile's $p$CONF.u rule)
+for(conf in virt vf) if(test -r /riscv64/9$conf){
+	cd /sys/src/boot/$conf || fail cd $conf
+	mk || fail mk $conf
 	kzero=`{sed -n 's/^kzero=//p' /sys/src/9/riscv64/mkfile}
 	cd /riscv64 || fail cd /riscv64
-	aux/aout2uimage -l 5 -Z$kzero 9virt || fail aout2uimage riscv64
+	aux/aout2uimage -l 5 -Z$kzero 9$conf || fail aout2uimage 9$conf
 }
 echo mkboot: done

@@ -172,6 +172,8 @@ struct Soc {
 	int	gemsgmii;	/* the GEM's phy on sgmii (PolarFire), else (r)gmii */
 	uintptr	sdhc;		/* standard sd host controller registers (sdhcimmio.c) */
 	int	sdhcirq;
+	int	cip1200;	/* SiFive U54/U74 erratum: sfence.vma by address unreliable */
+	int	uartdw;		/* the 16550 is DesignWare's (busy detect interrupt) */
 };
 extern Soc soc;
 

@@ -270,8 +270,12 @@ putmmu(uintptr va, uintptr pa, Page *pg)
 	old = *pte;
 	*pte = PA2PTE(PPN(pa)) | attr;
 	coherence();
-	if(old & PTEVALID)
-		flushtlbva(va);
+	if(old & PTEVALID){
+		if(soc.cip1200)	/* CIP-1200: flush everything, as Linux does */
+			flushtlb();
+		else
+			flushtlbva(va);
+	}
 	if(needtxtflush(pg)){
 		fencei();
 		donetxtflush(pg);

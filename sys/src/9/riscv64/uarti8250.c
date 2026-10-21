@@ -25,6 +25,7 @@ enum {					/* I/O ports */
 	Lsr		= 5,		/* Line Status */
 	Msr		= 6,		/* Modem Status */
 	Scr		= 7,		/* Scratch Pad */
+	Usr		= 31,		/* DesignWare: uart status (0x7c), clears busy detect */
 	Dll		= 0,		/* Divisor Latch LSB */
 	Dlm		= 1,		/* Divisor Latch MSB */
 };
@@ -516,6 +517,14 @@ i8250interrupt(Ureg*, void* arg)
 			break;
 
 		default:
+			/*
+			 * DesignWare's busy detect (an Lcr write while it
+			 * sent): only reading its uart status clears it
+			 */
+			if(soc.uartdw && (iir & 0x0F) == 0x07){
+				inr(ctlr, Usr);
+				break;
+			}
 			iprint("weird uart interrupt 0x%2.2uX\n", iir);
 			break;
 		}

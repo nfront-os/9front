@@ -1,5 +1,5 @@
 CONF=virt
-CONFLIST=virt pf um
+CONFLIST=virt pf um vf
 
 # KTZERO (mem.h); the firmware loads 9$CONF.bin at its physical address
 # (or u-boot 9$CONF.u, sys/src/boot/virt). A board whose ram is not at

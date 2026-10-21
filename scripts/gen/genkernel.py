@@ -298,7 +298,8 @@ def entry(d, conf, text, v, objtype):
 	if 'physdram' in board:
 		e['Cflags'] = e['Cflags'] + ['-DPHYSDRAM=' + board['physdram']]
 	if 'loadaddr' in board:
-		e['Oflags'] = e['Oflags'] + ['--defsym=KTZERO=' + board['loadaddr']]
+		# before -T: kernel.ld's DEFINED(KTZERO) sees only what came first
+		e['Oflags'] = ['--defsym=KTZERO=' + board['loadaddr']] + e['Oflags']
 	if not e['Clean']:
 		del e['Clean']
 	return e

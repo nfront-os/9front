@@ -47,8 +47,8 @@ KERNEL = {
 	'riscv64': (['bash scripts/build/gen-rebootcode-i.sh riscv64', 'bash scripts/build/gen-initcode-i.sh',
 		'bash scripts/build/gen-bootfs.sh virt riscv64', 'bash scripts/build/gen-bootfs.sh pf riscv64',
 		'bash scripts/build/gen-bootfs.sh um riscv64'],
-		'/sys/src/9/riscv64/build.json', ['riscv64/bin/9virt', 'riscv64/bin/9pf', 'riscv64/bin/9um'],
-		['riscv64/9virt', 'riscv64/9pf', 'riscv64/9um']),
+		'/sys/src/9/riscv64/build.json', ['riscv64/bin/9virt', 'riscv64/bin/9pf', 'riscv64/bin/9um', 'riscv64/bin/9vf'],
+		['riscv64/9virt', 'riscv64/9pf', 'riscv64/9um', 'riscv64/9vf']),
 }
 
 def listing(script, objtype):

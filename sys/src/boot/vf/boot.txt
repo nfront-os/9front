@@ -1,0 +1,3 @@
+mw.b 0x40100000 0x0 0x10000
+load ${devtype} ${devnum}:${bootpart} 0x40100000 ${prefix}plan9.ini
+load ${devtype} ${devnum}:${bootpart} 0x60000000 ${prefix}9vf.u && bootm 0x60000000 - ${fdtcontroladdr}

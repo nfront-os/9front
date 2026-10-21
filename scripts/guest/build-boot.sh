@@ -22,14 +22,16 @@ S=$TMP/src9
 mkdir -p "$S/386" "$S/arm64" "$S/riscv64"
 git -C "$ROOT" ls-files sys/include 386/include 386/mkfile amd64/include amd64/mkfile \
 	arm64/include arm64/mkfile sys/src/boot/pc sys/src/boot/efi sys/src/boot/qemu \
-	sys/src/boot/virt sys/src/9/arm64/mkfile sys/src/9/riscv64/mkfile sys/src/mkfile.proto \
+	sys/src/boot/virt sys/src/boot/vf sys/src/9/arm64/mkfile sys/src/9/riscv64/mkfile sys/src/mkfile.proto \
 	sys/src/cmd/mkone sys/src/cmd/mklib sys/src/cmd/mksyslib \
 	| (cd "$ROOT" && tar -cf - -T -) | tar -xf - -C "$S"
 # arm64 qemu: the a.out kernel (the build with ARCH=arm64)
 # gets its u-boot image, sys/src/boot/qemu its boot.scr
 [ ! -s "$ROOT/arm64/9qemu" ] || cp "$ROOT/arm64/9qemu" "$S/arm64/9qemu"
-# riscv64 virt the same (sys/src/boot/virt)
-[ ! -s "$ROOT/riscv64/9virt" ] || cp "$ROOT/riscv64/9virt" "$S/riscv64/9virt"
+# riscv64 virt and the VisionFive 2 the same (sys/src/boot/virt, vf)
+for c in virt vf; do
+	[ ! -s "$ROOT/riscv64/9$c" ] || cp "$ROOT/riscv64/9$c" "$S/riscv64/9$c"
+done
 
 mkdir -p "$TMP/extra/rc/bin" "$TMP/extra/riscv64"	# mount point the guest root lacks
 cp "$ROOT/scripts/guest/boot/mkboot.rc" "$TMP/extra/rc/bin/mkboot"
@@ -51,11 +53,12 @@ if [ -s "$S/arm64/9qemu" ]; then
 	cp "$S/sys/src/boot/qemu/boot.scr" "$ROOT/sys/src/boot/qemu/boot.scr"
 	ls -l "$ROOT/arm64/9qemu.u" "$ROOT/sys/src/boot/qemu/boot.scr" | awk '{print $5, $9}'
 fi
-if [ -s "$S/riscv64/9virt" ]; then
-	[ -s "$S/riscv64/9virt.u" ] && [ -s "$S/sys/src/boot/virt/boot.scr" ] || die "missing 9virt.u or boot.scr"
-	cp "$S/riscv64/9virt.u" "$ROOT/riscv64/9virt.u"
-	cp "$S/sys/src/boot/virt/boot.scr" "$ROOT/sys/src/boot/virt/boot.scr"
-	ls -l "$ROOT/riscv64/9virt.u" "$ROOT/sys/src/boot/virt/boot.scr" | awk '{print $5, $9}'
-fi
+for c in virt vf; do
+	[ -s "$S/riscv64/9$c" ] || continue
+	[ -s "$S/riscv64/9$c.u" ] && [ -s "$S/sys/src/boot/$c/boot.scr" ] || die "missing 9$c.u or boot.scr"
+	cp "$S/riscv64/9$c.u" "$ROOT/riscv64/9$c.u"
+	cp "$S/sys/src/boot/$c/boot.scr" "$ROOT/sys/src/boot/$c/boot.scr"
+	ls -l "$ROOT/riscv64/9$c.u" "$ROOT/sys/src/boot/$c/boot.scr" | awk '{print $5, $9}'
+done
 ls -l "$ROOT"/386/{mbr,pbs,9boot*,*.efi,efiboot.fat} "$ROOT"/arm64/bootaa64.efi | awk '{print $5, $9}'
 echo "ok: boot loaders in 386/, arm64/, riscv64/"

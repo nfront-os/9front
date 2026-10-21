@@ -19,6 +19,8 @@ Soc soc = {
 	{ 0x10090000 },		/* the GEM (gigabit ethernet) */
 	{ 53 },
 	0,			/* the phy on (r)gmii */
+	0, 0,
+	1,			/* CIP-1200 */
 };
 
 /* no pci (yet): plic.c's intrenable sees no BusPCI devices */
