@@ -1043,3 +1043,9 @@ Quelle: Geoff Collyers `dist.9k-rv.tgz` (9p.io/sources/contrib/geoff/riscv, Stan
 - **Bitfeld-Masken (LP64, alle Compiler):** `bitload`/`bitstore` hielten die Masken in `long`; der gcc-gebaute jc erzeugte für ein 31-Bit-Feld `AND $-4294967295` (jl: „illegal combination AND 9 0 1“, gs linkte nicht), ebenso 5c und 7c (cmp-lp64.sh mit einem Bitfeld-Test; 6c/8c unauffällig). `s32int` (gcc 94873f86e, jc hier).
 - **Ergebnis kencc:** im amd64-Gast bauen alle riscv64-Bibliotheken, APE, 708 Programme und der Kernel ohne mk-Fehler; der kencc-`9virt.bin` besteht tests/boot 11/11.
 - **Offen:** kein natives gcc für riscv64 (`../9front-gcc` hat kein riscv64-Target); keine riscv64-ISO (9fronts CD ist pc/pc64).
+
+## 2026-10-21 (Teil 56): natives gcc für riscv64 (../9front-gcc, Branch riscv)
+- Target `riscv64-unknown-plan9` in `../9front-gcc` (Details dort in `NOTES.md`): rv64gc/lp64d/medany wie `riscv64/cflags.json`, ohne Linker-Relaxation (niemand setzt gp), `char` vorzeichenbehaftet; gccs Target-Beschreibung jetzt `config/plan9.h` + `i386/plan9.h`/`riscv/plan9.h` (x86 nachweislich unverändert).
+- **Hier:** `riscv64/plan9.ld` sammelt `.init_array` (Konstruktoren, `__wrap_main`) und `.gcc_except_table` (C++-Exceptions) wie amd64; C-Programme linken byte-gleich.
+- Ergebnis im riscv64-Gast: Cross-Tests 10/10 (APE, nativ, C++ mit Exceptions, C99, pthreads, libstdc++), `/riscv64/gnu/bin/gcc` und `g++` übersetzen auf 9front (7/7, Objekte gleich dem Cross-Compiler), gccmk 5/5. Der Tree mit dem neuen Compiler gebaut: 5811 von 5830 Objekten gleich dem Linux-Cross-Build (Rest: Bauzeit-Datum, eingebettete Compiler-Version).
+- Offen: Selbstbau des ganzen Trees im riscv64-Gast (`build-self.sh` kennt riscv64 noch nicht; unter TCG viele Stunden); musls `expl`/`logl`/`log1pl` für 128-Bit-`long double` sind nur double-genau.
