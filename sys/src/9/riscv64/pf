@@ -20,6 +20,7 @@ dev
 
 link
 	ethergem
+	sdhcimmio
 	ethersink
 	ethermedium
 	loopbackmedium
@@ -38,6 +39,7 @@ misc
 	socpf
 	plic
 	uarti8250
+	sdmmc		sdhcimmio
 port
 	int cpuserver = 0;
 bootdir

@@ -291,6 +291,7 @@
 				],
 				"Link": [
 					"ethergem",
+					"sdhcimmio",
 					"ethersink",
 					"ethermedium",
 					"loopbackmedium",
@@ -309,7 +310,8 @@
 				"Misc": [
 					"socpf",
 					"plic",
-					"uarti8250"
+					"uarti8250",
+					"sdmmc sdhcimmio"
 				]
 			},
 			"Ramfiles": {
@@ -371,6 +373,8 @@
 			"../ip/nullmedium.c",
 			"../ip/pktmedium.c",
 			"plic.c",
+			"sdhcimmio.c",
+			"../port/sdmmc.c",
 			"socpf.c",
 			"../ip/tcp.c",
 			"uarti8250.c",

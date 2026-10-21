@@ -17,6 +17,7 @@ Soc soc = {
 	0x20100000, 2, 4, 91, 150000000,	/* mmuart1 (stdout-path serial1) */
 	{ 0x20110000, 0x20112000 },	/* mac0, mac1 (GEM); plan9.ini ether0=port= picks */
 	{ 64, 70 },			/* their first (queue 0) interrupts */
+	0x20008000+0x200, 88,		/* the Cadence SD4HC's standard registers (SRS) */
 };
 
 /* no pci (yet): plic.c's intrenable sees no BusPCI devices */
