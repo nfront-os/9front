@@ -7,7 +7,7 @@
 # port of the loaders: scripts/guest/boot-cli.sh boots the system and runs
 # scripts/guest/boot/mkboot.rc on a copy of the sources; the results are
 # installed into $ROOT/386 and $ROOT/arm64 like a native mk install.
-# The compilers' LP64 safety is checked by scripts/port/cmp-lp64.sh.
+# The compilers' LP64 safety is checked by scripts/check/cmp-lp64.sh.
 #
 # usage: scripts/guest/build-boot.sh   (needs the build first: CC=gcc ARCH=amd64 sys/src/cmd/build/build.exe)
 set -e

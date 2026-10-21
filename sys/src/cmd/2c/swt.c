@@ -200,7 +200,7 @@ int
 bitload(Node *b, int n1, int n2, int n3, Node *nn)
 {
 	int sh, g, gs;
-	long v;
+	s32int v;	/* GCC port: was long; the masks are 32 bits (~v not 64) */
 	Node *l;
 	Type *t;
 
@@ -261,7 +261,7 @@ bitload(Node *b, int n1, int n2, int n3, Node *nn)
 void
 bitstore(Node *b, int n1, int n2, int n3, int result, Node *nn)
 {
-	long v;
+	s32int v;	/* GCC port: was long; the masks are 32 bits (~v not 64) */
 	Node *l;
 	Type *t;
 	int sh, g, gs;
