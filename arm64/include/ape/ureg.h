@@ -34,17 +34,20 @@ struct Ureg {
 	unsigned long long	r26;
 	unsigned long long	r27;
 	unsigned long long	r28;	/* sb */
-	union {
-		unsigned long long	r29;
-		unsigned long long	sp;
-	};
+	/*
+	 * GCC port: the layout of the kernel's /arm64/include/ureg.h; was
+	 * union {r29; sp}, r30/link, type, psr, pc -- notetramp.c's u->pc
+	 * set psr, siglongjmp's u->sp r29 (APE signals died at pc 0)
+	 */
+	unsigned long long	r29;
 	union {
 		unsigned long long	r30;
 		unsigned long long	link;
 	};
-	unsigned long long	type;	/* of exception */
-	unsigned long long	psr;
+	unsigned long long	sp;
 	unsigned long long	pc;	/* interrupted addr */
+	unsigned long long	psr;
+	unsigned long long	type;	/* of exception */
 };
 
 #endif
