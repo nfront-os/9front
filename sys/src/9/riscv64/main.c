@@ -166,7 +166,7 @@ mpinit(void)
 void
 cpuidprint(void)
 {
-	iprint("cpu%d: hart %d, riscv64 qemu virt\n", m->machno, m->hartid);
+	iprint("cpu%d: hart %d, riscv64 %s\n", m->machno, m->hartid, soc.name);
 }
 
 void

@@ -37,6 +37,7 @@ ip
 	igmp
 	ipmux
 misc
+	socvirt
 	plic
 	uarti8250
 	sdvirtio10	pci sdscsi virtio10mem

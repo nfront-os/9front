@@ -231,6 +231,10 @@ faultriscv(Ureg *ureg)
 			ureg->pc = ureg->link;
 			return;
 		}
+		/* before the first process nothing can catch it (waserror needs up) */
+		if(up == nil)
+			panic("kernel fault: cause %llud addr %#p pc %#p ra %#p",
+				ureg->cause, ureg->tval, ureg->pc, ureg->link);
 		if(waserror()){
 			if(up->nerrlab == 0){
 				pprint("suicide: sys: %s\n", up->errstr);

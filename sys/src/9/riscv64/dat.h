@@ -27,6 +27,7 @@ typedef struct PhysUart	PhysUart;
 typedef struct Pcidev	Pcidev;
 typedef struct PMMU	PMMU;
 typedef struct Proc	Proc;
+typedef struct Soc	Soc;
 typedef u64int		PTE;
 typedef struct Uart	Uart;
 typedef struct Ureg	Ureg;
@@ -150,6 +151,24 @@ struct PMMU
 #define ARG(list, T) (sizeof(T) <= 4 ? \
 	(((list) += 4), *(T*)((list) - 4)) : \
 	(((list) = (uchar*)(((uintptr)(list) + sizeof(T) + 7) & ~7)), *(T*)((list) - sizeof(T))))
+
+/*
+ * the machine (board, emulator): where its devices are, set by the
+ * configuration's soc file (socvirt.c, ...)
+ */
+struct Soc {
+	char	*name;
+	uintptr	plic;		/* physical address */
+	int	nirq;		/* sources, the plic's first is 1 */
+	int	plicctx0;	/* supervisor context of hart h: */
+	int	plicctxstride;	/* plicctx0 + h*plicctxstride */
+	uintptr	uart;		/* the console's 16550 */
+	int	uartshift;	/* registers 1<<uartshift apart */
+	int	uartwidth;	/* accessed as bytes (1) or words (4) */
+	int	uartirq;
+	ulong	uartfreq;
+};
+extern Soc soc;
 
 #include "../port/portdat.h"
 

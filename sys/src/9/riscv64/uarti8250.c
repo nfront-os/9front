@@ -103,6 +103,8 @@ enum {					/* Msr */
 
 typedef struct Ctlr {
 	uchar	*io;
+	int	shift;		/* soc.uartshift, soc.uartwidth */
+	int	width;
 	int	irq;
 	int	tbdf;
 	int	iena;
@@ -118,8 +120,7 @@ typedef struct Ctlr {
 extern PhysUart i8250physuart;
 
 static Ctlr i8250ctlr[1] = {
-{	.irq	= IRQuart,
-	.tbdf	= BUSUNKNOWN, },
+{	.tbdf	= BUSUNKNOWN, },
 };
 
 static Uart i8250uart[1] = {
@@ -131,9 +132,26 @@ static Uart i8250uart[1] = {
 	.next	= nil, },
 };
 
-#define csr8r(c, r)	(((volatile uchar*)(c)->io)[r])
-#define csr8w(c, r, v)	(((volatile uchar*)(c)->io)[r] = (c)->sticky[(r)]|(v))
-#define outr(c, r, v)	(((volatile uchar*)(c)->io)[r] = (v))
+/* register r is 1<<shift apart, read and written as bytes or words */
+static int
+inr(Ctlr *c, int r)
+{
+	if(c->width == 4)
+		return ((volatile u32int*)c->io)[r<<c->shift>>2];
+	return ((volatile uchar*)c->io)[r<<c->shift];
+}
+
+static void
+outr(Ctlr *c, int r, int v)
+{
+	if(c->width == 4)
+		((volatile u32int*)c->io)[r<<c->shift>>2] = v & 0xFF;
+	else
+		((volatile uchar*)c->io)[r<<c->shift] = v;
+}
+
+#define csr8r(c, r)	inr(c, r)
+#define csr8w(c, r, v)	outr(c, r, (c)->sticky[(r)]|(v))
 
 static char*
 i8250status(Uart* uart, char *p, char *e)
@@ -650,10 +668,16 @@ void
 uartconsinit(void)
 {
 	Uart *uart;
+	Ctlr *ctlr;
 	char *cmd, *p;
 
 	uart = &i8250uart[0];
-	((Ctlr*)uart->regs)->io = vmap(PHYSUART, 8);
+	ctlr = uart->regs;
+	ctlr->shift = soc.uartshift;
+	ctlr->width = soc.uartwidth;
+	ctlr->irq = soc.uartirq;
+	ctlr->io = vmap(soc.uart, 8<<soc.uartshift);
+	uart->freq = soc.uartfreq;
 	(*uart->phys->enable)(uart, 0);
 	uartctl(uart, "b115200 l8 pn s1");
 	if((p = getconf("console")) != nil){

@@ -101,6 +101,7 @@
 					"ipmux"
 				],
 				"Misc": [
+					"socvirt",
 					"plic",
 					"uarti8250",
 					"sdvirtio10 pci sdscsi virtio10mem"
@@ -170,6 +171,7 @@
 			"plic.c",
 			"../port/sdscsi.c",
 			"../port/sdvirtio10.c",
+			"socvirt.c",
 			"../ip/tcp.c",
 			"uarti8250.c",
 			"../ip/udp.c",

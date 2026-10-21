@@ -43,9 +43,10 @@ KERNEL = {
 	'arm64': (['bash scripts/build/gen-rebootcode-i.sh arm64', 'bash scripts/build/gen-initcode-i.sh',
 		'bash scripts/build/gen-bootfs.sh qemu arm64'],
 		'/sys/src/9/arm64/build.json', 'arm64/bin/9qemu', 'arm64/9qemu'),
+	# riscv64: a kernel per machine (sys/src/9/riscv64/mkfile's CONFLIST)
 	'riscv64': (['bash scripts/build/gen-rebootcode-i.sh riscv64', 'bash scripts/build/gen-initcode-i.sh',
 		'bash scripts/build/gen-bootfs.sh virt riscv64'],
-		'/sys/src/9/riscv64/build.json', 'riscv64/bin/9virt', 'riscv64/9virt'),
+		'/sys/src/9/riscv64/build.json', ['riscv64/bin/9virt'], ['riscv64/9virt']),
 }
 
 def listing(script, objtype):
@@ -67,6 +68,8 @@ def main():
 	klibs = sorted('/sys/src/%s/klib.json' % d for d in os.listdir(os.path.join(ROOT, 'sys/src'))
 		if d.startswith('lib') and os.path.exists(os.path.join(ROOT, 'sys/src', d, 'klib.json')))
 	for objtype, (gens, kern, elf, aout) in KERNEL.items():
+		if isinstance(elf, str):
+			elf, aout = [elf], [aout]
 		sfx = '' if objtype == 'amd64' else '.' + objtype
 		libs = ['/sys/src/%s/%s%s.json' % (l, l, sfx) for l in listing('genlibs.py', objtype)]
 		cmds = ['/' + c for c in listing('gencmds.py', objtype)]
@@ -82,8 +85,8 @@ def main():
 			{'Name': 'cmds', 'Projects': cmds},
 			{'Name': 'kernelgen', 'Pre': gens, 'Clean': genclean.clean(gens, ROOT)},
 			{'Name': 'kernel', 'Projects': [kern]},
-			{'Name': 'install', 'Post': ['python3 scripts/build/elf2aout.py %s %s' % (elf, aout),
-				'python3 scripts/build/check-install.py -r']},
+			{'Name': 'install', 'Post': ['python3 scripts/build/elf2aout.py %s %s' % ea
+				for ea in zip(elf, aout)] + ['python3 scripts/build/check-install.py -r']},
 		])
 	write('build.json', [{'Name': 'all', 'Projects': ['/build.$ARCH.json']}])
 

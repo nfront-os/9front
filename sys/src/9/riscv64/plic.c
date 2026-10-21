@@ -9,10 +9,11 @@
 
 /*
  * the platform-level interrupt controller; device interrupts go
- * to the supervisor context of cpu0's hart (2*hart+1 on qemu's virt).
+ * to the supervisor context of cpu0's hart (soc.plicctx0 +
+ * hart*soc.plicctxstride: 2*hart+1 on qemu's virt).
  */
 enum {
-	Nirq		= 96,		/* sources on qemu's virt machine */
+	Nirq		= 1024,		/* at most; the machine has soc.nirq */
 
 	Priority	= 0x000000,	/* per irq */
 	Pending		= 0x001000,
@@ -57,12 +58,12 @@ intrinit(void)
 	int i;
 
 	if(plic == nil)
-		plic = vmap(PHYSPLIC, 0x400000);
-	m->plicctx = 2*m->hartid + 1;
+		plic = vmap(soc.plic, 0x400000);
+	m->plicctx = soc.plicctx0 + m->hartid*soc.plicctxstride;
 	if(m->machno == 0)
-		for(i = 1; i < Nirq; i++)
+		for(i = 1; i < soc.nirq; i++)
 			REG(Priority + i*4) = 0;
-	for(i = 0; i < Nirq/32; i++)
+	for(i = 0; i < (soc.nirq+31)/32; i++)
 		REG(Enable + m->plicctx*0x80 + i*4) = 0;
 	REG(Threshold + m->plicctx*0x1000) = 0;
 	coherence();
@@ -74,7 +75,7 @@ intrsoff(void)
 {
 	int i;
 
-	for(i = 0; i < Nirq/32; i++)
+	for(i = 0; i < (soc.nirq+31)/32; i++)
 		REG(Enable + m->plicctx*0x80 + i*4) = 0;
 	coherence();
 }
@@ -94,7 +95,7 @@ irq(Ureg *ureg)
 	m->intr++;
 	for(;;){
 		id = REG(Claim + m->plicctx*0x1000);
-		if(id == 0 || id >= Nirq)
+		if(id == 0 || id >= soc.nirq)
 			break;
 		for(v = vctl[id]; v != nil; v = v->next){
 			coherence();
@@ -117,7 +118,7 @@ intrenable(int irq, void (*f)(Ureg*, void*), void *a, int tbdf, char *name)
 	}
 	if(tbdf != BUSUNKNOWN)
 		return;
-	if(irq <= 0 || irq >= Nirq){
+	if(irq <= 0 || irq >= soc.nirq){
 		print("intrenable: %s: bad irq %d\n", name, irq);
 		return;
 	}
@@ -145,7 +146,7 @@ intrdisable(int irq, void (*f)(Ureg*, void*), void *a, int tbdf, char*)
 		pciintrdisable(tbdf, f, a);
 		return;
 	}
-	if(irq <= 0 || irq >= Nirq)
+	if(irq <= 0 || irq >= soc.nirq)
 		return;
 	ilock(&vctllock);
 	for(l = &vctl[irq]; (v = *l) != nil; l = &v->next)

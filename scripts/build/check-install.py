@@ -37,7 +37,8 @@ from arch import OBJTYPE as A
 
 # the kernel mk install puts in /$objtype, and the ELF the build keeps
 # beside the programs for boot-cli.sh's multiboot / QEMU -kernel
-KERNELS = {'amd64': ['9pc64'], '386': ['9pc'], 'arm64': ['9qemu', '9qemu.u'], 'riscv64': ['9virt', '9virt.bin']}[A]
+KERNELS = {'amd64': ['9pc64'], '386': ['9pc'], 'arm64': ['9qemu', '9qemu.u'],
+	'riscv64': ['9virt', '9virt.bin']}[A]
 
 def expected():
 	"""{9front path: target name}"""
@@ -97,7 +98,7 @@ def main():
 				break
 	# stale: what no rule installs in the program directories (the kernel
 	# build's ELF amd64/bin/9pc64 is for boot-cli.sh's multiboot)
-	keep = {'/%s/bin/%s' % (A, KERNELS[0])}
+	keep = {'/%s/bin/%s' % (A, k) for k in KERNELS if '.' not in k}
 	for top in ('/%s/bin' % A, '/acme/bin/' + A):
 		for dp, dn, fn in os.walk(g.ROOT + top):
 			for f in fn:
