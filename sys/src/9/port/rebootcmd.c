@@ -69,7 +69,7 @@ rebootcmd(int argc, char *argv[])
 		}
 	}
 	if(magic & HDR_MAGIC)
-		readn(c, (void *)&ehdr.hdr, sizeof(ehdr.hdr));
+		readn(c, ehdr.hdr2, sizeof(ehdr.hdr2));	/* GCC port: was hdr, now hdr2 (Exec is named hdr) */
 
 	switch(magic){
 	case R_MAGIC:
