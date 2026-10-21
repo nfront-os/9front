@@ -72,7 +72,7 @@ SRC9ADDR=10.0.2.101
 # KVM when the host has it (KVM=0: emulation only); same CPU model either way
 accel=()
 [ "${KVM:-1}" != 0 ] && [ -w /dev/kvm ] && accel=(-accel kvm)
-SRC9_PORT=${SRC9_PORT:-5641}
+SRC9_PORT=${SRC9_PORT:-5641}	# host port of the src9 ufs; the guest's is always 5641
 
 die(){ echo "boot-cli: $*" >&2; exit 1; }
 port_open(){ timeout 2 bash -c "exec 3<>/dev/tcp/127.0.0.1/$UFS_PORT" 2>/dev/null; }
@@ -167,7 +167,9 @@ fwd=guestfwd=tcp:$FSADDR:564-tcp:127.0.0.1:$UFS_PORT
 if [ -n "$SRC9" ]; then
 	"$UFS" -root="$SRC9" -addr=":$SRC9_PORT" > "$CLI_DIR/ufs-src9.log" 2>&1 &
 	pids+=($!)
-	fwd=$fwd,guestfwd=tcp:$SRC9ADDR:$SRC9_PORT-tcp:127.0.0.1:$SRC9_PORT	# not 564 too: QEMU names the forwards by guest port
+	# the guest always dials tcp!10.0.2.101!5641 (not 564 too: QEMU
+	# names the forwards by guest port); SRC9_PORT is the host's side
+	fwd=$fwd,guestfwd=tcp:$SRC9ADDR:5641-tcp:127.0.0.1:$SRC9_PORT
 fi
 disk=()
 [ -z "$DISK" ] || disk=(-drive "file=$DISK,format=raw,if=ide,index=0,media=disk")
