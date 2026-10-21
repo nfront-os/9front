@@ -57,7 +57,15 @@
 #define VMAPL1		(L1+BY2PG)			/* level 1 table of VMAP */
 #define KMEMBASE	(L1+2*BY2PG)			/* first free page */
 
-#define BOOTARGSLEN	(4*KiB)
+/*
+ * plan9.ini as text, as on arm64: the firmware's boot script
+ * (sys/src/boot/virt/boot.txt) loads it here, 1MB below the kernel and
+ * above OpenSBI; writeconf() leaves the configuration here for a
+ * rebooted kernel. Zeroed memory: none.
+ */
+#define CONFADDR	(KZERO+PHYSKTZERO-MiB)
+#define BOOTARGS	((char*)CONFADDR)
+#define BOOTARGSLEN	(64*KiB)
 
 #define	UZERO		0ULL			/* user segment */
 #define	UTZERO		(UZERO+BY2PG)		/* user text start; jl's default */

@@ -12,10 +12,9 @@ static char maxmem[256];
 static int cpus;
 static char ncpu[256];
 
-/* the device tree from the firmware (l.s); the parsed configuration */
+/* the device tree from the firmware (l.s); its /chosen/bootargs */
 uintptr dtbpa;
-static char bootargs[BOOTARGSLEN];
-#define BOOTARGS bootargs
+static char cmdline[4*KiB];
 
 static int
 findconf(char *k)
@@ -112,10 +111,11 @@ devtreeprop(char *path, char *key, void *val, int len)
 		return;
 	}
 	if(strncmp(path, "/chosen", 7) == 0 && strcmp(key, "bootargs") == 0){
-		if(len > BOOTARGSLEN)
-			len = BOOTARGSLEN;
-		memmove(BOOTARGS, val, len);
-		plan9iniinit(BOOTARGS, 1);
+		if(len >= sizeof(cmdline))
+			len = sizeof(cmdline)-1;
+		memmove(cmdline, val, len);
+		cmdline[len] = 0;
+		plan9iniinit(cmdline, 1);
 		return;
 	}
 }
@@ -187,11 +187,12 @@ bootargsinit(void)
 	void *va;
 	uintptr len;
 
+	/* plan9.ini first, the command line's settings over it */
+	BOOTARGS[BOOTARGSLEN-1] = 0;
+	plan9iniinit(BOOTARGS, 0);
 	if(dtbpa == 0 || (len = cankaddr(dtbpa)) == 0)
 		return;
 	va = KADDR(dtbpa);
-
-	plan9iniinit(BOOTARGS, 0);
 	if(parsedevtree(va, len) == 0){
 		/* user can provide fewer ncpu */
 		if(findconf("*ncpu") < 0){

@@ -54,6 +54,7 @@ uchar archtab[] = {
 	[MAMD64] IH_ARCH_X86_64,
 	[MPOWER64] IH_ARCH_PPC,
 	[MARM64] IH_ARCH_ARM64,
+	[MRISCV64] IH_ARCH_RISCV,
 };
 
 void
@@ -101,7 +102,7 @@ main(int argc, char **argv)
 {
 	Fhdr fhdr;
 	u64int kzero;
-	ulong rtext;
+	ulong rtext, align;
 	uchar header[64];
 	char *ofile, *iname;
 	int arch;
@@ -138,8 +139,10 @@ main(int argc, char **argv)
 	dcrc = 0;
 	copy(fhdr.txtsz);
 
-	/* round text out to page boundary (see rebootcmd()) */
-	rtext = ((fhdr.entry + fhdr.txtsz + mach->pgsize-1) & -mach->pgsize) - fhdr.entry;
+	/* round text out to page boundary (see rebootcmd()); riscv64
+	 * kernels have their data right after the text (jl -R8) */
+	align = fhdr.magic == B_MAGIC ? 8 : mach->pgsize;
+	rtext = ((fhdr.entry + fhdr.txtsz + align-1) & -align) - fhdr.entry;
 	if(rtext > fhdr.txtsz){
 		memset(buf, 0, rtext - fhdr.txtsz);
 		if(write(outfd, buf, rtext - fhdr.txtsz) < 0) sysfatal("write: %r");

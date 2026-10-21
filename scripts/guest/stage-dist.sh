@@ -28,7 +28,7 @@
 # binaries carry DWARF (8l writes none) and are stripped. The guest's install script
 # (scripts/guest/boot/mkdisk.rc) reads the result as /n/src9.
 #
-# usage: [objtype=386] scripts/guest/stage-dist.sh dir
+# usage: [objtype=386|riscv64] scripts/guest/stage-dist.sh dir
 set -e
 ROOT=${PLAN9:-$(git -C "$(dirname "$0")" rev-parse --show-toplevel)}
 OUT=${1:?usage: stage-dist.sh dir}
@@ -72,7 +72,13 @@ done
 # the kernel where 9front installs it: amd64/9pc64 (386/9pc), the a.out
 # the build's install step makes (scripts/build/elf2aout.py)
 A=${objtype:-amd64}
-case $A in amd64) K=9pc64 ;; 386) K=9pc ;; *) echo "stage-dist: objtype=$A unknown" >&2; exit 1 ;; esac
+# (riscv64: riscv64/9virt, with 9virt.u for u-boot from build-boot.sh)
+case $A in
+amd64)	K=9pc64 STRIP=strip ;;
+386)	K=9pc STRIP=strip ;;
+riscv64)	K=9virt STRIP=riscv64-linux-gnu-strip ;;
+*)	echo "stage-dist: objtype=$A unknown" >&2; exit 1 ;;
+esac
 [ -s "$ROOT/$A/$K" ] || { echo "stage-dist: no $A/$K, run CC=gcc ARCH=$A sys/src/cmd/build/build.exe" >&2; exit 1; }
 mkdir -p "$VIEW/.$A"
 for f in "$ROOT"/$A/*; do ln -s "$f" "$VIEW/.$A/$(basename "$f")"; done
@@ -116,7 +122,7 @@ python3 "$ROOT/scripts/guest/proto.py" -s "$VIEW" -d "$OUT" \
 cat "${PROTOS[@]}" > "$OUT/gccproto"
 # not in /$objtype/go: its programs are a.out, its ELF files are test data of Go's std
 # (debug/elf, runtime/pprof), which strip would change
-find "$OUT" -path "$OUT/$A/go" -prune -o -type f -perm -u+x -exec sh -c 'file -b "$1" | grep -q ^ELF && strip "$1"' _ {} \;
+find "$OUT" -path "$OUT/$A/go" -prune -o -type f -perm -u+x -exec sh -c 'file -b "$1" | grep -q ^ELF && '"$STRIP"' "$1"' _ {} \;
 echo "$(grep -c . "$OUT.warnings") proto warnings ($OUT.warnings)"
 # everything mk install installs made it into the distribution
 python3 "$ROOT/scripts/build/check-install.py" -d "$OUT" | grep -v '^broken' | tail -20

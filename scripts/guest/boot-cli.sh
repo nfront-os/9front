@@ -38,6 +38,9 @@
 #                     has none by default. arm64 (TCG) always has PMUv3
 #         SMP         QEMU processors (QEMU's default: 1; tests/lib.sh sets 4)
 #         QEMU_EXTRA  extra QEMU flags (e.g. "-s -S" for gdb)
+#         BOOT        riscv64: "uboot" boots through u-boot and a FAT disk
+#                     with boot.scr, plan9.ini and 9virt.u (as the disk image
+#                     does; scripts/guest/build-boot.sh) instead of -kernel
 #         BOOTKERNEL  the kernel to boot (default: the build's
 #                     $objtype/bin/$KNAME; e.g. one built with kencc);
 #                     on arm64 its u-boot image (default arm64/9qemu.u)
@@ -117,10 +120,23 @@ if [ -n "$BOOTDISK$BOOTISO" ]; then
 		[ -f "$BOOTDISK" ] || die "$BOOTDISK missing"
 		media=(-drive "file=$BOOTDISK,format=raw,if=ide,index=0")
 	fi
+	if [ $objtype = riscv64 ]; then
+		# OpenSBI, u-boot (scripts/guest/build-uboot.sh), the image's
+		# boot.scr on its FAT partition (as 9front's arm64 image)
+		[ -n "$BOOTDISK" ] || die "riscv64: no CD, BOOTDISK only"
+		objtype=riscv64 bash "$ROOT/scripts/guest/build-uboot.sh" > "$CLI_DIR/uboot.log" 2>&1 \
+			|| die "u-boot build failed (log: $CLI_DIR/uboot.log)"
+		qemu=($QEMU -M virt -cpu $CPU -m "$MEM"
+			-bios default -kernel "$CLI_DIR/uboot.riscv64/u-boot.bin"
+			-drive "file=$BOOTDISK,format=raw,if=none,id=d0" -device virtio-blk-pci,drive=d0,disable-legacy=on
+			-display none -no-reboot -monitor none
+			-netdev user,id=net0 -device virtio-net-pci,netdev=net0,disable-legacy=on)
+	else
 	qemu=($QEMU "${fw[@]}" "${media[@]}" -m "$MEM" ${SMP:+-smp "$SMP"}
 		-display none -no-reboot -monitor none
 		-netdev user,id=net0 -device "$NIC",netdev=net0
 		-cpu $CPU "${accel[@]}")
+	fi
 else
 [ $objtype = arm64 ] || [ $objtype = riscv64 ] || command -v grub-mkrescue >/dev/null || die "grub-mkrescue missing"
 [ -x "$UFS" ] || die "ufs missing (go install github.com/Harvey-OS/ninep/cmd/ufs@latest, or set UFS)"
@@ -131,19 +147,26 @@ port_open && die "port $UFS_PORT is in use (old ufs still running?)"
 bash "$ROOT/scripts/guest/gen-ufs-root.sh" "$CLI_DIR/ufsroot" > /dev/null
 [ -z "$UFS_EXTRA" ] || cp -r "$UFS_EXTRA"/. "$CLI_DIR/ufsroot/"
 
-if [ $objtype = arm64 ]; then
+# riscv64 BOOT=uboot: the disk's way instead of -kernel (u-boot runs
+# sys/src/boot/virt's boot.scr from the FAT partition, as on arm64)
+if [ $objtype = arm64 ] || { [ $objtype = riscv64 ] && [ "$BOOT" = uboot ]; }; then
+	case $objtype in
+	arm64)	scr=$ROOT/sys/src/boot/qemu/boot.scr uimg=$ROOT/arm64/9qemu.u uname=9qemu.u UBOOTBIN=$CLI_DIR/uboot/u-boot.bin ;;
+	riscv64)	scr=$ROOT/sys/src/boot/virt/boot.scr uimg=$ROOT/riscv64/9virt.u uname=9virt.u UBOOTBIN=$CLI_DIR/uboot.riscv64/u-boot.bin ;;
+	esac
 	# 9front's arm64 qemu boot (sys/lib/dist/mkfile, %.arm64.qcow2):
 	# u-boot (scripts/guest/build-uboot.sh) runs boot.scr from the FAT
 	# partition, which loads plan9.ini and the u-boot image 9qemu.u
 	# (scripts/guest/build-boot.sh makes both with aux/txt2uimage, aux/aout2uimage)
-	# BOOTKERNEL: another u-boot image (e.g. build-kencc.sh arm64's)
-	UIMAGE=${BOOTKERNEL:-$ROOT/arm64/9qemu.u}
-	for f in "$ROOT/sys/src/boot/qemu/boot.scr" "$UIMAGE"; do
+	# arm64 BOOTKERNEL: another u-boot image (e.g. build-kencc.sh arm64's;
+	# riscv64's BOOTKERNEL is the raw image for -kernel)
+	[ $objtype != arm64 ] || uimg=${BOOTKERNEL:-$uimg}
+	for f in "$scr" "$uimg"; do
 		[ -s "$f" ] || die "$f missing, run scripts/guest/build-boot.sh"
 	done
 	# 9qemu.u is made from 9qemu by build-boot.sh: an older one would
 	# boot the kernel of an earlier build, silently
-	[ -n "$BOOTKERNEL" ] || [ ! "$ROOT/arm64/9qemu" -nt "$ROOT/arm64/9qemu.u" ] \
+	[ $objtype != arm64 ] || [ -n "$BOOTKERNEL" ] || [ ! "$ROOT/arm64/9qemu" -nt "$ROOT/arm64/9qemu.u" ] \
 		|| die "arm64/9qemu.u is older than arm64/9qemu, run scripts/guest/build-boot.sh"
 	bash "$ROOT/scripts/guest/build-uboot.sh" > "$CLI_DIR/uboot.log" 2>&1 \
 		|| die "u-boot build failed (log: $CLI_DIR/uboot.log)"
@@ -155,17 +178,17 @@ if [ $objtype = arm64 ]; then
 		echo auth=$FSADDR
 		for a in $KARGS; do echo "$a"; done
 	} > "$CLI_DIR/plan9.ini"
-	FAT=$CLI_DIR/arm64boot.img
+	FAT=$CLI_DIR/${objtype}boot.img
 	rm -f "$FAT"
 	truncate -s 64M "$FAT"
 	echo 'start=2048, type=c, bootable' | sfdisk -q "$FAT" > /dev/null
 	mformat -i "$FAT@@1M" -F :: > /dev/null
-	cp "$UIMAGE" "$CLI_DIR/9qemu.u"
-	mcopy -i "$FAT@@1M" "$ROOT/sys/src/boot/qemu/boot.scr" "$CLI_DIR/plan9.ini" "$CLI_DIR/9qemu.u" ::
+	cp "$uimg" "$CLI_DIR/$uname"
+	mcopy -i "$FAT@@1M" "$scr" "$CLI_DIR/plan9.ini" "$CLI_DIR/$uname" ::
 elif [ $objtype = riscv64 ]; then
 	# OpenSBI (qemu's -bios default) loads the raw kernel at 0x80200000
 	# and passes the device tree, whose /chosen/bootargs is -append
-	# (riscv64/bootargs.c)
+	# (riscv64/bootargs.c); BOOT=uboot above
 	:
 else
 	# GRUB multiboot ISO; GRUB itself also talks on the serial line, so a
@@ -205,15 +228,21 @@ if [ $objtype = arm64 ]; then
 	# pciqemu.c expects the low PCIe ECAM window (0x3f000000): highmem=off
 	[ -z "$DISK" ] || disk=(-drive "file=$DISK,format=raw,if=none,id=d0" -device virtio-blk-pci,drive=d0,disable-legacy=on)
 	qemu=($QEMU -M virt,gic-version=3,highmem=off -cpu $CPU -m "$MEM" ${SMP:+-smp "$SMP"}
-		-bios "$CLI_DIR/uboot/u-boot.bin"
+		-bios "$UBOOTBIN"
 		-drive "file=$FAT,format=raw,if=none,id=fat" -device virtio-blk-pci,drive=fat,disable-legacy=on
 		-display none -no-reboot -monitor none
 		-netdev user,id=net0,$fwd -device virtio-net-pci,netdev=net0,disable-legacy=on "${disk[@]}")	# virtio 1.0 only (ethervirtio10.c, sdvirtio10.c)
 elif [ $objtype = riscv64 ]; then
 	[ -z "$DISK" ] || disk=(-drive "file=$DISK,format=raw,if=none,id=d0" -device virtio-blk-pci,drive=d0,disable-legacy=on)
-	qemu=($QEMU -M virt -cpu $CPU -m "$MEM"
-		-bios default -kernel "$KERNEL"
-		-append "console=0 service=$SERVICE nobootprompt=tcp fs=$FSADDR auth=$FSADDR $KARGS"
+	if [ "$BOOT" = uboot ]; then
+		# OpenSBI starts u-boot (S-mode) where it would start the kernel
+		boot=(-bios default -kernel "$UBOOTBIN"
+			-drive "file=$FAT,format=raw,if=none,id=fat" -device virtio-blk-pci,drive=fat,disable-legacy=on)
+	else
+		boot=(-bios default -kernel "$KERNEL"
+			-append "console=0 service=$SERVICE nobootprompt=tcp fs=$FSADDR auth=$FSADDR $KARGS")
+	fi
+	qemu=($QEMU -M virt -cpu $CPU -m "$MEM" "${boot[@]}"
 		-display none -no-reboot -monitor none
 		-netdev user,id=net0,$fwd -device virtio-net-pci,netdev=net0,disable-legacy=on "${disk[@]}")	# virtio 1.0 only (ethervirtio10.c, sdvirtio10.c)
 else

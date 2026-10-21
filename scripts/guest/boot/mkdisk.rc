@@ -4,7 +4,13 @@
 # %.amd64.qcow2 (%.disk) with this port's tools, the distribution tree
 # served by the build host as /n/src9 (scripts/guest/stage-dist.sh), the boot
 # code (/386/mbr, pbs, 9bootfat) from scripts/build-boot.sh.
+# mkdisk riscv64: the recipe of %.arm64.qcow2 for QEMU virt -- a FAT
+# partition with u-boot's boot.scr, plan9.ini and 9virt.u, the rest
+# Plan 9 (nvram, fs); disk/mkfs with objtype=riscv64.
 rfork en
+A=amd64
+if(! ~ $#* 0)
+	A=$1
 fn fail{
 	echo mkdisk: failed: $*
 	exit failed
@@ -14,24 +20,52 @@ d=/dev/sdC0
 s=newfs
 proto=/n/src9/sys/lib/sysconfig/proto/distproto
 bootproto=/n/src9/sys/lib/sysconfig/proto/9bootproto
-gccproto=/n/src9/gccproto	# /amd64/lib.gcc, /amd64/gnu (scripts/guest/boot/gccproto, gnuproto)
-kernel=/n/src9/amd64/9pc64
+gccproto=/n/src9/gccproto	# /$objtype/lib.gcc, /$objtype/gnu (scripts/guest/boot/gccproto, gnuproto)
 
 test -f $d/data || fail no disk $d
-if(! test -d /n/src9/amd64)
+if(! test -d /n/src9/$A)
 	srv tcp!10.0.2.101!5641 src9 && mount -nc /srv/src9 /n/src9 || fail mount src9
 
-> /env/plan9.ini {
-	echo 'bootfile='^`{basename $kernel}
-	echo 'console=0'
+switch($A){
+case amd64
+	kernel=/n/src9/amd64/9pc64
+	> /env/plan9.ini {
+		echo 'bootfile='^`{basename $kernel}
+		echo 'console=0'
+	}
+	fatfiles=(/n/src9/386/9bootfat /env/plan9.ini $kernel)
+	disk/mbr $d/data || fail mbr
+	disk/mbr -m /n/src9/386/mbr $d/data || fail mbr -m
+	disk/fdisk -baw $d/data || fail fdisk
+	disk/prep -bw -a^(9fat nvram fs) $d/plan9 || fail prep
+	disk/format -b /n/src9/386/pbs -d -r 2 $d/9fat $fatfiles || fail format
+case riscv64
+	# a cpu server: the virt kernel has no draw or mouse device a
+	# terminal's profile binds (#i, #m)
+	> /env/plan9.ini {
+		echo 'console=0'
+		echo 'service=cpu'
+	}
+	# boot.scr's name on the FAT partition (stage-dist leaves it beside)
+	cp /n/src9/.boot.scr /tmp/boot.scr || fail boot.scr
+	fatfiles=(/tmp/boot.scr /env/plan9.ini /n/src9/riscv64/9virt.u)
+	disk/mbr $d/data || fail mbr
+	{
+		echo 'a p1 4M 100M'
+		echo 't p1 FAT32'
+		echo 'a p2 . $'
+		echo 't p2 PLAN9'
+		echo 'A p1'
+		echo 'p'
+		echo 'w'
+		echo 'q'
+	} | disk/fdisk -b $d/data || fail fdisk
+	disk/prep -bw -a^(nvram fs) $d/plan9 || fail prep
+	disk/format -d $d/dos $fatfiles || fail format
+case *
+	fail objtype $A
 }
-fatfiles=(/n/src9/386/9bootfat /env/plan9.ini $kernel)
-
-disk/mbr $d/data || fail mbr
-disk/mbr -m /n/src9/386/mbr $d/data || fail mbr -m
-disk/fdisk -baw $d/data || fail fdisk
-disk/prep -bw -a^(9fat nvram fs) $d/plan9 || fail prep
-disk/format -b /n/src9/386/pbs -d -r 2 $d/9fat $fatfiles || fail format
+objtype=$A
 hjfs -f $d/fs -n $s -S -r || fail hjfs
 {
 	echo echo on

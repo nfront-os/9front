@@ -2,6 +2,8 @@ CONF=virt
 CONFLIST=virt
 
 # KTZERO (mem.h); the firmware loads 9$CONF.bin at its physical address
+# (or u-boot 9$CONF.u, sys/src/boot/virt)
+kzero=0xffffffc000000000
 loadaddr=0xffffffc080200000
 
 objtype=riscv64
@@ -67,7 +69,13 @@ LIB=\
 	/$objtype/lib/libmp.a\
 	/$objtype/lib/libc.a\
 
-9:V:	$p$CONF $p$CONF.bin
+9:V:	$p$CONF $p$CONF.bin $p$CONF.u
+
+# u-boot's image, as Linux (-l 5): u-boot enters a Plan 9 image without
+# arguments, as Linux with the hart in a0 and the device tree in a1, as
+# OpenSBI does (l.s)
+$p$CONF.u:D:	$p$CONF
+	aux/aout2uimage -l 5 -Z$kzero $p$CONF
 
 # -X: the 64-bit entry in the a.out header; -R8: data follows text,
 # as in the raw image for the firmware
@@ -82,8 +90,8 @@ $OBJ: $HFILES
 
 install:V: /$objtype/$p$CONF
 
-/$objtype/$p$CONF:D: $p$CONF $p$CONF.bin
-	cp -x $p$CONF $p$CONF.bin /$objtype/
+/$objtype/$p$CONF:D: $p$CONF $p$CONF.bin $p$CONF.u
+	cp -x $p$CONF $p$CONF.bin $p$CONF.u /$objtype/
 
 <../boot/bootmkfile
 <../port/portmkfile

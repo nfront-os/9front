@@ -5,8 +5,9 @@
 # bootx64.efi, efiboot.fat -> /386, bootaa64.efi -> /arm64) with their
 # own mkfiles and 9front's compilers (8c/8a/8l, 6c/6a/6l, 7c/7a/7l,
 # aux/aout2efi), and for arm64 qemu boot.scr and 9qemu.u (aux/txt2uimage,
-# aux/aout2uimage). The sources and the install directories are the build
-# host's, served as /n/src9.
+# aux/aout2uimage), the same for riscv64 virt (sys/src/boot/virt, 9virt.u).
+# The sources and the install directories are the build host's, served
+# as /n/src9.
 rfork en
 fn fail{
 	echo mkboot: failed: $*
@@ -20,6 +21,8 @@ bind -c /n/src9/sys/src /sys/src || fail bind src
 bind -bc /n/src9/386 /386 || fail bind 386
 bind -bc /n/src9/arm64 /arm64 || fail bind arm64
 bind -b /n/src9/amd64/include /amd64/include || fail bind amd64/include
+if(test -d /n/src9/riscv64)
+	bind -c /n/src9/riscv64 /riscv64 || fail bind riscv64
 
 for(d in pc efi){
 	cd /sys/src/boot/$d || fail cd $d
@@ -34,5 +37,14 @@ if(test -r /arm64/9qemu){
 	kzero=`{sed -n 's/^kzero=//p' /sys/src/9/arm64/mkfile}
 	cd /arm64 || fail cd /arm64
 	aux/aout2uimage -Z$kzero 9qemu || fail aout2uimage
+}
+# riscv64 virt: the same with u-boot for qemu-riscv64_smode
+# (sys/src/boot/virt, riscv64's mkfile's $p$CONF.u rule)
+if(test -r /riscv64/9virt){
+	cd /sys/src/boot/virt || fail cd virt
+	mk || fail mk virt
+	kzero=`{sed -n 's/^kzero=//p' /sys/src/9/riscv64/mkfile}
+	cd /riscv64 || fail cd /riscv64
+	aux/aout2uimage -l 5 -Z$kzero 9virt || fail aout2uimage riscv64
 }
 echo mkboot: done

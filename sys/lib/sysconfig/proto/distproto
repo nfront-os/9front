@@ -352,6 +352,30 @@ spim	d775
 		replica	d775
 		upas	d775
 		venti	d775
+riscv64	d775
+	mkfile
+	include	d775
+		+
+	lib	d775
+		ape	d775
+	bin	d775
+		ape	d775
+		audio	d775
+		auth	d775
+		aux	d775
+		bitsy	d775
+		dial	d775
+		disk	d775
+		fs	d775
+		games	d775
+		image	d775
+		ip	d775
+			httpd	d775
+		ndb	d775
+		nusb	d775
+		replica	d775
+		upas	d775
+		venti	d775
 
 $objtype	d775
 	*
