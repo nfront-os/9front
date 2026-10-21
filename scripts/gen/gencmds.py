@@ -318,11 +318,16 @@ def cflags(v, d):
 	return ['-I' + tree(f[2:], d) if f.startswith('-I') else f
 		for f in v.get('CFLAGS', []) if f.startswith(('-I', '-D'))]
 
+def ccrecipe(recipe):
+	"""a recipe that compiles with the directory's compiler ($CC): not
+	pcc's for an APE program (lp, bzip2) or a helper (gs's genarch)"""
+	return re.search(r'(^|\s)\$CC\b', recipe) is not None
+
 def recipecflags(text, v, d):
-	"""-D flags that appear in rule recipes but not in $CFLAGS (troff: per-file -DTMACDIR etc.)"""
+	"""-D flags that appear in $CC rule recipes but not in $CFLAGS (troff: per-file -DTMACDIR etc.)"""
 	out = []
 	for targets, prereq, recipe in rules(text):
-		if not recipe:
+		if not recipe or not ccrecipe(recipe):
 			continue
 		for w in rcwords(expand(recipe, v)):
 			if w.startswith('-D') and '`' not in w and w not in out:
@@ -330,27 +335,24 @@ def recipecflags(text, v, d):
 	return out
 
 def recipeshellflags(text, v, d):
-	"""-D flags with rc command substitutions (`{...}): (static_cflags, shell_commands).
-	Commands the generator can evaluate itself (date) become static flags;
-	unknown commands become CflagsShell entries."""
-	import time
-	static = []
+	"""-D flags with rc command substitutions (`{...}) in $CC recipes:
+	CflagsShell commands, which the build tool runs when it compiles (as
+	mk the recipe), so the manifest stays what the mkfile says (cwfs:
+	-DDATE=`{date -n}L, the seconds at build time). Returns (static
+	flags, shell commands); no static ones yet."""
 	shell = []
 	for targets, prereq, recipe in rules(text):
-		if not recipe:
+		if not recipe or not ccrecipe(recipe):
 			continue
 		expanded = expand(recipe, v)
-		for name, cmd in re.findall(r"-D(\w+)(?:'='|=)\s*`(\{[^}]+\})", expanded):
-			c = cmd[1:-1]  # strip { }
-			# commands we can evaluate at generation time
-			if c.strip() in ('date', 'date -n'):
-				static.append('-D%s=%dL' % (name, int(time.time())))
-			else:
-				cc = c.replace(' -n', '')
-				sh = 'echo -D%s="$(%s)"' % (name, cc)
-				if sh not in shell:
-					shell.append(sh)
-	return static, shell
+		for name, cmd, suffix in re.findall(r"-D(\w+)(?:'='|=)\s*`\{([^}]+)\}'?(\w*)", expanded):
+			c = cmd.strip()
+			if c == 'date -n':	# rc's date -n: seconds since the epoch
+				c = 'date +%s'
+			sh = 'echo "-D%s=$(%s)%s"' % (name, c, suffix)
+			if sh not in shell:
+				shell.append(sh)
+	return [], shell
 
 def locallibs(v, d):
 	# LIB may also name plain objects (vac's error.$O ...): those are sources

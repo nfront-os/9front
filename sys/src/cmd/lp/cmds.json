@@ -6,12 +6,7 @@
 		],
 		"Install": "/$ARCH/bin/aux/",
 		"Cflags": [
-			"-Dplan9",
-			"-D_POSIX_SOURCE",
-			"-D_BSD_EXTENSION",
-			"-D_NET_EXTENSION",
-			"-DPLAN9",
-			"-DMAXHOSTNAMELEN=64"
+			"-Dplan9"
 		],
 		"Oflags": [
 			"--entry=_main"

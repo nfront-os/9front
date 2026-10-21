@@ -16,8 +16,7 @@
 			"-Izlib",
 			"-Iicclib",
 			"-DTamd64",
-			"-DGS_INIT=\"gs_init.ps\"",
-			"-DHAVE_LONG_LONG"
+			"-DGS_INIT=\"gs_init.ps\""
 		],
 		"Pre": [
 			"bash ../../../../scripts/build/gen-src.sh cmd/gs"

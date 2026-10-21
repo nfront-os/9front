@@ -7,9 +7,7 @@
 		"Install": "/$ARCH/bin/",
 		"Cflags": [
 			"-DPLAN9",
-			"-Ilib",
-			"-D_POSIX_SOURCE",
-			"-D_BSD_EXTENSION"
+			"-Ilib"
 		],
 		"Oflags": [
 			"--entry=_main"
@@ -71,9 +69,7 @@
 		"Install": "/$ARCH/bin/",
 		"Cflags": [
 			"-DPLAN9",
-			"-Ilib",
-			"-D_POSIX_SOURCE",
-			"-D_BSD_EXTENSION"
+			"-Ilib"
 		],
 		"Oflags": [
 			"--entry=_main"

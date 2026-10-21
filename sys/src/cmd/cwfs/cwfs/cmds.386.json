@@ -8,6 +8,9 @@
 		"Cflags": [
 			"-I.."
 		],
+		"CflagsShell": [
+			"echo \"-DDATE=$(date +%s)\""
+		],
 		"Oflags": [
 			"--entry=_main"
 		],

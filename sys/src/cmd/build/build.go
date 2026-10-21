@@ -606,19 +606,7 @@ func compileArgs(b *build) (command string, cArgs, asmArgs []string) {
 		command = "scan-build"
 		cArgs = append([]string{tools["cc"]}, cArgs...)
 	}
-	cflags := b.Cflags
-	for _, sh := range b.CflagsShell {
-		out, err := exec.Command("sh", "-c", sh).Output()
-		if err != nil {
-			log.Panicf("CflagsShell %q: %v", sh, err)
-		}
-		for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
-			if line != "" {
-				cflags = append(cflags, line)
-			}
-		}
-	}
-	cArgs = append(cArgs, cflags...)
+	cArgs = append(cArgs, b.Cflags...)
 
 	asmArgs = []string{"-c", "-MMD"}
 	// Same include structure as C so #include works in assembly.
@@ -630,6 +618,26 @@ func compileArgs(b *build) (command string, cArgs, asmArgs []string) {
 		}
 	}
 	return command, cArgs, asmArgs
+}
+
+// shellflags: the flags b.CflagsShell's commands print (one per line),
+// evaluated when compiling, as mk runs a recipe's `{...}. They are not
+// part of the command's signature (signdeps): a date, say, changes on
+// every run, and -D compiles again only what is out of date, as mk.
+func shellflags(b *build) []string {
+	var flags []string
+	for _, sh := range b.CflagsShell {
+		out, err := exec.Command("sh", "-c", sh).Output()
+		if err != nil {
+			log.Panicf("CflagsShell %q: %v", sh, err)
+		}
+		for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+			if line != "" {
+				flags = append(flags, line)
+			}
+		}
+	}
+	return flags
 }
 
 func isasm(f string) bool {
@@ -644,7 +652,7 @@ func compile(b *build) {
 			if b.cmdstale != nil && !b.cmdstale[sourceFile] {
 				continue // -D: only to be linked again
 			}
-			cmd := exec.Command(command, append(args, sourceFile)...)
+			cmd := exec.Command(command, append(append(args[:len(args):len(args)], shellflags(b)...), sourceFile)...)
 			run(b, *shellhack, cmd)
 			signdeps(b, sourceFile, command, args)
 		}
@@ -677,11 +685,12 @@ func compile(b *build) {
 // each by itself into its x.<Objtag>.o (-o), which leaves the x.o of
 // the same source, and gcc names the dependency file after it
 func cc(b *build, command string, args, fs []string) {
+	cargs := append(args[:len(args):len(args)], shellflags(b)...)
 	if b.Objtag == "" {
-		run(b, *shellhack, exec.Command(command, append(args, fs...)...))
+		run(b, *shellhack, exec.Command(command, append(cargs, fs...)...))
 	} else {
 		for _, f := range fs {
-			run(b, *shellhack, exec.Command(command, append(args, "-o", objectOf(b, f), f)...))
+			run(b, *shellhack, exec.Command(command, append(cargs, "-o", objectOf(b, f), f)...))
 		}
 	}
 	for _, f := range fs {

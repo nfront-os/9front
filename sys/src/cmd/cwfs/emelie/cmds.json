@@ -6,8 +6,10 @@
 		],
 		"Install": "/$ARCH/bin/",
 		"Cflags": [
-			"-I..",
-			"-DDATE=1792528263L"
+			"-I.."
+		],
+		"CflagsShell": [
+			"echo \"-DDATE=$(date +%s)\""
 		],
 		"Oflags": [
 			"--entry=_main"
