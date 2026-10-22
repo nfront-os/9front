@@ -73,21 +73,6 @@ fail(char *fmt, ...)
 		print("status at the first failure:\n%s", s);
 }
 
-/* a request to the device's ctl */
-static int
-devctl(char *msg)
-{
-	char path[128];
-	int fd, r;
-
-	snprint(path, sizeof path, "%s/ctl", dir);
-	if((fd = open(path, OWRITE)) < 0)
-		return -1;
-	r = write(fd, msg, strlen(msg));
-	close(fd);
-	return r < 0 ? -1 : 0;
-}
-
 static char*
 readall(char *name)
 {
@@ -427,7 +412,6 @@ void
 main(int argc, char **argv)
 {
 	char *s;
-	int n;
 
 	ARGBEGIN{
 	case 'd':
@@ -443,15 +427,7 @@ main(int argc, char **argv)
 		sysfatal("read %s/ctl: %r", dir);
 	print("ctl: %s", s);
 
-	print("== pdp lri\n");
-	devctl("pdp lri");
-	if((n = suite()) != 0 && !global){
-		print("== %d failed with pdp lri: reset, then pdp mmio\n", n);
-		if(devctl("reset") < 0 || devctl("pdp mmio") < 0)
-			print("FAIL ctl: %r\n");
-		else if(suite() == 0)
-			print("== pdp mmio: all passed\n");
-	}
+	suite();
 	print(nfail ? "inteltest: %d failed\n" : "inteltest: all passed\n", nfail);
 	exits(nfail ? "fail" : nil);
 }

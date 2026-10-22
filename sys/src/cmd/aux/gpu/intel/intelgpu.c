@@ -4,10 +4,11 @@
  * intelgpu: user-space driver for Intel GPUs of generation 8
  * (Broadwell) over #G (gpu(3)), serving gpu(4)'s files: contexts
  * with an address space of their own (PPGTT) and buffer objects in
- * it, batch buffers on the render (RCS) and blitter (BCS) engines in
- * ring buffer mode, fences from the engines' sequence numbers and the
- * user interrupt (MSI).  The display stays as the firmware or aux/vga
- * set it up.
+ * it, batch buffers on the render (RCS) and blitter (BCS) engines
+ * through execlists (a logical ring context per context and engine,
+ * as Linux's i915 has it on gen 8), fences from the contexts'
+ * sequence numbers and the user and context switch interrupts (MSI).
+ * The display stays as the firmware or aux/vga set it up.
  *
  *	/dev/gpu/0/ctl			the visible plane: plane p gpuaddr stride bpp w h
  *	/dev/gpu/0/status		device, engines, memory, contexts
@@ -20,9 +21,14 @@
  * (fixed), mapped into the context's address space; the client
  * attaches it and writes GPU addresses into its batches itself (no
  * relocations).  A context's address space is 4 GB in three levels
- * (gen 8's 32-bit PPGTT: four page directories, loaded into the
- * engine's PDP registers before a batch of another context); with -G
- * all contexts share the global GTT instead, without isolation.
+ * (gen 8's 32-bit PPGTT: four page directories, which the context
+ * image hands the engine at every switch); with -G all contexts share
+ * the global GTT instead, without isolation.
+ *
+ * An engine runs one context at a time: a context with work waits
+ * in the engine's queue, goes into the execlist submit port (ELSP)
+ * when the engine is idle, and leaves it when the context status
+ * buffer says it is done (no lite restore).
  *
  * usage: aux/intelgpu [-dpGU] [-g #G/n] [-s srvname]
  *
@@ -58,6 +64,22 @@ enum {
 	Resr		= 0xB8,
 	Rmode		= 0x29C,
 	Rpdp		= 0x270,	/* PDP n: lower dword at +n*8, upper at +n*8+4 */
+	Relsp		= 0x230,	/* RING_ELSP */
+	Rexecstatus	= 0x234,
+	Rctxctl		= 0x244,	/* RING_CONTEXT_CONTROL */
+	Rcsb		= 0x370,	/* RING_CONTEXT_STATUS_BUF: 6 entries of 2 dwords */
+	Rcsbptr		= 0x3A0,	/* RING_CONTEXT_STATUS_PTR: write 2:0, read 10:8 */
+	Rhwstam		= 0x98,
+	Rbbheadu	= 0x168,
+	Rbbheadl	= 0x140,
+	Rbbstate	= 0x110,
+	Rsbbheadu	= 0x11C,
+	Rsbbheadl	= 0x114,
+	Rsbbstate	= 0x118,
+	Rbbperctx	= 0x1C0,
+	Rindctx		= 0x1C4,
+	Rindctxoff	= 0x1C8,
+	Rctxtimestamp	= 0x3A8,
 	Rresetctl	= 0xD0,		/* RING_RESET_CTL */
 	Resetrequest	= 1<<0,
 	Resetready	= 1<<1,
@@ -66,7 +88,30 @@ enum {
 	Stopring	= 1<<8,
 	Ringvalid	= 1<<0,
 	Runlist		= 1<<15,
-	Ppgttenable	= 1<<9,		/* RING_MODE: GFX_PPGTT_ENABLE */
+	Replaymode	= 1<<11,	/* RING_MODE: GFX_REPLAY_MODE */
+	Rpwrclkstate	= 0x20C8,	/* GEN8_R_PWR_CLK_STATE */
+
+	/* context control in the image */
+	Ctxinhibitsyn	= 1<<3,
+	Ctxrestoreinhibit = 1<<0,
+	Ctxrsenable	= 1<<1,
+	Lriposted	= 1<<12,	/* MI_LRI_FORCE_POSTED */
+
+	/* the context descriptor */
+	Descvalid	= 1<<0,
+	Desclegacy32	= 1<<3,		/* LEGACY_32B_CONTEXT << 3 */
+	Descl3llc	= 1<<5,
+	Descpriv	= 1<<8,
+
+	/* context status buffer */
+	Csbentries	= 6,
+	Csbptrmask	= 7,
+	Csbpreempted	= 1<<1,
+	Csbelemswitch	= 1<<2,
+	Csbactiveidle	= 1<<3,
+	Csbcomplete	= 1<<4,
+
+	Ctxswitchintr	= 1<<8,		/* GT_CONTEXT_SWITCH_INTERRUPT, in an engine's field */
 	Headmask	= 0x1FFFFC,
 
 	/* interrupts */
@@ -85,6 +130,8 @@ enum {
 	Minoop		= 0,
 	Miuserintr	= 0x02<<23,
 	Mibbstart	= 0x31<<23 | 1,	/* gen 8: 3 dwords, GGTT */
+	Mistoredwimm	= 0x20<<23 | 2,	/* gen 8: 4 dwords */
+	Storeggtt	= 1<<22,
 	Bbppgtt		= 1<<8,		/* the batch's address is in the PPGTT */
 	Milri		= 0x22<<23,	/* MI_LOAD_REGISTER_IMM: | 2*n-1 */
 	Miflushdw	= 0x26<<23 | 1,
@@ -107,13 +154,16 @@ enum {
 	Ptecached	= 1<<7,		/* index 4: write-back, LLC (ppatinit) */
 	Pteuncached	= 1<<3 | 1<<4,	/* index 3: uncached */
 
-	Hwsseqno	= 0x30,		/* dword of the status page with the sequence number */
-	Hwsscratch	= 0x40,		/* and one the flushes may write */
+	Hwsscratch	= 0x40,		/* dword of an engine's status page the flushes may write */
 
-	Ringpages	= 4,
+	Ringpages	= 4,		/* a context's ring on an engine */
+	Rcsstatepages	= 20,		/* register state of a context image: GEN8_LR_CONTEXT_RENDER_SIZE */
+	Xcsstatepages	= 2,		/* GEN8_LR_CONTEXT_OTHER_SIZE */
 	Gttlow		= 0x40000000,	/* our part of the GTT: from 1 GB to its end */
 	Bova		= 0x2000000000ULL,	/* the objects' addresses in the clients */
-	Drvva		= 0x50000000,	/* the driver's pages: rings, status pages */
+	Drvva		= 0x50000000,	/* the driver's pages: the engines' status pages */
+	Ctxva		= 0x58000000,	/* the contexts' pages: status, images, rings */
+	Ctxvastep	= 0x200000,
 	Ptva		= 0x60000000,	/* the page table pool */
 	Ptpages		= 4096,		/* 16 MB: page directories and tables */
 	Ppbase		= 0x100000,	/* a context's objects from 1 MB */
@@ -125,12 +175,8 @@ enum {
 	Timeout		= 5000,		/* ms before a fence is given up */
 };
 
-enum {
-	Pdplri,		/* PDPs loaded in the ring (MI_LOAD_REGISTER_IMM) */
-	Pdpmmio,	/* by the processor, the engine idle */
-};
-
 typedef struct Engine Engine;
+typedef struct Ectx Ectx;
 typedef struct Bo Bo;
 typedef struct Ctx Ctx;
 typedef struct Fidaux Fidaux;
@@ -141,16 +187,36 @@ struct Engine {
 	ulong	base;
 	int	irqshift;
 	u32int	resetbit;	/* in GEN6_GDRST */
-	u32int	*ring;		/* Ringpages pages */
-	u32int	*hws;		/* the status page */
-	ulong	ringgtt, hwsgtt;
-	ulong	tail;		/* bytes */
-	u32int	seqno;		/* last emitted */
+	int	statepages;	/* of a context image */
+	int	idx;
+	u32int	*hws;		/* the engine's status page */
+	ulong	hwsgtt;
 	int	ok;
-	ulong	cur;		/* serial of the context whose PDPs are loaded */
+	Ectx	*running;	/* in the ELSP */
+	Ectx	*queue;		/* with work, waiting for the engine */
+	int	csbread;	/* the last status buffer entry read */
 	int	nreset;
-	u32int	lastdone;	/* hang watch: sequence number done */
-	vlong	lastprogress;	/* and when it last moved */
+	u32int	nswitch;	/* contexts completed */
+	vlong	since;		/* running since: hang watch */
+};
+
+/* a context on an engine: its logical ring context and ring */
+struct Ectx {
+	Ctx	*ctx;
+	Engine	*e;
+	u32int	*image;		/* per-process status page, then the register state */
+	ulong	lrca;		/* its GTT address */
+	u32int	*ring;
+	ulong	ringgtt;
+	ulong	tail;		/* bytes */
+	ulong	subtail;	/* given to the engine */
+	u32int	*seqno;		/* done: in the context's status page */
+	ulong	seqgtt;
+	u32int	nseq;		/* emitted */
+	ulong	endpos[Fwin];	/* the ring's tail after sequence number k%Fwin */
+	ulong	serial;		/* of the mapping its TLB has */
+	int	queued;
+	Ectx	*next;
 };
 
 struct Bo {
@@ -168,10 +234,17 @@ struct Ctx {
 	char	*reply;
 	uvlong	nfence;		/* submitted */
 	uvlong	donefence;	/* complete, with all before it */
-	Engine	*fe[Fwin];	/* fence k: on engine fe[k%Fwin] */
+	Ectx	*fe[Fwin];	/* fence k: on context engine fe[k%Fwin] */
 	u32int	fseq[Fwin];	/* with sequence number fseq[k%Fwin] */
 	vlong	ftime[Fwin];	/* submitted then */
 	int	failed;
+
+	/* its pages: a status page, per engine an image and a ring */
+	char	seg[32];
+	u32int	*mem;
+	uvlong	pa;
+	ulong	gtt, size;
+	Ectx	ec[2];
 	File	*dir, *ctl, *submit, *fence;
 
 	/* the address space: page directories, tables (pool pages, -1: none) */
@@ -205,12 +278,12 @@ static uvlong *gtt;
 static uvlong nent;
 static uvlong drvpa;
 static u32int *drv;
+static ulong drvgtt;
 static Hole *holes;
 static Engine eng[] = {
-	{ "rcs", 0x2000, 0, 1<<1 },	/* GEN6_GRDOM_RENDER */
-	{ "bcs", 0x22000, 16, 1<<3 },	/* GEN6_GRDOM_BLT */
+	{ "rcs", 0x2000, 0, 1<<1, Rcsstatepages, 0 },	/* GEN6_GRDOM_RENDER */
+	{ "bcs", 0x22000, 16, 1<<3, Xcsstatepages, 1 },	/* GEN6_GRDOM_BLT */
 };
-static int pdpload = Pdplri;
 static Ctx *ctxs[Nctx];
 static Bo *bos[Nbo];
 static File *ctxdir;
@@ -596,68 +669,348 @@ forcewake(void)
  * engines in ring buffer mode (no execlists), each with Ringpages
  * of ring and a status page
  */
-static void enginestart(Engine*);
 static void irqinit(void);
+static void kick(Engine*);
 
-static void
-engineinit(Engine *e, int i)
-{
-	ulong r;
-
-	e->ring = drv + i*(Ringpages+1)*1024;
-	e->hws = e->ring + Ringpages*1024;
-	r = gttalloc((Ringpages+1)*4096);
-	if(r == 0)
-		sysfatal("no GTT for the %s ring", e->name);
-	gttmap(r, drvpa + i*(Ringpages+1)*4096, (Ringpages+1)*4096);
-	e->ringgtt = r;
-	e->hwsgtt = r + Ringpages*4096;
-	memset(e->ring, 0, (Ringpages+1)*4096);
-	flushcache(e->ring, (Ringpages+1)*4096);
-	e->seqno = 0;
-	enginestart(e);
-}
-
-/* the engine's registers: ring buffer mode, the ring empty from its start */
+/*
+ * engines in execlist mode (i915's gen8_init_common_ring): the
+ * engine's status page, interrupts, the run list on, the context
+ * status buffer's read pointer where the hardware has it
+ */
 static void
 enginestart(Engine *e)
 {
+	u32int p;
+
 	e->ok = 0;
-	e->cur = 0;
-	wr(e->base+Rmode, masked(Runlist, 0));
-	if(!global)
-		wr(e->base+Rmode, masked(Ppgttenable, 1));
-	wr(e->base+Rctl, 0);
-	wr(e->base+Rhead, 0);
-	wr(e->base+Rtail, 0);
+	e->running = nil;
+	wr(e->base+Rhwstam, ~0);
+	wr(e->base+Rimr, ~((Userintr|Ctxswitchintr)<<e->irqshift));
 	wr(e->base+Rhws, e->hwsgtt);
-	wr(e->base+Rstart, e->ringgtt);
-	wr(e->base+Rctl, (Ringpages-1)<<12 | Ringvalid);
-	wr(e->base+Rmimode, masked(Stopring, 0));
-	/* its user interrupt, in GT bank 0's layout, after the start */
-	wr(e->base+Rimr, ~(Userintr<<e->irqshift));
-	e->tail = 0;
-	e->lastdone = e->hws[Hwsseqno];
-	e->lastprogress = nsec();
-	if((rd(e->base+Rctl) & Ringvalid) == 0 || rd(e->base+Rstart) != e->ringgtt){
-		fprint(2, "%s: %s ring did not start: ctl %#ux start %#ux\n", argv0, e->name,
-			rd(e->base+Rctl), rd(e->base+Rstart));
+	rd(e->base+Rhws);
+	wr(e->base+Rmode, masked(Replaymode, 0) | masked(Runlist, 1));
+	rd(e->base+Rmode);
+	/* after power-up or a reset the write pointer is all ones: read from entry 0 */
+	p = rd(e->base+Rcsbptr) & Csbptrmask;
+	if(p == Csbptrmask)
+		p = Csbentries-1;
+	e->csbread = p;
+	e->since = nsec();
+	if((rd(e->base+Rmode) & Runlist) == 0){
+		fprint(2, "%s: %s: no execlists: mode %#ux\n", argv0, e->name, rd(e->base+Rmode));
 		return;
 	}
 	e->ok = 1;
 }
 
+static void
+engineinit(Engine *e)
+{
+	e->hws = drv + e->idx*1024;
+	e->hwsgtt = drvgtt + e->idx*4096;
+	memset(e->hws, 0, 4096);
+	flushcache(e->hws, 4096);
+	enginestart(e);
+}
+
+/*
+ * a context's image for an engine, as i915's populate_lr_context: the
+ * per-process status page, then the register state the engine loads
+ * (MI_LOAD_REGISTER_IMM lists); the first load restores nothing else
+ * (restore inhibit), the engine writes the rest at the switches
+ */
+static void
+ecimage(Ectx *ec)
+{
+	Engine *e;
+	u32int *r;
+	ulong b;
+	int n;
+
+	e = ec->e;
+	memset(ec->image, 0, (1+e->statepages)*4096);
+	r = ec->image + 1024;
+	b = e->base;
+	r[0x01] = Milri | (2*(e->idx == 0 ? 14 : 11) - 1) | Lriposted;
+	r[0x02] = b + Rctxctl;
+	r[0x03] = masked(Ctxinhibitsyn | Ctxrestoreinhibit | Ctxrsenable, 1);
+	r[0x04] = b + Rhead;	r[0x05] = 0;
+	r[0x06] = b + Rtail;	r[0x07] = 0;
+	r[0x08] = b + Rstart;	r[0x09] = ec->ringgtt;
+	r[0x0a] = b + Rctl;	r[0x0b] = (Ringpages-1)<<12 | Ringvalid;
+	r[0x0c] = b + Rbbheadu;	r[0x0d] = 0;
+	r[0x0e] = b + Rbbheadl;	r[0x0f] = 0;
+	r[0x10] = b + Rbbstate;	r[0x11] = 1<<5;
+	r[0x12] = b + Rsbbheadu;	r[0x13] = 0;
+	r[0x14] = b + Rsbbheadl;	r[0x15] = 0;
+	r[0x16] = b + Rsbbstate;	r[0x17] = 0;
+	if(e->idx == 0){
+		r[0x18] = b + Rbbperctx;	r[0x19] = 0;
+		r[0x1a] = b + Rindctx;	r[0x1b] = 0;
+		r[0x1c] = b + Rindctxoff;	r[0x1d] = 0;
+	}
+	r[0x21] = Milri | (2*9 - 1) | Lriposted;
+	r[0x22] = b + Rctxtimestamp;	r[0x23] = 0;
+	for(n = 3; n >= 0; n--){
+		r[0x24 + (3-n)*4] = b + Rpdp + n*8 + 4;
+		r[0x26 + (3-n)*4] = b + Rpdp + n*8;
+	}
+	if(e->idx == 0){
+		r[0x41] = Milri | (2*1 - 1);
+		r[0x42] = Rpwrclkstate;	r[0x43] = 0;	/* gen 8: no explicit RPCS request (make_rpcs) */
+	}
+	memset(ec->ring, 0, Ringpages*4096);
+	flushcache(ec->image, (1+e->statepages)*4096);
+	flushcache(ec->ring, Ringpages*4096);
+	ec->tail = ec->subtail = 0;
+	memset(ec->endpos, 0, sizeof ec->endpos);
+}
+
+static void
+ecinit(Ctx *c, Ectx *ec, Engine *e, ulong off)
+{
+	ec->ctx = c;
+	ec->e = e;
+	ec->image = c->mem + off/4;
+	ec->lrca = c->gtt + off;
+	ec->ring = c->mem + (off + (1+e->statepages)*4096)/4;
+	ec->ringgtt = c->gtt + off + (1+e->statepages)*4096;
+	ec->seqno = c->mem + e->idx*16;
+	ec->seqgtt = c->gtt + e->idx*64;
+	*ec->seqno = 0;
+	ec->nseq = 0;
+	ec->serial = 0;
+	ec->queued = 0;
+	ec->next = nil;
+	ecimage(ec);
+}
+
+/* the ring's tail and the address space into the image, before the engine loads it */
+static void
+ecupdate(Ectx *ec)
+{
+	u32int *r;
+	uvlong pa;
+	int n;
+
+	r = ec->image + 1024;
+	r[0x07] = ec->tail;
+	r[0x09] = ec->ringgtt;
+	for(n = 3; n >= 0; n--){
+		pa = global ? 0 : ptphys(ec->ctx->pd[n]);
+		r[0x25 + (3-n)*4] = pa>>32;
+		r[0x27 + (3-n)*4] = pa;
+	}
+	flushcache(r, 0x50*4);
+}
+
+static uvlong
+descriptor(Ectx *ec)
+{
+	return (uvlong)(ec->lrca>>12)<<32 | ec->lrca | Descvalid | Desclegacy32 | Descl3llc | Descpriv;
+}
+
+/* the next context with work into the idle engine's ELSP; with lk */
+static void
+kick(Engine *e)
+{
+	Ectx *ec;
+	uvlong d;
+
+	if(!e->ok || e->running != nil || (ec = e->queue) == nil)
+		return;
+	e->queue = ec->next;
+	ec->next = nil;
+	ec->queued = 0;
+	ecupdate(ec);
+	d = descriptor(ec);
+	/* both elements, the second (none) first; the first's lower dword starts it */
+	wr(e->base+Relsp, 0);
+	wr(e->base+Relsp, 0);
+	wr(e->base+Relsp, d>>32);
+	wr(e->base+Relsp, d);
+	rd(e->base+Rexecstatus);
+	e->running = ec;
+	ec->subtail = ec->tail;
+	e->since = nsec();
+}
+
+static void
+enqueue(Ectx *ec)
+{
+	Ectx **l;
+
+	if(ec->queued || ec->e->running == ec)
+		return;
+	for(l = &ec->e->queue; *l != nil; l = &(*l)->next)
+		;
+	*l = ec;
+	ec->next = nil;
+	ec->queued = 1;
+}
+
+/*
+ * the context status buffer (i915's intel_lrc_irq_handler): a context
+ * that went idle or was switched out leaves the engine, which takes
+ * the next; with work added meanwhile it queues again.  With lk.
+ */
+static void
+csb(Engine *e)
+{
+	u32int st, id, w;
+	Ectx *ec;
+	int r;
+
+	w = rd(e->base+Rcsbptr) & Csbptrmask;
+	if(w == Csbptrmask || w >= Csbentries)
+		return;
+	r = e->csbread;
+	while(r != w){
+		r = (r + 1) % Csbentries;
+		st = rd(e->base + Rcsb + r*8);
+		id = rd(e->base + Rcsb + r*8 + 4);
+		DBG(2, "%s csb %d: %#ux %#ux\n", e->name, r, st, id);
+		if(st & Csbpreempted)
+			fprint(2, "%s: %s: context %#ux preempted\n", argv0, e->name, id);
+		if((st & (Csbcomplete|Csbactiveidle|Csbelemswitch)) == 0)
+			continue;
+		ec = e->running;
+		if(ec == nil || (ec->lrca>>12) != id)
+			continue;
+		e->running = nil;
+		e->nswitch++;
+		if(ec->tail != ec->subtail)
+			enqueue(ec);
+	}
+	e->csbread = r;
+	wr(e->base+Rcsbptr, (Csbptrmask<<8)<<16 | (r & Csbptrmask)<<8);
+	kick(e);
+}
+
+static void
+ecemit(Ectx *ec, u32int v)
+{
+	ec->ring[ec->tail/4] = v;
+	ec->tail = (ec->tail + 4) % (Ringpages*4096);
+}
+
+/* the context's sequence number done on the engine */
+static u32int
+ecdone(Ectx *ec)
+{
+	flushcache(ec->seqno, 4);
+	return *ec->seqno;
+}
+
+/*
+ * room for n dwords in the ring: what is done is free, from where the
+ * oldest unfinished submission starts; waits (lk released) for the
+ * engine to get on
+ */
+static int
+ecspace(Ectx *ec, int n)
+{
+	ulong start, size;
+	u32int d;
+	vlong t0;
+
+	size = Ringpages*4096;
+	t0 = nsec();
+	for(;;){
+		d = ecdone(ec);
+		if(d == ec->nseq)
+			return 0;
+		start = ec->endpos[d % Fwin];
+		if((start + size - ec->tail) % size > (ulong)n*4 + 8)
+			return 0;
+		if(nsec() - t0 > (vlong)Timeout*1000000)
+			return -1;
+		rsleep(&done);
+	}
+}
+
+/*
+ * the batch at gpu address a into the context's ring on its engine:
+ * the TLBs invalidated if its mapping changed, the batch, the caches
+ * flushed, the sequence number into the context's status page, the
+ * interrupt; then queued for the engine.  With lk.
+ */
+static char*
+ecsubmit(Ectx *ec, ulong a, u32int *seq)
+{
+	Engine *e;
+	ulong t0;
+
+	e = ec->e;
+	if(!e->ok)
+		return "engine not running";
+	if(ecspace(ec, 48) < 0)
+		return "ring full (engine hung?)";
+	t0 = ec->tail;
+	if(!global && ec->serial != ec->ctx->serial){
+		if(e->idx == 0){
+			ecemit(ec, Pipecontrol);
+			ecemit(ec, Pccsstall | Pctlbinval | Pcqwwrite | Pcglobalgtt);
+			ecemit(ec, e->hwsgtt + Hwsscratch*4);
+			ecemit(ec, 0);
+			ecemit(ec, 0);
+			ecemit(ec, 0);
+		}else{
+			ecemit(ec, (Miflushdw+1) | Flushtlbinval | Flushstoredw | Flushstoreidx);
+			ecemit(ec, Hwsscratch*4 | Flushusegtt);
+			ecemit(ec, 0);
+			ecemit(ec, 0);
+		}
+		ec->serial = ec->ctx->serial;
+	}
+	ecemit(ec, Mibbstart | (global ? 0 : Bbppgtt));
+	ecemit(ec, a);
+	ecemit(ec, 0);
+	if(e->idx == 0){
+		ecemit(ec, Pipecontrol);
+		ecemit(ec, Pccsstall | Pcrtflush | Pcdcflush | Pcdepthflush | Pcqwwrite | Pcglobalgtt);
+		ecemit(ec, e->hwsgtt + Hwsscratch*4);
+		ecemit(ec, 0);
+		ecemit(ec, 0);
+		ecemit(ec, 0);
+	}else{
+		ecemit(ec, (Miflushdw+1) | Flushstoredw | Flushstoreidx);
+		ecemit(ec, Hwsscratch*4 | Flushusegtt);
+		ecemit(ec, 0);
+		ecemit(ec, 0);
+	}
+	*seq = ++ec->nseq;
+	ecemit(ec, Mistoredwimm | Storeggtt);
+	ecemit(ec, ec->seqgtt);
+	ecemit(ec, 0);
+	ecemit(ec, *seq);
+	ecemit(ec, Miuserintr);
+	while(ec->tail & 7)
+		ecemit(ec, Minoop);
+	ec->endpos[*seq % Fwin] = ec->tail;
+	if(ec->tail > t0)
+		flushcache(ec->ring + t0/4, ec->tail - t0);
+	else{
+		flushcache(ec->ring + t0/4, Ringpages*4096 - t0);
+		flushcache(ec->ring, ec->tail);
+	}
+	enqueue(ec);
+	kick(e);
+	return nil;
+}
+
 /*
  * an engine reset (i915's gen8 reset_prepare and gen6_reset_engines):
- * the engine asked to stop, then reset through GDRST, then started
- * again; what it had not done counts as done, the contexts that
- * waited for it as failed. With lk.
+ * the engine asked to stop, reset through GDRST, started again; the
+ * contexts it ran or had queued fail, their work counts as done and
+ * their images start afresh.  With lk.
  */
 static void
 engreset(Engine *e)
 {
+	Ectx *ec, *bad[Nctx+1];
 	Ctx *c;
-	int i, k;
+	int i, n;
 
 	wr(e->base+Rresetctl, masked(Resetrequest, 1));
 	for(i = 0; i < 20 && (rd(e->base+Rresetctl) & Resetready) == 0; i++)
@@ -666,20 +1019,28 @@ engreset(Engine *e)
 	for(i = 0; i < 500 && (rd(Gdrst) & e->resetbit) != 0; i++)
 		sleep(1);
 	wr(e->base+Rresetctl, masked(Resetrequest, 0));
-	for(i = 0; i < Nctx; i++){
-		if((c = ctxs[i]) == nil)
-			continue;
-		for(k = 0; k < Fwin; k++)
-			if(c->fe[k] == e && c->donefence < c->nfence)
-				c->failed = 1;
+
+	n = 0;
+	if(e->running != nil)
+		bad[n++] = e->running;
+	for(ec = e->queue; ec != nil && n < nelem(bad); ec = ec->next)
+		bad[n++] = ec;
+	e->queue = nil;
+	for(i = 0; i < n; i++){
+		ec = bad[i];
+		c = ec->ctx;
+		c->failed = 1;
+		*ec->seqno = ec->nseq;
+		flushcache(ec->seqno, 4);
+		ec->queued = 0;
+		ec->next = nil;
+		ecimage(ec);
+		ec->serial = 0;
 	}
-	e->hws[Hwsseqno] = e->seqno;
-	flushcache(&e->hws[Hwsseqno], 4);
-	memset(e->ring, 0, Ringpages*4096);
-	flushcache(e->ring, Ringpages*4096);
 	enginestart(e);
 	e->nreset++;
-	fprint(2, "%s: %s reset, %s\n", argv0, e->name, e->ok ? "running again" : "not running");
+	fprint(2, "%s: %s reset, %d contexts failed, %s\n", argv0, e->name, n,
+		e->ok ? "running again" : "not running");
 }
 
 static void
@@ -691,157 +1052,11 @@ irqinit(void)
 	mask = 0;
 	for(i = 0; i < nelem(eng); i++)
 		if(eng[i].ok)
-			mask |= Userintr << eng[i].irqshift;
+			mask |= (Userintr|Ctxswitchintr) << eng[i].irqshift;
 	wr(Gtisr0+8, ~0);		/* IIR */
 	wr(Gtisr0+0xC, mask);		/* IER */
 	wr(Gtisr0+4, ~mask);		/* IMR */
 	wr(Masterirq, Mastercontrol);
-}
-
-/* the engine's completed sequence number */
-static u32int
-engdone(Engine *e)
-{
-	flushcache(&e->hws[Hwsseqno], 4);
-	return e->hws[Hwsseqno];
-}
-
-/* room for n dwords in the ring: wait for the engine to read up to there */
-static int
-ringspace(Engine *e, int n)
-{
-	ulong head, need, size;
-	vlong t0;
-
-	size = Ringpages*4096;
-	need = n*4;
-	t0 = nsec();
-	for(;;){
-		/* the tail may not catch up with the head: 8 bytes stay free */
-		head = rd(e->base+Rhead) & Headmask;
-		if(head == e->tail || (head + size - e->tail) % size - 8 >= need)
-			return 0;
-		if(nsec() - t0 > (vlong)Timeout*1000000)
-			return -1;
-		sleep(1);
-	}
-}
-
-static void
-emit(Engine *e, u32int v)
-{
-	e->ring[e->tail/4] = v;
-	e->tail = (e->tail + 4) % (Ringpages*4096);
-}
-
-/*
- * the page directories by the processor: the engine must be idle,
- * everything before done; the ring then only invalidates (ppswitch
- * loads them again, the same)
- */
-static int
-ppswitchmmio(Engine *e, Ctx *c)
-{
-	uvlong pa;
-	vlong t0;
-	int n;
-
-	t0 = nsec();
-	while(engdone(e) != e->seqno - 1 || (rd(e->base+Rhead) & Headmask) != e->tail){
-		if(nsec() - t0 > (vlong)Timeout*1000000)
-			return -1;
-		sleep(0);
-	}
-	for(n = 0; n < 4; n++){
-		pa = ptphys(c->pd[n]);
-		wr(e->base + Rpdp + n*8 + 4, pa>>32);
-		wr(e->base + Rpdp + n*8, pa);
-	}
-	return 0;
-}
-
-/*
- * the context's address space on the engine: its page directories into
- * the PDP registers, then the TLBs invalidated (as i915's legacy gen 8
- * mm switch and EMIT_INVALIDATE flush)
- */
-static void
-ppswitch(Engine *e, Ctx *c)
-{
-	uvlong pa;
-	int n;
-
-	emit(e, Milri | (2*8-1));
-	for(n = 3; n >= 0; n--){
-		pa = ptphys(c->pd[n]);
-		emit(e, e->base + Rpdp + n*8 + 4);
-		emit(e, pa>>32);
-		emit(e, e->base + Rpdp + n*8);
-		emit(e, pa);
-	}
-	if(e->irqshift == 0){
-		emit(e, Pipecontrol);
-		emit(e, Pccsstall | Pctlbinval | Pcqwwrite | Pcglobalgtt);
-		emit(e, e->hwsgtt + Hwsscratch*4);
-		emit(e, 0);
-		emit(e, 0);
-		emit(e, 0);
-	}else{
-		emit(e, (Miflushdw+1) | Flushtlbinval | Flushstoredw | Flushstoreidx);
-		emit(e, Hwsscratch*4 | Flushusegtt);
-		emit(e, 0);
-		emit(e, 0);
-	}
-	e->cur = c->serial;
-}
-
-/* the batch at gpu address a of context c on engine e, then its sequence number; with lk */
-static char*
-dispatch(Engine *e, Ctx *c, ulong a, u32int *seqno)
-{
-	ulong t0;
-
-	if(!e->ok)
-		return "engine not running";
-	if(ringspace(e, 48) < 0)
-		return "ring full (engine hung?)";
-	t0 = e->tail;
-	*seqno = ++e->seqno;
-	if(!global && e->cur != c->serial){
-		if(pdpload == Pdpmmio && ppswitchmmio(e, c) < 0)
-			return "engine busy too long";
-		ppswitch(e, c);
-	}
-	emit(e, Mibbstart | (global ? 0 : Bbppgtt));
-	emit(e, a);
-	emit(e, 0);
-	if(e->irqshift == 0){
-		/* render: caches flushed, then the number; PIPE_CONTROL's qword write */
-		emit(e, Pipecontrol);
-		emit(e, Pccsstall | Pcrtflush | Pcdcflush | Pcdepthflush | Pcqwwrite | Pcglobalgtt);
-		emit(e, e->hwsgtt + Hwsseqno*4);
-		emit(e, 0);
-		emit(e, *seqno);
-		emit(e, 0);
-	}else{
-		emit(e, (Miflushdw+1) | Flushstoredw | Flushstoreidx);
-		emit(e, Hwsseqno*4 | Flushusegtt);
-		emit(e, 0);
-		emit(e, *seqno);
-		emit(e, Minoop);
-		emit(e, Minoop);
-	}
-	emit(e, Miuserintr);
-	while(e->tail & 7)	/* the tail on a qword */
-		emit(e, Minoop);
-	if(e->tail > t0)
-		flushcache(e->ring + t0/4, e->tail - t0);
-	else{
-		flushcache(e->ring + t0/4, Ringpages*4096 - t0);
-		flushcache(e->ring, e->tail);
-	}
-	wr(e->base+Rtail, e->tail);
-	return nil;
 }
 
 /*
@@ -850,14 +1065,14 @@ dispatch(Engine *e, Ctx *c, ulong a, u32int *seqno)
 static int
 fencedone(Ctx *c, uvlong k)
 {
-	Engine *e;
+	Ectx *ec;
 
 	if(k <= c->donefence)
 		return 1;
 	if(k > c->nfence)
 		return 0;
-	e = c->fe[k % Fwin];
-	return e == nil || (int)(engdone(e) - c->fseq[k % Fwin]) >= 0;
+	ec = c->fe[k % Fwin];
+	return ec == nil || (int)(ecdone(ec) - c->fseq[k % Fwin]) >= 0;
 }
 
 /* advance every context's donefence; with lk */
@@ -880,6 +1095,7 @@ irqproc(void)
 {
 	char buf[32];
 	u32int iir;
+	int i;
 
 	for(;;){
 		if(irqfd >= 0){
@@ -894,18 +1110,22 @@ irqproc(void)
 			sleep(1);
 		qlock(&lk);
 		nirq++;
+		for(i = 0; i < nelem(eng); i++)
+			csb(&eng[i]);
 		reap();
 		rwakeupall(&done);
 		qunlock(&lk);
 	}
 }
 
-/* the waiters look at the time now and then: a hung engine raises no interrupt */
+/*
+ * now and then: the status buffers (an interrupt may be lost), the
+ * waiters' timeouts, an engine that runs one context too long hung
+ */
 static void
 tickproc(void)
 {
 	Engine *e;
-	u32int d;
 	int i;
 
 	for(;;){
@@ -913,16 +1133,14 @@ tickproc(void)
 		qlock(&lk);
 		for(i = 0; i < nelem(eng); i++){
 			e = &eng[i];
-			d = engdone(e);
-			if(d != e->lastdone || d == e->seqno){
-				e->lastdone = d;
-				e->lastprogress = nsec();
-			}else if(nsec() - e->lastprogress > (vlong)Timeout*1000000){
-				fprint(2, "%s: %s hung at %#ux: head %#ux acthd %#ux ipehr %#ux eir %#ux\n",
-					argv0, e->name, d, rd(e->base+Rhead) & Headmask, rd(e->base+Racthd),
-					rd(e->base+Ripehr), rd(e->base+Reir));
+			csb(e);
+			if(e->running != nil && nsec() - e->since > (vlong)Timeout*1000000){
+				fprint(2, "%s: %s hung in context %d: head %#ux acthd %#ux ipehr %#ux eir %#ux execlist %#ux\n",
+					argv0, e->name, e->running->ctx->id, rd(e->base+Rhead) & Headmask,
+					rd(e->base+Racthd), rd(e->base+Ripehr), rd(e->base+Reir), rd(e->base+Rexecstatus));
 				engreset(e);
 				irqinit();
+				kick(e);
 			}
 		}
 		reap();
@@ -1141,12 +1359,12 @@ submit(Ctx *c, int boid, ulong off, char *engname)
 		qunlock(&lk);
 		return "too many fences in flight";
 	}
-	if((err = dispatch(e, c, b->gtt + off, &seq)) != nil){
+	if((err = ecsubmit(&c->ec[e->idx], b->gtt + off, &seq)) != nil){
 		qunlock(&lk);
 		return err;
 	}
 	c->nfence++;
-	c->fe[c->nfence % Fwin] = e;
+	c->fe[c->nfence % Fwin] = &c->ec[e->idx];
 	c->fseq[c->nfence % Fwin] = seq;
 	c->ftime[c->nfence % Fwin] = nsec();
 	qunlock(&lk);
@@ -1187,6 +1405,60 @@ fctx(File *f)
 	return ctxs[a/Xctxbase - 1];
 }
 
+/*
+ * a context's pages, in one segment mapped into the GTT: its status
+ * page (the sequence numbers), then per engine a context image and a
+ * ring
+ */
+static int
+ctxmem(Ctx *c, int i)
+{
+	ulong off;
+	int k;
+
+	c->size = 4096;
+	for(k = 0; k < nelem(eng); k++)
+		c->size += (1 + eng[k].statepages + Ringpages)*4096;
+	snprint(c->seg, sizeof c->seg, "gpu0ctx%d", c->id);
+	if((c->pa = fixedseg(c->seg, Ctxva + (uvlong)i*Ctxvastep, c->size, 0700)) == 0){
+		rmseg(c->seg);
+		werrstr("no contiguous memory for the context");
+		return -1;
+	}
+	if((c->mem = segattach(0, c->seg, nil, c->size)) == (void*)-1){
+		rmseg(c->seg);
+		return -1;
+	}
+	memset(c->mem, 0, c->size);
+	qlock(&lk);
+	if((c->gtt = gttalloc(c->size)) == 0){
+		qunlock(&lk);
+		segdetach(c->mem);
+		rmseg(c->seg);
+		werrstr("GTT full");
+		return -1;
+	}
+	gttmap(c->gtt, c->pa, c->size);
+	off = 4096;
+	for(k = 0; k < nelem(eng); k++){
+		ecinit(c, &c->ec[k], &eng[k], off);
+		off += (1 + eng[k].statepages + Ringpages)*4096;
+	}
+	qunlock(&lk);
+	return 0;
+}
+
+static void
+ctxmemfree(Ctx *c)
+{
+	qlock(&lk);
+	gttunmap(c->gtt, c->size);
+	gttfree(c->gtt, c->size);
+	qunlock(&lk);
+	segdetach(c->mem);
+	rmseg(c->seg);
+}
+
 static Ctx*
 newctx(void)
 {
@@ -1204,10 +1476,15 @@ newctx(void)
 	c = emalloc9p(sizeof *c);
 	memset(c, 0, sizeof *c);
 	c->id = i+1;
+	if(ctxmem(c, i) < 0){
+		free(c);
+		return nil;
+	}
 	qlock(&lk);
 	c->serial = ++serial;
 	if(!global && ppinit(c) < 0){
 		qunlock(&lk);
+		ctxmemfree(c);
 		free(c);
 		werrstr("no page tables left");
 		return nil;
@@ -1245,11 +1522,36 @@ freectx(Ctx *c)
 	closefile(c->submit);
 	closefile(c->fence);
 	closefile(c->dir);
+	/* off the engines: not running, not queued */
 	qlock(&lk);
+	for(i = 0; i < nelem(eng); i++){
+		while(eng[i].running == &c->ec[i] && eng[i].ok && nsec() - eng[i].since < (vlong)Timeout*1000000)
+			rsleep(&done);
+		if(eng[i].running == &c->ec[i]){
+			engreset(&eng[i]);
+			irqinit();
+		}
+		if(c->ec[i].queued){
+			Ectx **l;
+
+			for(l = &eng[i].queue; *l != nil; l = &(*l)->next)
+				if(*l == &c->ec[i]){
+					*l = c->ec[i].next;
+					break;
+				}
+			c->ec[i].queued = 0;
+		}
+	}
 	ctxs[c->id-1] = nil;
 	if(!global)
 		ppfree(c);
 	qunlock(&lk);
+	ctxmemfree(c);
+	for(i = 0; i < nelem(eng); i++){
+		qlock(&lk);
+		kick(&eng[i]);
+		qunlock(&lk);
+	}
 	free(c->reply);
 	free(c);
 }
@@ -1271,6 +1573,7 @@ statusstr(void)
 {
 	char buf[1024], *s, *t, *id;
 	Engine *e;
+	Ectx *q;
 	Hole *h;
 	ulong nfree;
 	int i, n;
@@ -1278,15 +1581,19 @@ statusstr(void)
 	id = ctlline("id", buf, sizeof buf);
 	s = smprint("device intel %s, gen 8\nirq %s %lud\nobjects %s, %s\n", id ? id : "?",
 		irqfd >= 0 ? "on" : "poll", nirq, uncached ? "uncached" : "cached (llc)",
-		global ? "global gtt" : pdpload == Pdpmmio ? "ppgtt per context, pdp mmio" : "ppgtt per context, pdp lri");
+		global ? "global gtt" : "ppgtt per context");
 	qlock(&lk);
 	for(i = 0; i < nelem(eng); i++){
 		e = &eng[i];
-		t = smprint("%sengine %s %s seqno %ud/%ud head %#ux tail %#lux acthd %#ux eir %#ux ipehr %#ux"
-			" mode %#ux pdp0 %#.8ux%.8ux resets %d\n",
-			s, e->name, e->ok ? "ok" : "off", engdone(e), e->seqno,
-			rd(e->base+Rhead) & Headmask, e->tail, rd(e->base+Racthd), rd(e->base+Reir),
-			rd(e->base+Ripehr), rd(e->base+Rmode), rd(e->base+Rpdp+4), rd(e->base+Rpdp), e->nreset);
+		n = 0;
+		for(q = e->queue; q != nil; q = q->next)
+			n++;
+		t = smprint("%sengine %s %s execlists: running ctx %d, %d queued, %ud switches, csb %d/%d,"
+			" status %#ux mode %#ux acthd %#ux eir %#ux ipehr %#ux pdp0 %#.8ux%.8ux resets %d\n",
+			s, e->name, e->ok ? "ok" : "off", e->running ? e->running->ctx->id : 0, n, e->nswitch,
+			e->csbread, rd(e->base+Rcsbptr) & Csbptrmask, rd(e->base+Rexecstatus), rd(e->base+Rmode),
+			rd(e->base+Racthd), rd(e->base+Reir), rd(e->base+Ripehr), rd(e->base+Rpdp+4),
+			rd(e->base+Rpdp), e->nreset);
 		free(s);
 		s = t;
 	}
@@ -1303,8 +1610,10 @@ statusstr(void)
 	s = t;
 	for(i = 0; i < Nctx; i++)
 		if(ctxs[i] != nil){
-			t = smprint("%sctx %d fence %llud/%llud pd0 %#llux%s\n", s, ctxs[i]->id, ctxs[i]->donefence,
-				ctxs[i]->nfence, global ? 0 : ptphys(ctxs[i]->pd[0]), ctxs[i]->failed ? " failed" : "");
+			t = smprint("%sctx %d fence %llud/%llud seqno rcs %ud/%ud bcs %ud/%ud lrca %#lux pd0 %#llux%s\n",
+				s, ctxs[i]->id, ctxs[i]->donefence, ctxs[i]->nfence,
+				ecdone(&ctxs[i]->ec[0]), ctxs[i]->ec[0].nseq, ecdone(&ctxs[i]->ec[1]), ctxs[i]->ec[1].nseq,
+				ctxs[i]->ec[0].lrca, global ? 0 : ptphys(ctxs[i]->pd[0]), ctxs[i]->failed ? " failed" : "");
 			free(s);
 			s = t;
 		}
@@ -1455,32 +1764,19 @@ devctl(char **f, int n)
 {
 	int i;
 
-	if(n == 2 && strcmp(f[0], "pdp") == 0){
-		qlock(&lk);
-		if(strcmp(f[1], "lri") == 0)
-			pdpload = Pdplri;
-		else if(strcmp(f[1], "mmio") == 0)
-			pdpload = Pdpmmio;
-		else{
-			qunlock(&lk);
-			return "usage: pdp lri|mmio";
-		}
-		for(i = 0; i < nelem(eng); i++)
-			eng[i].cur = 0;
-		qunlock(&lk);
-		return nil;
-	}
 	if(n == 1 && strcmp(f[0], "reset") == 0){
 		qlock(&lk);
 		for(i = 0; i < nelem(eng); i++)
 			engreset(&eng[i]);
 		irqinit();
+		for(i = 0; i < nelem(eng); i++)
+			kick(&eng[i]);
 		reap();
 		rwakeupall(&done);
 		qunlock(&lk);
 		return nil;
 	}
-	return "usage: pdp lri|mmio, reset";
+	return "usage: reset";
 }
 
 static void
@@ -1598,11 +1894,14 @@ devinit(void)
 	if(!uncached)
 		ppatinit();
 
-	/* the driver's own pages: rings and status pages of the engines */
-	if((drvpa = fixedseg("gpu0drv", Drvva, nelem(eng)*(Ringpages+1)*4096, 0700)) == 0)
+	/* the driver's own pages: the engines' status pages */
+	if((drvpa = fixedseg("gpu0drv", Drvva, nelem(eng)*4096, 0700)) == 0)
 		sysfatal("#g/gpu0drv: %r");
-	if((drv = segattach(0, "gpu0drv", nil, nelem(eng)*(Ringpages+1)*4096)) == (void*)-1)
+	if((drv = segattach(0, "gpu0drv", nil, nelem(eng)*4096)) == (void*)-1)
 		sysfatal("segattach gpu0drv: %r");
+	if((drvgtt = gttalloc(nelem(eng)*4096)) == 0)
+		sysfatal("no GTT for the status pages");
+	gttmap(drvgtt, drvpa, nelem(eng)*4096);
 	if(!global){
 		if((ptpa = fixedseg("gpu0pt", Ptva, Ptpages*4096, 0700)) == 0)
 			sysfatal("#g/gpu0pt: %r");
@@ -1617,7 +1916,7 @@ devinit(void)
 		wr(eng[i].base+Rresetctl, masked(Resetrequest, 0));
 	}
 	for(i = 0; i < nelem(eng); i++)
-		engineinit(&eng[i], i);
+		engineinit(&eng[i]);
 
 	if(!poll){
 		snprint(path, sizeof path, "%s/irq", gdir);

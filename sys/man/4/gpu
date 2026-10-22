@@ -287,17 +287,25 @@ on the render (default) or blitter engine; it ends with
 The fences are as above; one that has not completed after 5
 seconds is given up and the context marked
 .BR failed .
-The engines run in ring buffer mode, each with its sequence number
-and the user interrupt (MSI where the device has it,
+The engines run through execlists, as Linux's i915 has it on gen 8:
+each context has a logical ring context (an image of its engine
+registers, its page directories among them) and a ring on each
+engine; an engine runs one context at a time, the others wait in its
+queue, and the context status buffer says when one is done.
+Fences come from sequence numbers in each context's status page and
+the user and context switch interrupts (MSI where the device has it,
 .B -p
 polls).
+An engine that runs one context for 5 seconds is reset, as
+.B reset
+written to
+.B ctl
+does it.
 Objects are mapped write-back in the shared last level cache, so
 that processor and GPU see each other's writes;
 .B -U
 maps them uncached.
-Batches run in their context's address space (the engines' page
-directory pointers are loaded before a batch of another context, and
-the TLBs invalidated); still, batches are privileged and the driver is
+Batches run in their context's address space; still, the driver is
 for the host owner.
 .IR Intelprobe (8)
 and
