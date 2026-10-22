@@ -255,6 +255,22 @@ libraries
 .RB ( -lvulkan " " -ldraw " " -l9 " " -lfmt " " -lutf ).
 The loader keeps its dispatch tables in the first word of the
 dispatchable objects, as Khronos' loader does, and has no layers.
+Its functions are
+.BR vkl_CreateInstance ,
+etc.; the
+.B vk
+names are weak aliases of them, so a program that keeps its own
+function pointers under those names (where it would
+.I dlopen
+.BR libvulkan.so.1 )
+starts from
+.B vkl_GetInstanceProcAddr
+instead.
+Khronos'
+.I vkcube
+and
+.I vulkaninfo
+are ported this way.
 .SH SOURCE
 .B /sys/src/cmd/aux/gpu
 .br

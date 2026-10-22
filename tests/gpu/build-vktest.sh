@@ -28,4 +28,8 @@ done
 "$CROSS/$TRIPLE-gcc" -std=c11 -O2 -Wall -I"$SDK/include" -I"$BUILD" -c -o "$BUILD/vktri.o" "$HERE/vktri.c"
 "$CROSS/$TRIPLE-g++" -o "$HERE/root/tests/vktri" "$BUILD/vktri.o" "$BUILD/btassert.o" "$BUILD/screenpeek.o" \
 	-Wl,--gc-sections -L"$SDK/lib" -lvulkan -ldraw -l9 -lfmt -lutf
-ls -la "$HERE/root/tests/vktest" "$HERE/root/tests/vkdraw" "$HERE/root/tests/vktri"
+# Khronos' vkcube and vulkaninfo, ported (scripts/mesa/vktools.sh)
+"$ROOT/scripts/mesa/vktools.sh" build
+cp "$BUILD/vktools/vkcube" "$BUILD/vktools/vulkaninfo" "$HERE/root/tests/"
+ls -la "$HERE/root/tests/vktest" "$HERE/root/tests/vkdraw" "$HERE/root/tests/vktri" \
+	"$HERE/root/tests/vkcube" "$HERE/root/tests/vulkaninfo"

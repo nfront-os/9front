@@ -1,0 +1,363 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Stefan Hertenberger <shertenberger@web.de>
+Date: Thu, 22 Oct 2026 13:07:16 +0200
+Subject: [PATCH] vkcube, vulkaninfo: 9front (VK_PLAN9_surface, static
+ libvulkan)
+
+---
+ cube/cube.c                       | 73 ++++++++++++++++++++++++++++++-
+ cube/cube_functions.h             | 15 +++++++
+ vulkaninfo/vulkaninfo.h           | 40 ++++++++++++++++-
+ vulkaninfo/vulkaninfo_functions.h | 17 +++++++
+ 4 files changed, 143 insertions(+), 2 deletions(-)
+
+diff --git a/cube/cube.c b/cube/cube.c
+index a396fd4..9109cb3 100644
+--- a/cube/cube.c
++++ b/cube/cube.c
+@@ -307,6 +307,7 @@ typedef enum WSI_PLATFORM {
+     WSI_PLATFORM_WAYLAND,
+     WSI_PLATFORM_DIRECTFB,
+     WSI_PLATFORM_DISPLAY,
++    WSI_PLATFORM_PLAN9,
+     WSI_PLATFORM_INVALID,  // Sentinel just to indicate invalid user input
+ } WSI_PLATFORM;
+ 
+@@ -338,6 +339,9 @@ WSI_PLATFORM wsi_from_string(const char *str) {
+ #endif
+ #if defined(VK_USE_PLATFORM_DISPLAY_KHR)
+     if (strcmp(str, "display") == 0) return WSI_PLATFORM_DISPLAY;
++#endif
++#if defined(VK_USE_PLATFORM_PLAN9_9FRONT)
++    if (strcmp(str, "plan9") == 0) return WSI_PLATFORM_PLAN9;
+ #endif
+     return WSI_PLATFORM_INVALID;
+ };
+@@ -381,6 +385,10 @@ const char *wsi_to_string(WSI_PLATFORM wsi_platform) {
+ #if defined(VK_USE_PLATFORM_DISPLAY_KHR)
+         case (WSI_PLATFORM_DISPLAY):
+             return "display";
++#endif
++#if defined(VK_USE_PLATFORM_PLAN9_9FRONT)
++        case (WSI_PLATFORM_PLAN9):
++            return "plan9";
+ #endif
+         default:
+             return "unknown";
+@@ -3237,6 +3245,18 @@ static void demo_run(struct demo *demo) {
+     }
+ }
+ #endif
++#if defined(VK_USE_PLATFORM_PLAN9_9FRONT)
++// 9front: the surface is the process's window (rio) or the screen; no input
++static void demo_run_plan9(struct demo *demo) {
++    while (!demo->quit) {
++        demo_draw(demo);
++        demo->curFrame++;
++        if (demo->frameCount != INT32_MAX && demo->curFrame == demo->frameCount) {
++            demo->quit = true;
++        }
++    }
++}
++#endif
+ #if defined(VK_USE_PLATFORM_DISPLAY_KHR)
+ static VkResult demo_create_display_surface(struct demo *demo) {
+     VkResult U_ASSERT_ONLY err;
+@@ -3914,6 +3934,16 @@ static void demo_check_and_set_wsi_platform(struct demo *demo) {
+         }
+     }
+ #endif
++#if defined(VK_USE_PLATFORM_PLAN9_9FRONT)
++    if (demo->wsi_platform == WSI_PLATFORM_PLAN9 || demo->wsi_platform == WSI_PLATFORM_AUTO) {
++        for (uint32_t i = 0; i < demo->enabled_extension_count; i++) {
++            if (strcmp(demo->extension_names[i], VK_PLAN9_SURFACE_EXTENSION_NAME) == 0) {
++                demo->wsi_platform = WSI_PLATFORM_PLAN9;
++                return;
++            }
++        }
++    }
++#endif
+ #if defined(VK_USE_PLATFORM_DISPLAY_KHR)
+     if (demo->wsi_platform == WSI_PLATFORM_DISPLAY || demo->wsi_platform == WSI_PLATFORM_AUTO) {
+         bool display_extension_available = false;
+@@ -4057,6 +4087,13 @@ static void demo_init_vk(struct demo *demo) {
+                 platformSurfaceExtFound = true;
+                 demo->extension_names[demo->enabled_extension_count++] = VK_QNX_SCREEN_SURFACE_EXTENSION_NAME;
+             }
++#endif
++#if defined(VK_USE_PLATFORM_PLAN9_9FRONT)
++            if (!strcmp(VK_PLAN9_SURFACE_EXTENSION_NAME, instance_extensions[i].extensionName) &&
++                (demo->wsi_platform == WSI_PLATFORM_AUTO || demo->wsi_platform == WSI_PLATFORM_PLAN9)) {
++                platformSurfaceExtFound = true;
++                demo->extension_names[demo->enabled_extension_count++] = VK_PLAN9_SURFACE_EXTENSION_NAME;
++            }
+ #endif
+             if (!strcmp(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME, instance_extensions[i].extensionName)) {
+                 demo->extension_names[demo->enabled_extension_count++] = VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME;
+@@ -4158,6 +4195,14 @@ static void demo_init_vk(struct demo *demo) {
+                          "The selected WSI platform qnx is not available, please choose a different WSI platform\n",
+                          "vkCreateInstance Failure");
+                 break;
++#endif
++#if defined(VK_USE_PLATFORM_PLAN9_9FRONT)
++            case (WSI_PLATFORM_PLAN9):
++                ERR_EXIT("vkEnumerateInstanceExtensionProperties failed to find the " VK_PLAN9_SURFACE_EXTENSION_NAME
++                         " instance extension.\n\n"
++                         "The selected WSI platform plan9 is not available, please choose a different WSI platform\n",
++                         "vkCreateInstance Failure");
++                break;
+ #endif
+             default:
+             case (WSI_PLATFORM_AUTO):
+@@ -4601,6 +4646,17 @@ static void demo_create_surface(struct demo *demo) {
+ 
+         err = vkCreateScreenSurfaceQNX(demo->inst, &qnx_createInfo, NULL, &demo->surface);
+     }
++#endif
++#if defined(VK_USE_PLATFORM_PLAN9_9FRONT)
++    if (demo->wsi_platform == WSI_PLATFORM_PLAN9) {
++        VkPlan9SurfaceCreateInfoPLAN9 plan9_createInfo;
++        plan9_createInfo.sType = VK_STRUCTURE_TYPE_PLAN9_SURFACE_CREATE_INFO_PLAN9;
++        plan9_createInfo.pNext = NULL;
++        plan9_createInfo.flags = 0;
++        plan9_createInfo.pWindowName = NULL;  // the process's window, or the screen
++
++        err = vkCreatePlan9SurfacePLAN9(demo->inst, &plan9_createInfo, NULL, &demo->surface);
++    }
+ #endif
+     assert(!err);
+ }
+@@ -4865,6 +4921,12 @@ static void demo_init(struct demo *demo, int argc, char **argv) {
+         }
+         strncat(available_wsi_platforms, "qnx", max_str_len);
+ #endif
++#if defined(VK_USE_PLATFORM_PLAN9_9FRONT)
++        if (strlen(available_wsi_platforms) > 0) {
++            strncat(available_wsi_platforms, "|", max_str_len);
++        }
++        strncat(available_wsi_platforms, "plan9", max_str_len);
++#endif
+ 
+         char *message =
+             "Usage:\n  %s\t[--use_staging] [--validate]\n"
+@@ -5108,7 +5170,7 @@ void android_main(struct android_app *app) {
+         }
+     }
+ }
+-#elif defined(__linux__) || defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__QNX__) || defined(__GNU__)
++#elif defined(__linux__) || defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__QNX__) || defined(__GNU__) || defined(__plan9__)
+ int main(int argc, char **argv) {
+     struct demo demo;
+ 
+@@ -5151,6 +5213,10 @@ int main(int argc, char **argv) {
+             // select physical device because display surface creation needs a gpu to be selected.
+             demo_select_physical_device(&demo);
+             break;
++#endif
++#if defined(VK_USE_PLATFORM_PLAN9_9FRONT)
++        case (WSI_PLATFORM_PLAN9):
++            break;
+ #endif
+     }
+     demo_create_surface(&demo);
+@@ -5195,6 +5261,11 @@ int main(int argc, char **argv) {
+             demo_run_display(&demo);
+             break;
+ #endif
++#if defined(VK_USE_PLATFORM_PLAN9_9FRONT)
++        case (WSI_PLATFORM_PLAN9):
++            demo_run_plan9(&demo);
++            break;
++#endif
+ #if defined(VK_USE_PLATFORM_SCREEN_QNX)
+         case (WSI_PLATFORM_QNX):
+             demo_run(&demo);
+diff --git a/cube/cube_functions.h b/cube/cube_functions.h
+index 975f65f..94d5355 100644
+--- a/cube/cube_functions.h
++++ b/cube/cube_functions.h
+@@ -26,6 +26,8 @@
+ #elif defined(__APPLE__)
+ #include <stdlib.h>
+ #include <dlfcn.h>
++#elif defined(__plan9__)
++// 9front: no shared libraries; libvulkan.a is linked in (see load_vulkan_library)
+ #else
+ #include <dlfcn.h>
+ #endif
+@@ -70,6 +72,9 @@ PFN_vkCreateDirectFBSurfaceEXT vkCreateDirectFBSurfaceEXT;
+ #if defined(VK_USE_PLATFORM_SCREEN_QNX)
+ PFN_vkCreateScreenSurfaceQNX vkCreateScreenSurfaceQNX;
+ #endif
++#if defined(VK_USE_PLATFORM_PLAN9_9FRONT)
++PFN_vkCreatePlan9SurfacePLAN9 vkCreatePlan9SurfacePLAN9;
++#endif
+ 
+ // Instance functions
+ PFN_vkCreateDebugUtilsMessengerEXT vkCreateDebugUtilsMessengerEXT;
+@@ -197,6 +202,12 @@ static VkResult load_vulkan_library() {
+     }
+ 
+     vkGetInstanceProcAddr = (PFN_vkGetInstanceProcAddr)dlsym(library, "vkGetInstanceProcAddr");
++#elif defined(__plan9__)
++    // the static loader's vkGetInstanceProcAddr, under the name that does
++    // not collide with the pointer of the same name here
++    extern PFN_vkVoidFunction VKAPI_CALL vkl_GetInstanceProcAddr(VkInstance, const char*);
++    void* library = NULL;
++    vkGetInstanceProcAddr = vkl_GetInstanceProcAddr;
+ #else  // Assume everything else supports dlopen
+     void* library = dlopen("libvulkan.so.1", RTLD_NOW | RTLD_LOCAL);
+     if (library == NULL) library = dlopen("libvulkan.so", RTLD_NOW | RTLD_LOCAL);
+@@ -220,6 +231,7 @@ static void unload_vulkan_library() {
+     if (vulkan_library != NULL) {
+ #if defined(WIN32)
+         FreeLibrary((HMODULE)vulkan_library);
++#elif defined(__plan9__)
+ #else
+         dlclose(vulkan_library);
+ #endif
+@@ -251,6 +263,9 @@ static void load_vulkan_instance_functions(VkInstance instance) {
+ #endif
+ #if defined(VK_USE_PLATFORM_SCREEN_QNX)
+     LOAD_INSTANCE_FUNCTION(instance, vkCreateScreenSurfaceQNX);
++#endif
++#if defined(VK_USE_PLATFORM_PLAN9_9FRONT)
++    LOAD_INSTANCE_FUNCTION(instance, vkCreatePlan9SurfacePLAN9);
+ #endif
+     LOAD_INSTANCE_FUNCTION(instance, vkCreateDebugUtilsMessengerEXT);
+     LOAD_INSTANCE_FUNCTION(instance, vkCreateDevice);
+diff --git a/vulkaninfo/vulkaninfo.h b/vulkaninfo/vulkaninfo.h
+index 33e1ac5..73c71fc 100644
+--- a/vulkaninfo/vulkaninfo.h
++++ b/vulkaninfo/vulkaninfo.h
+@@ -741,6 +741,11 @@ struct AppInstance {
+             if (strcmp(VK_KHR_DISPLAY_EXTENSION_NAME, ext.extensionName) == 0) {
+                 inst_extensions.push_back(ext.extensionName);
+             }
++#endif
++#ifdef VK_USE_PLATFORM_PLAN9_9FRONT
++            if (strcmp(VK_PLAN9_SURFACE_EXTENSION_NAME, ext.extensionName) == 0) {
++                inst_extensions.push_back(ext.extensionName);
++            }
+ #endif
+             if (strcmp(VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME, ext.extensionName) == 0) {
+                 inst_extensions.push_back(ext.extensionName);
+@@ -782,7 +787,7 @@ struct AppInstance {
+ #if defined(VK_USE_PLATFORM_XCB_KHR) || defined(VK_USE_PLATFORM_XLIB_KHR) || defined(VK_USE_PLATFORM_WIN32_KHR) ||      \
+     defined(VK_USE_PLATFORM_MACOS_MVK) || defined(VK_USE_PLATFORM_METAL_EXT) || defined(VK_USE_PLATFORM_WAYLAND_KHR) || \
+     defined(VK_USE_PLATFORM_DIRECTFB_EXT) || defined(VK_USE_PLATFORM_GGP) || defined(VK_USE_PLATFORM_SCREEN_QNX) ||     \
+-    defined(VK_USE_PLATFORM_DISPLAY)
++    defined(VK_USE_PLATFORM_DISPLAY) || defined(VK_USE_PLATFORM_PLAN9_9FRONT)
+ 
+ #define VULKANINFO_WSI_ENABLED
+ #endif
+@@ -1193,6 +1198,27 @@ static void AppDestroyScreenWindow(AppInstance &inst) {
+ }
+ #endif  // VK_USE_PLATFORM_SCREEN_QNX
+ //-----------------------------------------------------------
++//--------------------------9front---------------------------
++#ifdef VK_USE_PLATFORM_PLAN9_9FRONT
++// the surface is the process's window (rio) or the screen: nothing to make
++static void AppCreatePlan9Window(AppInstance &inst) {}
++
++static VkSurfaceKHR AppCreatePlan9Surface(AppInstance &inst) {
++    VkPlan9SurfaceCreateInfoPLAN9 createInfo;
++    createInfo.sType = VK_STRUCTURE_TYPE_PLAN9_SURFACE_CREATE_INFO_PLAN9;
++    createInfo.pNext = nullptr;
++    createInfo.flags = 0;
++    createInfo.pWindowName = nullptr;
++
++    VkSurfaceKHR surface;
++    VkResult err = vkCreatePlan9SurfacePLAN9(inst.instance, &createInfo, nullptr, &surface);
++    if (err) THROW_VK_ERR("vkCreatePlan9SurfacePLAN9", err);
++    return surface;
++}
++
++static void AppDestroyPlan9Window(AppInstance &inst) {}
++#endif  // VK_USE_PLATFORM_PLAN9_9FRONT
++//-----------------------------------------------------------
+ // ------------ Setup Windows ------------- //
+ 
+ void SetupWindowExtensions(AppInstance &inst) {
+@@ -1337,6 +1363,18 @@ void SetupWindowExtensions(AppInstance &inst) {
+         inst.AddSurfaceExtension(surface_ext_qnx_screen);
+     }
+ #endif
++//--9FRONT--
++#ifdef VK_USE_PLATFORM_PLAN9_9FRONT
++    SurfaceExtension surface_ext_plan9;
++    if (inst.CheckExtensionEnabled(VK_PLAN9_SURFACE_EXTENSION_NAME)) {
++        surface_ext_plan9.name = VK_PLAN9_SURFACE_EXTENSION_NAME;
++        surface_ext_plan9.create_window = AppCreatePlan9Window;
++        surface_ext_plan9.create_surface = AppCreatePlan9Surface;
++        surface_ext_plan9.destroy_window = AppDestroyPlan9Window;
++
++        inst.AddSurfaceExtension(surface_ext_plan9);
++    }
++#endif
+ // TODO: add support for VK_KHR_display surfaces
+ }
+ 
+diff --git a/vulkaninfo/vulkaninfo_functions.h b/vulkaninfo/vulkaninfo_functions.h
+index 2876155..4bcb44d 100644
+--- a/vulkaninfo/vulkaninfo_functions.h
++++ b/vulkaninfo/vulkaninfo_functions.h
+@@ -26,6 +26,8 @@
+ #elif defined(__APPLE__)
+ #include <stdlib.h>
+ #include <dlfcn.h>
++#elif defined(__plan9__)
++// 9front: no shared libraries; libvulkan.a is linked in (see load_vulkan_library)
+ #else
+ #include <dlfcn.h>
+ #endif
+@@ -38,6 +40,9 @@
+ #include <vulkan/vulkan.h>
+ 
+ void* vulkan_library;
++#if defined(__plan9__)
++extern "C" VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL vkl_GetInstanceProcAddr(VkInstance, const char*);
++#endif
+ 
+ // Global Functions
+ PFN_vkGetInstanceProcAddr vkGetInstanceProcAddr;
+@@ -80,6 +85,9 @@ PFN_vkCreateDirectFBSurfaceEXT vkCreateDirectFBSurfaceEXT;
+ #if defined(VK_USE_PLATFORM_GGP)
+ PFN_vkCreateStreamDescriptorSurfaceGGP vkCreateStreamDescriptorSurfaceGGP;
+ #endif
++#if defined(VK_USE_PLATFORM_PLAN9_9FRONT)
++PFN_vkCreatePlan9SurfacePLAN9 vkCreatePlan9SurfacePLAN9;
++#endif
+ // Instance functions
+ PFN_vkCreateDebugReportCallbackEXT vkCreateDebugReportCallbackEXT;
+ PFN_vkCreateDevice vkCreateDevice;
+@@ -152,6 +160,11 @@ static VkResult load_vulkan_library() {
+     }
+ 
+     vkGetInstanceProcAddr = (PFN_vkGetInstanceProcAddr)dlsym(library, "vkGetInstanceProcAddr");
++#elif defined(__plan9__)
++    // the static loader's vkGetInstanceProcAddr, under the name that does
++    // not collide with the pointer of the same name here
++    void* library = NULL;
++    vkGetInstanceProcAddr = vkl_GetInstanceProcAddr;
+ #else  // Assume everything else supports dlopen
+     void* library = dlopen("libvulkan.so.1", RTLD_NOW | RTLD_LOCAL);
+     if (library == NULL) library = dlopen("libvulkan.so", RTLD_NOW | RTLD_LOCAL);
+@@ -176,6 +189,7 @@ static void unload_vulkan_library() {
+     if (vulkan_library != NULL) {
+ #if defined(WIN32)
+         FreeLibrary((HMODULE)vulkan_library);
++#elif defined(__plan9__)
+ #else
+         dlclose(vulkan_library);
+ #endif
+@@ -217,6 +231,9 @@ static void load_vulkan_instance_functions(VkInstance instance) {
+ #if defined(VK_USE_PLATFORM_GGP)
+     LOAD_INSTANCE_FUNCTION(instance, vkCreateStreamDescriptorSurfaceGGP);
+ #endif
++#if defined(VK_USE_PLATFORM_PLAN9_9FRONT)
++    LOAD_INSTANCE_FUNCTION(instance, vkCreatePlan9SurfacePLAN9);
++#endif
+ 
+     LOAD_INSTANCE_FUNCTION(instance, vkCreateDebugReportCallbackEXT);
+     LOAD_INSTANCE_FUNCTION(instance, vkCreateDevice);

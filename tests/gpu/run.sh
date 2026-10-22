@@ -12,7 +12,8 @@
 # hostmem bar (gpu(4)); with Mesa built, vktest (Vulkan compute on the
 # host's GPU), vkdraw (a swapchain on the screen, VK_PLAN9_surface,
 # checked pixel by pixel in the guest) and vktri (a triangle drawn with
-# shaders by an ordinary Vulkan program, through the static loader).
+# shaders by an ordinary Vulkan program, through the static loader);
+# Khronos' vulkaninfo and vkcube (60 frames, then the screen is read).
 # usage: bash tests/gpu/run.sh   (amd64 only; needs a build)
 . "$(dirname "$0")/../lib.sh"
 HERE=$(cd "$(dirname "$0")" && pwd)
@@ -22,7 +23,8 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 buildtests(){ (cd "$HERE" && env PLAN9="$ROOT" ARCH=$objtype CC=gcc "$BUILDEXE" build.json); }
 check "build tests/gpu" buildtests || { done_tests; exit; }
 # vktest needs Mesa's venus, built by scripts/mesa/build.sh (minutes, once)
-rm -f "$HERE/root/tests/vktest" "$HERE/root/tests/vkdraw" "$HERE/root/tests/vktri"
+rm -f "$HERE/root/tests/vktest" "$HERE/root/tests/vkdraw" "$HERE/root/tests/vktri" \
+	"$HERE/root/tests/vkcube" "$HERE/root/tests/vulkaninfo"
 if [ -f "$(. "$ROOT/scripts/mesa/common.sh"; echo "$BUILD/libvulkan_venus.a")" ]; then
 	check "build tests/gpu/vktest against venus" bash "$HERE/build-vktest.sh"
 else
@@ -120,7 +122,10 @@ if [ -r /dev/dri/renderD128 ] && [ -w /dev/dri/renderD128 ] &&
 			"test ! -x /tests/vktest || /tests/vktest" \
 			"bind -a '#i' /dev" \
 			"test ! -x /tests/vkdraw || /tests/vkdraw 3" \
-			"test ! -x /tests/vktri || /tests/vktri 2" > "$TMPD/console3d" 2>&1
+			"test ! -x /tests/vktri || /tests/vktri 2" \
+			"test ! -x /tests/vulkaninfo || /tests/vulkaninfo --summary" \
+			"test ! -x /tests/vulkaninfo || /tests/vulkaninfo | grep -c 'Surface type *= VK_PLAN9_surface'" \
+			"test ! -x /tests/vkcube || {/tests/vkcube --c 60 >/dev/null >[2=1]; /tests/screenpx 1270,790 640,400}" > "$TMPD/console3d" 2>&1
 	}
 	check "boot with virtio-gpu-gl (virgl, venus), run gpuctxtest" boot3d
 	tr -d '\r' < "$TMPD/console3d" > "$TMPD/log3d"
@@ -138,6 +143,10 @@ if [ -r /dev/dri/renderD128 ] && [ -w /dev/dri/renderD128 ] &&
 		check "vktest (Vulkan through venus): all passed" grep -q '^vktest: all passed' "$TMPD/log3d"
 		check "vkdraw (VK_PLAN9_surface, swapchain on the screen): all passed" grep -q '^vkdraw: all passed' "$TMPD/log3d"
 		check "vktri (shaders, libvulkan's loader): all passed" grep -q '^vktri: all passed' "$TMPD/log3d"
+		check "vulkaninfo --summary: the venus device" grep -q 'deviceName *= Virtio-GPU Venus' "$TMPD/log3d"
+		check "vulkaninfo: a VK_PLAN9_surface section" bash -c "grep -A1 \"vulkaninfo | grep -c\" '$TMPD/log3d' | sed -n 2p | grep -q '^[1-9]'"
+		check "vkcube: clear colour at the edge" grep -q '^1270,790 333333' "$TMPD/log3d"
+		check "vkcube: the cube in the middle" bash -c "grep '^640,400 ' '$TMPD/log3d' | grep -vq '333333\$'"
 	fi
 	check "contexts gone after the test" bash -c "! sed -n '/gpuctxtest: /,\$p' '$TMPD/log3d' | grep -q '^ctx '"
 else

@@ -12,6 +12,11 @@
  * the device's for the device, its queues and command buffers.  The
  * trampolines (vkcmds.c, from genloader.py) call through it; the
  * commands that make dispatchable objects are here.  No layers.
+ *
+ * The functions are vkl_CreateInstance etc., the vk names weak aliases
+ * of them: a program that keeps its own pointers under the vk names
+ * (vkcube, vulkaninfo; they would dlopen libvulkan.so.1 elsewhere)
+ * starts from vkl_GetInstanceProcAddr instead.
  */
 #include <stdlib.h>
 #include <string.h>
@@ -74,12 +79,12 @@ wrap(const char *name, PFN_vkVoidFunction p)
 }
 
 VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL
-vkGetInstanceProcAddr(VkInstance inst, const char *name)
+vkl_GetInstanceProcAddr(VkInstance inst, const char *name)
 {
 	int i;
 
 	if(strcmp(name, "vkGetInstanceProcAddr") == 0)
-		return (PFN_vkVoidFunction)vkGetInstanceProcAddr;
+		return (PFN_vkVoidFunction)vkl_GetInstanceProcAddr;
 	if(inst == NULL){
 		i = lookup(name);
 		if(i < 0 || vkl_level[i] != 0)
@@ -89,7 +94,7 @@ vkGetInstanceProcAddr(VkInstance inst, const char *name)
 }
 
 VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL
-vkGetDeviceProcAddr(VkDevice dev, const char *name)
+vkl_GetDeviceProcAddr(VkDevice dev, const char *name)
 {
 	PFN_vkGetDeviceProcAddr gdpa;
 
@@ -98,7 +103,7 @@ vkGetDeviceProcAddr(VkDevice dev, const char *name)
 }
 
 VKAPI_ATTR VkResult VKAPI_CALL
-vkCreateInstance(const VkInstanceCreateInfo *ci, const VkAllocationCallbacks *a, VkInstance *pinst)
+vkl_CreateInstance(const VkInstanceCreateInfo *ci, const VkAllocationCallbacks *a, VkInstance *pinst)
 {
 	PFN_vkDestroyInstance destroy;
 	VkResult r;
@@ -128,7 +133,7 @@ vkCreateInstance(const VkInstanceCreateInfo *ci, const VkAllocationCallbacks *a,
 }
 
 VKAPI_ATTR void VKAPI_CALL
-vkDestroyInstance(VkInstance inst, const VkAllocationCallbacks *a)
+vkl_DestroyInstance(VkInstance inst, const VkAllocationCallbacks *a)
 {
 	Vkl *t;
 
@@ -140,7 +145,7 @@ vkDestroyInstance(VkInstance inst, const VkAllocationCallbacks *a)
 }
 
 VKAPI_ATTR VkResult VKAPI_CALL
-vkEnumeratePhysicalDevices(VkInstance inst, uint32_t *n, VkPhysicalDevice *pd)
+vkl_EnumeratePhysicalDevices(VkInstance inst, uint32_t *n, VkPhysicalDevice *pd)
 {
 	Vkl *t;
 	VkResult r;
@@ -171,19 +176,19 @@ groups(int cmd, VkInstance inst, uint32_t *n, VkPhysicalDeviceGroupProperties *g
 }
 
 VKAPI_ATTR VkResult VKAPI_CALL
-vkEnumeratePhysicalDeviceGroups(VkInstance inst, uint32_t *n, VkPhysicalDeviceGroupProperties *g)
+vkl_EnumeratePhysicalDeviceGroups(VkInstance inst, uint32_t *n, VkPhysicalDeviceGroupProperties *g)
 {
 	return groups(VKL_vkEnumeratePhysicalDeviceGroups, inst, n, g);
 }
 
 VKAPI_ATTR VkResult VKAPI_CALL
-vkEnumeratePhysicalDeviceGroupsKHR(VkInstance inst, uint32_t *n, VkPhysicalDeviceGroupProperties *g)
+vkl_EnumeratePhysicalDeviceGroupsKHR(VkInstance inst, uint32_t *n, VkPhysicalDeviceGroupProperties *g)
 {
 	return groups(VKL_vkEnumeratePhysicalDeviceGroupsKHR, inst, n, g);
 }
 
 VKAPI_ATTR VkResult VKAPI_CALL
-vkCreateDevice(VkPhysicalDevice pd, const VkDeviceCreateInfo *ci, const VkAllocationCallbacks *a, VkDevice *pdev)
+vkl_CreateDevice(VkPhysicalDevice pd, const VkDeviceCreateInfo *ci, const VkAllocationCallbacks *a, VkDevice *pdev)
 {
 	PFN_vkGetDeviceProcAddr gdpa;
 	Vkl *it, *t;
@@ -209,7 +214,7 @@ vkCreateDevice(VkPhysicalDevice pd, const VkDeviceCreateInfo *ci, const VkAlloca
 }
 
 VKAPI_ATTR void VKAPI_CALL
-vkDestroyDevice(VkDevice dev, const VkAllocationCallbacks *a)
+vkl_DestroyDevice(VkDevice dev, const VkAllocationCallbacks *a)
 {
 	Vkl *t;
 
@@ -221,7 +226,7 @@ vkDestroyDevice(VkDevice dev, const VkAllocationCallbacks *a)
 }
 
 VKAPI_ATTR void VKAPI_CALL
-vkGetDeviceQueue(VkDevice dev, uint32_t family, uint32_t index, VkQueue *q)
+vkl_GetDeviceQueue(VkDevice dev, uint32_t family, uint32_t index, VkQueue *q)
 {
 	Vkl *t;
 
@@ -232,7 +237,7 @@ vkGetDeviceQueue(VkDevice dev, uint32_t family, uint32_t index, VkQueue *q)
 }
 
 VKAPI_ATTR void VKAPI_CALL
-vkGetDeviceQueue2(VkDevice dev, const VkDeviceQueueInfo2 *qi, VkQueue *q)
+vkl_GetDeviceQueue2(VkDevice dev, const VkDeviceQueueInfo2 *qi, VkQueue *q)
 {
 	Vkl *t;
 
@@ -243,7 +248,7 @@ vkGetDeviceQueue2(VkDevice dev, const VkDeviceQueueInfo2 *qi, VkQueue *q)
 }
 
 VKAPI_ATTR VkResult VKAPI_CALL
-vkAllocateCommandBuffers(VkDevice dev, const VkCommandBufferAllocateInfo *ai, VkCommandBuffer *cb)
+vkl_AllocateCommandBuffers(VkDevice dev, const VkCommandBufferAllocateInfo *ai, VkCommandBuffer *cb)
 {
 	Vkl *t;
 	VkResult r;
@@ -256,3 +261,5 @@ vkAllocateCommandBuffers(VkDevice dev, const VkCommandBufferAllocateInfo *ai, Vk
 			VKL_DISPATCH(cb[i]) = t;
 	return r;
 }
+
+VKL_HAND_ALIASES
