@@ -2,7 +2,9 @@
 
 BIN=/$objtype/bin/aux
 
-TARG=intelgpu
-OFILES=intelgpu.$O
+TARG=\
+	intelgpu\
+	inteltest\
+	intelprobe\
 
-</sys/src/cmd/mkone
+</sys/src/cmd/mkmany

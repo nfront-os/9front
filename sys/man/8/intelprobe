@@ -1,8 +1,8 @@
-.TH INTELGPU 8
+.TH INTELPROBE 8
 .SH NAME
-intelgpu \- first steps with an Intel GPU of generation 8
+intelprobe \- first steps with an Intel GPU of generation 8
 .SH SYNOPSIS
-.B aux/intelgpu
+.B aux/intelprobe
 [
 .B -f
 ] [
@@ -11,7 +11,7 @@ intelgpu \- first steps with an Intel GPU of generation 8
 ]
 .B probe
 .br
-.B aux/intelgpu
+.B aux/intelprobe
 [
 .B -f
 ] [
@@ -20,7 +20,7 @@ intelgpu \- first steps with an Intel GPU of generation 8
 ]
 .B blt
 .br
-.B aux/intelgpu
+.B aux/intelprobe
 [
 .B -f
 ] [
@@ -29,7 +29,7 @@ intelgpu \- first steps with an Intel GPU of generation 8
 ]
 .B batch
 .br
-.B aux/intelgpu
+.B aux/intelprobe
 [
 .B -f
 ] [
@@ -72,7 +72,7 @@ does the same as a driver would: the fill (green, at 350,100) is in a
 batch buffer, which the ring starts
 .RB ( MI_BATCH_BUFFER_START ),
 and the ring raises the blitter's user interrupt, which
-.I intelgpu
+.I intelprobe
 waits for on
 .BI #G/ n /irq
 (at most 2 seconds) and acknowledges.
@@ -82,14 +82,15 @@ prints the registers at the MMIO offsets given.
 .SH EXAMPLES
 On the machine with the GPU, the output to a file to look at later:
 .EX
-	aux/intelgpu probe >/tmp/probe
-	aux/intelgpu blt >/tmp/blt
+	aux/intelprobe probe >/tmp/probe
+	aux/intelprobe blt >/tmp/blt
 .EE
 .SH SOURCE
-.B /sys/src/cmd/aux/gpu/intel/intelgpu.c
+.B /sys/src/cmd/aux/gpu/intel/intelprobe.c
 .SH "SEE ALSO"
 .IR gpu (3),
-.IR gpu (4)
+.IR gpu (4),
+.B aux/intelgpu
 .SH BUGS
 Generation 8 only.
 A GPU that hangs may need a reset: reboot.

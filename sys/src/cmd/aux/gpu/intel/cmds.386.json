@@ -1,6 +1,6 @@
 [
 	{
-		"Name": "cmd-aux-gpu-intel-intelgpu",
+		"Name": "cmd-aux-gpu-intel-cmds",
 		"Include": [
 			"/$ARCH/cflags.json"
 		],
@@ -51,9 +51,10 @@
 			"/$ARCH/lib.gcc/libc.a",
 			"--end-group"
 		],
-		"Program": "intelgpu",
-		"SourceFiles": [
-			"intelgpu.c"
+		"SourceFilesCmd": [
+			"intelgpu.c",
+			"inteltest.c",
+			"intelprobe.c"
 		]
 	}
 ]

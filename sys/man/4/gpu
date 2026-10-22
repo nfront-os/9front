@@ -1,6 +1,6 @@
 .TH GPU 4
 .SH NAME
-gpu, virtiogpu \- graphics device file system
+gpu, virtiogpu, intelgpu \- graphics device file system
 .SH SYNOPSIS
 .B aux/virtiogpu
 [
@@ -8,6 +8,17 @@ gpu, virtiogpu \- graphics device file system
 ] [
 .B -m
 .I width\fLx\fPheight
+] [
+.B -s
+.I srvname
+]
+.PP
+.B aux/intelgpu
+[
+.B -dpU
+] [
+.B -g
+.I gdir
 ] [
 .B -s
 .I srvname
@@ -223,6 +234,62 @@ or
 .B failed
 follows if the device rejected a submission.
 At most 64 fences of a context can be outstanding.
+.SS Intel
+.I Intelgpu
+drives an Intel GPU of generation 8 (Broadwell) through
+.IR gpu (3).
+It leaves the display as the firmware or
+.IR vga (8)
+set it up;
+.B ctl
+reads the visible plane,
+.IP
+.BI plane " p gpuaddr stride bpp w h"
+.PP
+and the context files are those above with other requests.
+A buffer object is a segment of physically contiguous memory mapped
+into the GPU's global address space (GTT);
+.TF "\fLbo\fP \fIsize"
+.TP
+.BI bo " size
+creates one, reply
+.BI bo " id seg va size gpuaddr" :
+the client
+.IR segattach es
+.I seg
+and writes the GPU addresses of its objects into its batches itself.
+.TP
+.BI free " id
+frees it once the context's work is done.
+.PD
+.PP
+Writing
+.IB "bo offset " \fR[\fPrcs\fR|\fPbcs\fR]\fP
+to
+.B submit
+starts the batch buffer at
+.I offset
+in object
+.I bo
+on the render (default) or blitter engine; it ends with
+.BR MI_BATCH_BUFFER_END .
+The fences are as above; one that has not completed after 5
+seconds is given up and the context marked
+.BR failed .
+The engines run in ring buffer mode, each with its sequence number
+and the user interrupt (MSI where the device has it,
+.B -p
+polls).
+Objects are mapped write-back in the shared last level cache, so
+that processor and GPU see each other's writes;
+.B -U
+maps them uncached.
+Every context sees the whole GTT: there is no isolation yet, the
+driver is for the host owner.
+.IR Intelprobe (8)
+and
+.B aux/inteltest
+check the hardware and the driver.
 .SH EXAMPLES
 Switch the screen to 1024x768:
 .EX
@@ -312,6 +379,8 @@ and
 .I vulkaninfo
 are ported this way.
 .SH SOURCE
+.B /sys/src/cmd/aux/gpu/intel
+.br
 .B /sys/src/cmd/aux/gpu
 .br
 .B /sys/src/mesa/overlay/src/virtio/vulkan/vn_renderer_plan9.c
