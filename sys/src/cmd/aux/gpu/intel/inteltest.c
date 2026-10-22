@@ -55,17 +55,37 @@ ok(char *fmt, ...)
 	va_end(arg);
 }
 
+static char *readall(char*);
+
 static void
 fail(char *fmt, ...)
 {
 	va_list arg;
+	char *s;
 
 	va_start(arg, fmt);
 	print("FAIL ");
 	vfprint(1, fmt, arg);
 	print("\n");
 	va_end(arg);
-	nfail++;
+	/* the first failure: what the driver knows then */
+	if(nfail++ == 0 && (s = readall("status")) != nil)
+		print("status at the first failure:\n%s", s);
+}
+
+/* a request to the device's ctl */
+static int
+devctl(char *msg)
+{
+	char path[128];
+	int fd, r;
+
+	snprint(path, sizeof path, "%s/ctl", dir);
+	if((fd = open(path, OWRITE)) < 0)
+		return -1;
+	r = write(fd, msg, strlen(msg));
+	close(fd);
+	return r < 0 ? -1 : 0;
 }
 
 static char*
@@ -272,8 +292,9 @@ store(Ctx *c, Bo *batch, int bdw, Bo *data, int ddw, u32int v, char *eng)
 		ok("ctx %s %s: MI_STORE_DWORD_IMM, fence after %lld µs, the CPU sees %#ux", c->id, eng, us, v);
 }
 
-void
-main(int argc, char **argv)
+/* the checks, once; the failures */
+static int
+suite(void)
 {
 	char *s, *f[8];
 	Ctx a, b;
@@ -283,21 +304,11 @@ main(int argc, char **argv)
 	uvlong k;
 	vlong us, t0;
 	ulong irq0, stride;
-	int i, n, bad, bpp;
+	int i, n, bad, bpp, nfail0;
 
-	ARGBEGIN{
-	case 'd':
-		dir = EARGF(sysfatal("usage: %s [-d dir]", argv0));
-		break;
-	}ARGEND
-
-	if((s = readall("status")) == nil)
-		sysfatal("read %s/status: %r", dir);
-	print("status before:\n%s", s);
-	global = strstr(s, "global gtt") != nil;
-	if((s = readall("ctl")) == nil)
-		sysfatal("read %s/ctl: %r", dir);
-	print("ctl: %s", s);
+	nfail0 = nfail;
+	memset(&data, 0, sizeof data);
+	memset(&batch, 0, sizeof batch);
 
 	if(newctx(&a) < 0 || newbo(&a, &data, 65536) < 0 || newbo(&a, &batch, 65536) < 0)
 		goto Out;
@@ -381,6 +392,8 @@ main(int argc, char **argv)
 			(nsec() - t0)/1000000, nirq() - irq0);
 
 	/* 7. that context goes, with its objects; one in another process */
+	segdetach(bdata.p);
+	segdetach(bbatch.p);
 	freectx(&b);
 	switch(fork()){
 	case -1:
@@ -404,7 +417,41 @@ main(int argc, char **argv)
 	if((s = readall("status")) != nil)
 		print("status after:\n%s", s);
 Out:
+	segdetach(data.p);
+	segdetach(batch.p);
 	freectx(&a);
+	return nfail - nfail0;
+}
+
+void
+main(int argc, char **argv)
+{
+	char *s;
+	int n;
+
+	ARGBEGIN{
+	case 'd':
+		dir = EARGF(sysfatal("usage: %s [-d dir]", argv0));
+		break;
+	}ARGEND
+
+	if((s = readall("status")) == nil)
+		sysfatal("read %s/status: %r", dir);
+	print("status before:\n%s", s);
+	global = strstr(s, "global gtt") != nil;
+	if((s = readall("ctl")) == nil)
+		sysfatal("read %s/ctl: %r", dir);
+	print("ctl: %s", s);
+
+	print("== pdp lri\n");
+	devctl("pdp lri");
+	if((n = suite()) != 0 && !global){
+		print("== %d failed with pdp lri: reset, then pdp mmio\n", n);
+		if(devctl("reset") < 0 || devctl("pdp mmio") < 0)
+			print("FAIL ctl: %r\n");
+		else if(suite() == 0)
+			print("== pdp mmio: all passed\n");
+	}
 	print(nfail ? "inteltest: %d failed\n" : "inteltest: all passed\n", nfail);
 	exits(nfail ? "fail" : nil);
 }

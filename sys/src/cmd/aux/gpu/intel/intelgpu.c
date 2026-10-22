@@ -58,6 +58,10 @@ enum {
 	Resr		= 0xB8,
 	Rmode		= 0x29C,
 	Rpdp		= 0x270,	/* PDP n: lower dword at +n*8, upper at +n*8+4 */
+	Rresetctl	= 0xD0,		/* RING_RESET_CTL */
+	Resetrequest	= 1<<0,
+	Resetready	= 1<<1,
+	Gdrst		= 0x941C,	/* GEN6_GDRST: engine resets */
 
 	Stopring	= 1<<8,
 	Ringvalid	= 1<<0,
@@ -121,6 +125,11 @@ enum {
 	Timeout		= 5000,		/* ms before a fence is given up */
 };
 
+enum {
+	Pdplri,		/* PDPs loaded in the ring (MI_LOAD_REGISTER_IMM) */
+	Pdpmmio,	/* by the processor, the engine idle */
+};
+
 typedef struct Engine Engine;
 typedef struct Bo Bo;
 typedef struct Ctx Ctx;
@@ -131,6 +140,7 @@ struct Engine {
 	char	*name;
 	ulong	base;
 	int	irqshift;
+	u32int	resetbit;	/* in GEN6_GDRST */
 	u32int	*ring;		/* Ringpages pages */
 	u32int	*hws;		/* the status page */
 	ulong	ringgtt, hwsgtt;
@@ -138,6 +148,9 @@ struct Engine {
 	u32int	seqno;		/* last emitted */
 	int	ok;
 	ulong	cur;		/* serial of the context whose PDPs are loaded */
+	int	nreset;
+	u32int	lastdone;	/* hang watch: sequence number done */
+	vlong	lastprogress;	/* and when it last moved */
 };
 
 struct Bo {
@@ -194,9 +207,10 @@ static uvlong drvpa;
 static u32int *drv;
 static Hole *holes;
 static Engine eng[] = {
-	{ "rcs", 0x2000, 0 },
-	{ "bcs", 0x22000, 16 },
+	{ "rcs", 0x2000, 0, 1<<1 },	/* GEN6_GRDOM_RENDER */
+	{ "bcs", 0x22000, 16, 1<<3 },	/* GEN6_GRDOM_BLT */
 };
+static int pdpload = Pdplri;
 static Ctx *ctxs[Nctx];
 static Bo *bos[Nbo];
 static File *ctxdir;
@@ -582,6 +596,9 @@ forcewake(void)
  * engines in ring buffer mode (no execlists), each with Ringpages
  * of ring and a status page
  */
+static void enginestart(Engine*);
+static void irqinit(void);
+
 static void
 engineinit(Engine *e, int i)
 {
@@ -597,7 +614,16 @@ engineinit(Engine *e, int i)
 	e->hwsgtt = r + Ringpages*4096;
 	memset(e->ring, 0, (Ringpages+1)*4096);
 	flushcache(e->ring, (Ringpages+1)*4096);
+	e->seqno = 0;
+	enginestart(e);
+}
 
+/* the engine's registers: ring buffer mode, the ring empty from its start */
+static void
+enginestart(Engine *e)
+{
+	e->ok = 0;
+	e->cur = 0;
 	wr(e->base+Rmode, masked(Runlist, 0));
 	if(!global)
 		wr(e->base+Rmode, masked(Ppgttenable, 1));
@@ -611,13 +637,49 @@ engineinit(Engine *e, int i)
 	/* its user interrupt, in GT bank 0's layout, after the start */
 	wr(e->base+Rimr, ~(Userintr<<e->irqshift));
 	e->tail = 0;
-	e->seqno = 0;
+	e->lastdone = e->hws[Hwsseqno];
+	e->lastprogress = nsec();
 	if((rd(e->base+Rctl) & Ringvalid) == 0 || rd(e->base+Rstart) != e->ringgtt){
 		fprint(2, "%s: %s ring did not start: ctl %#ux start %#ux\n", argv0, e->name,
 			rd(e->base+Rctl), rd(e->base+Rstart));
 		return;
 	}
 	e->ok = 1;
+}
+
+/*
+ * an engine reset (i915's gen8 reset_prepare and gen6_reset_engines):
+ * the engine asked to stop, then reset through GDRST, then started
+ * again; what it had not done counts as done, the contexts that
+ * waited for it as failed. With lk.
+ */
+static void
+engreset(Engine *e)
+{
+	Ctx *c;
+	int i, k;
+
+	wr(e->base+Rresetctl, masked(Resetrequest, 1));
+	for(i = 0; i < 20 && (rd(e->base+Rresetctl) & Resetready) == 0; i++)
+		sleep(1);
+	wr(Gdrst, e->resetbit);
+	for(i = 0; i < 500 && (rd(Gdrst) & e->resetbit) != 0; i++)
+		sleep(1);
+	wr(e->base+Rresetctl, masked(Resetrequest, 0));
+	for(i = 0; i < Nctx; i++){
+		if((c = ctxs[i]) == nil)
+			continue;
+		for(k = 0; k < Fwin; k++)
+			if(c->fe[k] == e && c->donefence < c->nfence)
+				c->failed = 1;
+	}
+	e->hws[Hwsseqno] = e->seqno;
+	flushcache(&e->hws[Hwsseqno], 4);
+	memset(e->ring, 0, Ringpages*4096);
+	flushcache(e->ring, Ringpages*4096);
+	enginestart(e);
+	e->nreset++;
+	fprint(2, "%s: %s reset, %s\n", argv0, e->name, e->ok ? "running again" : "not running");
 }
 
 static void
@@ -673,6 +735,32 @@ emit(Engine *e, u32int v)
 }
 
 /*
+ * the page directories by the processor: the engine must be idle,
+ * everything before done; the ring then only invalidates (ppswitch
+ * loads them again, the same)
+ */
+static int
+ppswitchmmio(Engine *e, Ctx *c)
+{
+	uvlong pa;
+	vlong t0;
+	int n;
+
+	t0 = nsec();
+	while(engdone(e) != e->seqno - 1 || (rd(e->base+Rhead) & Headmask) != e->tail){
+		if(nsec() - t0 > (vlong)Timeout*1000000)
+			return -1;
+		sleep(0);
+	}
+	for(n = 0; n < 4; n++){
+		pa = ptphys(c->pd[n]);
+		wr(e->base + Rpdp + n*8 + 4, pa>>32);
+		wr(e->base + Rpdp + n*8, pa);
+	}
+	return 0;
+}
+
+/*
  * the context's address space on the engine: its page directories into
  * the PDP registers, then the TLBs invalidated (as i915's legacy gen 8
  * mm switch and EMIT_INVALIDATE flush)
@@ -719,8 +807,11 @@ dispatch(Engine *e, Ctx *c, ulong a, u32int *seqno)
 		return "ring full (engine hung?)";
 	t0 = e->tail;
 	*seqno = ++e->seqno;
-	if(!global && e->cur != c->serial)
+	if(!global && e->cur != c->serial){
+		if(pdpload == Pdpmmio && ppswitchmmio(e, c) < 0)
+			return "engine busy too long";
 		ppswitch(e, c);
+	}
 	emit(e, Mibbstart | (global ? 0 : Bbppgtt));
 	emit(e, a);
 	emit(e, 0);
@@ -813,9 +904,27 @@ irqproc(void)
 static void
 tickproc(void)
 {
+	Engine *e;
+	u32int d;
+	int i;
+
 	for(;;){
 		sleep(100);
 		qlock(&lk);
+		for(i = 0; i < nelem(eng); i++){
+			e = &eng[i];
+			d = engdone(e);
+			if(d != e->lastdone || d == e->seqno){
+				e->lastdone = d;
+				e->lastprogress = nsec();
+			}else if(nsec() - e->lastprogress > (vlong)Timeout*1000000){
+				fprint(2, "%s: %s hung at %#ux: head %#ux acthd %#ux ipehr %#ux eir %#ux\n",
+					argv0, e->name, d, rd(e->base+Rhead) & Headmask, rd(e->base+Racthd),
+					rd(e->base+Ripehr), rd(e->base+Reir));
+				engreset(e);
+				irqinit();
+			}
+		}
 		reap();
 		rwakeupall(&done);
 		qunlock(&lk);
@@ -1169,14 +1278,15 @@ statusstr(void)
 	id = ctlline("id", buf, sizeof buf);
 	s = smprint("device intel %s, gen 8\nirq %s %lud\nobjects %s, %s\n", id ? id : "?",
 		irqfd >= 0 ? "on" : "poll", nirq, uncached ? "uncached" : "cached (llc)",
-		global ? "global gtt" : "ppgtt per context");
+		global ? "global gtt" : pdpload == Pdpmmio ? "ppgtt per context, pdp mmio" : "ppgtt per context, pdp lri");
 	qlock(&lk);
 	for(i = 0; i < nelem(eng); i++){
 		e = &eng[i];
-		t = smprint("%sengine %s %s seqno %ud/%ud head %#ux tail %#lux acthd %#ux eir %#ux ipehr %#ux\n",
+		t = smprint("%sengine %s %s seqno %ud/%ud head %#ux tail %#lux acthd %#ux eir %#ux ipehr %#ux"
+			" mode %#ux pdp0 %#.8ux%.8ux resets %d\n",
 			s, e->name, e->ok ? "ok" : "off", engdone(e), e->seqno,
 			rd(e->base+Rhead) & Headmask, e->tail, rd(e->base+Racthd), rd(e->base+Reir),
-			rd(e->base+Ripehr));
+			rd(e->base+Ripehr), rd(e->base+Rmode), rd(e->base+Rpdp+4), rd(e->base+Rpdp), e->nreset);
 		free(s);
 		s = t;
 	}
@@ -1193,8 +1303,8 @@ statusstr(void)
 	s = t;
 	for(i = 0; i < Nctx; i++)
 		if(ctxs[i] != nil){
-			t = smprint("%sctx %d fence %llud/%llud%s\n", s, ctxs[i]->id, ctxs[i]->donefence,
-				ctxs[i]->nfence, ctxs[i]->failed ? " failed" : "");
+			t = smprint("%sctx %d fence %llud/%llud pd0 %#llux%s\n", s, ctxs[i]->id, ctxs[i]->donefence,
+				ctxs[i]->nfence, global ? 0 : ptphys(ctxs[i]->pd[0]), ctxs[i]->failed ? " failed" : "");
 			free(s);
 			s = t;
 		}
@@ -1339,6 +1449,40 @@ ctxctl(Ctx *c, char **f, int n)
 	return "unknown ctl message";
 }
 
+/* the device's ctl: how the PDPs are loaded, engine resets */
+static char*
+devctl(char **f, int n)
+{
+	int i;
+
+	if(n == 2 && strcmp(f[0], "pdp") == 0){
+		qlock(&lk);
+		if(strcmp(f[1], "lri") == 0)
+			pdpload = Pdplri;
+		else if(strcmp(f[1], "mmio") == 0)
+			pdpload = Pdpmmio;
+		else{
+			qunlock(&lk);
+			return "usage: pdp lri|mmio";
+		}
+		for(i = 0; i < nelem(eng); i++)
+			eng[i].cur = 0;
+		qunlock(&lk);
+		return nil;
+	}
+	if(n == 1 && strcmp(f[0], "reset") == 0){
+		qlock(&lk);
+		for(i = 0; i < nelem(eng); i++)
+			engreset(&eng[i]);
+		irqinit();
+		reap();
+		rwakeupall(&done);
+		qunlock(&lk);
+		return nil;
+	}
+	return "usage: pdp lri|mmio, reset";
+}
+
 static void
 fswrite(Req *r)
 {
@@ -1354,6 +1498,9 @@ fswrite(Req *r)
 	n = tokenize(buf, f, nelem(f));
 	fa = r->fid->aux;
 	switch(ftype(r->fid->file)){
+	case Xctl:
+		e = devctl(f, n);
+		break;
 	case Xctxctl:
 		if(n < 1){
 			respond(r, "empty ctl message");
@@ -1406,7 +1553,7 @@ mktree(void)
 	fs.tree = alloctree(user, user, DMDIR|0555, nil);
 	gpu = createfile(fs.tree->root, "gpu", user, DMDIR|0555, nil);
 	n = createfile(gpu, "0", user, DMDIR|0555, nil);
-	createfile(n, "ctl", user, 0444, (void*)Xctl);
+	createfile(n, "ctl", user, 0664, (void*)Xctl);
 	createfile(n, "status", user, 0444, (void*)Xstatus);
 	createfile(n, "clone", user, 0666, (void*)Xclone);
 	ctxdir = createfile(n, "ctx", user, DMDIR|0555, nil);
@@ -1461,6 +1608,13 @@ devinit(void)
 			sysfatal("#g/gpu0pt: %r");
 		if((ptpool = segattach(0, "gpu0pt", nil, Ptpages*4096)) == (void*)-1)
 			sysfatal("segattach gpu0pt: %r");
+	}
+	/* a previous driver may have left an engine hung: reset both first */
+	for(i = 0; i < nelem(eng); i++){
+		wr(eng[i].base+Rresetctl, masked(Resetrequest, 1));
+		wr(Gdrst, eng[i].resetbit);
+		sleep(10);
+		wr(eng[i].base+Rresetctl, masked(Resetrequest, 0));
 	}
 	for(i = 0; i < nelem(eng); i++)
 		engineinit(&eng[i], i);
