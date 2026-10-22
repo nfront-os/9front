@@ -606,7 +606,6 @@ batch(void)
 	snprint(path, sizeof path, "%s/irq", gdir);
 	if((fd = open(path, OREAD)) < 0)
 		sysfatal("open %s: %r", path);
-	wr(Bcs+Rimr, ~Userintr);
 	wr(Gtisr0+8, ~0);			/* IIR: old ones off */
 	wr(Gtisr0+0xC, Userintr<<Bcsirqshift);	/* IER */
 	wr(Gtisr0+4, ~(Userintr<<Bcsirqshift));	/* IMR */
@@ -615,6 +614,9 @@ batch(void)
 		rd(Gtisr0+4), rd(Gtisr0+0xC));
 
 	startring(&g);
+	/* the ring's own mask after its start, which sets it again */
+	wr(Bcs+Rimr, ~Userintr);
+	print("ring imr %#ux\n", rd(Bcs+Rimr));
 	t0 = nsec();
 	wr(Bcs+Rtail, n*4);
 	notify(catch);

@@ -488,8 +488,14 @@ fixedseg(uintptr va, ulong len)
 	l = palloc.pages;
 	color = getpgcolor(va);
 	for(n = palloc.user; n >= len; n--, l++){
+		/*
+		 * a used page ends a run: with the ?: on its own (it binds
+		 * weaker than ||) a used page after its predecessor counted,
+		 * and every such run made a walk of the whole free list
+		 * before the retry -- seconds with gigabytes of memory
+		 */
 		if(l->Ref.ref != 0 || l->image != nil
-		|| i != 0 ? (l[-1].pa+BY2PG) != l->pa : l->color != color){
+		|| (i != 0 ? (l[-1].pa+BY2PG) != l->pa : l->color != color)){
 		Retry:
 			i = 0;
 			continue;
