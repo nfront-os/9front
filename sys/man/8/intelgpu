@@ -27,6 +27,15 @@ intelgpu \- first steps with an Intel GPU of generation 8
 .B -g
 .I gdir
 ]
+.B batch
+.br
+.B aux/intelgpu
+[
+.B -f
+] [
+.B -g
+.I gdir
+]
 .B peek
 .I reg ...
 .SH DESCRIPTION
@@ -52,11 +61,21 @@ It writes only the forcewake request (and takes it back).
 gives the GPU its first command: it maps a ring page and a status
 page into the last entries of the GTT, starts the blitter (BCS) in
 ring buffer mode (no execlists), and has it fill a red rectangle at
-100,100 of the visible plane and write a sequence number to the
-status page.
+100,100 of the visible plane (16 or 32 bits a pixel) and write a
+sequence number to the status page.
 It waits for that number at most 2 seconds, prints the ring's
 registers, and reads the rectangle back through the aperture.
 The ring is stopped and the GTT entries are cleared afterwards.
+.TP
+.B batch
+does the same as a driver would: the fill (green, at 350,100) is in a
+batch buffer, which the ring starts
+.RB ( MI_BATCH_BUFFER_START ),
+and the ring raises the blitter's user interrupt, which
+.I intelgpu
+waits for on
+.BI #G/ n /irq
+(at most 2 seconds) and acknowledges.
 .TP
 .B peek
 prints the registers at the MMIO offsets given.

@@ -13,6 +13,9 @@
  *					on the visible plane, writes a sequence
  *					number to its status page; checked
  *					through the aperture
+ *	intelgpu [-g #G/n] batch	the same from a batch buffer the ring
+ *					starts (green), and MI_USER_INTERRUPT
+ *					through #G/n/irq
  *	intelgpu [-g #G/n] peek reg...	MMIO registers
  *
  * Register offsets and command formats as in Intel's PRMs (Broadwell,
@@ -73,6 +76,8 @@ enum {
 	Flushstoredw	= 1<<14,
 	Flushstoreidx	= 1<<21,
 	Flushusegtt	= 1<<2,
+	Mibbstart	= 0x31<<23 | 1,	/* MI_BATCH_BUFFER_START, gen 8: 3 dwords, GGTT */
+	Mibbend		= 0x0A<<23,
 	Xycolorblt	= 2<<29 | 0x50<<22,
 	Bltwritergba	= 3<<20,
 	Blttiled	= 1<<11,
@@ -80,8 +85,14 @@ enum {
 	Hwsseqno	= 0x30,		/* dword of the status page with the sequence number */
 	Seqno		= 0x9f0001,
 
-	Segva		= 0x50000000,	/* our pages: ring, status page */
-	Npage		= 2,
+	/* interrupts (gen 8) */
+	Masterirq	= 0x44200,	/* GEN8_MASTER_IRQ: bit 31 enables */
+	Gtisr0		= 0x44300,	/* GEN8_GT_ISR(0), IMR +4, IIR +8, IER +0xC */
+	Bcsirqshift	= 16,		/* the blitter's bits in GT bank 0 */
+	Userintr	= 1<<0,		/* GT_RENDER_USER_INTERRUPT */
+
+	Segva		= 0x50000000,	/* our pages: ring, status page, batch */
+	Npage		= 3,
 };
 
 static char *gdir = "#G/0";
@@ -319,122 +330,303 @@ fixedseg(char *name, uintptr va, ulong size)
 	return strtoull(f[4], nil, 0);
 }
 
+/* what the commands work on: our pages in the GTT, the visible plane */
+typedef struct Gpu Gpu;
+struct Gpu {
+	u32int	*ring;		/* page 0 */
+	u32int	*hws;		/* page 1: the status page */
+	u32int	*batch;		/* page 2 */
+	ulong	ringgtt, hwsgtt, batchgtt;
+	uvlong	nent;		/* GTT entries */
+	u32int	surf, stride;
+	int	tiled, bpp;
+};
+
 static void
-blt(void)
+ctlwrite(char *msg)
 {
 	char path[64];
-	uvlong gttsize, stolen, pa, nent;
-	u32int *ring, *hws, surf, stride, cntr, *px;
-	ulong ringgtt, hwsgtt, color;
-	int p, fd, n, tiled, x0, y0, x1, y1;
-	vlong t0;
+	int fd;
+
+	snprint(path, sizeof path, "%s/ctl", gdir);
+	if((fd = open(path, OWRITE)) < 0 || fprint(fd, "%s", msg) < 0)
+		sysfatal("%s: %s: %r", path, msg);
+	close(fd);
+}
+
+static void
+setup(Gpu *g)
+{
+	uvlong gttsize, stolen, pa;
+	u32int cntr;
+	int p, i, fmt;
 
 	if((p = plane()) < 0)
 		sysfatal("no plane is on");
 	cntr = rd(Dspcntr + p*0x1000);
-	surf = rd(Dspsurf + p*0x1000) & ~0xFFF;
-	stride = rd(Dspstride + p*0x1000);
-	tiled = (cntr & 1<<10) != 0;
-	print("plane %c: cntr %#ux surf %#ux stride %ud%s\n", 'A'+p, cntr, surf, stride, tiled ? " tiled" : "");
-	if((cntr>>26 & 0xF) != 6)	/* DISPPLANE_BGRX888 */
-		print("plane format %d, not x8r8g8b8: the colour will be off\n", cntr>>26 & 0xF);
+	g->surf = rd(Dspsurf + p*0x1000) & ~0xFFF;
+	g->stride = rd(Dspstride + p*0x1000);
+	g->tiled = (cntr & 1<<10) != 0;
+	fmt = cntr>>26 & 0xF;
+	switch(fmt){
+	case 5:		/* DISPPLANE_BGRX565 */
+		g->bpp = 16;
+		break;
+	case 6:		/* DISPPLANE_BGRX888 */
+	case 7:		/* DISPPLANE_BGRA888 */
+		g->bpp = 32;
+		break;
+	default:
+		sysfatal("plane format %d: not 16 or 32 bits", fmt);
+	}
+	print("plane %c: cntr %#ux surf %#ux stride %ud, %d bits%s\n", 'A'+p, cntr, g->surf, g->stride,
+		g->bpp, g->tiled ? ", tiled" : "");
 
 	/* bus mastering, our pages, the last entries of the GTT */
-	snprint(path, sizeof path, "%s/ctl", gdir);
-	if((fd = open(path, OWRITE)) < 0 || fprint(fd, "bme on") < 0)
-		sysfatal("%s: bme on: %r", path);
-	close(fd);
+	ctlwrite("bme on");
 	if((pa = fixedseg("intelgpu", Segva, Npage*4096)) == 0)
 		sysfatal("#g/intelgpu: %r");
-	if((ring = segattach(0, "intelgpu", nil, Npage*4096)) == (void*)-1)
+	if((g->ring = segattach(0, "intelgpu", nil, Npage*4096)) == (void*)-1)
 		sysfatal("segattach intelgpu: %r");
-	hws = ring + 1024;
-	memset(ring, 0, Npage*4096);
+	g->hws = g->ring + 1024;
+	g->batch = g->ring + 2*1024;
+	memset(g->ring, 0, Npage*4096);
 	gmch(&gttsize, &stolen);
-	nent = gttsize/8;
-	if(nent < 1024)
-		sysfatal("gtt of %lld entries", nent);
-	ringgtt = (nent-2)*4096;
-	hwsgtt = (nent-1)*4096;
-	print("pages at %#llux, gtt %#lux (ring) %#lux (status)\n", pa, ringgtt, hwsgtt);
+	g->nent = gttsize/8;
+	if(g->nent < 1024)
+		sysfatal("gtt of %lld entries", g->nent);
+	g->ringgtt = (g->nent-Npage)*4096;
+	g->hwsgtt = g->ringgtt + 4096;
+	g->batchgtt = g->ringgtt + 2*4096;
+	print("pages at %#llux, gtt %#lux (ring) %#lux (status) %#lux (batch)\n", pa,
+		g->ringgtt, g->hwsgtt, g->batchgtt);
 
 	if(forcewake(1) < 0)
 		sysfatal("forcewake: no ack (%#ux)", rd(Forcewakeack));
 	ringstate("before");
 
 	/* PTEs: present, PPAT 0; then the GTT flushed */
-	gtt[nent-2] = pa | 1;
-	gtt[nent-1] = (pa+4096) | 1;
+	for(i = 0; i < Npage; i++)
+		gtt[g->nent-Npage+i] = (pa + i*4096) | 1;
 	wr(Gfxflshcntl, 1);
 	rd(Gfxflshcntl);
+}
 
-	/* the commands: fill, then flush with the sequence number to the status page */
-	x0 = 100, y0 = 100, x1 = 300, y1 = 200;
-	color = 0xFF0000;
-	n = 0;
-	ring[n++] = Xycolorblt | Bltwritergba | (tiled ? Blttiled : 0) | (7-2);
-	ring[n++] = 3<<24 | 0xF0<<16 | (tiled ? stride/4 : stride);	/* 32 bpp, PATCOPY */
-	ring[n++] = y0<<16 | x0;
-	ring[n++] = y1<<16 | x1;
-	ring[n++] = surf;
-	ring[n++] = 0;
-	ring[n++] = color;
-	ring[n++] = (Miflushdw+1) | Flushstoredw | Flushstoreidx;
-	ring[n++] = Hwsseqno*4 | Flushusegtt;
-	ring[n++] = 0;
-	ring[n++] = Seqno;
-	ring[n++] = Miuserintr;
-	ring[n++] = Minoop;
-	if(n & 1)
-		ring[n++] = Minoop;
-	flushcache(ring, Npage*4096);
-
-	/* the ring in ring buffer mode (no execlists), 1 page, then the tail */
+/* the ring in ring buffer mode (no execlists), 1 page */
+static void
+startring(Gpu *g)
+{
 	wr(Bcs+Rmode, masked(Runlist, 0));
 	wr(Bcs+Rctl, 0);
 	wr(Bcs+Rhead, 0);
 	wr(Bcs+Rtail, 0);
-	wr(Bcs+Rhws, hwsgtt);
-	wr(Bcs+Rstart, ringgtt);
+	wr(Bcs+Rhws, g->hwsgtt);
+	wr(Bcs+Rstart, g->ringgtt);
 	wr(Bcs+Rctl, (1-1)<<12 | Ringvalid);
 	wr(Bcs+Rmimode, masked(Stopring, 0));
 	ringstate("ready");
-	wr(Bcs+Rtail, n*4);
+}
+
+static void
+teardown(Gpu *g)
+{
+	int i;
+
+	wr(Bcs+Rmimode, masked(Stopring, 1));
+	sleep(10);
+	wr(Bcs+Rctl, 0);
+	for(i = 0; i < Npage; i++)
+		gtt[g->nent-Npage+i] = 0;
+	wr(Gfxflshcntl, 1);
+	forcewake(0);
+}
+
+/* XY_COLOR_BLT of the rectangle into the plane: 7 dwords at c */
+static int
+fill(Gpu *g, u32int *c, int x0, int y0, int x1, int y1, ulong rgb)
+{
+	ulong color, depth;
+	int n;
+
+	if(g->bpp == 16){
+		depth = 1;	/* 565 */
+		color = (rgb>>8 & 0xF800) | (rgb>>5 & 0x07E0) | (rgb>>3 & 0x001F);
+	}else{
+		depth = 3;	/* 8888 */
+		color = rgb & 0xFFFFFF;
+	}
+	n = 0;
+	c[n++] = Xycolorblt | (g->bpp == 32 ? Bltwritergba : 0) | (g->tiled ? Blttiled : 0) | (7-2);
+	c[n++] = depth<<24 | 0xF0<<16 | (g->tiled ? g->stride/4 : g->stride);	/* PATCOPY */
+	c[n++] = y0<<16 | x0;
+	c[n++] = y1<<16 | x1;
+	c[n++] = g->surf;
+	c[n++] = 0;
+	c[n++] = color;
+	return n;
+}
+
+/* the flush with the sequence number to the status page, and an interrupt: 6 dwords */
+static int
+breadcrumb(u32int *c)
+{
+	int n;
+
+	n = 0;
+	c[n++] = (Miflushdw+1) | Flushstoredw | Flushstoreidx;
+	c[n++] = Hwsseqno*4 | Flushusegtt;
+	c[n++] = 0;
+	c[n++] = Seqno;
+	c[n++] = Miuserintr;
+	c[n++] = Minoop;
+	return n;
+}
+
+static int
+waitseqno(Gpu *g)
+{
+	vlong t0;
 
 	t0 = nsec();
 	for(;;){
-		flushcache(&hws[Hwsseqno], 4);
-		if(hws[Hwsseqno] == Seqno)
+		flushcache(&g->hws[Hwsseqno], 4);
+		if(g->hws[Hwsseqno] == Seqno)
 			break;
 		if(nsec() - t0 > 2000000000LL){
-			print("FAIL: no sequence number after 2 s (status page %#ux)\n", hws[Hwsseqno]);
+			print("FAIL: no sequence number after 2 s (status page %#ux)\n", g->hws[Hwsseqno]);
 			ringstate("after");
-			goto Out;
+			return -1;
 		}
 		sleep(1);
 	}
 	print("ok: sequence number after %lld µs\n", (nsec() - t0)/1000);
 	ringstate("after");
-	if(tiled)
-		print("tiled plane: look at the screen (a red rectangle at %d,%d)\n", x0, y0);
-	else if((uvlong)surf + (uvlong)(y0+50)*stride + 4*(x0+50) + 4 > apersize)
-		print("the plane is beyond the aperture: look at the screen\n");
-	else{
-		px = (u32int*)(aper + surf + (y0+50)*stride + 4*(x0+50));
-		if((*px & 0xFFFFFF) == color)
-			print("ok: the rectangle is in the framebuffer (%#.8ux)\n", *px);
-		else
-			print("FAIL: framebuffer at %d,%d is %#.8ux, want %#lux\n", x0+50, y0+50, *px, color);
+	return 0;
+}
+
+/* the pixel in the middle of the rectangle, through the aperture */
+static void
+readback(Gpu *g, int x, int y, ulong rgb)
+{
+	uvlong off;
+	ulong want, got;
+
+	off = (uvlong)g->surf + (uvlong)y*g->stride + x*(g->bpp/8);
+	if(g->tiled){
+		print("tiled plane: look at the screen (the rectangle at %d,%d)\n", x, y);
+		return;
 	}
-Out:
-	/* stop the ring, the GTT entries off */
-	wr(Bcs+Rmimode, masked(Stopring, 1));
-	sleep(10);
-	wr(Bcs+Rctl, 0);
-	gtt[nent-2] = 0;
-	gtt[nent-1] = 0;
-	wr(Gfxflshcntl, 1);
-	forcewake(0);
+	if(off + 4 > apersize){
+		print("the plane is beyond the aperture: look at the screen\n");
+		return;
+	}
+	if(g->bpp == 16){
+		want = (rgb>>8 & 0xF800) | (rgb>>5 & 0x07E0) | (rgb>>3 & 0x001F);
+		got = *(u16int*)(aper + off);
+	}else{
+		want = rgb & 0xFFFFFF;
+		got = *(u32int*)(aper + off) & 0xFFFFFF;
+	}
+	if(got == want)
+		print("ok: the rectangle is in the framebuffer (%#lux)\n", got);
+	else
+		print("FAIL: framebuffer at %d,%d is %#lux, want %#lux\n", x, y, got, want);
+}
+
+static void
+blt(void)
+{
+	Gpu g;
+	int n;
+
+	setup(&g);
+	n = fill(&g, g.ring, 100, 100, 300, 200, 0xFF0000);
+	n += breadcrumb(g.ring+n);
+	if(n & 1)
+		g.ring[n++] = Minoop;
+	flushcache(g.ring, Npage*4096);
+	startring(&g);
+	wr(Bcs+Rtail, n*4);
+	if(waitseqno(&g) == 0)
+		readback(&g, 150, 150, 0xFF0000);
+	teardown(&g);
+}
+
+static void
+catch(void*, char *msg)
+{
+	if(strstr(msg, "alarm") != nil)
+		noted(NCONT);
+	noted(NDFLT);
+}
+
+/*
+ * the fill from a batch buffer, which the ring starts as a driver
+ * would; the ring's MI_USER_INTERRUPT through #G/n/irq
+ */
+static void
+batch(void)
+{
+	char path[64], buf[32];
+	Gpu g;
+	int n, m, fd;
+	u32int master, iir;
+	vlong t0;
+
+	setup(&g);
+	m = fill(&g, g.batch, 350, 100, 550, 200, 0x00FF00);
+	g.batch[m++] = Mibbend;
+	if(m & 1)
+		g.batch[m++] = Minoop;
+	n = 0;
+	g.ring[n++] = Mibbstart;
+	g.ring[n++] = g.batchgtt;
+	g.ring[n++] = 0;
+	n += breadcrumb(g.ring+n);
+	if(n & 1)
+		g.ring[n++] = Minoop;
+	flushcache(g.ring, Npage*4096);
+
+	/* the blitter's user interrupt, and only that */
+	snprint(path, sizeof path, "%s/irq", gdir);
+	if((fd = open(path, OREAD)) < 0)
+		sysfatal("open %s: %r", path);
+	wr(Bcs+Rimr, ~Userintr);
+	wr(Gtisr0+8, ~0);			/* IIR: old ones off */
+	wr(Gtisr0+0xC, Userintr<<Bcsirqshift);	/* IER */
+	wr(Gtisr0+4, ~(Userintr<<Bcsirqshift));	/* IMR */
+	wr(Masterirq, 1<<31);
+	print("irq: master %#ux gt isr %#ux imr %#ux ier %#ux\n", rd(Masterirq), rd(Gtisr0),
+		rd(Gtisr0+4), rd(Gtisr0+0xC));
+
+	startring(&g);
+	t0 = nsec();
+	wr(Bcs+Rtail, n*4);
+	notify(catch);
+	alarm(2000);
+	m = read(fd, buf, sizeof buf-1);
+	alarm(0);
+	if(m <= 0)
+		print("FAIL: no interrupt within 2 s (%r)\n");
+	else{
+		buf[m] = 0;
+		master = rd(Masterirq);
+		iir = rd(Gtisr0+8);
+		print("ok: interrupt %s after %lld µs: master %#ux gt iir %#ux\n", buf,
+			(nsec() - t0)/1000, master, iir);
+		wr(Gtisr0+8, iir);		/* acknowledged */
+		ctlwrite("irq ack");
+	}
+	if(waitseqno(&g) == 0)
+		readback(&g, 450, 150, 0x00FF00);
+
+	/* interrupts off again */
+	wr(Masterirq, 0);
+	wr(Gtisr0+0xC, 0);
+	wr(Gtisr0+4, ~0);
+	wr(Bcs+Rimr, ~0);
+	close(fd);
+	teardown(&g);
 }
 
 static void
@@ -458,7 +650,7 @@ peek(int argc, char **argv)
 static void
 usage(void)
 {
-	fprint(2, "usage: %s [-f] [-g #G/n] probe | blt | peek reg...\n", argv0);
+	fprint(2, "usage: %s [-f] [-g #G/n] probe | blt | batch | peek reg...\n", argv0);
 	exits("usage");
 }
 
@@ -482,6 +674,8 @@ main(int argc, char **argv)
 		probe();
 	else if(strcmp(argv[0], "blt") == 0)
 		blt();
+	else if(strcmp(argv[0], "batch") == 0)
+		batch();
 	else if(strcmp(argv[0], "peek") == 0)
 		peek(argc-1, argv+1);
 	else
