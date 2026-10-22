@@ -82,7 +82,13 @@ rm -rf "$S.new/lost+found" "$S"
 mv "$S.new" "$S"
 grep -qE '^mkself: (done|failed:)' "$LOG.txt" || { tail -30 "$LOG.txt"; die "did not finish (log: $LOG.txt)"; }
 grep -E '^mkself: status|files expected' "$LOG.txt"
-grep -qE 'files expected, ok' "$LOG.txt" || { grep -B5 -E 'exit status|failed' "$LOG.txt" | tail -40; die "build failed (log: $LOG.txt)"; }
+# the whole build ends with check-install's verdict; single manifests
+# with the build tool's status (empty: none failed)
+if [ $# -eq 0 ]; then
+	grep -qE 'files expected, ok' "$LOG.txt"
+else
+	grep -qx 'mkself: status *' "$LOG.txt"
+fi || { grep -B5 -E 'exit status|failed' "$LOG.txt" | tail -40; die "build failed (log: $LOG.txt)"; }
 echo "ok: the system built itself ($S)"
 
 # the same code as the build on Linux: every object of the tree, without

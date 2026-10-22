@@ -133,12 +133,23 @@ type build struct {
 	// musl's in APE (sys/src/ape/lib/musl). Relative to the manifest's
 	// directory, absolute ones re-rooted as the standard ones.
 	IncludePath []string
+	// Compat: the plan9 gcc's own include path first (../9front-gcc's
+	// POSIX compatibility headers: pthreads, C11 threads, C99 math, then
+	// APE), the tree's APE directories after it (-idirafter); for code
+	// that needs the compatibility layer, such as Mesa
+	Compat bool
 	// Append adds to an existing Library archive instead of starting a
 	// new one (libap: one archive from several directories, like mk's ar)
 	Append bool
 	// Shared: other manifests Append to this one's Library (libap's base
 	// part); -D does not expect the archive to hold its objects only
 	Shared bool
+	// Whole: the Library holds its objects as one relocatable object
+	// (ld -r), so that a program linking any of it gets all of it, as
+	// with meson's link_whole: Mesa's driver tables refer to their entry
+	// points weakly, and a weak reference takes no member out of an
+	// archive
+	Whole bool
 	// Clean names (globs, relative to the manifest's directory) the
 	// files its Pre steps generate: yacc's y.tab.[ch], enam.c, ...
 	// -clean removes them with what the build itself makes there.
@@ -503,7 +514,11 @@ func outofdate(b *build) (link, archive bool) {
 	b.SourceFiles = srcs
 	if b.Library != "" {
 		lib := path.Join(b.Install, b.Library)
-		archive = len(srcs) > 0 || stale(lib, b.ObjectFiles) || !members(lib, b.ObjectFiles, !b.Append && !b.Shared)
+		if b.Whole {
+			archive = len(srcs) > 0 || stale(lib, b.ObjectFiles) || !members(lib, []string{wholeObject(b)}, true)
+		} else {
+			archive = len(srcs) > 0 || stale(lib, b.ObjectFiles) || !members(lib, b.ObjectFiles, !b.Append && !b.Shared)
+		}
 	}
 	if b.Program != "" {
 		link = len(srcs) > 0 || stale(target(b), append(append([]string{}, b.ObjectFiles...), libs...))
@@ -608,6 +623,16 @@ func compileArgs(b *build) (command string, cArgs, asmArgs []string) {
 				d = fromRoot(d)
 			}
 			incArgs = append(incArgs, "-I", d)
+		}
+	}
+	if b.Compat {
+		// -I would put the tree's APE before the compatibility headers
+		// where they are not the compiler's own directories (on 9front,
+		// building a copy of the tree)
+		incArgs = []string{
+			"-I", ".",
+			"-idirafter", fromRoot("/$ARCH/include/ape"),
+			"-idirafter", fromRoot("/sys/include/ape"),
 		}
 	}
 	cArgs = []string{
@@ -851,6 +876,9 @@ func clean(b *build) {
 	if b.Kernel != nil {
 		files = append(files, b.Name+".c", b.Name+".o", "errstr.h", "../port/systab.h")
 	}
+	if b.Whole {
+		files = append(files, wholeObject(b))
+	}
 	files = append(files, generated(b)...)
 	for _, f := range files {
 		if d, err := isDir(f); err != nil || d {
@@ -1007,10 +1035,22 @@ func install(b *build, dolink, doarchive bool) {
 		if !b.Append {
 			_ = os.Remove(libpath)
 		}
-		args := append([]string{"-rs", libpath}, b.ObjectFiles...)
+		objs := b.ObjectFiles
+		if b.Whole {
+			r := wholeObject(b)
+			run(b, *shellhack, exec.Command(tools["ld"], append([]string{"-r", "-o", r}, objs...)...))
+			objs = []string{r}
+		}
+		args := append([]string{"-rs", libpath}, objs...)
 		run(b, *shellhack, exec.Command(tools["ar"], args...))
 		run(b, *shellhack, exec.Command(tools["ranlib"], libpath))
 	}
+}
+
+// wholeObject: the one member of a Whole library, libx.a's libx.o, in
+// the working directory
+func wholeObject(b *build) string {
+	return strings.TrimSuffix(path.Base(b.Library), ".a") + ".o"
 }
 
 func move(from, to string) {

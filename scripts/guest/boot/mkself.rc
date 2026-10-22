@@ -23,6 +23,11 @@ objtype=$cputype
 G=/$objtype/gnu/bin
 test -x $G/gcc || fail no $G/gcc
 cd /n/src9
+# the tree's headers where a 9front system has them, as the cross gcc
+# sees its sysroot: the native gcc's own include path names /sys/include/ape
+# and /$objtype/include/ape (manifests with Compat, Mesa)
+bind /n/src9/sys/include /sys/include
+bind /n/src9/$objtype/include /$objtype/include
 echo mkself: build
 # a fresh environment: the build tool hands its own on to its commands
 # as Go sees it, and rc cannot read functions back from that. CC=gcc

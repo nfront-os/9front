@@ -81,8 +81,10 @@ A build object has the following keys and types:
 	Install         string
 	Ape             bool
 	IncludePath     []string
+	Compat          bool
 	Append          bool
 	Shared          bool
+	Whole           bool
 	Objtag          string
 	Clean           []string
 	Kernel          kernel
@@ -140,6 +142,14 @@ sources with headers of their own (musl's, in APE). The directories are
 relative to the buildfile's directory; absolute ones are re-rooted as the
 standard ones.
 
+"Compat" compiles with the plan9 gcc's own include path first
+(../9front-gcc: the POSIX compatibility headers, pthreads, C11 threads,
+C99 math, then APE) and the tree's /$ARCH/include/ape and
+/sys/include/ape after it (-idirafter), for code that needs the
+compatibility layer, such as Mesa (sys/src/mesa). With -I the tree's
+APE headers would come first where they are not the compiler's own
+directories, as on 9front building a copy of the tree.
+
 "Append" adds the objects to an existing "Library" archive, replacing
 members of the same name, instead of creating the archive anew. It
 builds one archive from several directories the way mk's ar does
@@ -148,6 +158,12 @@ builds one archive from several directories the way mk's ar does
 "Shared" marks the manifest that starts such an archive (libap's gen):
 other manifests "Append" to its "Library", so -D does not expect the
 archive to hold this manifest's objects only.
+
+"Whole" makes the "Library" one relocatable object of all its objects
+(ld -r), archived as its only member libx.o: a program that links any
+of it gets all of it, as with meson's link_whole. Mesa's driver tables
+refer to their entry points weakly, and a weak reference takes no
+member out of an archive (sys/src/mesa/build.json).
 
 "Objtag" names the objects x.<Objtag>.o instead of x.o. The kernel's
 libraries (klib.json, "k") compile the userspace libraries' sources in
