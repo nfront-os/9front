@@ -299,6 +299,7 @@ struct Hole {
 
 static char *gdir = "#G/0";
 static int debug, poll, uncached, global;
+static int noclockgating, norcsinit;	/* -C, -R: to find what hangs a machine */
 static u32int *ptpool;		/* Ptpages pages */
 static uvlong ptpa;
 static uchar ptused[Ptpages];
@@ -311,7 +312,14 @@ static uvlong nent;
 static uvlong drvpa;
 static u32int *drv;
 static ulong drvgtt;
-static ulong rsgtt;		/* the null render state (renderstate.h) */
+static ulong rsgtt;		/* the null render state (renderstate.h), at this address in every context too */
+static uvlong rspa;
+/*
+ * where nothing is mapped the entries point to a scratch page (PTEs)
+ * or a page table of only those (PDEs), as i915 has it: stray GPU
+ * accesses land there, not at physical address 0
+ */
+static uvlong scratchpte, scratchpde, scratchgtt;
 
 /*
  * the render engine's workarounds, written into each new context
@@ -609,7 +617,7 @@ gttunmap(ulong a, ulong len)
 
 	n = (len + 4095) / 4096;
 	for(i = 0; i < n; i++)
-		gtt[a/4096 + i] = 0;
+		gtt[a/4096 + i] = scratchgtt;
 	wr(Gfxflshcntl, 1);
 	rd(Gfxflshcntl);
 }
@@ -620,15 +628,18 @@ gttunmap(ulong a, ulong len)
  * i915 has it where there is an LLC), flushed with -U
  */
 static int
-ptalloc(void)
+ptalloc(uvlong fill)
 {
-	int i;
+	uvlong *p;
+	int i, j;
 
 	for(i = 0; i < Ptpages; i++)
 		if(!ptused[i]){
 			ptused[i] = 1;
-			memset(ptpool + i*1024, 0, 4096);
-			flushcache(ptpool + i*1024, 4096);
+			p = (uvlong*)(ptpool + i*1024);
+			for(j = 0; j < 512; j++)
+				p[j] = fill;
+			flushcache(p, 4096);
 			return i;
 		}
 	return -1;
@@ -653,6 +664,9 @@ ptmem(int i)
 	return (uvlong*)(ptpool + i*1024);
 }
 
+static void ppfree(Ctx*);
+static int	ppmap(Ctx*, ulong, uvlong, uvlong*, ulong, uvlong);
+
 static int
 ppinit(Ctx *c)
 {
@@ -661,16 +675,28 @@ ppinit(Ctx *c)
 	for(i = 0; i < 4; i++){
 		for(j = 0; j < 512; j++)
 			c->pt[i][j] = -1;
-		if((c->pd[i] = ptalloc()) < 0){
+		if((c->pd[i] = ptalloc(scratchpde)) < 0){
 			while(--i >= 0)
 				ptfree(c->pd[i]);
 			return -1;
 		}
 	}
+	/*
+	 * the null render state's page at its GTT address: the batch
+	 * runs from the GTT, but its state (STATE_BASE_ADDRESS, relocated
+	 * to that address) is read through the context's PPGTT
+	 */
 	c->holes = emalloc9p(sizeof(Hole));
-	c->holes->next = nil;
 	c->holes->start = Ppbase;
-	c->holes->len = Pplimit - Ppbase;
+	c->holes->len = rsgtt - Ppbase;
+	c->holes->next = emalloc9p(sizeof(Hole));
+	c->holes->next->start = rsgtt + 4096;
+	c->holes->next->len = Pplimit - (rsgtt + 4096);
+	c->holes->next->next = nil;
+	if(ppmap(c, rsgtt, rspa, nil, 4096, uncached ? Pteuncached : Ptecached) < 0){
+		ppfree(c);
+		return -1;
+	}
 	return 0;
 }
 
@@ -710,7 +736,7 @@ ppmap(Ctx *c, ulong a, uvlong pa, uvlong *pas, ulong len, uvlong bits)
 		j = v>>21 & 511;
 		k = v>>12 & 511;
 		if(c->pt[i][j] < 0){
-			if((c->pt[i][j] = ptalloc()) < 0)
+			if((c->pt[i][j] = ptalloc(scratchpte)) < 0)
 				return -1;
 			pd = ptmem(c->pd[i]);
 			pd[j] = ptphys(c->pt[i][j]) | Ptepresent | Pterw | (uncached ? Pteuncached : Pdecached);
@@ -738,7 +764,7 @@ ppunmap(Ctx *c, ulong a, ulong len)
 		if(c->pt[i][j] < 0)
 			continue;
 		pt = ptmem(c->pt[i][j]);
-		pt[v>>12 & 511] = 0;
+		pt[v>>12 & 511] = scratchpte;
 		flushcache(&pt[v>>12 & 511], 8);
 	}
 	c->serial = ++serial;
@@ -1066,7 +1092,7 @@ ecsubmit(Ectx *ec, ulong a, u32int *seq)
 	if(ecspace(ec, 72 + 2*nelem(rcswa) + 2 + 2*6 + 3) < 0)
 		return "ring full (engine hung?)";
 	t0 = ec->tail;
-	if(ec->fresh && e->idx == 0){
+	if(ec->fresh && e->idx == 0 && !norcsinit){
 		/*
 		 * a new render context: the workarounds, flushed before and
 		 * after, then the null render state, a privileged batch in
@@ -2025,9 +2051,31 @@ mktree(void)
 	ctxdir = createfile(n, "ctx", user, DMDIR|0555, nil);
 }
 
+/* the scratch page and its page table, after the render state's page */
+static void
+scratchinit(void)
+{
+	uvlong *pt, pa;
+	u32int *p;
+	int i;
+
+	p = drv + (nelem(eng)+1)*1024;
+	pa = drvpa + (nelem(eng)+1)*4096;
+	memset(p, 0, 4096);
+	flushcache(p, 4096);
+	scratchpte = pa | Ptepresent | Pterw | (uncached ? Pteuncached : Ptecached);
+	scratchgtt = pa | Ptepresent | (uncached ? Pteuncached : Ptecached);
+	pt = (uvlong*)(drv + (nelem(eng)+2)*1024);
+	for(i = 0; i < 512; i++)
+		pt[i] = scratchpte;
+	flushcache(pt, 4096);
+	scratchpde = (pa + 4096) | Ptepresent | Pterw | (uncached ? Pteuncached : Pdecached);
+}
+
 /*
- * the null render state (renderstate.h) in the driver's last page,
- * relocated to its GTT address (i915's render_state_setup)
+ * the null render state (renderstate.h) in the driver's page after
+ * the status pages, relocated to its GTT address (i915's
+ * render_state_setup)
  */
 static void
 rsinit(void)
@@ -2039,6 +2087,7 @@ rsinit(void)
 		sysfatal("render state larger than a page");
 	d = drv + nelem(eng)*1024;
 	rsgtt = drvgtt + nelem(eng)*4096;
+	rspa = drvpa + nelem(eng)*4096;
 	memset(d, 0, 4096);
 	r = 0;
 	for(i = 0; i < nelem(gen8_null_state_batch); i++){
@@ -2079,7 +2128,7 @@ devinit(void)
 	char buf[1024], path[64], *s, *f[5];
 	uvlong gttsize;
 	ulong g;
-	int s0, i;
+	int s0, i, n;
 
 	if((s = ctlline("id", buf, sizeof buf)) == nil || strncmp(s, "8086/", 5) != 0)
 		sysfatal("%s is %s, not Intel's", gdir, s ? s : "?");
@@ -2112,14 +2161,21 @@ devinit(void)
 	if(!uncached)
 		ppatinit();
 
-	/* the driver's own pages: the engines' status pages, the null render state */
-	if((drvpa = fixedseg("gpu0drv", Drvva, (nelem(eng)+1)*4096, 0700)) == 0)
+	/*
+	 * the driver's own pages: the engines' status pages, the null
+	 * render state, a scratch page and a page table pointing to it
+	 */
+	n = nelem(eng)+3;
+	if((drvpa = fixedseg("gpu0drv", Drvva, n*4096, 0700)) == 0)
 		sysfatal("#g/gpu0drv: %r");
-	if((drv = segattach(0, "gpu0drv", nil, (nelem(eng)+1)*4096)) == (void*)-1)
+	if((drv = segattach(0, "gpu0drv", nil, n*4096)) == (void*)-1)
 		sysfatal("segattach gpu0drv: %r");
-	if((drvgtt = gttalloc((nelem(eng)+1)*4096)) == 0)
+	scratchinit();
+	/* our part of the GTT to the scratch page, as i915's gen8_ggtt_clear_range */
+	gttunmap(Gttlow, nent*4096 - Gttlow);
+	if((drvgtt = gttalloc(n*4096)) == 0)
 		sysfatal("no GTT for the status pages");
-	gttmap(drvgtt, drvpa, nil, (nelem(eng)+1)*4096);
+	gttmap(drvgtt, drvpa, nil, n*4096);
 	rsinit();
 	/* the contexts' pages, here: the procs forked later see only what is attached now */
 	if((ctxpoolpa = fixedseg("gpu0ctx", Ctxva, Nctx*ctxslot(), 0700)) == 0)
@@ -2142,7 +2198,8 @@ devinit(void)
 		sleep(10);
 		wr(eng[i].base+Rresetctl, masked(Resetrequest, 0));
 	}
-	gtinit();
+	if(!noclockgating)
+		gtinit();
 	for(i = 0; i < nelem(eng); i++)
 		engineinit(&eng[i]);
 
@@ -2157,7 +2214,7 @@ devinit(void)
 static void
 usage(void)
 {
-	fprint(2, "usage: %s [-dpGU] [-g #G/n] [-s srvname]\n", argv0);
+	fprint(2, "usage: %s [-dpCGRU] [-g #G/n] [-s srvname]\n", argv0);
 	exits("usage");
 }
 
@@ -2175,8 +2232,14 @@ main(int argc, char **argv)
 	case 'g':
 		gdir = EARGF(usage());
 		break;
+	case 'C':
+		noclockgating = 1;
+		break;
 	case 'G':
 		global = 1;
+		break;
+	case 'R':
+		norcsinit = 1;
 		break;
 	case 'p':
 		poll = 1;

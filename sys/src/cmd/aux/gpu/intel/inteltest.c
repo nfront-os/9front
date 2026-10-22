@@ -60,6 +60,13 @@ ok(char *fmt, ...)
 
 static char *readall(char*);
 
+/* before a step: where it was if the machine hangs (intelrun's log on the stick) */
+static void
+step(char *s)
+{
+	print("-- %s\n", s);
+}
+
 static void
 fail(char *fmt, ...)
 {
@@ -302,10 +309,13 @@ suite(void)
 		goto Out;
 
 	/* 1, 2: each engine writes a dword */
+	step("1. bcs store");
 	store(&a, &batch, 0, &data, 0, 0xcafe0001, "bcs");
+	step("2. rcs store (the context's first render batch: workarounds, null render state)");
 	store(&a, &batch, 64, &data, 1, 0xcafe0002, "rcs");
 
 	/* 3. the blitter fills a 64x64 surface in the object */
+	step("3. the blitter fills a 64x64 surface in the object");
 	c = batch.p + 128;
 	n = colorblt(c, data.gpu + 4096, 256, 0, 0, 64, 64, 0x12345678, 32);
 	bbend(c, n);
@@ -324,6 +334,7 @@ suite(void)
 	}
 
 	/* 4. the visible plane, mapped into the context: a blue rectangle at 600,100 */
+	step("4. the visible plane, mapped into the context: a blue rectangle at 600,100");
 	if((s = ctl(&a, "map plane")) != nil && tokenize(s, f, nelem(f)) >= 7 && strcmp(f[0], "plane") == 0
 	&& (bpp = atoi(f[4])) != 0){
 		stride = strtoul(f[3], nil, 0);
@@ -339,6 +350,7 @@ suite(void)
 		fail("map plane: %r");
 
 	/* 5. a second context: its first object at the same GPU address, apart */
+	step("5. a second context: its first object at the same GPU address, apart");
 	if(newctx(&b) < 0 || newbo(&b, &bdata, 65536) < 0 || newbo(&b, &bbatch, 65536) < 0)
 		goto Out;
 	if(global)
@@ -357,6 +369,7 @@ suite(void)
 	}
 
 	/* 6. a thousand batches, alternating contexts and engines, every hundredth waited for */
+	step("6. a thousand batches, alternating contexts and engines, every hundredth waited for");
 	irq0 = nirq();
 	n = storedw(batch.p + 384, data.gpu + 16, 0);
 	bbend(batch.p + 384, n);
@@ -380,6 +393,7 @@ suite(void)
 			(nsec() - t0)/1000000, nirq() - irq0);
 
 	/* 7. that context goes, with its objects; one in another process */
+	step("7. that context goes, with its objects; one in another process");
 	segdetach(bdata.p);
 	segdetach(bbatch.p);
 	freectx(&b);
@@ -403,6 +417,7 @@ suite(void)
 	}
 
 	/* 8. the render engine's workarounds, written into each new context, read back */
+	step("8. the render engine's workarounds, written into each new context, read back");
 	if((s = readall("status")) == nil || (s = strstr(s, "rcs workarounds ")) == nil)
 		fail("status: no rcs workarounds line");
 	else{
@@ -418,6 +433,7 @@ suite(void)
 	 * then the render engine writes each page's number into it, from
 	 * a 1 MB batch; the CPU checks every dword
 	 */
+	step("9. a 16 MB object (scattered pages)");
 	if(newbo(&a, &big, 16*1024*1024) < 0 || newbo(&a, &bigbatch, 1024*1024) < 0)
 		goto Out;
 	c = bigbatch.p;

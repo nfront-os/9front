@@ -15,7 +15,7 @@ gpu, virtiogpu, intelgpu \- graphics device file system
 .PP
 .B aux/intelgpu
 [
-.B -dpGU
+.B -dpCGRU
 ] [
 .B -g
 .I gdir
@@ -302,6 +302,13 @@ render state, which puts the 3D pipeline into a known state;
 .B status
 shows how many of those registers hold their value
 .RB ( "rcs workarounds" ).
+Unused entries of the address spaces point to a scratch page, as in
+i915, so that stray accesses of the GPU land there.
+.B -R
+leaves the workarounds and the render state out,
+.B -C
+the clock gating workarounds at start (both to find what hangs a
+machine).
 Fences come from sequence numbers in each context's status page and
 the user and context switch interrupts (MSI where the device has it,
 .B -p
