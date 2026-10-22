@@ -95,3 +95,20 @@ Called by `build.exe` (Pre/Post steps); rarely run by hand.
 |---|---|
 | `qemu-ctl.py` | keys, screendumps, monitor commands, and an rc on the serial line of a guest. `scripts/debug/qemu-ctl.py DIR ser 'ps -a'` |
 | `thread-dump.py` | libthread procs and threads of a guest process with stacks. `scripts/debug/thread-dump.py DIR 307 amd64/bin/rio` |
+
+## mesa/ — Mesa (venus Vulkan) for the gpu branch
+
+Host-side tools for `sys/src/mesa` (release in `VERSION`, signing key in
+`keys/`, new files in `overlay/`, changes as `patches/`, what APE lacks in
+`plan9/`). Work directory `$MESA_WORK` (default `~/.cache/9front-gpu`);
+cross compilers from `../9front-gcc`.
+
+| script | what it does |
+|---|---|
+| `fetch.sh` | downloads the release tarball, checks sha256 and signature; a venv with meson and Mesa's python modules |
+| `prepare.sh` | unpacks it as a git repository (tag `pristine`), commits the overlay (tag `overlay`), applies the patches (`git am`) |
+| `patches.sh` | writes `sys/src/mesa/patches` from the commits after `overlay`, copies new files back to the overlay |
+| `build.sh` | `libmesaplan9.a`, the meson cross file, meson and ninja; the venus driver as one static archive `libvulkan_venus.a` |
+| `common.sh` | settings the others source |
+
+`tests/gpu/build-vktest.sh` links `tests/gpu/vktest.c` against it.

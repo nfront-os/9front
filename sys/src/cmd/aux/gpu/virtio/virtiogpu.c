@@ -109,6 +109,9 @@ enum {
 	Okmapinfo,
 
 	Flagfence = 1<<0,
+	Flagringidx = 1<<1,
+	Nring = 64,		/* VIRTGPU_MAX_RINGS */
+	Fwin = 64,		/* fences tracked one by one per context */
 
 	Blobguest = 1,
 	Blobhost3d = 2,
@@ -195,7 +198,8 @@ struct Ctx
 	uintptr	segva;
 	uvlong	segpa;
 	uvlong	nfence;		/* submitted */
-	uvlong	donefence;	/* completed */
+	uvlong	donefence;	/* completed, with all before it */
+	uchar	fdone[Fwin];	/* fence k done: fdone[k%Fwin] */
 	int	failed;
 	Res	*res;
 	char	*reply;
@@ -205,7 +209,8 @@ struct Ctx
 struct Fidaux
 {
 	Ctx	*ctx;
-	uvlong	wait;
+	uvlong	fence;		/* fence file: the fence asked for */
+	int	query;		/* answer at once instead of waiting */
 };
 
 struct Hole
@@ -642,6 +647,7 @@ reapused(void)
 {
 	uchar *used, *e;
 	Slot *sl;
+	Ctx *c;
 	int s;
 
 	used = dma + Oused;
@@ -656,10 +662,12 @@ reapused(void)
 		if(sl->ctx != nil)
 			DBG(2, "slot %d: ctx %d fence %llud response %#ux\n", s, sl->ctx->id, sl->fence, GBIT32(slotresp(s)));
 		if(sl->ctx != nil && sl->fence != 0){
+			c = sl->ctx;
 			if(GBIT32(slotresp(s)) != Oknodata)
-				sl->ctx->failed = 1;
-			if(sl->fence > sl->ctx->donefence)
-				sl->ctx->donefence = sl->fence;
+				c->failed = 1;
+			c->fdone[sl->fence % Fwin] = 1;
+			while(c->donefence < c->nfence && c->fdone[(c->donefence+1) % Fwin])
+				c->donefence++;
 		}
 		if(sl->async)
 			sl->busy = 0;
@@ -1256,9 +1264,20 @@ resunref(Ctx *c, int id)
 	return nil;
 }
 
-/* SUBMIT_3D of len bytes at off in the context's segment */
+/* called with qlk held */
+static int
+fencedone(Ctx *c, uvlong k)
+{
+	if(k <= c->donefence)
+		return 1;
+	if(k > c->nfence)
+		return 0;
+	return c->fdone[k % Fwin];
+}
+
+/* SUBMIT_3D of len bytes at off in the context's segment, on a ring */
 static char*
-submit(Ctx *c, ulong off, ulong len, uvlong *fence)
+submit(Ctx *c, ulong off, ulong len, int ring, uvlong *fence)
 {
 	uchar *p;
 	int s;
@@ -1267,12 +1286,20 @@ submit(Ctx *c, ulong off, ulong len, uvlong *fence)
 		return "context not initialized";
 	if(off > Ctxsegsz || len > Ctxsegsz - off || (len & 3) != 0)
 		return "bad command buffer";
+	if(ring < 0 || ring >= Nring)
+		return "bad ring";
 	qlock(&qlk);
+	if(c->nfence+1 - c->donefence > Fwin){
+		qunlock(&qlk);
+		return "too many fences in flight";
+	}
 	s = getslot();
 	p = ctxhdr(slotreq(s), Submit3d, c->id);
 	c->nfence++;	/* not inside PBIT64: it evaluates its argument 8 times */
-	PBIT32(slotreq(s)+4, Flagfence);
+	c->fdone[c->nfence % Fwin] = 0;
+	PBIT32(slotreq(s)+4, Flagfence | (ring ? Flagringidx : 0));
 	PBIT64(slotreq(s)+8, c->nfence);
+	slotreq(s)[20] = ring;
 	PBIT32(p, len);
 	PBIT32(p+4, 0);
 	slot[s].async = 1;
@@ -1285,10 +1312,10 @@ submit(Ctx *c, ulong off, ulong len, uvlong *fence)
 }
 
 static void
-fencewait(Ctx *c, uvlong n)
+fencewait(Ctx *c, uvlong k)
 {
 	qlock(&qlk);
-	while(c->donefence < n)
+	while(!fencedone(c, k))
 		rsleep(&qr);
 	qunlock(&qlk);
 }
@@ -1381,7 +1408,10 @@ freectx(Ctx *c)
 {
 	uchar rq[Hdrsz];
 
-	fencewait(c, c->nfence);
+	qlock(&qlk);
+	while(c->donefence < c->nfence)	/* all of them, on every ring */
+		rsleep(&qr);
+	qunlock(&qlk);
 	while(c->res != nil)
 		resunref(c, c->res->id);
 	if(c->inited){
@@ -1491,8 +1521,8 @@ fsopen(Req *r)
 		return;
 	}
 	fa = emalloc9p(sizeof *fa);
+	memset(fa, 0, sizeof *fa);
 	fa->ctx = c;
-	fa->wait = 0;
 	r->fid->aux = fa;
 	respond(r, nil);
 }
@@ -1561,15 +1591,24 @@ fsread(Req *r)
 		break;
 	case Xctxfence:
 		c = fa->ctx;
-		if(fa->wait > c->nfence)
-			fa->wait = c->nfence;
-		if(fa->wait > c->donefence){
+		r->ifcall.offset = 0;
+		if(fa->fence == 0){
+			s = smprint("%llud %llud%s\n", c->donefence, c->nfence, c->failed ? " failed" : "");
+			break;
+		}
+		if(fa->fence > c->nfence){
+			respond(r, "no such fence");
+			return;
+		}
+		if(!fa->query){
 			srvrelease(r->srv);
-			fencewait(c, fa->wait);
+			fencewait(c, fa->fence);
 			srvacquire(r->srv);
 		}
-		s = smprint("%llud %llud%s\n", c->donefence, c->nfence, c->failed ? " failed" : "");
-		r->ifcall.offset = 0;
+		qlock(&qlk);
+		n = fencedone(c, fa->fence);
+		qunlock(&qlk);
+		s = smprint("%llud %s%s\n", fa->fence, n ? "done" : "busy", c->failed ? " failed" : "");
 		break;
 	default:
 		respond(r, "bug");
@@ -1660,18 +1699,24 @@ fswrite(Req *r)
 		qunlock(&ctxlock);
 		break;
 	case Xctxsubmit:
-		if(n != 2){
-			respond(r, "usage: offset length");
+		if(n != 2 && n != 3){
+			respond(r, "usage: offset length [ring]");
 			return;
 		}
-		e = submit(fa->ctx, strtoul(f[0], nil, 0), strtoul(f[1], nil, 0), &fence);
+		e = submit(fa->ctx, strtoul(f[0], nil, 0), strtoul(f[1], nil, 0),
+			n == 3 ? atoi(f[2]) : 0, &fence);
 		break;
 	case Xctxfence:
-		if(n != 1){
-			respond(r, "usage: fence");
+		if(n == 1){
+			fa->query = 0;
+			fa->fence = strtoull(f[0], nil, 0);
+		} else if(n == 2 && (strcmp(f[0], "wait") == 0 || strcmp(f[0], "query") == 0)){
+			fa->query = f[0][0] == 'q';
+			fa->fence = strtoull(f[1], nil, 0);
+		} else {
+			respond(r, "usage: [wait|query] fence");
 			return;
 		}
-		fa->wait = strtoull(f[0], nil, 0);
 		e = nil;
 		break;
 	default:

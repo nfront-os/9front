@@ -1,0 +1,6 @@
+# Mesa release used by the port (scripts/mesa/*.sh)
+version	26.2.4
+url	https://mesa.freedesktop.org/archive/mesa-26.2.4.tar.xz
+sha256	bce5f7fbebb934373b86c999a064d52fb5065878dc57f287f95346648ec832e9
+# signature: url.sig, by the key in keys/mesa-release.asc
+key	57551DE15B968F6341C248F68D8E31AFC32428A6

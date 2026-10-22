@@ -162,27 +162,42 @@ unmap, release, attach to or detach from the context.
 .PD
 .PP
 Writing
-.IB "offset length"
+.IB "offset length " \fR[\fPring\fR]\fP
 to
 .B submit
-submits that part of the command segment; the
+submits that part of the command segment on a timeline
+.RI ( ring ,
+0 to 63; 0 is the context's CPU timeline); the
 .IR k th
 submission of a context completes fence
 .IR k .
 The client must not overwrite it before.
+Rings complete in any order; fences of one ring in order.
 .PP
 Reading
 .B fence
 returns
-.IB "done submitted" ,
-and
-.B failed
-if the device rejected a submission.
-After writing a fence number
-.IR k ,
+.IB "done submitted" :
+all fences up to
+.I done
+are complete.
+After writing
+.BI "wait " k
+(or just
+.IR k ),
 reads block until fence
 .I k
-is done.
+is complete and return
+.IB k " done" ;
+after
+.BI "query " k
+they return at once,
+.IB k " done"
+or
+.IB k " busy" .
+.B failed
+follows if the device rejected a submission.
+At most 64 fences of a context can be outstanding.
 .SH EXAMPLES
 Switch the screen to 1024x768:
 .EX
@@ -202,8 +217,20 @@ does more):
 	fprint(ffd, "1");		/* ctx/1/fence */
 	read(ffd, buf, sizeof buf);	/* 1 1 */
 .EE
+.SS Vulkan
+Mesa's venus driver
+.RB ( /sys/src/mesa ,
+built by the source tree's
+.BR scripts/mesa )
+uses this interface as its renderer: one context with capability
+set 4, its command streams through
+.BR submit ,
+Vulkan memory as host blobs mapped through the host visible bar,
+and its timeline syncs on the fences.
 .SH SOURCE
 .B /sys/src/cmd/aux/gpu
+.br
+.B /sys/src/mesa/overlay/src/virtio/vulkan/vn_renderer_plan9.c
 .SH "SEE ALSO"
 .IR gpu (3),
 .IR segment (3),
@@ -214,6 +241,6 @@ One output, one framebuffer; no cursor plane, no hotplug yet.
 .br
 Command buffers are limited to the context's segment (1 MB).
 .br
-Waiting for a fence waits in order: fence
-.I k
-means all before it.
+The host visible bar is mapped uncached.
+.br
+No sync files and no dma-buf sharing between processes.

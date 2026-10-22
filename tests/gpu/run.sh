@@ -18,6 +18,13 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 
 buildtests(){ (cd "$HERE" && env PLAN9="$ROOT" ARCH=$objtype CC=gcc "$BUILDEXE" build.json); }
 check "build tests/gpu" buildtests || { done_tests; exit; }
+# vktest needs Mesa's venus, built by scripts/mesa/build.sh (minutes, once)
+rm -f "$HERE/root/tests/vktest"
+if [ -f "$(. "$ROOT/scripts/mesa/common.sh"; echo "$BUILD/libvulkan_venus.a")" ]; then
+	check "build tests/gpu/vktest against venus" bash "$HERE/build-vktest.sh"
+else
+	skip "vktest" "no Mesa build: scripts/mesa/build.sh"
+fi
 
 shot=$TMPD/screen.png
 boot(){
@@ -104,7 +111,8 @@ if [ -r /dev/dri/renderD128 ] && [ -w /dev/dri/renderD128 ] &&
 			'aux/virtiogpu' \
 			'cat /dev/gpu/0/status' \
 			'/tests/gpuctxtest' \
-			'cat /dev/gpu/0/status' > "$TMPD/console3d" 2>&1
+			'cat /dev/gpu/0/status' \
+			"test ! -x /tests/vktest || /tests/vktest" > "$TMPD/console3d" 2>&1
 	}
 	check "boot with virtio-gpu-gl (virgl, venus), run gpuctxtest" boot3d
 	tr -d '\r' < "$TMPD/console3d" > "$TMPD/log3d"
@@ -118,6 +126,9 @@ if [ -r /dev/dri/renderD128 ] && [ -w /dev/dri/renderD128 ] &&
 		esac
 	done < <(grep -E '^(ok|FAIL) ' "$TMPD/log3d")
 	check "gpuctxtest: all passed" grep -q '^gpuctxtest: all passed' "$TMPD/log3d"
+	if [ -x "$HERE/root/tests/vktest" ]; then
+		check "vktest (Vulkan through venus): all passed" grep -q '^vktest: all passed' "$TMPD/log3d"
+	fi
 	check "contexts gone after the test" bash -c "! sed -n '/gpuctxtest: /,\$p' '$TMPD/log3d' | grep -q '^ctx '"
 else
 	skip "3d tests" "no render node or no virtio-gpu-gl-pci in $QEMU"

@@ -1,0 +1,53 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: port <port@localhost>
+Date: Thu, 22 Oct 2026 07:18:16 +0200
+Subject: [PATCH] venus: the plan9 renderer (/dev/gpu, gpu(4)) instead of vtest
+ on 9front
+
+---
+ src/virtio/vulkan/meson.build   | 4 +++-
+ src/virtio/vulkan/vn_renderer.h | 9 +++++++++
+ 2 files changed, 12 insertions(+), 1 deletion(-)
+
+diff --git a/src/virtio/vulkan/meson.build b/src/virtio/vulkan/meson.build
+index fda382d..43b5dd3 100644
+--- a/src/virtio/vulkan/meson.build
++++ b/src/virtio/vulkan/meson.build
+@@ -122,7 +122,9 @@ vn_link_args = [
+ 
+ vn_libs = []
+ 
+-if not with_platform_windows
++if host_machine.system() == 'plan9'
++  libvn_files += files('vn_renderer_plan9.c')
++elif not with_platform_windows
+   libvn_files += files('vn_renderer_vtest.c')
+ endif
+ 
+diff --git a/src/virtio/vulkan/vn_renderer.h b/src/virtio/vulkan/vn_renderer.h
+index ea224ea..c0fea7f 100644
+--- a/src/virtio/vulkan/vn_renderer.h
++++ b/src/virtio/vulkan/vn_renderer.h
+@@ -225,6 +225,13 @@ vn_renderer_create_vtest(struct vn_instance *instance,
+                          const VkAllocationCallbacks *alloc,
+                          struct vn_renderer **renderer);
+ 
++#if DETECT_OS_PLAN9
++VkResult
++vn_renderer_create_plan9(struct vn_instance *instance,
++                         const VkAllocationCallbacks *alloc,
++                         struct vn_renderer **renderer);
++#endif
++
+ static inline VkResult
+ vn_renderer_create(struct vn_instance *instance,
+                    const VkAllocationCallbacks *alloc,
+@@ -242,6 +249,8 @@ vn_renderer_create(struct vn_instance *instance,
+          result = vn_renderer_create_vtest(instance, alloc, renderer);
+    }
+    return result;
++#elif DETECT_OS_PLAN9
++   return vn_renderer_create_plan9(instance, alloc, renderer);
+ #else
+    return vn_renderer_create_vtest(instance, alloc, renderer);
+ #endif
