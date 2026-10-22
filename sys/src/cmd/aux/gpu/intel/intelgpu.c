@@ -163,7 +163,6 @@ enum {
 	Bova		= 0x2000000000ULL,	/* the objects' addresses in the clients */
 	Drvva		= 0x50000000,	/* the driver's pages: the engines' status pages */
 	Ctxva		= 0x58000000,	/* the contexts' pages: status, images, rings */
-	Ctxvastep	= 0x200000,
 	Ptva		= 0x60000000,	/* the page table pool */
 	Ptpages		= 4096,		/* 16 MB: page directories and tables */
 	Ppbase		= 0x100000,	/* a context's objects from 1 MB */
@@ -240,7 +239,6 @@ struct Ctx {
 	int	failed;
 
 	/* its pages: a status page, per engine an image and a ring */
-	char	seg[32];
 	u32int	*mem;
 	uvlong	pa;
 	ulong	gtt, size;
@@ -279,6 +277,9 @@ static uvlong nent;
 static uvlong drvpa;
 static u32int *drv;
 static ulong drvgtt;
+static u32int *ctxpool;		/* Nctx slots of ctxslot() bytes */
+static uvlong ctxpoolpa;
+static ulong ctxpoolgtt;
 static Hole *holes;
 static Engine eng[] = {
 	{ "rcs", 0x2000, 0, 1<<1, Rcsstatepages, 0 },	/* GEN6_GRDOM_RENDER */
@@ -1406,39 +1407,35 @@ fctx(File *f)
 }
 
 /*
- * a context's pages, in one segment mapped into the GTT: its status
- * page (the sequence numbers), then per engine a context image and a
- * ring
+ * a context's pages: its slot of the pool (attached before the driver's
+ * procs are forked: a segment attached later is not theirs), mapped
+ * into the GTT with it: the status page (the sequence numbers), then
+ * per engine a context image and a ring
  */
+static ulong
+ctxslot(void)
+{
+	ulong n;
+	int k;
+
+	n = 4096;
+	for(k = 0; k < nelem(eng); k++)
+		n += (1 + eng[k].statepages + Ringpages)*4096;
+	return n;
+}
+
 static int
 ctxmem(Ctx *c, int i)
 {
 	ulong off;
 	int k;
 
-	c->size = 4096;
-	for(k = 0; k < nelem(eng); k++)
-		c->size += (1 + eng[k].statepages + Ringpages)*4096;
-	snprint(c->seg, sizeof c->seg, "gpu0ctx%d", c->id);
-	if((c->pa = fixedseg(c->seg, Ctxva + (uvlong)i*Ctxvastep, c->size, 0700)) == 0){
-		rmseg(c->seg);
-		werrstr("no contiguous memory for the context");
-		return -1;
-	}
-	if((c->mem = segattach(0, c->seg, nil, c->size)) == (void*)-1){
-		rmseg(c->seg);
-		return -1;
-	}
+	c->size = ctxslot();
+	c->mem = ctxpool + (uvlong)i*c->size/4;
+	c->pa = ctxpoolpa + (uvlong)i*c->size;
+	c->gtt = ctxpoolgtt + i*c->size;
 	memset(c->mem, 0, c->size);
 	qlock(&lk);
-	if((c->gtt = gttalloc(c->size)) == 0){
-		qunlock(&lk);
-		segdetach(c->mem);
-		rmseg(c->seg);
-		werrstr("GTT full");
-		return -1;
-	}
-	gttmap(c->gtt, c->pa, c->size);
 	off = 4096;
 	for(k = 0; k < nelem(eng); k++){
 		ecinit(c, &c->ec[k], &eng[k], off);
@@ -1451,12 +1448,7 @@ ctxmem(Ctx *c, int i)
 static void
 ctxmemfree(Ctx *c)
 {
-	qlock(&lk);
-	gttunmap(c->gtt, c->size);
-	gttfree(c->gtt, c->size);
-	qunlock(&lk);
-	segdetach(c->mem);
-	rmseg(c->seg);
+	memset(c->mem, 0, c->size);
 }
 
 static Ctx*
@@ -1902,6 +1894,14 @@ devinit(void)
 	if((drvgtt = gttalloc(nelem(eng)*4096)) == 0)
 		sysfatal("no GTT for the status pages");
 	gttmap(drvgtt, drvpa, nelem(eng)*4096);
+	/* the contexts' pages, here: the procs forked later see only what is attached now */
+	if((ctxpoolpa = fixedseg("gpu0ctx", Ctxva, Nctx*ctxslot(), 0700)) == 0)
+		sysfatal("#g/gpu0ctx: %r");
+	if((ctxpool = segattach(0, "gpu0ctx", nil, Nctx*ctxslot())) == (void*)-1)
+		sysfatal("segattach gpu0ctx: %r");
+	if((ctxpoolgtt = gttalloc(Nctx*ctxslot())) == 0)
+		sysfatal("no GTT for the contexts");
+	gttmap(ctxpoolgtt, ctxpoolpa, Nctx*ctxslot());
 	if(!global){
 		if((ptpa = fixedseg("gpu0pt", Ptva, Ptpages*4096, 0700)) == 0)
 			sysfatal("#g/gpu0pt: %r");
