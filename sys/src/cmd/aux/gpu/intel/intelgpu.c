@@ -153,6 +153,12 @@ enum {
 	Pterw		= 1<<1,		/* PPGTT entries: writable */
 	Ptecached	= 1<<7,		/* index 4: write-back, LLC (ppatinit) */
 	Pteuncached	= 1<<3 | 1<<4,	/* index 3: uncached */
+	/*
+	 * PDEs: bit 7 is the 2 MB page bit there, not PAT (the blitter
+	 * honours it): index 2, write-through in the LLC, as the GPU only
+	 * reads them (i915's gen8_pde_encode uses no PAT bit either)
+	 */
+	Pdecached	= 1<<4,
 
 	Hwsscratch	= 0x40,		/* dword of an engine's status page the flushes may write */
 
@@ -603,7 +609,7 @@ ppmap(Ctx *c, ulong a, uvlong pa, ulong len, uvlong bits)
 			if((c->pt[i][j] = ptalloc()) < 0)
 				return -1;
 			pd = ptmem(c->pd[i]);
-			pd[j] = ptphys(c->pt[i][j]) | Ptepresent | Pterw | (uncached ? Pteuncached : Ptecached);
+			pd[j] = ptphys(c->pt[i][j]) | Ptepresent | Pterw | (uncached ? Pteuncached : Pdecached);
 			flushcache(&pd[j], 8);
 		}
 		pt = ptmem(c->pt[i][j]);
