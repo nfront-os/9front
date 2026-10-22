@@ -15,7 +15,7 @@ gpu, virtiogpu, intelgpu \- graphics device file system
 .PP
 .B aux/intelgpu
 [
-.B -dpU
+.B -dpGU
 ] [
 .B -g
 .I gdir
@@ -247,8 +247,12 @@ reads the visible plane,
 .BI plane " p gpuaddr stride bpp w h"
 .PP
 and the context files are those above with other requests.
+Each context has an address space of its own, 4 GB (gen 8's
+three-level PPGTT); with
+.B -G
+all share the global GTT, without isolation.
 A buffer object is a segment of physically contiguous memory mapped
-into the GPU's global address space (GTT);
+into it;
 .TF "\fLbo\fP \fIsize"
 .TP
 .BI bo " size
@@ -258,6 +262,13 @@ the client
 .IR segattach es
 .I seg
 and writes the GPU addresses of its objects into its batches itself.
+.TP
+.B map plane
+maps the visible plane into the context (uncached, for the display),
+reply
+.BI plane " id gpuaddr stride bpp w h" ;
+.B free
+unmaps it.
 .TP
 .BI free " id
 frees it once the context's work is done.
@@ -284,8 +295,10 @@ Objects are mapped write-back in the shared last level cache, so
 that processor and GPU see each other's writes;
 .B -U
 maps them uncached.
-Every context sees the whole GTT: there is no isolation yet, the
-driver is for the host owner.
+Batches run in their context's address space (the engines' page
+directory pointers are loaded before a batch of another context, and
+the TLBs invalidated); still, batches are privileged and the driver is
+for the host owner.
 .IR Intelprobe (8)
 and
 .B aux/inteltest

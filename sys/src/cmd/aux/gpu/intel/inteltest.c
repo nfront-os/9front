@@ -2,10 +2,12 @@
  * SPDX-License-Identifier: MIT
  *
  * inteltest: checks aux/intelgpu (gpu(4) files under /dev/gpu/0) on
- * an Intel GPU of generation 8: a context, buffer objects, batches on
+ * an Intel GPU of generation 8: contexts, buffer objects, batches on
  * the blitter (BCS) and render (RCS) engines, fences, a fill of an
- * object and of the visible plane, a thousand batches in a row.
- * Prints ok or FAIL a line, and at the end what failed.
+ * object and of the visible plane, two contexts at the same GPU
+ * address apart (PPGTT), a thousand batches in a row, a context of
+ * another process.  Prints ok or FAIL a line, and at the end what
+ * failed.
  *
  * usage: aux/inteltest [-d /dev/gpu/0]
  */
@@ -22,17 +24,24 @@ enum {
 };
 
 typedef struct Bo Bo;
+typedef struct Ctx Ctx;
+
 struct Bo {
 	int	id;
 	u32int	*p;
 	uvlong	size;
-	ulong	gtt;
+	ulong	gpu;
+};
+
+struct Ctx {
+	char	id[16];
+	int	ctl, sub, fence;
+	uvlong	nfence;
 };
 
 static char *dir = "/dev/gpu/0";
-static int ctlfd, subfd, fencefd;
 static int nfail;
-static uvlong nfence;
+static int global;	/* the driver's -G: one address space, the GTT */
 
 static void
 ok(char *fmt, ...)
@@ -77,9 +86,53 @@ readall(char *name)
 	return buf;
 }
 
+static int
+newctx(Ctx *c)
+{
+	char path[128], buf[64], *f[4];
+	int n;
+
+	memset(c, 0, sizeof *c);
+	snprint(path, sizeof path, "%s/clone", dir);
+	if((c->ctl = open(path, ORDWR)) < 0){
+		fail("open %s: %r", path);
+		return -1;
+	}
+	if((n = pread(c->ctl, buf, sizeof buf-1, 0)) <= 0){
+		fail("ctx: %r");
+		return -1;
+	}
+	buf[n] = 0;
+	if(tokenize(buf, f, nelem(f)) < 2 || strcmp(f[0], "ctx") != 0){
+		fail("ctx: %s", buf);
+		return -1;
+	}
+	snprint(c->id, sizeof c->id, "%s", f[1]);
+	snprint(path, sizeof path, "%s/ctx/%s/submit", dir, c->id);
+	if((c->sub = open(path, OWRITE)) < 0){
+		fail("open %s: %r", path);
+		return -1;
+	}
+	snprint(path, sizeof path, "%s/ctx/%s/fence", dir, c->id);
+	if((c->fence = open(path, ORDWR)) < 0){
+		fail("open %s: %r", path);
+		return -1;
+	}
+	ok("context %s", c->id);
+	return 0;
+}
+
+static void
+freectx(Ctx *c)
+{
+	close(c->ctl);
+	close(c->sub);
+	close(c->fence);
+}
+
 /* a request to the context's ctl, its reply */
 static char*
-ctl(char *fmt, ...)
+ctl(Ctx *c, char *fmt, ...)
 {
 	static char buf[256];
 	char req[128];
@@ -89,58 +142,59 @@ ctl(char *fmt, ...)
 	va_start(arg, fmt);
 	vsnprint(req, sizeof req, fmt, arg);
 	va_end(arg);
-	if(write(ctlfd, req, strlen(req)) < 0)
+	if(write(c->ctl, req, strlen(req)) < 0)
 		return nil;
-	if((n = pread(ctlfd, buf, sizeof buf-1, 0)) < 0)
+	if((n = pread(c->ctl, buf, sizeof buf-1, 0)) < 0)
 		return nil;
 	buf[n] = 0;
 	return buf;
 }
 
 static int
-newbo(Bo *b, uvlong size)
+newbo(Ctx *c, Bo *b, uvlong size)
 {
 	char *r, *f[6];
 
-	if((r = ctl("bo %llud", size)) == nil || tokenize(r, f, nelem(f)) != 6 || strcmp(f[0], "bo") != 0){
+	if((r = ctl(c, "bo %llud", size)) == nil || tokenize(r, f, nelem(f)) != 6 || strcmp(f[0], "bo") != 0){
 		fail("bo %llud: %r", size);
 		return -1;
 	}
 	b->id = atoi(f[1]);
 	b->size = strtoull(f[4], nil, 0);
-	b->gtt = strtoul(f[5], nil, 0);
+	b->gpu = strtoul(f[5], nil, 0);
 	b->p = segattach(0, f[2], nil, b->size);
 	if(b->p == (void*)-1){
 		fail("segattach %s: %r", f[2]);
 		return -1;
 	}
-	ok("bo %d: %llud bytes, gtt %#lux, seg %s at %#p", b->id, b->size, b->gtt, f[2], b->p);
+	memset(b->p, 0, b->size);
+	ok("ctx %s bo %d: %llud bytes at gpu %#lux, seg %s at %#p", c->id, b->id, b->size, b->gpu, f[2], b->p);
 	return 0;
 }
 
 /* the batch at off in b on the engine; its fence */
 static uvlong
-submit(Bo *b, ulong off, char *eng)
+submit(Ctx *c, Bo *b, ulong off, char *eng)
 {
-	if(fprint(subfd, "%d %lud %s", b->id, off, eng) < 0){
+	if(fprint(c->sub, "%d %lud %s", b->id, off, eng) < 0){
 		fail("submit on %s: %r", eng);
 		return 0;
 	}
-	return ++nfence;
+	return ++c->nfence;
 }
 
 /* 0 when fence k is done, after the driver's wait */
 static int
-fencewait(uvlong k, vlong *us)
+fencewait(Ctx *c, uvlong k, vlong *us)
 {
 	char buf[64];
 	vlong t0;
 	int n;
 
 	t0 = nsec();
-	if(fprint(fencefd, "wait %llud", k) < 0)
+	if(fprint(c->fence, "wait %llud", k) < 0)
 		return -1;
-	if((n = pread(fencefd, buf, sizeof buf-1, 0)) <= 0)
+	if((n = pread(c->fence, buf, sizeof buf-1, 0)) <= 0)
 		return -1;
 	buf[n] = 0;
 	if(us != nil)
@@ -155,7 +209,7 @@ fencewait(uvlong k, vlong *us)
 static int
 storedw(u32int *c, ulong a, u32int v)
 {
-	c[0] = Mistoredwimm | Usegtt;
+	c[0] = Mistoredwimm | (global ? Usegtt : 0);
 	c[1] = a;
 	c[2] = 0;
 	c[3] = v;
@@ -184,17 +238,6 @@ colorblt(u32int *c, ulong a, int pitch, int x0, int y0, int x1, int y1, u32int c
 	return 7;
 }
 
-static void
-status(char *when)
-{
-	char *s;
-
-	if((s = readall("status")) == nil)
-		fail("read status: %r");
-	else
-		print("status %s:\n%s", when, s);
-}
-
 static ulong
 nirq(void)
 {
@@ -206,15 +249,40 @@ nirq(void)
 	return p ? strtoul(p+1, nil, 10) : 0;
 }
 
+/* one store on an engine, checked by the CPU */
+static void
+store(Ctx *c, Bo *batch, int bdw, Bo *data, int ddw, u32int v, char *eng)
+{
+	vlong us;
+	uvlong k;
+	u32int got;
+	int n;
+
+	n = storedw(batch->p + bdw, data->gpu + ddw*4, v);
+	bbend(batch->p + bdw, n);
+	k = submit(c, batch, bdw*4, eng);
+	if(k == 0)
+		return;
+	if(fencewait(c, k, &us) < 0)
+		fail("ctx %s %s store: %r", c->id, eng);
+	else if((got = data->p[ddw]) != v)
+		fail("ctx %s %s store: the object holds %#ux, want %#ux (cached? try aux/intelgpu -U)",
+			c->id, eng, got, v);
+	else
+		ok("ctx %s %s: MI_STORE_DWORD_IMM, fence after %lld µs, the CPU sees %#ux", c->id, eng, us, v);
+}
+
 void
 main(int argc, char **argv)
 {
-	char path[128], ctxname[64], *s, *f[8];
-	Bo data, batch;
-	u32int *c, v;
+	char *s, *f[8];
+	Ctx a, b;
+	Bo data, batch, bdata, bbatch;
+	Waitmsg *w;
+	u32int *c;
 	uvlong k;
 	vlong us, t0;
-	ulong irq0, plane, stride;
+	ulong irq0, stride;
 	int i, n, bad, bpp;
 
 	ARGBEGIN{
@@ -223,61 +291,27 @@ main(int argc, char **argv)
 		break;
 	}ARGEND
 
-	status("before");
+	if((s = readall("status")) == nil)
+		sysfatal("read %s/status: %r", dir);
+	print("status before:\n%s", s);
+	global = strstr(s, "global gtt") != nil;
 	if((s = readall("ctl")) == nil)
 		sysfatal("read %s/ctl: %r", dir);
 	print("ctl: %s", s);
 
-	snprint(path, sizeof path, "%s/clone", dir);
-	if((ctlfd = open(path, ORDWR)) < 0)
-		sysfatal("open %s: %r", path);
-	/* the open's reply: ctx n */
-	if((n = pread(ctlfd, ctxname, sizeof ctxname-1, 0)) <= 0)
-		sysfatal("ctx: %r");
-	ctxname[n] = 0;
-	if(tokenize(ctxname, f, nelem(f)) < 2 || strcmp(f[0], "ctx") != 0)
-		sysfatal("ctx: %s", ctxname);
-	ok("context %s", f[1]);
-	snprint(path, sizeof path, "%s/ctx/%s/submit", dir, f[1]);
-	if((subfd = open(path, OWRITE)) < 0)
-		sysfatal("open %s: %r", path);
-	snprint(path, sizeof path, "%s/ctx/%s/fence", dir, f[1]);
-	if((fencefd = open(path, ORDWR)) < 0)
-		sysfatal("open %s: %r", path);
-
-	if(newbo(&data, 65536) < 0 || newbo(&batch, 65536) < 0)
+	if(newctx(&a) < 0 || newbo(&a, &data, 65536) < 0 || newbo(&a, &batch, 65536) < 0)
 		goto Out;
-	memset(data.p, 0, data.size);
 
-	/* 1. the blitter writes a dword */
-	n = storedw(batch.p, data.gtt + 0, 0xcafe0001);
-	n = bbend(batch.p, n);
-	k = submit(&batch, 0, "bcs");
-	if(k && fencewait(k, &us) < 0)
-		fail("bcs store: %r");
-	else if((v = data.p[0]) != 0xcafe0001)
-		fail("bcs store: the object holds %#ux, want 0xcafe0001 (cached? try aux/intelgpu -U)", v);
-	else
-		ok("bcs: MI_STORE_DWORD_IMM, fence after %lld µs, the CPU sees %#ux", us, v);
-
-	/* 2. the render engine writes a dword */
-	c = batch.p + 64;
-	n = storedw(c, data.gtt + 4, 0xcafe0002);
-	n = bbend(c, n);
-	k = submit(&batch, 64*4, "rcs");
-	if(k && fencewait(k, &us) < 0)
-		fail("rcs store: %r");
-	else if((v = data.p[1]) != 0xcafe0002)
-		fail("rcs store: the object holds %#ux, want 0xcafe0002", v);
-	else
-		ok("rcs: MI_STORE_DWORD_IMM, fence after %lld µs, the CPU sees %#ux", us, v);
+	/* 1, 2: each engine writes a dword */
+	store(&a, &batch, 0, &data, 0, 0xcafe0001, "bcs");
+	store(&a, &batch, 64, &data, 1, 0xcafe0002, "rcs");
 
 	/* 3. the blitter fills a 64x64 surface in the object */
 	c = batch.p + 128;
-	n = colorblt(c, data.gtt + 4096, 256, 0, 0, 64, 64, 0x12345678, 32);
-	n = bbend(c, n);
-	k = submit(&batch, 128*4, "bcs");
-	if(k && fencewait(k, &us) < 0)
+	n = colorblt(c, data.gpu + 4096, 256, 0, 0, 64, 64, 0x12345678, 32);
+	bbend(c, n);
+	k = submit(&a, &batch, 128*4, "bcs");
+	if(k && fencewait(&a, k, &us) < 0)
 		fail("bcs fill: %r");
 	else{
 		bad = 0;
@@ -290,46 +324,87 @@ main(int argc, char **argv)
 			ok("bcs: XY_COLOR_BLT 64x64 into the object, fence after %lld µs", us);
 	}
 
-	/* 4. the visible plane: a blue rectangle at 600,100 */
-	/* ctl: plane A gpuaddr stride bpp w h */
-	if((s = readall("ctl")) != nil && tokenize(s, f, nelem(f)) >= 7 && strcmp(f[0], "plane") == 0
+	/* 4. the visible plane, mapped into the context: a blue rectangle at 600,100 */
+	if((s = ctl(&a, "map plane")) != nil && tokenize(s, f, nelem(f)) >= 7 && strcmp(f[0], "plane") == 0
 	&& (bpp = atoi(f[4])) != 0){
-		plane = strtoul(f[2], nil, 0);
 		stride = strtoul(f[3], nil, 0);
 		c = batch.p + 192;
-		n = colorblt(c, plane, stride, 600, 100, 800, 200, bpp == 32 ? 0x0000FF : 0x001F, bpp);
-		n = bbend(c, n);
-		k = submit(&batch, 192*4, "bcs");
-		if(k && fencewait(k, &us) < 0)
+		n = colorblt(c, strtoul(f[2], nil, 0), stride, 600, 100, 800, 200, bpp == 32 ? 0x0000FF : 0x001F, bpp);
+		bbend(c, n);
+		k = submit(&a, &batch, 192*4, "bcs");
+		if(k && fencewait(&a, k, &us) < 0)
 			fail("plane fill: %r");
 		else
-			ok("bcs: blue rectangle at 600,100 on plane %s (look at the screen)", f[1]);
+			ok("bcs: blue rectangle at 600,100 on the plane at gpu %s (look at the screen)", f[2]);
 	}else
-		print("no plane to draw on\n");
+		fail("map plane: %r");
 
-	/* 5. a thousand batches on each engine, every hundredth waited for */
+	/* 5. a second context: its first object at the same GPU address, apart */
+	if(newctx(&b) < 0 || newbo(&b, &bdata, 65536) < 0 || newbo(&b, &bbatch, 65536) < 0)
+		goto Out;
+	if(global)
+		print("global gtt (-G): no isolation to check\n");
+	else if(bdata.gpu != data.gpu)
+		print("the contexts' objects are at %#lux and %#lux: isolation not checked\n", data.gpu, bdata.gpu);
+	else{
+		store(&a, &batch, 320, &data, 2, 0xaaaa0001, "bcs");
+		store(&b, &bbatch, 0, &bdata, 2, 0xbbbb0002, "bcs");
+		store(&b, &bbatch, 64, &bdata, 3, 0xbbbb0003, "rcs");
+		if(data.p[2] == 0xaaaa0001 && data.p[3] == 0 && bdata.p[2] == 0xbbbb0002 && bdata.p[3] == 0xbbbb0003)
+			ok("ctx %s and ctx %s at gpu %#lux: each wrote its own object", a.id, b.id, data.gpu);
+		else
+			fail("isolation: ctx %s's object holds %#ux %#ux, ctx %s's %#ux %#ux", a.id, data.p[2],
+				data.p[3], b.id, bdata.p[2], bdata.p[3]);
+	}
+
+	/* 6. a thousand batches, alternating contexts and engines, every hundredth waited for */
 	irq0 = nirq();
-	c = batch.p + 256;
-	n = storedw(c, data.gtt + 8, 0);
-	n = bbend(c, n);
+	n = storedw(batch.p + 384, data.gpu + 16, 0);
+	bbend(batch.p + 384, n);
+	n = storedw(bbatch.p + 384, bdata.gpu + 16, 0);
+	bbend(bbatch.p + 384, n);
 	t0 = nsec();
 	for(i = 0; i < 1000; i++){
-		k = submit(&batch, 256*4, i & 1 ? "rcs" : "bcs");
+		if(i & 2)
+			k = submit(&a, &batch, 384*4, i & 1 ? "rcs" : "bcs");
+		else
+			k = submit(&b, &bbatch, 384*4, i & 1 ? "rcs" : "bcs");
 		if(k == 0)
 			break;
-		if(i % 100 == 99 && fencewait(k, nil) < 0){
+		if(i % 100 == 99 && (fencewait(&a, a.nfence, nil) < 0 || fencewait(&b, b.nfence, nil) < 0)){
 			fail("batch %d: %r", i);
 			break;
 		}
 	}
 	if(i == 1000)
-		ok("1000 batches (rcs and bcs) in %lld ms, %lud interrupts", (nsec() - t0)/1000000, nirq() - irq0);
+		ok("1000 batches (2 contexts, rcs and bcs) in %lld ms, %lud interrupts",
+			(nsec() - t0)/1000000, nirq() - irq0);
 
-	status("after");
+	/* 7. that context goes, with its objects; one in another process */
+	freectx(&b);
+	switch(fork()){
+	case -1:
+		fail("fork: %r");
+		break;
+	case 0:
+		if(newctx(&b) < 0 || newbo(&b, &bdata, 4096) < 0 || newbo(&b, &bbatch, 4096) < 0)
+			exits("fail");
+		store(&b, &bbatch, 0, &bdata, 0, 0x5eed0001, "rcs");
+		exits(nfail ? "fail" : nil);
+	default:
+		if((w = wait()) == nil)
+			fail("wait: %r");
+		else{
+			if(w->msg[0])
+				fail("the other process: %s", w->msg);
+			free(w);
+		}
+	}
+
+	if((s = readall("status")) != nil)
+		print("status after:\n%s", s);
 Out:
-	close(ctlfd);
-	close(subfd);
-	close(fencefd);
+	freectx(&a);
 	print(nfail ? "inteltest: %d failed\n" : "inteltest: all passed\n", nfail);
 	exits(nfail ? "fail" : nil);
 }
