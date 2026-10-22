@@ -402,7 +402,18 @@ dstflush(int dstid, Memimage *dst, Rectangle r)
 		combinerect(&flushrect, r);
 		return;
 	}
-	if(screenimage == nil || dst == nil || (l = dst->layer) == nil)
+	if(screenimage == nil || dst == nil)
+		return;
+	/*
+	 * the screen under another id than 0 (its public name,
+	 * noborder.screen.N, without rio): flush it too, or a
+	 * softscreen or a gpu(3) screen never shows what was drawn
+	 */
+	if(dst->layer == nil && dst->data == screenimage->data){
+		addflush(r);
+		return;
+	}
+	if((l = dst->layer) == nil)
 		return;
 	do{
 		if(l->screen->image->data != screenimage->data)
