@@ -14,12 +14,14 @@
 #                                   under their paths in Mesa (a generated
 #                                   file where meson's build directory has it)
 #   sys/include/ape/vulkan,vk_video the Vulkan headers, for every APE program
-#   .../mesa.json                   per directory, one block per meson library
+#   .../mesa$SUFFIX.json            per directory, one block per meson library
 #                                   and language: its flags, as meson's
 #                                   compile commands have them, paths relative
 #   sys/src/mesa/plan9/loader/vkcmds.[ch]   the loader's trampolines
-#   sys/src/mesa/build.json         all of it, the loader and libmesaplan9 as
+#   sys/src/mesa/build$SUFFIX.json  all of it, the loader and libmesaplan9 as
 #                                   one Whole libvulkan.a in /$ARCH/lib.gcc/ape
+# Per objtype (amd64, 386: build-386, SUFFIX .386, as the tree's manifests);
+# the sources are the same for all, a file that differs is an error.
 # Files that come out the same keep their time (build.exe -D).
 
 import json
@@ -34,6 +36,9 @@ MESA = os.path.join(BUILD, 'mesa')
 VENDOR = os.path.join(ROOT, 'sys/src/mesa/vendor')
 APEINC = os.path.join(ROOT, 'sys/include/ape')
 P9 = os.path.join(ROOT, 'sys/src/mesa/plan9')
+OBJTYPE = os.environ.get('objtype', 'amd64')
+SUFFIX = {'amd64': '', '386': '.386'}[OBJTYPE]
+conflicts = []
 PUBLIC = ('include/vulkan/', 'include/vk_video/')	# go to /sys/include/ape
 
 
@@ -77,11 +82,15 @@ def where(f):
 
 
 def copy(src, dst):
-	"""src to dst unless it is the same already"""
+	"""src to dst unless it is the same already; another objtype's
+	different file there is a conflict"""
 	try:
 		with open(src, 'rb') as a, open(dst, 'rb') as b:
 			if a.read() == b.read():
 				return
+		if os.environ.get('VENDOR_FRESH') != '1':
+			conflicts.append(dst)
+			return
 	except OSError:
 		pass
 	os.makedirs(os.path.dirname(dst), exist_ok=True)
@@ -180,7 +189,7 @@ def main():
 		m['SourceFiles'] = sorted(b['files'])
 		manifests.setdefault(d, []).append(m)
 	for d, ms in manifests.items():
-		write(os.path.join(d, 'mesa.json'), json.dumps(ms, indent='\t') + '\n')
+		write(os.path.join(d, 'mesa%s.json' % SUFFIX), json.dumps(ms, indent='\t') + '\n')
 
 	# the loader's trampolines, from the same vk.xml
 	subprocess.run(['python3', os.path.join(P9, 'loader/genloader.py'),
@@ -190,18 +199,22 @@ def main():
 	allobjs = [os.path.relpath(o, top) for k in order for o in blocks[k]['objects']]
 	allobjs += ['plan9/loader/vkloader.o', 'plan9/loader/vkcmds.o',
 		'plan9/lib/plan9compat.o', 'plan9/lib/plan9win.o']
-	projects = ['/' + os.path.relpath(os.path.join(d, 'mesa.json'), ROOT) for d in manifests]
+	projects = ['/' + os.path.relpath(os.path.join(d, 'mesa%s.json' % SUFFIX), ROOT) for d in manifests]
 	projects += ['/sys/src/mesa/plan9/loader/build.json', '/sys/src/mesa/plan9/lib/build.json']
 	build = [{
 		'Name': 'mesa-libvulkan',
 		'Projects': projects,
 		'Library': 'libvulkan.a',
 		'Whole': True,
+		# ld -r: the emulation (on Linux the host's ld)
+		'Oflags': {'amd64': ['-m', 'elf_x86_64'], '386': ['-m', 'elf_i386']}[OBJTYPE],
 		'Install': '/$ARCH/lib.gcc/ape',
 		'ObjectFiles': allobjs,
 	}]
-	write(os.path.join(top, 'build.json'), json.dumps(build, indent='\t') + '\n')
-	print('vendor: %d objects, %d files, %d manifests' % (len(allobjs), len(placed), len(manifests)))
+	write(os.path.join(top, 'build%s.json' % SUFFIX), json.dumps(build, indent='\t') + '\n')
+	print('vendor %s: %d objects, %d files, %d manifests' % (OBJTYPE, len(allobjs), len(placed), len(manifests)))
+	if conflicts:
+		sys.exit('vendor: differs from what is vendored (another objtype? a new Mesa: VENDOR_FRESH=1):\n\t' + '\n\t'.join(conflicts))
 
 
 main()

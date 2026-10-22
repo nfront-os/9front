@@ -18,6 +18,10 @@
 		],
 		"Library": "libvulkan.a",
 		"Whole": true,
+		"Oflags": [
+			"-m",
+			"elf_x86_64"
+		],
 		"Install": "/$ARCH/lib.gcc/ape",
 		"ObjectFiles": [
 			"vendor/src/virtio/vulkan/vn_entrypoints.o",

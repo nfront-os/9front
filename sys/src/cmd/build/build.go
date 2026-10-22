@@ -834,21 +834,25 @@ func presolve(b *build, out string, objs []string) string {
 		}
 	}
 	r := out + ".r.o"
-	// the emulation the final link names (386: -m elf_i386), else ld's
-	// default (x86-64) refuses 32-bit objects
-	var emul []string
-	for i := 0; i+1 < len(b.Oflags); i++ {
-		if b.Oflags[i] == "-m" {
-			emul = []string{"-m", b.Oflags[i+1]}
-		}
-	}
-	run(b, *shellhack, exec.Command(tools["ld"], append(append(emul, "-r", "-d", "-o", r), objs...)...))
+	run(b, *shellhack, exec.Command(tools["ld"], append(append(emulation(b), "-r", "-d", "-o", r), objs...)...))
 	if len(commons) > 0 {
 		w := out + ".weak"
 		fail(os.WriteFile(w, []byte(strings.Join(commons, "\n")+"\n"), 0644))
 		run(b, *shellhack, exec.Command(tools["objcopy"], "--weaken-symbols="+w, r))
 	}
 	return r
+}
+
+// emulation: the one the final link names (386: -m elf_i386), else ld's
+// default (x86-64) refuses 32-bit objects
+func emulation(b *build) []string {
+	var emul []string
+	for i := 0; i+1 < len(b.Oflags); i++ {
+		if b.Oflags[i] == "-m" {
+			emul = []string{"-m", b.Oflags[i+1]}
+		}
+	}
+	return emul
 }
 
 // clean removes what building b makes in its directory, as mk clean
@@ -1038,7 +1042,7 @@ func install(b *build, dolink, doarchive bool) {
 		objs := b.ObjectFiles
 		if b.Whole {
 			r := wholeObject(b)
-			run(b, *shellhack, exec.Command(tools["ld"], append([]string{"-r", "-o", r}, objs...)...))
+			run(b, *shellhack, exec.Command(tools["ld"], append(append(emulation(b), "-r", "-o", r), objs...)...))
 			objs = []string{r}
 		}
 		args := append([]string{"-rs", libpath}, objs...)
