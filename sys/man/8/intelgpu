@@ -1,0 +1,76 @@
+.TH INTELGPU 8
+.SH NAME
+intelgpu \- first steps with an Intel GPU of generation 8
+.SH SYNOPSIS
+.B aux/intelgpu
+[
+.B -f
+] [
+.B -g
+.I gdir
+]
+.B probe
+.br
+.B aux/intelgpu
+[
+.B -f
+] [
+.B -g
+.I gdir
+]
+.B blt
+.br
+.B aux/intelgpu
+[
+.B -f
+] [
+.B -g
+.I gdir
+]
+.B peek
+.I reg ...
+.SH DESCRIPTION
+.I Intelgpu
+works on an Intel GPU of generation 8 (Broadwell: HD 5500 and kin)
+through
+.IR gpu (3),
+by default
+.BR #G/0 ,
+before there is a driver: it finds out what the device can be made
+to do.
+It refuses a device that is not Intel's (vendor 8086) unless given
+.BR -f .
+.TP
+.B probe
+prints the device, its bars, the size of the GTT and of the stolen
+memory (from the GMCH control register), the private PAT, whether
+forcewake is acknowledged, the state of the blitter's ring, the
+pipes and planes of the display, and the panel's power.
+It writes only the forcewake request (and takes it back).
+.TP
+.B blt
+gives the GPU its first command: it maps a ring page and a status
+page into the last entries of the GTT, starts the blitter (BCS) in
+ring buffer mode (no execlists), and has it fill a red rectangle at
+100,100 of the visible plane and write a sequence number to the
+status page.
+It waits for that number at most 2 seconds, prints the ring's
+registers, and reads the rectangle back through the aperture.
+The ring is stopped and the GTT entries are cleared afterwards.
+.TP
+.B peek
+prints the registers at the MMIO offsets given.
+.SH EXAMPLES
+On the machine with the GPU, the output to a file to look at later:
+.EX
+	aux/intelgpu probe >/tmp/probe
+	aux/intelgpu blt >/tmp/blt
+.EE
+.SH SOURCE
+.B /sys/src/cmd/aux/gpu/intel/intelgpu.c
+.SH "SEE ALSO"
+.IR gpu (3),
+.IR gpu (4)
+.SH BUGS
+Generation 8 only.
+A GPU that hangs may need a reset: reboot.

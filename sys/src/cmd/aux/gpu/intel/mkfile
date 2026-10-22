@@ -1,0 +1,8 @@
+</$objtype/mkfile
+
+BIN=/$objtype/bin/aux
+
+TARG=intelgpu
+OFILES=intelgpu.$O
+
+</sys/src/cmd/mkone

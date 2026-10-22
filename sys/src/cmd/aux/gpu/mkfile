@@ -1,6 +1,7 @@
 </$objtype/mkfile
 
 DIRS=\
+	intel\
 	virtio\
 
 all:V:	$DIRS

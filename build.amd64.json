@@ -169,6 +169,7 @@
 			"/sys/src/cmd/aux/mnihongo/cmds.json",
 			"/sys/src/cmd/aux/flashfs/cmds.json",
 			"/sys/src/cmd/aux/gps/cmds.json",
+			"/sys/src/cmd/aux/gpu/intel/cmds.json",
 			"/sys/src/cmd/aux/gpu/virtio/cmds.json",
 			"/sys/src/cmd/aux/kbdfs/cmds.json",
 			"/sys/src/cmd/aux/na/cmds.json",
