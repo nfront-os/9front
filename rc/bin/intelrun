@@ -1,0 +1,29 @@
+#!/bin/rc
+# intelrun: the Intel GPU driver and its test, their output into a log
+# that goes onto the ESP (FAT) of the USB stick the system booted from,
+# as gpu.log: to be read on another machine instead of photographed.
+#	intelrun [driver flags]
+rfork e
+log=/tmp/gpu.log
+{echo '# intelrun' `{date}; cat /dev/osversion; echo} >$log
+echo '## aux/intelgpu' $* >>$log
+aux/intelgpu $* >>$log >[2=1]
+echo '## aux/inteltest' >>$log
+aux/inteltest >>$log >[2=1]
+echo '## #G/0/ctl' >>$log
+cat '#G/0/ctl' >>$log
+echo '## /dev/gpu/0/status' >>$log
+cat /dev/gpu/0/status >>$log
+cat $log
+# the driver's later messages go to the log as well: copy it now
+for(d in '#σ/usb'/sdU*/esp)
+	if(test -r $d){
+		dossrv -f $d intelrun.esp >/dev/null >[2=1]
+		if(mount -c /srv/intelrun.esp /n/esp){
+			cp $log /n/esp/gpu.log && echo intelrun: $log on $d as gpu.log
+			unmount /n/esp
+		}
+		rm -f /srv/intelrun.esp
+		exit
+	}
+echo intelrun: no USB stick with an ESP: the log is $log
