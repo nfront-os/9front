@@ -362,14 +362,14 @@ ctlline(char *key, char *buf, int n)
 static void
 mapbar(int i)
 {
-	char buf[1024], key[8], *f[4], *s;
+	char buf[1024], key[8], *f[5], *s;
 
 	if(bar[i] != nil)
 		return;
 	snprint(key, sizeof key, "bar%d", i);
 	if((s = ctlline(key, buf, sizeof buf)) == nil)
 		sysfatal("%s: no %s", gdir, key);
-	if(tokenize(s, f, nelem(f)) != 3 || strcmp(f[2], "-") == 0)
+	if(tokenize(s, f, nelem(f)) < 3 || strcmp(f[2], "-") == 0)
 		sysfatal("%s: %s is not a memory segment", gdir, key);
 	barsize[i] = strtoull(f[1], nil, 0);
 	snprint(barseg[i], sizeof barseg[i], "%s", f[2]);
@@ -379,19 +379,23 @@ mapbar(int i)
 	DBG(2, "bar%d: %s %#llux at %#p\n", i, f[2], barsize[i], bar[i]);
 }
 
-/* the size of bar i, without mapping it */
+/*
+ * the size and segment of bar i for the clients, without mapping it;
+ * the cached segment if #G has one (host visible memory is RAM)
+ */
 static void
 barinfo(int i)
 {
-	char buf[1024], key[8], *f[4], *s;
+	char buf[1024], key[8], *f[5], *s;
+	int n;
 
 	snprint(key, sizeof key, "bar%d", i);
 	if((s = ctlline(key, buf, sizeof buf)) == nil)
 		sysfatal("%s: no %s", gdir, key);
-	if(tokenize(s, f, nelem(f)) != 3 || strcmp(f[2], "-") == 0)
+	if((n = tokenize(s, f, nelem(f))) < 3 || strcmp(f[2], "-") == 0)
 		sysfatal("%s: %s is not a memory segment", gdir, key);
 	barsize[i] = strtoull(f[1], nil, 0);
-	snprint(barseg[i], sizeof barseg[i], "%s", f[2]);
+	snprint(barseg[i], sizeof barseg[i], "%s", n >= 4 ? f[3] : f[2]);
 }
 
 /* virtio capabilities from the pci configuration space */
@@ -448,7 +452,10 @@ findcaps(void)
 	if(shm.len != 0){
 		if(shm.bar >= nelem(bar))
 			sysfatal("virtio shared memory: bad bar");
-		barinfo(shm.bar);	/* the clients map it */
+		/* host memory: the clients map it, cached */
+		if(fprint(gctlfd, "bar %d cached", shm.bar) < 0)
+			fprint(2, "%s: no cached mapping of the host memory: %r\n", argv0);
+		barinfo(shm.bar);
 		holes = emalloc9p(sizeof(Hole));
 		holes->off = shm.off;
 		holes->len = shm.len;

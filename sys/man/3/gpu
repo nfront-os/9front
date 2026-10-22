@@ -45,12 +45,14 @@ the interrupt line, whether
 .B irq
 has enabled it, and the interrupts seen.
 .TP
-.BI bar i " addr size seg
+.BI bar i " addr size seg \fR[\fPcseg\fR]\fP
 a base address register: physical address, size and the physical
-segment that maps it (see
+segment that maps it, uncached (see
 .IR segattach (2)),
 .B -
-for an I/O bar.
+for an I/O bar; after
+.BI "bar " i " cached"
+also the cached segment.
 .TP
 .BI fb " addr size seg
 the framebuffer, if allocated, else
@@ -77,6 +79,15 @@ bytes, once; later requests that fit are no-ops.
 .TP
 .B "irq ack
 unmask the interrupt (see below).
+.TP
+.BI bar " n " cached
+also map memory bar
+.I n
+write-back, as the segment
+.BI gpu n bar n c\f1,
+and make the MTRRs agree; only for memory that is RAM to the
+processor, such as virtio-gpu's host visible memory, which only the
+driver knows.
 .PD
 .PP
 Opening

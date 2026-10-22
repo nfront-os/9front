@@ -145,6 +145,13 @@ main(void)
 	vkGetBufferMemoryRequirements(dev, buf, &req);
 	VkPhysicalDeviceMemoryProperties mp;
 	vkGetPhysicalDeviceMemoryProperties(pd[0], &mp);
+	for(i = 0; i < mp.memoryTypeCount; i++)
+		OK("memory type %u: heap %u flags %#x%s%s%s%s", i, mp.memoryTypes[i].heapIndex,
+			mp.memoryTypes[i].propertyFlags,
+			mp.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT ? " device-local" : "",
+			mp.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT ? " host-visible" : "",
+			mp.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT ? " coherent" : "",
+			mp.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_HOST_CACHED_BIT ? " cached" : "");
 	const VkMemoryPropertyFlags want = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT|VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
 	for(mt = 0; mt < mp.memoryTypeCount; mt++)
 		if((req.memoryTypeBits & (1u<<mt)) && (mp.memoryTypes[mt].propertyFlags & want) == want)

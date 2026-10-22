@@ -107,7 +107,9 @@ fi
 if [ -r /dev/dri/renderD128 ] && [ -w /dev/dri/renderD128 ] &&
    $QEMU -device help 2>/dev/null | grep -q '"virtio-gpu-gl-pci"'; then
 	boot3d(){
-		MEM=1024 UFS_EXTRA="$HERE/root" \
+		# CPU=host: SSE4.1's streaming loads read the host visible memory
+		# fast (venus: write-combined on the host); venus needs KVM anyway
+		CPU=host MEM=1024 UFS_EXTRA="$HERE/root" \
 		QEMU_EXTRA="-vga none -display egl-headless -device virtio-gpu-gl-pci,blob=true,venus=true,hostmem=256M -object memory-backend-memfd,id=mem1,size=1024M,share=on -machine memory-backend=mem1" \
 		"$ROOT/scripts/guest/boot-cli.sh" \
 			'aux/virtiogpu' \

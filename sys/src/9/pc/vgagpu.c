@@ -27,6 +27,17 @@
 extern int gpufb(uvlong*, void**, ulong*);
 extern void gpudirty(int, int, int, int);
 
+/*
+ * for devgpu.c (bar N cached): the firmware's MTRRs make the PCI hole
+ * below 4 GB uncacheable, which wins over the page tables; memory the
+ * driver says is RAM (virtio-gpu's host visible memory) gets write-back
+ */
+char*
+gpubarcache(uvlong pa, uvlong size)
+{
+	return mtrr(pa, size, "wb");
+}
+
 static void
 gpuenable(VGAscr *scr)
 {

@@ -1,0 +1,45 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: port <port@localhost>
+Date: Thu, 22 Oct 2026 12:26:15 +0200
+Subject: [PATCH] wsi: cached host memory for CPU images with a hardware driver
+ too (the CPU reads the blit buffer at every present)
+
+---
+ src/vulkan/wsi/wsi_common.c | 17 ++++++++++++++++-
+ 1 file changed, 16 insertions(+), 1 deletion(-)
+
+diff --git a/src/vulkan/wsi/wsi_common.c b/src/vulkan/wsi/wsi_common.c
+index 08ce6ab..35de858 100644
+--- a/src/vulkan/wsi/wsi_common.c
++++ b/src/vulkan/wsi/wsi_common.c
+@@ -3099,6 +3099,21 @@ wsi_select_host_memory_type(const struct wsi_device *wsi,
+    return wsi_select_memory_type(wsi, req_props, 0 /* deny_props */, type_bits);
+ }
+ 
++/* the blit destination of a CPU image: the CPU reads it at every
++ * present, so cached memory whenever the device has it (with a hardware
++ * driver too, not only a software one: write-combined memory reads
++ * slower by orders of magnitude); wsi_select_memory_type falls back to
++ * coherent memory
++ */
++static uint32_t
++wsi_select_cpu_read_memory_type(const struct wsi_device *wsi,
++                                uint32_t type_bits)
++{
++   return wsi_select_memory_type(wsi, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT |
++                                      VK_MEMORY_PROPERTY_HOST_CACHED_BIT,
++                                 0 /* deny_props */, type_bits);
++}
++
+ VkResult
+ wsi_create_buffer_blit_context(const struct wsi_swapchain *chain,
+                                const struct wsi_image_info *info,
+@@ -3643,7 +3658,7 @@ wsi_configure_cpu_image(const struct wsi_swapchain *chain,
+                                  1 /* size_align */,
+                                  info);
+ 
+-      info->select_blit_dst_memory_type = wsi_select_host_memory_type;
++      info->select_blit_dst_memory_type = wsi_select_cpu_read_memory_type;
+       info->select_image_memory_type = wsi_select_device_memory_type;
+       info->create_mem = wsi_create_cpu_buffer_image_mem;
+    } else {

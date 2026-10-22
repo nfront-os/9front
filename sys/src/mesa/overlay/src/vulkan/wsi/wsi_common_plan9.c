@@ -13,7 +13,11 @@
  * every time: rio gives a window a new image when it is resized.
  */
 
+#include <stdlib.h>
 #include <string.h>
+
+#include "util/u_cpu_detect.h"
+#include "util/streaming-load-memcpy.h"
 
 #include "util/macros.h"
 #include "util/timespec.h"
@@ -232,6 +236,7 @@ struct wsi_plan9_image {
 struct wsi_plan9_swapchain {
    struct wsi_swapchain base;
    const char *window_name;
+   void *pixels;  /* one frame, read once from the host visible buffer */
    VkExtent2D extent;
    VkResult status;  /* VK_SUBOPTIMAL_KHR once the window changed size */
    uint32_t next;
@@ -314,7 +319,21 @@ wsi_plan9_swapchain_queue_present(struct wsi_swapchain *wsi_chain,
                          &chain->base.fences[image_index], true, UINT64_MAX);
    }
 
-   if (plan9win_put(chain->window_name, image->base.cpu_map,
+   /*
+    * The host visible buffer can be write-combined on the host (venus:
+    * the device's memory through a dma-buf) and is slow to read: read it
+    * once, with streaming loads where there are any, then hand draw(3)
+    * the copy.
+    */
+   size_t size = (size_t)image->base.row_pitches[0] * chain->extent.height;
+#if defined(USE_SSE41)
+   if (util_get_cpu_caps()->has_sse4_1)
+      util_streaming_load_memcpy(chain->pixels, image->base.cpu_map, size);
+   else
+#endif
+      memcpy(chain->pixels, image->base.cpu_map, size);
+
+   if (plan9win_put(chain->window_name, chain->pixels,
                     chain->extent.width, chain->extent.height,
                     image->base.row_pitches[0]) < 0) {
       image->busy = false;
@@ -350,6 +369,7 @@ wsi_plan9_swapchain_destroy(struct wsi_swapchain *wsi_chain,
          wsi_destroy_image(&chain->base, &chain->images[i].base);
    }
    wsi_swapchain_finish(&chain->base);
+   free(chain->pixels);
    vk_free(pAllocator, chain);
 
    return VK_SUCCESS;
@@ -408,6 +428,14 @@ wsi_plan9_surface_create_swapchain(VkIcdSurfaceBase *icd_surface,
          image++;
          goto fail_destroy_images;
       }
+   }
+
+   /* 64-byte aligned for the streaming loads */
+   size_t frame = (size_t)chain->images[0].base.row_pitches[0] * chain->extent.height;
+   chain->pixels = aligned_alloc(64, (frame + 63) & ~(size_t)63);
+   if (chain->pixels == NULL) {
+      result = VK_ERROR_OUT_OF_HOST_MEMORY;
+      goto fail_destroy_images;
    }
 
    *swapchain_out = &chain->base;

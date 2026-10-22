@@ -4,7 +4,7 @@
  * #G: minimal kernel stub for user-space GPU drivers.
  *
  *	#G/N/ctl	r: pci, id, bars, segments, framebuffer
- *			w: bme on|off, fb <bytes>, irq ack
+ *			w: bme on|off, fb <bytes>, irq ack, bar <n> cached
  *	#G/N/irq	read blocks until the device interrupts
  *	#G/N/dirty	read blocks until /dev/draw changed the
  *			framebuffer; returns "x0 y0 x1 y1"
@@ -50,6 +50,7 @@ struct Gpu
 	int	id;
 	int	segs;		/* bar segments registered */
 	char	barseg[nelem(((Pcidev*)0)->mem)][KNAMELEN];
+	char	cachedseg[nelem(((Pcidev*)0)->mem)][KNAMELEN];	/* bar N cached */
 
 	Lock	irqlock;
 	Rendez	irqr;
@@ -252,8 +253,11 @@ ctlread(Gpu *g, void *a, long n, vlong off)
 	for(i = 0; i < nelem(p->mem); i++){
 		if(p->mem[i].size == 0)
 			continue;
-		s = seprint(s, e, "bar%d %#llux %lld %s\n", i, p->mem[i].bar & ~0xFULL,
+		s = seprint(s, e, "bar%d %#llux %lld %s", i, p->mem[i].bar & ~0xFULL,
 			p->mem[i].size, g->barseg[i][0] ? g->barseg[i] : "-");
+		if(g->cachedseg[i][0])
+			s = seprint(s, e, " %s", g->cachedseg[i]);
+		s = seprint(s, e, "\n");
 	}
 	if(g->fb != nil)
 		s = seprint(s, e, "fb %#llux %lud %s\n", (uvlong)PADDR(g->fb), g->fbsize, g->fbseg);
@@ -319,6 +323,31 @@ fballoc(Gpu *g, ulong size)
 	addseg(g->fbseg, PADDR(g->fb), size, SG_PHYSICAL | SG_NOEXEC);
 }
 
+/*
+ * a cached (write-back) segment for a memory bar, besides the
+ * uncached one: only for memory that is RAM to the processor, such
+ * as virtio-gpu's host visible memory (the driver knows, not #G)
+ */
+extern char *gpubarcache(uvlong, uvlong);	/* pc/vgagpu.c: the MTRRs */
+
+static void
+barcached(Gpu *g, int i)
+{
+	Pcidev *p;
+	char *err;
+
+	p = g->pci;
+	if(i < 0 || i >= nelem(p->mem) || p->mem[i].size == 0 || p->mem[i].bar & 1)
+		error("no such memory bar");
+	if(g->cachedseg[i][0])
+		return;
+	if((err = gpubarcache(p->mem[i].bar & ~0xFULL, p->mem[i].size)) != nil)
+		print("#G: bar%d write-back: %s\n", i, err);
+	snprint(g->cachedseg[i], KNAMELEN, "gpu%dbar%dc", g->id, i);
+	addseg(g->cachedseg[i], p->mem[i].bar & ~0xFULL, p->mem[i].size,
+		SG_PHYSICAL | SG_NOEXEC);
+}
+
 static long
 gpuwrite(Chan *c, void *a, long n, vlong)
 {
@@ -342,6 +371,8 @@ gpuwrite(Chan *c, void *a, long n, vlong)
 			pciclrbme(g->pci);
 	} else if(cb->nf == 2 && strcmp(cb->f[0], "fb") == 0)
 		fballoc(g, strtoul(cb->f[1], 0, 0));
+	else if(cb->nf == 3 && strcmp(cb->f[0], "bar") == 0 && strcmp(cb->f[2], "cached") == 0)
+		barcached(g, atoi(cb->f[1]));
 	else if(cb->nf == 2 && strcmp(cb->f[0], "irq") == 0 && strcmp(cb->f[1], "ack") == 0)
 		pcicfgw16(g->pci, PciPCR, pcicfgr16(g->pci, PciPCR) & ~Intdis);
 	else

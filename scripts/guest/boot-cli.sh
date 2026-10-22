@@ -37,6 +37,7 @@
 #                     (pmu=on; +perfctr-core: AMD's 6 core counters); qemu64
 #                     has none by default. arm64 (TCG) always has PMUv3
 #         SMP         QEMU processors (QEMU's default: 1; tests/lib.sh sets 4)
+#         CPU         QEMU CPU model (amd64: qemu64,+rdrand; e.g. host with KVM)
 #         QEMU_EXTRA  extra QEMU flags (e.g. "-s -S" for gdb)
 #         BOOTKERNEL  the kernel to boot (default: the build's
 #                     $objtype/bin/$KNAME; e.g. one built with kencc);
@@ -60,9 +61,9 @@ ROOT=${PLAN9:-$(git -C "$(dirname "$0")" rev-parse --show-toplevel)}
 CLI_DIR=${CLI_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/9front-cli}
 # objtype: the system to boot, amd64 (pc64) or 386 (pc)
 case ${objtype:=amd64} in
-amd64)	KNAME=9pc64 QEMU=qemu-system-x86_64 CPU=qemu64,+rdrand ;;
-386)	KNAME=9pc QEMU=qemu-system-i386 CPU=qemu32,+rdrand ;;
-arm64)	KNAME=9qemu QEMU=qemu-system-aarch64 CPU=cortex-a72 ;;
+amd64)	KNAME=9pc64 QEMU=qemu-system-x86_64 CPU=${CPU:-qemu64,+rdrand} ;;
+386)	KNAME=9pc QEMU=qemu-system-i386 CPU=${CPU:-qemu32,+rdrand} ;;
+arm64)	KNAME=9qemu QEMU=qemu-system-aarch64 CPU=${CPU:-cortex-a72} ;;
 *)	echo "boot-cli: objtype=$objtype: no kernel" >&2; exit 1 ;;
 esac
 [ "${PMU:-0}" = 0 ] || [ $objtype = arm64 ] || CPU=$CPU,pmu=on,+perfctr-core	# pmc(3) tests (tests/pmc)
