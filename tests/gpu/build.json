@@ -19,5 +19,24 @@
    "gputest.c",
    "gpuctxtest.c"
   ]
+ },
+ {
+  "Name": "gpu-tests-draw",
+  "Include": [
+   "/$ARCH/cflags.json"
+  ],
+  "Install": "/tests/gpu/root/tests/",
+  "Oflags": [
+   "--entry=_main"
+  ],
+  "Libs": [
+   "--start-group",
+   "/$ARCH/lib.gcc/libdraw.a",
+   "/$ARCH/lib.gcc/libc.a",
+   "--end-group"
+  ],
+  "SourceFilesCmd": [
+   "screenpx.c"
+  ]
  }
 ]

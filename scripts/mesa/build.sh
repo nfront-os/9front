@@ -13,11 +13,15 @@ export PATH=$VENV/bin:$PATH
 mkdir -p "$BUILD/plan9"
 P9=$MESA/plan9
 
-# the platform library
-flags="-I$P9/include"
+# the platform library; plan9win.c is Plan 9 C over APE's libdraw
+# (programs link -ldraw -l9 -lfmt -lutf with it, what #pragma lib names)
 objs=
 for c in "$P9"/lib/*.c; do
 	o=$BUILD/plan9/$(basename "$c" .c).o
+	case $c in
+	*/plan9win.c)	flags="-D_PLAN9_SOURCE -I$ROOT/sys/src/ape/lib/9 -I$P9/include" ;;
+	*)		flags="-I$P9/include" ;;
+	esac
 	"$CROSS/$TRIPLE-gcc" -std=c11 -O2 -Wall $flags -c -o "$o" "$c"
 	objs="$objs $o"
 done
@@ -63,7 +67,9 @@ if [ ! -f "$BUILD/mesa/build.ninja" ]; then
 		-Dvalgrind=disabled -Dlibunwind=disabled -Dbuild-tests=false -Dtools= \
 		-Dvulkan-layers= -Ddefault_library=static -Dshader-cache=disabled
 fi
-# everything the ICD is made of, without linking the ICD
+# everything the ICD is made of, without linking the ICD (build.ninja
+# first: meson regenerates it when a meson.build changed)
+ninja -C "$BUILD/mesa" build.ninja
 link=$(ninja -C "$BUILD/mesa" -t commands src/virtio/vulkan/libvulkan_virtio.so | tail -1)
 objs=$(echo "$link" | tr ' ' '\n' | grep '\.o$')
 libs=$(echo "$link" | tr ' ' '\n' | grep '\.a$' | awk '!seen[$0]++')

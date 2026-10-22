@@ -306,7 +306,11 @@ fi
 sleep 1
 if [ -n "$SCREENSHOT" ]; then	# QMP screendump (PPM), stored as PNG
 	python3 - "$CLI_DIR/qmp.sock" "$CLI_DIR/screen.ppm" "$SCREENSHOT" <<'PY'
-import json, socket, struct, sys, zlib
+import json, os, socket, struct, sys, time, zlib
+# no stale picture: the dump is new or there is none. With a GL display
+# (egl-headless, virtio-gpu-gl) QEMU writes it asynchronously: wait for it.
+if os.path.exists(sys.argv[2]):
+	os.remove(sys.argv[2])
 s = socket.socket(socket.AF_UNIX)
 s.connect(sys.argv[1])
 f = s.makefile('rw')
@@ -315,8 +319,26 @@ for cmd in ({'execute': 'qmp_capabilities'},
 		{'execute': 'screendump', 'arguments': {'filename': sys.argv[2]}}):
 	f.write(json.dumps(cmd) + '\n')
 	f.flush()
-	f.readline()
-d = open(sys.argv[2], 'rb').read()
+	while True:	# the reply, past asynchronous events
+		r = json.loads(f.readline())
+		if 'return' in r or 'error' in r:
+			break
+	if 'error' in r:
+		sys.exit('screendump: %s' % r['error'].get('desc', r['error']))
+def complete(path):
+	try:
+		d = open(path, 'rb').read()
+		magic, w, h, mx, px = d.split(maxsplit=4)
+		return d if len(px) >= int(w)*int(h)*3 else None
+	except (OSError, ValueError):
+		return None
+for i in range(150):
+	d = complete(sys.argv[2])
+	if d is not None:
+		break
+	time.sleep(0.1)
+else:
+	sys.exit('screendump: no picture in %s' % sys.argv[2])
 magic, w, h, mx, px = d.split(maxsplit=4)
 w, h = int(w), int(h)
 raw = b''.join(b'\0' + px[y*w*3:(y+1)*w*3] for y in range(h))

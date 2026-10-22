@@ -1,7 +1,6 @@
 #include "lib.h"
 #include <string.h>
 #include <stdlib.h>
-#include <fmt.h>
 #include "sys9.h"
 #include "dir.h"
 
@@ -44,13 +43,31 @@ getfields(char *str, char **args, int max, int mflag)
 	}
 	return narg;
 }
+/* "#d/<fd>ctl", without libfmt's snprint: libap must not need libfmt */
+static void
+ctlname(char *buf, int fd)
+{
+	char num[16], *p;
+	unsigned u;
+
+	p = num + sizeof num;
+	*--p = 0;
+	u = fd;
+	do
+		*--p = '0' + u%10;
+	while((u /= 10) != 0);
+	strcpy(buf, "#d/");
+	strcat(buf, p);
+	strcat(buf, "ctl");
+}
+
 int
 _IOUNIT(int fd)
 {
 	int i, cfd;
 	char buf[128], *args[10];
 
-	snprint(buf, sizeof buf, "#d/%dctl", fd);
+	ctlname(buf, fd);
 	cfd = _OPEN(buf, OREAD);
 	if(cfd < 0)
 		return 0;

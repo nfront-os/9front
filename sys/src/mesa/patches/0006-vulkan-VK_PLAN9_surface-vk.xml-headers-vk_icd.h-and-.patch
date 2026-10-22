@@ -1,0 +1,820 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: port <port@localhost>
+Date: Thu, 22 Oct 2026 09:04:34 +0200
+Subject: [PATCH] vulkan: VK_PLAN9_surface (vk.xml, headers, vk_icd.h) and the
+ plan9 WSI platform, in venus
+
+---
+ include/vulkan/vk_icd.h             |   8 +
+ include/vulkan/vulkan.h             |   4 +
+ include/vulkan/vulkan_core.h        |   1 +
+ include/vulkan/vulkan_plan9.h       |  51 +++
+ src/virtio/vulkan/meson.build       |   2 +-
+ src/virtio/vulkan/vn_instance.c     |   3 +
+ src/vulkan/meson.build              |   3 +
+ src/vulkan/registry/vk.xml          |  26 ++
+ src/vulkan/wsi/meson.build          |   4 +
+ src/vulkan/wsi/wsi_common.c         |   9 +
+ src/vulkan/wsi/wsi_common.h         |   3 +-
+ src/vulkan/wsi/wsi_common_plan9.c   | 491 ++++++++++++++++++++++++++++
+ src/vulkan/wsi/wsi_common_private.h |   9 +
+ 13 files changed, 612 insertions(+), 2 deletions(-)
+ create mode 100644 include/vulkan/vulkan_plan9.h
+ create mode 100644 src/vulkan/wsi/wsi_common_plan9.c
+
+diff --git a/include/vulkan/vk_icd.h b/include/vulkan/vk_icd.h
+index d71f568..d40e5e8 100644
+--- a/include/vulkan/vk_icd.h
++++ b/include/vulkan/vk_icd.h
+@@ -119,6 +119,7 @@ typedef enum {
+     VK_ICD_WSI_PLATFORM_GGP,
+     VK_ICD_WSI_PLATFORM_SCREEN,
+     VK_ICD_WSI_PLATFORM_FUCHSIA,
++    VK_ICD_WSI_PLATFORM_PLAN9,
+ } VkIcdWsiPlatform;
+ 
+ typedef struct {
+@@ -216,6 +217,13 @@ typedef struct {
+     VkIcdSurfaceBase base;
+ } VkIcdSurfaceHeadless;
+ 
++#ifdef VK_USE_PLATFORM_PLAN9_9FRONT
++typedef struct {
++    VkIcdSurfaceBase base;
++    char *windowName;	/* NULL: /dev/winname, else the screen */
++} VkIcdSurfacePlan9;
++#endif
++
+ #ifdef VK_USE_PLATFORM_METAL_EXT
+ typedef struct {
+     VkIcdSurfaceBase base;
+diff --git a/include/vulkan/vulkan.h b/include/vulkan/vulkan.h
+index 2ed8d9c..7ac4471 100644
+--- a/include/vulkan/vulkan.h
++++ b/include/vulkan/vulkan.h
+@@ -84,6 +84,10 @@
+ #include "vulkan_screen.h"
+ #endif
+ 
++#ifdef VK_USE_PLATFORM_PLAN9_9FRONT
++#include "vulkan_plan9.h"
++#endif
++
+ 
+ #ifdef VK_USE_PLATFORM_SCI
+ #include <nvscisync.h>
+diff --git a/include/vulkan/vulkan_core.h b/include/vulkan/vulkan_core.h
+index 96931f5..fd942b5 100644
+--- a/include/vulkan/vulkan_core.h
++++ b/include/vulkan/vulkan_core.h
+@@ -1740,6 +1740,7 @@ typedef enum VkStructureType {
+     VK_STRUCTURE_TYPE_PUSH_DESCRIPTOR_SET_INFO_KHR = VK_STRUCTURE_TYPE_PUSH_DESCRIPTOR_SET_INFO,
+     VK_STRUCTURE_TYPE_PUSH_DESCRIPTOR_SET_WITH_TEMPLATE_INFO_KHR = VK_STRUCTURE_TYPE_PUSH_DESCRIPTOR_SET_WITH_TEMPLATE_INFO,
+     VK_STRUCTURE_TYPE_RENDERING_END_INFO_EXT = VK_STRUCTURE_TYPE_RENDERING_END_INFO_KHR,
++    VK_STRUCTURE_TYPE_PLAN9_SURFACE_CREATE_INFO_PLAN9 = 1008999000,
+     VK_STRUCTURE_TYPE_MAX_ENUM = 0x7FFFFFFF
+ } VkStructureType;
+ 
+diff --git a/include/vulkan/vulkan_plan9.h b/include/vulkan/vulkan_plan9.h
+new file mode 100644
+index 0000000..8a95c2f
+--- /dev/null
++++ b/include/vulkan/vulkan_plan9.h
+@@ -0,0 +1,51 @@
++#ifndef VULKAN_PLAN9_H_
++#define VULKAN_PLAN9_H_ 1
++
++/*
++** Copyright 2026 The 9front gpu port
++**
++** SPDX-License-Identifier: Apache-2.0 OR MIT
++*/
++
++/*
++** VK_PLAN9_surface: present to a draw(3) window on 9front.
++** Written in the form of the Khronos platform headers (vulkan_wayland.h);
++** the registry entry is in src/vulkan/registry/vk.xml.
++*/
++
++
++#ifdef __cplusplus
++extern "C" {
++#endif
++
++
++
++// VK_PLAN9_surface is a preprocessor guard. Do not pass it to API calls.
++#define VK_PLAN9_surface 1
++#define VK_PLAN9_SURFACE_SPEC_VERSION     1
++#define VK_PLAN9_SURFACE_EXTENSION_NAME   "VK_PLAN9_surface"
++typedef VkFlags VkPlan9SurfaceCreateFlagsPLAN9;
++typedef struct VkPlan9SurfaceCreateInfoPLAN9 {
++    VkStructureType                   sType;
++    const void*                       pNext;
++    VkPlan9SurfaceCreateFlagsPLAN9    flags;
++    const char*                       pWindowName;	/* NULL: /dev/winname, else the screen */
++} VkPlan9SurfaceCreateInfoPLAN9;
++
++typedef VkResult (VKAPI_PTR *PFN_vkCreatePlan9SurfacePLAN9)(VkInstance instance, const VkPlan9SurfaceCreateInfoPLAN9* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkSurfaceKHR* pSurface);
++
++#ifndef VK_NO_PROTOTYPES
++#ifndef VK_ONLY_EXPORTED_PROTOTYPES
++VKAPI_ATTR VkResult VKAPI_CALL vkCreatePlan9SurfacePLAN9(
++    VkInstance                                  instance,
++    const VkPlan9SurfaceCreateInfoPLAN9*        pCreateInfo,
++    const VkAllocationCallbacks*                pAllocator,
++    VkSurfaceKHR*                               pSurface);
++#endif
++#endif
++
++#ifdef __cplusplus
++}
++#endif
++
++#endif
+diff --git a/src/virtio/vulkan/meson.build b/src/virtio/vulkan/meson.build
+index 43b5dd3..120038c 100644
+--- a/src/virtio/vulkan/meson.build
++++ b/src/virtio/vulkan/meson.build
+@@ -138,7 +138,7 @@ endif
+ 
+ if with_platform_wayland or with_platform_x11 or \
+    (system_has_kms_drm and not with_platform_android) or \
+-   with_platform_windows
++   with_platform_windows or host_machine.system() == 'plan9'
+   libvn_files += files('vn_wsi.c')
+   vn_c_args += '-DVN_USE_WSI_PLATFORM'
+ endif
+diff --git a/src/virtio/vulkan/vn_instance.c b/src/virtio/vulkan/vn_instance.c
+index b05edbf..ee8e112 100644
+--- a/src/virtio/vulkan/vn_instance.c
++++ b/src/virtio/vulkan/vn_instance.c
+@@ -59,6 +59,9 @@ static const struct vk_instance_extension_table
+ #ifndef VK_USE_PLATFORM_WIN32_KHR
+       .EXT_headless_surface = true,
+ #endif
++#ifdef VK_USE_PLATFORM_PLAN9_9FRONT
++      .PLAN9_surface = true,
++#endif
+ #ifdef VK_USE_PLATFORM_DISPLAY_KHR
+       .KHR_display = true,
+       .KHR_get_display_properties2 = true,
+diff --git a/src/vulkan/meson.build b/src/vulkan/meson.build
+index 614a33a..4df65ba 100644
+--- a/src/vulkan/meson.build
++++ b/src/vulkan/meson.build
+@@ -65,6 +65,9 @@ endif
+ if with_platform_android
+   vulkan_wsi_list += '-DVK_USE_PLATFORM_ANDROID_KHR'
+ endif
++if host_machine.system() == 'plan9'
++  vulkan_wsi_list += '-DVK_USE_PLATFORM_PLAN9_9FRONT'
++endif
+ if with_platform_windows
+   vulkan_wsi_list += '-DVK_USE_PLATFORM_WIN32_KHR'
+ endif
+diff --git a/src/vulkan/registry/vk.xml b/src/vulkan/registry/vk.xml
+index 4d66622..01a1b68 100644
+--- a/src/vulkan/registry/vk.xml
++++ b/src/vulkan/registry/vk.xml
+@@ -36,6 +36,7 @@ branch of the member gitlab server.
+         <platform name="provisional" protect="VK_ENABLE_BETA_EXTENSIONS" comment="Enable declarations for beta/provisional extensions" />
+         <platform name="screen" protect="VK_USE_PLATFORM_SCREEN_QNX" comment="QNX Screen Graphics Subsystem" />
+         <platform name="ohos" protect="VK_USE_PLATFORM_OHOS" comment="Open Harmony OS" />
++        <platform name="plan9" protect="VK_USE_PLATFORM_PLAN9_9FRONT" comment="9front (Plan 9): draw(3) windows" />
+     </platforms>
+ 
+     <tags comment="Vulkan vendor/author tags for extensions and layers">
+@@ -82,6 +83,7 @@ branch of the member gitlab server.
+         <tag name="FREDEMMOTT" author="Frederick Emmott" contact="Fred Emmott @fredemmott" />
+         <tag name="MTK" author="Mediatek, Inc." contact="Samuel Huang @shengwenhuang" />
+         <tag name="OPENXR" author="OpenXR Working Group" contact="Ron Bessems @rbessems" />
++        <tag name="PLAN9"     author="9front"                        contact="9front gpu port"/>
+     </tags>
+ 
+     <types comment="Vulkan type definitions">
+@@ -458,6 +460,7 @@ typedef void* <name>MTLSharedEvent_id</name>;
+         <type category="bitmask">typedef <type>VkFlags</type> <name>VkImagePipeSurfaceCreateFlagsFUCHSIA</name>;</type>
+         <type category="bitmask">typedef <type>VkFlags</type> <name>VkStreamDescriptorSurfaceCreateFlagsGGP</name>;</type>
+         <type category="bitmask">typedef <type>VkFlags</type> <name>VkHeadlessSurfaceCreateFlagsEXT</name>;</type>
++        <type category="bitmask">typedef <type>VkFlags</type> <name>VkPlan9SurfaceCreateFlagsPLAN9</name>;</type>
+         <type category="bitmask">typedef <type>VkFlags</type> <name>VkScreenSurfaceCreateFlagsQNX</name>;</type>
+         <type requires="VkPeerMemoryFeatureFlagBits" category="bitmask">typedef <type>VkFlags</type> <name>VkPeerMemoryFeatureFlags</name>;</type>
+         <type category="bitmask" name="VkPeerMemoryFeatureFlagsKHR" alias="VkPeerMemoryFeatureFlags" />
+@@ -5891,6 +5894,12 @@ typedef void* <name>MTLSharedEvent_id</name>;
+             <member optional="true">const <type>void</type>*            <name>pNext</name></member>
+             <member optional="true"><type>VkHeadlessSurfaceCreateFlagsEXT</type>   <name>flags</name></member>
+         </type>
++        <type category="struct" name="VkPlan9SurfaceCreateInfoPLAN9">
++            <member values="VK_STRUCTURE_TYPE_PLAN9_SURFACE_CREATE_INFO_PLAN9"><type>VkStructureType</type> <name>sType</name></member>
++            <member optional="true">const <type>void</type>*                                            <name>pNext</name></member>
++            <member optional="true"><type>VkPlan9SurfaceCreateFlagsPLAN9</type>   <name>flags</name></member>
++            <member optional="true" len="null-terminated">const <type>char</type>*                         <name>pWindowName</name><comment>Name of the draw(3) window image; NULL: /dev/winname, else the screen</comment></member>
++        </type>
+         <type category="struct" name="VkPhysicalDeviceCoverageReductionModeFeaturesNV" structextends="VkPhysicalDeviceFeatures2,VkDeviceCreateInfo">
+             <member values="VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_COVERAGE_REDUCTION_MODE_FEATURES_NV"><type>VkStructureType</type> <name>sType</name></member>
+             <member optional="true"><type>void</type>*    <name>pNext</name></member>
+@@ -17553,6 +17562,13 @@ endif::VK_KHR_internally_synchronized_queues[]
+             <param optional="true">const <type>VkAllocationCallbacks</type>* <name>pAllocator</name></param>
+             <param><type>VkSurfaceKHR</type>* <name>pSurface</name></param>
+         </command>
++        <command successcodes="VK_SUCCESS" errorcodes="VK_ERROR_OUT_OF_HOST_MEMORY,VK_ERROR_OUT_OF_DEVICE_MEMORY">
++            <proto><type>VkResult</type> <name>vkCreatePlan9SurfacePLAN9</name></proto>
++            <param><type>VkInstance</type> <name>instance</name></param>
++            <param>const <type>VkPlan9SurfaceCreateInfoPLAN9</type>* <name>pCreateInfo</name></param>
++            <param optional="true">const <type>VkAllocationCallbacks</type>* <name>pAllocator</name></param>
++            <param><type>VkSurfaceKHR</type>* <name>pSurface</name></param>
++        </command>
+         <command successcodes="VK_SUCCESS,VK_INCOMPLETE" errorcodes="VK_ERROR_OUT_OF_HOST_MEMORY,VK_ERROR_OUT_OF_DEVICE_MEMORY,VK_ERROR_UNKNOWN,VK_ERROR_VALIDATION_FAILED">
+             <proto><type>VkResult</type> <name>vkGetPhysicalDeviceSupportedFramebufferMixedSamplesCombinationsNV</name></proto>
+             <param><type>VkPhysicalDevice</type> <name>physicalDevice</name></param>
+@@ -32232,6 +32248,16 @@ endif::VK_KHR_internally_synchronized_queues[]
+                 <enum value="&quot;VK_QCOM_extension_695&quot;" name="VK_QCOM_EXTENSION_695_EXTENSION_NAME" />
+             </require>
+         </extension>
++        <extension name="VK_PLAN9_surface" number="9000" type="instance" depends="VK_KHR_surface" platform="plan9" author="PLAN9" contact="9front gpu port" supported="vulkan" comment="9front: present to a draw(3) window">
++            <require>
++                <enum value="1"                                                 name="VK_PLAN9_SURFACE_SPEC_VERSION"/>
++                <enum value="&quot;VK_PLAN9_surface&quot;"                      name="VK_PLAN9_SURFACE_EXTENSION_NAME"/>
++                <enum offset="0" extends="VkStructureType"                      name="VK_STRUCTURE_TYPE_PLAN9_SURFACE_CREATE_INFO_PLAN9"/>
++                <type name="VkPlan9SurfaceCreateFlagsPLAN9"/>
++                <type name="VkPlan9SurfaceCreateInfoPLAN9"/>
++                <command name="vkCreatePlan9SurfacePLAN9"/>
++            </require>
++        </extension>
+     </extensions>
+     <formats>
+         <format name="VK_FORMAT_R4G4_UNORM_PACK8" class="8-bit" blockSize="1" texelsPerBlock="1" packed="8">
+diff --git a/src/vulkan/wsi/meson.build b/src/vulkan/wsi/meson.build
+index 80925d1..087eb8f 100644
+--- a/src/vulkan/wsi/meson.build
++++ b/src/vulkan/wsi/meson.build
+@@ -38,6 +38,10 @@ if with_platform_macos
+   files_vulkan_wsi += files('wsi_common_metal.c', 'wsi_common_metal_layer.m')
+ endif
+ 
++if host_machine.system() == 'plan9'
++  files_vulkan_wsi += files('wsi_common_plan9.c')
++endif
++
+ if system_has_kms_drm and not with_platform_android
+   files_vulkan_wsi += files('wsi_common_display.c')
+ endif
+diff --git a/src/vulkan/wsi/wsi_common.c b/src/vulkan/wsi/wsi_common.c
+index 411ee3e..08ce6ab 100644
+--- a/src/vulkan/wsi/wsi_common.c
++++ b/src/vulkan/wsi/wsi_common.c
+@@ -269,6 +269,12 @@ wsi_device_init(struct wsi_device *wsi,
+       goto fail;
+ #endif
+ 
++#ifdef VK_USE_PLATFORM_PLAN9_9FRONT
++   result = wsi_plan9_init_wsi(wsi, alloc, pdevice);
++   if (result != VK_SUCCESS)
++      goto fail;
++#endif
++
+ #ifndef VK_USE_PLATFORM_WIN32_KHR
+    result = wsi_headless_init_wsi(wsi, alloc, pdevice);
+    if (result != VK_SUCCESS)
+@@ -343,6 +349,9 @@ wsi_device_finish(struct wsi_device *wsi,
+ #ifndef VK_USE_PLATFORM_WIN32_KHR
+    wsi_headless_finish_wsi(wsi, alloc);
+ #endif
++#ifdef VK_USE_PLATFORM_PLAN9_9FRONT
++   wsi_plan9_finish_wsi(wsi, alloc);
++#endif
+ #ifdef VK_USE_PLATFORM_DISPLAY_KHR
+    wsi_display_finish_wsi(wsi, alloc);
+ #endif
+diff --git a/src/vulkan/wsi/wsi_common.h b/src/vulkan/wsi/wsi_common.h
+index 803d140..361e8db 100644
+--- a/src/vulkan/wsi/wsi_common.h
++++ b/src/vulkan/wsi/wsi_common.h
+@@ -52,7 +52,8 @@ struct vk_queue;
+ 
+ struct driOptionCache;
+ 
+-#define VK_ICD_WSI_PLATFORM_MAX (VK_ICD_WSI_PLATFORM_METAL + 1)
++/* PLAN9 is the last in vk_icd.h's list (after METAL) */
++#define VK_ICD_WSI_PLATFORM_MAX (VK_ICD_WSI_PLATFORM_PLAN9 + 1)
+ 
+ struct wsi_device {
+    /* Allocator for the instance */
+diff --git a/src/vulkan/wsi/wsi_common_plan9.c b/src/vulkan/wsi/wsi_common_plan9.c
+new file mode 100644
+index 0000000..2aa7378
+--- /dev/null
++++ b/src/vulkan/wsi/wsi_common_plan9.c
+@@ -0,0 +1,491 @@
++/*
++ * Copyright 2026 The 9front gpu port
++ * Copyright 2021 Red Hat, Inc. (wsi_common_headless.c, the model)
++ * SPDX-License-Identifier: MIT
++ */
++
++/** VK_PLAN9_surface: present to a draw(3) window on 9front
++ *
++ * The images are the device's; at present the common code blits them
++ * into a host visible buffer (WSI_IMAGE_TYPE_CPU), and queue_present
++ * waits for that blit and copies the pixels to the window through its
++ * own /dev/draw connection (plan9win.h).  The window is found by name
++ * every time: rio gives a window a new image when it is resized.
++ */
++
++#include <string.h>
++
++#include "util/macros.h"
++#include "util/timespec.h"
++#include "vk_util.h"
++#include "vk_instance.h"
++#include "vk_physical_device.h"
++#include "wsi_common_entrypoints.h"
++#include "wsi_common_private.h"
++
++#include "plan9win.h"
++
++struct wsi_plan9 {
++   struct wsi_interface base;
++};
++
++static VkResult
++wsi_plan9_surface_get_support(VkIcdSurfaceBase *surface,
++                              struct wsi_device *wsi_device,
++                              uint32_t queueFamilyIndex,
++                              VkBool32 *pSupported)
++{
++   VkIcdSurfacePlan9 *s = (VkIcdSurfacePlan9 *)surface;
++   int w, h;
++
++   *pSupported = plan9win_size(s->windowName, &w, &h) == 0;
++   return VK_SUCCESS;
++}
++
++static const VkPresentModeKHR present_modes[] = {
++   VK_PRESENT_MODE_FIFO_KHR,
++   VK_PRESENT_MODE_IMMEDIATE_KHR,
++};
++
++static VkResult
++wsi_plan9_surface_get_capabilities(VkIcdSurfaceBase *surface,
++                                   struct wsi_device *wsi_device,
++                                   VkSurfaceCapabilities2KHR *caps)
++{
++   VkIcdSurfacePlan9 *s = (VkIcdSurfacePlan9 *)surface;
++   int w, h;
++
++   if (plan9win_size(s->windowName, &w, &h) < 0)
++      return VK_ERROR_SURFACE_LOST_KHR;
++
++   caps->surfaceCapabilities.minImageCount = 2;
++   caps->surfaceCapabilities.maxImageCount = 0;
++
++   /* the window's size: the swapchain must have it */
++   caps->surfaceCapabilities.currentExtent = (VkExtent2D) { w, h };
++   caps->surfaceCapabilities.minImageExtent = (VkExtent2D) { 1, 1 };
++   caps->surfaceCapabilities.maxImageExtent = (VkExtent2D) {
++      wsi_device->maxImageDimension2D,
++      wsi_device->maxImageDimension2D,
++   };
++
++   caps->surfaceCapabilities.supportedTransforms = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
++   caps->surfaceCapabilities.currentTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
++   caps->surfaceCapabilities.maxImageArrayLayers = 1;
++   caps->surfaceCapabilities.supportedCompositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
++
++   VkImageUsageFlags image_usage = wsi_caps_get_image_usage();
++   VkImageUsageFlags2CreateInfoKHR *usage2 =
++      vk_find_struct(caps->pNext, IMAGE_USAGE_FLAGS_2_CREATE_INFO_KHR);
++   if (usage2)
++      usage2->usage = image_usage;
++   else
++      caps->surfaceCapabilities.supportedUsageFlags = image_usage;
++
++   return VK_SUCCESS;
++}
++
++static VkResult
++wsi_plan9_surface_get_capabilities2(VkIcdSurfaceBase *surface,
++                                    struct wsi_device *wsi_device,
++                                    const void *info_next,
++                                    VkSurfaceCapabilities2KHR *caps)
++{
++   assert(caps->sType == VK_STRUCTURE_TYPE_SURFACE_CAPABILITIES_2_KHR);
++
++   const VkSurfacePresentModeKHR *present_mode =
++      vk_find_struct_const(info_next, SURFACE_PRESENT_MODE_EXT);
++
++   VkResult result = wsi_plan9_surface_get_capabilities(surface, wsi_device, caps);
++
++   vk_foreach_struct(ext, caps->pNext) {
++      switch (ext->sType) {
++      case VK_STRUCTURE_TYPE_SURFACE_PROTECTED_CAPABILITIES_KHR: {
++         VkSurfaceProtectedCapabilitiesKHR *protected = (void *)ext;
++         protected->supportsProtected = VK_FALSE;
++         break;
++      }
++      case VK_STRUCTURE_TYPE_SURFACE_PRESENT_SCALING_CAPABILITIES_KHR: {
++         VkSurfacePresentScalingCapabilitiesKHR *scaling = (void *)ext;
++         scaling->supportedPresentScaling = 0;
++         scaling->supportedPresentGravityX = 0;
++         scaling->supportedPresentGravityY = 0;
++         scaling->minScaledImageExtent = caps->surfaceCapabilities.minImageExtent;
++         scaling->maxScaledImageExtent = caps->surfaceCapabilities.maxImageExtent;
++         break;
++      }
++      case VK_STRUCTURE_TYPE_SURFACE_PRESENT_MODE_COMPATIBILITY_KHR: {
++         VkSurfacePresentModeCompatibilityKHR *compat = (void *)ext;
++         if (compat->pPresentModes == NULL) {
++            compat->presentModeCount = 1;
++         } else if (compat->presentModeCount) {
++            compat->presentModeCount = 1;
++            compat->pPresentModes[0] =
++               present_mode ? present_mode->presentMode : VK_PRESENT_MODE_FIFO_KHR;
++         }
++         break;
++      }
++      case VK_STRUCTURE_TYPE_PRESENT_TIMING_SURFACE_CAPABILITIES_EXT: {
++         VkPresentTimingSurfaceCapabilitiesEXT *wait = (void *)ext;
++         wait->presentStageQueries = 0;
++         wait->presentTimingSupported = VK_FALSE;
++         wait->presentAtAbsoluteTimeSupported = VK_FALSE;
++         wait->presentAtRelativeTimeSupported = VK_FALSE;
++         break;
++      }
++      default:
++         break;
++      }
++   }
++
++   return result;
++}
++
++/* draw(3)'s XRGB32 is B, G, R, X in memory */
++static const VkFormat formats[] = {
++   VK_FORMAT_B8G8R8A8_SRGB,
++   VK_FORMAT_B8G8R8A8_UNORM,
++};
++
++static VkResult
++wsi_plan9_surface_get_formats(VkIcdSurfaceBase *icd_surface,
++                              struct wsi_device *wsi_device,
++                              uint32_t *pSurfaceFormatCount,
++                              VkSurfaceFormatKHR *pSurfaceFormats)
++{
++   VK_OUTARRAY_MAKE_TYPED(VkSurfaceFormatKHR, out, pSurfaceFormats, pSurfaceFormatCount);
++
++   for (unsigned i = 0; i < ARRAY_SIZE(formats); i++) {
++      vk_outarray_append_typed(VkSurfaceFormatKHR, &out, out_fmt) {
++         out_fmt->format = formats[i];
++         out_fmt->colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
++      }
++   }
++
++   return vk_outarray_status(&out);
++}
++
++static VkResult
++wsi_plan9_surface_get_formats2(VkIcdSurfaceBase *icd_surface,
++                               struct wsi_device *wsi_device,
++                               const void *info_next,
++                               uint32_t *pSurfaceFormatCount,
++                               VkSurfaceFormat2KHR *pSurfaceFormats)
++{
++   VK_OUTARRAY_MAKE_TYPED(VkSurfaceFormat2KHR, out, pSurfaceFormats, pSurfaceFormatCount);
++
++   for (unsigned i = 0; i < ARRAY_SIZE(formats); i++) {
++      vk_outarray_append_typed(VkSurfaceFormat2KHR, &out, out_fmt) {
++         out_fmt->surfaceFormat.format = formats[i];
++         out_fmt->surfaceFormat.colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
++      }
++   }
++
++   return vk_outarray_status(&out);
++}
++
++static VkResult
++wsi_plan9_surface_get_present_modes(VkIcdSurfaceBase *surface,
++                                    struct wsi_device *wsi_device,
++                                    uint32_t *pPresentModeCount,
++                                    VkPresentModeKHR *pPresentModes)
++{
++   if (pPresentModes == NULL) {
++      *pPresentModeCount = ARRAY_SIZE(present_modes);
++      return VK_SUCCESS;
++   }
++
++   *pPresentModeCount = MIN2(*pPresentModeCount, ARRAY_SIZE(present_modes));
++   typed_memcpy(pPresentModes, present_modes, *pPresentModeCount);
++
++   return *pPresentModeCount < ARRAY_SIZE(present_modes) ? VK_INCOMPLETE : VK_SUCCESS;
++}
++
++static VkResult
++wsi_plan9_surface_get_present_rectangles(VkIcdSurfaceBase *surface,
++                                         struct wsi_device *wsi_device,
++                                         uint32_t *pRectCount,
++                                         VkRect2D *pRects)
++{
++   VkIcdSurfacePlan9 *s = (VkIcdSurfacePlan9 *)surface;
++   VK_OUTARRAY_MAKE_TYPED(VkRect2D, out, pRects, pRectCount);
++   int w, h;
++
++   if (plan9win_size(s->windowName, &w, &h) < 0)
++      return VK_ERROR_SURFACE_LOST_KHR;
++
++   vk_outarray_append_typed(VkRect2D, &out, rect) {
++      *rect = (VkRect2D) {
++         .offset = { 0, 0 },
++         .extent = { w, h },
++      };
++   }
++
++   return vk_outarray_status(&out);
++}
++
++struct wsi_plan9_image {
++   struct wsi_image base;
++   bool busy;  /* acquired by the app */
++};
++
++struct wsi_plan9_swapchain {
++   struct wsi_swapchain base;
++   const char *window_name;
++   VkExtent2D extent;
++   VkResult status;  /* VK_SUBOPTIMAL_KHR once the window changed size */
++   uint32_t next;
++   struct wsi_plan9_image images[0];
++};
++VK_DEFINE_NONDISP_HANDLE_CASTS(wsi_plan9_swapchain, base.base, VkSwapchainKHR,
++                               VK_OBJECT_TYPE_SWAPCHAIN_KHR)
++
++static struct wsi_image *
++wsi_plan9_swapchain_get_wsi_image(struct wsi_swapchain *wsi_chain,
++                                  uint32_t image_index)
++{
++   struct wsi_plan9_swapchain *chain = (struct wsi_plan9_swapchain *)wsi_chain;
++   return &chain->images[image_index].base;
++}
++
++static VkResult
++wsi_plan9_swapchain_release_images(struct wsi_swapchain *wsi_chain,
++                                   uint32_t count, const uint32_t *indices)
++{
++   struct wsi_plan9_swapchain *chain = (struct wsi_plan9_swapchain *)wsi_chain;
++
++   for (uint32_t i = 0; i < count; i++) {
++      assert(indices[i] < chain->base.image_count);
++      chain->images[indices[i]].busy = false;
++   }
++   return VK_SUCCESS;
++}
++
++static VkResult
++wsi_plan9_swapchain_acquire_next_image(struct wsi_swapchain *wsi_chain,
++                                       const VkAcquireNextImageInfoKHR *info,
++                                       uint32_t *image_index)
++{
++   struct wsi_plan9_swapchain *chain = (struct wsi_plan9_swapchain *)wsi_chain;
++   struct timespec start_time, end_time, rel_timeout;
++
++   if (chain->status == VK_ERROR_OUT_OF_DATE_KHR)
++      return chain->status;
++
++   timespec_from_nsec(&rel_timeout, info->timeout);
++   clock_gettime(CLOCK_MONOTONIC, &start_time);
++   timespec_add(&end_time, &rel_timeout, &start_time);
++
++   for (;;) {
++      /* round robin: the image presented longest ago comes first */
++      for (uint32_t n = 0; n < chain->base.image_count; n++) {
++         uint32_t i = (chain->next + n) % chain->base.image_count;
++         if (!chain->images[i].busy) {
++            chain->images[i].busy = true;
++            chain->next = (i + 1) % chain->base.image_count;
++            *image_index = i;
++            return chain->status;
++         }
++      }
++
++      struct timespec current_time;
++      clock_gettime(CLOCK_MONOTONIC, &current_time);
++      if (timespec_after(&current_time, &end_time))
++         return info->timeout ? VK_TIMEOUT : VK_NOT_READY;
++   }
++}
++
++static VkResult
++wsi_plan9_swapchain_queue_present(struct wsi_swapchain *wsi_chain,
++                                  uint32_t image_index,
++                                  uint64_t present_id,
++                                  const VkPresentRegionKHR *damage)
++{
++   struct wsi_plan9_swapchain *chain = (struct wsi_plan9_swapchain *)wsi_chain;
++   struct wsi_plan9_image *image = &chain->images[image_index];
++   const struct wsi_device *wsi = chain->base.wsi;
++   int w, h;
++
++   assert(image_index < chain->base.image_count);
++
++   /* the blit into the host visible buffer must be done */
++   if (!wsi->sw) {
++      wsi->WaitForFences(chain->base.device, 1,
++                         &chain->base.fences[image_index], true, UINT64_MAX);
++   }
++
++   if (plan9win_put(chain->window_name, image->base.cpu_map,
++                    chain->extent.width, chain->extent.height,
++                    image->base.row_pitches[0]) < 0) {
++      image->busy = false;
++      chain->status = VK_ERROR_SURFACE_LOST_KHR;
++      return chain->status;
++   }
++   image->busy = false;
++
++   /* resized: tell the app, which makes a new swapchain */
++   if (plan9win_size(chain->window_name, &w, &h) == 0 &&
++       ((uint32_t)w != chain->extent.width || (uint32_t)h != chain->extent.height))
++      chain->status = VK_ERROR_OUT_OF_DATE_KHR;
++
++   return chain->status;
++}
++
++static VkResult
++wsi_plan9_swapchain_wait_for_present(struct wsi_swapchain *wsi_chain,
++                                     uint64_t waitValue,
++                                     uint64_t timeout)
++{
++   return wsi_swapchain_wait_for_present_semaphore(wsi_chain, waitValue, timeout);
++}
++
++static VkResult
++wsi_plan9_swapchain_destroy(struct wsi_swapchain *wsi_chain,
++                            const VkAllocationCallbacks *pAllocator)
++{
++   struct wsi_plan9_swapchain *chain = (struct wsi_plan9_swapchain *)wsi_chain;
++
++   for (uint32_t i = 0; i < chain->base.image_count; i++) {
++      if (chain->images[i].base.image != VK_NULL_HANDLE)
++         wsi_destroy_image(&chain->base, &chain->images[i].base);
++   }
++   wsi_swapchain_finish(&chain->base);
++   vk_free(pAllocator, chain);
++
++   return VK_SUCCESS;
++}
++
++static VkResult
++wsi_plan9_surface_create_swapchain(VkIcdSurfaceBase *icd_surface,
++                                   VkDevice device,
++                                   struct wsi_device *wsi_device,
++                                   const VkSwapchainCreateInfoKHR *pCreateInfo,
++                                   const VkAllocationCallbacks *pAllocator,
++                                   struct wsi_swapchain **swapchain_out)
++{
++   VkIcdSurfacePlan9 *surface = (VkIcdSurfacePlan9 *)icd_surface;
++   struct wsi_plan9_swapchain *chain;
++   VkResult result;
++
++   assert(pCreateInfo->sType == VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR);
++
++   uint32_t num_images = MAX2(pCreateInfo->minImageCount, 2);
++   size_t size = sizeof(*chain) + num_images * sizeof(chain->images[0]);
++   chain = vk_zalloc(pAllocator, size, 8, VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);
++   if (chain == NULL)
++      return VK_ERROR_OUT_OF_HOST_MEMORY;
++
++   /* rendered by the device, blitted into host memory for draw(3) */
++   struct wsi_cpu_image_params cpu_params = {
++      .base.image_type = WSI_IMAGE_TYPE_CPU,
++   };
++
++   result = wsi_swapchain_init(wsi_device, &chain->base, device,
++                               pCreateInfo, &cpu_params.base, pAllocator);
++   if (result != VK_SUCCESS)
++      goto fail_free_chain;
++
++   chain->base.destroy = wsi_plan9_swapchain_destroy;
++   chain->base.get_wsi_image = wsi_plan9_swapchain_get_wsi_image;
++   chain->base.acquire_next_image = wsi_plan9_swapchain_acquire_next_image;
++   chain->base.release_images = wsi_plan9_swapchain_release_images;
++   chain->base.queue_present = wsi_plan9_swapchain_queue_present;
++   chain->base.wait_for_present = wsi_plan9_swapchain_wait_for_present;
++   chain->base.present_mode = wsi_swapchain_get_present_mode(wsi_device, pCreateInfo);
++   chain->base.image_count = num_images;
++   chain->window_name = surface->windowName;
++   chain->extent = pCreateInfo->imageExtent;
++   chain->status = VK_SUCCESS;
++
++   uint32_t image = 0;
++   for (; image < chain->base.image_count; image++) {
++      result = wsi_create_image(&chain->base, &chain->base.image_info,
++                                &chain->images[image].base);
++      if (result != VK_SUCCESS)
++         goto fail_destroy_images;
++      if (chain->images[image].base.cpu_map == NULL) {
++         result = VK_ERROR_OUT_OF_HOST_MEMORY;
++         image++;
++         goto fail_destroy_images;
++      }
++   }
++
++   *swapchain_out = &chain->base;
++   return VK_SUCCESS;
++
++fail_destroy_images:
++   for (uint32_t i = 0; i < image; i++)
++      wsi_destroy_image(&chain->base, &chain->images[i].base);
++   wsi_swapchain_finish(&chain->base);
++fail_free_chain:
++   vk_free(pAllocator, chain);
++   return result;
++}
++
++VkResult
++wsi_plan9_init_wsi(struct wsi_device *wsi_device,
++                   const VkAllocationCallbacks *alloc,
++                   VkPhysicalDevice physical_device)
++{
++   struct wsi_plan9 *wsi;
++
++   wsi = vk_alloc(alloc, sizeof(*wsi), 8, VK_SYSTEM_ALLOCATION_SCOPE_INSTANCE);
++   if (!wsi) {
++      wsi_device->wsi[VK_ICD_WSI_PLATFORM_PLAN9] = NULL;
++      return VK_ERROR_OUT_OF_HOST_MEMORY;
++   }
++
++   wsi->base.get_support = wsi_plan9_surface_get_support;
++   wsi->base.get_capabilities2 = wsi_plan9_surface_get_capabilities2;
++   wsi->base.get_formats = wsi_plan9_surface_get_formats;
++   wsi->base.get_formats2 = wsi_plan9_surface_get_formats2;
++   wsi->base.get_present_modes = wsi_plan9_surface_get_present_modes;
++   wsi->base.get_present_rectangles = wsi_plan9_surface_get_present_rectangles;
++   wsi->base.create_swapchain = wsi_plan9_surface_create_swapchain;
++
++   wsi_device->wsi[VK_ICD_WSI_PLATFORM_PLAN9] = &wsi->base;
++
++   return VK_SUCCESS;
++}
++
++void
++wsi_plan9_finish_wsi(struct wsi_device *wsi_device,
++                     const VkAllocationCallbacks *alloc)
++{
++   struct wsi_plan9 *wsi =
++      (struct wsi_plan9 *)wsi_device->wsi[VK_ICD_WSI_PLATFORM_PLAN9];
++   if (!wsi)
++      return;
++
++   vk_free(alloc, wsi);
++}
++
++VKAPI_ATTR VkResult VKAPI_CALL
++wsi_CreatePlan9SurfacePLAN9(VkInstance _instance,
++                            const VkPlan9SurfaceCreateInfoPLAN9 *pCreateInfo,
++                            const VkAllocationCallbacks *pAllocator,
++                            VkSurfaceKHR *pSurface)
++{
++   VK_FROM_HANDLE(vk_instance, instance, _instance);
++   VkIcdSurfacePlan9 *surface;
++   const char *name = pCreateInfo->pWindowName;
++   size_t n = name ? strlen(name) + 1 : 0;
++
++   assert(pCreateInfo->sType == VK_STRUCTURE_TYPE_PLAN9_SURFACE_CREATE_INFO_PLAN9);
++
++   /* the name in the same allocation: vkDestroySurfaceKHR frees one */
++   surface = vk_alloc2(&instance->alloc, pAllocator, sizeof(*surface) + n, 8,
++                       VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);
++   if (surface == NULL)
++      return VK_ERROR_OUT_OF_HOST_MEMORY;
++
++   surface->base.platform = VK_ICD_WSI_PLATFORM_PLAN9;
++   surface->windowName = NULL;
++   if (name) {
++      surface->windowName = (char *)(surface + 1);
++      memcpy(surface->windowName, name, n);
++   }
++
++   *pSurface = VkIcdSurfaceBase_to_handle(&surface->base);
++   return VK_SUCCESS;
++}
+diff --git a/src/vulkan/wsi/wsi_common_private.h b/src/vulkan/wsi/wsi_common_private.h
+index 3d2cd7d..1f9828b 100644
+--- a/src/vulkan/wsi/wsi_common_private.h
++++ b/src/vulkan/wsi/wsi_common_private.h
+@@ -582,6 +582,15 @@ VkResult wsi_headless_init_wsi(struct wsi_device *wsi_device,
+ void wsi_headless_finish_wsi(struct wsi_device *wsi_device,
+                              const VkAllocationCallbacks *alloc);
+ 
++#ifdef VK_USE_PLATFORM_PLAN9_9FRONT
++VkResult wsi_plan9_init_wsi(struct wsi_device *wsi_device,
++                            const VkAllocationCallbacks *alloc,
++                            VkPhysicalDevice physical_device);
++
++void wsi_plan9_finish_wsi(struct wsi_device *wsi_device,
++                          const VkAllocationCallbacks *alloc);
++#endif
++
+ VK_DEFINE_NONDISP_HANDLE_CASTS(wsi_swapchain, base, VkSwapchainKHR,
+                                VK_OBJECT_TYPE_SWAPCHAIN_KHR)
+ 
