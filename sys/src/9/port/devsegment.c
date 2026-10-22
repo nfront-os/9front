@@ -11,6 +11,7 @@ enum
 	Qsegdir,
 	Qctl,
 	Qdata,
+	Qpa,	/* 9front-ng: physical addresses of a fixed or sticky segment's pages */
 };
 
 #define TYPE(c) 	(int)( (c)->qid.path & 0x7 )
@@ -118,6 +119,7 @@ segmentgen(Chan *c, char*, Dirtab*, int, int s, Dir *dp)
 		/* fall through */
 	case Qctl:
 	case Qdata:
+	case Qpa:
 		switch(s){
 		case 0:
 			g = getgseg(c);
@@ -137,6 +139,18 @@ segmentgen(Chan *c, char*, Dirtab*, int, int s, Dir *dp)
 			else
 				size = 0;
 			devdir(c, q, "data", size, g->uid, g->perm, dp);
+			putgseg(g);
+			break;
+		case 2:
+			g = getgseg(c);
+			q.vers = 0;
+			q.path = PATH(SEG(c), Qpa);
+			q.type = QTFILE;
+			if(g->Segio.s != nil)
+				size = (g->Segio.s->top - g->Segio.s->base)/BY2PG * 8;
+			else
+				size = 0;
+			devdir(c, q, "pa", size, eve, 0400, dp);
 			putgseg(g);
 			break;
 		default:
@@ -196,6 +210,29 @@ segmentopen(Chan *c, int omode)
 		c->aux = g;
 		poperror();
 		break;
+	case Qpa:
+		/* the pages' addresses are for DMA: only for the hostowner */
+		if(!iseve())
+			error(Eperm);
+		if(omode != OREAD)
+			error(Eperm);
+		g = getgseg(c);
+		if(waserror()){
+			putgseg(g);
+			nexterror();
+		}
+		if(g->Segio.s == nil)
+			error("segment not yet allocated");
+		switch(g->Segio.s->type&SG_TYPE){
+		case SG_FIXED:
+		case SG_STICKY:
+			break;
+		default:
+			error("segment pages not resident");
+		}
+		c->aux = g;
+		poperror();
+		break;
 	default:
 		panic("segmentopen");
 	}
@@ -238,6 +275,7 @@ segmentclose(Chan *c)
 			break;
 		case Qctl:
 		case Qdata:
+		case Qpa:
 			putgseg(c->aux);
 			c->aux = nil;
 			break;
@@ -302,6 +340,47 @@ segmentcreate(Chan *c, char *name, int omode, ulong perm)
 	return c;
 }
 
+/*
+ * the physical addresses of the pages of a fixed or sticky segment
+ * (never paged out, never moved while the segment lives), one
+ * little-endian 64-bit word per page from the segment's base
+ */
+static long
+pagepa(Segment *s, uchar *a, long n, vlong voff)
+{
+	uchar buf[256];
+	uintptr soff, npg;
+	uvlong pa;
+	Pte *pte;
+	Page *pg;
+	long i, m;
+	int j;
+
+	if(voff < 0 || (voff & 7) != 0)
+		error(Ebadarg);
+	npg = (s->top - s->base)/BY2PG;
+	n &= ~7;
+	for(i = 0; i < n && voff/8 < npg; i += m){
+		/* not into a while holding the lock: a may lie in s */
+		qlock(&s->QLock);
+		for(m = 0; m < sizeof buf && i+m < n && voff/8 < npg; m += 8, voff += 8){
+			soff = (voff/8)*BY2PG;
+			pte = s->map[soff/PTEMAPMEM];
+			pg = pte != nil ? pte->pages[(soff&(PTEMAPMEM-1))/BY2PG] : nil;
+			if(pg == nil){
+				qunlock(&s->QLock);
+				error("segment page missing");
+			}
+			pa = pg->pa;
+			for(j = 0; j < 8; j++)
+				buf[m+j] = pa >> 8*j;
+		}
+		qunlock(&s->QLock);
+		memmove(a+i, buf, m);
+	}
+	return i;
+}
+
 static long
 segmentread(Chan *c, void *a, long n, vlong voff)
 {
@@ -326,6 +405,8 @@ segmentread(Chan *c, void *a, long n, vlong voff)
 		return readstr(voff, a, n, buf);
 	case Qdata:
 		return segio(&g->Segio,g->Segio.s,a,n,voff,1);
+	case Qpa:
+		return pagepa(g->Segio.s, a, n, voff);
 	default:
 		panic("segmentread");
 	}

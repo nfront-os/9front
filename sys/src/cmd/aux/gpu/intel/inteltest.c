@@ -283,7 +283,7 @@ suite(void)
 {
 	char *s, *f[8];
 	Ctx a, b;
-	Bo data, batch, bdata, bbatch;
+	Bo data, batch, bdata, bbatch, big, bigbatch;
 	Waitmsg *w;
 	u32int *c;
 	uvlong k;
@@ -398,6 +398,44 @@ suite(void)
 			free(w);
 		}
 	}
+
+	/*
+	 * 8. a 16 MB object (scattered pages): the blitter fills all of it,
+	 * then the render engine writes each page's number into it, from
+	 * a 1 MB batch; the CPU checks every dword
+	 */
+	if(newbo(&a, &big, 16*1024*1024) < 0 || newbo(&a, &bigbatch, 1024*1024) < 0)
+		goto Out;
+	c = bigbatch.p;
+	n = colorblt(c, big.gpu, 4096, 0, 0, 1024, 4096, 0x5a5a5a5a, 32);
+	bbend(c, n);
+	k = submit(&a, &bigbatch, 0, "bcs");
+	if(k && fencewait(&a, k, &us) < 0)
+		fail("16 MB fill: %r");
+	else{
+		c = bigbatch.p + 64;
+		n = 0;
+		for(i = 0; i < 4096; i++)
+			n += storedw(c + n, big.gpu + i*4096 + 4, 0xd0000000 | i);
+		bbend(c, n);
+		k = submit(&a, &bigbatch, 64*4, "rcs");
+		if(k && fencewait(&a, k, &t0) < 0)
+			fail("16 MB stores: %r");
+		else{
+			bad = 0;
+			for(i = 0; i < 4*1024*1024; i++)
+				if(big.p[i] != ((i & 1023) == 1 ? 0xd0000000 | i>>10 : 0x5a5a5a5a)){
+					if(bad++ == 0)
+						fail("16 MB: dword %d (page %d) holds %#ux", i, i>>10, big.p[i]);
+				}
+			if(bad)
+				fail("16 MB: %d dwords wrong", bad);
+			else
+				ok("16 MB object: bcs fill in %lld µs, 4096 rcs stores in %lld µs, all pages right", us, t0);
+		}
+	}
+	segdetach(big.p);
+	segdetach(bigbatch.p);
 
 	if((s = readall("status")) != nil)
 		print("status after:\n%s", s);

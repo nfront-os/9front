@@ -8,6 +8,7 @@ segment \- long lived memory segments
 .BI #g/ seg1
 .BI #g/ seg1 /ctl
 .BI #g/ seg1 /data
+.BI #g/ seg1 /pa
 .BI #g/ seg2
 .BI #g/ seg2 /ctl
 .BI #g/ seg2 /data
@@ -94,6 +95,17 @@ returns a message of the same format with the segment's actual
 start address and length. For
 .B fixed
 segments, the type and physical base address are appended.
+.PP
+For
+.B fixed
+and
+.B sticky
+segments the hostowner may read a third file,
+.BR pa :
+the physical address of each page of the segment, from its start,
+as little-endian 64-bit words.
+Their pages stay in place while the segment exists, so a driver
+can hand them to hardware for DMA, scattered as they are.
 .PP
 Opening
 .B data

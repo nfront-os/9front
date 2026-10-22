@@ -17,8 +17,8 @@
  *	/dev/gpu/0/ctx/n/submit		bo offset [rcs|bcs]
  *	/dev/gpu/0/ctx/n/fence		as gpu(4)
  *
- * A buffer object is a #g segment of physically contiguous memory
- * (fixed), mapped into the context's address space; the client
+ * A buffer object is a #g segment of pinned pages (sticky; their
+ * addresses from #g/seg/pa), mapped into the context's address space; the client
  * attaches it and writes GPU addresses into its batches itself (no
  * relocations).  A context's address space is 4 GB in three levels
  * (gen 8's 32-bit PPGTT: four page directories, which the context
@@ -228,7 +228,8 @@ struct Bo {
 	int	id;
 	Ctx	*ctx;
 	char	seg[32];
-	uvlong	va, pa, size;
+	uvlong	va, size;
+	uvlong	*pa;		/* its pages' physical addresses */
 	ulong	gtt;		/* the GPU address: in the context's PPGTT, or the GTT (-G) */
 	int	plane;		/* the visible plane mapped (map plane), no segment */
 };
@@ -416,6 +417,51 @@ fixedseg(char *name, uvlong va, ulong size, int perm)
 	return strtoull(f[4], nil, 0);
 }
 
+/*
+ * a segment of pinned pages, not contiguous: their physical
+ * addresses from #g/name/pa, one 64-bit word per page
+ */
+static uvlong*
+stickyseg(char *name, uvlong va, ulong size, int perm)
+{
+	char path[64];
+	uchar *b;
+	uvlong *pa;
+	ulong i, n;
+	int fd, j;
+
+	snprint(path, sizeof path, "#g/%s", name);
+	if((fd = create(path, OREAD, DMDIR|perm)) >= 0)
+		close(fd);
+	snprint(path, sizeof path, "#g/%s/ctl", name);
+	if((fd = open(path, OWRITE)) < 0)
+		return nil;
+	if(fprint(fd, "va %#llux %#lux sticky", va, size) < 0){
+		close(fd);
+		return nil;
+	}
+	close(fd);
+	n = size/4096;
+	b = emalloc9p(n*8);
+	pa = emalloc9p(n*sizeof pa[0]);
+	snprint(path, sizeof path, "#g/%s/pa", name);
+	if((fd = open(path, OREAD)) < 0 || readn(fd, b, n*8) != n*8){
+		if(fd >= 0)
+			close(fd);
+		free(b);
+		free(pa);
+		return nil;
+	}
+	close(fd);
+	for(i = 0; i < n; i++){
+		pa[i] = 0;
+		for(j = 7; j >= 0; j--)
+			pa[i] = pa[i]<<8 | b[i*8+j];
+	}
+	free(b);
+	return pa;
+}
+
 static void
 rmseg(char *name)
 {
@@ -489,16 +535,19 @@ gttfree(ulong a, ulong len)
 	holefree(&holes, a, len);
 }
 
-/* map len bytes of contiguous memory at pa to gtt address a */
+/*
+ * map len bytes to gtt address a: the pages pas[], or
+ * contiguous memory at pa if pas is nil
+ */
 static void
-gttmap(ulong a, uvlong pa, ulong len)
+gttmap(ulong a, uvlong pa, uvlong *pas, ulong len)
 {
 	uvlong i, n, bits;
 
 	bits = Ptepresent | (uncached ? Pteuncached : Ptecached);
 	n = (len + 4095) / 4096;
 	for(i = 0; i < n; i++)
-		gtt[a/4096 + i] = (pa + i*4096) | bits;
+		gtt[a/4096 + i] = (pas != nil ? pas[i] : pa + i*4096) | bits;
 	wr(Gfxflshcntl, 1);
 	rd(Gfxflshcntl);
 }
@@ -592,9 +641,12 @@ ppfree(Ctx *c)
 	}
 }
 
-/* map len bytes at pa to the context's address a, with the PPAT bits */
+/*
+ * map len bytes to the context's address a, with the PPAT bits:
+ * the pages pas[], or contiguous memory at pa if pas is nil
+ */
 static int
-ppmap(Ctx *c, ulong a, uvlong pa, ulong len, uvlong bits)
+ppmap(Ctx *c, ulong a, uvlong pa, uvlong *pas, ulong len, uvlong bits)
 {
 	uvlong *pd, *pt;
 	ulong v, end;
@@ -602,6 +654,8 @@ ppmap(Ctx *c, ulong a, uvlong pa, ulong len, uvlong bits)
 
 	end = a + ((len + 4095) & ~4095);
 	for(v = a; v < end; v += 4096, pa += 4096){
+		if(pas != nil)
+			pa = pas[(v - a)/4096];
 		i = v>>30;
 		j = v>>21 & 511;
 		k = v>>12 & 511;
@@ -1239,19 +1293,19 @@ bonew(Ctx *c, uvlong size)
 	b->size = size;
 	b->va = Bova + (uvlong)i*256*1024*1024;
 	snprint(b->seg, sizeof b->seg, "gpu0bo%d", b->id);
-	if((b->pa = fixedseg(b->seg, b->va, size, 0770)) == 0){
+	if((b->pa = stickyseg(b->seg, b->va, size, 0770)) == nil){
 		rmseg(b->seg);
 		free(b);
-		return "no contiguous memory";
+		return "no memory";
 	}
 	qlock(&lk);
 	if(global){
 		b->gtt = gttalloc(size);
 		if(b->gtt != 0)
-			gttmap(b->gtt, b->pa, size);
+			gttmap(b->gtt, 0, b->pa, size);
 	}else{
 		b->gtt = holealloc(&c->holes, size);
-		if(b->gtt != 0 && ppmap(c, b->gtt, b->pa, size, uncached ? Pteuncached : Ptecached) < 0){
+		if(b->gtt != 0 && ppmap(c, b->gtt, 0, b->pa, size, uncached ? Pteuncached : Ptecached) < 0){
 			ppunmap(c, b->gtt, size);
 			holefree(&c->holes, b->gtt, size);
 			b->gtt = 0;
@@ -1260,6 +1314,7 @@ bonew(Ctx *c, uvlong size)
 	qunlock(&lk);
 	if(b->gtt == 0){
 		rmseg(b->seg);
+		free(b->pa);
 		free(b);
 		return "no GPU address space (or page tables) left";
 	}
@@ -1284,6 +1339,7 @@ bofree(Bo *b)
 	if(!b->plane)
 		rmseg(b->seg);
 	bos[b->id-1] = nil;
+	free(b->pa);
 	free(b);
 }
 
@@ -1347,7 +1403,7 @@ mapplane(Ctx *c)
 	else if((b->gtt = holealloc(&c->holes, size)) != 0)
 		for(off = 0; off < size; off += 4096){
 			pa = gtt[(surf + off)/4096] & 0x7FFFFFF000ULL;
-			if(ppmap(c, b->gtt + off, pa, 4096, Pteuncached) < 0){
+			if(ppmap(c, b->gtt + off, pa, nil, 4096, Pteuncached) < 0){
 				ppunmap(c, b->gtt, off);
 				holefree(&c->holes, b->gtt, size);
 				b->gtt = 0;
@@ -1921,7 +1977,7 @@ devinit(void)
 		sysfatal("segattach gpu0drv: %r");
 	if((drvgtt = gttalloc(nelem(eng)*4096)) == 0)
 		sysfatal("no GTT for the status pages");
-	gttmap(drvgtt, drvpa, nelem(eng)*4096);
+	gttmap(drvgtt, drvpa, nil, nelem(eng)*4096);
 	/* the contexts' pages, here: the procs forked later see only what is attached now */
 	if((ctxpoolpa = fixedseg("gpu0ctx", Ctxva, Nctx*ctxslot(), 0700)) == 0)
 		sysfatal("#g/gpu0ctx: %r");
@@ -1929,7 +1985,7 @@ devinit(void)
 		sysfatal("segattach gpu0ctx: %r");
 	if((ctxpoolgtt = gttalloc(Nctx*ctxslot())) == 0)
 		sysfatal("no GTT for the contexts");
-	gttmap(ctxpoolgtt, ctxpoolpa, Nctx*ctxslot());
+	gttmap(ctxpoolgtt, ctxpoolpa, nil, Nctx*ctxslot());
 	if(!global){
 		if((ptpa = fixedseg("gpu0pt", Ptva, Ptpages*4096, 0700)) == 0)
 			sysfatal("#g/gpu0pt: %r");

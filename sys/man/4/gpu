@@ -251,7 +251,11 @@ Each context has an address space of its own, 4 GB (gen 8's
 three-level PPGTT); with
 .B -G
 all share the global GTT, without isolation.
-A buffer object is a segment of physically contiguous memory mapped
+A buffer object is a segment of pinned pages
+.RB ( sticky ,
+see
+.IR segment (3);
+not contiguous) mapped
 into it;
 .TF "\fLbo\fP \fIsize"
 .TP
