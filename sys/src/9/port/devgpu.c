@@ -10,11 +10,13 @@
  *			framebuffer; returns "x0 y0 x1 y1"
  *
  * The memory BARs are physical segments gpuNbarM, the
- * framebuffer is gpuNfb (see segattach(2)).  Interrupts are
- * legacy INTx: the handler masks them in the PCI command
- * register (interrupt disable), the driver unmasks them with
- * "irq ack" after it has served the device.  There is no
- * mode setting, memory management or firmware here.
+ * framebuffer is gpuNfb (see segattach(2)).  Interrupts are MSI
+ * where the device has it (intrenable chooses it), else legacy
+ * INTx: then the handler masks them in the PCI command register
+ * (interrupt disable), the driver unmasks them with "irq ack"
+ * after it has served the device; an MSI is an edge and needs no
+ * masking.  There is no mode setting, memory management or
+ * firmware here.
  */
 #include	"u.h"
 #include	"../port/lib.h"
@@ -56,6 +58,7 @@ struct Gpu
 	Lock	irqlock;
 	Rendez	irqr;
 	int	intrenabled;
+	int	msi;		/* intrenable gave the device MSI */
 	int	irqpending;
 	ulong	nirq;
 
@@ -186,9 +189,11 @@ gpuintr(Ureg*, void *a)
 
 	g = a;
 	p = g->pci;
-	if((pcicfgr16(p, PciPSR) & Intsts) == 0)
-		return;		/* shared line, not ours */
-	pcicfgw16(p, PciPCR, pcicfgr16(p, PciPCR) | Intdis);
+	if(!g->msi){
+		if((pcicfgr16(p, PciPSR) & Intsts) == 0)
+			return;		/* shared line, not ours */
+		pcicfgw16(p, PciPCR, pcicfgr16(p, PciPCR) | Intdis);
+	}
 	ilock(&g->irqlock);
 	g->nirq++;
 	g->irqpending = 1;
@@ -201,15 +206,22 @@ gpuopen(Chan *c, int omode)
 {
 	Gpu *g;
 	char name[KNAMELEN];
+	int msi;
 
 	c = devopen(c, omode, nil, 0, gpugen);
 	if(TYPE(c->qid) == Qirq){
 		g = &gpus[GPU(c->qid)];
 		qlock(g);
-		if(!g->intrenabled && g->pci->intl != 0 && g->pci->intl != 0xFF){
+		/*
+		 * MSI does not need the INTx line, which firmware often
+		 * leaves unassigned for an integrated GPU (0xFF)
+		 */
+		msi = pcicap(g->pci, PciCapMSI);
+		if(!g->intrenabled && (msi >= 0 || g->pci->intl != 0 && g->pci->intl != 0xFF)){
 			snprint(name, sizeof name, "gpu%d", g->id);
 			intrenable(g->pci->intl, gpuintr, g, g->pci->tbdf, name);
 			g->intrenabled = 1;
+			g->msi = msi >= 0 && (pcicfgr16(g->pci, msi+2) & 1) != 0;
 		}
 		qunlock(g);
 	}
@@ -250,7 +262,8 @@ ctlread(Gpu *g, void *a, long n, vlong off)
 	e = buf + READSTR;
 	s = seprint(s, e, "pci %d.%d.%d\n", BUSBNO(p->tbdf), BUSDNO(p->tbdf), BUSFNO(p->tbdf));
 	s = seprint(s, e, "id %.4ux/%.4ux\n", p->vid, p->did);
-	s = seprint(s, e, "irq %d %s %lud\n", p->intl, g->intrenabled ? "on" : "off", g->nirq);
+	s = seprint(s, e, "irq %d %s %lud %s\n", p->intl, g->intrenabled ? "on" : "off", g->nirq,
+		g->msi ? "msi" : "intx");
 	for(i = 0; i < nelem(p->mem); i++){
 		if(p->mem[i].size == 0)
 			continue;

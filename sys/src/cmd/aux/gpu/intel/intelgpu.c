@@ -97,6 +97,14 @@ enum {
 
 static char *gdir = "#G/0";
 static int force;
+static vlong tstart;
+
+/* how long since the start: where the time goes */
+static void
+tick(char *what)
+{
+	print("t+%lldms %s\n", (nsec() - tstart)/1000000, what);
+}
 static char pcidev[32];
 static u32int *mmio;
 static uvlong mmiosize;
@@ -383,11 +391,15 @@ setup(Gpu *g)
 		g->bpp, g->tiled ? ", tiled" : "");
 
 	/* bus mastering, our pages, the last entries of the GTT */
+	tick("bme on");
 	ctlwrite("bme on");
+	tick("fixed segment");
 	if((pa = fixedseg("intelgpu", Segva, Npage*4096)) == 0)
 		sysfatal("#g/intelgpu: %r");
+	tick("segattach");
 	if((g->ring = segattach(0, "intelgpu", nil, Npage*4096)) == (void*)-1)
 		sysfatal("segattach intelgpu: %r");
+	tick("pages");
 	g->hws = g->ring + 1024;
 	g->batch = g->ring + 2*1024;
 	memset(g->ring, 0, Npage*4096);
@@ -401,8 +413,10 @@ setup(Gpu *g)
 	print("pages at %#llux, gtt %#lux (ring) %#lux (status) %#lux (batch)\n", pa,
 		g->ringgtt, g->hwsgtt, g->batchgtt);
 
+	tick("forcewake");
 	if(forcewake(1) < 0)
 		sysfatal("forcewake: no ack (%#ux)", rd(Forcewakeack));
+	tick("forcewake acknowledged");
 	ringstate("before");
 
 	/* PTEs: present, PPAT 0; then the GTT flushed */
@@ -410,6 +424,7 @@ setup(Gpu *g)
 		gtt[g->nent-Npage+i] = (pa + i*4096) | 1;
 	wr(Gfxflshcntl, 1);
 	rd(Gfxflshcntl);
+	tick("gtt");
 }
 
 /* the ring in ring buffer mode (no execlists), 1 page */
@@ -567,7 +582,7 @@ catch(void*, char *msg)
 static void
 batch(void)
 {
-	char path[64], buf[32];
+	char path[64], buf[32], buf2[1024], *s;
 	Gpu g;
 	int n, m, fd;
 	u32int master, iir;
@@ -619,6 +634,9 @@ batch(void)
 	}
 	if(waitseqno(&g) == 0)
 		readback(&g, 450, 150, 0x00FF00);
+	/* where the interrupt is: the GPU's registers, the kernel's count */
+	print("irq after: master %#ux gt isr %#ux iir %#ux; #G: irq %s\n", rd(Masterirq), rd(Gtisr0),
+		rd(Gtisr0+8), (s = ctlline("irq", buf2, sizeof buf2)) ? s : "?");
 
 	/* interrupts off again */
 	wr(Masterirq, 0);
@@ -669,7 +687,9 @@ main(int argc, char **argv)
 	}ARGEND
 	if(argc < 1)
 		usage();
+	tstart = nsec();
 	init();
+	tick("init");
 	if(strcmp(argv[0], "probe") == 0)
 		probe();
 	else if(strcmp(argv[0], "blt") == 0)

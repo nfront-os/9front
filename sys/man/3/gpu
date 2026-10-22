@@ -40,10 +40,13 @@ its configuration space is
 .BI id " vid/did
 vendor and device id.
 .TP
-.BI irq " line state count
+.BI irq " line state count kind
 the interrupt line, whether
 .B irq
-has enabled it, and the interrupts seen.
+has enabled it, the interrupts seen, and
+.B msi
+or
+.BR intx .
 .TP
 .BI bar i " addr size seg \fR[\fPcseg wseg\fR]\fP
 a base address register: physical address, size and the physical
@@ -95,13 +98,16 @@ The driver tells its clients which part to map how.
 .PP
 Opening
 .B irq
-enables the device's legacy (INTx) interrupt.
+enables the device's interrupt: MSI where the device has it
+(the interrupt line need not be assigned), else legacy INTx.
 A read blocks until the device interrupts and returns the count.
-The kernel's handler masks the interrupt with the interrupt-disable
-bit of the PCI command register; the driver serves the device and
-writes
+With INTx the kernel's handler masks the interrupt with the
+interrupt-disable bit of the PCI command register; the driver serves
+the device and writes
 .B "irq ack
-to unmask it.
+to unmask it (with MSI, an edge, nothing is masked and
+.B "irq ack
+does no harm).
 .PP
 .B dirty
 connects the framebuffer to
