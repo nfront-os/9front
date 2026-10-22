@@ -45,6 +45,11 @@
 #include <9p.h>
 #include "renderstate.h"
 
+/* a context's address space: 48 bits (four levels), with -3 32 bits (three) */
+#define Pplimit48	(1ULL<<47)	/* the driver's choices below the canonical hole */
+#define Pplimit32	0xFFF00000ULL
+#define Ptaddr		0xFFFFFFFFF000ULL	/* the address in an entry */
+
 enum {
 	Pcigmch		= 0x50,		/* GMCH graphics control (16 bits) */
 
@@ -104,6 +109,7 @@ enum {
 	/* the context descriptor */
 	Descvalid	= 1<<0,
 	Desclegacy32	= 1<<3,		/* LEGACY_32B_CONTEXT << 3 */
+	Desclegacy64	= 3<<3,		/* LEGACY_64B_CONTEXT << 3: 48-bit, four levels */
 	Descl3llc	= 1<<5,
 	Descpriv	= 1<<8,
 
@@ -197,11 +203,13 @@ enum {
 	Ctxva		= 0x58000000,	/* the contexts' pages: status, images, rings */
 	Ptva		= 0x60000000,	/* the page table pool */
 	Ptpages		= 4096,		/* 16 MB: page directories and tables */
-	Ppbase		= 0x100000,	/* a context's objects from 1 MB */
-	Pplimit		= 0xFFF00000UL,	/* to just below 4 GB */
+	Ppbase		= 0x100000,	/* a context's objects from 1 MB (the driver's choice) */
+	Rsva		= 0x1000,	/* the null render state's page in every context */
 
 	Nctx		= 64,
 	Nbo		= 1024,
+	Bomax		= 1<<30,	/* an object's size; their addresses in the clients 1 GB apart */
+	Anyaddr		= ~0,		/* bomap: the driver chooses the GPU address */
 	Fwin		= 256,		/* fences in flight per context */
 	Timeout		= 5000,		/* ms before a fence is given up */
 };
@@ -257,7 +265,7 @@ struct Bo {
 	char	seg[32];
 	uvlong	va, size;
 	uvlong	*pa;		/* its pages' physical addresses */
-	ulong	gtt;		/* the GPU address: in the context's PPGTT, or the GTT (-G) */
+	uvlong	gtt;		/* the GPU address: in the context's PPGTT, or the GTT (-G); 0: not mapped */
 	int	plane;		/* the visible plane mapped (map plane), no segment */
 };
 
@@ -279,10 +287,13 @@ struct Ctx {
 	Ectx	ec[2];
 	File	*dir, *ctl, *submit, *fence;
 
-	/* the address space: page directories, tables (pool pages, -1: none) */
+	/*
+	 * the address space: a tree of pool pages from the PML4 down, the
+	 * scratch tables where nothing is (with -3 the four page
+	 * directories under its first entry are the PDP registers)
+	 */
 	ulong	serial;
-	int	pd[4];
-	short	pt[4][512];
+	int	pml4;
 	Hole	*holes;
 };
 
@@ -294,12 +305,13 @@ struct Fidaux {
 
 struct Hole {
 	Hole	*next;
-	ulong	start, len;	/* GTT, bytes */
+	uvlong	start, len;	/* GPU addresses, bytes */
 };
 
 static char *gdir = "#G/0";
 static int debug, poll, uncached, global;
 static int noclockgating, norcsinit;	/* -C, -R: to find what hangs a machine */
+static int legacy32;		/* -3: 32-bit address spaces (three levels) */
 static u32int *ptpool;		/* Ptpages pages */
 static uvlong ptpa;
 static uchar ptused[Ptpages];
@@ -319,7 +331,14 @@ static uvlong rspa;
  * or a page table of only those (PDEs), as i915 has it: stray GPU
  * accesses land there, not at physical address 0
  */
-static uvlong scratchpte, scratchpde, scratchgtt;
+static uvlong scratchpte, scratchgtt;
+/*
+ * the scratch tables below each level (0: the PT, 1: a PD of PT
+ * pointers, 2: a PDP of PD pointers), and the entries a new table of
+ * a level is filled with (0: PTEs to the scratch page, 1-3: pointers
+ * to the scratch table below)
+ */
+static uvlong scratchtab[3], scratchfill[4];
 
 /*
  * the render engine's workarounds, written into each new context
@@ -532,13 +551,13 @@ rmseg(char *name)
 /*
  * the GTT: our part from Gttlow, first fit
  */
-static ulong
-holealloc(Hole **list, ulong len)
+static uvlong
+holealloc(Hole **list, uvlong len)
 {
 	Hole *h, **l;
-	ulong a;
+	uvlong a;
 
-	len = (len + 4095) & ~4095;
+	len = (len + 4095) & ~4095ULL;
 	for(l = list; (h = *l) != nil; l = &h->next)
 		if(h->len >= len){
 			a = h->start;
@@ -553,12 +572,39 @@ holealloc(Hole **list, ulong len)
 	return 0;
 }
 
+/* take [a, a+len) out of the holes; -1 if not all free */
+static int
+holetake(Hole **list, uvlong a, uvlong len)
+{
+	Hole *h, *n, **l;
+
+	len = (len + 4095) & ~4095ULL;
+	for(l = list; (h = *l) != nil; l = &h->next){
+		if(a < h->start || a + len > h->start + h->len)
+			continue;
+		if(a + len < h->start + h->len){
+			n = emalloc9p(sizeof *n);
+			n->start = a + len;
+			n->len = h->start + h->len - (a + len);
+			n->next = h->next;
+			h->next = n;
+		}
+		h->len = a - h->start;
+		if(h->len == 0){
+			*l = h->next;
+			free(h);
+		}
+		return 0;
+	}
+	return -1;
+}
+
 static void
-holefree(Hole **list, ulong a, ulong len)
+holefree(Hole **list, uvlong a, uvlong len)
 {
 	Hole *h, *p, **l;
 
-	len = (len + 4095) & ~4095;
+	len = (len + 4095) & ~4095ULL;
 	for(l = list; (p = *l) != nil && p->start < a; l = &p->next)
 		;
 	h = emalloc9p(sizeof *h);
@@ -664,36 +710,100 @@ ptmem(int i)
 	return (uvlong*)(ptpool + i*1024);
 }
 
+/* the pool page of a table's physical address, -1 for a scratch table */
+static int
+ptindex(uvlong pa)
+{
+	pa &= Ptaddr;
+	if(pa < ptpa || pa >= ptpa + Ptpages*4096ULL)
+		return -1;
+	return (pa - ptpa)/4096;
+}
+
+/*
+ * the entry for address a at a level of the context's tree (3: in the
+ * PML4, 0: the PTE), with alloc the tables on the way allocated
+ */
+static uvlong*
+ppwalk(Ctx *c, uvlong a, int level, int alloc)
+{
+	uvlong *t;
+	int lvl, i, n;
+
+	t = ptmem(c->pml4);
+	for(lvl = 3; lvl > level; lvl--){
+		i = a >> (12 + 9*lvl) & 511;
+		if((n = ptindex(t[i])) < 0){
+			if(!alloc)
+				return nil;
+			if((n = ptalloc(scratchfill[lvl-1])) < 0)
+				return nil;
+			t[i] = ptphys(n) | Ptepresent | Pterw | (uncached ? Pteuncached : Pdecached);
+			flushcache(&t[i], 8);
+		}
+		t = ptmem(n);
+	}
+	return &t[a >> (12 + 9*level) & 511];
+}
+
+/* free a table and the tables below it */
+static void
+pptfree(int n, int level)
+{
+	uvlong *t;
+	int i, m;
+
+	if(level > 0){
+		t = ptmem(n);
+		for(i = 0; i < 512; i++)
+			if((m = ptindex(t[i])) >= 0)
+				pptfree(m, level-1);
+	}
+	ptfree(n);
+}
+
+/* the PDP register n of a context: with 48 bits the PML4 in PDP0 */
+static uvlong
+pdpval(Ctx *c, int n)
+{
+	uvlong *e;
+
+	if(global || c->pml4 < 0)
+		return 0;
+	if(!legacy32)
+		return n == 0 ? ptphys(c->pml4) : 0;
+	e = ppwalk(c, (uvlong)n<<30, 2, 0);
+	return e != nil ? *e & Ptaddr : 0;
+}
+
 static void ppfree(Ctx*);
-static int	ppmap(Ctx*, ulong, uvlong, uvlong*, ulong, uvlong);
+static int	ppmap(Ctx*, uvlong, uvlong, uvlong*, uvlong, uvlong);
 
 static int
 ppinit(Ctx *c)
 {
-	int i, j;
+	int n;
 
-	for(i = 0; i < 4; i++){
-		for(j = 0; j < 512; j++)
-			c->pt[i][j] = -1;
-		if((c->pd[i] = ptalloc(scratchpde)) < 0){
-			while(--i >= 0)
-				ptfree(c->pd[i]);
-			return -1;
-		}
-	}
-	/*
-	 * the null render state's page at its GTT address: the batch
-	 * runs from the GTT, but its state (STATE_BASE_ADDRESS, relocated
-	 * to that address) is read through the context's PPGTT
-	 */
+	c->holes = nil;
+	if((c->pml4 = ptalloc(scratchfill[3])) < 0)
+		return -1;
+	/* -3: the four page directories exist from the start (they are registers) */
+	if(legacy32)
+		for(n = 0; n < 4; n++)
+			if(ppwalk(c, (uvlong)n<<30, 1, 1) == nil){
+				ppfree(c);
+				return -1;
+			}
 	c->holes = emalloc9p(sizeof(Hole));
 	c->holes->start = Ppbase;
-	c->holes->len = rsgtt - Ppbase;
-	c->holes->next = emalloc9p(sizeof(Hole));
-	c->holes->next->start = rsgtt + 4096;
-	c->holes->next->len = Pplimit - (rsgtt + 4096);
-	c->holes->next->next = nil;
-	if(ppmap(c, rsgtt, rspa, nil, 4096, uncached ? Pteuncached : Ptecached) < 0){
+	c->holes->len = (legacy32 ? Pplimit32 : Pplimit48) - Ppbase;
+	c->holes->next = nil;
+	/*
+	 * the null render state's page: its batch runs from the GTT, but
+	 * its state (STATE_BASE_ADDRESS, relocated to Rsva) is read through
+	 * the context's PPGTT
+	 */
+	if(ppmap(c, Rsva, rspa, nil, 4096, uncached ? Pteuncached : Ptecached) < 0){
 		ppfree(c);
 		return -1;
 	}
@@ -704,13 +814,10 @@ static void
 ppfree(Ctx *c)
 {
 	Hole *h;
-	int i, j;
 
-	for(i = 0; i < 4; i++){
-		for(j = 0; j < 512; j++)
-			ptfree(c->pt[i][j]);
-		ptfree(c->pd[i]);
-	}
+	if(c->pml4 >= 0)
+		pptfree(c->pml4, 3);
+	c->pml4 = -1;
 	while((h = c->holes) != nil){
 		c->holes = h->next;
 		free(h);
@@ -722,50 +829,34 @@ ppfree(Ctx *c)
  * the pages pas[], or contiguous memory at pa if pas is nil
  */
 static int
-ppmap(Ctx *c, ulong a, uvlong pa, uvlong *pas, ulong len, uvlong bits)
+ppmap(Ctx *c, uvlong a, uvlong pa, uvlong *pas, uvlong len, uvlong bits)
 {
-	uvlong *pd, *pt;
-	ulong v, end;
-	int i, j, k;
+	uvlong *pte, v, end;
 
-	end = a + ((len + 4095) & ~4095);
+	end = a + ((len + 4095) & ~4095ULL);
 	for(v = a; v < end; v += 4096, pa += 4096){
 		if(pas != nil)
 			pa = pas[(v - a)/4096];
-		i = v>>30;
-		j = v>>21 & 511;
-		k = v>>12 & 511;
-		if(c->pt[i][j] < 0){
-			if((c->pt[i][j] = ptalloc(scratchpte)) < 0)
-				return -1;
-			pd = ptmem(c->pd[i]);
-			pd[j] = ptphys(c->pt[i][j]) | Ptepresent | Pterw | (uncached ? Pteuncached : Pdecached);
-			flushcache(&pd[j], 8);
-		}
-		pt = ptmem(c->pt[i][j]);
-		pt[k] = pa | Ptepresent | Pterw | bits;
-		flushcache(&pt[k], 8);
+		if((pte = ppwalk(c, v, 0, 1)) == nil)
+			return -1;
+		*pte = pa | Ptepresent | Pterw | bits;
+		flushcache(pte, 8);
 	}
 	c->serial = ++serial;	/* the engines invalidate their TLBs before its next batch */
 	return 0;
 }
 
 static void
-ppunmap(Ctx *c, ulong a, ulong len)
+ppunmap(Ctx *c, uvlong a, uvlong len)
 {
-	uvlong *pt;
-	ulong v, end;
-	int i, j;
+	uvlong *pte, v, end;
 
-	end = a + ((len + 4095) & ~4095);
+	end = a + ((len + 4095) & ~4095ULL);
 	for(v = a; v < end; v += 4096){
-		i = v>>30;
-		j = v>>21 & 511;
-		if(c->pt[i][j] < 0)
+		if((pte = ppwalk(c, v, 0, 0)) == nil)
 			continue;
-		pt = ptmem(c->pt[i][j]);
-		pt[v>>12 & 511] = scratchpte;
-		flushcache(&pt[v>>12 & 511], 8);
+		*pte = scratchpte;
+		flushcache(pte, 8);
 	}
 	c->serial = ++serial;
 }
@@ -940,7 +1031,7 @@ ecupdate(Ectx *ec)
 	r[0x07] = ec->tail;
 	r[0x09] = ec->ringgtt;
 	for(n = 3; n >= 0; n--){
-		pa = global ? 0 : ptphys(ec->ctx->pd[n]);
+		pa = pdpval(ec->ctx, n);
 		r[0x25 + (3-n)*4] = pa>>32;
 		r[0x27 + (3-n)*4] = pa;
 	}
@@ -950,7 +1041,8 @@ ecupdate(Ectx *ec)
 static uvlong
 descriptor(Ectx *ec)
 {
-	return (uvlong)(ec->lrca>>12)<<32 | ec->lrca | Descvalid | Desclegacy32 | Descl3llc | Descpriv;
+	return (uvlong)(ec->lrca>>12)<<32 | ec->lrca | Descvalid | Descl3llc | Descpriv |
+		(global || legacy32 ? Desclegacy32 : Desclegacy64);
 }
 
 /* the next context with work into the idle engine's ELSP; with lk */
@@ -1079,7 +1171,7 @@ ecspace(Ectx *ec, int n)
  * interrupt; then queued for the engine.  With lk.
  */
 static char*
-ecsubmit(Ectx *ec, ulong a, u32int *seq)
+ecsubmit(Ectx *ec, uvlong a, u32int *seq)
 {
 	Engine *e;
 	ulong t0;
@@ -1147,7 +1239,7 @@ ecsubmit(Ectx *ec, ulong a, u32int *seq)
 	if(!global){
 		ecemit(ec, Milri | (2*8 - 1));
 		for(n = 3; n >= 0; n--){
-			pa = ptphys(ec->ctx->pd[n]);
+			pa = pdpval(ec->ctx, n);
 			ecemit(ec, e->base + Rpdp + n*8 + 4);
 			ecemit(ec, pa>>32);
 			ecemit(ec, e->base + Rpdp + n*8);
@@ -1157,7 +1249,7 @@ ecsubmit(Ectx *ec, ulong a, u32int *seq)
 	}
 	ecemit(ec, Mibbstart | (global ? 0 : Bbppgtt));
 	ecemit(ec, a);
-	ecemit(ec, 0);
+	ecemit(ec, a>>32);
 	if(e->idx == 0){
 		ecemit(ec, Pipecontrol);
 		ecemit(ec, Pccsstall | Pcrtflush | Pcdcflush | Pcdepthflush | Pcqwwrite | Pcglobalgtt);
@@ -1332,7 +1424,7 @@ tickproc(void)
 					" pdp0 %#.8ux%.8ux (pd0 %#llux)\n",
 					argv0, e->name, e->running->ctx->id, rd(e->base+Rhead) & Headmask,
 					rd(e->base+Racthd), rd(e->base+Ripehr), rd(e->base+Reir), rd(e->base+Rexecstatus),
-					rd(e->base+Rpdp+4), rd(e->base+Rpdp), global ? 0 : ptphys(e->running->ctx->pd[0]));
+					rd(e->base+Rpdp+4), rd(e->base+Rpdp), pdpval(e->running->ctx, 0));
 				engreset(e);
 				irqinit();
 				kick(e);
@@ -1384,13 +1476,66 @@ findbo(Ctx *c, int id)
 	return bos[id-1];
 }
 
+/*
+ * map an object at GPU address at (Anyaddr: the driver's choice, 0:
+ * nowhere); with lk
+ */
 static char*
-bonew(Ctx *c, uvlong size)
+bomap(Bo *b, uvlong at)
 {
+	Ctx *c;
+
+	c = b->ctx;
+	if(at == 0)
+		return nil;
+	if(global){
+		if(at != Anyaddr)
+			return "no GPU address of the client's choice with -G";
+		if((b->gtt = gttalloc(b->size)) == 0)
+			return "no GPU address space left";
+		gttmap(b->gtt, 0, b->pa, b->size);
+		return nil;
+	}
+	if(at == Anyaddr){
+		if((at = holealloc(&c->holes, b->size)) == 0)
+			return "no GPU address space left";
+	}else if((at & 4095) != 0 || holetake(&c->holes, at, b->size) < 0)
+		return "GPU address in use or out of range";
+	if(ppmap(c, at, 0, b->pa, b->size, uncached ? Pteuncached : Ptecached) < 0){
+		ppunmap(c, at, b->size);
+		holefree(&c->holes, at, b->size);
+		return "no page tables left";
+	}
+	b->gtt = at;
+	return nil;
+}
+
+/* with lk */
+static void
+bounmap(Bo *b)
+{
+	if(b->gtt == 0)
+		return;
+	if(global){
+		if(!b->plane){
+			gttunmap(b->gtt, b->size);
+			gttfree(b->gtt, b->size);
+		}
+	}else{
+		ppunmap(b->ctx, b->gtt, b->size);
+		holefree(&b->ctx->holes, b->gtt, b->size);
+	}
+	b->gtt = 0;
+}
+
+static char*
+bonew(Ctx *c, uvlong size, uvlong at)
+{
+	char *err;
 	Bo *b;
 	int i;
 
-	if(size == 0 || size > 256*1024*1024)
+	if(size == 0 || size > Bomax)
 		return "bad size";
 	size = (size + 4095) & ~4095ULL;
 	for(i = 0; i < Nbo; i++)
@@ -1403,7 +1548,7 @@ bonew(Ctx *c, uvlong size)
 	b->id = i+1;
 	b->ctx = c;
 	b->size = size;
-	b->va = Bova + (uvlong)i*256*1024*1024;
+	b->va = Bova + (uvlong)i*Bomax;
 	snprint(b->seg, sizeof b->seg, "gpu0bo%d", b->id);
 	if((b->pa = stickyseg(b->seg, b->va, size, 0770)) == nil){
 		rmseg(b->seg);
@@ -1411,42 +1556,44 @@ bonew(Ctx *c, uvlong size)
 		return "no memory";
 	}
 	qlock(&lk);
-	if(global){
-		b->gtt = gttalloc(size);
-		if(b->gtt != 0)
-			gttmap(b->gtt, 0, b->pa, size);
-	}else{
-		b->gtt = holealloc(&c->holes, size);
-		if(b->gtt != 0 && ppmap(c, b->gtt, 0, b->pa, size, uncached ? Pteuncached : Ptecached) < 0){
-			ppunmap(c, b->gtt, size);
-			holefree(&c->holes, b->gtt, size);
-			b->gtt = 0;
-		}
-	}
+	err = bomap(b, at);
 	qunlock(&lk);
-	if(b->gtt == 0){
+	if(err != nil){
 		rmseg(b->seg);
 		free(b->pa);
 		free(b);
-		return "no GPU address space (or page tables) left";
+		return err;
 	}
 	bos[i] = b;
-	return ctxreply(c, "bo %d %s %#llux %#llux %#lux\n", b->id, b->seg, b->va, b->size, b->gtt);
+	return ctxreply(c, "bo %d %s %#llux %#llux %#llux\n", b->id, b->seg, b->va, b->size, b->gtt);
+}
+
+/* the object to GPU address at (0: nowhere), once the context's work is done */
+static char*
+bobind(Bo *b, uvlong at)
+{
+	Ctx *c;
+	char *err;
+
+	c = b->ctx;
+	if(b->plane)
+		return "the plane stays where it is";
+	if(at == b->gtt)
+		return nil;
+	if(c->nfence > c->donefence)
+		fencewait(c, c->nfence);
+	qlock(&lk);
+	bounmap(b);
+	err = bomap(b, at);
+	qunlock(&lk);
+	return err;
 }
 
 static void
 bofree(Bo *b)
 {
 	qlock(&lk);
-	if(global){
-		if(!b->plane){
-			gttunmap(b->gtt, b->size);
-			gttfree(b->gtt, b->size);
-		}
-	}else{
-		ppunmap(b->ctx, b->gtt, b->size);
-		holefree(&b->ctx->holes, b->gtt, b->size);
-	}
+	bounmap(b);
 	qunlock(&lk);
 	if(!b->plane)
 		rmseg(b->seg);
@@ -1528,7 +1675,7 @@ mapplane(Ctx *c)
 		return "no GPU address space (or page tables) left";
 	}
 	bos[i] = b;
-	return ctxreply(c, "plane %d %#lux %lud %d %d %d%s\n", b->id, b->gtt, stride, bpp, w, h,
+	return ctxreply(c, "plane %d %#llux %lud %d %d %d%s\n", b->id, b->gtt, stride, bpp, w, h,
 		tiled ? " tiled" : "");
 }
 
@@ -1545,6 +1692,8 @@ submit(Ctx *c, int boid, ulong off, char *engname)
 		return "unknown object";
 	if(off >= b->size || (off & 7) != 0)
 		return "bad offset";
+	if(b->gtt == 0)
+		return "object not mapped";
 	e = nil;
 	for(i = 0; i < nelem(eng); i++)
 		if(strcmp(eng[i].name, engname) == 0)
@@ -1664,6 +1813,7 @@ newctx(void)
 	c = emalloc9p(sizeof *c);
 	memset(c, 0, sizeof *c);
 	c->id = i+1;
+	c->pml4 = -1;
 	if(ctxmem(c, i) < 0){
 		free(c);
 		return nil;
@@ -1809,7 +1959,7 @@ statusstr(void)
 			t = smprint("%sctx %d fence %llud/%llud seqno rcs %ud/%ud bcs %ud/%ud lrca %#lux pd0 %#llux%s\n",
 				s, ctxs[i]->id, ctxs[i]->donefence, ctxs[i]->nfence,
 				ecdone(&ctxs[i]->ec[0]), ctxs[i]->ec[0].nseq, ecdone(&ctxs[i]->ec[1]), ctxs[i]->ec[1].nseq,
-				ctxs[i]->ec[0].lrca, global ? 0 : ptphys(ctxs[i]->pd[0]), ctxs[i]->failed ? " failed" : "");
+				ctxs[i]->ec[0].lrca, pdpval(ctxs[i], 0), ctxs[i]->failed ? " failed" : "");
 			free(s);
 			s = t;
 		}
@@ -1940,7 +2090,14 @@ ctxctl(Ctx *c, char **f, int n)
 	Bo *b;
 
 	if(n == 2 && strcmp(f[0], "bo") == 0)
-		return bonew(c, strtoull(f[1], nil, 0));
+		return bonew(c, strtoull(f[1], nil, 0), Anyaddr);
+	if(n == 3 && strcmp(f[0], "bo") == 0)
+		return bonew(c, strtoull(f[1], nil, 0), strtoull(f[2], nil, 0));
+	if(n == 3 && strcmp(f[0], "bind") == 0){
+		if((b = findbo(c, atoi(f[1]))) == nil)
+			return "unknown object";
+		return bobind(b, strtoull(f[2], nil, 0));
+	}
 	if(n == 2 && strcmp(f[0], "map") == 0 && strcmp(f[1], "plane") == 0)
 		return mapplane(c);
 	if(n == 2 && strcmp(f[0], "free") == 0){
@@ -2051,13 +2208,17 @@ mktree(void)
 	ctxdir = createfile(n, "ctx", user, DMDIR|0555, nil);
 }
 
-/* the scratch page and its page table, after the render state's page */
+/*
+ * the scratch page and the scratch tables, after the render state's
+ * page: a PT of PTEs to the scratch page, a PD of pointers to that PT,
+ * a PDP of pointers to that PD
+ */
 static void
 scratchinit(void)
 {
-	uvlong *pt, pa;
+	uvlong *t, pa, fill;
 	u32int *p;
-	int i;
+	int i, l;
 
 	p = drv + (nelem(eng)+1)*1024;
 	pa = drvpa + (nelem(eng)+1)*4096;
@@ -2065,11 +2226,17 @@ scratchinit(void)
 	flushcache(p, 4096);
 	scratchpte = pa | Ptepresent | Pterw | (uncached ? Pteuncached : Ptecached);
 	scratchgtt = pa | Ptepresent | (uncached ? Pteuncached : Ptecached);
-	pt = (uvlong*)(drv + (nelem(eng)+2)*1024);
-	for(i = 0; i < 512; i++)
-		pt[i] = scratchpte;
-	flushcache(pt, 4096);
-	scratchpde = (pa + 4096) | Ptepresent | Pterw | (uncached ? Pteuncached : Pdecached);
+	fill = scratchpte;
+	scratchfill[0] = fill;
+	for(l = 0; l < 3; l++){
+		t = (uvlong*)(drv + (nelem(eng)+2+l)*1024);
+		for(i = 0; i < 512; i++)
+			t[i] = fill;
+		flushcache(t, 4096);
+		scratchtab[l] = drvpa + (nelem(eng)+2+l)*4096;
+		fill = scratchtab[l] | Ptepresent | Pterw | (uncached ? Pteuncached : Pdecached);
+		scratchfill[l+1] = fill;
+	}
 }
 
 /*
@@ -2095,7 +2262,7 @@ rsinit(void)
 		if(i*4 == gen8_null_state_relocs[r]){
 			if(i+1 >= nelem(gen8_null_state_batch) || gen8_null_state_batch[i+1] != 0)
 				sysfatal("render state: bad relocation at %#x", i*4);
-			v += rsgtt;
+			v += global ? rsgtt : Rsva;	/* the state is read through the context's PPGTT */
 			r++;
 		}
 		d[i] = v;
@@ -2163,9 +2330,9 @@ devinit(void)
 
 	/*
 	 * the driver's own pages: the engines' status pages, the null
-	 * render state, a scratch page and a page table pointing to it
+	 * render state, a scratch page and the scratch tables (PT, PD, PDP)
 	 */
-	n = nelem(eng)+3;
+	n = nelem(eng)+5;
 	if((drvpa = fixedseg("gpu0drv", Drvva, n*4096, 0700)) == 0)
 		sysfatal("#g/gpu0drv: %r");
 	if((drv = segattach(0, "gpu0drv", nil, n*4096)) == (void*)-1)
@@ -2214,7 +2381,7 @@ devinit(void)
 static void
 usage(void)
 {
-	fprint(2, "usage: %s [-dpCGRU] [-g #G/n] [-s srvname]\n", argv0);
+	fprint(2, "usage: %s [-3dpCGRU] [-g #G/n] [-s srvname]\n", argv0);
 	exits("usage");
 }
 
@@ -2231,6 +2398,9 @@ main(int argc, char **argv)
 		break;
 	case 'g':
 		gdir = EARGF(usage());
+		break;
+	case '3':
+		legacy32 = 1;
 		break;
 	case 'C':
 		noclockgating = 1;

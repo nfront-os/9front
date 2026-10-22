@@ -1035,19 +1035,28 @@ procread(Chan *c, void *va, long n, vlong off)
 		return n;
 
 	case Qsegment:
+		/* 9front-ng: NSEG lines do not fit statbuf */
+		sps = smalloc(NSEG*64);
+		if(waserror()){
+			free(sps);
+			nexterror();
+		}
 		j = 0;
 		for(i = 0; i < NSEG; i++) {
 			s = p->seg[i];
 			if(s == nil)
 				continue;
-			j += snprint(statbuf+j, sizeof(statbuf)-j,
+			j += snprint(sps+j, NSEG*64-j,
 				"%-6s %c%c %8p %8p %4ld\n",
 				sname[s->type&SG_TYPE],
 				s->type&SG_FAULT ? 'F' : (s->type&SG_RONLY ? 'R' : ' '),
 				s->profile ? 'P' : ' ',
 				s->base, s->top, s->Ref.ref);
 		}
-		goto statbufread;
+		n = readstr(offset, va, n, sps);
+		poperror();
+		free(sps);
+		return n;
 
 	case Qwait:
 		if(!canqlock(&p->qwaitr))

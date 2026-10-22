@@ -33,7 +33,7 @@ struct Bo {
 	int	id;
 	u32int	*p;
 	uvlong	size;
-	ulong	gpu;
+	uvlong	gpu;
 };
 
 struct Ctx {
@@ -165,26 +165,37 @@ ctl(Ctx *c, char *fmt, ...)
 	return buf;
 }
 
+/* an object at GPU address at (~0: the driver's choice) */
 static int
-newbo(Ctx *c, Bo *b, uvlong size)
+newboat(Ctx *c, Bo *b, uvlong size, uvlong at)
 {
 	char *r, *f[6];
 
-	if((r = ctl(c, "bo %llud", size)) == nil || tokenize(r, f, nelem(f)) != 6 || strcmp(f[0], "bo") != 0){
+	if(at == ~0ULL)
+		r = ctl(c, "bo %llud", size);
+	else
+		r = ctl(c, "bo %llud %#llux", size, at);
+	if(r == nil || tokenize(r, f, nelem(f)) != 6 || strcmp(f[0], "bo") != 0){
 		fail("bo %llud: %r", size);
 		return -1;
 	}
 	b->id = atoi(f[1]);
 	b->size = strtoull(f[4], nil, 0);
-	b->gpu = strtoul(f[5], nil, 0);
+	b->gpu = strtoull(f[5], nil, 0);
 	b->p = segattach(0, f[2], nil, b->size);
 	if(b->p == (void*)-1){
 		fail("segattach %s: %r", f[2]);
 		return -1;
 	}
 	memset(b->p, 0, b->size);
-	ok("ctx %s bo %d: %llud bytes at gpu %#lux, seg %s at %#p", c->id, b->id, b->size, b->gpu, f[2], b->p);
+	ok("ctx %s bo %d: %llud bytes at gpu %#llux, seg %s at %#p", c->id, b->id, b->size, b->gpu, f[2], b->p);
 	return 0;
+}
+
+static int
+newbo(Ctx *c, Bo *b, uvlong size)
+{
+	return newboat(c, b, size, ~0ULL);
 }
 
 /* the batch at off in b on the engine; its fence */
@@ -222,11 +233,11 @@ fencewait(Ctx *c, uvlong k, vlong *us)
 }
 
 static int
-storedw(u32int *c, ulong a, u32int v)
+storedw(u32int *c, uvlong a, u32int v)
 {
 	c[0] = Mistoredwimm | (global ? Usegtt : 0);
 	c[1] = a;
-	c[2] = 0;
+	c[2] = a>>32;
 	c[3] = v;
 	return 4;
 }
@@ -241,14 +252,14 @@ bbend(u32int *c, int n)
 }
 
 static int
-colorblt(u32int *c, ulong a, int pitch, int x0, int y0, int x1, int y1, u32int color, int bpp)
+colorblt(u32int *c, uvlong a, int pitch, int x0, int y0, int x1, int y1, u32int color, int bpp)
 {
 	c[0] = Xycolorblt | (bpp == 32 ? Bltwritergba : 0) | (7-2);
 	c[1] = (bpp == 32 ? 3 : 1)<<24 | 0xF0<<16 | pitch;
 	c[2] = y0<<16 | x0;
 	c[3] = y1<<16 | x1;
 	c[4] = a;
-	c[5] = 0;
+	c[5] = a>>32;
 	c[6] = color;
 	return 7;
 }
@@ -293,7 +304,7 @@ suite(void)
 {
 	char *s, *f[8];
 	Ctx a, b;
-	Bo data, batch, bdata, bbatch, big, bigbatch;
+	Bo data, batch, bdata, bbatch, big, bigbatch, hbatch, hdata, tdata;
 	Waitmsg *w;
 	u32int *c;
 	uvlong k;
@@ -356,13 +367,13 @@ suite(void)
 	if(global)
 		print("global gtt (-G): no isolation to check\n");
 	else if(bdata.gpu != data.gpu)
-		print("the contexts' objects are at %#lux and %#lux: isolation not checked\n", data.gpu, bdata.gpu);
+		print("the contexts' objects are at %#llux and %#llux: isolation not checked\n", data.gpu, bdata.gpu);
 	else{
 		store(&a, &batch, 320, &data, 2, 0xaaaa0001, "bcs");
 		store(&b, &bbatch, 0, &bdata, 2, 0xbbbb0002, "bcs");
 		store(&b, &bbatch, 64, &bdata, 3, 0xbbbb0003, "rcs");
 		if(data.p[2] == 0xaaaa0001 && data.p[3] == 0 && bdata.p[2] == 0xbbbb0002 && bdata.p[3] == 0xbbbb0003)
-			ok("ctx %s and ctx %s at gpu %#lux: each wrote its own object", a.id, b.id, data.gpu);
+			ok("ctx %s and ctx %s at gpu %#llux: each wrote its own object", a.id, b.id, data.gpu);
 		else
 			fail("isolation: ctx %s's object holds %#ux %#ux, ctx %s's %#ux %#ux", a.id, data.p[2],
 				data.p[3], b.id, bdata.p[2], bdata.p[3]);
@@ -466,6 +477,39 @@ suite(void)
 	}
 	segdetach(big.p);
 	segdetach(bigbatch.p);
+
+	/*
+	 * 10. addresses of the client's choice, as hasvk's (softpin): a
+	 * batch at 4 GB, objects at 1 TB and 128 TB - 1 GB, stores on both
+	 * engines; then one object moved with bind
+	 */
+	step("10. objects at the client's addresses (4 GB, 1 TB, 128 TB - 1 GB), bind");
+	if(global)
+		print("global gtt (-G): no addresses of the client's choice\n");
+	else if(newboat(&a, &hbatch, 65536, 0x100000000ULL) == 0
+	&& newboat(&a, &hdata, 65536, 0x10000000000ULL) == 0
+	&& newboat(&a, &tdata, 65536, 0x7FFFC0000000ULL) == 0){
+		store(&a, &hbatch, 0, &hdata, 5, 0x48b00001, "rcs");
+		store(&a, &hbatch, 64, &hdata, 6, 0x48b00002, "bcs");
+		store(&a, &hbatch, 128, &tdata, 7, 0x48b00003, "rcs");
+		if(ctl(&a, "bind %d %#llux", hdata.id, 0x20000000000ULL) == nil)
+			fail("bind: %r");
+		else{
+			hdata.gpu = 0x20000000000ULL;
+			store(&a, &hbatch, 192, &hdata, 8, 0x48b00004, "bcs");
+			if(hdata.p[5] == 0x48b00001 && hdata.p[6] == 0x48b00002)
+				ok("bind: the object at %#llux keeps its contents", hdata.gpu);
+			else
+				fail("bind: the object holds %#ux %#ux after the move", hdata.p[5], hdata.p[6]);
+		}
+		if(ctl(&a, "bo 4096 %#llux", 0x100000000ULL) != nil)
+			fail("an object at an address in use: no error");
+		else
+			ok("an object at an address in use: %r");
+		segdetach(hbatch.p);
+		segdetach(hdata.p);
+		segdetach(tdata.p);
+	}
 
 	if((s = readall("status")) != nil)
 		print("status after:\n%s", s);

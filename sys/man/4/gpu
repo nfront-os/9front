@@ -15,7 +15,7 @@ gpu, virtiogpu, intelgpu \- graphics device file system
 .PP
 .B aux/intelgpu
 [
-.B -dpCGRU
+.B -3dpCGRU
 ] [
 .B -g
 .I gdir
@@ -247,8 +247,10 @@ reads the visible plane,
 .BI plane " p gpuaddr stride bpp w h"
 .PP
 and the context files are those above with other requests.
-Each context has an address space of its own, 4 GB (gen 8's
-three-level PPGTT); with
+Each context has an address space of its own, 48 bits (gen 8's
+four-level PPGTT; with
+.B -3
+4 GB in three levels); with
 .B -G
 all share the global GTT, without isolation.
 A buffer object is a segment of pinned pages
@@ -259,13 +261,21 @@ not contiguous) mapped
 into it;
 .TF "\fLbo\fP \fIsize"
 .TP
-.BI bo " size
+.BI bo " size \fR[\fPgpuaddr\fR]
 creates one, reply
 .BI bo " id seg va size gpuaddr" :
 the client
 .IR segattach es
 .I seg
 and writes the GPU addresses of its objects into its batches itself.
+The driver chooses the address, or the client does
+.RI ( gpuaddr ,
+page aligned and free;
+0 maps the object nowhere), as Mesa's drivers do with softpin.
+.TP
+.BI bind " id gpuaddr
+moves the object to another address (0: nowhere), once the context's
+work is done.
 .TP
 .B map plane
 maps the visible plane into the context (uncached, for the display),

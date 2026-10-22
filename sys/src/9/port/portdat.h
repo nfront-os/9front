@@ -655,10 +655,12 @@ enum
 
 /*
  *  process memory segments - NSEG always last !
+ *  9front-ng: 250 for segattach, not 4 (a GPU driver's buffer objects
+ *  are segments, gpu(4))
  */
 enum
 {
-	SSEG, TSEG, DSEG, BSEG, ESEG, LSEG, SEG1, SEG2, SEG3, SEG4, NSEG
+	SSEG, TSEG, DSEG, BSEG, ESEG, LSEG, SEG1, SEG2, SEG3, SEG4, NSEG = SEG1+250
 };
 
 enum
