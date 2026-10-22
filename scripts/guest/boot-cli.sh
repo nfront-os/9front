@@ -19,6 +19,11 @@
 #         UFS         ufs binary (default: ufs in PATH, else ~/go/bin/ufs)
 #         SERVICE     cpu (default: cpurc, console rc) or terminal
 #         SCREENSHOT  PNG file: screen dump after the commands (QMP)
+#         VNC         1: QEMU serves VNC on $CLI_DIR/vnc.sock and SCREENSHOT
+#                     comes from there (scripts/debug/vncshot.py): what
+#                     the host shows, also with a GL display, where QMP
+#                     has no surface; SHOTPOINTS "x,y ..." writes their
+#                     colours to the PNG's name with .txt
 #         SRC9        a directory the guest can mount: a second ufs serves
 #                     it as tcp!10.0.2.101!5641 (srv tcp!10.0.2.101!5641 src9)
 #         DISK        raw disk image attached as the first IDE disk (sdC0)
@@ -219,6 +224,7 @@ fi
 # scripted: serial console on a pty, type the commands, collect output
 qmp=()
 [ -z "$SCREENSHOT" ] || { rm -f "$CLI_DIR/qmp.sock"; qmp=(-qmp "unix:$CLI_DIR/qmp.sock,server,nowait"); }
+[ "$VNC" != 1 ] || { rm -f "$CLI_DIR/vnc.sock"; qmp+=(-vnc "unix:$CLI_DIR/vnc.sock"); }
 "${qemu[@]}" -serial pty "${qmp[@]}" $QEMU_EXTRA > "$CLI_DIR/qemu.log" 2>&1 &
 pids+=($!)
 for _ in $(seq 50); do
@@ -305,7 +311,10 @@ if [ -n "$WAITFOR" ]; then
 	done
 fi
 sleep 1
-if [ -n "$SCREENSHOT" ]; then	# QMP screendump (PPM), stored as PNG
+if [ -n "$SCREENSHOT" ] && [ "$VNC" = 1 ]; then
+	python3 "$ROOT/scripts/debug/vncshot.py" "$CLI_DIR/vnc.sock" "$SCREENSHOT" $SHOTPOINTS \
+		> "${SCREENSHOT%.png}.txt" || exit 1
+elif [ -n "$SCREENSHOT" ]; then	# QMP screendump (PPM), stored as PNG
 	python3 - "$CLI_DIR/qmp.sock" "$CLI_DIR/screen.ppm" "$SCREENSHOT" <<'PY'
 import json, os, socket, struct, sys, time, zlib
 # no stale picture: the dump is new or there is none. With a GL display
