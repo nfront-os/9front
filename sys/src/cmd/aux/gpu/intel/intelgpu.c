@@ -941,11 +941,13 @@ ecsubmit(Ectx *ec, ulong a, u32int *seq)
 {
 	Engine *e;
 	ulong t0;
+	uvlong pa;
+	int n;
 
 	e = ec->e;
 	if(!e->ok)
 		return "engine not running";
-	if(ecspace(ec, 48) < 0)
+	if(ecspace(ec, 72) < 0)
 		return "ring full (engine hung?)";
 	t0 = ec->tail;
 	if(!global && ec->serial != ec->ctx->serial){
@@ -963,6 +965,24 @@ ecsubmit(Ectx *ec, ulong a, u32int *seq)
 			ecemit(ec, 0);
 		}
 		ec->serial = ec->ctx->serial;
+	}
+	/*
+	 * the PDPs from the ring before every batch, as i915's
+	 * gen8_emit_bb_start does before the first (pd_dirty_rings): the
+	 * blitter did not take them from the image (on the laptop it
+	 * walked wrong page tables), and another context may have run on
+	 * the engine between two batches of this one
+	 */
+	if(!global){
+		ecemit(ec, Milri | (2*8 - 1));
+		for(n = 3; n >= 0; n--){
+			pa = ptphys(ec->ctx->pd[n]);
+			ecemit(ec, e->base + Rpdp + n*8 + 4);
+			ecemit(ec, pa>>32);
+			ecemit(ec, e->base + Rpdp + n*8);
+			ecemit(ec, pa);
+		}
+		ecemit(ec, Minoop);
 	}
 	ecemit(ec, Mibbstart | (global ? 0 : Bbppgtt));
 	ecemit(ec, a);
@@ -1136,9 +1156,11 @@ tickproc(void)
 			e = &eng[i];
 			csb(e);
 			if(e->running != nil && nsec() - e->since > (vlong)Timeout*1000000){
-				fprint(2, "%s: %s hung in context %d: head %#ux acthd %#ux ipehr %#ux eir %#ux execlist %#ux\n",
+				fprint(2, "%s: %s hung in context %d: head %#ux acthd %#ux ipehr %#ux eir %#ux execlist %#ux"
+					" pdp0 %#.8ux%.8ux (pd0 %#llux)\n",
 					argv0, e->name, e->running->ctx->id, rd(e->base+Rhead) & Headmask,
-					rd(e->base+Racthd), rd(e->base+Ripehr), rd(e->base+Reir), rd(e->base+Rexecstatus));
+					rd(e->base+Racthd), rd(e->base+Ripehr), rd(e->base+Reir), rd(e->base+Rexecstatus),
+					rd(e->base+Rpdp+4), rd(e->base+Rpdp), global ? 0 : ptphys(e->running->ctx->pd[0]));
 				engreset(e);
 				irqinit();
 				kick(e);
