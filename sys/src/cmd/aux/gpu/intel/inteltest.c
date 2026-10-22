@@ -1,6 +1,9 @@
 /*
  * SPDX-License-Identifier: MIT
  *
+ * Parts follow Linux's i915 driver (MIT); their copyright and
+ * permission notices are in NOTICE.
+ *
  * inteltest: checks aux/intelgpu (gpu(4) files under /dev/gpu/0) on
  * an Intel GPU of generation 8: contexts, buffer objects, batches on
  * the blitter (BCS) and render (RCS) engines, fences, a fill of an
@@ -399,8 +402,19 @@ suite(void)
 		}
 	}
 
+	/* 8. the render engine's workarounds, written into each new context, read back */
+	if((s = readall("status")) == nil || (s = strstr(s, "rcs workarounds ")) == nil)
+		fail("status: no rcs workarounds line");
+	else{
+		i = atoi(s+16);
+		if((s = strchr(s, '/')) != nil && i == atoi(s+1))
+			ok("rcs workarounds: %d set", i);
+		else
+			fail("rcs workarounds: only %d set", i);
+	}
+
 	/*
-	 * 8. a 16 MB object (scattered pages): the blitter fills all of it,
+	 * 9. a 16 MB object (scattered pages): the blitter fills all of it,
 	 * then the render engine writes each page's number into it, from
 	 * a 1 MB batch; the CPU checks every dword
 	 */

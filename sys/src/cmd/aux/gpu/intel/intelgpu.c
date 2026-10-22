@@ -1,6 +1,9 @@
 /*
  * SPDX-License-Identifier: MIT
  *
+ * Parts follow Linux's i915 driver (MIT); their copyright and
+ * permission notices are in NOTICE.
+ *
  * intelgpu: user-space driver for Intel GPUs of generation 8
  * (Broadwell) over #G (gpu(3)), serving gpu(4)'s files: contexts
  * with an address space of their own (PPGTT) and buffer objects in
@@ -40,6 +43,7 @@
 #include <fcall.h>
 #include <thread.h>
 #include <9p.h>
+#include "renderstate.h"
 
 enum {
 	Pcigmch		= 0x50,		/* GMCH graphics control (16 bits) */
@@ -119,6 +123,28 @@ enum {
 	Mastercontrol	= 1<<31,
 	Gtisr0		= 0x44300,	/* bank 0: RCS at 0, BCS at 16; IMR +4, IIR +8, IER +0xC */
 	Userintr	= 1<<0,
+
+	/* RCS registers (engine base 0x2000), MI_MODE bit */
+	Asyncflipperfdisable = 1<<14,
+	Rinstpm		= 0xC0,		/* INSTPM */
+	Instpmforceordering = 1<<7,
+
+	/* GT clock gating, Broadwell (i915's broadwell_init_clock_gating, GT part) */
+	Gamecochk	= 0x4090,
+	Ecochkarbpriosol = 1<<6,
+	Ffthreadmode	= 0x20A0,
+	Ffdsrefcntffme	= 1<<19,
+	Ffvsrefcntffme	= 1<<15,
+	Rcsleeppsmictl	= 0x2050,
+	Rcsemaidlemsgdisable = 1<<12,
+	Ucgctl6		= 0x9430,
+	Sdeunitclockgatedisable = 1<<14,
+	Misccpctl	= 0x9424,
+	Dopclockgateenable = 1<<0,
+	L3sqcreg1	= 0xB100,
+	L3sqcreg1default = 0x784000,
+	Gttcacheen	= 0x4024,
+	Gttcacheenall	= 0xF0007FFF,
 
 	/* display */
 	Pipesrc		= 0x6001C,
@@ -220,6 +246,7 @@ struct Ectx {
 	u32int	nseq;		/* emitted */
 	ulong	endpos[Fwin];	/* the ring's tail after sequence number k%Fwin */
 	ulong	serial;		/* of the mapping its TLB has */
+	int	fresh;		/* RCS: image new, workarounds and render state before its first batch */
 	int	queued;
 	Ectx	*next;
 };
@@ -284,6 +311,29 @@ static uvlong nent;
 static uvlong drvpa;
 static u32int *drv;
 static ulong drvgtt;
+static ulong rsgtt;		/* the null render state (renderstate.h) */
+
+/*
+ * the render engine's workarounds, written into each new context
+ * (i915's gen8_init_workarounds and bdw_init_workarounds, GT2): masked
+ * registers, the bits to set in the upper half, their values below
+ */
+static struct {
+	ulong	reg;
+	u32int	val;
+} rcswa[] = {
+	0x20C0, 0x00800080,	/* INSTPM: force ordering */
+	0x209C, 0x40004000,	/* MI_MODE: async flip perf disable */
+	0xE4F0, 0x01000100,	/* GEN8_ROW_CHICKEN: partial instruction shootdown disable */
+	0x7300, 0x08100810,	/* HDC_CHICKEN0: don't fetch when masked, force non-coherent */
+	0x7000, 0x00040000,	/* CACHE_MODE_0: HiZ RAW stall optimisation on */
+	0x7004, 0x00400040,	/* CACHE_MODE_1: 4x4 STC optimisation disable */
+	0x7008, 0x02800200,	/* GT_MODE: WIZ hashing 16x4 (field bits 9, 7) */
+	0xE4F0, 0x00200020,	/* GEN8_ROW_CHICKEN: stall DOP gating disable */
+	0xE4F4, 0x00010001,	/* GEN7_ROW_CHICKEN2: DOP clock gating disable */
+	0xE184, 0x00020002,	/* HALF_SLICE_CHICKEN3: sampler power bypass disable */
+	0x7300, 0x00200020,	/* HDC_CHICKEN0: context save/restore non-coherent */
+};
 static u32int *ctxpool;		/* Nctx slots of ctxslot() bytes */
 static uvlong ctxpoolpa;
 static ulong ctxpoolgtt;
@@ -751,6 +801,11 @@ enginestart(Engine *e)
 	rd(e->base+Rhws);
 	wr(e->base+Rmode, masked(Replaymode, 0) | masked(Runlist, 1));
 	rd(e->base+Rmode);
+	if(e->idx == 0){
+		/* i915's gen8_init_render_ring */
+		wr(e->base+Rmimode, masked(Asyncflipperfdisable, 1));
+		wr(e->base+Rinstpm, masked(Instpmforceordering, 1));
+	}
 	/* after power-up or a reset the write pointer is all ones: read from entry 0 */
 	p = rd(e->base+Rcsbptr) & Csbptrmask;
 	if(p == Csbptrmask)
@@ -841,6 +896,7 @@ ecinit(Ctx *c, Ectx *ec, Engine *e, ulong off)
 	*ec->seqno = 0;
 	ec->nseq = 0;
 	ec->serial = 0;
+	ec->fresh = 1;
 	ec->queued = 0;
 	ec->next = nil;
 	ecimage(ec);
@@ -1007,9 +1063,38 @@ ecsubmit(Ectx *ec, ulong a, u32int *seq)
 	e = ec->e;
 	if(!e->ok)
 		return "engine not running";
-	if(ecspace(ec, 72) < 0)
+	if(ecspace(ec, 72 + 2*nelem(rcswa) + 2 + 2*6 + 3) < 0)
 		return "ring full (engine hung?)";
 	t0 = ec->tail;
+	if(ec->fresh && e->idx == 0){
+		/*
+		 * a new render context: the workarounds, flushed before and
+		 * after, then the null render state, a privileged batch in
+		 * the GTT (i915's gen8_init_rcs_context)
+		 */
+		ecemit(ec, Pipecontrol);
+		ecemit(ec, Pccsstall | Pcrtflush | Pcdcflush | Pcdepthflush | Pcqwwrite | Pcglobalgtt);
+		ecemit(ec, e->hwsgtt + Hwsscratch*4);
+		ecemit(ec, 0);
+		ecemit(ec, 0);
+		ecemit(ec, 0);
+		ecemit(ec, Milri | (2*nelem(rcswa) - 1));
+		for(n = 0; n < nelem(rcswa); n++){
+			ecemit(ec, rcswa[n].reg);
+			ecemit(ec, rcswa[n].val);
+		}
+		ecemit(ec, Minoop);
+		ecemit(ec, Pipecontrol);
+		ecemit(ec, Pccsstall | Pcrtflush | Pcdcflush | Pcdepthflush | Pcqwwrite | Pcglobalgtt);
+		ecemit(ec, e->hwsgtt + Hwsscratch*4);
+		ecemit(ec, 0);
+		ecemit(ec, 0);
+		ecemit(ec, 0);
+		ecemit(ec, Mibbstart);
+		ecemit(ec, rsgtt);
+		ecemit(ec, 0);
+	}
+	ec->fresh = 0;
 	if(!global && ec->serial != ec->ctx->serial){
 		if(e->idx == 0){
 			ecemit(ec, Pipecontrol);
@@ -1117,6 +1202,7 @@ engreset(Engine *e)
 		ec->next = nil;
 		ecimage(ec);
 		ec->serial = 0;
+		ec->fresh = 1;
 	}
 	enginestart(e);
 	e->nreset++;
@@ -1673,6 +1759,14 @@ statusstr(void)
 		free(s);
 		s = t;
 	}
+	/* the render engine's workaround registers as they read now (the last context's) */
+	n = 0;
+	for(i = 0; i < nelem(rcswa); i++)
+		if((rd(rcswa[i].reg) & rcswa[i].val>>16) == (rcswa[i].val & 0xFFFF))
+			n++;
+	t = smprint("%srcs workarounds %d/%d\n", s, n, nelem(rcswa));
+	free(s);
+	s = t;
 	nfree = 0;
 	for(h = holes; h != nil; h = h->next)
 		nfree += h->len;
@@ -1931,6 +2025,54 @@ mktree(void)
 	ctxdir = createfile(n, "ctx", user, DMDIR|0555, nil);
 }
 
+/*
+ * the null render state (renderstate.h) in the driver's last page,
+ * relocated to its GTT address (i915's render_state_setup)
+ */
+static void
+rsinit(void)
+{
+	u32int *d, v;
+	int i, r;
+
+	if(sizeof gen8_null_state_batch > 4096)
+		sysfatal("render state larger than a page");
+	d = drv + nelem(eng)*1024;
+	rsgtt = drvgtt + nelem(eng)*4096;
+	memset(d, 0, 4096);
+	r = 0;
+	for(i = 0; i < nelem(gen8_null_state_batch); i++){
+		v = gen8_null_state_batch[i];
+		if(i*4 == gen8_null_state_relocs[r]){
+			if(i+1 >= nelem(gen8_null_state_batch) || gen8_null_state_batch[i+1] != 0)
+				sysfatal("render state: bad relocation at %#x", i*4);
+			v += rsgtt;
+			r++;
+		}
+		d[i] = v;
+	}
+	if(gen8_null_state_relocs[r] != (u32int)-1)
+		sysfatal("render state: only %d relocations done", r);
+	flushcache(d, 4096);
+}
+
+/* the GT part of i915's broadwell_init_clock_gating */
+static void
+gtinit(void)
+{
+	u32int m;
+
+	wr(Gamecochk, rd(Gamecochk) | Ecochkarbpriosol);
+	wr(Ffthreadmode, rd(Ffthreadmode) & ~(Ffdsrefcntffme | Ffvsrefcntffme));
+	wr(Rcsleeppsmictl, masked(Rcsemaidlemsgdisable, 1));
+	wr(Ucgctl6, rd(Ucgctl6) | Sdeunitclockgatedisable);
+	m = rd(Misccpctl);
+	wr(Misccpctl, m & ~Dopclockgateenable);
+	wr(L3sqcreg1, L3sqcreg1default);
+	wr(Misccpctl, m);
+	wr(Gttcacheen, Gttcacheenall);
+}
+
 static void
 devinit(void)
 {
@@ -1970,14 +2112,15 @@ devinit(void)
 	if(!uncached)
 		ppatinit();
 
-	/* the driver's own pages: the engines' status pages */
-	if((drvpa = fixedseg("gpu0drv", Drvva, nelem(eng)*4096, 0700)) == 0)
+	/* the driver's own pages: the engines' status pages, the null render state */
+	if((drvpa = fixedseg("gpu0drv", Drvva, (nelem(eng)+1)*4096, 0700)) == 0)
 		sysfatal("#g/gpu0drv: %r");
-	if((drv = segattach(0, "gpu0drv", nil, nelem(eng)*4096)) == (void*)-1)
+	if((drv = segattach(0, "gpu0drv", nil, (nelem(eng)+1)*4096)) == (void*)-1)
 		sysfatal("segattach gpu0drv: %r");
-	if((drvgtt = gttalloc(nelem(eng)*4096)) == 0)
+	if((drvgtt = gttalloc((nelem(eng)+1)*4096)) == 0)
 		sysfatal("no GTT for the status pages");
-	gttmap(drvgtt, drvpa, nil, nelem(eng)*4096);
+	gttmap(drvgtt, drvpa, nil, (nelem(eng)+1)*4096);
+	rsinit();
 	/* the contexts' pages, here: the procs forked later see only what is attached now */
 	if((ctxpoolpa = fixedseg("gpu0ctx", Ctxva, Nctx*ctxslot(), 0700)) == 0)
 		sysfatal("#g/gpu0ctx: %r");
@@ -1999,6 +2142,7 @@ devinit(void)
 		sleep(10);
 		wr(eng[i].base+Rresetctl, masked(Resetrequest, 0));
 	}
+	gtinit();
 	for(i = 0; i < nelem(eng); i++)
 		engineinit(&eng[i]);
 

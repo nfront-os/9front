@@ -1,6 +1,9 @@
 /*
  * SPDX-License-Identifier: MIT
  *
+ * Parts follow Linux's i915 driver (MIT); their copyright and
+ * permission notices are in NOTICE.
+ *
  * intelprobe: first steps with an Intel GPU of generation 8 (Broadwell,
  * HD 5500 8086:1616 and kin) over #G (gpu(3)), before a driver:
  *
