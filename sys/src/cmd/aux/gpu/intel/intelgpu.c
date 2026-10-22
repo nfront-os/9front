@@ -614,8 +614,12 @@ batch(void)
 		rd(Gtisr0+4), rd(Gtisr0+0xC));
 
 	startring(&g);
-	/* the ring's own mask after its start, which sets it again */
-	wr(Bcs+Rimr, ~Userintr);
+	/*
+	 * the ring's own mask after its start, which sets it again; on gen 8
+	 * in GT bank 0's layout (i915: GT_RENDER_USER_INTERRUPT <<
+	 * GEN8_BCS_IRQ_SHIFT), only its implemented bits read back
+	 */
+	wr(Bcs+Rimr, ~(Userintr<<Bcsirqshift));
 	print("ring imr %#ux\n", rd(Bcs+Rimr));
 	t0 = nsec();
 	wr(Bcs+Rtail, n*4);
