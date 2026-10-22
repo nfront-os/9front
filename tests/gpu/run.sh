@@ -10,8 +10,9 @@
 # with virgl and venus; /tests/gpuctxtest checks capsets, contexts,
 # submissions with fences and a venus host blob mapped through the
 # hostmem bar (gpu(4)); with Mesa built, vktest (Vulkan compute on the
-# host's GPU) and vkdraw (a swapchain on the screen, VK_PLAN9_surface,
-# checked pixel by pixel in the guest).
+# host's GPU), vkdraw (a swapchain on the screen, VK_PLAN9_surface,
+# checked pixel by pixel in the guest) and vktri (a triangle drawn with
+# shaders by an ordinary Vulkan program, through the static loader).
 # usage: bash tests/gpu/run.sh   (amd64 only; needs a build)
 . "$(dirname "$0")/../lib.sh"
 HERE=$(cd "$(dirname "$0")" && pwd)
@@ -21,7 +22,7 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 buildtests(){ (cd "$HERE" && env PLAN9="$ROOT" ARCH=$objtype CC=gcc "$BUILDEXE" build.json); }
 check "build tests/gpu" buildtests || { done_tests; exit; }
 # vktest needs Mesa's venus, built by scripts/mesa/build.sh (minutes, once)
-rm -f "$HERE/root/tests/vktest"
+rm -f "$HERE/root/tests/vktest" "$HERE/root/tests/vkdraw" "$HERE/root/tests/vktri"
 if [ -f "$(. "$ROOT/scripts/mesa/common.sh"; echo "$BUILD/libvulkan_venus.a")" ]; then
 	check "build tests/gpu/vktest against venus" bash "$HERE/build-vktest.sh"
 else
@@ -118,7 +119,8 @@ if [ -r /dev/dri/renderD128 ] && [ -w /dev/dri/renderD128 ] &&
 			'cat /dev/gpu/0/status' \
 			"test ! -x /tests/vktest || /tests/vktest" \
 			"bind -a '#i' /dev" \
-			"test ! -x /tests/vkdraw || /tests/vkdraw 3" > "$TMPD/console3d" 2>&1
+			"test ! -x /tests/vkdraw || /tests/vkdraw 3" \
+			"test ! -x /tests/vktri || /tests/vktri 2" > "$TMPD/console3d" 2>&1
 	}
 	check "boot with virtio-gpu-gl (virgl, venus), run gpuctxtest" boot3d
 	tr -d '\r' < "$TMPD/console3d" > "$TMPD/log3d"
@@ -135,6 +137,7 @@ if [ -r /dev/dri/renderD128 ] && [ -w /dev/dri/renderD128 ] &&
 	if [ -x "$HERE/root/tests/vktest" ]; then
 		check "vktest (Vulkan through venus): all passed" grep -q '^vktest: all passed' "$TMPD/log3d"
 		check "vkdraw (VK_PLAN9_surface, swapchain on the screen): all passed" grep -q '^vkdraw: all passed' "$TMPD/log3d"
+		check "vktri (shaders, libvulkan's loader): all passed" grep -q '^vktri: all passed' "$TMPD/log3d"
 	fi
 	check "contexts gone after the test" bash -c "! sed -n '/gpuctxtest: /,\$p' '$TMPD/log3d' | grep -q '^ctx '"
 else

@@ -5,6 +5,10 @@
 # instead of the ICD (libvulkan_virtio.so) the objects and static
 # libraries it would link become one archive, $BUILD/libvulkan_venus.a,
 # which a program links with libmesaplan9.a (see tests/gpu/vktest.c).
+# The SDK in $BUILD/sdk is what Vulkan programs build with: the headers
+# and libvulkan.a, the static loader (sys/src/mesa/plan9/loader) with
+# the driver and libmesaplan9 in it; programs link -lvulkan -ldraw -l9
+# -lfmt -lutf.
 # Extra arguments go to ninja.
 set -e
 . "$(dirname "$0")/common.sh"
@@ -82,4 +86,26 @@ rm -f "$BUILD/libvulkan_venus.a"
 	echo save
 	echo end
 } | "$CROSS/$TRIPLE-ar" -M
-echo "build: $BUILD/libvulkan_venus.a $BUILD/plan9/libmesaplan9.a"
+
+# the SDK: the loader's trampolines from Mesa's (patched) vk.xml; the
+# driver as one relocatable object, so that the loader's reference to
+# vk_icdGetInstanceProcAddr brings all of it (venus' entry points are
+# weak references, which do not take members out of an archive)
+SDK=$BUILD/sdk
+L=$BUILD/loader
+mkdir -p "$L" "$SDK/lib" "$SDK/include"
+python3 "$MESA/plan9/loader/genloader.py" "$SRC/src/vulkan/registry/vk.xml" "$L/vkcmds.c"
+for c in "$L/vkcmds.c" "$MESA/plan9/loader/vkloader.c"; do
+	"$CROSS/$TRIPLE-gcc" -std=c11 -O2 -Wall -ffunction-sections -I"$SRC/include" \
+		-I"$L" -I"$MESA/plan9/loader" -c -o "$L/$(basename "$c" .c).o" "$c"
+done
+# (ld, not gcc -r: gcc adds plan9.ld, which would merge the sections
+# of all functions into one .text that --gc-sections cannot thin)
+"$CROSS/$TRIPLE-ld" -r --no-warn-execstack -o "$L/venus.o" \
+	--whole-archive "$BUILD/libvulkan_venus.a" --no-whole-archive
+rm -f "$SDK/lib/libvulkan.a"
+"$CROSS/$TRIPLE-ar" rcs "$SDK/lib/libvulkan.a" "$L/vkloader.o" "$L/vkcmds.o" "$L/venus.o" \
+	"$BUILD"/plan9/*.o
+rm -rf "$SDK/include"/*
+cp -r "$SRC/include/vulkan" "$SRC/include/vk_video" "$SDK/include/"
+echo "build: $BUILD/libvulkan_venus.a $BUILD/plan9/libmesaplan9.a $SDK"
