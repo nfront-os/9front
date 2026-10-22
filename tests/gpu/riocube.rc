@@ -1,0 +1,12 @@
+#!/bin/rc
+# vkcube in its rio window; the window gets smaller after 5 seconds
+log=$home/riovk.log
+{
+	sleep 5
+	echo riovk: resizing >>$log
+	echo resize -r 200 150 800 650 >/dev/wctl >>[2]$log
+	sleep 3
+	echo riovk: resized >>$log
+} &
+/tests/vkcube >>$log >[2=1]
+echo riovk: vkcube exit $status >>$log

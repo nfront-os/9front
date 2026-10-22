@@ -19,7 +19,8 @@
 # in the guest read the draw(3) screen, so those programs copy
 # (WSI_PLAN9_COPY=1). Last, vkdraw without it: its frames go to the
 # display directly (gpu(4) scanout); the host's display is read
-# through VNC.
+# through VNC. A third boot: vkcube in a rio window, resized, quit with
+# q (riovk.rc).
 # usage: bash tests/gpu/run.sh   (amd64 only; needs a build)
 . "$(dirname "$0")/../lib.sh"
 HERE=$(cd "$(dirname "$0")" && pwd)
@@ -170,6 +171,45 @@ if [ -r /dev/dri/renderD128 ] && [ -w /dev/dri/renderD128 ] &&
 		check "display (host side, VNC): blue background" bash -c "grep -q '^900,100 000066' '$TMPD/shot3d.txt' && grep -q '^50,700 000066' '$TMPD/shot3d.txt'"
 	fi
 	check "contexts gone after the test" bash -c "! sed -n '/gpuctxtest: /,\$p' '$TMPD/log3d' | grep -q '^ctx '"
+
+	# third boot: vkcube in a rio window (riovk.rc, riocube.rc), the window
+	# resized after 5 s; then the host's display through VNC, and q typed
+	# on the serial line, which kbdfs gives rio, rio the window.
+	# After rio, rc gets nothing from the serial line: the guest's
+	# scripts log to $home/riovk.log, which is on the host (ufsroot).
+	if [ -x "$HERE/root/tests/vkcube" ]; then
+		cp "$HERE/riovk.rc" "$HERE/root/tests/riovk"
+		cp "$HERE/riocube.rc" "$HERE/root/tests/riocube"
+		chmod +x "$HERE/root/tests/riovk" "$HERE/root/tests/riocube"
+		riolog=$CLI_DIR/ufsroot/usr/glenda/riovk.log
+		rm -f "$riolog"
+		CMDWAIT=5 WAITFOR='never shown' WAITMAX=300 VNC=1 CPU=host MEM=1024 UFS_EXTRA="$HERE/root" \
+		QEMU_EXTRA="-vga none -display egl-headless -device virtio-gpu-gl-pci,blob=true,venus=true,hostmem=256M -object memory-backend-memfd,id=mem1,size=1024M,share=on -machine memory-backend=mem1" \
+		"$ROOT/scripts/guest/boot-cli.sh" 'aux/virtiogpu' "bind -a '#i' /dev" "bind -a '#m' /dev" \
+			'aux/mouse ps2' 'rio -i /tests/riovk' > "$TMPD/consolerio" 2>&1 &
+		riopid=$!
+		for _ in $(seq 150); do
+			grep -q '^riovk: resized' "$riolog" 2>/dev/null && break
+			sleep 2
+		done
+		python3 "$ROOT/scripts/debug/vncshot.py" "$CLI_DIR/vnc.sock" "$TMPD/shotrio.png" \
+			150,400 210,400 500,400 850,400 > "$TMPD/shotrio.txt" 2>&1
+		cp "$TMPD/shotrio.png" "$HERE/screen-rio.png" 2>/dev/null
+		pts=$(grep -o '/dev/pts/[0-9]*' "$CLI_DIR/qemu.log" | head -1)
+		[ -n "$pts" ] && printf q > "$pts"
+		for _ in $(seq 30); do
+			grep -q '^riovk: vkcube exit' "$riolog" 2>/dev/null && break
+			sleep 1
+		done
+		kill $riopid 2>/dev/null
+		wait $riopid 2>/dev/null
+		cp "$riolog" "$HERE/riovk.log" 2>/dev/null
+		check "rio: vkcube in a window" grep -q '^Selected WSI platform: plan9' "$riolog"
+		check "rio: window resized" grep -q '^riovk: resized' "$riolog"
+		check "rio (VNC): the cube in the resized window" bash -c "grep -q '^210,400 333333' '$TMPD/shotrio.txt' && grep '^500,400 ' '$TMPD/shotrio.txt' | grep -vq '333333\$'"
+		check "rio (VNC): rio's background where the window was" bash -c "grep -q '^150,400 777777' '$TMPD/shotrio.txt' && grep -q '^850,400 777777' '$TMPD/shotrio.txt'"
+		check "rio: q quits vkcube (status empty)" grep -qx 'riovk: vkcube exit *' "$riolog"
+	fi
 else
 	skip "3d tests" "no render node or no virtio-gpu-gl-pci in $QEMU"
 fi
