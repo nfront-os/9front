@@ -283,7 +283,12 @@ The window's size is the surface's; when it changes, presents return
 .BR VK_ERROR_OUT_OF_DATE_KHR .
 .PP
 There are no shared libraries: programs link
-.BR libvulkan.a ,
+.BR /$objtype/lib.gcc/ape/libvulkan.a ,
+built from
+.B /sys/src/mesa
+.RB ( build.json ,
+the Vulkan headers in
+.BR /sys/include/ape/vulkan ),
 the driver with a static loader in front of it, and APE's
 .IR draw (2)
 libraries

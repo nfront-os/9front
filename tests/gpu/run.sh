@@ -29,13 +29,15 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 
 buildtests(){ (cd "$HERE" && env PLAN9="$ROOT" ARCH=$objtype CC=gcc "$BUILDEXE" build.json); }
 check "build tests/gpu" buildtests || { done_tests; exit; }
-# vktest needs Mesa's venus, built by scripts/mesa/build.sh (minutes, once)
+# the Vulkan tests need ../9front-gcc's cross compiler: build.exe builds
+# libvulkan.a from the tree's Mesa (sys/src/mesa/build.json, a minute once)
 rm -f "$HERE/root/tests/vktest" "$HERE/root/tests/vkdraw" "$HERE/root/tests/vktri" \
 	"$HERE/root/tests/vkcube" "$HERE/root/tests/vulkaninfo" "$HERE/root/tests/vkspeed"
-if [ -f "$(. "$ROOT/scripts/mesa/common.sh"; echo "$BUILD/libvulkan_venus.a")" ]; then
-	check "build tests/gpu/vktest against venus" bash "$HERE/build-vktest.sh"
+cross=$(. "$ROOT/scripts/mesa/common.sh"; echo "$CROSS/$TRIPLE-gcc")
+if [ -x "$cross" ]; then
+	check "build libvulkan.a (build.exe, sys/src/mesa) and the Vulkan tests" bash "$HERE/build-vktest.sh"
 else
-	skip "vktest" "no Mesa build: scripts/mesa/build.sh"
+	skip "Vulkan tests" "no cross compiler $cross (../9front-gcc)"
 fi
 
 shot=$TMPD/screen.png

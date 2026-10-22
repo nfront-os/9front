@@ -110,6 +110,7 @@ cross compilers from `../9front-gcc`.
 | `prepare.sh` | unpacks it as a git repository (tag `pristine`), commits the overlay (tag `overlay`), applies the patches (`git am`) |
 | `patches.sh` | writes `sys/src/mesa/patches` from the commits after `overlay`, copies new files back to the overlay |
 | `build.sh` | `libmesaplan9.a`, the meson cross file, meson and ninja; the venus driver as one static archive `libvulkan_venus.a`; the SDK `sdk/` (headers, `libvulkan.a`: the static loader of `sys/src/mesa/plan9/loader` with the driver) |
+| `vendor.sh` | Mesa's venus driver into the tree from the meson build (`vendor.py`): `sys/src/mesa/vendor` (sources, headers, meson's generated files), the Vulkan headers in `sys/include/ape`, one `mesa.json` per directory with meson's flags, `sys/src/mesa/build.json`: `build.exe` then builds `/$objtype/lib.gcc/ape/libvulkan.a` without meson or python, here with the cross gcc (`CC=x86_64-pc-plan9-gcc`) and on 9front with the native one |
 | `vktools.sh` | Khronos' Vulkan-Tools (`sys/src/vktools`: version, patches): `prepare`, `patches`, `build` vkcube and vulkaninfo against the SDK |
 | `common.sh` | settings the others source |
 

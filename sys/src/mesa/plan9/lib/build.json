@@ -1,0 +1,28 @@
+[
+	{
+		"Name": "mesa-plan9-compat",
+		"Compat": true,
+		"Cflags": [
+			"-O2",
+			"-Wall",
+			"-I../include"
+		],
+		"SourceFiles": [
+			"plan9compat.c"
+		]
+	},
+	{
+		"Name": "mesa-plan9-win",
+		"Compat": true,
+		"Cflags": [
+			"-O2",
+			"-Wall",
+			"-D_PLAN9_SOURCE",
+			"-I../../../ape/lib/9",
+			"-I../include"
+		],
+		"SourceFiles": [
+			"plan9win.c"
+		]
+	}
+]

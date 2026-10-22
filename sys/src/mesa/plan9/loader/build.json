@@ -1,0 +1,14 @@
+[
+	{
+		"Name": "mesa-loader",
+		"Compat": true,
+		"Cflags": [
+			"-O2",
+			"-Wall"
+		],
+		"SourceFiles": [
+			"vkcmds.c",
+			"vkloader.c"
+		]
+	}
+]

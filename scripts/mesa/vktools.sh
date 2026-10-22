@@ -1,7 +1,8 @@
 #!/bin/bash
 # Khronos' Vulkan-Tools for 9front: vkcube and vulkaninfo, built with
-# ../9front-gcc against the SDK of build.sh ($BUILD/sdk: the headers,
-# libvulkan.a). Release in sys/src/vktools/VERSION (no signature: the
+# ../9front-gcc against the tree's Vulkan: the headers in /sys/include/ape,
+# /$objtype/lib.gcc/ape/libvulkan.a (build.exe sys/src/mesa/build.json).
+# Release in sys/src/vktools/VERSION (no signature: the
 # sha256 is the check), the port in sys/src/vktools/patches.
 #
 # usage: vktools.sh [prepare|patches|build]   (default build)
@@ -17,7 +18,6 @@ VT_VERSION=$(vfield version)
 VT_URL=$(vfield url)
 VT_SHA256=$(vfield sha256)
 VT_SRC=$WORK/src/Vulkan-Tools-$VT_VERSION
-SDK=$BUILD/sdk
 
 prepare(){
 	mkdir -p "$WORK/dl"
@@ -49,17 +49,19 @@ patches(){
 
 build(){
 	[ -d "$VT_SRC/.git" ] || prepare
-	[ -f "$SDK/lib/libvulkan.a" ] || "$ROOT/scripts/mesa/build.sh"
+	CC=$CROSS/$TRIPLE-gcc ARCH=$objtype "$ROOT/sys/src/cmd/build/build.exe" -D \
+		"$ROOT/sys/src/mesa/build.json" > "$BUILD/libvulkan.log" 2>&1 ||
+		{ tail -20 "$BUILD/libvulkan.log"; exit 1; }
 	O=$BUILD/vktools
 	mkdir -p "$O"
-	flags="-O2 -DVK_USE_PLATFORM_PLAN9_9FRONT -I$SDK/include"
+	flags="-O2 -DVK_USE_PLATFORM_PLAN9_9FRONT"
 	"$CROSS/$TRIPLE-gcc" -std=gnu11 $flags -I"$VT_SRC/cube" -c -o "$O/cube.o" "$VT_SRC/cube/cube.c"
 	"$CROSS/$TRIPLE-g++" -std=c++17 $flags -I"$VT_SRC/vulkaninfo" -I"$VT_SRC/vulkaninfo/generated" \
 		-c -o "$O/vulkaninfo.o" "$VT_SRC/vulkaninfo/vulkaninfo.cpp"
 	# g++: Mesa has C++ in it
 	for p in cube:vkcube vulkaninfo:vulkaninfo; do
 		"$CROSS/$TRIPLE-g++" -o "$O/${p#*:}" "$O/${p%:*}.o" -Wl,--gc-sections \
-			-L"$SDK/lib" -lvulkan -ldraw -l9 -lfmt -lutf
+			-lvulkan -ldraw -l9 -lfmt -lutf
 	done
 	echo "vktools: $O/vkcube $O/vulkaninfo"
 }
