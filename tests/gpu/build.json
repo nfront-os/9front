@@ -16,7 +16,8 @@
    "--end-group"
   ],
   "SourceFilesCmd": [
-   "gputest.c"
+   "gputest.c",
+   "gpuctxtest.c"
   ]
  }
 ]

@@ -1,0 +1,129 @@
+.TH GPU 3
+.SH NAME
+gpu \- graphics devices for user-space drivers
+.SH SYNOPSIS
+.nf
+.B bind -a #G /dev
+
+.B #G/0/ctl
+.B #G/0/irq
+.B #G/0/dirty
+ ...
+.fi
+.SH DESCRIPTION
+The
+.I gpu
+device is the kernel's whole part of a graphics driver: it hands
+the hardware of every PCI display controller (class 03) to a
+user-space driver, such as
+.IR virtiogpu
+in
+.IR gpu (4).
+It knows nothing about mode setting, memory management, command
+submission or firmware.
+.PP
+Each controller has a directory
+.IR n ,
+numbered from 0 in PCI order, with three files.
+.PP
+Reading
+.B ctl
+returns lines of text:
+.TF "bar\fIi\fP \fIaddr size seg\fP"
+.TP
+.BI pci " bus.dev.fn"
+the device, as named in
+.BR #$/pci ;
+its configuration space is
+.BI #$/pci/ bus.dev.fn raw\f1.
+.TP
+.BI id " vid/did
+vendor and device id.
+.TP
+.BI irq " line state count
+the interrupt line, whether
+.B irq
+has enabled it, and the interrupts seen.
+.TP
+.BI bar i " addr size seg
+a base address register: physical address, size and the physical
+segment that maps it (see
+.IR segattach (2)),
+.B -
+for an I/O bar.
+.TP
+.BI fb " addr size seg
+the framebuffer, if allocated, else
+.BR "fb none" .
+.PD
+.PP
+The memory bars are attachable segments named
+.BI gpu n bar i\f1,
+uncached; the framebuffer is
+.BI gpu n fb\f1.
+.PP
+Writing
+.B ctl
+(by the host owner) controls the device:
+.TF "fb \fIbytes\fP"
+.TP
+.B "bme on\fR|\fPoff
+enable or disable bus mastering.
+.TP
+.BI fb " bytes
+allocate a physically contiguous framebuffer of at least
+.I bytes
+bytes, once; later requests that fit are no-ops.
+.TP
+.B "irq ack
+unmask the interrupt (see below).
+.PD
+.PP
+Opening
+.B irq
+enables the device's legacy (INTx) interrupt.
+A read blocks until the device interrupts and returns the count.
+The kernel's handler masks the interrupt with the interrupt-disable
+bit of the PCI command register; the driver serves the device and
+writes
+.B "irq ack
+to unmask it.
+.PP
+.B dirty
+connects the framebuffer to
+.IR draw (3):
+with
+.IR vga (3)
+type
+.BR gpu ,
+the screen is the framebuffer of controller 0, drawn into directly,
+and every flush of the screen is collected here.
+A read blocks until something changed and returns the bounding
+rectangle as
+.IB "x0 y0 x1 y1" .
+The driver copies that part to the display.
+.SH EXAMPLES
+What the driver does to show the screen:
+.EX
+	echo fb 9216000 >'#G/0/ctl'
+	echo type gpu >/dev/vgactl
+	echo size 1280x800x32 x8r8g8b8 >/dev/vgactl
+	echo drawinit >/dev/vgactl
+.EE
+.SH SOURCE
+.B /sys/src/9/port/devgpu.c
+.br
+.B /sys/src/9/pc/vgagpu.c
+.SH "SEE ALSO"
+.IR gpu (4),
+.IR segment (3),
+.IR vga (3),
+.IR segattach (2)
+.SH BUGS
+Only the first controller's framebuffer can be the screen.
+.br
+Only legacy interrupts; no MSI.
+.br
+The framebuffer is never freed.
+.br
+The kernel's console keeps writing on the screen.

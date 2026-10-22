@@ -6,6 +6,10 @@
 # dump: size of the new mode, the three rectangles at their places.
 # gputest -l keeps redrawing them: the kernel console also writes on
 # the screen (see gputest.c).
+# Second boot, if the host can render (/dev/dri/renderD128): virtio-gpu-gl
+# with virgl and venus; /tests/gpuctxtest checks capsets, contexts,
+# submissions with fences and a venus host blob mapped through the
+# hostmem bar (gpu(4)).
 # usage: bash tests/gpu/run.sh   (amd64 only; needs a build)
 . "$(dirname "$0")/../lib.sh"
 HERE=$(cd "$(dirname "$0")" && pwd)
@@ -89,5 +93,33 @@ if [ -f "$shot" ]; then
 	check "screen dump: 1024x768, red/green/blue rectangles" pixels
 else
 	fail "screen dump (no $shot)"
+fi
+
+if [ -r /dev/dri/renderD128 ] && [ -w /dev/dri/renderD128 ] &&
+   $QEMU -device help 2>/dev/null | grep -q '"virtio-gpu-gl-pci"'; then
+	boot3d(){
+		MEM=1024 UFS_EXTRA="$HERE/root" \
+		QEMU_EXTRA="-vga none -display egl-headless -device virtio-gpu-gl-pci,blob=true,venus=true,hostmem=256M -object memory-backend-memfd,id=mem1,size=1024M,share=on -machine memory-backend=mem1" \
+		"$ROOT/scripts/guest/boot-cli.sh" \
+			'aux/virtiogpu' \
+			'cat /dev/gpu/0/status' \
+			'/tests/gpuctxtest' \
+			'cat /dev/gpu/0/status' > "$TMPD/console3d" 2>&1
+	}
+	check "boot with virtio-gpu-gl (virgl, venus), run gpuctxtest" boot3d
+	tr -d '\r' < "$TMPD/console3d" > "$TMPD/log3d"
+	cp "$TMPD/log3d" "$HERE/console3d.log"
+	check "features virgl, blob, context init" grep -q '^features virgl edid blob ctxinit' "$TMPD/log3d"
+	check "host visible memory found" grep -q '^hostmem gpu0bar' "$TMPD/log3d"
+	while read -r st rest; do
+		case $st in
+		ok)	pass "3d: $rest" ;;
+		FAIL)	fail "3d: $rest" ;;
+		esac
+	done < <(grep -E '^(ok|FAIL) ' "$TMPD/log3d")
+	check "gpuctxtest: all passed" grep -q '^gpuctxtest: all passed' "$TMPD/log3d"
+	check "contexts gone after the test" bash -c "! sed -n '/gpuctxtest: /,\$p' '$TMPD/log3d' | grep -q '^ctx '"
+else
+	skip "3d tests" "no render node or no virtio-gpu-gl-pci in $QEMU"
 fi
 done_tests

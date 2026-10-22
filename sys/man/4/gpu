@@ -1,0 +1,219 @@
+.TH GPU 4
+.SH NAME
+gpu, virtiogpu \- graphics device file system
+.SH SYNOPSIS
+.B aux/virtiogpu
+[
+.B -dp
+] [
+.B -m
+.I width\fLx\fPheight
+] [
+.B -s
+.I srvname
+]
+.PP
+.nf
+.B /dev/gpu/0/ctl
+.B /dev/gpu/0/status
+.BI /dev/gpu/0/outputs/ conn /modes
+.BI /dev/gpu/0/outputs/ conn /mode
+.BI /dev/gpu/0/outputs/ conn /edid
+.BI /dev/gpu/0/caps/ id
+.B /dev/gpu/0/clone
+.BI /dev/gpu/0/ctx/ n /ctl
+.BI /dev/gpu/0/ctx/ n /submit
+.BI /dev/gpu/0/ctx/ n /fence
+.fi
+.SH DESCRIPTION
+A graphics driver is a user-space file server on the hardware
+that
+.IR gpu (3)
+hands out.
+It posts
+.BI /srv/ srvname
+(default
+.BR gpu.0 )
+and mounts itself after
+.BR /dev ,
+so its files appear as
+.BR /dev/gpu/0 .
+Control is text; data moves through shared segments, never through
+the file server.
+Every driver serves the same tree; what a family does not have is
+missing.
+.PP
+.I Virtiogpu
+drives virtio-gpu (QEMU's
+.BR virtio-gpu-pci ,
+.BR virtio-gpu-gl-pci ).
+It finds the device's registers in the configuration space, keeps
+its virtqueue in a fixed
+.IR segment (3),
+makes the screen the framebuffer of
+.IR gpu (3)
+and copies what changes to the host.
+.B -p
+polls instead of using the interrupt,
+.B -m
+sets the first mode (default: what the host asks for),
+.B -d
+writes debugging output to standard error (not to the console:
+that draws on the screen, which makes more output).
+.SS Display
+.TF outputs/conn/modes
+.TP
+.B ctl
+reads the current mode;
+.BI "mode " w x h
+sets it.
+.TP
+.B status
+the device, its features, the queue, the mode, the framebuffer,
+the host visible memory and every context with its fences.
+.TP
+.BI outputs/ conn /modes
+the modes, one
+.IB w x h
+per line, the preferred first.
+.TP
+.BI outputs/ conn /mode
+reads or sets the mode of the output; the screen
+.RI ( vga (3)
+type
+.BR gpu )
+follows it.
+.TP
+.BI outputs/ conn /edid
+the output's EDID, binary.
+.PD
+.SS Rendering
+Present when the device can render (virgl or context init).
+.TF caps/id
+.TP
+.BI caps/ id
+the capability set
+.I id
+(1 virgl, 2 virgl2, 4 venus, ...) as the device describes it,
+binary, latest version.
+.TP
+.B clone
+opening it creates a context and returns its
+.B ctl
+file, as with
+.IR ip (3)'s
+clone files.
+The context lives while any of its files is open.
+.PD
+.PP
+Reading a context's
+.B ctl
+returns the reply to the last request, first
+.IP
+.BI ctx " n " seg " name va size"
+.PP
+the segment that holds the context's command buffers: the client
+.IR segattach es
+.I name
+and writes commands into it.
+Requests:
+.TF "blob \fImem flags id size\fP"
+.TP
+.BI "init " "capset \fR[\fPname\fR]"
+create the context on the device for capability set
+.I capset
+(0: the device's default, virgl);
+reply
+.BI ctx " n " capset " capset" .
+.TP
+.BI blob " mem flags id size
+create a blob resource:
+.I mem
+is 1 for guest memory, 2 for host memory, 3 for both,
+.I flags
+1 mappable, 2 shareable, 4 cross device,
+.I id
+the renderer's object (0: plain shared memory).
+Reply
+.BI res " r size"
+and, for guest memory,
+.BI seg " name va" ,
+the segment holding it.
+.TP
+.BI map " r
+map host memory into the device's host visible bar; reply
+.BI map " r seg barsize offset size info" :
+attach
+.I seg
+.RI ( barsize
+bytes) and use
+.I size
+bytes at
+.IR offset .
+.TP
+.BI unmap " r
+.TP
+.BI unref " r
+.TP
+.BI attach " r
+.TP
+.BI detach " r
+unmap, release, attach to or detach from the context.
+.PD
+.PP
+Writing
+.IB "offset length"
+to
+.B submit
+submits that part of the command segment; the
+.IR k th
+submission of a context completes fence
+.IR k .
+The client must not overwrite it before.
+.PP
+Reading
+.B fence
+returns
+.IB "done submitted" ,
+and
+.B failed
+if the device rejected a submission.
+After writing a fence number
+.IR k ,
+reads block until fence
+.I k
+is done.
+.SH EXAMPLES
+Switch the screen to 1024x768:
+.EX
+	echo 1024x768 >/dev/gpu/0/outputs/Virtual-1/mode
+.EE
+.PP
+A context, one submission, wait for it, in C (the source tree's
+.B tests/gpu/gpuctxtest.c
+does more):
+.EX
+	fd = open("/dev/gpu/0/clone", ORDWR);
+	read(fd, buf, sizeof buf);	/* ctx 1 seg gpu0ctx1 0x40000000 0x100000 */
+	cmd = segattach(0, "gpu0ctx1", nil, 0);
+	fprint(fd, "init 2");
+	/* commands at cmd[0..len) */
+	fprint(sfd, "0 %d", len);	/* ctx/1/submit */
+	fprint(ffd, "1");		/* ctx/1/fence */
+	read(ffd, buf, sizeof buf);	/* 1 1 */
+.EE
+.SH SOURCE
+.B /sys/src/cmd/aux/gpu
+.SH "SEE ALSO"
+.IR gpu (3),
+.IR segment (3),
+.IR vga (3),
+.IR vga (8)
+.SH BUGS
+One output, one framebuffer; no cursor plane, no hotplug yet.
+.br
+Command buffers are limited to the context's segment (1 MB).
+.br
+Waiting for a fence waits in order: fence
+.I k
+means all before it.
