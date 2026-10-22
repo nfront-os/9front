@@ -18,6 +18,7 @@
 
 extern PFN_vkVoidFunction vk_icdGetInstanceProcAddr(VkInstance, const char *);
 extern VkResult vk_icdNegotiateLoaderICDInterfaceVersion(uint32_t *);
+extern int screenpeek(int, int, unsigned *);	/* screenpeek.c */
 
 #define FAIL(...) do { printf("FAIL "); printf(__VA_ARGS__); printf("\n"); exit(1); } while(0)
 #define CHECK(call, what) do { VkResult r_ = (call); if(r_ != VK_SUCCESS && r_ != VK_SUBOPTIMAL_KHR) FAIL("%s: VkResult %d", what, r_); } while(0)
@@ -320,7 +321,33 @@ main(int argc, char **argv)
 		vkResetFences(dev, 1, &fence);
 	}
 	vkDeviceWaitIdle(dev);
-	printf("ok %u frames in %.1f s\n", frames, now() - t0);
+	double t1 = now();
+
+	/* the last frame on the screen, before anyone writes to the console
+	 * (the kernel draws it on the screen): check first, print after */
+	{
+		static const struct { int x, y; unsigned rgb; char *what; } want[] = {
+			{ 200, 450, 0xff0000, "red square" },
+			{ 500, 450, 0x00ff00, "green square" },
+			{ 900, 100, 0x000066, "blue background" },
+			{ 50, 700, 0x000066, "blue background" },
+		};
+		unsigned rgb[4];
+		int r[4];
+
+		for(i = 0; i < 4; i++)
+			r[i] = screenpeek(want[i].x, want[i].y, &rgb[i]);
+		printf("ok %u frames in %.1f s\n", frames, t1 - t0);
+		for(i = 0; i < 4; i++){
+			if(r[i] < 0)
+				FAIL("screenpeek %d,%d", want[i].x, want[i].y);
+			if(rgb[i] != want[i].rgb)
+				FAIL("screen at %d,%d is %06x, want %06x (%s)", want[i].x, want[i].y,
+					rgb[i], want[i].rgb, want[i].what);
+			printf("ok screen at %d,%d: %06x (%s)\n", want[i].x, want[i].y, rgb[i], want[i].what);
+		}
+	}
+
 	printf("vkdraw: all passed\n");
 	return 0;
 }

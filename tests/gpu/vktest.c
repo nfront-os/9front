@@ -115,6 +115,15 @@ main(void)
 	DFN(vkAllocateCommandBuffers);
 	DFN(vkBeginCommandBuffer);
 	DFN(vkCmdFillBuffer);
+	DFN(vkCmdCopyBuffer);
+	DFN(vkResetCommandBuffer);
+	DFN(vkResetFences);
+	DFN(vkCreateImage);
+	DFN(vkGetImageMemoryRequirements);
+	DFN(vkBindImageMemory);
+	DFN(vkCmdPipelineBarrier);
+	DFN(vkCmdCopyBufferToImage);
+	DFN(vkCmdCopyImageToBuffer);
 	DFN(vkEndCommandBuffer);
 	DFN(vkCreateFence);
 	DFN(vkQueueSubmit);
@@ -196,6 +205,104 @@ main(void)
 		FAIL("vkCmdFillBuffer: word %u is %#x", i, p[i]);
 	else
 		OK("vkCmdFillBuffer on the GPU: %llu bytes read back", (unsigned long long)size);
+
+	/* the other way: the CPU writes buffer a, the GPU copies it to b */
+	{
+		VkBuffer b2;
+		VkDeviceMemory mem2;
+		uint32_t *p2;
+
+		CHECK(vkCreateBuffer(dev, &bci, NULL, &b2), "vkCreateBuffer b");
+		CHECK(vkAllocateMemory(dev, &mai, NULL, &mem2), "vkAllocateMemory b");
+		CHECK(vkBindBufferMemory(dev, b2, mem2, 0), "vkBindBufferMemory b");
+		CHECK(vkMapMemory(dev, mem2, 0, size, 0, (void**)&p2), "vkMapMemory b");
+		memset(p2, 0, size);
+		for(i = 0; i < size/4; i++)
+			p[i] = i*2654435761u;
+		vkResetFences(dev, 1, &fence);
+		vkResetCommandBuffer(cb, 0);
+		CHECK(vkBeginCommandBuffer(cb, &cbi), "vkBeginCommandBuffer");
+		VkBufferCopy bc = { 0, 0, size };
+		vkCmdCopyBuffer(cb, buf, b2, 1, &bc);
+		CHECK(vkEndCommandBuffer(cb), "vkEndCommandBuffer");
+		CHECK(vkQueueSubmit(q, 1, &si, fence), "vkQueueSubmit");
+		CHECK(vkWaitForFences(dev, 1, &fence, VK_TRUE, 10ull*1000*1000*1000), "vkWaitForFences");
+		for(i = 0; i < size/4; i++)
+			if(p2[i] != i*2654435761u)
+				break;
+		if(i != size/4)
+			FAIL("CPU-written buffer copied by the GPU: word %u is %#x, want %#x", i, p2[i], i*2654435761u);
+		else
+			OK("vkCmdCopyBuffer of a CPU-written buffer: %llu bytes", (unsigned long long)size);
+
+		/* buffer a -> 128x128 image -> buffer b */
+		VkImage im;
+		VkImageCreateInfo ii = {
+			.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+			.imageType = VK_IMAGE_TYPE_2D,
+			.format = VK_FORMAT_B8G8R8A8_UNORM,
+			.extent = { 128, 128, 1 },
+			.mipLevels = 1,
+			.arrayLayers = 1,
+			.samples = VK_SAMPLE_COUNT_1_BIT,
+			.tiling = VK_IMAGE_TILING_OPTIMAL,
+			.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT|VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+			.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+		};
+		CHECK(vkCreateImage(dev, &ii, NULL, &im), "vkCreateImage");
+		VkMemoryRequirements ir;
+		vkGetImageMemoryRequirements(dev, im, &ir);
+		uint32_t it;
+		for(it = 0; it < mp.memoryTypeCount; it++)
+			if(ir.memoryTypeBits & (1u<<it))
+				break;
+		VkMemoryAllocateInfo imai = {
+			.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+			.allocationSize = ir.size,
+			.memoryTypeIndex = it,
+		};
+		VkDeviceMemory imem;
+		CHECK(vkAllocateMemory(dev, &imai, NULL, &imem), "vkAllocateMemory image");
+		CHECK(vkBindImageMemory(dev, im, imem, 0), "vkBindImageMemory");
+		memset(p2, 0, size);
+		vkResetFences(dev, 1, &fence);
+		vkResetCommandBuffer(cb, 0);
+		CHECK(vkBeginCommandBuffer(cb, &cbi), "vkBeginCommandBuffer");
+		VkImageMemoryBarrier ib = {
+			.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+			.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+			.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+			.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.image = im,
+			.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 },
+		};
+		vkCmdPipelineBarrier(cb, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+			0, 0, NULL, 0, NULL, 1, &ib);
+		VkBufferImageCopy bic = {
+			.imageSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 },
+			.imageExtent = { 128, 128, 1 },
+		};
+		vkCmdCopyBufferToImage(cb, buf, im, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &bic);
+		ib.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+		ib.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+		ib.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+		ib.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+		vkCmdPipelineBarrier(cb, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+			0, 0, NULL, 0, NULL, 1, &ib);
+		vkCmdCopyImageToBuffer(cb, im, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, b2, 1, &bic);
+		CHECK(vkEndCommandBuffer(cb), "vkEndCommandBuffer");
+		CHECK(vkQueueSubmit(q, 1, &si, fence), "vkQueueSubmit");
+		CHECK(vkWaitForFences(dev, 1, &fence, VK_TRUE, 10ull*1000*1000*1000), "vkWaitForFences");
+		for(i = 0; i < 128*128; i++)
+			if(p2[i] != i*2654435761u)
+				break;
+		if(i != 128*128)
+			FAIL("buffer -> image -> buffer: word %u is %#x, want %#x", i, p2[i], i*2654435761u);
+		else
+			OK("vkCmdCopyBufferToImage and back: 128x128");
+	}
 	vkDeviceWaitIdle(dev);
 	vkDestroyDevice(dev, NULL);
 	dev = VK_NULL_HANDLE;

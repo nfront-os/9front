@@ -9,9 +9,13 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 [ -f "$BUILD/libvulkan_venus.a" ] || "$ROOT/scripts/mesa/build.sh"
 mkdir -p "$HERE/root/tests"
 "$CROSS/$TRIPLE-gcc" -std=c11 -O2 -Wall -c -o "$BUILD/btassert.o" "$HERE/btassert.c"
+"$CROSS/$TRIPLE-gcc" -std=c11 -O2 -Wall -D_PLAN9_SOURCE -I"$ROOT/sys/src/ape/lib/9" \
+	-c -o "$BUILD/screenpeek.o" "$HERE/screenpeek.c"
 for p in vktest vkdraw; do
+	extra=
+	[ $p = vkdraw ] && extra=$BUILD/screenpeek.o
 	"$CROSS/$TRIPLE-gcc" -std=c11 -O2 -Wall -I"$SRC/include" -c -o "$BUILD/$p.o" "$HERE/$p.c"
-	"$CROSS/$TRIPLE-g++" -o "$HERE/root/tests/$p" "$BUILD/$p.o" "$BUILD/btassert.o" \
+	"$CROSS/$TRIPLE-g++" -o "$HERE/root/tests/$p" "$BUILD/$p.o" "$BUILD/btassert.o" $extra \
 		-Wl,--gc-sections -Wl,--whole-archive "$BUILD/libvulkan_venus.a" -Wl,--no-whole-archive \
 		-L"$BUILD/plan9" -lmesaplan9 -ldraw -l9 -lfmt -lutf
 done

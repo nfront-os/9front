@@ -1,0 +1,262 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: port <port@localhost>
+Date: Thu, 22 Oct 2026 12:04:30 +0200
+Subject: [PATCH] vulkan: VK_PLAN9_surface (vk.xml, vulkan.h, vk_icd.h) and the
+ plan9 WSI platform, in venus
+
+---
+ include/vulkan/vk_icd.h             |  8 ++++++++
+ include/vulkan/vulkan.h             |  4 ++++
+ include/vulkan/vulkan_core.h        |  1 +
+ src/virtio/vulkan/meson.build       |  2 +-
+ src/virtio/vulkan/vn_instance.c     |  3 +++
+ src/vulkan/meson.build              |  3 +++
+ src/vulkan/registry/vk.xml          | 26 ++++++++++++++++++++++++++
+ src/vulkan/wsi/meson.build          |  4 ++++
+ src/vulkan/wsi/wsi_common.c         |  9 +++++++++
+ src/vulkan/wsi/wsi_common.h         |  3 ++-
+ src/vulkan/wsi/wsi_common_private.h |  9 +++++++++
+ 11 files changed, 70 insertions(+), 2 deletions(-)
+
+diff --git a/include/vulkan/vk_icd.h b/include/vulkan/vk_icd.h
+index d71f568..d40e5e8 100644
+--- a/include/vulkan/vk_icd.h
++++ b/include/vulkan/vk_icd.h
+@@ -119,6 +119,7 @@ typedef enum {
+     VK_ICD_WSI_PLATFORM_GGP,
+     VK_ICD_WSI_PLATFORM_SCREEN,
+     VK_ICD_WSI_PLATFORM_FUCHSIA,
++    VK_ICD_WSI_PLATFORM_PLAN9,
+ } VkIcdWsiPlatform;
+ 
+ typedef struct {
+@@ -216,6 +217,13 @@ typedef struct {
+     VkIcdSurfaceBase base;
+ } VkIcdSurfaceHeadless;
+ 
++#ifdef VK_USE_PLATFORM_PLAN9_9FRONT
++typedef struct {
++    VkIcdSurfaceBase base;
++    char *windowName;	/* NULL: /dev/winname, else the screen */
++} VkIcdSurfacePlan9;
++#endif
++
+ #ifdef VK_USE_PLATFORM_METAL_EXT
+ typedef struct {
+     VkIcdSurfaceBase base;
+diff --git a/include/vulkan/vulkan.h b/include/vulkan/vulkan.h
+index 2ed8d9c..7ac4471 100644
+--- a/include/vulkan/vulkan.h
++++ b/include/vulkan/vulkan.h
+@@ -84,6 +84,10 @@
+ #include "vulkan_screen.h"
+ #endif
+ 
++#ifdef VK_USE_PLATFORM_PLAN9_9FRONT
++#include "vulkan_plan9.h"
++#endif
++
+ 
+ #ifdef VK_USE_PLATFORM_SCI
+ #include <nvscisync.h>
+diff --git a/include/vulkan/vulkan_core.h b/include/vulkan/vulkan_core.h
+index 96931f5..fd942b5 100644
+--- a/include/vulkan/vulkan_core.h
++++ b/include/vulkan/vulkan_core.h
+@@ -1740,6 +1740,7 @@ typedef enum VkStructureType {
+     VK_STRUCTURE_TYPE_PUSH_DESCRIPTOR_SET_INFO_KHR = VK_STRUCTURE_TYPE_PUSH_DESCRIPTOR_SET_INFO,
+     VK_STRUCTURE_TYPE_PUSH_DESCRIPTOR_SET_WITH_TEMPLATE_INFO_KHR = VK_STRUCTURE_TYPE_PUSH_DESCRIPTOR_SET_WITH_TEMPLATE_INFO,
+     VK_STRUCTURE_TYPE_RENDERING_END_INFO_EXT = VK_STRUCTURE_TYPE_RENDERING_END_INFO_KHR,
++    VK_STRUCTURE_TYPE_PLAN9_SURFACE_CREATE_INFO_PLAN9 = 1008999000,
+     VK_STRUCTURE_TYPE_MAX_ENUM = 0x7FFFFFFF
+ } VkStructureType;
+ 
+diff --git a/src/virtio/vulkan/meson.build b/src/virtio/vulkan/meson.build
+index 43b5dd3..120038c 100644
+--- a/src/virtio/vulkan/meson.build
++++ b/src/virtio/vulkan/meson.build
+@@ -138,7 +138,7 @@ endif
+ 
+ if with_platform_wayland or with_platform_x11 or \
+    (system_has_kms_drm and not with_platform_android) or \
+-   with_platform_windows
++   with_platform_windows or host_machine.system() == 'plan9'
+   libvn_files += files('vn_wsi.c')
+   vn_c_args += '-DVN_USE_WSI_PLATFORM'
+ endif
+diff --git a/src/virtio/vulkan/vn_instance.c b/src/virtio/vulkan/vn_instance.c
+index b05edbf..ee8e112 100644
+--- a/src/virtio/vulkan/vn_instance.c
++++ b/src/virtio/vulkan/vn_instance.c
+@@ -59,6 +59,9 @@ static const struct vk_instance_extension_table
+ #ifndef VK_USE_PLATFORM_WIN32_KHR
+       .EXT_headless_surface = true,
+ #endif
++#ifdef VK_USE_PLATFORM_PLAN9_9FRONT
++      .PLAN9_surface = true,
++#endif
+ #ifdef VK_USE_PLATFORM_DISPLAY_KHR
+       .KHR_display = true,
+       .KHR_get_display_properties2 = true,
+diff --git a/src/vulkan/meson.build b/src/vulkan/meson.build
+index 614a33a..4df65ba 100644
+--- a/src/vulkan/meson.build
++++ b/src/vulkan/meson.build
+@@ -65,6 +65,9 @@ endif
+ if with_platform_android
+   vulkan_wsi_list += '-DVK_USE_PLATFORM_ANDROID_KHR'
+ endif
++if host_machine.system() == 'plan9'
++  vulkan_wsi_list += '-DVK_USE_PLATFORM_PLAN9_9FRONT'
++endif
+ if with_platform_windows
+   vulkan_wsi_list += '-DVK_USE_PLATFORM_WIN32_KHR'
+ endif
+diff --git a/src/vulkan/registry/vk.xml b/src/vulkan/registry/vk.xml
+index 4d66622..01a1b68 100644
+--- a/src/vulkan/registry/vk.xml
++++ b/src/vulkan/registry/vk.xml
+@@ -36,6 +36,7 @@ branch of the member gitlab server.
+         <platform name="provisional" protect="VK_ENABLE_BETA_EXTENSIONS" comment="Enable declarations for beta/provisional extensions" />
+         <platform name="screen" protect="VK_USE_PLATFORM_SCREEN_QNX" comment="QNX Screen Graphics Subsystem" />
+         <platform name="ohos" protect="VK_USE_PLATFORM_OHOS" comment="Open Harmony OS" />
++        <platform name="plan9" protect="VK_USE_PLATFORM_PLAN9_9FRONT" comment="9front (Plan 9): draw(3) windows" />
+     </platforms>
+ 
+     <tags comment="Vulkan vendor/author tags for extensions and layers">
+@@ -82,6 +83,7 @@ branch of the member gitlab server.
+         <tag name="FREDEMMOTT" author="Frederick Emmott" contact="Fred Emmott @fredemmott" />
+         <tag name="MTK" author="Mediatek, Inc." contact="Samuel Huang @shengwenhuang" />
+         <tag name="OPENXR" author="OpenXR Working Group" contact="Ron Bessems @rbessems" />
++        <tag name="PLAN9"     author="9front"                        contact="9front gpu port"/>
+     </tags>
+ 
+     <types comment="Vulkan type definitions">
+@@ -458,6 +460,7 @@ typedef void* <name>MTLSharedEvent_id</name>;
+         <type category="bitmask">typedef <type>VkFlags</type> <name>VkImagePipeSurfaceCreateFlagsFUCHSIA</name>;</type>
+         <type category="bitmask">typedef <type>VkFlags</type> <name>VkStreamDescriptorSurfaceCreateFlagsGGP</name>;</type>
+         <type category="bitmask">typedef <type>VkFlags</type> <name>VkHeadlessSurfaceCreateFlagsEXT</name>;</type>
++        <type category="bitmask">typedef <type>VkFlags</type> <name>VkPlan9SurfaceCreateFlagsPLAN9</name>;</type>
+         <type category="bitmask">typedef <type>VkFlags</type> <name>VkScreenSurfaceCreateFlagsQNX</name>;</type>
+         <type requires="VkPeerMemoryFeatureFlagBits" category="bitmask">typedef <type>VkFlags</type> <name>VkPeerMemoryFeatureFlags</name>;</type>
+         <type category="bitmask" name="VkPeerMemoryFeatureFlagsKHR" alias="VkPeerMemoryFeatureFlags" />
+@@ -5891,6 +5894,12 @@ typedef void* <name>MTLSharedEvent_id</name>;
+             <member optional="true">const <type>void</type>*            <name>pNext</name></member>
+             <member optional="true"><type>VkHeadlessSurfaceCreateFlagsEXT</type>   <name>flags</name></member>
+         </type>
++        <type category="struct" name="VkPlan9SurfaceCreateInfoPLAN9">
++            <member values="VK_STRUCTURE_TYPE_PLAN9_SURFACE_CREATE_INFO_PLAN9"><type>VkStructureType</type> <name>sType</name></member>
++            <member optional="true">const <type>void</type>*                                            <name>pNext</name></member>
++            <member optional="true"><type>VkPlan9SurfaceCreateFlagsPLAN9</type>   <name>flags</name></member>
++            <member optional="true" len="null-terminated">const <type>char</type>*                         <name>pWindowName</name><comment>Name of the draw(3) window image; NULL: /dev/winname, else the screen</comment></member>
++        </type>
+         <type category="struct" name="VkPhysicalDeviceCoverageReductionModeFeaturesNV" structextends="VkPhysicalDeviceFeatures2,VkDeviceCreateInfo">
+             <member values="VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_COVERAGE_REDUCTION_MODE_FEATURES_NV"><type>VkStructureType</type> <name>sType</name></member>
+             <member optional="true"><type>void</type>*    <name>pNext</name></member>
+@@ -17553,6 +17562,13 @@ endif::VK_KHR_internally_synchronized_queues[]
+             <param optional="true">const <type>VkAllocationCallbacks</type>* <name>pAllocator</name></param>
+             <param><type>VkSurfaceKHR</type>* <name>pSurface</name></param>
+         </command>
++        <command successcodes="VK_SUCCESS" errorcodes="VK_ERROR_OUT_OF_HOST_MEMORY,VK_ERROR_OUT_OF_DEVICE_MEMORY">
++            <proto><type>VkResult</type> <name>vkCreatePlan9SurfacePLAN9</name></proto>
++            <param><type>VkInstance</type> <name>instance</name></param>
++            <param>const <type>VkPlan9SurfaceCreateInfoPLAN9</type>* <name>pCreateInfo</name></param>
++            <param optional="true">const <type>VkAllocationCallbacks</type>* <name>pAllocator</name></param>
++            <param><type>VkSurfaceKHR</type>* <name>pSurface</name></param>
++        </command>
+         <command successcodes="VK_SUCCESS,VK_INCOMPLETE" errorcodes="VK_ERROR_OUT_OF_HOST_MEMORY,VK_ERROR_OUT_OF_DEVICE_MEMORY,VK_ERROR_UNKNOWN,VK_ERROR_VALIDATION_FAILED">
+             <proto><type>VkResult</type> <name>vkGetPhysicalDeviceSupportedFramebufferMixedSamplesCombinationsNV</name></proto>
+             <param><type>VkPhysicalDevice</type> <name>physicalDevice</name></param>
+@@ -32232,6 +32248,16 @@ endif::VK_KHR_internally_synchronized_queues[]
+                 <enum value="&quot;VK_QCOM_extension_695&quot;" name="VK_QCOM_EXTENSION_695_EXTENSION_NAME" />
+             </require>
+         </extension>
++        <extension name="VK_PLAN9_surface" number="9000" type="instance" depends="VK_KHR_surface" platform="plan9" author="PLAN9" contact="9front gpu port" supported="vulkan" comment="9front: present to a draw(3) window">
++            <require>
++                <enum value="1"                                                 name="VK_PLAN9_SURFACE_SPEC_VERSION"/>
++                <enum value="&quot;VK_PLAN9_surface&quot;"                      name="VK_PLAN9_SURFACE_EXTENSION_NAME"/>
++                <enum offset="0" extends="VkStructureType"                      name="VK_STRUCTURE_TYPE_PLAN9_SURFACE_CREATE_INFO_PLAN9"/>
++                <type name="VkPlan9SurfaceCreateFlagsPLAN9"/>
++                <type name="VkPlan9SurfaceCreateInfoPLAN9"/>
++                <command name="vkCreatePlan9SurfacePLAN9"/>
++            </require>
++        </extension>
+     </extensions>
+     <formats>
+         <format name="VK_FORMAT_R4G4_UNORM_PACK8" class="8-bit" blockSize="1" texelsPerBlock="1" packed="8">
+diff --git a/src/vulkan/wsi/meson.build b/src/vulkan/wsi/meson.build
+index 80925d1..087eb8f 100644
+--- a/src/vulkan/wsi/meson.build
++++ b/src/vulkan/wsi/meson.build
+@@ -38,6 +38,10 @@ if with_platform_macos
+   files_vulkan_wsi += files('wsi_common_metal.c', 'wsi_common_metal_layer.m')
+ endif
+ 
++if host_machine.system() == 'plan9'
++  files_vulkan_wsi += files('wsi_common_plan9.c')
++endif
++
+ if system_has_kms_drm and not with_platform_android
+   files_vulkan_wsi += files('wsi_common_display.c')
+ endif
+diff --git a/src/vulkan/wsi/wsi_common.c b/src/vulkan/wsi/wsi_common.c
+index 411ee3e..08ce6ab 100644
+--- a/src/vulkan/wsi/wsi_common.c
++++ b/src/vulkan/wsi/wsi_common.c
+@@ -269,6 +269,12 @@ wsi_device_init(struct wsi_device *wsi,
+       goto fail;
+ #endif
+ 
++#ifdef VK_USE_PLATFORM_PLAN9_9FRONT
++   result = wsi_plan9_init_wsi(wsi, alloc, pdevice);
++   if (result != VK_SUCCESS)
++      goto fail;
++#endif
++
+ #ifndef VK_USE_PLATFORM_WIN32_KHR
+    result = wsi_headless_init_wsi(wsi, alloc, pdevice);
+    if (result != VK_SUCCESS)
+@@ -343,6 +349,9 @@ wsi_device_finish(struct wsi_device *wsi,
+ #ifndef VK_USE_PLATFORM_WIN32_KHR
+    wsi_headless_finish_wsi(wsi, alloc);
+ #endif
++#ifdef VK_USE_PLATFORM_PLAN9_9FRONT
++   wsi_plan9_finish_wsi(wsi, alloc);
++#endif
+ #ifdef VK_USE_PLATFORM_DISPLAY_KHR
+    wsi_display_finish_wsi(wsi, alloc);
+ #endif
+diff --git a/src/vulkan/wsi/wsi_common.h b/src/vulkan/wsi/wsi_common.h
+index 803d140..361e8db 100644
+--- a/src/vulkan/wsi/wsi_common.h
++++ b/src/vulkan/wsi/wsi_common.h
+@@ -52,7 +52,8 @@ struct vk_queue;
+ 
+ struct driOptionCache;
+ 
+-#define VK_ICD_WSI_PLATFORM_MAX (VK_ICD_WSI_PLATFORM_METAL + 1)
++/* PLAN9 is the last in vk_icd.h's list (after METAL) */
++#define VK_ICD_WSI_PLATFORM_MAX (VK_ICD_WSI_PLATFORM_PLAN9 + 1)
+ 
+ struct wsi_device {
+    /* Allocator for the instance */
+diff --git a/src/vulkan/wsi/wsi_common_private.h b/src/vulkan/wsi/wsi_common_private.h
+index 3d2cd7d..1f9828b 100644
+--- a/src/vulkan/wsi/wsi_common_private.h
++++ b/src/vulkan/wsi/wsi_common_private.h
+@@ -582,6 +582,15 @@ VkResult wsi_headless_init_wsi(struct wsi_device *wsi_device,
+ void wsi_headless_finish_wsi(struct wsi_device *wsi_device,
+                              const VkAllocationCallbacks *alloc);
+ 
++#ifdef VK_USE_PLATFORM_PLAN9_9FRONT
++VkResult wsi_plan9_init_wsi(struct wsi_device *wsi_device,
++                            const VkAllocationCallbacks *alloc,
++                            VkPhysicalDevice physical_device);
++
++void wsi_plan9_finish_wsi(struct wsi_device *wsi_device,
++                          const VkAllocationCallbacks *alloc);
++#endif
++
+ VK_DEFINE_NONDISP_HANDLE_CASTS(wsi_swapchain, base, VkSwapchainKHR,
+                                VK_OBJECT_TYPE_SWAPCHAIN_KHR)
+ 

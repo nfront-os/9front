@@ -227,10 +227,33 @@ set 4, its command streams through
 .BR submit ,
 Vulkan memory as host blobs mapped through the host visible bar,
 and its timeline syncs on the fences.
+.PP
+Vulkan programs present to a window with the instance extension
+.BR VK_PLAN9_surface :
+.B vkCreatePlan9SurfacePLAN9
+takes a
+.B VkPlan9SurfaceCreateInfoPLAN9
+whose
+.B pWindowName
+names the window's image; nil means the process's window
+.RB ( /dev/winname ),
+or the screen without
+.IR rio (1).
+The swapchain's images are the device's; at every present they are
+copied into host visible memory and from there into the window through
+a
+.IR draw (3)
+connection of the driver's own.
+The window's size is the surface's; when it changes, presents return
+.BR VK_ERROR_OUT_OF_DATE_KHR .
 .SH SOURCE
 .B /sys/src/cmd/aux/gpu
 .br
 .B /sys/src/mesa/overlay/src/virtio/vulkan/vn_renderer_plan9.c
+.br
+.B /sys/src/mesa/overlay/src/vulkan/wsi/wsi_common_plan9.c
+.br
+.B /sys/src/mesa/overlay/include/vulkan/vulkan_plan9.h
 .SH "SEE ALSO"
 .IR gpu (3),
 .IR segment (3),
@@ -244,3 +267,6 @@ Command buffers are limited to the context's segment (1 MB).
 The host visible bar is mapped uncached.
 .br
 No sync files and no dma-buf sharing between processes.
+.br
+Presenting copies every frame twice (device to host memory, host to
+draw(3)); the kernel's console draws over the screen without rio.

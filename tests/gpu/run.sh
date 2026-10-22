@@ -9,7 +9,9 @@
 # Second boot, if the host can render (/dev/dri/renderD128): virtio-gpu-gl
 # with virgl and venus; /tests/gpuctxtest checks capsets, contexts,
 # submissions with fences and a venus host blob mapped through the
-# hostmem bar (gpu(4)).
+# hostmem bar (gpu(4)); with Mesa built, vktest (Vulkan compute on the
+# host's GPU) and vkdraw (a swapchain on the screen, VK_PLAN9_surface,
+# checked pixel by pixel in the guest).
 # usage: bash tests/gpu/run.sh   (amd64 only; needs a build)
 . "$(dirname "$0")/../lib.sh"
 HERE=$(cd "$(dirname "$0")" && pwd)
@@ -112,7 +114,9 @@ if [ -r /dev/dri/renderD128 ] && [ -w /dev/dri/renderD128 ] &&
 			'cat /dev/gpu/0/status' \
 			'/tests/gpuctxtest' \
 			'cat /dev/gpu/0/status' \
-			"test ! -x /tests/vktest || /tests/vktest" > "$TMPD/console3d" 2>&1
+			"test ! -x /tests/vktest || /tests/vktest" \
+			"bind -a '#i' /dev" \
+			"test ! -x /tests/vkdraw || /tests/vkdraw 3" > "$TMPD/console3d" 2>&1
 	}
 	check "boot with virtio-gpu-gl (virgl, venus), run gpuctxtest" boot3d
 	tr -d '\r' < "$TMPD/console3d" > "$TMPD/log3d"
@@ -128,6 +132,7 @@ if [ -r /dev/dri/renderD128 ] && [ -w /dev/dri/renderD128 ] &&
 	check "gpuctxtest: all passed" grep -q '^gpuctxtest: all passed' "$TMPD/log3d"
 	if [ -x "$HERE/root/tests/vktest" ]; then
 		check "vktest (Vulkan through venus): all passed" grep -q '^vktest: all passed' "$TMPD/log3d"
+		check "vkdraw (VK_PLAN9_surface, swapchain on the screen): all passed" grep -q '^vkdraw: all passed' "$TMPD/log3d"
 	fi
 	check "contexts gone after the test" bash -c "! sed -n '/gpuctxtest: /,\$p' '$TMPD/log3d' | grep -q '^ctx '"
 else
