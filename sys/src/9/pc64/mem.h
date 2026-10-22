@@ -152,6 +152,7 @@
 #define	PTEWT		(1ull<<3)
 #define	PTEUNCACHED	(1ull<<4)
 #define	PTECACHED	(0ull<<4)
+#define	PTEWC		(PTEWT|PTEUNCACHED|1ull<<7)	/* PAT entry PATWC (4K pages); devarch.c makes it WC, else UC */
 #define	PTEWRITE	(1ull<<1)
 #define	PTERONLY	(0ull<<1)
 #define	PTEKERNEL	(0ull<<2)

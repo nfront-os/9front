@@ -50,7 +50,8 @@ struct Gpu
 	int	id;
 	int	segs;		/* bar segments registered */
 	char	barseg[nelem(((Pcidev*)0)->mem)][KNAMELEN];
-	char	cachedseg[nelem(((Pcidev*)0)->mem)][KNAMELEN];	/* bar N cached */
+	char	cachedseg[nelem(((Pcidev*)0)->mem)][KNAMELEN];	/* bar N cached: write-back */
+	char	wcseg[nelem(((Pcidev*)0)->mem)][KNAMELEN];	/* and write-combining */
 
 	Lock	irqlock;
 	Rendez	irqr;
@@ -256,7 +257,7 @@ ctlread(Gpu *g, void *a, long n, vlong off)
 		s = seprint(s, e, "bar%d %#llux %lld %s", i, p->mem[i].bar & ~0xFULL,
 			p->mem[i].size, g->barseg[i][0] ? g->barseg[i] : "-");
 		if(g->cachedseg[i][0])
-			s = seprint(s, e, " %s", g->cachedseg[i]);
+			s = seprint(s, e, " %s %s", g->cachedseg[i], g->wcseg[i]);
 		s = seprint(s, e, "\n");
 	}
 	if(g->fb != nil)
@@ -324,9 +325,12 @@ fballoc(Gpu *g, ulong size)
 }
 
 /*
- * a cached (write-back) segment for a memory bar, besides the
- * uncached one: only for memory that is RAM to the processor, such
- * as virtio-gpu's host visible memory (the driver knows, not #G)
+ * a cached (write-back) and a write-combining segment for a memory
+ * bar, besides the uncached one: only for memory that is RAM to the
+ * processor, such as virtio-gpu's host visible memory (the driver
+ * knows, not #G); the MTRRs make the bar write-back, so that the
+ * page attributes decide.  The driver tells its clients which part
+ * to map how (virtio-gpu: the host's map_info of each blob).
  */
 extern char *gpubarcache(uvlong, uvlong);	/* pc/vgagpu.c: the MTRRs */
 
@@ -345,7 +349,10 @@ barcached(Gpu *g, int i)
 		print("#G: bar%d write-back: %s\n", i, err);
 	snprint(g->cachedseg[i], KNAMELEN, "gpu%dbar%dc", g->id, i);
 	addseg(g->cachedseg[i], p->mem[i].bar & ~0xFULL, p->mem[i].size,
-		SG_PHYSICAL | SG_NOEXEC);
+		SG_PHYSICAL | SG_CACHED | SG_NOEXEC);
+	snprint(g->wcseg[i], KNAMELEN, "gpu%dbar%dw", g->id, i);
+	addseg(g->wcseg[i], p->mem[i].bar & ~0xFULL, p->mem[i].size,
+		SG_PHYSICAL | SG_WC | SG_NOEXEC);
 }
 
 static long

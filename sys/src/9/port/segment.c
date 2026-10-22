@@ -950,7 +950,7 @@ segattach(int attr, char *name, uintptr va, uintptr len)
 		error(Enovmem);
 
 	/* Turn off what is not allowed */
-	attr &= ~(SG_TYPE | SG_CACHED | SG_DEVICE);
+	attr &= ~(SG_TYPE | SG_CACHED | SG_DEVICE | SG_WC);
 
 	/* Copy in defaults */
 	attr |= ps->attr;

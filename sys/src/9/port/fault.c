@@ -289,6 +289,11 @@ mapphys(Segment *s, uintptr addr, int attr)
 		mmuphys |= PTEDEVICE;
 	else
 #endif
+#ifdef PTEWC
+	if((attr & SG_WC) != 0)
+		mmuphys |= PTEWC;
+	else
+#endif
 	if((attr & SG_CACHED) == 0)
 		mmuphys |= PTEUNCACHED;
 	else

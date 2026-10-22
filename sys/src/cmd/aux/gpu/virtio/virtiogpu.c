@@ -39,6 +39,12 @@ enum {
 
 	Shmhost = 1,		/* VIRTIO_GPU_SHM_ID_HOST_VISIBLE */
 
+	/* how the host maps a blob (RESOURCE_MAP_BLOB's map_info) */
+	Mapcachemask = 0x0f,
+	Mapcached = 1,
+	Mapuncached = 2,
+	Mapwc = 3,
+
 	/* common configuration (virtio 1.0 §4.1.4.3) */
 	Cdevfeatsel = 0,
 	Cdevfeat = 4,
@@ -229,7 +235,10 @@ static int irqfd = -1;
 
 static uchar *bar[6];
 static uvlong barsize[6];
-static char barseg[6][32];
+static char barseg[6][32];	/* uncached */
+static char barcseg[6][32];	/* write-back (bar N cached), else barseg */
+static char barwseg[6][32];	/* write-combining, else barseg */
+static char *mapseg(int);
 static Cap cap[Ncap];
 static Cap shm;			/* host visible memory */
 static uchar *common, *isr, *devcfg;
@@ -380,8 +389,9 @@ mapbar(int i)
 }
 
 /*
- * the size and segment of bar i for the clients, without mapping it;
- * the cached segment if #G has one (host visible memory is RAM)
+ * the size and segments of bar i for the clients, without mapping it:
+ * uncached, and write-back and write-combining if #G has them (host
+ * visible memory is RAM)
  */
 static void
 barinfo(int i)
@@ -395,7 +405,9 @@ barinfo(int i)
 	if((n = tokenize(s, f, nelem(f))) < 3 || strcmp(f[2], "-") == 0)
 		sysfatal("%s: %s is not a memory segment", gdir, key);
 	barsize[i] = strtoull(f[1], nil, 0);
-	snprint(barseg[i], sizeof barseg[i], "%s", n >= 4 ? f[3] : f[2]);
+	snprint(barseg[i], sizeof barseg[i], "%s", f[2]);
+	snprint(barcseg[i], sizeof barcseg[i], "%s", n >= 5 ? f[3] : f[2]);
+	snprint(barwseg[i], sizeof barwseg[i], "%s", n >= 5 ? f[4] : f[2]);
 }
 
 /* virtio capabilities from the pci configuration space */
@@ -1225,7 +1237,23 @@ blobmap(Ctx *c, int id)
 	r->mapinfo = GBIT32(rs+Hdrsz);
 Reply:
 	return ctxreply(c, "map %d %s %#llux %#llux %llud %#ux\n", id,
-		barseg[shm.bar], barsize[shm.bar], r->mapoff, r->size, r->mapinfo);
+		mapseg(r->mapinfo), barsize[shm.bar], r->mapoff, r->size, r->mapinfo);
+}
+
+/*
+ * the segment a client maps a blob through: as the host maps it
+ * (map_info), in the host visible bar
+ */
+static char*
+mapseg(int mapinfo)
+{
+	switch(mapinfo & Mapcachemask){
+	case Mapcached:
+		return barcseg[shm.bar];
+	case Mapwc:
+		return barwseg[shm.bar];
+	}
+	return barseg[shm.bar];
 }
 
 static char*

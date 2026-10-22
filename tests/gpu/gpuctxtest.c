@@ -261,14 +261,16 @@ venustest(void)
 		uchar *cb, *ub;
 		vlong t0, t1, t2;
 		ulong sum;
-		int res2;
+		int res2, n;
 
 		if((r2 = ctl(c.ctl, "blob 2 1 0 4194304")) != nil && tokenize(r2, g, nelem(g)) >= 3){
 			res2 = atoi(g[1]);
 			if((r2 = ctl(c.ctl, "map %d", res2)) != nil && tokenize(r2, g, nelem(g)) == 7){
 				off = strtoull(g[4], nil, 0);
 				snprint(ucseg, sizeof ucseg, "%s", g[2]);
-				ucseg[strlen(ucseg)-1] = 0;	/* gpu0bar4c -> gpu0bar4 */
+				n = strlen(ucseg);	/* gpu0bar4c, gpu0bar4w -> gpu0bar4 */
+				if(n > 0 && (ucseg[n-1] == 'c' || ucseg[n-1] == 'w'))
+					ucseg[n-1] = 0;
 				cb = segattach(0, g[2], nil, barsize);
 				ub = segattach(0, ucseg, nil, barsize);
 				if(cb != (uchar*)-1 && ub != (uchar*)-1){

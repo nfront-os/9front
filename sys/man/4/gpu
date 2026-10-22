@@ -150,6 +150,13 @@ bytes) and use
 .I size
 bytes at
 .IR offset .
+.I Info
+is how the host maps the memory (virtio-gpu's map_info: 1 cached, 2
+uncached, 3 write-combining), and
+.I seg
+the bar's segment of that kind
+.RI ( gpu (3)),
+so that the processor sees the memory as the host does.
 .TP
 .BI unmap " r
 .TP

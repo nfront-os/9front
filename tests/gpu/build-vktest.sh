@@ -22,6 +22,9 @@ for p in vktest vkdraw; do
 		-L"$BUILD/plan9" -lmesaplan9 -ldraw -l9 -lfmt -lutf
 done
 SDK=$BUILD/sdk
+"$CROSS/$TRIPLE-gcc" -std=gnu11 -O2 -Wall -I"$SDK/include" -c -o "$BUILD/vkspeed.o" "$HERE/vkspeed.c"
+"$CROSS/$TRIPLE-g++" -o "$HERE/root/tests/vkspeed" "$BUILD/vkspeed.o" \
+	-Wl,--gc-sections -L"$SDK/lib" -lvulkan -ldraw -l9 -lfmt -lutf
 for s in tri.vert tri.frag; do
 	glslc -O -mfmt=c -o "$BUILD/$s.inc" "$HERE/shaders/$s"
 done

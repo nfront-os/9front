@@ -84,9 +84,15 @@ struct plan9 {
    uint64_t fence;     /* last submission */
    uint64_t done;      /* done, with all before it */
 
-   /* host visible bar */
-   uint8_t *bar;
-   char bar_seg[32];
+   /*
+    * the host visible bar, through the segments the driver names for
+    * the blobs: one for each way the host maps them (cached,
+    * write-combining, uncached; gpu(4) map)
+    */
+   struct {
+      char name[32];
+      uint8_t *addr;
+   } bar_seg[3];
    uint64_t bar_size;
 
    struct virgl_renderer_capset_venus capset;
@@ -432,19 +438,26 @@ plan9_map_locked(struct plan9 *p9, uint32_t res_id, size_t size)
    if (plan9_fields(buf, f, 8) != 7 || strcmp(f[0], "map"))
       return NULL;
    const uint64_t off = strtoull(f[4], NULL, 0);
-   if (!p9->bar) {
-      snprintf(p9->bar_seg, sizeof(p9->bar_seg), "%s", f[2]);
+   unsigned i;
+   for (i = 0; i < ARRAY_SIZE(p9->bar_seg) && p9->bar_seg[i].addr; i++) {
+      if (strcmp(p9->bar_seg[i].name, f[2]) == 0)
+         break;
+   }
+   if (i == ARRAY_SIZE(p9->bar_seg))
+      return NULL;
+   if (!p9->bar_seg[i].addr) {
       p9->bar_size = strtoull(f[3], NULL, 0);
-      void *bar = segattach(0, p9->bar_seg, NULL, p9->bar_size);
+      void *bar = segattach(0, f[2], NULL, p9->bar_size);
       if (bar == (void *)-1) {
-         vn_log(p9->instance, "plan9: segattach %s failed", p9->bar_seg);
+         vn_log(p9->instance, "plan9: segattach %s failed", f[2]);
          return NULL;
       }
-      p9->bar = bar;
+      snprintf(p9->bar_seg[i].name, sizeof(p9->bar_seg[i].name), "%s", f[2]);
+      p9->bar_seg[i].addr = bar;
    }
    if (off + size > p9->bar_size)
       return NULL;
-   return p9->bar + off;
+   return p9->bar_seg[i].addr + off;
 }
 
 static void *
@@ -657,8 +670,10 @@ plan9_destroy(struct vn_renderer *renderer,
 
    if (p9->shmem_cache.initialized)
       vn_renderer_shmem_cache_fini(&p9->shmem_cache);
-   if (p9->bar)
-      segdetach(p9->bar);
+   for (unsigned i = 0; i < ARRAY_SIZE(p9->bar_seg); i++) {
+      if (p9->bar_seg[i].addr)
+         segdetach(p9->bar_seg[i].addr);
+   }
    if (p9->cmd)
       segdetach(p9->cmd);
    /* closing the files destroys the context */
