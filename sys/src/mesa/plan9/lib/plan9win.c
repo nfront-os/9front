@@ -3,8 +3,9 @@
  *
  * The draw(3) side of Mesa's plan9 WSI (include/plan9win.h): its own
  * connection to /dev/draw (initdisplay), the window by name (namedimage,
- * as a rio client finds its window), the pixels through one image of
- * the window's size (loadimage, draw, flushimage).
+ * as a rio client finds its window), the pixels loaded into the window
+ * (loadimage, flushimage), or through an image of their size and draw
+ * where the window's pixels are not 32-bit x8r8g8b8.
  */
 #include <u.h>
 #include <libc.h>
@@ -92,36 +93,50 @@ plan9win_size(const char *name, int *w, int *h)
 	return 0;
 }
 
+/* the pixels at the top left of r: whole if they fit as they are, else by rows */
+static int
+load(Image *i, Rectangle r, const void *pixels, int w, int stride)
+{
+	const uchar *p;
+	int y;
+
+	p = pixels;
+	if(stride == w*4 && Dx(r) == w)
+		return loadimage(i, r, (uchar*)p, stride*Dy(r));
+	for(y = r.min.y; y < r.max.y; y++, p += stride)
+		if(loadimage(i, Rect(r.min.x, y, r.max.x, y+1), (uchar*)p, Dx(r)*4) < 0)
+			return -1;
+	return 0;
+}
+
 int
 plan9win_put(const char *name, const void *pixels, int w, int h, int stride)
 {
 	Image *i;
 	Rectangle r;
-	const uchar *p;
-	int y;
 
 	lock(&lk);
 	if((i = window(name)) == nil)
 		goto Err;
-	if(buf == nil || Dx(buf->r) != w || Dy(buf->r) != h){
-		if(buf != nil)
-			freeimage(buf);
-		buf = allocimage(disp, Rect(0, 0, w, h), XRGB32, 0, DNofill);
-		if(buf == nil)
-			goto Err;
-	}
-	p = pixels;
-	if(stride == w*4){
-		if(loadimage(buf, buf->r, (uchar*)p, stride*h) < 0)
-			goto Err;
-	} else
-		for(y = 0; y < h; y++, p += stride)
-			if(loadimage(buf, Rect(0, y, w, y+1), (uchar*)p, w*4) < 0)
-				goto Err;
 	r = area(i);
 	r.max.x = r.min.x + w < r.max.x ? r.min.x + w : r.max.x;
 	r.max.y = r.min.y + h < r.max.y ? r.min.y + h : r.max.y;
-	draw(i, r, buf, nil, ZP);
+	if(i->chan == XRGB32 || i->chan == ARGB32){
+		/* straight into the window: no copy of our own */
+		if(load(i, r, pixels, w, stride) < 0)
+			goto Err;
+	}else{
+		if(buf == nil || Dx(buf->r) != w || Dy(buf->r) != h){
+			if(buf != nil)
+				freeimage(buf);
+			buf = allocimage(disp, Rect(0, 0, w, h), XRGB32, 0, DNofill);
+			if(buf == nil)
+				goto Err;
+		}
+		if(load(buf, buf->r, pixels, w, stride) < 0)
+			goto Err;
+		draw(i, r, buf, nil, ZP);
+	}
 	if(flushimage(disp, 1) < 0)
 		goto Err;
 	unlock(&lk);
