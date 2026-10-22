@@ -239,6 +239,8 @@ struct wsi_plan9_swapchain {
    void *pixels;  /* one frame, read once from the host visible buffer */
    VkExtent2D extent;
    VkResult status;  /* VK_SUBOPTIMAL_KHR once the window changed size */
+   bool scanout;     /* the frames go to the display directly */
+   int shown;        /* the image on the display, kept busy; -1 none */
    uint32_t next;
    struct wsi_plan9_image images[0];
 };
@@ -320,6 +322,26 @@ wsi_plan9_swapchain_queue_present(struct wsi_swapchain *wsi_chain,
    }
 
    /*
+    * The screen without rio: the buffer itself goes on the display
+    * (gpu(4) scanout), no copy; it stays busy until another one is
+    * shown.  If the driver cannot, copy from now on.
+    */
+   if (chain->scanout) {
+      VkDeviceMemory mem = image->base.blit.memory != VK_NULL_HANDLE ?
+                           image->base.blit.memory : image->base.memory;
+      if (wsi->plan9_scanout(chain->base.device, mem, chain->extent.width,
+                             chain->extent.height,
+                             image->base.row_pitches[0]) == VK_SUCCESS) {
+         if (chain->shown >= 0 && chain->shown != (int)image_index)
+            chain->images[chain->shown].busy = false;
+         chain->shown = image_index;
+         goto Shown;
+      }
+      chain->scanout = false;
+      chain->shown = -1;
+   }
+
+   /*
     * The host visible buffer can be write-combined on the host (venus:
     * the device's memory through a dma-buf) and is slow to read: read it
     * once, with streaming loads where there are any, then hand draw(3)
@@ -342,6 +364,7 @@ wsi_plan9_swapchain_queue_present(struct wsi_swapchain *wsi_chain,
    }
    image->busy = false;
 
+Shown:
    /* resized: tell the app, which makes a new swapchain */
    if (plan9win_size(chain->window_name, &w, &h) == 0 &&
        ((uint32_t)w != chain->extent.width || (uint32_t)h != chain->extent.height))
@@ -364,6 +387,9 @@ wsi_plan9_swapchain_destroy(struct wsi_swapchain *wsi_chain,
 {
    struct wsi_plan9_swapchain *chain = (struct wsi_plan9_swapchain *)wsi_chain;
 
+   /* the draw(3) screen back on the display before the buffers go */
+   if (chain->shown >= 0)
+      chain->base.wsi->plan9_scanout(chain->base.device, VK_NULL_HANDLE, 0, 0, 0);
    for (uint32_t i = 0; i < chain->base.image_count; i++) {
       if (chain->images[i].base.image != VK_NULL_HANDLE)
          wsi_destroy_image(&chain->base, &chain->images[i].base);
@@ -389,7 +415,17 @@ wsi_plan9_surface_create_swapchain(VkIcdSurfaceBase *icd_surface,
 
    assert(pCreateInfo->sType == VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR);
 
-   uint32_t num_images = MAX2(pCreateInfo->minImageCount, 2);
+   /* WSI_PLAN9_COPY=1: always through draw(3) (tests read it back there) */
+   const char *copy = getenv("WSI_PLAN9_COPY");
+   const bool scanout = wsi_device->plan9_scanout != NULL &&
+                        !(copy && atoi(copy)) &&
+                        plan9win_isscreen(surface->windowName);
+   /*
+    * With scanout one image more: the one on the display, busy until
+    * the next is shown.  Acquire must not wait for it: venus presents
+    * on a thread of its own that excludes acquire while it runs.
+    */
+   uint32_t num_images = MAX2(pCreateInfo->minImageCount, 2) + (scanout ? 1 : 0);
    size_t size = sizeof(*chain) + num_images * sizeof(chain->images[0]);
    chain = vk_zalloc(pAllocator, size, 8, VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);
    if (chain == NULL)
@@ -416,6 +452,8 @@ wsi_plan9_surface_create_swapchain(VkIcdSurfaceBase *icd_surface,
    chain->window_name = surface->windowName;
    chain->extent = pCreateInfo->imageExtent;
    chain->status = VK_SUCCESS;
+   chain->scanout = scanout;
+   chain->shown = -1;
 
    uint32_t image = 0;
    for (; image < chain->base.image_count; image++) {

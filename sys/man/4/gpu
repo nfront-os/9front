@@ -70,7 +70,9 @@ sets it.
 .TP
 .B status
 the device, its features, the queue, the mode, the framebuffer,
-the host visible memory and every context with its fences.
+the host visible memory, a context's resource on the display
+.RB ( scanout
+below) and every context with its fences.
 .TP
 .BI outputs/ conn /modes
 the modes, one
@@ -166,6 +168,22 @@ so that the processor sees the memory as the host does.
 .TP
 .BI detach " r
 unmap, release, attach to or detach from the context.
+.TP
+.BI scanout " r w h stride
+show host blob
+.I r
+on the display instead of the
+.IR draw (3)
+screen: linear x8r8g8b8 pixels,
+.I stride
+bytes a row,
+.IR w × h
+the mode's size; again for every new picture.
+.B "scanout 0" ,
+a mode change, releasing
+.I r
+or closing the context shows the screen again.
+One context at a time.
 .PD
 .PP
 Writing
@@ -251,6 +269,16 @@ copied into host visible memory and from there into the window through
 a
 .IR draw (3)
 connection of the driver's own.
+On the screen without
+.IR rio ,
+the host visible copy itself goes to the display
+.RB ( scanout ),
+no copy by the processor, one image more in the swapchain for the one
+shown; the
+.I draw
+screen is not drawn meanwhile.
+.B WSI_PLAN9_COPY=1
+in the environment always copies.
 The window's size is the surface's; when it changes, presents return
 .BR VK_ERROR_OUT_OF_DATE_KHR .
 .PP

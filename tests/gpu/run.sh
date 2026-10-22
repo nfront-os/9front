@@ -15,9 +15,11 @@
 # shaders by an ordinary Vulkan program, through the static loader);
 # Khronos' vulkaninfo and vkcube (60 frames, then the screen is read);
 # vkspeed: the processor reads cached host memory fast (gpu(3)'s
-# write-back segment), else every frame would crawl. Last, vkdraw in the
-# background and the host's display read through VNC: what reaches the
-# screen, not only the screen image in the guest.
+# write-back segment), else every frame would crawl. The checks
+# in the guest read the draw(3) screen, so those programs copy
+# (WSI_PLAN9_COPY=1). Last, vkdraw without it: its frames go to the
+# display directly (gpu(4) scanout); the host's display is read
+# through VNC.
 # usage: bash tests/gpu/run.sh   (amd64 only; needs a build)
 . "$(dirname "$0")/../lib.sh"
 HERE=$(cd "$(dirname "$0")" && pwd)
@@ -128,14 +130,16 @@ if [ -r /dev/dri/renderD128 ] && [ -w /dev/dri/renderD128 ] &&
 			'cat /dev/gpu/0/status' \
 			"test ! -x /tests/vktest || /tests/vktest" \
 			"bind -a '#i' /dev" \
-			"test ! -x /tests/vkdraw || /tests/vkdraw 3" \
-			"test ! -x /tests/vktri || /tests/vktri 2" \
+			"test ! -x /tests/vkdraw || WSI_PLAN9_COPY=1 /tests/vkdraw 3" \
+			"test ! -x /tests/vktri || WSI_PLAN9_COPY=1 /tests/vktri 2" \
 			"test ! -x /tests/vkspeed || /tests/vkspeed" \
 			"test ! -x /tests/vulkaninfo || /tests/vulkaninfo --summary" \
 			"test ! -x /tests/vulkaninfo || /tests/vulkaninfo | grep -c 'Surface type *= VK_PLAN9_surface'" \
-			"test ! -x /tests/vkcube || {/tests/vkcube --c 60 >/dev/null >[2=1]; /tests/screenpx 1270,790 640,400}" \
+			"test ! -x /tests/vkcube || {WSI_PLAN9_COPY=1 /tests/vkcube --c 60 >/dev/null >[2=1]; /tests/screenpx 1270,790 640,400}" \
+			"test ! -x /tests/vkdraw || {/tests/vkdraw 3 >/tmp/zc >[2=1]; grep frames /tmp/zc | sed 's/^ok/ok zero-copy:/'}" \
 			"test ! -x /tests/vkdraw || /tests/vkdraw 30 >/dev/null >[2=1] &" \
-			"sleep 8" > "$TMPD/console3d" 2>&1
+			"sleep 8" \
+			"grep '^scanout' /dev/gpu/0/status" > "$TMPD/console3d" 2>&1
 	}
 	check "boot with virtio-gpu-gl (virgl, venus), run gpuctxtest" boot3d
 	tr -d '\r' < "$TMPD/console3d" > "$TMPD/log3d"
@@ -160,6 +164,7 @@ if [ -r /dev/dri/renderD128 ] && [ -w /dev/dri/renderD128 ] &&
 		check "vkcube: clear colour at the edge" grep -q '^1270,790 333333' "$TMPD/log3d"
 		check "vkcube: the cube in the middle" bash -c "grep '^640,400 ' '$TMPD/log3d' | grep -vq '333333\$'"
 		cp "$TMPD/shot3d.png" "$HERE/screen-vk.png" 2>/dev/null
+		check "vkdraw's frames on the display without a copy (ctx scanout)" grep -q '^scanout ctx [0-9]* res [0-9]' "$TMPD/log3d"
 		check "display (host side, VNC): vkdraw's red square" grep -q '^200,450 ff0000' "$TMPD/shot3d.txt"
 		check "display (host side, VNC): vkdraw's green square" grep -q '^500,450 00ff00' "$TMPD/shot3d.txt"
 		check "display (host side, VNC): blue background" bash -c "grep -q '^900,100 000066' '$TMPD/shot3d.txt' && grep -q '^50,700 000066' '$TMPD/shot3d.txt'"

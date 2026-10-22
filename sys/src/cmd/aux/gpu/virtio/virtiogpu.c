@@ -260,6 +260,8 @@ static QLock cmdlock;		/* display state */
 static Mode disp;		/* what the host wants */
 static Mode cur;		/* what we have set */
 static int scanres;
+static Ctx *scanctx;		/* a client's blob is the scanout (ctx scanout) */
+static int scanblob;
 static uvlong fbpa;
 static ulong fbsize;
 static uchar edid[1024];
@@ -953,6 +955,8 @@ setmode(int w, int h)
 	PBIT32(p+4, id);
 	if(simplecmd(rq, Hdrsz+24) < 0)
 		return "SET_SCANOUT failed";
+	scanctx = nil;		/* a client's scanout is over */
+	scanblob = 0;
 	if(scanres != 0){
 		p = hdr(rq, Resunref);
 		PBIT32(p, scanres);
@@ -1274,6 +1278,86 @@ blobunmap(Res *r)
 }
 
 /* called with ctxlock held */
+/*
+ * scan out the draw screen again, after a client's blob; called with
+ * cmdlock held
+ */
+static void
+scanoutfb(void)
+{
+	uchar rq[Hdrsz+24], *p;
+
+	if(scanctx == nil)
+		return;
+	p = rect(hdr(rq, Setscanout), 0, 0, cur.w, cur.h);
+	PBIT32(p, 0);
+	PBIT32(p+4, scanres);
+	simplecmd(rq, sizeof rq);
+	scanctx = nil;
+	scanblob = 0;
+	flushrect(0, 0, cur.w, cur.h);
+}
+
+/*
+ * ctx scanout: a client's host blob (linear x8r8g8b8, the mode's
+ * size, stride bytes a row) becomes what the display shows, instead
+ * of the draw screen, until it says scanout 0 or goes; each scanout
+ * shows the blob as it is then (a swapchain present)
+ */
+static char*
+blobscanout(Ctx *c, int id, int w, int h, int stride)
+{
+	uchar rq[Hdrsz+72], *p;
+	Res *r;
+	char *e;
+
+	e = nil;
+	qlock(&cmdlock);
+	if(id == 0){
+		if(scanctx == c)
+			scanoutfb();
+		goto Out;
+	}
+	if(scanctx != nil && scanctx != c){
+		e = "scanout in use";
+		goto Out;
+	}
+	if((r = findres(c, id)) == nil || r->mem == Blobguest){
+		e = "not a host blob";
+		goto Out;
+	}
+	if(w != cur.w || h != cur.h){
+		e = "not the mode's size";
+		goto Out;
+	}
+	if(stride < w*4 || (uvlong)stride*h > r->size){
+		e = "bad stride";
+		goto Out;
+	}
+	p = rect(hdr(rq, Setscanoutblob), 0, 0, w, h);
+	PBIT32(p, 0);		/* scanout */
+	PBIT32(p+4, id);
+	PBIT32(p+8, w);
+	PBIT32(p+12, h);
+	PBIT32(p+16, Fmtbgrx);
+	PBIT32(p+20, 0);
+	memset(p+24, 0, 32);
+	PBIT32(p+24, stride);	/* strides[0]; offsets all 0 */
+	if(simplecmd(rq, sizeof rq) < 0){
+		e = "SET_SCANOUT_BLOB failed";
+		goto Out;
+	}
+	scanctx = c;
+	scanblob = id;
+	p = rect(hdr(rq, Resflush), 0, 0, w, h);
+	PBIT32(p, id);
+	PBIT32(p+4, 0);
+	simplecmd(rq, Hdrsz+24);
+Out:
+	qunlock(&cmdlock);
+	return e;
+}
+
 static char*
 resunref(Ctx *c, int id)
 {
@@ -1286,6 +1370,11 @@ resunref(Ctx *c, int id)
 			break;
 	if(r == nil)
 		return "unknown resource";
+	if(scanctx == c && scanblob == id){
+		qlock(&cmdlock);
+		scanoutfb();
+		qunlock(&cmdlock);
+	}
 	if((e = blobunmap(r)) != nil)
 		return e;
 	p = hdr(rq, Resunref);
@@ -1447,6 +1536,10 @@ freectx(Ctx *c)
 	while(c->donefence < c->nfence)	/* all of them, on every ring */
 		rsleep(&qr);
 	qunlock(&qlk);
+	qlock(&cmdlock);
+	if(scanctx == c)
+		scanoutfb();
+	qunlock(&cmdlock);
 	while(c->res != nil)
 		resunref(c, c->res->id);
 	if(c->inited){
@@ -1487,6 +1580,11 @@ statusstr(void)
 		qsize, nslot, irqfd >= 0 ? "on" : "poll", disp.w, disp.h, cur.w, cur.h, scanres, fbpa, fbsize);
 	if(shm.len != 0){
 		t = smprint("%shostmem %s %#llux %#llux\n", s, barseg[shm.bar], shm.off, shm.len);
+		free(s);
+		s = t;
+	}
+	if(scanctx != nil){
+		t = smprint("%sscanout ctx %d res %d\n", s, scanctx->id, scanblob);
 		free(s);
 		s = t;
 	}
@@ -1675,6 +1773,10 @@ ctxctl(Ctx *c, char **f, int n)
 	}
 	if(n == 2 && strcmp(f[0], "unref") == 0)
 		return resunref(c, atoi(f[1]));
+	if(n == 2 && strcmp(f[0], "scanout") == 0 && atoi(f[1]) == 0)
+		return blobscanout(c, 0, 0, 0, 0);
+	if(n == 5 && strcmp(f[0], "scanout") == 0)
+		return blobscanout(c, atoi(f[1]), atoi(f[2]), atoi(f[3]), atoi(f[4]));
 	if(n == 2 && (strcmp(f[0], "attach") == 0 || strcmp(f[0], "detach") == 0)){
 		i = atoi(f[1]);
 		if(findres(c, i) == nil)

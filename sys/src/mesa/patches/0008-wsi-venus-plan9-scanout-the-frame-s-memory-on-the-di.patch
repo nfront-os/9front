@@ -1,0 +1,103 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: port <port@localhost>
+Date: Thu, 22 Oct 2026 15:28:36 +0200
+Subject: [PATCH] wsi, venus: plan9 scanout (the frame's memory on the display,
+ gpu(4) ctx scanout)
+
+---
+ src/virtio/vulkan/vn_renderer.h |  8 ++++++++
+ src/virtio/vulkan/vn_wsi.c      | 28 ++++++++++++++++++++++++++++
+ src/vulkan/wsi/wsi_common.h     |  8 ++++++++
+ 3 files changed, 44 insertions(+)
+
+diff --git a/src/virtio/vulkan/vn_renderer.h b/src/virtio/vulkan/vn_renderer.h
+index c0fea7f..0cb4888 100644
+--- a/src/virtio/vulkan/vn_renderer.h
++++ b/src/virtio/vulkan/vn_renderer.h
+@@ -230,6 +230,14 @@ VkResult
+ vn_renderer_create_plan9(struct vn_instance *instance,
+                          const VkAllocationCallbacks *alloc,
+                          struct vn_renderer **renderer);
++
++/* resource res_id on the display (0: the draw screen again; gpu(4)) */
++VkResult
++vn_renderer_plan9_scanout(struct vn_renderer *renderer,
++                          uint32_t res_id,
++                          uint32_t width,
++                          uint32_t height,
++                          uint32_t stride);
+ #endif
+ 
+ static inline VkResult
+diff --git a/src/virtio/vulkan/vn_wsi.c b/src/virtio/vulkan/vn_wsi.c
+index e73ab48..97f4ad3 100644
+--- a/src/virtio/vulkan/vn_wsi.c
++++ b/src/virtio/vulkan/vn_wsi.c
+@@ -14,6 +14,8 @@
+ #include "wsi_common_entrypoints.h"
+ 
+ #include "vn_device.h"
++#include "vn_device_memory.h"
++#include "vn_renderer.h"
+ #include "vn_image.h"
+ #include "vn_instance.h"
+ #include "vn_physical_device.h"
+@@ -128,6 +130,29 @@ vn_wsi_proc_addr(VkPhysicalDevice physicalDevice, const char *pName)
+       &physical_dev->instance->base.vk, pName);
+ }
+ 
++#if DETECT_OS_PLAN9
++/* the memory's blob on the display (wsi_device::plan9_scanout) */
++static VkResult
++vn_wsi_plan9_scanout(VkDevice device,
++                     VkDeviceMemory memory,
++                     uint32_t width,
++                     uint32_t height,
++                     uint32_t stride)
++{
++   struct vn_device *dev = vn_device_from_handle(device);
++   struct vn_device_memory *mem = vn_device_memory_from_handle(memory);
++   uint32_t res_id = 0;
++
++   if (mem) {
++      if (!mem->base_bo)
++         return VK_ERROR_FEATURE_NOT_PRESENT;
++      res_id = mem->base_bo->res_id;
++   }
++   return vn_renderer_plan9_scanout(dev->renderer, res_id, width, height,
++                                    stride);
++}
++#endif
++
+ VkResult
+ vn_wsi_init(struct vn_physical_device *physical_dev)
+ {
+@@ -187,6 +212,9 @@ vn_wsi_init(struct vn_physical_device *physical_dev)
+       return result;
+ 
+    physical_dev->wsi_device.supports_scanout = false;
++#if DETECT_OS_PLAN9
++   physical_dev->wsi_device.plan9_scanout = vn_wsi_plan9_scanout;
++#endif
+    physical_dev->wsi_device.supports_modifiers =
+       physical_dev->base.vk.supported_extensions.EXT_image_drm_format_modifier;
+    physical_dev->base.vk.wsi_device = &physical_dev->wsi_device;
+diff --git a/src/vulkan/wsi/wsi_common.h b/src/vulkan/wsi/wsi_common.h
+index 361e8db..77adc64 100644
+--- a/src/vulkan/wsi/wsi_common.h
++++ b/src/vulkan/wsi/wsi_common.h
+@@ -200,6 +200,14 @@ struct wsi_device {
+     */
+    struct vk_queue *(*get_blit_queue)(VkDevice device);
+ 
++   /* 9front: show memory (linear x8r8g8b8 pixels, stride bytes a row,
++    * the display's size) on the display instead of copying it to the
++    * window; VK_NULL_HANDLE shows the draw(3) screen again.  NULL when
++    * the driver cannot (gpu(4) ctx scanout).
++    */
++   VkResult (*plan9_scanout)(VkDevice device, VkDeviceMemory memory,
++                             uint32_t width, uint32_t height, uint32_t stride);
++
+ #define WSI_CB(cb) PFN_vk##cb cb
+    WSI_CB(AllocateMemory);
+    WSI_CB(AllocateCommandBuffers);

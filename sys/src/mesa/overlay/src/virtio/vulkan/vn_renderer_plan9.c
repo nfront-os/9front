@@ -662,6 +662,26 @@ plan9_init_renderer_info(struct plan9 *p9)
    info->max_timeline_count = PLAN9_MAX_RINGS - 1;
 }
 
+VkResult
+vn_renderer_plan9_scanout(struct vn_renderer *renderer,
+                          uint32_t res_id,
+                          uint32_t width,
+                          uint32_t height,
+                          uint32_t stride)
+{
+   struct plan9 *p9 = (struct plan9 *)renderer;
+   bool ok;
+
+   mtx_lock(&p9->mutex);
+   if (res_id)
+      ok = plan9_ctl(p9, NULL, 0, "scanout %u %u %u %u", res_id, width,
+                     height, stride);
+   else
+      ok = plan9_ctl(p9, NULL, 0, "scanout 0");
+   mtx_unlock(&p9->mutex);
+   return ok ? VK_SUCCESS : VK_ERROR_FEATURE_NOT_PRESENT;
+}
+
 static void
 plan9_destroy(struct vn_renderer *renderer,
               const VkAllocationCallbacks *alloc)

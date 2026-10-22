@@ -14,6 +14,10 @@ extern "C" {
 /* the size of the window's drawable area; -1 if there is none */
 extern int plan9win_size(const char *name, int *w, int *h);
 
+/* 1 if the window is the screen itself (no rio): nobody else's
+ * windows on it, the frames can go to the display directly */
+extern int plan9win_isscreen(const char *name);
+
 /* copy w×h pixels (B,G,R,X bytes, rows stride bytes apart) to the
  * window's drawable area, clipped; -1 on error */
 extern int plan9win_put(const char *name, const void *pixels, int w, int h, int stride);

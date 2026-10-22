@@ -93,6 +93,20 @@ plan9win_size(const char *name, int *w, int *h)
 	return 0;
 }
 
+int
+plan9win_isscreen(const char *name)
+{
+	Image *i;
+	int r;
+
+	lock(&lk);
+	r = 0;
+	if((i = window(name)) != nil)
+		r = i == disp->image || strncmp(curname, "noborder.screen.", 16) == 0;
+	unlock(&lk);
+	return r;
+}
+
 /* the pixels at the top left of r: whole if they fit as they are, else by rows */
 static int
 load(Image *i, Rectangle r, const void *pixels, int w, int stride)
