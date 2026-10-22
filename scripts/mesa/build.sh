@@ -13,26 +13,12 @@ export PATH=$VENV/bin:$PATH
 mkdir -p "$BUILD/plan9"
 P9=$MESA/plan9
 
-# gcc without -pthread (meson adds it; the toolchain's compat has the pthreads)
-for t in gcc g++; do
-	cat > "$BUILD/plan9/$t" <<EOW
-#!/bin/sh
-for a do
-	shift
-	[ "\$a" = -pthread ] && continue
-	set -- "\$@" "\$a"
-done
-exec $CROSS/$TRIPLE-$t "\$@"
-EOW
-	chmod +x "$BUILD/plan9/$t"
-done
-
 # the platform library
-flags="-include $P9/include/mesa_plan9.h -I$P9/include -D_REENTRANT_SOURCE -D_LIMITS_EXTENSION"
+flags="-I$P9/include"
 objs=
 for c in "$P9"/lib/*.c; do
 	o=$BUILD/plan9/$(basename "$c" .c).o
-	"$BUILD/plan9/gcc" -std=c11 -O2 -Wall $flags -c -o "$o" "$c"
+	"$CROSS/$TRIPLE-gcc" -std=c11 -O2 -Wall $flags -c -o "$o" "$c"
 	objs="$objs $o"
 done
 rm -f "$BUILD/plan9/libmesaplan9.a"
@@ -43,12 +29,12 @@ q(){ printf "'%s', " "$@"; }
 # VkBaseInStructure; with gcc 16's inlining the venus encoder read a
 # struct before its initialisation (vkGetDeviceQueue2: 64 bytes sized,
 # 80 encoded, vn_cs.h assertion)
-args="$(q -include "$P9/include/mesa_plan9.h" "-I$P9/include" -D_REENTRANT_SOURCE -D_LIMITS_EXTENSION -DHAVE_ENDIAN_H -DNO_REGEX -fno-strict-aliasing)"
+args="$(q "-I$P9/include" -DHAVE_ENDIAN_H -DNO_REGEX -fno-strict-aliasing)"
 links="$(q "-L$BUILD/plan9" -lmesaplan9)"
 cat > "$BUILD/cross.ini" <<EOC
 [binaries]
-c = '$BUILD/plan9/gcc'
-cpp = '$BUILD/plan9/g++'
+c = '$CROSS/$TRIPLE-gcc'
+cpp = '$CROSS/$TRIPLE-g++'
 ar = '$CROSS/$TRIPLE-ar'
 strip = '$CROSS/$TRIPLE-strip'
 pkg-config = 'false'
