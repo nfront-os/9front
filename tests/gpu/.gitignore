@@ -1,0 +1,6 @@
+root/
+*.o
+*.d
+*.weak
+console.log
+screen.png

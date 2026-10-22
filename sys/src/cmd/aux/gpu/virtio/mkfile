@@ -1,0 +1,8 @@
+</$objtype/mkfile
+
+BIN=/$objtype/bin/aux
+
+TARG=virtiogpu
+OFILES=virtiogpu.$O
+
+</sys/src/cmd/mkone

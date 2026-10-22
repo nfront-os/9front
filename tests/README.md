@@ -38,6 +38,7 @@ file system of the guest: in `PATH` or `~/go/bin/ufs`).
 | `boot` | boot to the console rc (cpu service), run commands | a build, QEMU | ~1 min |
 | `pmc` | performance counters (`#ε`, pmc(3), pmc(2)): `tests/pmc/pmctest.c` wired to cpu1 on 4 CPUs (counts over a loop, user/os filters, RDPMC or `PMEVCNTR0_EL0` in user mode, another core's counter, two readers at once, `#ε/core`); x86 boots with `PMU=1` (KVM's virtual counters), then without (no counters); arm64 (TCG) has PMUv3 (`cycles` only) | a build, QEMU | ~2 min |
 | `hw` | the hardware test stick (`tests/hw/README.md`) in QEMU: boots from a USB stick on xHCI, runs its configurations with resets, logs `HANG` after a power-off, logs read back from its 9fat | a build, boot loaders, QEMU | minutes |
+| `gpu` | user-space GPU driver PoC on QEMU's virtio-gpu (`-vga none`): `#G`, vga type `gpu`, `aux/virtiogpu`, `/dev/gpu/0`, mode switch, drawing checked in the screen dump (amd64 only) | a build, QEMU | ~1 min |
 | `gui` | terminal boot: VESA via aux/realemu, rio, typing into a window | a build, QEMU | ~1 min |
 | `disk` | install image with hjfs (`scripts/guest/mkdisk.sh`, amd64 only, as 9front's dist mkfile), booted on its own | a build, boot loaders | minutes |
 | `iso` | install/live CD (`scripts/guest/mkiso.sh`) booted as CD and as USB stick, BIOS and UEFI, up to rio, then typing into rio | a build, boot loaders, OVMF | minutes |

@@ -1,0 +1,32 @@
+</$objtype/mkfile
+
+DIRS=\
+	virtio\
+
+all:V:	$DIRS
+
+$DIRS:V:
+	for (i in $DIRS) @{
+		echo mk $i
+		cd $i
+		mk all
+	}
+
+install:V:
+	for (i in $DIRS) @{
+		echo mk $i
+		cd $i
+		mk install
+	}
+
+clean:V:
+	for (i in $DIRS) @{
+		cd $i
+		mk clean
+	}
+
+nuke:V:
+	for (i in $DIRS) @{
+		cd $i
+		mk nuke
+	}

@@ -31,7 +31,7 @@
 #
 # usage: tests/run.sh [category...]     (default: all, in the order above)
 cd "$(dirname "$0")"
-cats=${*:-static asm syscall build guest boot pmc gui disk iso rio usb gcc go hw}
+cats=${*:-static asm syscall build guest boot pmc gpu gui disk iso rio usb gcc go hw}
 failed=()
 for c in $cats; do
 	[ -x "$c/run.sh" ] || { echo "unknown category $c"; exit 2; }
