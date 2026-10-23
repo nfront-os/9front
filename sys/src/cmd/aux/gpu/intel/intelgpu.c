@@ -55,6 +55,44 @@ enum {
 
 	Forcewakemt	= 0xA188,
 	Forcewakeack	= 0x130044,
+	Fwrange		= 0x40000,	/* gen 8: the GT's registers below need forcewake (intel_uncore.c) */
+	Fwidle		= 5,		/* ms without an access: forcewake off, the GT may sleep (RC6) */
+
+	/* RC6 and RPS (i915's gen8_enable_rps, gen6_set_rps; intel_pm.c) */
+	Rcstate		= 0xA094,	/* GEN6_RC_STATE */
+	Rccontrol	= 0xA090,	/* GEN6_RC_CONTROL */
+	Rcctlrc6	= 1<<18,
+	Rcctlto		= 1<<28,	/* GEN7_RC_CTL_TO_MODE */
+	Rcctlhw		= 1<<31,
+	Rc6wakerate	= 0xA09C,
+	Rcevalint	= 0xA0A8,
+	Rcidlehyst	= 0xA0AC,
+	Rcsleep		= 0xA0B0,
+	Rc6threshold	= 0xA0B8,
+	Rmaxidle	= 0x54,		/* RING_MAX_IDLE, from the engine's base */
+	Rpnswreq	= 0xA008,	/* the frequency asked for: HSW_FREQUENCY(x) = x<<24 */
+	Rcvideofreq	= 0xA00C,
+	Rpdowntimeout	= 0xA010,
+	Rpintlimits	= 0xA014,
+	Rpstat1		= 0xA01C,	/* actual frequency: bits 13:7 (HSW_CAGF), 50 MHz units */
+	Rpcontrol	= 0xA024,
+	Rpctlbits	= 1<<11 | 2<<9 | 1<<8 | 1<<7 | 2<<3 | 2<<0,	/* media turbo, hw normal mode, media is gfx, enable, up busy avg, down idle avg */
+	Rpupthreshold	= 0xA02C,
+	Rpdownthreshold	= 0xA030,
+	Rpupei		= 0xA068,
+	Rpdownei	= 0xA06C,
+	Rpidlehyst	= 0xA070,
+	Rpstatecap	= 0x145998,	/* RP0 7:0, RP1 15:8, RPn 23:16 (MCHBAR mirror) */
+	Pmintrmsk	= 0xA168,
+	Pmredirect	= 1<<31,	/* GEN8_PMINTR_REDIRECT_TO_NON_DISP */
+	Pmdowntimeout	= 1<<6,
+	Pmupthreshold	= 1<<5,
+	Pmdownthreshold	= 1<<4,
+	Pmupeiexpired	= 1<<2,
+	Pmdowneiexpired	= 1<<1,
+	Pmrpsevents	= Pmupthreshold | Pmdownthreshold | Pmdowntimeout,
+	Gtisr2		= 0x44320,	/* bank 2: PM; IMR +4, IIR +8, IER +0xC */
+	Rc6residency	= 0x138108,	/* GEN6_GT_GFX_RC6, 1.28 µs units */
 	Gfxflshcntl	= 0x101008,	/* GTT writes visible */
 	Ppatlo		= 0x40E0,	/* GEN8_PRIVATE_PAT_LO, _HI */
 	Ppathi		= 0x40E4,
@@ -325,6 +363,23 @@ struct Hole {
 static char *gdir = "#G/0";
 static int debug, poll, uncached, global;
 static int noclockgating, norcsinit;	/* -C, -R: to find what hangs a machine */
+static int nopm;		/* -P: no RC6, no RPS, forcewake held */
+
+/* forcewake taken on demand */
+static Lock fwlk;
+static int fwheld;
+static vlong fwlast;
+
+/* RPS: frequencies in 50 MHz units (i915's rps) */
+enum { Lowpower, Between, Highpower };
+static struct {
+	int	on;
+	int	rp0, rp1, min, max, efficient, idle;
+	int	minsoft, maxsoft;
+	int	cur, power, lastadj;
+	u32int	pmimr;		/* GEN8_GT_IMR(2) */
+	vlong	busy;		/* last seen busy */
+} rps;
 static int legacy32;		/* -3: 32-bit address spaces (three levels) */
 static u32int *ptpool;		/* Ptpages pages */
 static uvlong ptpa;
@@ -404,16 +459,52 @@ static ulong nirq;
 
 #define DBG	if(debug) fprint
 
+static int forcewake(void);
+static void rpswork(u32int);
+static void rpsidle(void);
+
+/*
+ * MMIO; the GT's registers (below Fwrange) with forcewake, taken on
+ * demand and dropped Fwidle ms after the last access (fwproc), as
+ * i915's intel_uncore.c does: held, the GT never sleeps (RC6). The
+ * access is made under fwlk, so the release cannot come between.
+ */
+static void
+fwon(void)
+{
+	if(!fwheld){
+		if(forcewake() < 0)
+			fprint(2, "intelgpu: forcewake: no ack\n");
+		fwheld = 1;
+	}
+	fwlast = nsec();
+}
+
 static u32int
 rd(ulong r)
 {
-	return ((volatile u32int*)mmio)[r/4];
+	u32int v;
+
+	if(r >= Fwrange)
+		return ((volatile u32int*)mmio)[r/4];
+	lock(&fwlk);
+	fwon();
+	v = ((volatile u32int*)mmio)[r/4];
+	unlock(&fwlk);
+	return v;
 }
 
 static void
 wr(ulong r, u32int v)
 {
+	if(r >= Fwrange){
+		((volatile u32int*)mmio)[r/4] = v;
+		return;
+	}
+	lock(&fwlk);
+	fwon();
 	((volatile u32int*)mmio)[r/4] = v;
+	unlock(&fwlk);
 }
 
 static u32int
@@ -903,18 +994,32 @@ ppatinit(void)
 	DBG(2, "ppat %#.8ux %#.8ux\n", rd(Ppathi), rd(Ppatlo));
 }
 
+/* the kernel's forcewake bit, and its ack (no sleep: under fwlk) */
 static int
 forcewake(void)
 {
-	int i;
+	vlong t;
 
-	wr(Forcewakemt, masked(1, 1));
-	for(i = 0; i < 500; i++){
-		if(rd(Forcewakeack) & 1)
+	((volatile u32int*)mmio)[Forcewakemt/4] = masked(1, 1);
+	for(t = nsec(); nsec() - t < 50*1000000LL; )
+		if(((volatile u32int*)mmio)[Forcewakeack/4] & 1)
 			return 0;
-		sleep(1);
-	}
 	return -1;
+}
+
+/* forcewake off once nothing used it for Fwidle ms */
+static void
+fwproc(void)
+{
+	for(;;){
+		sleep(Fwidle);
+		lock(&fwlk);
+		if(fwheld && !nopm && nsec() - fwlast > Fwidle*1000000LL){
+			((volatile u32int*)mmio)[Forcewakemt/4] = masked(1, 0);
+			fwheld = 0;
+		}
+		unlock(&fwlk);
+	}
 }
 
 /*
@@ -1365,6 +1470,9 @@ irqinit(void)
 	wr(Gtisr0+8, ~0);		/* IIR */
 	wr(Gtisr0+0xC, mask);		/* IER */
 	wr(Gtisr0+4, ~mask);		/* IMR */
+	wr(Gtisr2+8, ~0);		/* PM: the RPS events */
+	wr(Gtisr2+0xC, rps.on ? Pmrpsevents : 0);
+	wr(Gtisr2+4, rps.on ? rps.pmimr : ~0);
 	wr(Masterirq, Mastercontrol);
 }
 
@@ -1403,22 +1511,27 @@ static void
 irqproc(void)
 {
 	char buf[32];
-	u32int iir;
+	u32int iir, pm;
 	int i;
 
 	for(;;){
+		pm = 0;
 		if(irqfd >= 0){
 			if(read(irqfd, buf, sizeof buf) <= 0)
 				sysfatal("read irq: %r");
 			wr(Masterirq, 0);
 			iir = rd(Gtisr0+8);
 			wr(Gtisr0+8, iir);
+			pm = rd(Gtisr2+8);
+			if(pm != 0)
+				wr(Gtisr2+8, pm);
 			wr(Masterirq, Mastercontrol);
 			fprint(gctlfd, "irq ack");
 		}else
 			sleep(1);
 		qlock(&lk);
 		nirq++;
+		rpswork(pm);
 		for(i = 0; i < nelem(eng); i++)
 			csb(&eng[i]);
 		reap();
@@ -1435,13 +1548,18 @@ static void
 tickproc(void)
 {
 	Engine *e;
-	int i;
+	int i, busy;
 
 	for(;;){
 		sleep(100);
 		qlock(&lk);
+		busy = 0;
 		for(i = 0; i < nelem(eng); i++){
 			e = &eng[i];
+			/* idle engines are left alone: a register read wakes the GT */
+			if(e->running == nil && e->queue == nil)
+				continue;
+			busy = 1;
 			csb(e);
 			if(e->running != nil && nsec() - e->since > (vlong)Timeout*1000000){
 				fprint(2, "%s: %s hung in context %d: head %#ux acthd %#ux ipehr %#ux eir %#ux execlist %#ux"
@@ -1454,6 +1572,10 @@ tickproc(void)
 				kick(e);
 			}
 		}
+		if(busy)
+			rps.busy = nsec();
+		else if(nsec() - rps.busy > 100*1000000LL)
+			rpsidle();
 		reap();
 		rwakeupall(&done);
 		qunlock(&lk);
@@ -1972,8 +2094,12 @@ statusstr(void)
 	for(i = 0; i < nelem(rcswa); i++)
 		if((rd(rcswa[i].reg) & rcswa[i].val>>16) == (rcswa[i].val & 0xFFFF))
 			n++;
-	t = smprint("%srcs workarounds %d/%d\nsseu slices %#x subslices %#x eus %d\n", s, n, nelem(rcswa),
-		sslices, ssubslices, seus);
+	t = smprint("%srcs workarounds %d/%d\nsseu slices %#x subslices %#x eus %d\n"
+		"power rc6 %s %llud ms, %d MHz (asked %d, min %d, rp1 %d, max %d)%s\n", s, n, nelem(rcswa),
+		sslices, ssubslices, seus,
+		rps.on ? "on" : "off", (uvlong)rd(Rc6residency)*128/100000,
+		(rd(Rpstat1)>>7 & 0x7F)*50, rps.cur*50, rps.min*50, rps.rp1*50, rps.max*50,
+		fwheld ? ", forcewake" : "");
 	free(s);
 	s = t;
 	nfree = 0;
@@ -2449,6 +2575,189 @@ sseuinit(void)
 	}
 }
 
+/*
+ * RC6 and RPS, as i915's gen8_enable_rps, gen6_set_rps and
+ * gen6_pm_rps_work (intel_pm.c, i915_irq.c, v4.4) have them on
+ * Broadwell: the GT sleeps when idle (RC6, timeout mode, 800 µs),
+ * and the frequency follows the load: the GT says when it was busy
+ * above or below a threshold over an interval (PM interrupts), the
+ * driver steps the frequency it asks for, doubling the step while
+ * the load stays on one side.
+ */
+static int
+gtinterval(int us)	/* GT_INTERVAL_FROM_US, gen 8: 1.28 µs units */
+{
+	return us*100 >> 7;
+}
+
+static u32int
+rpslimits(int val)
+{
+	u32int l;
+
+	l = rps.maxsoft << 24;
+	if(val <= rps.minsoft)
+		l |= rps.minsoft << 16;
+	return l;
+}
+
+/* the PM interrupts to mask at val (gen6_rps_pm_mask, sanitized for gen 8) */
+static u32int
+rpspmmask(int val)
+{
+	u32int m;
+
+	m = 0;
+	if(val > rps.minsoft)
+		m |= Pmdowneiexpired | Pmdownthreshold | Pmdowntimeout;
+	if(val < rps.maxsoft)
+		m |= Pmupeiexpired | Pmupthreshold;
+	m &= Pmrpsevents;
+	return ~m & ~Pmredirect;
+}
+
+static void
+rpsthresholds(int val)
+{
+	int power, up, down, eiup, eidown;
+
+	power = rps.power;
+	switch(rps.power){
+	case Lowpower:
+		if(val > rps.efficient + 1 && val > rps.cur)
+			power = Between;
+		break;
+	case Between:
+		if(val <= rps.efficient && val < rps.cur)
+			power = Lowpower;
+		else if(val >= rps.rp0 && val > rps.cur)
+			power = Highpower;
+		break;
+	case Highpower:
+		if(val < (rps.rp1 + rps.rp0) >> 1 && val < rps.cur)
+			power = Between;
+		break;
+	}
+	if(val <= rps.minsoft)
+		power = Lowpower;
+	if(val >= rps.maxsoft)
+		power = Highpower;
+	if(power == rps.power)
+		return;
+	switch(power){
+	case Lowpower:	eiup = 16000; up = 95; eidown = 32000; down = 85; break;
+	case Between:	eiup = 13000; up = 90; eidown = 32000; down = 75; break;
+	default:	eiup = 10000; up = 85; eidown = 32000; down = 60; break;
+	}
+	wr(Rpupei, gtinterval(eiup));
+	wr(Rpupthreshold, gtinterval(eiup*up/100));
+	wr(Rpdownei, gtinterval(eidown));
+	wr(Rpdownthreshold, gtinterval(eidown*down/100));
+	wr(Rpcontrol, Rpctlbits);
+	rps.power = power;
+	rps.lastadj = 0;
+}
+
+static void
+rpsset(int val)
+{
+	if(val != rps.cur){
+		rpsthresholds(val);
+		wr(Rpnswreq, val << 24);	/* HSW_FREQUENCY */
+	}
+	wr(Rpintlimits, rpslimits(val));
+	wr(Pmintrmsk, rpspmmask(val));
+	rd(Rpnswreq);
+	rps.cur = val;
+}
+
+/* the PM interrupts that came (gen6_pm_rps_work); with lk */
+static void
+rpswork(u32int pm)
+{
+	int val, adj;
+
+	if(!rps.on || (pm & Pmrpsevents) == 0)
+		return;
+	adj = rps.lastadj;
+	val = rps.cur;
+	if(pm & Pmupthreshold){
+		adj = adj > 0 ? adj*2 : 1;
+		if(val < rps.efficient - adj){	/* below RPe: straight there */
+			val = rps.efficient;
+			adj = 0;
+		}
+	}else if(pm & Pmdowntimeout){
+		val = rps.cur > rps.efficient ? rps.efficient : rps.minsoft;
+		adj = 0;
+	}else if(pm & Pmdownthreshold)
+		adj = adj < 0 ? adj*2 : -1;
+	else
+		adj = 0;
+	rps.lastadj = adj;
+	val += adj;
+	if(val < rps.minsoft)
+		val = rps.minsoft;
+	if(val > rps.maxsoft)
+		val = rps.maxsoft;
+	rpsset(val);
+}
+
+/* the GPU went idle: the idle frequency (gen6_rps_idle); with lk */
+static void
+rpsidle(void)
+{
+	if(rps.on && rps.cur > rps.idle)
+		rpsset(rps.idle);
+	rps.lastadj = 0;
+}
+
+static void
+rpsinit(void)
+{
+	u32int cap;
+	int i;
+
+	wr(Rcstate, 0);			/* software RC state: RC0 */
+	wr(Rccontrol, 0);		/* RC states off while programming */
+
+	cap = rd(Rpstatecap);
+	rps.rp0 = cap & 0xFF;
+	rps.rp1 = cap>>8 & 0xFF;
+	rps.min = cap>>16 & 0xFF;
+	rps.max = rps.rp0;
+	rps.efficient = rps.rp1;
+	rps.idle = rps.min;
+	rps.maxsoft = rps.max;
+	rps.minsoft = rps.min;
+
+	wr(Rc6wakerate, 40<<16);
+	wr(Rcevalint, 125000);		/* 12500 * 1280 ns */
+	wr(Rcidlehyst, 25);		/* 25 * 1280 ns */
+	for(i = 0; i < nelem(eng); i++)
+		wr(eng[i].base + Rmaxidle, 10);
+	wr(Rcsleep, 0);
+	wr(Rc6threshold, 625);		/* 800 µs / 1.28, timeout mode */
+	wr(Rccontrol, Rcctlhw | Rcctlto | Rcctlrc6);
+
+	wr(Rpnswreq, rps.rp1 << 24);
+	wr(Rcvideofreq, rps.rp1 << 24);
+	wr(Rpdowntimeout, 100000000/128);	/* 1 s */
+	wr(Rpintlimits, rps.maxsoft << 24 | rps.minsoft << 16);
+	wr(Rpupthreshold, 7600000/128);
+	wr(Rpdownthreshold, 31300000/128);
+	wr(Rpupei, 66000);
+	wr(Rpdownei, 350000);
+	wr(Rpidlehyst, 10);
+	wr(Rpcontrol, Rpctlbits);
+
+	rps.power = Highpower;		/* forces the thresholds' programming */
+	rps.cur = 0;
+	rps.on = 1;
+	rpsset(rps.idle);
+	rps.pmimr = ~Pmrpsevents;
+}
+
 /* the GT part of i915's broadwell_init_clock_gating */
 static void
 gtinit(void)
@@ -2500,7 +2809,11 @@ devinit(void)
 		sysfatal("open %s: %r", path);
 	if(fprint(gctlfd, "bme on") < 0)
 		sysfatal("bme on: %r");
-	if(forcewake() < 0)
+	lock(&fwlk);
+	fwheld = 0;
+	fwon();
+	unlock(&fwlk);
+	if((rd(Forcewakeack) & 1) == 0)
 		sysfatal("forcewake: no ack (%#ux)", rd(Forcewakeack));
 	if(!uncached)
 		ppatinit();
@@ -2553,13 +2866,15 @@ devinit(void)
 		if((irqfd = open(path, OREAD)) < 0)
 			fprint(2, "%s: no interrupts, polling: %r\n", argv0);
 	}
+	if(!nopm)
+		rpsinit();
 	irqinit();
 }
 
 static void
 usage(void)
 {
-	fprint(2, "usage: %s [-3dpCGRU] [-g #G/n] [-s srvname]\n", argv0);
+	fprint(2, "usage: %s [-3dpCGPRU] [-g #G/n] [-s srvname]\n", argv0);
 	exits("usage");
 }
 
@@ -2585,6 +2900,9 @@ main(int argc, char **argv)
 		break;
 	case 'G':
 		global = 1;
+		break;
+	case 'P':
+		nopm = 1;
 		break;
 	case 'R':
 		norcsinit = 1;
@@ -2621,6 +2939,13 @@ main(int argc, char **argv)
 		sysfatal("rfork: %r");
 	case 0:
 		tickproc();
+		exits(nil);
+	}
+	switch(rfork(RFPROC|RFMEM|RFNOWAIT)){
+	case -1:
+		sysfatal("rfork: %r");
+	case 0:
+		fwproc();
 		exits(nil);
 	}
 

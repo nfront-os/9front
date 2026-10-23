@@ -15,7 +15,7 @@ gpu, virtiogpu, intelgpu \- graphics device file system
 .PP
 .B aux/intelgpu
 [
-.B -3dpCGRU
+.B -3dpCGPRU
 ] [
 .B -g
 .I gdir
@@ -319,6 +319,35 @@ leaves the workarounds and the render state out,
 .B -C
 the clock gating workarounds at start (both to find what hangs a
 machine).
+.PP
+The GT sleeps when idle (RC6) and its frequency follows the load (RPS,
+from the GT's busy-time interrupts), as i915 has it on Broadwell; the
+driver takes forcewake only around its register accesses.
+.B status
+shows it:
+.IP
+.BI "power rc6 on " ms ", " mhz " MHz (asked " mhz ", min " mhz ", rp1 " mhz ", max " mhz )
+.PP
+with the time spent in RC6 and the frequency running.
+.B -P
+leaves the power management off (forcewake held, the frequency the
+firmware set).
+.PP
+A context's
+.B ctl
+also takes
+.BI scanout " id w h stride" :
+object
+.I id
+(linear x8r8g8b8, the mode's size,
+.I stride
+bytes a row, a multiple of 64) becomes what the display shows, a new
+picture with each request, taken at the next vertical blank, until
+.BR "scanout 0" ,
+the object's free or the context's end; the plane is then as aux/vga
+left it.
+The object is mapped write-through from then on: the display reads
+memory, not the shared cache.
 Fences come from sequence numbers in each context's status page and
 the user and context switch interrupts (MSI where the device has it,
 .B -p

@@ -275,6 +275,24 @@ nirq(void)
 	return p ? strtoul(p+1, nil, 10) : 0;
 }
 
+/* status' power line: RC6 residency (ms), the frequency asked for and the minimum (MHz) */
+static int
+power(uvlong *rc6, int *asked, int *min)
+{
+	char *s, *p;
+
+	if((s = readall("status")) == nil || (p = strstr(s, "power rc6 on ")) == nil)
+		return -1;
+	*rc6 = strtoull(p+13, &p, 10);
+	if((p = strstr(p, "asked ")) == nil)
+		return -1;
+	*asked = strtol(p+6, &p, 10);
+	if((p = strstr(p, "min ")) == nil)
+		return -1;
+	*min = strtol(p+4, nil, 10);
+	return 0;
+}
+
 /* one store on an engine, checked by the CPU */
 static void
 store(Ctx *c, Bo *batch, int bdw, Bo *data, int ddw, u32int v, char *eng)
@@ -477,6 +495,39 @@ suite(void)
 	}
 	segdetach(big.p);
 	segdetach(bigbatch.p);
+
+	/*
+	 * 11. power: the GT sleeps when idle (RC6 residency grows by a
+	 * third of a pause at least) and runs faster under load (RPS: the
+	 * frequency asked for rises above the minimum)
+	 */
+	step("11. RC6 when idle, RPS under load");
+	{
+		uvlong r0, r1;
+		int f0, fbusy, fmin;
+
+		if(power(&r0, &f0, &fmin) < 0)
+			fail("status: no power line (or -P)");
+		else{
+			sleep(1500);
+			power(&r1, &f0, &fmin);
+			if(r1 >= r0 + 500)
+				ok("rc6: %llud ms of 1500 ms idle", r1 - r0);
+			else
+				fail("rc6: only %llud ms of 1500 ms idle", r1 - r0);
+			for(i = 0; i < 300; i++)
+				if((k = submit(&a, &bigbatch, 0, "bcs")) == 0)
+					break;
+			sleep(300);
+			power(&r1, &fbusy, &fmin);
+			if(k != 0 && fencewait(&a, k, nil) < 0)
+				fail("rps load: %r");
+			else if(fbusy > fmin)
+				ok("rps: %d MHz asked under load (min %d)", fbusy, fmin);
+			else
+				fail("rps: still %d MHz under load (min %d)", fbusy, fmin);
+		}
+	}
 
 	/*
 	 * 10. addresses of the client's choice, as hasvk's (softpin): a
