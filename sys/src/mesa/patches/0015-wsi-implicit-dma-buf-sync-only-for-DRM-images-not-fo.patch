@@ -1,0 +1,28 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: port <port@localhost>
+Date: Fri, 23 Oct 2026 20:31:41 +0200
+Subject: [PATCH] wsi: implicit dma-buf sync only for DRM images (not for CPU
+ images with a driver that has dma-buf sync files: hasvk on 9front)
+
+---
+ src/vulkan/wsi/wsi_common_drm.c | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/src/vulkan/wsi/wsi_common_drm.c b/src/vulkan/wsi/wsi_common_drm.c
+index dbf65b2..024b370 100644
+--- a/src/vulkan/wsi/wsi_common_drm.c
++++ b/src/vulkan/wsi/wsi_common_drm.c
+@@ -373,6 +373,13 @@ wsi_drm_init_swapchain_implicit_sync(struct wsi_swapchain *chain)
+    if (chain->image_info.explicit_sync)
+       return VK_SUCCESS;
+ 
++   /* Only an image shared as a dma-buf has implicit sync to take part in:
++    * a CPU image (the plan9 WSI's, with a driver that can do dma-buf sync
++    * files) has none, and present would import into no dma-buf.
++    */
++   if (chain->image_info.image_type != WSI_IMAGE_TYPE_DRM)
++      return VK_SUCCESS;
++
+    VkResult result =
+       wsi_drm_check_dma_buf_sync_file_import_export(chain->wsi, chain->device);
+    if (result == VK_ERROR_FEATURE_NOT_PRESENT)

@@ -373,6 +373,13 @@ wsi_drm_init_swapchain_implicit_sync(struct wsi_swapchain *chain)
    if (chain->image_info.explicit_sync)
       return VK_SUCCESS;
 
+   /* Only an image shared as a dma-buf has implicit sync to take part in:
+    * a CPU image (the plan9 WSI's, with a driver that can do dma-buf sync
+    * files) has none, and present would import into no dma-buf.
+    */
+   if (chain->image_info.image_type != WSI_IMAGE_TYPE_DRM)
+      return VK_SUCCESS;
+
    VkResult result =
       wsi_drm_check_dma_buf_sync_file_import_export(chain->wsi, chain->device);
    if (result == VK_ERROR_FEATURE_NOT_PRESENT)
