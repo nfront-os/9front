@@ -371,6 +371,8 @@ wsi_plan9_swapchain_queue_present(struct wsi_swapchain *wsi_chain,
          chain->shown = image_index;
          goto Shown;
       }
+      if (chain->stats)
+         fprintf(stderr, "wsi plan9: scanout refused, copying from now on\n");
       chain->scanout = false;
       chain->shown = -1;
    }
@@ -496,6 +498,11 @@ wsi_plan9_surface_create_swapchain(VkIcdSurfaceBase *icd_surface,
    chain->shown = -1;
    const char *stats = getenv("WSI_PLAN9_STATS");
    chain->stats = stats != NULL && atoi(stats) != 0;
+   if (chain->stats)
+      fprintf(stderr, "wsi plan9: %s: %s\n", surface->windowName ? surface->windowName : "(window)",
+              scanout ? "scanout" :
+              wsi_device->plan9_scanout == NULL ? "copy: the driver has no scanout" :
+              (copy && atoi(copy)) ? "copy: WSI_PLAN9_COPY" : "copy: not the whole screen");
 
    uint32_t image = 0;
    for (; image < chain->base.image_count; image++) {

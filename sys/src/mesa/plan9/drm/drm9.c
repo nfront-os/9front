@@ -1743,13 +1743,15 @@ drm9Scanout(int fd, uint32_t handle, uint32_t w, uint32_t h, uint32_t stride)
 	pthread_mutex_lock(&lk);
 	if((d = getdev(fd)) == NULL){
 		pthread_mutex_unlock(&lk);
+		dbg("scanout: %d is not a GPU context", fd);
 		return seterr(EBADF);
 	}
 	if(handle == 0)
 		r = ctl(d, NULL, 0, "scanout 0");
-	else if((g = getgem(d, handle)) == NULL)
+	else if((g = getgem(d, handle)) == NULL){
+		dbg("scanout: no GEM object %u", handle);
 		r = seterr(ENOENT);
-	else
+	}else
 		r = ctl(d, NULL, 0, "scanout %d %u %u %u", g->id, w, h, stride);
 	pthread_mutex_unlock(&lk);
 	return r;

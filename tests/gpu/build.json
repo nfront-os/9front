@@ -36,6 +36,7 @@
    "--end-group"
   ],
   "SourceFilesCmd": [
+   "drawspeed.c",
    "screenpx.c"
   ]
  }

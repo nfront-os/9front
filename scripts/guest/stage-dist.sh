@@ -103,11 +103,11 @@ if [ -n "$GO_OUT" ]; then
 	PROTOS+=("$ROOT/scripts/guest/boot/goproto")
 fi
 # the Vulkan programs tests/gpu/build-vktest.sh built (vulkaninfo, vkcube,
-# vktri; statically linked with Mesa's drivers) as /$objtype/vk
+# vktri; statically linked with Mesa's drivers) and drawspeed as /$objtype/vk
 VK=$ROOT/tests/gpu/root/tests
 if [ -x "$VK/vulkaninfo" ]; then
 	mkdir -p "$VIEW/$A/vk"
-	for p in vulkaninfo vkcube vktri; do
+	for p in vulkaninfo vkcube vktri drawspeed; do
 		[ -x "$VK/$p" ] && ln -s "$VK/$p" "$VIEW/$A/vk/$p"
 	done
 	PROTOS+=("$ROOT/scripts/guest/boot/vkproto")

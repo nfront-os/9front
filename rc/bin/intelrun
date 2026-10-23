@@ -37,7 +37,10 @@ for(c in 'vulkaninfo --summary' 'vktri 3' \
 	'WSI_PLAN9_STATS=1 vkcube --c 600' \
 	'@{rfork n; bind -b ''#i'' /dev; WSI_PLAN9_STATS=1 WSI_PLAN9_COPY=1 vkcube --c 300}' \
 	'@{rfork n; bind -b ''#i'' /dev; WSI_PLAN9_STATS=1 vkcube --c 600}' \
-	'grep scanout /dev/gpu/0/status'){
+	'grep scanout /dev/gpu/0/status' \
+	'@{rfork n; bind -b ''#i'' /dev; drawspeed}' \
+	'cat ''#v/vgactl''' \
+	'grep -i mtrr ''#P/archctl'''){
 	echo '##' $c >>$log
 	eval $c >>$log >[2=1]
 	echo '## status' $status >>$log

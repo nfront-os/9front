@@ -4,11 +4,11 @@ Date: Fri, 23 Oct 2026 21:13:07 +0200
 Subject: [PATCH] wsi: plan9: WSI_PLAN9_STATS=1, where a present's time goes
 
 ---
- src/vulkan/wsi/wsi_common_plan9.c | 42 +++++++++++++++++++++++++++++++
- 1 file changed, 42 insertions(+)
+ src/vulkan/wsi/wsi_common_plan9.c | 49 +++++++++++++++++++++++++++++++
+ 1 file changed, 49 insertions(+)
 
 diff --git a/src/vulkan/wsi/wsi_common_plan9.c b/src/vulkan/wsi/wsi_common_plan9.c
-index 04d070b..720c26e 100644
+index 04d070b..66ddc44 100644
 --- a/src/vulkan/wsi/wsi_common_plan9.c
 +++ b/src/vulkan/wsi/wsi_common_plan9.c
 @@ -13,6 +13,7 @@
@@ -82,7 +82,16 @@ index 04d070b..720c26e 100644
        if (wsi->plan9_scanout(chain->base.device, mem, chain->extent.width,
                               chain->extent.height,
                               image->base.row_pitches[0]) == VK_SUCCESS) {
-@@ -347,6 +381,7 @@ wsi_plan9_swapchain_queue_present(struct wsi_swapchain *wsi_chain,
+@@ -337,6 +371,8 @@ wsi_plan9_swapchain_queue_present(struct wsi_swapchain *wsi_chain,
+          chain->shown = image_index;
+          goto Shown;
+       }
++      if (chain->stats)
++         fprintf(stderr, "wsi plan9: scanout refused, copying from now on\n");
+       chain->scanout = false;
+       chain->shown = -1;
+    }
+@@ -347,6 +383,7 @@ wsi_plan9_swapchain_queue_present(struct wsi_swapchain *wsi_chain,
      * once, with streaming loads where there are any, then hand draw(3)
      * the copy.
      */
@@ -90,7 +99,7 @@ index 04d070b..720c26e 100644
     size_t size = (size_t)image->base.row_pitches[0] * chain->extent.height;
  #if defined(USE_SSE41)
     if (util_get_cpu_caps()->has_sse4_1)
-@@ -354,6 +389,7 @@ wsi_plan9_swapchain_queue_present(struct wsi_swapchain *wsi_chain,
+@@ -354,6 +391,7 @@ wsi_plan9_swapchain_queue_present(struct wsi_swapchain *wsi_chain,
     else
  #endif
        memcpy(chain->pixels, image->base.cpu_map, size);
@@ -98,7 +107,7 @@ index 04d070b..720c26e 100644
  
     if (plan9win_put(chain->window_name, chain->pixels,
                      chain->extent.width, chain->extent.height,
-@@ -365,6 +401,10 @@ wsi_plan9_swapchain_queue_present(struct wsi_swapchain *wsi_chain,
+@@ -365,6 +403,10 @@ wsi_plan9_swapchain_queue_present(struct wsi_swapchain *wsi_chain,
     image->busy = false;
  
  Shown:
@@ -109,12 +118,17 @@ index 04d070b..720c26e 100644
     /* resized: tell the app, which makes a new swapchain */
     if (plan9win_size(chain->window_name, &w, &h) == 0 &&
         ((uint32_t)w != chain->extent.width || (uint32_t)h != chain->extent.height))
-@@ -454,6 +494,8 @@ wsi_plan9_surface_create_swapchain(VkIcdSurfaceBase *icd_surface,
+@@ -454,6 +496,13 @@ wsi_plan9_surface_create_swapchain(VkIcdSurfaceBase *icd_surface,
     chain->status = VK_SUCCESS;
     chain->scanout = scanout;
     chain->shown = -1;
 +   const char *stats = getenv("WSI_PLAN9_STATS");
 +   chain->stats = stats != NULL && atoi(stats) != 0;
++   if (chain->stats)
++      fprintf(stderr, "wsi plan9: %s: %s\n", surface->windowName ? surface->windowName : "(window)",
++              scanout ? "scanout" :
++              wsi_device->plan9_scanout == NULL ? "copy: the driver has no scanout" :
++              (copy && atoi(copy)) ? "copy: WSI_PLAN9_COPY" : "copy: not the whole screen");
  
     uint32_t image = 0;
     for (; image < chain->base.image_count; image++) {
