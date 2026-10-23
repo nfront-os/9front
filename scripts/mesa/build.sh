@@ -94,7 +94,8 @@ fi
 # everything the ICDs are made of, without linking them (build.ninja
 # first: meson regenerates it when a meson.build changed): their
 # objects, each once (members.py), in one archive
-SOS="src/virtio/vulkan/libvulkan_virtio.so src/intel/vulkan_hasvk/libvulkan_intel_hasvk.so"
+# hasvk first: its objects stand for venus' equal ones (members.py)
+SOS="src/intel/vulkan_hasvk/libvulkan_intel_hasvk.so src/virtio/vulkan/libvulkan_virtio.so"
 ninja -C "$BUILD/mesa" build.ninja
 for so in $SOS; do
 	link=$(ninja -C "$BUILD/mesa" -t commands $so | tail -1)

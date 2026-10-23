@@ -41,7 +41,8 @@ OBJTYPE = os.environ.get('objtype', 'amd64')
 SUFFIX = {'amd64': '', '386': '.386'}[OBJTYPE]
 conflicts = []
 PUBLIC = ('include/vulkan/', 'include/vk_video/')	# go to /sys/include/ape
-SOS = ['src/virtio/vulkan/libvulkan_virtio.so', 'src/intel/vulkan_hasvk/libvulkan_intel_hasvk.so']
+# hasvk first: its objects stand for venus' equal ones (members.py)
+SOS = ['src/intel/vulkan_hasvk/libvulkan_intel_hasvk.so', 'src/virtio/vulkan/libvulkan_virtio.so']
 
 
 def ninja(*args):

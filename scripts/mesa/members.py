@@ -11,7 +11,11 @@
 # Vulkan's instance and lite_instance, isl per hardware generation), and
 # a later object whose strong symbols an earlier one defines already is
 # dropped, as the first definition in link order is the one a link takes.
-# An object that only partly overlaps is an error.
+# An object that only partly overlaps is an error. The two can differ in
+# what they were compiled with (vk_instance.c: the lite instance of
+# venus, without the GLSL types, the full one of hasvk): the drivers'
+# order decides which stays (hasvk's: the full one serves venus too),
+# and each such pair is listed on standard error.
 # Prints the objects' paths (relative to MESABUILD), one per line.
 
 import shlex
@@ -53,6 +57,10 @@ def strong(obj):
 	return syms
 
 
+def defines(cmd):
+	return sorted(w for w in shlex.split(cmd) if w.startswith('-D'))
+
+
 def members(mesa, nm, sos):
 	"""the objects, paths relative to mesa"""
 	global MESA, NM
@@ -64,6 +72,8 @@ def members(mesa, nm, sos):
 		for lib in dict.fromkeys(w for w in words if w.endswith('.a') and not w.startswith('/')):
 			order += inputs(lib)
 	order = list(dict.fromkeys(order))
+	import json, os
+	cc = {c['output']: c['command'] for c in json.load(open(os.path.join(MESA, 'compile_commands.json')))}
 	defined = {}
 	keep = []
 	bad = []
@@ -71,6 +81,10 @@ def members(mesa, nm, sos):
 		s = strong(o)
 		dup = [x for x in s if x in defined]
 		if s and len(dup) == len(s):
+			first = defined[dup[0]]
+			if o in cc and first in cc and defines(cc[o]) != defines(cc[first]):
+				d = sorted(set(defines(cc[o])) ^ set(defines(cc[first])))
+				print('members: %s stands for %s (differ: %s)' % (first, o, ' '.join(d[:6])), file=sys.stderr)
 			continue	# the same again: the link takes the first
 		if dup:
 			bad.append('%s: %s also in %s' % (o, ' '.join(sorted(dup)[:4]), defined[dup[0]]))
