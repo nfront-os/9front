@@ -109,7 +109,7 @@ struct Sync {
 struct Dev {
 	Gpu	*gpu;
 	int	fd;
-	char	path[128];	/* fd2path of fd */
+	uint64_t	ino;	/* the qid of its ctl, unique */
 	int	ctx;		/* the driver's number */
 	int	submitfd, statfd;
 	uint64_t	done;		/* fences done, as last read */
@@ -246,14 +246,16 @@ ino(int fd)
 
 /*
  * the context behind a descriptor, found by its first ioctl: the
- * clone's ctl says ctx n. The context lives while we hold its submit
- * and fence files, so no other context gets its number meanwhile and
- * fd2path tells whether the descriptor is still the same one.
+ * clone's ctl says ctx n. The descriptor keeps the name it was opened
+ * by (/dev/gpu/N/clone, fd2path), the qid is its context's ctl's, which
+ * no other file has: a descriptor closed and its number used again
+ * tells by that.
  */
 static Dev*
 getdev(int fd)
 {
 	char path[128], buf[64], *s;
+	uint64_t q;
 	Fd *f;
 	Dev *d;
 	int i, n;
@@ -262,14 +264,15 @@ getdev(int fd)
 		return NULL;
 	if(_FD2PATH(fd, path, sizeof path) < 0)
 		return NULL;
+	q = ino(fd);
 	f = &fds[fd];
-	if(f->kind == Kdev && strcmp(f->dev->path, path) == 0)
+	if(f->kind == Kdev && f->dev->ino == q)
 		return f->dev;
 	f->kind = Knone;
 	scan();
 	for(i = 0; i < ngpu; i++){
 		n = strlen(gpus[i].dir);
-		if(strncmp(path, gpus[i].dir, n) == 0 && strncmp(path+n, "/ctx/", 5) == 0)
+		if(strncmp(path, gpus[i].dir, n) == 0 && path[n] == '/')
 			break;
 	}
 	if(i == ngpu)
@@ -284,7 +287,7 @@ getdev(int fd)
 		return NULL;
 	d->gpu = &gpus[i];
 	d->fd = fd;
-	snprintf(d->path, sizeof d->path, "%s", path);
+	d->ino = q;
 	d->ctx = atoi(buf+4);
 	snprintf(path, sizeof path, "%s/ctx/%d/submit", d->gpu->dir, d->ctx);
 	d->submitfd = open(path, O_WRONLY);
