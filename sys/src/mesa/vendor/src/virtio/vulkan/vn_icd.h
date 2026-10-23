@@ -12,12 +12,17 @@
 #define VN_ICD_H
 
 #include "vn_common.h"
+#include "util/detect_os.h"
 
 PUBLIC
 VKAPI_ATTR VkResult VKAPI_CALL
 vk_icdNegotiateLoaderICDInterfaceVersion(uint32_t *pSupportedVersion);
 
 PUBLIC
+#if DETECT_OS_PLAN9
+/* 9front links its drivers into the program, each under a name of its own */
+#define vk_icdGetInstanceProcAddr venus_icdGetInstanceProcAddr
+#endif
 VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL
 vk_icdGetInstanceProcAddr(VkInstance instance, const char *pName);
 

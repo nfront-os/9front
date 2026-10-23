@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 #
-# vendor.py SRC BUILD ROOT: Mesa's venus driver as sources in the tree, to
+# vendor.py SRC BUILD ROOT: Mesa's Vulkan drivers (venus, hasvk) as sources in the tree, to
 # be built by build.exe (here with ../9front-gcc's cross gcc, on 9front with
 # its native gcc), without meson, ninja or python (scripts/mesa/vendor.sh).
 #
 # From the meson build in BUILD (scripts/mesa/build.sh) it takes the objects
-# the ICD is made of (the link of libvulkan_virtio.so, the archives' members),
+# the ICDs are made of (the links of libvulkan_virtio.so and
+# libvulkan_intel_hasvk.so, the archives' members, each once: members.py),
 # their sources and every header they read (ninja's dependency log), and the
 # files meson's generators wrote (entry point tables, format tables, ...).
 # It writes:
@@ -40,6 +41,7 @@ OBJTYPE = os.environ.get('objtype', 'amd64')
 SUFFIX = {'amd64': '', '386': '.386'}[OBJTYPE]
 conflicts = []
 PUBLIC = ('include/vulkan/', 'include/vk_video/')	# go to /sys/include/ape
+SOS = ['src/virtio/vulkan/libvulkan_virtio.so', 'src/intel/vulkan_hasvk/libvulkan_intel_hasvk.so']
 
 
 def ninja(*args):
@@ -48,21 +50,10 @@ def ninja(*args):
 
 
 def objects():
-	"""the objects of the ICD, in link order"""
-	link = ninja('-t', 'commands', 'src/virtio/vulkan/libvulkan_virtio.so').strip().split('\n')[-1]
-	words = shlex.split(link)
-	objs = [w for w in words if w.endswith('.o')]
-	for lib in dict.fromkeys(w for w in words if w.endswith('.a')):
-		sect = False
-		for line in ninja('-t', 'query', lib).split('\n'):
-			s = line.strip()
-			if s.startswith('input:'):
-				sect = True
-			elif s.startswith('outputs:'):
-				sect = False
-			elif sect and s.endswith('.o'):
-				objs.append(s)
-	return objs
+	"""the objects of the ICDs, in link order, each once"""
+	sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+	import members
+	return members.members(MESA, os.environ['NM'], SOS)
 
 
 def where(f):
@@ -176,7 +167,20 @@ def main():
 			blocks[key] = {'flags': flags(c['command'], d), 'files': []}
 			order.append(key)
 		blocks[key]['files'].append(os.path.basename(src))
-		blocks[key].setdefault('objects', []).append(os.path.join(d, os.path.splitext(os.path.basename(src))[0] + '.o'))
+
+	# a source in several libraries of a directory (isl, hasvk per hardware
+	# generation: other -DGFX_VERx10): their objects x.<library>.o (Objtag)
+	seen = {}
+	for key in order:
+		for f in blocks[key]['files']:
+			seen.setdefault((key[0], f), set()).add(key)
+	for key in order:
+		d, lib, lang = key
+		b = blocks[key]
+		if any(len(seen[(d, f)]) > 1 for f in b['files']):
+			b['tag'] = os.path.basename(lib).replace('.a', '').replace('lib', '', 1).replace('.', '_')
+		t = '.' + b['tag'] if 'tag' in b else ''
+		b['objects'] = [os.path.join(d, os.path.splitext(f)[0] + t + '.o') for f in b['files']]
 
 	manifests = {}
 	for key in order:
@@ -184,6 +188,8 @@ def main():
 		b = blocks[key]
 		name = 'mesa-' + os.path.relpath(d, VENDOR).replace('/', '-') + '-' + os.path.basename(lib).replace('.', '-') + ('-' + lang if lang != 'c' else '')
 		m = {'Name': name, 'Compat': True}
+		if 'tag' in b:
+			m['Objtag'] = b['tag']
 		if lang != 'asm':
 			m['Cflags'] = b['flags']
 		m['SourceFiles'] = sorted(b['files'])
@@ -198,9 +204,11 @@ def main():
 	top = os.path.join(ROOT, 'sys/src/mesa')
 	allobjs = [os.path.relpath(o, top) for k in order for o in blocks[k]['objects']]
 	allobjs += ['plan9/loader/vkloader.o', 'plan9/loader/vkcmds.o',
-		'plan9/lib/plan9compat.o', 'plan9/lib/plan9win.o']
+		'plan9/lib/dl.o', 'plan9/lib/plan9compat.o', 'plan9/lib/plan9win.o',
+		'plan9/drm/drm9.o']
 	projects = ['/' + os.path.relpath(os.path.join(d, 'mesa%s.json' % SUFFIX), ROOT) for d in manifests]
-	projects += ['/sys/src/mesa/plan9/loader/build.json', '/sys/src/mesa/plan9/lib/build.json']
+	projects += ['/sys/src/mesa/plan9/loader/build.json', '/sys/src/mesa/plan9/lib/build.json',
+		'/sys/src/mesa/plan9/drm/build.json']
 	build = [{
 		'Name': 'mesa-libvulkan',
 		'Projects': projects,

@@ -1,0 +1,52 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: port <port@localhost>
+Date: Fri, 23 Oct 2026 00:41:25 +0200
+Subject: [PATCH] hasvk: u_memstream for the pipeline executables' disassembly,
+ not open_memstream (9front has none)
+
+---
+ src/intel/vulkan_hasvk/anv_pipeline.c | 10 ++++++++--
+ 1 file changed, 8 insertions(+), 2 deletions(-)
+
+diff --git a/src/intel/vulkan_hasvk/anv_pipeline.c b/src/intel/vulkan_hasvk/anv_pipeline.c
+index 1579b26..dc4fdcb 100644
+--- a/src/intel/vulkan_hasvk/anv_pipeline.c
++++ b/src/intel/vulkan_hasvk/anv_pipeline.c
+@@ -27,6 +27,8 @@
+ #include <unistd.h>
+ #include <fcntl.h>
+ 
++#include "util/memstream.h"
++
+ #include "util/mesa-blake3.h"
+ #include "util/os_time.h"
+ #include "common/intel_compute_slm.h"
+@@ -914,7 +916,10 @@ anv_pipeline_add_executable(struct anv_pipeline *pipeline,
+          VK_PIPELINE_CREATE_2_CAPTURE_INTERNAL_REPRESENTATIONS_BIT_KHR)) {
+       char *stream_data = NULL;
+       size_t stream_size = 0;
+-      FILE *stream = open_memstream(&stream_data, &stream_size);
++      struct u_memstream mem;
++      if (!u_memstream_open(&mem, &stream_data, &stream_size))
++         goto no_disasm;
++      FILE *stream = u_memstream_get(&mem);
+ 
+       uint32_t push_size = 0;
+       for (unsigned i = 0; i < 4; i++)
+@@ -972,7 +977,7 @@ anv_pipeline_add_executable(struct anv_pipeline *pipeline,
+       elk_disassemble_with_errors(&pipeline->device->physical->compiler->isa,
+                                   stage->code, code_offset, stream);
+ 
+-      fclose(stream);
++      u_memstream_close(&mem);
+ 
+       /* Copy it to a ralloc'd thing */
+       disasm = ralloc_size(pipeline->mem_ctx, stream_size + 1);
+@@ -981,6 +986,7 @@ anv_pipeline_add_executable(struct anv_pipeline *pipeline,
+ 
+       free(stream_data);
+    }
++no_disasm: ;
+ 
+    const struct anv_pipeline_executable exe = {
+       .stage = stage->stage,

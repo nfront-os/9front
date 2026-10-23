@@ -13,6 +13,15 @@ typedef struct Vkl Vkl;
 struct Vkl {
 	PFN_vkVoidFunction fn[VKL_NCMD];
 	struct Vkl *inst;	/* for a device: its instance's table */
+	struct Vklicd *icd;	/* the driver */
+};
+
+/* a driver (an ICD) linked in: its vk_icdGetInstanceProcAddr, renamed <name>_icd... */
+typedef struct Vklicd Vklicd;
+struct Vklicd {
+	char	*name;
+	PFN_vkGetInstanceProcAddr	gipa;
+	int	negotiated;
 };
 
 /* the table pointer the loader puts in the first word of every dispatchable object */

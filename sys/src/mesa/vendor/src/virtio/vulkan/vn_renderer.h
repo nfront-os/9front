@@ -245,7 +245,10 @@ vn_renderer_create(struct vn_instance *instance,
                    const VkAllocationCallbacks *alloc,
                    struct vn_renderer **renderer)
 {
-#ifdef HAVE_LIBDRM
+#if DETECT_OS_PLAN9
+   /* 9front has a libdrm (gpu(4)), but not virtio-gpu's DRM interface */
+   return vn_renderer_create_plan9(instance, alloc, renderer);
+#elif defined(HAVE_LIBDRM)
    VkResult result;
    if (VN_DEBUG(VTEST)) {
       result = vn_renderer_create_vtest(instance, alloc, renderer);
@@ -257,8 +260,6 @@ vn_renderer_create(struct vn_instance *instance,
          result = vn_renderer_create_vtest(instance, alloc, renderer);
    }
    return result;
-#elif DETECT_OS_PLAN9
-   return vn_renderer_create_plan9(instance, alloc, renderer);
 #else
    return vn_renderer_create_vtest(instance, alloc, renderer);
 #endif

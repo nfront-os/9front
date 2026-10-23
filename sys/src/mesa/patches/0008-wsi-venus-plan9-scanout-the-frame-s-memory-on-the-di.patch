@@ -11,7 +11,7 @@ Subject: [PATCH] wsi, venus: plan9 scanout (the frame's memory on the display,
  3 files changed, 44 insertions(+)
 
 diff --git a/src/virtio/vulkan/vn_renderer.h b/src/virtio/vulkan/vn_renderer.h
-index c0fea7f..0cb4888 100644
+index b35737e..3b6be64 100644
 --- a/src/virtio/vulkan/vn_renderer.h
 +++ b/src/virtio/vulkan/vn_renderer.h
 @@ -230,6 +230,14 @@ VkResult

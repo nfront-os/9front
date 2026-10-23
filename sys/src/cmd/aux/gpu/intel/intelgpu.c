@@ -135,6 +135,12 @@ enum {
 	Rinstpm		= 0xC0,		/* INSTPM */
 	Instpmforceordering = 1<<7,
 
+	/* fuses: slices, subslices, EUs (i915's broadwell_sseu_info_init) */
+	Fuse2		= 0x9120,
+	Eudisable0	= 0x9134,
+	Eudisable1	= 0x9138,
+	Eudisable2	= 0x913C,
+
 	/* GT clock gating, Broadwell (i915's broadwell_init_clock_gating, GT part) */
 	Gamecochk	= 0x4090,
 	Ecochkarbpriosol = 1<<6,
@@ -332,6 +338,7 @@ static uvlong rspa;
  * accesses land there, not at physical address 0
  */
 static uvlong scratchpte, scratchgtt;
+static int sslices, ssubslices, seus;	/* sseu: masks of the enabled ones, EUs */
 /*
  * the scratch tables below each level (0: the PT, 1: a PD of PT
  * pointers, 2: a PDP of PD pointers), and the entries a new table of
@@ -1940,7 +1947,8 @@ statusstr(void)
 	for(i = 0; i < nelem(rcswa); i++)
 		if((rd(rcswa[i].reg) & rcswa[i].val>>16) == (rcswa[i].val & 0xFFFF))
 			n++;
-	t = smprint("%srcs workarounds %d/%d\n", s, n, nelem(rcswa));
+	t = smprint("%srcs workarounds %d/%d\nsseu slices %#x subslices %#x eus %d\n", s, n, nelem(rcswa),
+		sslices, ssubslices, seus);
 	free(s);
 	s = t;
 	nfree = 0;
@@ -2272,6 +2280,42 @@ rsinit(void)
 	flushcache(d, 4096);
 }
 
+/*
+ * the enabled slices, subslices and EUs from the fuses, as i915's
+ * broadwell_sseu_info_init (Mesa's getparams SLICE_MASK, SUBSLICE_MASK,
+ * EU_TOTAL)
+ */
+static void
+sseuinit(void)
+{
+	u32int fuse2, eud[3], d0, d1, d2;
+	int s, ss, n, b;
+
+	fuse2 = rd(Fuse2);
+	sslices = fuse2>>25 & 7;
+	ssubslices = ~(fuse2>>21) & 7;
+	d0 = rd(Eudisable0);
+	d1 = rd(Eudisable1);
+	d2 = rd(Eudisable2);
+	eud[0] = d0 & 0xFFFFFF;
+	eud[1] = d0>>24 | (d1 & 0xFFFF)<<8;
+	eud[2] = d1>>16 | (d2 & 0xFF)<<16;
+	seus = 0;
+	for(s = 0; s < 3; s++){
+		if((sslices & 1<<s) == 0)
+			continue;
+		for(ss = 0; ss < 3; ss++){
+			if((ssubslices & 1<<ss) == 0)
+				continue;
+			n = 0;
+			for(b = 0; b < 8; b++)
+				if(eud[s]>>(ss*8+b) & 1)
+					n++;
+			seus += 8 - n;
+		}
+	}
+}
+
 /* the GT part of i915's broadwell_init_clock_gating */
 static void
 gtinit(void)
@@ -2365,6 +2409,7 @@ devinit(void)
 		sleep(10);
 		wr(eng[i].base+Rresetctl, masked(Resetrequest, 0));
 	}
+	sseuinit();
 	if(!noclockgating)
 		gtinit();
 	for(i = 0; i < nelem(eng); i++)

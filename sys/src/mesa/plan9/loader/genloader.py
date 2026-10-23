@@ -29,6 +29,7 @@ HAND = {
 	'vkCreateDevice', 'vkDestroyDevice',
 	'vkGetDeviceQueue', 'vkGetDeviceQueue2',
 	'vkAllocateCommandBuffers',
+	'vkEnumerateInstanceLayerProperties', 'vkEnumerateInstanceExtensionProperties',
 }
 GLOBAL = {'VkInstance': 'instance', 'VkPhysicalDevice': 'instance',
 	'VkDevice': 'device', 'VkQueue': 'device', 'VkCommandBuffer': 'device'}

@@ -1,0 +1,50 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: port <port@localhost>
+Date: Fri, 23 Oct 2026 09:10:28 +0200
+Subject: [PATCH] venus, hasvk: on 9front each driver's
+ vk_icdGetInstanceProcAddr has a name of its own (both are linked into the
+ program)
+
+---
+ src/intel/vulkan_hasvk/anv_device.c | 5 +++++
+ src/virtio/vulkan/vn_icd.h          | 5 +++++
+ 2 files changed, 10 insertions(+)
+
+diff --git a/src/intel/vulkan_hasvk/anv_device.c b/src/intel/vulkan_hasvk/anv_device.c
+index 5c2eab0..6f45054 100644
+--- a/src/intel/vulkan_hasvk/anv_device.c
++++ b/src/intel/vulkan_hasvk/anv_device.c
+@@ -2189,6 +2189,11 @@ PFN_vkVoidFunction anv_GetInstanceProcAddr(
+ /* With version 1+ of the loader interface the ICD should expose
+  * vk_icdGetInstanceProcAddr to work around certain LD_PRELOAD issues seen in apps.
+  */
++#if DETECT_OS_PLAN9
++/* 9front links its drivers into the program, each under a name of its own */
++#define vk_icdGetInstanceProcAddr intel_hasvk_icdGetInstanceProcAddr
++PUBLIC VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL vk_icdGetInstanceProcAddr(VkInstance, const char*);
++#endif
+ PUBLIC
+ VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL vk_icdGetInstanceProcAddr(
+     VkInstance                                  instance,
+diff --git a/src/virtio/vulkan/vn_icd.h b/src/virtio/vulkan/vn_icd.h
+index 62880b6..142d4c8 100644
+--- a/src/virtio/vulkan/vn_icd.h
++++ b/src/virtio/vulkan/vn_icd.h
+@@ -12,12 +12,17 @@
+ #define VN_ICD_H
+ 
+ #include "vn_common.h"
++#include "util/detect_os.h"
+ 
+ PUBLIC
+ VKAPI_ATTR VkResult VKAPI_CALL
+ vk_icdNegotiateLoaderICDInterfaceVersion(uint32_t *pSupportedVersion);
+ 
+ PUBLIC
++#if DETECT_OS_PLAN9
++/* 9front links its drivers into the program, each under a name of its own */
++#define vk_icdGetInstanceProcAddr venus_icdGetInstanceProcAddr
++#endif
+ VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL
+ vk_icdGetInstanceProcAddr(VkInstance instance, const char *pName);
+ 

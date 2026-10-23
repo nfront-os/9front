@@ -12,7 +12,9 @@
 #include <string.h>
 #include <vulkan/vulkan.h>
 
-extern PFN_vkVoidFunction vk_icdGetInstanceProcAddr(VkInstance, const char *);
+/* venus' entry point, under its name on 9front (libvulkan.a has hasvk too) */
+extern PFN_vkVoidFunction venus_icdGetInstanceProcAddr(VkInstance, const char *);
+#define vk_icdGetInstanceProcAddr venus_icdGetInstanceProcAddr
 extern VkResult vk_icdNegotiateLoaderICDInterfaceVersion(uint32_t *);
 
 static int nfail;

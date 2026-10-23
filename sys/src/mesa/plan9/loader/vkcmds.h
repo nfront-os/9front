@@ -5,6 +5,8 @@
 #define VKL_vkCreateInstance 0
 #define VKL_vkDestroyDevice 12
 #define VKL_vkDestroyInstance 1
+#define VKL_vkEnumerateInstanceExtensionProperties 13
+#define VKL_vkEnumerateInstanceLayerProperties 15
 #define VKL_vkEnumeratePhysicalDeviceGroups 142
 #define VKL_vkEnumeratePhysicalDeviceGroupsKHR 309
 #define VKL_vkEnumeratePhysicalDevices 2
@@ -20,6 +22,8 @@
 	VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL vkGetDeviceProcAddr(VkDevice device, const char* pName) __attribute__((weak, alias("vkl_GetDeviceProcAddr"))); \
 	VKAPI_ATTR VkResult VKAPI_CALL vkCreateDevice(VkPhysicalDevice physicalDevice, const VkDeviceCreateInfo* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkDevice* pDevice) __attribute__((weak, alias("vkl_CreateDevice"))); \
 	VKAPI_ATTR void VKAPI_CALL vkDestroyDevice(VkDevice device, const VkAllocationCallbacks* pAllocator) __attribute__((weak, alias("vkl_DestroyDevice"))); \
+	VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateInstanceExtensionProperties(const char* pLayerName, uint32_t* pPropertyCount, VkExtensionProperties* pProperties) __attribute__((weak, alias("vkl_EnumerateInstanceExtensionProperties"))); \
+	VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateInstanceLayerProperties(uint32_t* pPropertyCount, VkLayerProperties* pProperties) __attribute__((weak, alias("vkl_EnumerateInstanceLayerProperties"))); \
 	VKAPI_ATTR void VKAPI_CALL vkGetDeviceQueue(VkDevice device, uint32_t queueFamilyIndex, uint32_t queueIndex, VkQueue* pQueue) __attribute__((weak, alias("vkl_GetDeviceQueue"))); \
 	VKAPI_ATTR VkResult VKAPI_CALL vkAllocateCommandBuffers(VkDevice device, const VkCommandBufferAllocateInfo* pAllocateInfo, VkCommandBuffer* pCommandBuffers) __attribute__((weak, alias("vkl_AllocateCommandBuffers"))); \
 	VKAPI_ATTR VkResult VKAPI_CALL vkEnumeratePhysicalDeviceGroups(VkInstance instance, uint32_t* pPhysicalDeviceGroupCount, VkPhysicalDeviceGroupProperties* pPhysicalDeviceGroupProperties) __attribute__((weak, alias("vkl_EnumeratePhysicalDeviceGroups"))); \

@@ -50,13 +50,7 @@ VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL vkl_GetInstanceProcAddr(VkInstance inst
 VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL vkl_GetDeviceProcAddr(VkDevice device, const char* pName);
 VKAPI_ATTR VkResult VKAPI_CALL vkl_CreateDevice(VkPhysicalDevice physicalDevice, const VkDeviceCreateInfo* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkDevice* pDevice);
 VKAPI_ATTR void VKAPI_CALL vkl_DestroyDevice(VkDevice device, const VkAllocationCallbacks* pAllocator);
-VKAPI_ATTR VkResult VKAPI_CALL
-vkl_EnumerateInstanceExtensionProperties(const char* pLayerName, uint32_t* pPropertyCount, VkExtensionProperties* pProperties)
-{
-	return ((PFN_vkEnumerateInstanceExtensionProperties)vkl_global(13))(pLayerName, pPropertyCount, pProperties);
-}
-VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateInstanceExtensionProperties(const char* pLayerName, uint32_t* pPropertyCount, VkExtensionProperties* pProperties) __attribute__((weak, alias("vkl_EnumerateInstanceExtensionProperties")));
-
+VKAPI_ATTR VkResult VKAPI_CALL vkl_EnumerateInstanceExtensionProperties(const char* pLayerName, uint32_t* pPropertyCount, VkExtensionProperties* pProperties);
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_EnumerateDeviceExtensionProperties(VkPhysicalDevice physicalDevice, const char* pLayerName, uint32_t* pPropertyCount, VkExtensionProperties* pProperties)
 {
@@ -64,13 +58,7 @@ vkl_EnumerateDeviceExtensionProperties(VkPhysicalDevice physicalDevice, const ch
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateDeviceExtensionProperties(VkPhysicalDevice physicalDevice, const char* pLayerName, uint32_t* pPropertyCount, VkExtensionProperties* pProperties) __attribute__((weak, alias("vkl_EnumerateDeviceExtensionProperties")));
 
-VKAPI_ATTR VkResult VKAPI_CALL
-vkl_EnumerateInstanceLayerProperties(uint32_t* pPropertyCount, VkLayerProperties* pProperties)
-{
-	return ((PFN_vkEnumerateInstanceLayerProperties)vkl_global(15))(pPropertyCount, pProperties);
-}
-VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateInstanceLayerProperties(uint32_t* pPropertyCount, VkLayerProperties* pProperties) __attribute__((weak, alias("vkl_EnumerateInstanceLayerProperties")));
-
+VKAPI_ATTR VkResult VKAPI_CALL vkl_EnumerateInstanceLayerProperties(uint32_t* pPropertyCount, VkLayerProperties* pProperties);
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_EnumerateDeviceLayerProperties(VkPhysicalDevice physicalDevice, uint32_t* pPropertyCount, VkLayerProperties* pProperties)
 {

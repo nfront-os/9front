@@ -1,0 +1,81 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: port <port@localhost>
+Date: Fri, 23 Oct 2026 00:41:36 +0200
+Subject: [PATCH] meson, vulkan: 9front's libdrm (gpu(4)) by pkg-config,
+ _GNU_SOURCE, DRM format modifiers in vk_image
+
+---
+ meson.build                   | 7 ++++++-
+ src/vulkan/runtime/vk_image.c | 6 +++---
+ src/vulkan/runtime/vk_image.h | 2 +-
+ 3 files changed, 10 insertions(+), 5 deletions(-)
+
+diff --git a/meson.build b/meson.build
+index b8e1b86..b8d43e6 100644
+--- a/meson.build
++++ b/meson.build
+@@ -1249,7 +1249,7 @@ if cc.has_function('fmemopen')
+ endif
+ 
+ # TODO: this is very incomplete
+-if ['linux', 'cygwin', 'gnu', 'freebsd', 'gnu/kfreebsd', 'haiku', 'android', 'managarm'].contains(host_machine.system())
++if ['linux', 'cygwin', 'gnu', 'freebsd', 'gnu/kfreebsd', 'haiku', 'android', 'managarm', 'plan9'].contains(host_machine.system())
+   pre_args += '-D_GNU_SOURCE'
+ elif host_machine.system() == 'sunos'
+   pre_args += '-D__EXTENSIONS__'
+@@ -1932,6 +1932,11 @@ else
+   # We should prevent libdrm from being available when the target doesn't have it to avoid transitive
+   # dependencies (such as vk-runtime) linking to it
+   dep_libdrm = null_dep
++  if host_machine.system() == 'plan9'
++    # 9front: libdrm's interface over gpu(4), for the drivers made for
++    # DRM (hasvk), without KMS; found by pkg-config (the cross file)
++    dep_libdrm = dependency('libdrm', required : false)
++  endif
+ endif
+ if dep_libdrm.found()
+   pre_args += '-DHAVE_LIBDRM'
+diff --git a/src/vulkan/runtime/vk_image.c b/src/vulkan/runtime/vk_image.c
+index bda7fc7..5004fd0 100644
+--- a/src/vulkan/runtime/vk_image.c
++++ b/src/vulkan/runtime/vk_image.c
+@@ -23,7 +23,7 @@
+ 
+ #include "vk_image.h"
+ 
+-#if DETECT_OS_LINUX || DETECT_OS_BSD
++#if DETECT_OS_LINUX || DETECT_OS_BSD || DETECT_OS_PLAN9
+ #include <drm-uapi/drm_fourcc.h>
+ #endif
+ 
+@@ -105,7 +105,7 @@ vk_image_init(struct vk_device *device,
+       vk_find_struct_const(pCreateInfo->pNext, WSI_IMAGE_CREATE_INFO_MESA);
+    image->wsi_legacy_scanout = wsi_info && wsi_info->scanout;
+ 
+-#if DETECT_OS_LINUX || DETECT_OS_BSD
++#if DETECT_OS_LINUX || DETECT_OS_BSD || DETECT_OS_PLAN9
+    image->drm_format_mod = ((1ULL << 56) - 1) /* DRM_FORMAT_MOD_INVALID */;
+ #endif
+ 
+@@ -185,7 +185,7 @@ vk_image_destroy(struct vk_device *device,
+    vk_object_free(device, alloc, image);
+ }
+ 
+-#if DETECT_OS_LINUX || DETECT_OS_BSD
++#if DETECT_OS_LINUX || DETECT_OS_BSD || DETECT_OS_PLAN9
+ VKAPI_ATTR VkResult VKAPI_CALL
+ vk_common_GetImageDrmFormatModifierPropertiesEXT(UNUSED VkDevice device,
+                                                  VkImage _image,
+diff --git a/src/vulkan/runtime/vk_image.h b/src/vulkan/runtime/vk_image.h
+index f560519..6ec4649 100644
+--- a/src/vulkan/runtime/vk_image.h
++++ b/src/vulkan/runtime/vk_image.h
+@@ -77,7 +77,7 @@ struct vk_image {
+    /* wsi_image_create_info::scanout */
+    bool wsi_legacy_scanout;
+ 
+-#if DETECT_OS_LINUX || DETECT_OS_BSD
++#if DETECT_OS_LINUX || DETECT_OS_BSD || DETECT_OS_PLAN9
+    /* VK_EXT_drm_format_modifier
+     *
+     * Initialized by vk_image_create/init() to DRM_FORMAT_MOD_INVALID.  It's

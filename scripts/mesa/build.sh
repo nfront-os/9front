@@ -1,19 +1,24 @@
 #!/bin/bash
-# Cross-build Mesa's venus Vulkan driver for 9front with ../9front-gcc:
-# libmesaplan9.a (sys/src/mesa/plan9: what APE lacks), a meson cross file,
-# meson setup (once) and ninja in $BUILD. 9front has no shared libraries:
-# instead of the ICD (libvulkan_virtio.so) the objects and static
-# libraries it would link become one archive, $BUILD/libvulkan_venus.a,
-# which a program links with libmesaplan9.a (see tests/gpu/vktest.c).
+# Cross-build Mesa's Vulkan drivers for 9front with ../9front-gcc: venus
+# (virtio-gpu) and hasvk (Intel gen 7-8). libmesaplan9.a (sys/src/mesa/
+# plan9: what APE lacks), libdrm.a (plan9/drm: libdrm's interface over
+# gpu(4), for hasvk, found by pkg-config), a meson cross file, meson
+# setup (once) and ninja in $BUILD; the Intel shaders need mesa_clc on
+# the build machine (clc.sh). 9front has no shared libraries: instead
+# of the ICDs (libvulkan_virtio.so, libvulkan_intel_hasvk.so) the
+# objects and static libraries they would link become one relocatable
+# object (each driver's vk_icdGetInstanceProcAddr has a name of its own
+# on 9front, the rest of Mesa is there once).
 # The SDK in $BUILD/sdk is what Vulkan programs build with: the headers
 # and libvulkan.a, the static loader (sys/src/mesa/plan9/loader) with
-# the driver and libmesaplan9 in it; programs link -lvulkan -ldraw -l9
+# the drivers and libmesaplan9 in it; programs link -lvulkan -ldraw -l9
 # -lfmt -lutf.
 # Extra arguments go to ninja.
 set -e
 . "$(dirname "$0")/common.sh"
 [ -d "$SRC/.git" ] || "$(dirname "$0")/prepare.sh"
-export PATH=$VENV/bin:$PATH
+[ -x "$WORK/clc/bin/mesa_clc" ] || "$(dirname "$0")/clc.sh"
+export PATH=$WORK/clc/bin:$VENV/bin:$PATH
 mkdir -p "$BUILD/plan9"
 P9=$MESA/plan9
 
@@ -32,6 +37,20 @@ done
 rm -f "$BUILD/plan9/libmesaplan9.a"
 "$CROSS/$TRIPLE-ar" rcs "$BUILD/plan9/libmesaplan9.a" $objs
 
+# libdrm for 9front, with Mesa's uAPI headers, and its pkg-config file
+"$CROSS/$TRIPLE-gcc" -std=c11 -O2 -Wall -I"$P9/drm/include" -I"$P9/include" -I"$SRC/include" \
+	-c -o "$BUILD/plan9/drm9.o" "$P9/drm/drm9.c"
+rm -f "$BUILD/plan9/libdrm.a"
+"$CROSS/$TRIPLE-ar" rcs "$BUILD/plan9/libdrm.a" "$BUILD/plan9/drm9.o"
+mkdir -p "$BUILD/plan9/pkgconfig"
+cat > "$BUILD/plan9/pkgconfig/libdrm.pc" <<EOC
+Name: libdrm
+Description: libdrm's interface over gpu(4), 9front (sys/src/mesa/plan9/drm)
+Version: 2.4.124
+Cflags: -I$P9/drm/include
+Libs: -L$BUILD/plan9 -ldrm
+EOC
+
 q(){ printf "'%s', " "$@"; }
 # -fno-strict-aliasing: Vulkan's pNext chains are read through
 # VkBaseInStructure; with gcc 16's inlining the venus encoder read a
@@ -45,7 +64,7 @@ c = '$CROSS/$TRIPLE-gcc'
 cpp = '$CROSS/$TRIPLE-g++'
 ar = '$CROSS/$TRIPLE-ar'
 strip = '$CROSS/$TRIPLE-strip'
-pkg-config = 'false'
+pkg-config = 'pkg-config'
 
 [host_machine]
 system = 'plan9'
@@ -55,6 +74,7 @@ endian = 'little'
 
 [properties]
 needs_exe_wrapper = true
+pkg_config_libdir = ['$BUILD/plan9/pkgconfig']
 
 [built-in options]
 c_args = [${args%, }]
@@ -65,32 +85,30 @@ EOC
 
 if [ ! -f "$BUILD/mesa/build.ninja" ]; then
 	meson setup "$BUILD/mesa" "$SRC" --cross-file "$BUILD/cross.ini" \
-		-Dplatforms= -Dvulkan-drivers=virtio -Dgallium-drivers= -Dopengl=false \
+		-Dplatforms= -Dvulkan-drivers=virtio,intel_hasvk -Dgallium-drivers= -Dopengl=false \
 		-Degl=disabled -Dglx=disabled -Dgbm=disabled -Dgles1=disabled -Dgles2=disabled \
-		-Dllvm=disabled -Dzstd=disabled -Dexpat=disabled -Dxmlconfig=disabled \
+		-Dllvm=disabled -Dmesa-clc=system -Dzstd=disabled -Dexpat=disabled -Dxmlconfig=disabled \
 		-Dvalgrind=disabled -Dlibunwind=disabled -Dbuild-tests=false -Dtools= \
 		-Dvulkan-layers= -Ddefault_library=static -Dshader-cache=disabled
 fi
-# everything the ICD is made of, without linking the ICD (build.ninja
-# first: meson regenerates it when a meson.build changed)
+# everything the ICDs are made of, without linking them (build.ninja
+# first: meson regenerates it when a meson.build changed): their
+# objects, each once (members.py), in one archive
+SOS="src/virtio/vulkan/libvulkan_virtio.so src/intel/vulkan_hasvk/libvulkan_intel_hasvk.so"
 ninja -C "$BUILD/mesa" build.ninja
-link=$(ninja -C "$BUILD/mesa" -t commands src/virtio/vulkan/libvulkan_virtio.so | tail -1)
-objs=$(echo "$link" | tr ' ' '\n' | grep '\.o$')
-libs=$(echo "$link" | tr ' ' '\n' | grep '\.a$' | awk '!seen[$0]++')
-ninja -C "$BUILD/mesa" $objs $libs "$@"
-rm -f "$BUILD/libvulkan_venus.a"
-{
-	echo "create $BUILD/libvulkan_venus.a"
-	for o in $objs; do echo "addmod $BUILD/mesa/$o"; done
-	for a in $libs; do echo "addlib $BUILD/mesa/$a"; done
-	echo save
-	echo end
-} | "$CROSS/$TRIPLE-ar" -M
+for so in $SOS; do
+	link=$(ninja -C "$BUILD/mesa" -t commands $so | tail -1)
+	ninja -C "$BUILD/mesa" $(echo "$link" | tr ' ' '\n' | grep '\.[oa]$' | grep -v '^/') "$@"
+done
+objs=$(python3 "$(dirname "$0")/members.py" "$BUILD/mesa" "$CROSS/$TRIPLE-nm" $SOS)
+rm -f "$BUILD/libvulkan_mesa.a"
+(cd "$BUILD/mesa" && "$CROSS/$TRIPLE-ar" rcS "$BUILD/libvulkan_mesa.a" $objs && "$CROSS/$TRIPLE-ranlib" "$BUILD/libvulkan_mesa.a")
 
 # the SDK: the loader's trampolines from Mesa's (patched) vk.xml; the
-# driver as one relocatable object, so that the loader's reference to
-# vk_icdGetInstanceProcAddr brings all of it (venus' entry points are
-# weak references, which do not take members out of an archive)
+# drivers as one relocatable object, so that the loader's reference to
+# vk_icdNegotiateLoaderICDInterfaceVersion brings all of it (the
+# drivers' entry points are weak references, which do not take members
+# out of an archive)
 SDK=$BUILD/sdk
 L=$BUILD/loader
 mkdir -p "$L" "$SDK/lib" "$SDK/include"
@@ -101,11 +119,11 @@ for c in "$L/vkcmds.c" "$MESA/plan9/loader/vkloader.c"; do
 done
 # (ld, not gcc -r: gcc adds plan9.ld, which would merge the sections
 # of all functions into one .text that --gc-sections cannot thin)
-"$CROSS/$TRIPLE-ld" -r --no-warn-execstack -o "$L/venus.o" \
-	--whole-archive "$BUILD/libvulkan_venus.a" --no-whole-archive
+"$CROSS/$TRIPLE-ld" -r --no-warn-execstack -o "$L/mesa.o" \
+	--whole-archive "$BUILD/libvulkan_mesa.a" --no-whole-archive
 rm -f "$SDK/lib/libvulkan.a"
-"$CROSS/$TRIPLE-ar" rcs "$SDK/lib/libvulkan.a" "$L/vkloader.o" "$L/vkcmds.o" "$L/venus.o" \
+"$CROSS/$TRIPLE-ar" rcs "$SDK/lib/libvulkan.a" "$L/vkloader.o" "$L/vkcmds.o" "$L/mesa.o" \
 	"$BUILD"/plan9/*.o
 rm -rf "$SDK/include"/*
 cp -r "$SRC/include/vulkan" "$SRC/include/vk_video" "$SDK/include/"
-echo "build: $BUILD/libvulkan_venus.a $BUILD/plan9/libmesaplan9.a $SDK"
+echo "build: $BUILD/libvulkan_mesa.a $BUILD/plan9/libmesaplan9.a $SDK"

@@ -1,0 +1,33 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: port <port@localhost>
+Date: Fri, 23 Oct 2026 09:17:48 +0200
+Subject: [PATCH] hasvk: the plan9 WSI platform (VK_PLAN9_surface)
+
+---
+ src/intel/vulkan_hasvk/anv_device.c | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/src/intel/vulkan_hasvk/anv_device.c b/src/intel/vulkan_hasvk/anv_device.c
+index 6f45054..2abd0c6 100644
+--- a/src/intel/vulkan_hasvk/anv_device.c
++++ b/src/intel/vulkan_hasvk/anv_device.c
+@@ -107,7 +107,8 @@ compiler_perf_log(UNUSED void *data, UNUSED unsigned *id, const char *fmt, ...)
+ #if defined(VK_USE_PLATFORM_WAYLAND_KHR) || \
+     defined(VK_USE_PLATFORM_XCB_KHR) || \
+     defined(VK_USE_PLATFORM_XLIB_KHR) || \
+-    defined(VK_USE_PLATFORM_DISPLAY_KHR)
++    defined(VK_USE_PLATFORM_DISPLAY_KHR) || \
++    defined(VK_USE_PLATFORM_PLAN9_9FRONT)
+ #define ANV_USE_WSI_PLATFORM
+ #endif
+ 
+@@ -149,6 +150,9 @@ static const struct vk_instance_extension_table instance_extensions = {
+ #ifdef VK_USE_PLATFORM_XLIB_KHR
+    .KHR_xlib_surface                         = true,
+ #endif
++#ifdef VK_USE_PLATFORM_PLAN9_9FRONT
++   .PLAN9_surface                            = true,
++#endif
+ #ifdef VK_USE_PLATFORM_XLIB_XRANDR_EXT
+    .EXT_acquire_xlib_display                 = true,
+ #endif

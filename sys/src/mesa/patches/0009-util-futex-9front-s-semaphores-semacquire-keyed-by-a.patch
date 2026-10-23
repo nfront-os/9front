@@ -1,0 +1,105 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: port <port@localhost>
+Date: Fri, 23 Oct 2026 00:41:08 +0200
+Subject: [PATCH] util/futex: 9front's semaphores (semacquire), keyed by
+ address buckets
+
+---
+ src/util/futex.c | 70 ++++++++++++++++++++++++++++++++++++++++++++++++
+ src/util/futex.h |  2 ++
+ 2 files changed, 72 insertions(+)
+
+diff --git a/src/util/futex.c b/src/util/futex.c
+index df3e949..863a9f2 100644
+--- a/src/util/futex.c
++++ b/src/util/futex.c
+@@ -151,6 +151,76 @@ int futex_wait(uint32_t *addr, int32_t value, const struct timespec *timeout)
+    return GetLastError() == ERROR_TIMEOUT ? ETIMEDOUT : -1;
+ }
+ 
++#elif defined(__plan9__)
++
++/*
++ * 9front: semaphores keyed by address (semacquire(2)), one per bucket
++ * of addresses, with a count of the threads waiting on the bucket.
++ * A waiter counts itself before it looks at the value, a waker changes
++ * the value before it looks at the count: one of them sees the other.
++ * Wakeups of other addresses in the bucket, or left over after a
++ * timeout, are spurious ones, which futex callers expect.
++ */
++#include <errno.h>
++#include <stdint.h>
++#include <time.h>
++
++extern int _SEMACQUIRE(int *, int);
++extern int _TSEMACQUIRE(int *, unsigned long);
++extern int _SEMRELEASE(int *, int);
++
++static struct {
++   int sem;
++   int waiters;
++} futex_buckets[256];
++
++static unsigned
++futex_bucket(uint32_t *addr)
++{
++   return (uint32_t)((uintptr_t)addr >> 2) * 2654435761u >> 24;
++}
++
++int futex_wake(uint32_t *addr, int32_t count)
++{
++   unsigned b = futex_bucket(addr);
++   int n = __atomic_load_n(&futex_buckets[b].waiters, __ATOMIC_SEQ_CST);
++
++   if (n > count)
++      n = count;
++   if (n > 0)
++      _SEMRELEASE(&futex_buckets[b].sem, n);
++   return 0;
++}
++
++int futex_wait(uint32_t *addr, int32_t value, const struct timespec *timeout)
++{
++   unsigned b = futex_bucket(addr);
++   struct timespec now;
++   int64_t ms;
++   int r;
++
++   __atomic_add_fetch(&futex_buckets[b].waiters, 1, __ATOMIC_SEQ_CST);
++   if (__atomic_load_n(addr, __ATOMIC_SEQ_CST) != (uint32_t)value) {
++      __atomic_sub_fetch(&futex_buckets[b].waiters, 1, __ATOMIC_SEQ_CST);
++      errno = EAGAIN;
++      return -1;
++   }
++   if (timeout == NULL)
++      r = _SEMACQUIRE(&futex_buckets[b].sem, 1);
++   else {
++      /* the timeout is absolute, on CLOCK_MONOTONIC (as FUTEX_WAIT_BITSET) */
++      clock_gettime(CLOCK_MONOTONIC, &now);
++      ms = (int64_t)(timeout->tv_sec - now.tv_sec) * 1000 +
++           (timeout->tv_nsec - now.tv_nsec) / 1000000;
++      r = ms > 0 ? _TSEMACQUIRE(&futex_buckets[b].sem, ms) : 0;
++   }
++   __atomic_sub_fetch(&futex_buckets[b].waiters, 1, __ATOMIC_SEQ_CST);
++   if (r > 0)
++      return 0;
++   errno = r == 0 ? ETIMEDOUT : EINTR;
++   return -1;
++}
++
+ #else
+ #error UTIL_FUTEX_SUPPORTED is not implemented but the header told it is supported on this platform
+ #endif
+diff --git a/src/util/futex.h b/src/util/futex.h
+index b7ce088..be59b6f 100644
+--- a/src/util/futex.h
++++ b/src/util/futex.h
+@@ -35,6 +35,8 @@
+ #define UTIL_FUTEX_SUPPORTED 1
+ #elif defined(_WIN32) && !defined(WINDOWS_NO_FUTEX)
+ #define UTIL_FUTEX_SUPPORTED 1
++#elif defined(__plan9__)
++#define UTIL_FUTEX_SUPPORTED 1
+ #else
+ #define UTIL_FUTEX_SUPPORTED 0
+ #endif

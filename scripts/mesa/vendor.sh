@@ -8,4 +8,4 @@ set -e
 [ -f "$BUILD/mesa/compile_commands.json" ] || "$(dirname "$0")/build.sh"
 export PATH=$VENV/bin:$PATH
 export objtype
-python3 "$(dirname "$0")/vendor.py" "$SRC" "$BUILD" "$ROOT"
+NM=$CROSS/$TRIPLE-nm python3 "$(dirname "$0")/vendor.py" "$SRC" "$BUILD" "$ROOT"

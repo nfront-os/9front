@@ -1770,11 +1770,185 @@ static const struct driconf_device device_1 = {
     .num_applications = 164,
     .applications = device_1_applications,
 };
+    
+static const struct driconf_option engine_413_options[] = {
+    { .name = "vk_wsi_disable_unordered_submits", .value = "true" },
+};
+
+    
+static const struct driconf_option engine_415_options[] = {
+    { .name = "no_16bit", .value = "true" },
+};
 
 
+static const struct driconf_engine device_384_engines[] = {
+    { .engine_name_match = "GTK",
+      .engine_versions = "16777216:16859138",
+      .num_options = 1,
+      .options = engine_413_options,
+    },
+    { .engine_name_match = "mesa zink",
+      .num_options = 1,
+      .options = engine_415_options,
+    },
+};
 
+    
+static const struct driconf_option application_385_options[] = {
+    { .name = "anv_assume_full_subgroups", .value = "32" },
+};
+
+    
+static const struct driconf_option application_387_options[] = {
+    { .name = "hasvk_report_vk_1_3_version", .value = "true" },
+};
+
+    
+static const struct driconf_option application_389_options[] = {
+    { .name = "anv_assume_full_subgroups", .value = "32" },
+};
+
+    
+static const struct driconf_option application_391_options[] = {
+    { .name = "anv_assume_full_subgroups", .value = "32" },
+};
+
+    
+static const struct driconf_option application_393_options[] = {
+    { .name = "limit_trig_input_range", .value = "true" },
+};
+
+    
+static const struct driconf_option application_395_options[] = {
+    { .name = "limit_trig_input_range", .value = "true" },
+};
+
+    
+static const struct driconf_option application_397_options[] = {
+    { .name = "anv_sample_mask_out_opengl_behaviour", .value = "true" },
+};
+
+    
+static const struct driconf_option application_399_options[] = {
+    { .name = "limit_trig_input_range", .value = "true" },
+};
+
+    
+static const struct driconf_option application_401_options[] = {
+    { .name = "limit_trig_input_range", .value = "true" },
+};
+
+    
+static const struct driconf_option application_403_options[] = {
+    { .name = "limit_trig_input_range", .value = "true" },
+};
+
+    
+static const struct driconf_option application_405_options[] = {
+    { .name = "vk_lower_terminate_to_discard", .value = "true" },
+};
+
+    
+static const struct driconf_option application_407_options[] = {
+    { .name = "limit_trig_input_range", .value = "true" },
+};
+
+    
+static const struct driconf_option application_409_options[] = {
+    { .name = "limit_trig_input_range", .value = "true" },
+};
+
+    
+static const struct driconf_option application_411_options[] = {
+    { .name = "limit_trig_input_range", .value = "true" },
+};
+
+
+static const struct driconf_application device_384_applications[] = {
+    { .name = "Aperture Desk Job",
+      .executable = "deskjob",
+      .num_options = 1,
+      .options = application_385_options,
+    },
+    { .name = "Brawlhalla",
+      .executable = "BrawlhallaGame.exe",
+      .num_options = 1,
+      .options = application_387_options,
+    },
+    { .name = "Detroit: Become Human",
+      .executable = "DetroitBecomeHuman.exe",
+      .num_options = 1,
+      .options = application_389_options,
+    },
+    { .name = "DOOMEternal",
+      .executable = "DOOMEternalx64vk.exe",
+      .num_options = 1,
+      .options = application_391_options,
+    },
+    { .name = "Farming Simulator 2022",
+      .executable = "FarmingSimulator2022Game.exe",
+      .num_options = 1,
+      .options = application_393_options,
+    },
+    { .name = "Wolfenstein: Youngblood(x64vk)",
+      .executable = "Youngblood_x64vk.exe",
+      .num_options = 1,
+      .options = application_395_options,
+    },
+    { .name = "Batman™: Arkham Knight",
+      .executable = "BatmanAK.exe",
+      .num_options = 1,
+      .options = application_397_options,
+    },
+    { .name = "Company of Heroes 3",
+      .executable = "RelicCoH3.exe",
+      .num_options = 1,
+      .options = application_399_options,
+    },
+    { .name = "Rise of the Tomb Raider",
+      .executable = "RiseOfTheTombRaider",
+      .num_options = 1,
+      .options = application_401_options,
+    },
+    { .name = "Rise of the Tomb Raider",
+      .executable = "ROTTR.exe",
+      .num_options = 1,
+      .options = application_403_options,
+    },
+    { .name = "Sky: Children of the Light",
+      .executable = "Sky.exe",
+      .num_options = 1,
+      .options = application_405_options,
+    },
+    { .name = "NieR Replicant ver.1.22474487139",
+      .executable = "NieR Replicant ver.1.22474487139.exe",
+      .num_options = 1,
+      .options = application_407_options,
+    },
+    { .name = "NieR:Automata",
+      .executable = "NieRAutomata.exe",
+      .num_options = 1,
+      .options = application_409_options,
+    },
+    { .name = "Valheim",
+      .executable = "valheim.x86_64",
+      .num_options = 1,
+      .options = application_411_options,
+    },
+};
 
 static const struct driconf_device device_384 = {
+    .driver = "hasvk",
+    .num_engines = 2,
+    .engines = device_384_engines,
+    .num_applications = 14,
+    .applications = device_384_applications,
+};
+
+
+
+
+static const struct driconf_device device_417 = {
     .driver = "venus",
     .num_engines = 0,
     .num_applications = 0,
@@ -1783,4 +1957,5 @@ static const struct driconf_device device_384 = {
 static const struct driconf_device *driconf[] = {
     &device_1,
     &device_384,
+    &device_417,
 };
