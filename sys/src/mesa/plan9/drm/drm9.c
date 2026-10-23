@@ -49,6 +49,7 @@
 #endif
 
 extern void	*_SEGATTACH(int, char*, void*, unsigned long);
+extern int	_ERRSTR(char*, unsigned int);
 extern int	_SEGDETACH(void*);
 extern int	_FD2PATH(int, char*, int);
 
@@ -143,6 +144,39 @@ seterr(int e)
 {
 	errno = e;
 	return -1;
+}
+
+/* with $DRM9DEBUG set: why a call fails, on standard error */
+static void
+dbg(char *fmt, ...)
+{
+	static int on = -1;
+	va_list arg;
+	int e;
+
+	e = errno;
+	if(on < 0)
+		on = getenv("DRM9DEBUG") != NULL;
+	if(on){
+		fprintf(stderr, "drm9: ");
+		va_start(arg, fmt);
+		vfprintf(stderr, fmt, arg);
+		va_end(arg);
+		fprintf(stderr, "\n");
+	}
+	errno = e;
+}
+
+/* the system's error string (the driver's reply to a failed write) */
+static char*
+syserr(void)
+{
+	static char buf[128];
+
+	buf[0] = 0;
+	_ERRSTR(buf, sizeof buf);
+	_ERRSTR(buf, sizeof buf);	/* put it back */
+	return buf;
 }
 
 static int
@@ -347,8 +381,10 @@ ctl(Dev *d, char *reply, int n, char *fmt, ...)
 	va_start(arg, fmt);
 	vsnprintf(req, sizeof req, fmt, arg);
 	va_end(arg);
-	if(write(d->fd, req, strlen(req)) < 0)
+	if(write(d->fd, req, strlen(req)) < 0){
+		dbg("ctl %s: %s", req, syserr());
 		return seterr(EINVAL);
+	}
 	if(reply != NULL){
 		if((m = pread(d->fd, reply, n-1, 0)) < 0)
 			return seterr(EIO);
@@ -770,10 +806,12 @@ execbuf(Dev *d, struct drm_i915_gem_execbuffer2 *eb)
 	for(i = 0; i < eb->buffer_count; i++){
 		if(obj[i].relocation_count != 0){
 			pthread_mutex_unlock(&lk);
+			dbg("execbuffer: object %u has relocations", i);
 			return seterr(EINVAL);	/* softpin only */
 		}
 		if((g = getgem(d, obj[i].handle)) == NULL){
 			pthread_mutex_unlock(&lk);
+			dbg("execbuffer: object %u: no handle %u", i, obj[i].handle);
 			return seterr(ENOENT);
 		}
 		if(obj[i].flags & EXEC_OBJECT_PINNED){
@@ -787,6 +825,7 @@ execbuf(Dev *d, struct drm_i915_gem_execbuffer2 *eb)
 			}
 		}else if(g->gpu == 0){
 			pthread_mutex_unlock(&lk);
+			dbg("execbuffer: object %u (handle %u) not pinned and not mapped", i, obj[i].handle);
 			return seterr(EINVAL);
 		}else
 			obj[i].offset = g->gpu;
@@ -801,6 +840,8 @@ execbuf(Dev *d, struct drm_i915_gem_execbuffer2 *eb)
 		}
 		if(syncfence(s, vals != NULL ? vals[i] : 0, &f) < 0){
 			pthread_mutex_unlock(&lk);
+			dbg("execbuffer: wait on syncobj %u point %llu: no fence", fa[i].handle,
+				(unsigned long long)(vals != NULL ? vals[i] : 0));
 			return seterr(EINVAL);
 		}
 		if(f.ctx != NULL && f.ctx != d){
@@ -812,6 +853,7 @@ execbuf(Dev *d, struct drm_i915_gem_execbuffer2 *eb)
 	batch = getgem(d, obj[(eb->flags & I915_EXEC_BATCH_FIRST) ? 0 : eb->buffer_count-1].handle);
 	snprintf(req, sizeof req, "%d %u %s", batch->id, eb->batch_start_offset, eng == 0 ? "rcs" : "bcs");
 	if(write(d->submitfd, req, strlen(req)) < 0){
+		dbg("submit %s: %s", req, syserr());
 		pthread_mutex_unlock(&lk);
 		return seterr(EIO);
 	}
@@ -1131,9 +1173,15 @@ ioctl(int fd, unsigned long req, void *arg)
 		pthread_mutex_lock(&lk);
 		d = getdev(fd);
 		pthread_mutex_unlock(&lk);
-		if(d == NULL)
+		if(d == NULL){
+			dbg("ioctl %#lx on %d: not a GPU context", req, fd);
 			return seterr(ENOTTY);
-		return i915ioctl(d, req, arg);
+		}
+		if(i915ioctl(d, req, arg) < 0){
+			dbg("ioctl %#lx (nr %#lx): %s", req, req & 0xff, strerror(errno));
+			return -1;
+		}
+		return 0;
 	}
 	if((req >> 8 & 0xff) == DMA_BUF_BASE){
 		pthread_mutex_lock(&lk);

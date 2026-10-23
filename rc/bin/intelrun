@@ -24,7 +24,9 @@ echo '## aux/intelgpu' $* >>$log
 aux/intelgpu $* >>$log >[2=1]
 echo '## aux/inteltest' >>$log
 aux/inteltest >>$log >[2=1]
-# Vulkan through hasvk (libdrm over gpu(4)); in a rio window
+# Vulkan through hasvk (libdrm over gpu(4)); in a rio window; libdrm
+# says why a call fails
+DRM9DEBUG=1
 if(test -d /$objtype/vk)
 	bind -a /$objtype/vk /bin
 for(c in 'vulkaninfo --summary' 'vktri 3' 'vkcube --c 300'){

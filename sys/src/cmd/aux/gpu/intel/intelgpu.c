@@ -46,7 +46,7 @@
 #include "renderstate.h"
 
 /* a context's address space: 48 bits (four levels), with -3 32 bits (three) */
-#define Pplimit48	(1ULL<<47)	/* the driver's choices below the canonical hole */
+#define Pplimit48	(1ULL<<48)	/* all of the 48 bits (hasvk's heaps go to the top) */
 #define Pplimit32	0xFFF00000ULL
 #define Ptaddr		0xFFFFFFFFF000ULL	/* the address in an entry */
 
