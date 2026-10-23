@@ -141,6 +141,17 @@ struct anv_state_table_cleanup {
 static VkResult
 anv_state_table_expand_range(struct anv_state_table *table, uint32_t size);
 
+#if DETECT_OS_PLAN9
+/*
+ * 9front has no anonymous files to map again and again: the table is
+ * one shared segment of the whole size, paged in where it is used, at
+ * an address that never changes (what the maps of the file would all
+ * show).
+ */
+extern void *_SEGATTACH(int, char *, void *, unsigned long);
+extern int _SEGDETACH(void *);
+#endif
+
 VkResult
 anv_state_table_init(struct anv_state_table *table,
                     struct anv_device *device,
@@ -154,9 +165,16 @@ anv_state_table_init(struct anv_state_table *table,
     * with pages until we either map and fault on one of them or we use
     * userptr and send a chunk of it off to the GPU.
     */
+#if DETECT_OS_PLAN9
+   table->fd = -1;
+   table->map = _SEGATTACH(0, "shared", NULL, BLOCK_POOL_MEMFD_SIZE);
+   if (table->map == (void *)-1)
+      return vk_error(device, VK_ERROR_INITIALIZATION_FAILED);
+#else
    table->fd = os_create_anonymous_file(BLOCK_POOL_MEMFD_SIZE, "state table");
    if (table->fd == -1)
       return vk_error(device, VK_ERROR_INITIALIZATION_FAILED);
+#endif
 
    if (!u_vector_init(&table->cleanups, 8,
                       sizeof(struct anv_state_table_cleanup))) {
@@ -178,7 +196,11 @@ anv_state_table_init(struct anv_state_table *table,
  fail_cleanups:
    u_vector_finish(&table->cleanups);
  fail_fd:
+#if DETECT_OS_PLAN9
+   _SEGDETACH(table->map);
+#else
    close(table->fd);
+#endif
 
    return result;
 }
@@ -195,6 +217,11 @@ anv_state_table_expand_range(struct anv_state_table *table, uint32_t size)
    /* Make sure that we don't go outside the bounds of the memfd */
    if (size > BLOCK_POOL_MEMFD_SIZE)
       return vk_error(table->device, VK_ERROR_OUT_OF_HOST_MEMORY);
+
+#if DETECT_OS_PLAN9
+   table->size = size;
+   return VK_SUCCESS;
+#endif
 
    cleanup = u_vector_add(&table->cleanups);
    if (!cleanup)
@@ -270,7 +297,11 @@ anv_state_table_finish(struct anv_state_table *table)
 
    u_vector_finish(&table->cleanups);
 
+#if DETECT_OS_PLAN9
+   _SEGDETACH(table->map);
+#else
    close(table->fd);
+#endif
 }
 
 VkResult

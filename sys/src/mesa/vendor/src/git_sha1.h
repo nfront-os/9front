@@ -1,1 +1,1 @@
-#define MESA_GIT_SHA1 " (git-244e078947)"
+#define MESA_GIT_SHA1 " (git-fcdc09d876)"
