@@ -102,6 +102,16 @@ if [ -n "$GO_OUT" ]; then
 	ln -s "$GO_OUT/$A/go" "$VIEW/$A/go"
 	PROTOS+=("$ROOT/scripts/guest/boot/goproto")
 fi
+# the Vulkan programs tests/gpu/build-vktest.sh built (vulkaninfo, vkcube,
+# vktri; statically linked with Mesa's drivers) as /$objtype/vk
+VK=$ROOT/tests/gpu/root/tests
+if [ -x "$VK/vulkaninfo" ]; then
+	mkdir -p "$VIEW/$A/vk"
+	for p in vulkaninfo vkcube vktri; do
+		[ -x "$VK/$p" ] && ln -s "$VK/$p" "$VIEW/$A/vk/$p"
+	done
+	PROTOS+=("$ROOT/scripts/guest/boot/vkproto")
+fi
 
 rm -rf "$OUT"
 mkdir -p "$OUT"
@@ -117,6 +127,11 @@ cat "${PROTOS[@]}" > "$OUT/gccproto"
 # not in /$objtype/go: its programs are a.out, its ELF files are test data of Go's std
 # (debug/elf, runtime/pprof), which strip would change
 find "$OUT" -path "$OUT/$A/go" -prune -o -type f -perm -u+x -exec sh -c 'file -b "$1" | grep -q ^ELF && strip "$1"' _ {} \;
+# Mesa's libvulkan.a without its debug information: with it (300 MB)
+# disk/mk9660 fails
+for f in "$OUT"/$A/lib.gcc/ape/libvulkan.a; do
+	[ -f "$f" ] && strip -g "$f"
+done
 echo "$(grep -c . "$OUT.warnings") proto warnings ($OUT.warnings)"
 # everything mk install installs made it into the distribution
 python3 "$ROOT/scripts/build/check-install.py" -d "$OUT" | grep -v '^broken' | tail -20

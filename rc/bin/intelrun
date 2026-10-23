@@ -1,5 +1,6 @@
 #!/bin/rc
-# intelrun: the Intel GPU driver and its test, their output into a log
+# intelrun: the Intel GPU driver, its test and Vulkan (vulkaninfo,
+# vktri, vkcube: hasvk), their output into a log
 # on the ESP (FAT) of the USB stick the system booted from, as gpu.log:
 # to be read on another machine instead of photographed.  The log is
 # written there as it grows (dossrv writes every write through), so
@@ -23,6 +24,14 @@ echo '## aux/intelgpu' $* >>$log
 aux/intelgpu $* >>$log >[2=1]
 echo '## aux/inteltest' >>$log
 aux/inteltest >>$log >[2=1]
+# Vulkan through hasvk (libdrm over gpu(4)); in a rio window
+if(test -d /$objtype/vk)
+	bind -a /$objtype/vk /bin
+for(c in 'vulkaninfo --summary' 'vktri 3' 'vkcube --c 300'){
+	echo '##' $c >>$log
+	eval $c >>$log >[2=1]
+	echo '## status' $status >>$log
+}
 echo '## #G/0/ctl' >>$log
 cat '#G/0/ctl' >>$log
 echo '## /dev/gpu/0/status' >>$log
