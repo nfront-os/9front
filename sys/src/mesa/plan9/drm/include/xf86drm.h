@@ -149,6 +149,14 @@ extern int	drmSyncobjQuery(int, uint32_t*, uint64_t*, uint32_t);
 extern int	drmSyncobjQuery2(int, uint32_t*, uint64_t*, uint32_t, uint32_t);
 extern int	drmSyncobjTransfer(int, uint32_t, uint64_t, uint32_t, uint64_t, uint32_t);
 
+/*
+ * 9front's: GEM object handle (linear x8r8g8b8, the mode's size,
+ * stride bytes a row) on the display instead of the draw screen, a
+ * new picture at each call; handle 0: the screen again (gpu(4) ctx
+ * scanout). 0 or -1 (errno).
+ */
+extern int	drm9Scanout(int, uint32_t, uint32_t, uint32_t, uint32_t);
+
 #ifdef __cplusplus
 }
 #endif

@@ -1,0 +1,120 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: port <port@localhost>
+Date: Fri, 23 Oct 2026 21:13:07 +0200
+Subject: [PATCH] wsi: plan9: WSI_PLAN9_STATS=1, where a present's time goes
+
+---
+ src/vulkan/wsi/wsi_common_plan9.c | 42 +++++++++++++++++++++++++++++++
+ 1 file changed, 42 insertions(+)
+
+diff --git a/src/vulkan/wsi/wsi_common_plan9.c b/src/vulkan/wsi/wsi_common_plan9.c
+index 04d070b..720c26e 100644
+--- a/src/vulkan/wsi/wsi_common_plan9.c
++++ b/src/vulkan/wsi/wsi_common_plan9.c
+@@ -13,6 +13,7 @@
+  * every time: rio gives a window a new image when it is resized.
+  */
+ 
++#include <stdio.h>
+ #include <stdlib.h>
+ #include <string.h>
+ 
+@@ -21,6 +22,7 @@
+ 
+ #include "util/macros.h"
+ #include "util/timespec.h"
++#include "util/os_time.h"
+ #include "vk_util.h"
+ #include "vk_instance.h"
+ #include "vk_physical_device.h"
+@@ -242,8 +244,37 @@ struct wsi_plan9_swapchain {
+    bool scanout;     /* the frames go to the display directly */
+    int shown;        /* the image on the display, kept busy; -1 none */
+    uint32_t next;
++   /* WSI_PLAN9_STATS=1: where a present's time goes, every 100 frames */
++   bool stats;
++   uint32_t nstat;
++   int64_t tstat[4];  /* the GPU's blit, the copy, draw(3) or scanout, between presents */
++   int64_t last;
+    struct wsi_plan9_image images[0];
+ };
++
++static void
++plan9_stats(struct wsi_plan9_swapchain *chain, const int64_t t[4])
++{
++   int64_t now = os_time_get_nano();
++   int i;
++
++   for (i = 0; i < 3; i++)
++      chain->tstat[i] += t[i+1] - t[i];
++   if (chain->last != 0)
++      chain->tstat[3] += now - chain->last;
++   chain->last = now;
++   if (++chain->nstat < 100)
++      return;
++   fprintf(stderr, "wsi plan9 %ux%u %s: per frame %.2f ms: blit wait %.2f, copy %.2f, %s %.2f\n",
++           chain->extent.width, chain->extent.height,
++           chain->scanout ? "scanout" : "copy",
++           chain->tstat[3] / 1e6 / (chain->nstat - 1),
++           chain->tstat[0] / 1e6 / chain->nstat, chain->tstat[1] / 1e6 / chain->nstat,
++           chain->scanout ? "scanout" : "draw", chain->tstat[2] / 1e6 / chain->nstat);
++   chain->nstat = 0;
++   chain->last = 0;
++   memset(chain->tstat, 0, sizeof chain->tstat);
++}
+ VK_DEFINE_NONDISP_HANDLE_CASTS(wsi_plan9_swapchain, base.base, VkSwapchainKHR,
+                                VK_OBJECT_TYPE_SWAPCHAIN_KHR)
+ 
+@@ -315,6 +346,8 @@ wsi_plan9_swapchain_queue_present(struct wsi_swapchain *wsi_chain,
+ 
+    assert(image_index < chain->base.image_count);
+ 
++   int64_t t[4];
++   t[0] = os_time_get_nano();
+    /* the blit into the host visible buffer must be done */
+    if (!wsi->sw) {
+       wsi->WaitForFences(chain->base.device, 1,
+@@ -329,6 +362,7 @@ wsi_plan9_swapchain_queue_present(struct wsi_swapchain *wsi_chain,
+    if (chain->scanout) {
+       VkDeviceMemory mem = image->base.blit.memory != VK_NULL_HANDLE ?
+                            image->base.blit.memory : image->base.memory;
++      t[1] = t[2] = os_time_get_nano();
+       if (wsi->plan9_scanout(chain->base.device, mem, chain->extent.width,
+                              chain->extent.height,
+                              image->base.row_pitches[0]) == VK_SUCCESS) {
+@@ -347,6 +381,7 @@ wsi_plan9_swapchain_queue_present(struct wsi_swapchain *wsi_chain,
+     * once, with streaming loads where there are any, then hand draw(3)
+     * the copy.
+     */
++   t[1] = os_time_get_nano();
+    size_t size = (size_t)image->base.row_pitches[0] * chain->extent.height;
+ #if defined(USE_SSE41)
+    if (util_get_cpu_caps()->has_sse4_1)
+@@ -354,6 +389,7 @@ wsi_plan9_swapchain_queue_present(struct wsi_swapchain *wsi_chain,
+    else
+ #endif
+       memcpy(chain->pixels, image->base.cpu_map, size);
++   t[2] = os_time_get_nano();
+ 
+    if (plan9win_put(chain->window_name, chain->pixels,
+                     chain->extent.width, chain->extent.height,
+@@ -365,6 +401,10 @@ wsi_plan9_swapchain_queue_present(struct wsi_swapchain *wsi_chain,
+    image->busy = false;
+ 
+ Shown:
++   if (chain->stats) {
++      t[3] = os_time_get_nano();
++      plan9_stats(chain, t);
++   }
+    /* resized: tell the app, which makes a new swapchain */
+    if (plan9win_size(chain->window_name, &w, &h) == 0 &&
+        ((uint32_t)w != chain->extent.width || (uint32_t)h != chain->extent.height))
+@@ -454,6 +494,8 @@ wsi_plan9_surface_create_swapchain(VkIcdSurfaceBase *icd_surface,
+    chain->status = VK_SUCCESS;
+    chain->scanout = scanout;
+    chain->shown = -1;
++   const char *stats = getenv("WSI_PLAN9_STATS");
++   chain->stats = stats != NULL && atoi(stats) != 0;
+ 
+    uint32_t image = 0;
+    for (; image < chain->base.image_count; image++) {

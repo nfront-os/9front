@@ -29,7 +29,15 @@ aux/inteltest >>$log >[2=1]
 DRM9DEBUG=1
 if(test -d /$objtype/vk)
 	bind -a /$objtype/vk /bin
-for(c in 'vulkaninfo --summary' 'vktri 3' 'vkcube --c 300'){
+# speed (WSI_PLAN9_STATS: where a frame's time goes): vkcube in this
+# window (a copy through draw(3)), then on the whole screen (the kernel's
+# draw device, not rio's window): copied, and shown by the display
+# plane itself (scanout, no copy); afterwards the plane is rio's again
+for(c in 'vulkaninfo --summary' 'vktri 3' \
+	'WSI_PLAN9_STATS=1 vkcube --c 600' \
+	'@{rfork n; bind -b ''#i'' /dev; WSI_PLAN9_STATS=1 WSI_PLAN9_COPY=1 vkcube --c 300}' \
+	'@{rfork n; bind -b ''#i'' /dev; WSI_PLAN9_STATS=1 vkcube --c 600}' \
+	'grep scanout /dev/gpu/0/status'){
 	echo '##' $c >>$log
 	eval $c >>$log >[2=1]
 	echo '## status' $status >>$log

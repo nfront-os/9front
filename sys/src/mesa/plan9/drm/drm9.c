@@ -1731,3 +1731,26 @@ drmSyncobjImportSyncFile(int fd, uint32_t handle, int sfd)
 	pthread_mutex_unlock(&lk);
 	return r;
 }
+
+/* 9front: a GEM object on the display (gpu(4)'s ctx scanout); 0: the screen again */
+int
+drm9Scanout(int fd, uint32_t handle, uint32_t w, uint32_t h, uint32_t stride)
+{
+	Dev *d;
+	Gem *g;
+	int r;
+
+	pthread_mutex_lock(&lk);
+	if((d = getdev(fd)) == NULL){
+		pthread_mutex_unlock(&lk);
+		return seterr(EBADF);
+	}
+	if(handle == 0)
+		r = ctl(d, NULL, 0, "scanout 0");
+	else if((g = getgem(d, handle)) == NULL)
+		r = seterr(ENOENT);
+	else
+		r = ctl(d, NULL, 0, "scanout %d %u %u %u", g->id, w, h, stride);
+	pthread_mutex_unlock(&lk);
+	return r;
+}

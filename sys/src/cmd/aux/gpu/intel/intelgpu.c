@@ -163,6 +163,11 @@ enum {
 	Dspcntr		= 0x70180,
 	Dspstride	= 0x70188,
 	Dspsurf		= 0x7019C,
+	Dspoffset	= 0x701A4,	/* HSW/BDW: DSPOFFSET, y<<16 | x */
+	Dspfmtmask	= 0xF<<26,
+	Dspbgrx		= 6<<26,	/* x8r8g8b8 */
+	Dsptiled	= 1<<10,
+	Scanalign	= 256*1024,	/* a scanout surface's alignment (gen 9: 256 KB, gen 8: 4 KB) */
 
 	/* commands */
 	Minoop		= 0,
@@ -197,6 +202,7 @@ enum {
 	 * reads them (i915's gen8_pde_encode uses no PAT bit either)
 	 */
 	Pdecached	= 1<<4,
+	Ptewt		= 1<<4,		/* index 2: write-through in the LLC, for what the display reads */
 
 	Hwsscratch	= 0x40,		/* dword of an engine's status page the flushes may write */
 
@@ -273,6 +279,8 @@ struct Bo {
 	uvlong	*pa;		/* its pages' physical addresses */
 	uvlong	gtt;		/* the GPU address: in the context's PPGTT, or the GTT (-G); 0: not mapped */
 	int	plane;		/* the visible plane mapped (map plane), no segment */
+	ulong	scanbase, scangtt;	/* in the GTT for the display (scanout), aligned */
+	int	scanwt;		/* mapped write-through in the PPGTT: the display reads memory */
 };
 
 struct Ctx {
@@ -377,6 +385,15 @@ static Engine eng[] = {
 	{ "bcs", 0x22000, 16, 1<<3, Xcsstatepages, 1 },	/* GEN6_GRDOM_BLT */
 };
 static Ctx *ctxs[Nctx];
+/*
+ * the scanout: a client's object on the display plane instead of the
+ * draw screen (aux/vga's), the plane's registers as they were
+ */
+static struct {
+	Bo	*bo;
+	int	p;
+	u32int	cntr, stride, offset, surf;
+} scan;
 static Bo *bos[Nbo];
 static File *ctxdir;
 static Srv fs;
@@ -1508,7 +1525,7 @@ bomap(Bo *b, uvlong at)
 			return "no GPU address space left";
 	}else if((at & 4095) != 0 || holetake(&c->holes, at, b->size) < 0)
 		return "GPU address in use or out of range";
-	if(ppmap(c, at, 0, b->pa, b->size, uncached ? Pteuncached : Ptecached) < 0){
+	if(ppmap(c, at, 0, b->pa, b->size, uncached ? Pteuncached : b->scanwt ? Ptewt : Ptecached) < 0){
 		ppunmap(c, at, b->size);
 		holefree(&c->holes, at, b->size);
 		return "no page tables left";
@@ -1596,10 +1613,18 @@ bobind(Bo *b, uvlong at)
 	return err;
 }
 
+static void scanrestore(void);
+
 static void
 bofree(Bo *b)
 {
 	qlock(&lk);
+	if(scan.bo == b)
+		scanrestore();
+	if(b->scanbase != 0){
+		gttunmap(b->scangtt, b->size);
+		gttfree(b->scanbase, b->size + Scanalign);
+	}
 	bounmap(b);
 	qunlock(&lk);
 	if(!b->plane)
@@ -1962,6 +1987,12 @@ statusstr(void)
 	t = smprint("%sgtt %lld entries, %lud MB free, %d objects\n", s, nent, nfree>>20, n);
 	free(s);
 	s = t;
+	if(scan.bo != nil)
+		t = smprint("%sscanout ctx %d bo %d gtt %#lux\n", s, scan.bo->ctx->id, scan.bo->id, scan.bo->scangtt);
+	else
+		t = smprint("%sscanout none\n", s);
+	free(s);
+	s = t;
 	for(i = 0; i < Nctx; i++)
 		if(ctxs[i] != nil){
 			t = smprint("%sctx %d fence %llud/%llud seqno rcs %ud/%ud bcs %ud/%ud lrca %#lux pd0 %#llux%s\n",
@@ -2092,6 +2123,104 @@ fsread(Req *r)
 	respond(r, nil);
 }
 
+/* the plane as it was (aux/vga's draw screen); with lk */
+static void
+scanrestore(void)
+{
+	int o;
+
+	if(scan.bo == nil)
+		return;
+	o = scan.p*0x1000;
+	wr(Dspcntr+o, scan.cntr);
+	wr(Dspstride+o, scan.stride);
+	wr(Dspoffset+o, scan.offset);
+	wr(Dspsurf+o, scan.surf);
+	scan.bo = nil;
+}
+
+/*
+ * ctx scanout: object id (linear x8r8g8b8, the mode's size, stride
+ * bytes a row) is what the display shows, until scanout 0, its free or
+ * the context's end; each scanout is a new picture (a swapchain's
+ * present), taken at the next vertical blank. The display reads
+ * memory, not the LLC: the object is mapped write-through for the GPU
+ * from its first scanout on (i915 has display buffers write-through
+ * or uncached), and into the GTT for the display.
+ */
+static char*
+scanout(Ctx *c, int id, int w, int h, int stride)
+{
+	ulong surf, pstride, a;
+	int p, bpp, pw, ph, tiled, o;
+	Bo *b;
+
+	if(id == 0){
+		qlock(&lk);
+		if(scan.bo != nil && scan.bo->ctx == c)
+			scanrestore();
+		qunlock(&lk);
+		return nil;
+	}
+	if((b = findbo(c, id)) == nil || b->plane)
+		return "unknown object";
+	if(scan.bo != nil && scan.bo->ctx != c)
+		return "scanout in use";
+	if((p = plane(&surf, &pstride, &bpp, &pw, &ph, &tiled)) < 0)
+		return "no plane";
+	if(w != pw || h != ph)
+		return "not the mode's size";
+	if(stride < w*4 || stride % 64 != 0 || (uvlong)stride*h > b->size)
+		return "bad stride";
+	if(!b->scanwt && !global && b->gtt != 0){
+		if(c->nfence > c->donefence)
+			fencewait(c, c->nfence);
+		qlock(&lk);
+		ppmap(c, b->gtt, 0, b->pa, b->size, uncached ? Pteuncached : Ptewt);
+		b->scanwt = 1;
+		qunlock(&lk);
+	}
+	qlock(&lk);
+	if(b->scanbase == 0){
+		if(global)
+			a = b->gtt;
+		else{
+			if((a = gttalloc(b->size + Scanalign)) == 0){
+				qunlock(&lk);
+				return "no GTT space for the scanout";
+			}
+			b->scanbase = a;
+			a = (a + Scanalign-1) & ~(Scanalign-1);
+			gttmap(a, 0, b->pa, b->size);
+		}
+		b->scangtt = a;
+	}
+	o = p*0x1000;
+	if(scan.bo == nil){
+		scan.p = p;
+		scan.cntr = rd(Dspcntr+o);
+		scan.stride = rd(Dspstride+o);
+		scan.offset = rd(Dspoffset+o);
+		scan.surf = rd(Dspsurf+o);
+	}
+	wr(Dspcntr+o, (scan.cntr & ~(Dspfmtmask|Dsptiled)) | Dspbgrx);
+	wr(Dspstride+o, stride);
+	wr(Dspoffset+o, 0);
+	wr(Dspsurf+o, b->scangtt);	/* last: the flip, at the next vertical blank */
+	scan.bo = b;
+	qunlock(&lk);
+	return nil;
+}
+
+/* the server ends: the draw screen back on the display */
+static void
+fsend(Srv*)
+{
+	qlock(&lk);
+	scanrestore();
+	qunlock(&lk);
+}
+
 static char*
 ctxctl(Ctx *c, char **f, int n)
 {
@@ -2108,6 +2237,10 @@ ctxctl(Ctx *c, char **f, int n)
 	}
 	if(n == 2 && strcmp(f[0], "map") == 0 && strcmp(f[1], "plane") == 0)
 		return mapplane(c);
+	if(n == 2 && strcmp(f[0], "scanout") == 0 && atoi(f[1]) == 0)
+		return scanout(c, 0, 0, 0, 0);
+	if(n == 5 && strcmp(f[0], "scanout") == 0)
+		return scanout(c, atoi(f[1]), atoi(f[2]), atoi(f[3]), atoi(f[4]));
 	if(n == 2 && strcmp(f[0], "free") == 0){
 		if((b = findbo(c, atoi(f[1]))) == nil)
 			return "unknown object";
@@ -2495,6 +2628,7 @@ main(int argc, char **argv)
 	fs.read = fsread;
 	fs.write = fswrite;
 	fs.destroyfid = fsdestroyfid;
+	fs.end = fsend;
 	mktree();
 	postmountsrv(&fs, srvname, "/dev", MAFTER);
 	exits(nil);

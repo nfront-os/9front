@@ -31,6 +31,27 @@
 
 #include "common/intel_debug_identifier.h"
 
+#if DETECT_OS_PLAN9
+#include <xf86drm.h>
+
+/*
+ * 9front: the memory's object on the display, no copy (libdrm's
+ * drm9Scanout, gpu(4)'s ctx scanout); VK_NULL_HANDLE: the screen again
+ */
+static VkResult
+anv_plan9_scanout(VkDevice _device, VkDeviceMemory _memory,
+                  uint32_t width, uint32_t height, uint32_t stride)
+{
+   ANV_FROM_HANDLE(anv_device, device, _device);
+   ANV_FROM_HANDLE(anv_device_memory, mem, _memory);
+
+   if (drm9Scanout(device->fd, mem != NULL ? mem->bo->gem_handle : 0,
+                   width, height, stride) < 0)
+      return VK_ERROR_FEATURE_NOT_PRESENT;
+   return VK_SUCCESS;
+}
+#endif
+
 static PFN_vkVoidFunction
 anv_wsi_proc_addr(VkPhysicalDevice physicalDevice, const char *pName)
 {
@@ -57,6 +78,9 @@ anv_init_wsi(struct anv_physical_device *physical_device)
       return result;
 
    physical_device->wsi_device.supports_modifiers = true;
+#if DETECT_OS_PLAN9
+   physical_device->wsi_device.plan9_scanout = anv_plan9_scanout;
+#endif
 
    physical_device->vk.wsi_device = &physical_device->wsi_device;
 
