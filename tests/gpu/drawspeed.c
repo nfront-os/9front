@@ -7,7 +7,8 @@
  * (devdraw and the frame buffer), and a draw of the image in memory
  * onto the screen (memdraw's copy to the frame buffer). Through a
  * draw(3) connection of its own: the whole screen, not a rio window.
- * Each 20 times; milliseconds a picture and MB/s.
+ * Each 20 times; milliseconds a picture and MB/s. The screen is put
+ * back as it was.
  *
  * usage: drawspeed [n]
  */
@@ -28,7 +29,7 @@ void
 main(int argc, char **argv)
 {
 	Display *d;
-	Image *s, *mem;
+	Image *s, *mem, *save;
 	uchar *px;
 	Rectangle r;
 	long bytes;
@@ -49,6 +50,10 @@ main(int argc, char **argv)
 		px[i] = i*7;
 	if((mem = allocimage(d, r, XRGB32, 0, DNofill)) == nil)
 		sysfatal("allocimage: %r");
+	/* what the screen shows now, put back at the end */
+	if((save = allocimage(d, r, s->chan, 0, DNofill)) == nil)
+		sysfatal("allocimage: %r");
+	draw(save, r, s, nil, r.min);
 
 	t0 = nsec();
 	for(i = 0; i < n; i++){
@@ -72,5 +77,7 @@ main(int argc, char **argv)
 		flushimage(d, 1);
 	}
 	report("draw memory -> screen", t0, n, bytes);
+	draw(s, r, save, nil, r.min);
+	flushimage(d, 1);
 	exits(nil);
 }

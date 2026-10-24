@@ -35,10 +35,10 @@ if(test -d /$objtype/vk)
 # plane itself (scanout, no copy); afterwards the plane is rio's again
 for(c in 'vulkaninfo --summary' 'vktri 3' \
 	'WSI_PLAN9_STATS=1 vkcube --c 600' \
-	'@{rfork n; bind -b ''#i'' /dev; WSI_PLAN9_STATS=1 WSI_PLAN9_COPY=1 vkcube --c 300}' \
-	'@{rfork n; bind -b ''#i'' /dev; WSI_PLAN9_STATS=1 vkcube --c 600}' \
+	'@{rfork en; bind -b ''#i'' /dev; WSI_PLAN9_STATS=1 WSI_PLAN9_COPY=1 vkcube --c 300}' \
+	'@{rfork en; bind -b ''#i'' /dev; WSI_PLAN9_STATS=1 vkcube --c 600}' \
 	'grep scanout /dev/gpu/0/status' \
-	'@{rfork n; bind -b ''#i'' /dev; drawspeed}' \
+	'@{rfork en; bind -b ''#i'' /dev; drawspeed}' \
 	'cat ''#v/vgactl''' \
 	'grep -i mtrr ''#P/archctl'''){
 	echo '##' $c >>$log

@@ -18,6 +18,20 @@
 
 extern int screenpeek(int, int, unsigned *);	/* screenpeek.c */
 
+/* the same colour, give or take what a 16-bit screen loses */
+static int
+near(unsigned a, unsigned b)
+{
+	int i, d;
+
+	for(i = 0; i < 24; i += 8){
+		d = (int)(a>>i & 0xff) - (int)(b>>i & 0xff);
+		if(d < -8 || d > 8)
+			return 0;
+	}
+	return 1;
+}
+
 #define FAIL(...) do { printf("FAIL "); printf(__VA_ARGS__); printf("\n"); exit(1); } while(0)
 #define CHECK(call, what) do { VkResult r_ = (call); if(r_ != VK_SUCCESS && r_ != VK_SUBOPTIMAL_KHR) FAIL("%s: VkResult %d", what, r_); } while(0)
 
@@ -402,7 +416,7 @@ main(int argc, char **argv)
 		for(i = 0; i < 4; i++){
 			if(r[i] < 0)
 				FAIL("screenpeek %d,%d", want[i].x, want[i].y);
-			if(rgb[i] != want[i].rgb)
+			if(!near(rgb[i], want[i].rgb))
 				FAIL("screen at %d,%d is %06x, want %06x (%s)", want[i].x, want[i].y,
 					rgb[i], want[i].rgb, want[i].what);
 			printf("ok screen at %d,%d: %06x (%s)\n", want[i].x, want[i].y, rgb[i], want[i].what);
