@@ -342,7 +342,9 @@ object
 (linear x8r8g8b8, the mode's size,
 .I stride
 bytes a row, a multiple of 64) becomes what the display shows, a new
-picture with each request, taken at the next vertical blank, until
+picture with each request, taken at the next vertical blank; the
+request returns once the display shows it (the picture before is then
+free: a swapchain's FIFO, at the display's rate), until
 .BR "scanout 0" ,
 the object's free or the context's end; the plane is then as aux/vga
 left it.

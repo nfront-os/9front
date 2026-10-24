@@ -202,6 +202,7 @@ enum {
 	Dspstride	= 0x70188,
 	Dspsurf		= 0x7019C,
 	Dspoffset	= 0x701A4,	/* HSW/BDW: DSPOFFSET, y<<16 | x */
+	Dspsurflive	= 0x701AC,	/* the surface the plane scans out now */
 	Dspfmtmask	= 0xF<<26,
 	Dspbgrx		= 6<<26,	/* x8r8g8b8 */
 	Dsptiled	= 1<<10,
@@ -448,6 +449,7 @@ static struct {
 	Bo	*bo;
 	int	p;
 	u32int	cntr, stride, offset, surf;
+	ulong	flip;		/* a new surface written: the request waits until it is live */
 } scan;
 static Bo *bos[Nbo];
 static File *ctxdir;
@@ -2334,8 +2336,27 @@ scanout(Ctx *c, int id, int w, int h, int stride)
 	wr(Dspoffset+o, 0);
 	wr(Dspsurf+o, b->scangtt);	/* last: the flip, at the next vertical blank */
 	scan.bo = b;
+	scan.flip = b->scangtt;
 	qunlock(&lk);
 	return nil;
+}
+
+/*
+ * after a scanout: wait until the display shows the new surface (it
+ * latches DSPSURF at the vertical blank), so that the picture shown
+ * before is free when the request returns: a swapchain's FIFO, no
+ * tearing, the frame rate the display's; at most 50 ms
+ */
+static void
+flipwait(Req *r, ulong surf, int p)
+{
+	vlong t0;
+
+	srvrelease(r->srv);
+	for(t0 = nsec(); nsec() - t0 < 50*1000000LL; sleep(1))
+		if((rd(Dspsurflive + p*0x1000) & ~0xFFF) == surf)
+			break;
+	srvacquire(r->srv);
 }
 
 /* the server ends: the draw screen back on the display */
@@ -2404,6 +2425,7 @@ fswrite(Req *r)
 {
 	char buf[256], *f[8], *e;
 	Fidaux *fa;
+	ulong flip;
 	int n;
 
 	n = r->ifcall.count;
@@ -2423,8 +2445,13 @@ fswrite(Req *r)
 			return;
 		}
 		qlock(&ctxlock);
+		scan.flip = 0;
 		e = ctxctl(fa->ctx, f, n);
+		flip = scan.flip;
+		scan.flip = 0;
 		qunlock(&ctxlock);
+		if(e == nil && flip != 0)
+			flipwait(r, flip, scan.p);
 		break;
 	case Xctxsubmit:
 		if(n != 2 && n != 3){
