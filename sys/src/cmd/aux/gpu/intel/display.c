@@ -38,7 +38,7 @@ enum {
 	Transvtotal	= 0x0C,
 	Translinkm	= 0x40,
 	Translinkn	= 0x44,
-	Pipeconf	= 0x70008,	/* +0x1000 a pipe */
+	Pipeconf	= 0x70008,	/* PIPECONF(cpu_transcoder): A, B, C +0x1000, eDP at 0x7F008 */
 	Pipeenable	= 1<<31,
 
 	/* DP AUX */
@@ -371,7 +371,8 @@ readmode(Output *o)
 			}
 		else
 			p = t;
-		if((rd(Pipeconf + p*0x1000) & Pipeenable) == 0)
+		/* on DDI hardware PIPECONF is the transcoder's (i915: PIPECONF(cpu_transcoder)) */
+		if((rd(t == Tedp ? 0x7F008 : Pipeconf + t*0x1000) & Pipeenable) == 0)
 			continue;
 		o->trans = t;
 		o->pipe = p;
