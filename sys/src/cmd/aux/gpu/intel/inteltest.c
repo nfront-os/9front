@@ -275,6 +275,89 @@ nirq(void)
 	return p ? strtoul(p+1, nil, 10) : 0;
 }
 
+static char*
+readfile(char *path, int *np)
+{
+	static char buf[8192];
+	int fd, n;
+
+	if((fd = open(path, OREAD)) < 0)
+		return nil;
+	n = readn(fd, buf, sizeof buf - 1);
+	close(fd);
+	if(n < 0)
+		return nil;
+	buf[n] = 0;
+	if(np != nil)
+		*np = n;
+	return buf;
+}
+
+static void
+outputs(void)
+{
+	char path[256], mode[64], *s, *e;
+	uchar edid[256], sum;
+	int fd, n, i, j, nd, edp, pw, ph;
+	Dir *d;
+
+	snprint(path, sizeof path, "%s/outputs", dir);
+	if((fd = open(path, OREAD)) < 0){
+		fail("%s: %r", path);
+		return;
+	}
+	nd = dirreadall(fd, &d);
+	close(fd);
+	edp = 0;
+	pw = ph = 0;
+	if((s = readall("ctl")) != nil && (s = strstr(s, "plane ")) != nil){
+		char *f[8];
+		if(tokenize(s, f, nelem(f)) >= 7){
+			pw = atoi(f[5]);
+			ph = atoi(f[6]);
+		}
+	}
+	for(i = 0; i < nd; i++){
+		snprint(path, sizeof path, "%s/outputs/%s/mode", dir, d[i].name);
+		if((s = readfile(path, nil)) == nil){
+			fail("%s: %r", path);
+			continue;
+		}
+		snprint(mode, sizeof mode, "%s", s);
+		if((e = strchr(mode, '\n')) != nil)
+			*e = 0;
+		snprint(path, sizeof path, "%s/outputs/%s/edid", dir, d[i].name);
+		n = 0;
+		if((s = readfile(path, &n)) == nil)
+			n = 0;
+		memmove(edid, s != nil ? s : "", n > 256 ? 256 : n);
+		snprint(path, sizeof path, "%s/outputs/%s/modes", dir, d[i].name);
+		s = readfile(path, nil);
+		ok("output %s: mode %s, edid %d bytes, modes: %s", d[i].name, mode, n,
+			s != nil && *s ? s : "none\n");
+		if(strcmp(d[i].name, "eDP-1") != 0)
+			continue;
+		edp = 1;
+		for(sum = 0, j = 0; j < 128 && n >= 128; j++)
+			sum += edid[j];
+		if(n < 128 || edid[0] != 0 || edid[1] != 0xFF || edid[7] != 0 || sum != 0)
+			fail("eDP-1: no EDID, or a broken one (%d bytes)", n);
+		else
+			ok("eDP-1: EDID of %c%c%c, product %#.4ux", '@' + (edid[8]>>2 & 0x1F),
+				'@' + ((edid[8]&3)<<3 | edid[9]>>5), '@' + (edid[9] & 0x1F), edid[10] | edid[11]<<8);
+		snprint(path, sizeof path, "%dx%d ", pw, ph);
+		if(strncmp(mode, path, strlen(path)) != 0)
+			fail("eDP-1: mode %s, the plane %dx%d", mode, pw, ph);
+		else if(s == nil || strstr(s, path) == nil)
+			fail("eDP-1: %dx%d not among its modes", pw, ph);
+		else
+			ok("eDP-1: shows %s, one of its modes", mode);
+	}
+	free(d);
+	if(!edp)
+		fail("no eDP-1 output (the laptop's panel)");
+}
+
 /* status' power line: RC6 residency (ms), the frequency asked for and the minimum (MHz) */
 static int
 power(uvlong *rc6, int *asked, int *min)
@@ -495,6 +578,14 @@ suite(void)
 	}
 	segdetach(big.p);
 	segdetach(bigbatch.p);
+
+	/*
+	 * 12. the outputs: each listed with its mode; the panel's (eDP)
+	 * EDID whole (header, checksum), its mode the plane's and among
+	 * its modes
+	 */
+	step("12. outputs: EDID, modes, the mode shown");
+	outputs();
 
 	/*
 	 * 11. power: the GT sleeps when idle (RC6 residency grows by a

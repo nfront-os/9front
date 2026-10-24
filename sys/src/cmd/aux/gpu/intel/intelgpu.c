@@ -44,6 +44,7 @@
 #include <thread.h>
 #include <9p.h>
 #include "renderstate.h"
+#include "intel.h"
 
 /* a context's address space: 48 bits (four levels), with -3 32 bits (three) */
 #define Pplimit48	(1ULL<<48)	/* all of the 48 bits (hasvk's heaps go to the top) */
@@ -482,7 +483,7 @@ fwon(void)
 	fwlast = nsec();
 }
 
-static u32int
+u32int
 rd(ulong r)
 {
 	u32int v;
@@ -496,7 +497,7 @@ rd(ulong r)
 	return v;
 }
 
-static void
+void
 wr(ulong r, u32int v)
 {
 	if(r >= Fwrange){
@@ -1884,6 +1885,10 @@ enum {
 	Xctxsubmit,
 	Xctxfence,
 
+	Xoutedid = 0,
+	Xoutmodes,
+	Xoutmode,
+	Xout = 0x100,		/* outputs/<n>/: Xout | n<<4 | Xoutedid... */
 	Xctxbase = 0x1000,
 };
 
@@ -2065,7 +2070,7 @@ planestr(void)
 static char*
 statusstr(void)
 {
-	char buf[1024], *s, *t, *id;
+	char buf[1024], *s, *t, *u, *id;
 	Engine *e;
 	Ectx *q;
 	Hole *h;
@@ -2130,6 +2135,10 @@ statusstr(void)
 			free(s);
 			s = t;
 		}
+	t = smprint("%s%s", s, u = dispstatus());
+	free(u);
+	free(s);
+	s = t;
 	return s;
 }
 
@@ -2203,7 +2212,29 @@ fsread(Req *r)
 	int n;
 
 	fa = r->fid->aux;
-	switch(ftype(r->fid->file)){
+	n = ftype(r->fid->file);
+	if(n >= Xout && n < Xctxbase){
+		Output *o;
+
+		o = &outputs[(n - Xout)>>4];
+		switch(n & 0xF){
+		case Xoutedid:
+			readbuf(r, o->edid, o->nedid);
+			respond(r, nil);
+			return;
+		case Xoutmodes:
+			s = outmodes(o);
+			break;
+		default:
+			s = outmode(o);
+			break;
+		}
+		readstr(r, s);
+		free(s);
+		respond(r, nil);
+		return;
+	}
+	switch(n){
 	case Xctl:
 		s = planestr();
 		break;
@@ -2489,8 +2520,9 @@ fswrite(Req *r)
 static void
 mktree(void)
 {
-	File *gpu, *n;
+	File *gpu, *n, *o;
 	char *user;
+	int i;
 
 	user = getuser();
 	fs.tree = alloctree(user, user, DMDIR|0555, nil);
@@ -2500,6 +2532,13 @@ mktree(void)
 	createfile(n, "status", user, 0444, (void*)Xstatus);
 	createfile(n, "clone", user, 0666, (void*)Xclone);
 	ctxdir = createfile(n, "ctx", user, DMDIR|0555, nil);
+	n = createfile(n, "outputs", user, DMDIR|0555, nil);
+	for(i = 0; i < noutputs; i++){
+		o = createfile(n, outputs[i].name, user, DMDIR|0555, nil);
+		createfile(o, "edid", user, 0444, (void*)(uintptr)(Xout | i<<4 | Xoutedid));
+		createfile(o, "modes", user, 0444, (void*)(uintptr)(Xout | i<<4 | Xoutmodes));
+		createfile(o, "mode", user, 0444, (void*)(uintptr)(Xout | i<<4 | Xoutmode));
+	}
 }
 
 /*
@@ -2896,6 +2935,7 @@ devinit(void)
 	if(!nopm)
 		rpsinit();
 	irqinit();
+	dispinit();
 }
 
 static void

@@ -8,3 +8,5 @@ TARG=\
 	intelprobe\
 
 </sys/src/cmd/mkmany
+
+$O.intelgpu: display.$O

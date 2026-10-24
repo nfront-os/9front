@@ -333,6 +333,25 @@ with the time spent in RC6 and the frequency running.
 leaves the power management off (forcewake held, the frequency the
 firmware set).
 .PP
+The display is read as the firmware or aux/vga set it up (not changed
+yet): every output of the DDI ports, with Linux's names
+.RB ( eDP-1 ,
+.BR DP-1 ,
+.BR HDMI-A-1 ,
+\&...), under
+.BI outputs/ conn :
+.B edid
+(over the DP AUX channel or GMBUS),
+.B modes
+(from the EDID, the preferred first,
+.IB w x h
+and the refresh rate in Hz),
+.B mode
+(what it shows, or
+.BR off ).
+.B status
+lists them with their pipes and transcoders.
+.PP
 A context's
 .B ctl
 also takes
