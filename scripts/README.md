@@ -129,5 +129,7 @@ the kernel configuration in `kconfig`.
 | `import.py` | a Linux tree into `vendor/`, with the licence check, `VERSION`, `REJECTED`, `NOTICE`. `scripts/linux/import.py ~/Devel/linux-6.6` |
 | `kbuild.py` | the files Linux's Makefiles build with `kconfig`; `--autoconf` makes `kpi/include/generated/autoconf.h`. `scripts/linux/kbuild.py sys/src/linux/vendor drivers/gpu/drm` |
 | `census.py` | compiles every chosen file (without those `OMIT` names) against the layer and counts what is missing: the measure of progress. `scripts/linux/census.py [-v]` |
+| `undef.py` | compiles all (vendor, replace, kpi/linux, kpi/plan9), links them relocatably and lists the symbols nothing defines: what the layer still lacks. `scripts/linux/undef.py [outdir]` |
+| `genbuild.py` | the build.exe manifests: `sys/src/linux/build.json` (libkpi9.a, libkpi.a, liblinux.a, one object per directory, -O2 as Linux) and `sys/src/cmd/aux/gpu/i915/build.json`; `-n` compares (tests/static). `scripts/linux/genbuild.py` |
 | `gentrace.py` | our no-op trace point headers (Linux's are GPL) for the `trace_*` the vendor code calls, with the originals' includes. `scripts/linux/gentrace.py` |
 

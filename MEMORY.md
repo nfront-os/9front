@@ -1020,3 +1020,12 @@ Vorher war eine Bibliothek **ein** gcc-Aufruf mit allen Dateien (gcc übersetzt 
 
 ## 2026-11-10: Rebase auf front 82ddeb288
 - `front` auf origin/front vorgespult (17 Commits: smtpd STARTTLS/Schmuggel, factotum ohne ecdsa, vcrop entfernt, arm64 CPU_ON/SEVL, gefs, libsec mlkem/sha3, cwfs Gfmt, ktrans hangul, devsegment-Rechte), `gcc` darauf (189 Commits, ohne Konflikte; vorher 6bd69d14b). Manifeste neu: `vcrop` und factotums `ecdsa.c` fallen weg. static 14/14. Gebaut: amd64 811/811, 386 811/811, arm64 812/812; danach ../9front-gcc's Cross-gccs amd64/386/arm64 neu dagegen, Rust run.sh amd64 13/13. `riscv` ist darauf rebased (dort Teil 66); `upstream` noch auf dem alten Stand.
+## 2026-10-28 (Teil 53, Zweig gpu): Linux' i915 auf der LinuxKPI linkt
+- `sys/src/linux` (Linux 6.6 DRM/TTM/i915 + eigene MIT-Schicht, s. ../9front-gpu/PLAN.md §24):
+  `scripts/linux/genbuild.py` erzeugt `sys/src/linux/build.json` (libkpi9.a Plan-9-Seite,
+  libkpi.a + liblinux.a Linux-Seite, -O2, eigener Include-Pfad) und aux/i915; im amd64-Gesamtbuild.
+- build.exe: neuer Schlüssel `Noinc` (kein /$ARCH/include, /sys/include, .).
+- prep-objtype: auch amd64 kopiert gccs libgcc.a (__udivti3, __popcountdi2 im Linux-Code).
+- 9front-libc hat kein strlcpy/strlcat (port/strlcat.c nicht im mkfile): in kpi/linux/lib.c.
+- libthread exportiert `yield`: Linux' yield() heißt in der KPI kpi_yield.
+- #G-ctl `wbinvd`: wbinvd auf jeder CPU (procwired), für wbinvd_on_all_cpus.
