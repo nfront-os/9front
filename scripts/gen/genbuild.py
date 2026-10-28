@@ -8,7 +8,8 @@ $ARCH) and build.<objtype>.json for 386, amd64 and arm64, so that
 builds what the system needs, in dependency order: libc, the libraries
 (scripts/gen/genlibs.py --list), the kernel's klib*.a, the programs
 (scripts/gen/gencmds.py --list: sys/src/mkfile's $SUBSYS $CMDS; APE's musl
-part after libap's, scripts/gen/genmusl.py --list), the files
+part after libap's, scripts/gen/genmusl.py --list), on amd64 Linux's DRM
+drivers on the LinuxKPI (sys/src/linux, aux/i915), the files
 the kernel embeds (scripts/gen-*.sh: rebootcode.i, apbootstrap.i, ...,
 initcode, /boot/boot and $CONF.bootfs.paq), the kernel, its Plan 9
 a.out where 9boot loads it (scripts/build/elf2aout.py), and the check that
@@ -77,6 +78,10 @@ def main():
 			{'Name': 'libs', 'Projects': libs},
 			{'Name': 'klibs', 'Projects': klibs},
 			{'Name': 'cmds', 'Projects': cmds},
+		] + ([
+			# Linux's DRM drivers on the LinuxKPI (scripts/linux/genbuild.py)
+			{'Name': 'linux', 'Projects': ['/sys/src/linux/build.json', '/sys/src/cmd/aux/gpu/i915/build.json']},
+		] if objtype == 'amd64' else []) + [
 			{'Name': 'kernelgen', 'Pre': gens, 'Clean': genclean.clean(gens, ROOT)},
 			{'Name': 'kernel', 'Projects': [kern]},
 			{'Name': 'install', 'Post': ['python3 scripts/build/elf2aout.py %s %s' % (elf, aout),

@@ -360,6 +360,13 @@
 		]
 	},
 	{
+		"Name": "linux",
+		"Projects": [
+			"/sys/src/linux/build.json",
+			"/sys/src/cmd/aux/gpu/i915/build.json"
+		]
+	},
+	{
 		"Name": "kernelgen",
 		"Pre": [
 			"bash scripts/build/gen-rebootcode-i.sh",
