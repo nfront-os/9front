@@ -93,6 +93,14 @@ threadmain(int argc, char **argv)
 	}ARGEND
 	if(argc != 0)
 		usage();
+	/* one driver for the device: another one's server means it runs */
+	if(!noserve && !selftest){
+		char path[64];
+
+		snprint(path, sizeof path, "/srv/%s", srvname);
+		if(access(path, AEXIST) == 0)
+			sysfatal("%s exists: another driver serves the GPU (aux/intelgpu?)", path);
+	}
 	atnotify(trapnote, 1);
 	i915_options(nodisplay, drmdebug, loglevel);
 	if((r = kpi_start(gdir)) < 0)

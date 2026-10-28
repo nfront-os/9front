@@ -7,6 +7,10 @@
 # that it survives a hang of the machine.
 #	intelrun [driver flags]
 rfork e
+if(ps | grep -s ' (i915|intelgpu)$'){
+	echo intelrun: a GPU driver runs already (aux/i915 or aux/intelgpu): reboot first
+	exit running
+}
 log=/tmp/gpu.log
 for(d in '#σ/usb'/sdU*/esp)
 	if(~ $log /tmp/gpu.log && test -r $d){

@@ -9,8 +9,8 @@
 # then its procs, their call chains and state go in the log; a trap in
 # the driver puts its chain there too.
 rfork e
-if(ps | grep -s ' i915$'){
-	echo i915run: aux/i915 runs already: reboot for another run
+if(ps | grep -s ' (i915|intelgpu)$'){
+	echo i915run: a GPU driver runs already (aux/i915 or aux/intelgpu): reboot first
 	exit running
 }
 log=/tmp/i915.log
