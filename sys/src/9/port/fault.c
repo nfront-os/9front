@@ -237,6 +237,11 @@ fixfault(Segment *s, uintptr addr, int read)
 		}
 		/* wet floor */
 	case SG_STICKY:			/* Never paged out */
+		/* 9front-ng: an alias segment's page not there (or revoked): a fault */
+		if(*pg == nil){
+			qunlock(&s->QLock);
+			return -2;
+		}
 		new = *pg;
 		mmuphys = PPN(new->pa) | PTEWRITE | PTECACHED | PTEVALID;
 		new->modref |= up->privatemem? PG_PRIV|PG_MOD|PG_REF: PG_MOD|PG_REF;
@@ -309,7 +314,7 @@ fault(uintptr addr, uintptr pc, int read)
 {
 	Segment *s;
 	char *sps;
-	int pnd, ins, attr;
+	int pnd, ins, attr, i;
 
 	if(up == nil)
 		panic("fault: no user process pc=%#p addr=%#p", pc, addr);
@@ -365,7 +370,15 @@ fault(uintptr addr, uintptr pc, int read)
 			goto done;
 		}
 
-		if(fixfault(s, addr, read) == 0){
+		if((i = fixfault(s, addr, read)) == -2){
+			/* 9front-ng: no page there and none to make (sticky) */
+			up->psstate = sps;
+			up->insyscall = ins;
+			if(up->kp && up->nerrlab)	/* for segio */
+				error(Eio);
+			return -1;
+		}
+		if(i == 0){
 		done:
 			if(up->tlbflush == lastflush)
 				break;

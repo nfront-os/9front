@@ -40,6 +40,15 @@ else
 	skip "Vulkan tests" "no cross compiler $cross (../9front-gcc)"
 fi
 
+# segment(3)'s alias segments: removed or revoked, nobody keeps their
+# pages (a freed GPU object stays visible to no one); a missing page faults
+segrevoke(){
+	MEM=1024 UFS_EXTRA="$HERE/root" "$ROOT/scripts/guest/boot-cli.sh" \
+		'/tests/segrevoke' > "$TMPD/segrevoke" 2>&1
+	grep -q '^segrevoke: ok' "$CLI_DIR/console.log" || { grep -E 'FAIL|ok ' "$CLI_DIR/console.log"; return 1; }
+}
+check "alias segments revoked (segment(3)): freed objects stay visible to no one" segrevoke
+
 shot=$TMPD/screen.png
 boot(){
 	MEM=1024 UFS_EXTRA="$HERE/root" SCREENSHOT="$shot" \

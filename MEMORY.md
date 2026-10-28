@@ -1034,3 +1034,6 @@ Vorher war eine Bibliothek **ein** gcc-Aufruf mit allen Dateien (gcc übersetzt 
 - segment(3): Alias-Segmente ("va … alias", "page IDX SRC OFF…"), Tabelle 1024 statt 100 (SEG
   hatte nur 6 Bit); devgpu: OpRegion als "mem"-Segment (ASLS, nicht vorzeichenerweitert).
 - mkiso: ramfs -u (das Image überschritt 800 MB); check-install kennt aux/i915 (-r löschte es).
+- Freigegebene GPU-Objekte: segment(3) "revoke" (und remove eines Alias-Segments) nimmt die
+  Seiten allen Prozessen (segrevoke: segfreemap + TLB-Flush); fixfault liefert für eine fehlende
+  Sticky-Seite einen Fault statt einer Kernel-Panik (vorher NULL-Zugriff). Test tests/gpu/segrevoke.c.

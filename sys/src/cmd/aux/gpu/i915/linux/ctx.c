@@ -15,7 +15,8 @@
  *	submit id offset eng	EXECBUFFER2 of every bound object, pinned
  *				(EXEC_OBJECT_PINNED, no relocations), the
  *				batch last, with an out fence: fence k
- *	free id			GEM_CLOSE
+ *	free id			GEM_CLOSE, after the object's segment is revoked
+ *				in every process (segment(3))
  */
 #include <linux/kernel.h>
 #include <linux/slab.h>
@@ -124,7 +125,10 @@ bofree(struct gctx *c, struct bo *b)
 {
 	struct drm_gem_close cl = { .handle = b->handle };
 
-	/* the client detached it (libdrm9 does before free) */
+	/*
+	 * removing the alias segment revokes it (segment(3)): a client that
+	 * still has it attached loses the pages before i915 gets them back
+	 */
 	p9_segfree(b->seg, NULL);
 	i915_gem_object_unpin_pages(b->obj);
 	i915_gem_object_put(b->obj);

@@ -27,6 +27,7 @@ struct Globalseg
 	char	*uid;
 	vlong	length;
 	long	perm;
+	int	alias;	/* 9front-ng: made by "va ... alias": takes page and revoke */
 
 	Segio;
 };
@@ -260,8 +261,12 @@ segmentremove(Chan *c)
 	}
 	globalseg[x] = nil;
 	unlock(&globalseglock);
-	if(g != nil)
+	if(g != nil){
+		/* 9front-ng: an alias segment's memory is its owner's again: revoke it */
+		if(g->alias && g->Segio.s != nil)
+			segrevoke(g->Segio.s);
 		putgseg(g);
+	}
 }
 
 static void
@@ -530,11 +535,19 @@ segmentwrite(Chan *c, void *a, long n, vlong voff)
 				if(!iseve())
 					error(Eperm);
 				g->Segio.s = newseg(SG_STICKY, va, len/BY2PG);
+				g->alias = 1;
 			} else
 				g->Segio.s = newseg(SG_SHARED, va, len/BY2PG);
+		} else if(cb->nf == 1 && strcmp(cb->f[0], "revoke") == 0){
+			/* the memory went back to its owner: nobody keeps seeing it */
+			if(g->Segio.s == nil || !g->alias)
+				error("not an alias segment");
+			if(!iseve())
+				error(Eperm);
+			segrevoke(g->Segio.s);
 		} else if(cb->nf >= 4 && strcmp(cb->f[0], "page") == 0){
-			if(g->Segio.s == nil || (g->Segio.s->type&SG_TYPE) != SG_STICKY)
-				error("not a sticky segment");
+			if(g->Segio.s == nil || !g->alias)
+				error("not an alias segment");
 			if(!iseve())
 				error(Eperm);
 			aliaspages(g->Segio.s, cb->f[2], strtoull(cb->f[1], 0, 0), cb->f+3, cb->nf-3);

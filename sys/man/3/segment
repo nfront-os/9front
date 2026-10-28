@@ -124,6 +124,13 @@ of the sticky segment named
 .IR source :
 the same memory at other addresses, the pages one after the other.
 A page stays while any segment has it.
+Writing
+.B revoke
+to the control file, or removing the segment, takes its pages out of
+every process that has it attached, at once: a later access there is
+a fault.
+A driver revokes an object's segment before it uses the memory
+otherwise, so that nobody keeps seeing it.
 .PP
 Opening
 .B data

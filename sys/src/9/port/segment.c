@@ -729,6 +729,24 @@ done:
 	return 1;
 }
 
+/*
+ * 9front-ng: take all pages out of segment s (an alias segment of
+ * segment(3)): every process that has it attached loses them at once,
+ * its TLB flushed; a later access faults.  The pages stay where else
+ * they are (the sticky segments they came from).
+ */
+void
+segrevoke(Segment *s)
+{
+	int flush;
+
+	qlock(&s->QLock);
+	flush = segfreemap(s, s->base, s->top);
+	qunlock(&s->QLock);
+	if(flush)
+		flushmmu();
+}
+
 uintptr
 ibrk(int segno, uintptr newtop)
 {
