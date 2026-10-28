@@ -131,6 +131,15 @@ def i915():
 			['libi915.a', 'liblinux.a', 'libkpi.a', 'libkpi9.a'] + P9LIBS + ['libgcc.a']] + ['--end-group'],
 		'Program': 'i915',
 		'SourceFiles': sorted(os.path.basename(f) for f in glob.glob(os.path.join(base, '*.c'))),
+	}, {
+		# the procs' call chains for a log (rc/bin/i915run)
+		'Name': 'aux-i915stk',
+		'Include': ['/$ARCH/cflags.json'],
+		'Install': '/$ARCH/bin/aux/',
+		'Oflags': ['--entry=_main'],
+		'Libs': ['/$ARCH/lib.gcc/libc.a'],
+		'Program': 'i915stk',
+		'SourceFiles': ['stk/i915stk.c'],
 	}]
 
 def dump(o):

@@ -9,8 +9,36 @@
 #include <u.h>
 #include <libc.h>
 #include <thread.h>
+#include <ureg.h>
 #include <kpi/linux.h>
 #include "i915.h"
+
+/*
+ * a trap in any proc (they inherit the handler): the note, the pc and
+ * the call chain by frame pointers to standard error, that is into the
+ * log; the addresses are looked up on the build machine (addr2line)
+ */
+static int
+trapnote(void *v, char *note)
+{
+	struct Ureg *u;
+	uvlong *bp;
+	int i;
+
+	if(strncmp(note, "sys:", 4) != 0)
+		return 0;
+	u = v;
+	fprint(2, "i915 %d: %s pc %#llux sp %#llux; chain", getpid(), note, u->pc, u->sp);
+	bp = (uvlong*)u->bp;
+	for(i = 0; i < 40 && bp != nil && ((uintptr)bp & 7) == 0; i++){
+		fprint(2, " %#llux", bp[1]);
+		if((uvlong*)bp[0] <= bp)
+			break;
+		bp = (uvlong*)bp[0];
+	}
+	fprint(2, "\n");
+	return 0;
+}
 
 static void
 usage(void)
@@ -48,6 +76,7 @@ threadmain(int argc, char **argv)
 	}ARGEND
 	if(argc != 0)
 		usage();
+	atnotify(trapnote, 1);
 	i915_options(nodisplay, drmdebug, loglevel);
 	if((r = kpi_start(gdir)) < 0)
 		sysfatal("kpi: %s: error %d", gdir, -r);

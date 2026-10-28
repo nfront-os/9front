@@ -72,5 +72,22 @@
 		"SourceFiles": [
 			"main.c"
 		]
+	},
+	{
+		"Name": "aux-i915stk",
+		"Include": [
+			"/$ARCH/cflags.json"
+		],
+		"Install": "/$ARCH/bin/aux/",
+		"Oflags": [
+			"--entry=_main"
+		],
+		"Libs": [
+			"/$ARCH/lib.gcc/libc.a"
+		],
+		"Program": "i915stk",
+		"SourceFiles": [
+			"stk/i915stk.c"
+		]
 	}
 ]
