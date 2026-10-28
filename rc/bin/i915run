@@ -61,6 +61,16 @@ if(test -e /dev/gpu/0/clone){
 	echo '## aux/inteltest' >>$out
 	aux/inteltest >>$out >[2=1]
 	echo '## status' $status >>$out
+	# Vulkan through Mesa's hasvk (libdrm9 over gpu(4)), in this window
+	if(test -d /$objtype/vk){
+		bind -a /$objtype/vk /bin
+		for(c in 'vulkaninfo --summary' 'vktri 3' 'WSI_PLAN9_STATS=1 vkcube --c 300' \
+			'@{rfork en; bind -b ''#i'' /dev; WSI_PLAN9_STATS=1 vkcube --c 300}'){
+			echo '##' $c >>$out
+			@{DRM9DEBUG=1; eval $c} >>$out >[2=1]
+			echo '## status' $status >>$out
+		}
+	}
 }
 echo '## then: procs' >>$out
 ps | grep i915 >>$out
