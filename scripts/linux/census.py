@@ -29,8 +29,10 @@ def flags(c):
 		f += ['-I', os.path.join(D, i)]
 	# subdir-ccflags: i915's own directory, as Kbuild has it
 	if '/i915' in c:
-		f += ['-I', os.path.join(V, 'drivers/gpu/drm/i915')]
+		f += ['-I', os.path.join(V, 'drivers/gpu/drm/i915'), '-I', os.path.join(D, 'replace/drivers/gpu/drm/i915')]
 	f += ['-I', os.path.join(V, d)]
+	# quoted includes next to the file, replaced: replace/ mirrors vendor/
+	f += ['-I', os.path.join(D, 'replace', d)]
 	return f
 
 def source(c):
