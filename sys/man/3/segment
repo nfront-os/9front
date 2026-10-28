@@ -107,6 +107,24 @@ as little-endian 64-bit words.
 Their pages stay in place while the segment exists, so a driver
 can hand them to hardware for DMA, scattered as they are.
 .PP
+A segment of type
+.B alias
+is sticky, but made without pages; the hostowner puts pages of
+other sticky segments there with
+.IP
+.EX
+	page \fIindex source offset ...\fP
+.EE
+.PP
+which places, from page
+.I index
+of the segment on, the pages at the byte
+.I offsets
+of the sticky segment named
+.IR source :
+the same memory at other addresses, the pages one after the other.
+A page stays while any segment has it.
+.PP
 Opening
 .B data
 or reading

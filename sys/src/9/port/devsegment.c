@@ -15,7 +15,7 @@ enum
 };
 
 #define TYPE(c) 	(int)( (c)->qid.path & 0x7 )
-#define SEG(c)	 	( ((c)->qid.path >> 3) & 0x3f )
+#define SEG(c)	 	( ((c)->qid.path >> 3) & 0x3ff )	/* 9front-ng: was 0x3f */
 #define PATH(s, t) 	( ((s)<<3) | (t) )
 
 typedef struct Globalseg Globalseg;
@@ -31,7 +31,7 @@ struct Globalseg
 	Segio;
 };
 
-static Globalseg *globalseg[100];
+static Globalseg *globalseg[1024];	/* 9front-ng: was 100 (and SEG reached 64); GPU drivers keep their memory in segments */
 static Lock globalseglock;
 
 
@@ -381,6 +381,70 @@ pagepa(Segment *s, uchar *a, long n, vlong voff)
 	return i;
 }
 
+/*
+ * 9front-ng: alias segments.  "va VA LEN alias" makes a sticky segment
+ * without pages; "page IDX SRC OFF..." puts there, from page IDX on,
+ * the pages at the byte offsets OFF of the sticky segment SRC: the same
+ * memory seen elsewhere, contiguous (a GPU driver's vmap of scattered
+ * pages, an object's pages for a client).  The pages stay while either
+ * segment has them.
+ */
+static void
+aliaspages(Segment *s, char *src, uintptr idx, char **offs, int n)
+{
+	Globalseg *g;
+	Segment *ss;
+	Page *pg, **pp;
+	Pte *pte;
+	uintptr off, va;
+	int i, x;
+
+	g = nil;
+	lock(&globalseglock);
+	for(x = 0; x < nelem(globalseg); x++)
+		if(globalseg[x] != nil && strcmp(globalseg[x]->name, src) == 0){
+			g = globalseg[x];
+			incref(&g->Ref);
+			break;
+		}
+	unlock(&globalseglock);
+	if(g == nil)
+		error("no such segment");
+	if(waserror()){
+		putgseg(g);
+		nexterror();
+	}
+	ss = g->Segio.s;
+	if(ss == nil || (ss->type&SG_TYPE) != SG_STICKY)
+		error("not a sticky segment");
+	for(i = 0; i < n; i++){
+		off = strtoull(offs[i], 0, 0);
+		va = s->base + (idx+i)*BY2PG;
+		if((off & (BY2PG-1)) != 0 || off >= ss->top - ss->base || va < s->base || va >= s->top)
+			error(Ebadarg);
+		qlock(&ss->QLock);
+		pte = ss->map[off/PTEMAPMEM];
+		pg = pte != nil ? pte->pages[(off&(PTEMAPMEM-1))/BY2PG] : nil;
+		if(pg == nil){
+			qunlock(&ss->QLock);
+			error("segment page missing");
+		}
+		incref(&pg->Ref);
+		qunlock(&ss->QLock);
+		qlock(&s->QLock);
+		if((pp = segmap(s, va)) == nil || *pp != nil){
+			qunlock(&s->QLock);
+			putpage(pg);
+			error("alias page taken");
+		}
+		*pp = pg;
+		s->used++;
+		qunlock(&s->QLock);
+	}
+	poperror();
+	putgseg(g);
+}
+
 static long
 segmentread(Chan *c, void *a, long n, vlong voff)
 {
@@ -462,8 +526,18 @@ segmentwrite(Chan *c, void *a, long n, vlong voff)
 					segpage(s, fillpage(newpage(va, nil), 0));
 				poperror();
 				g->Segio.s = s;
+			} else if(cb->nf >= 4 && strcmp(cb->f[3], "alias") == 0){
+				if(!iseve())
+					error(Eperm);
+				g->Segio.s = newseg(SG_STICKY, va, len/BY2PG);
 			} else
 				g->Segio.s = newseg(SG_SHARED, va, len/BY2PG);
+		} else if(cb->nf >= 4 && strcmp(cb->f[0], "page") == 0){
+			if(g->Segio.s == nil || (g->Segio.s->type&SG_TYPE) != SG_STICKY)
+				error("not a sticky segment");
+			if(!iseve())
+				error(Eperm);
+			aliaspages(g->Segio.s, cb->f[2], strtoull(cb->f[1], 0, 0), cb->f+3, cb->nf-3);
 		} else
 			error(Ebadctl);
 		free(cb);

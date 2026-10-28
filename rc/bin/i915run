@@ -24,9 +24,9 @@ for(d in '#σ/usb'/sdU*/esp)
 	}
 if(~ $log /tmp/i915.log)
 	echo i915run: no USB stick with an ESP: the log is $log
-flags=(-D -d 0x1ff)
+flags=(-D -v -d 0x1ff)
 if(~ $1 -a){
-	flags=(-d 0x1ff)
+	flags=(-v -d 0x1ff)
 	shift
 }
 {echo '# i915run' `{date}; cat /dev/osversion; echo} >$log

@@ -10,6 +10,7 @@
 #include "i915_params.h"
 #include <linux/workqueue.h>
 #include <linux/mm.h>
+#include <linux/vmalloc.h>
 #include "../i915.h"
 
 int	kpi_init_i915_init(void);
@@ -47,6 +48,47 @@ segtest_work(struct work_struct *w)
 	t->seen = READ_ONCE(t->page[100]);
 }
 
+/* vmap of pages apart: an alias segment (segment(3)) shows the same memory */
+static int
+vmap_selftest(void)
+{
+	struct page *p[3], *v[2];
+	struct segtest t;
+	u32 *a;
+	int ok;
+
+	p[0] = alloc_page(GFP_KERNEL | __GFP_ZERO);
+	p[1] = alloc_page(GFP_KERNEL | __GFP_ZERO);
+	p[2] = alloc_page(GFP_KERNEL | __GFP_ZERO);
+	if (!p[0] || !p[1] || !p[2])
+		return -ENOMEM;
+	v[0] = p[2];
+	v[1] = p[0];
+	a = vmap(v, 2, 0, PAGE_KERNEL);
+	if (!a) {
+		pr_info("selftest: vmap of 2 pages apart: FAIL (no mapping)\n");
+		return -EIO;
+	}
+	a[1] = 0x1111;
+	a[1024 + 2] = 0x2222;
+	((u32 *)page_address(p[2]))[3] = 0x3333;
+	ok = ((u32 *)page_address(p[2]))[1] == 0x1111 && ((u32 *)page_address(p[0]))[2] == 0x2222 && a[3] == 0x3333;
+	/* a worker forked before the alias existed reads through it */
+	t.page = a + 1024;
+	t.page[100] = 0x915916;
+	t.seen = 0;
+	INIT_WORK(&t.work, segtest_work);
+	queue_work(system_unbound_wq, &t.work);
+	flush_work(&t.work);
+	ok = ok && t.seen == 0x915916;
+	pr_info("selftest: vmap of 2 pages apart (alias segment at %p): %s\n", a, ok ? "ok" : "FAIL");
+	vunmap(a);
+	put_page(p[0]);
+	put_page(p[1]);
+	put_page(p[2]);
+	return ok ? 0 : -EIO;
+}
+
 int
 i915_selftest(void)
 {
@@ -65,7 +107,9 @@ i915_selftest(void)
 	pr_info("selftest: a worker read %#x from a page of a later chunk: %s\n", t.seen,
 		t.seen == 0x915915 ? "ok" : "FAIL");
 	put_page(p);
-	return t.seen == 0x915915 ? 0 : -EIO;
+	if (t.seen != 0x915915)
+		return -EIO;
+	return vmap_selftest();
 }
 
 /* drm_sysfs: a connector's state changed (the file server will tell its clients) */

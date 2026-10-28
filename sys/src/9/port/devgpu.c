@@ -127,7 +127,7 @@ gpusegs(Gpu *g)
 	 * BIOS tables (VBT) and talks to ACPI through; its address is in the
 	 * device's own configuration space, nothing else is offered
 	 */
-	if(p->vid == 0x8086 && (pa = pcicfgr32(p, Asls)) != 0){
+	if(p->vid == 0x8086 && (pa = (u32int)pcicfgr32(p, Asls)) != 0){
 		g->oppa = pa & ~(uvlong)(BY2PG-1);
 		g->opsize = ROUND(pa - g->oppa + Opsize, BY2PG);
 		snprint(g->opseg, KNAMELEN, "gpu%dopregion", g->id);
