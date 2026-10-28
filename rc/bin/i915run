@@ -1,51 +1,48 @@
 #!/bin/rc
 # i915run: Linux 6.6's i915 on the LinuxKPI (aux/i915), its output into
-# a log on the ESP (FAT) of the USB stick the system booted from, as
-# i915.log (written through: it survives a hang), as intelrun does.
+# logs on the ESP (FAT) of the USB stick the system booted from (written
+# through: they survive a hang), as intelrun does:
+#	i915.log	the driver
+#	i915test.log	the checks: selftests, gpu(4), inteltest, Vulkan,
+#			then the driver's procs and their call chains
+# Two files: two writers of one FAT file overwrite each other.
 #	i915run [-a] [aux/i915 flags]
 # without -a the display stays 9front's (i915.disable_display); with
-# -a i915 takes the outputs too (the screen may go dark: read the log).
-# The driver gets until it has started (at most 60 seconds) and 5 more,
-# then its procs, their call chains and state go in the log; a trap in
-# the driver puts its chain there too.  DRM's debug output without
-# DRM_UT_CORE (a line each ioctl).
+# -a i915 takes the outputs too (the screen may go dark: read the logs).
+# The driver gets until it has started (at most 60 seconds) and 5 more.
+# A trap in the driver puts its call chain in its log.  DRM's debug
+# output without DRM_UT_CORE (a line each ioctl).
 rfork e
 if(ps | grep -s ' (i915|intelgpu)$'){
 	echo i915run: a GPU driver runs already (aux/i915 or aux/intelgpu): reboot first
 	exit running
 }
-log=/tmp/i915.log
+dir=/tmp
 for(d in '#σ/usb'/sdU*/esp)
-	if(~ $log /tmp/i915.log && test -r $d){
+	if(~ $dir /tmp && test -r $d){
 		dossrv -f $d i915run.esp >/dev/null >[2=1]
 		if(mount -c /srv/i915run.esp /n/esp){
-			log=/n/esp/i915.log
-			echo i915run: log on $d as i915.log
+			dir=/n/esp
+			echo i915run: logs on $d: i915.log, i915test.log
 		}
 		rm -f /srv/i915run.esp
 	}
-if(~ $log /tmp/i915.log)
-	echo i915run: no USB stick with an ESP: the log is $log
+if(~ $dir /tmp)
+	echo i915run: no USB stick with an ESP: the logs are in /tmp
+log=$dir/i915.log
+out=$dir/i915test.log
 flags=(-D -v -d 0x1fe)
 if(~ $1 -a){
 	flags=(-v -d 0x1fe)
 	shift
 }
-{echo '# i915run' `{date}; cat /dev/osversion; echo} >$log
-# one writer of the log: the driver, the tests and this script write
-# into a pipe, cat appends to the file (two writers of a FAT file
-# overwrite each other); the sleep holds the pipe open meanwhile
-bind '#|' /mnt/temp || exit pipe
-out=/mnt/temp/data
-cat /mnt/temp/data1 >>$log &
-sleep 100000 >>$out &
-holder=$apid
+{echo '# i915run' `{date}; cat /dev/osversion; echo '## aux/i915' $flags $*} >$log
+{echo '# i915run' `{date}; cat /dev/osversion; echo} >$out
 echo '## #G/0/ctl' >>$out
 cat '#G/0/ctl' >>$out
 echo '## aux/i915 -T (the KPI on this machine)' >>$out
 aux/i915 -T >>$out >[2=1]
-echo '## aux/i915' $flags $* >>$out
-aux/i915 $flags $* >>$out >[2=1] &
+aux/i915 $flags $* >>$log >[2=1] &
 # until it has started (or is gone), at most 60 s; then 5 s more
 for(i in `{seq 60}){
 	if(grep -s '^i915: started' $log || ! ps | grep -s ' i915$')
@@ -54,6 +51,7 @@ for(i in `{seq 60}){
 		sleep 1
 }
 sleep 5
+echo '## started' >>$out
 # the driver through gpu(4): contexts, objects, batches, fences
 if(test -e /dev/gpu/0/clone){
 	echo '## /dev/gpu/0/status' >>$out
@@ -83,8 +81,4 @@ for(p in `{ps | awk '$7 == "i915" {print $2}'}){
 echo '## #G/0/ctl' >>$out
 cat '#G/0/ctl' >>$out
 echo '## end' >>$out
-echo kill >/proc/$holder/note
-sleep 1
-unmount /mnt/temp
-sleep 1
-cat $log | tail -40
+tail -40 $out
