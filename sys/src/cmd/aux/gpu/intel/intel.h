@@ -7,6 +7,8 @@
 /* intelgpu.c: MMIO (forcewake taken for the GT's registers) */
 u32int	rd(ulong);
 void	wr(ulong, u32int);
+void	clflushrange(void*, ulong);
+ulong	fbnew(ulong, u32int**, char*, int);
 
 /* display.c: the outputs, read from the hardware as the firmware or aux/vga set them up */
 typedef struct Output Output;
@@ -21,6 +23,12 @@ struct Output {
 	int	pipe;		/* the pipe feeding that transcoder, -1 none */
 	int	w, h;		/* its active size; refresh in mHz */
 	long	refresh;
+	/* set by this driver (outsetmode): the frame buffer on its plane */
+	int	ours;
+	ulong	fbgtt, fbsize;
+	u32int	*fb;
+	char	fbseg[32];
+	int	wrpll;		/* WRPLL_CTL1 or 2 (0, 1), -1 none */
 };
 enum { Oedp, Odp, Ohdmi };
 enum { Tedp = 3 };
@@ -33,3 +41,4 @@ void	dispinit(void);
 char*	dispstatus(void);
 char*	outmodes(Output*);
 char*	outmode(Output*);
+char*	outsetmode(Output*, char*);

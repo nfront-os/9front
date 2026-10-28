@@ -4,7 +4,8 @@
  * The display of gen 8 (Broadwell, Haswell's DDI), read from the
  * hardware as the firmware or aux/vga set it up: the outputs, whether
  * something is connected, its EDID and modes, and what each output
- * shows now. Nothing is changed yet.
+ * shows now; and a mode of the EDID's set on an HDMI output (DVI mode),
+ * on pipe and transcoder B, showing a frame buffer of the driver's.
  *
  * It follows Linux's i915 (v4.4; notices in NOTICE): the outputs as
  * intel_setup_outputs finds them on DDI hardware (intel_display.c),
@@ -13,11 +14,16 @@
  * intel_dp_aux_transfer, the clock dividers), I2C over AUX for the EDID
  * (drm_dp_helper.c: drm_dp_i2c_xfer), GMBUS for HDMI's DDC
  * (intel_i2c.c: gmbus_xfer), the transcoders' state and timings
- * (intel_ddi.c, intel_display.c: the hardware state readout).
+ * (intel_ddi.c, intel_display.c: the hardware state readout), and the
+ * modeset as haswell_crtc_enable and haswell_crtc_disable do it for a
+ * DDI port in HDMI or DVI mode (intel_display.c, intel_ddi.c: the power
+ * well, hsw_ddi_calculate_wrpll, intel_prepare_ddi_buffers, the
+ * transcoder function; intel_pm.c: the ILK-style watermarks).
  */
 #include <u.h>
 #include <libc.h>
 #include "intel.h"
+#include "ddibuf.h"
 
 enum {
 	/* DDI ports A-D */
@@ -73,6 +79,45 @@ enum {
 	Gmhwrdy		= 1<<11,
 
 	Ddcaddr		= 0x50,
+
+	/* the modeset: power well, PLLs, buffers, transcoder B, pipe B, plane B */
+	Pwrwelldriver	= 0x45404,	/* HSW_PWR_WELL_DRIVER */
+	Pwrwellreq	= 1<<31,
+	Pwrwellon	= 1<<30,
+	Wrpllctl	= 0x46040,	/* WRPLL_CTL1, +0x20: WRPLL_CTL2 */
+	Wrpllenable	= 1<<31,
+	Wrplllcpll	= 3<<28,	/* reference: the LCPLL */
+	Ddibuftransreg	= 0x64E00,	/* DDI_BUF_TRANS(port): +0x60 a port, 8 an entry */
+	Ddibufidle	= 1<<7,
+	Ddibufenable	= 1<<31,
+	Transclksel	= 0x46140,	/* TRANS_CLK_SEL(transcoder): +4 */
+	Transhblank	= 0x04,
+	Transhsync	= 0x08,
+	Transvblank	= 0x10,
+	Transvsync	= 0x14,
+	Transvsyncshift	= 0x28,
+	Transpipemult	= 0x2C,
+	Pipesrc		= 0x6001C,	/* +0x1000 a pipe */
+	Gammamode	= 0x4A480,	/* +0x800 a pipe */
+	Pipemisc	= 0x70030,	/* +0x1000 a pipe */
+	Pipestate	= 1<<30,	/* PIPECONF: the pipe runs */
+	Tddibpc8	= 0<<20,
+	Tddipvsync	= 1<<17,
+	Tddiphsync	= 1<<16,
+	Tddidvi		= 1<<24,
+	Dspcntr		= 0x70180,	/* plane registers: +0x1000 a pipe */
+	Dspstride	= 0x70188,
+	Dspsurf		= 0x7019C,
+	Dspoffset	= 0x701A4,
+	Dspenable	= 1<<31,
+	Dspbgrx		= 6<<26,
+	Mchsskpd	= 0x145D10,	/* MCH_SSKPD: the memory's latencies (64 bits) */
+	Wm0pipe		= 0x45100,	/* WM0_PIPE[ABC]_ILK: +4 a pipe */
+	Wm1lp		= 0x45108,	/* WM1-3_LP_ILK */
+	Wm1slp		= 0x45120,
+
+	Hdmimaxclock	= 300000,	/* kHz: HDMI 1.4 on DDI (hdmi_port_clock_limit) */
+	Ourpipe		= 1,		/* B: A drives the panel */
 };
 
 Output outputs[Maxout];
@@ -413,6 +458,7 @@ newout(char *name, int port, int type)
 	o->port = port;
 	o->type = type;
 	o->trans = o->pipe = -1;
+	o->wrpll = -1;
 	return o;
 }
 
@@ -555,4 +601,367 @@ dispstatus(void)
 		s = t;
 	}
 	return s;
+}
+
+/*
+ * the EDID's detailed timings, to set (the standard timings carry no
+ * timing); the first one is the preferred
+ */
+typedef struct Timing Timing;
+struct Timing {
+	int	clock;		/* kHz */
+	int	ha, hss, hse, ht;
+	int	va, vss, vse, vt;
+	int	phsync, pvsync;
+	int	hz;
+};
+
+static int
+dtdtiming(uchar *d, Timing *t)
+{
+	int hb, vb, hso, hsw, vso, vsw;
+
+	t->clock = (d[0] | d[1]<<8) * 10;
+	if(t->clock == 0 || (d[17] & 0x80))	/* not a timing, interlaced */
+		return -1;
+	t->ha = d[2] | (d[4]>>4)<<8;
+	hb = d[3] | (d[4]&0xF)<<8;
+	t->va = d[5] | (d[7]>>4)<<8;
+	vb = d[6] | (d[7]&0xF)<<8;
+	hso = d[8] | (d[11]>>6 & 3)<<8;
+	hsw = d[9] | (d[11]>>4 & 3)<<8;
+	vso = d[10]>>4 | (d[11]>>2 & 3)<<4;
+	vsw = (d[10] & 0xF) | (d[11] & 3)<<4;
+	t->ht = t->ha + hb;
+	t->vt = t->va + vb;
+	t->hss = t->ha + hso;
+	t->hse = t->hss + hsw;
+	t->vss = t->va + vso;
+	t->vse = t->vss + vsw;
+	if(t->ht == 0 || t->vt == 0)
+		return -1;
+	t->phsync = (d[17] & 0x18) == 0x18 && (d[17] & 2);
+	t->pvsync = (d[17] & 0x18) == 0x18 && (d[17] & 4);
+	t->hz = ((vlong)t->clock*1000 + t->ht*t->vt/2) / (t->ht*t->vt);
+	return 0;
+}
+
+/* the timing for w x h [hz] among the EDID's detailed timings that the port can drive */
+static int
+findtiming(Output *o, int w, int h, int hz, Timing *t)
+{
+	uchar *e, *x;
+	int i;
+
+	e = o->edid;
+	if(o->nedid < 128)
+		return -1;
+	for(i = 54; i < 126; i += 18)
+		if(dtdtiming(e+i, t) == 0 && t->ha == w && t->va == h && (hz == 0 || t->hz == hz)
+		&& t->clock <= Hdmimaxclock)
+			return 0;
+	if(o->nedid >= 256 && e[128] == 2)
+		for(x = e+128, i = x[2]; i >= 4 && i + 18 <= 127; i += 18)
+			if(dtdtiming(x+i, t) == 0 && t->ha == w && t->va == h && (hz == 0 || t->hz == hz)
+			&& t->clock <= Hdmimaxclock)
+				return 0;
+	return -1;
+}
+
+/* hsw_wrpll_get_budget_for_freq: ppm the WRPLL may be off for a clock (Hz) */
+static uint
+wrpllbudget(int clock)
+{
+	switch(clock){
+	case 25175000: case 25200000: case 27000000: case 27027000: case 37762500:
+	case 37800000: case 40500000: case 40541000: case 54000000: case 54054000:
+	case 59341000: case 59400000: case 72000000: case 74176000: case 74250000:
+	case 81000000: case 81081000: case 89012000: case 89100000: case 108000000:
+	case 108108000: case 111264000: case 111375000: case 148352000: case 148500000:
+	case 162000000: case 162162000: case 222525000: case 222750000: case 296703000:
+	case 297000000:
+		return 0;
+	case 233500000: case 245250000: case 247750000: case 253250000: case 298000000:
+		return 1500;
+	case 169128000: case 169500000: case 179500000: case 202000000:
+		return 2000;
+	case 256250000: case 262500000: case 270000000: case 272500000: case 273750000:
+	case 280750000: case 281250000: case 286000000: case 291750000:
+		return 4000;
+	case 267250000: case 268500000:
+		return 5000;
+	}
+	return 1000;
+}
+
+enum { Lcfreq = 2700, Pmin = 2, Pmax = 64, Pinc = 2, Refmin = 48, Refmax = 400, Vcomin = 2400, Vcomax = 4800 };
+
+static uvlong
+absdiff(uvlong a, uvlong b)
+{
+	return a > b ? a - b : b - a;
+}
+
+/* hsw_wrpll_update_rnp */
+static void
+wrpllupdate(uvlong freq2k, uint budget, uint r2, uint n2, uint p, uint *bp, uint *bn2, uint *br2)
+{
+	uvlong a, b, c, d, diff, diffbest;
+
+	if(*bp == 0){
+		*bp = p;
+		*bn2 = n2;
+		*br2 = r2;
+		return;
+	}
+	a = freq2k * budget * p * r2;
+	b = freq2k * budget * *bp * *br2;
+	diff = absdiff(freq2k * p * r2, (uvlong)Lcfreq*2000 * n2);
+	diffbest = absdiff(freq2k * *bp * *br2, (uvlong)Lcfreq*2000 * *bn2);
+	c = 1000000 * diff;
+	d = 1000000 * diffbest;
+	if(a < c && b < d){
+		if(*bp * *br2 * diff < p * r2 * diffbest){
+			*bp = p; *bn2 = n2; *br2 = r2;
+		}
+	}else if(a >= c && b < d){
+		*bp = p; *bn2 = n2; *br2 = r2;
+	}else if(a >= c && b >= d){
+		if(n2 * *br2 * *br2 > *bn2 * r2 * r2){
+			*bp = p; *bn2 = n2; *br2 = r2;
+		}
+	}
+}
+
+/* hsw_ddi_calculate_wrpll: the WRPLL's dividers for a clock (Hz) */
+static u32int
+wrpllval(int clock)
+{
+	uvlong freq2k;
+	uint budget, r2, n2, p, bp, bn2, br2;
+
+	freq2k = clock / 100;
+	budget = wrpllbudget(clock);
+	bp = bn2 = br2 = 0;
+	if(freq2k == 5400000){
+		bn2 = 2; bp = 1; br2 = 2;
+	}else
+		for(r2 = Lcfreq*2/Refmax + 1; r2 <= Lcfreq*2/Refmin; r2++)
+			for(n2 = Vcomin*r2/Lcfreq + 1; n2 <= Vcomax*r2/Lcfreq; n2++)
+				for(p = Pmin; p <= Pmax; p += Pinc)
+					wrpllupdate(freq2k, budget, r2, n2, p, &bp, &bn2, &br2);
+	return Wrpllenable | Wrplllcpll | br2 | bp<<8 | bn2<<16;
+}
+
+static int
+waitbits(ulong r, u32int mask, u32int want, int ms)
+{
+	vlong t;
+
+	for(t = nsec(); nsec() - t < ms*1000000LL; sleep(1))
+		if((rd(r) & mask) == want)
+			return 0;
+	return -1;
+}
+
+/* colour bars and a frame: what the driver shows until a client draws */
+static void
+testpicture(Output *o, int w, int h)
+{
+	static u32int bars[] = { 0xFFFFFF, 0xFFFF00, 0x00FFFF, 0x00FF00, 0xFF00FF, 0xFF0000, 0x0000FF, 0x000000 };
+	u32int *p;
+	int x, y;
+
+	for(y = 0; y < h; y++){
+		p = o->fb + y*w;
+		for(x = 0; x < w; x++)
+			p[x] = (y < 8 || y >= h-8 || x < 8 || x >= w-8) ? 0x808080 : bars[x*8/w];
+	}
+	clflushrange(o->fb, (ulong)w*h*4);
+}
+
+/* switch off what this driver set (haswell_crtc_disable); the frame buffer stays */
+static void
+modeoff(Output *o)
+{
+	ulong tb;
+	int p;
+
+	if(!o->ours)
+		return;
+	p = Ourpipe;
+	tb = transbase[p];
+	wr(Dspcntr + p*0x1000, 0);
+	wr(Dspsurf + p*0x1000, 0);
+	wr(Pipeconf + p*0x1000, rd(Pipeconf + p*0x1000) & ~Pipeenable);
+	waitbits(Pipeconf + p*0x1000, Pipestate, 0, 100);
+	wr(tb + Transddifuncctl, 0);
+	wr(Transclksel + 4*p, 0);
+	wr(Ddibufctl + 0x100*o->port, rd(Ddibufctl + 0x100*o->port) & ~Ddibufenable);
+	waitbits(Ddibufctl + 0x100*o->port, Ddibufidle, Ddibufidle, 10);
+	wr(Portclksel + 4*o->port, 7u<<29);	/* PORT_CLK_SEL_NONE */
+	if(o->wrpll >= 0)
+		wr(Wrpllctl + 0x20*o->wrpll, rd(Wrpllctl + 0x20*o->wrpll) & ~Wrpllenable);
+	wr(Wm0pipe + 4*p, 0);
+	o->wrpll = -1;
+	o->ours = 0;
+	o->trans = o->pipe = -1;
+}
+
+/*
+ * the mode on an HDMI output, DVI mode (no infoframes), 8 bits a
+ * colour, on pipe and transcoder B (haswell_crtc_enable, the DDI
+ * encoder's pre_enable and enable)
+ */
+static char*
+modeset(Output *o, Timing *t)
+{
+	uvlong sskpd;
+	u32int f, wm;
+	ulong tb;
+	int p, i, pll, lat;
+
+	if(o->type != Ohdmi)
+		return "only HDMI outputs yet";
+	modeoff(o);
+	p = Ourpipe;
+	tb = transbase[p];
+	if((rd(Pipeconf + p*0x1000) & Pipeenable) != 0)
+		return "pipe B in use";
+
+	/* the frame buffer: one of the mode's size, the colour bars */
+	if(o->fb == nil || o->fbsize < (ulong)t->ha*t->va*4){
+		o->fbsize = ((ulong)t->ha*t->va*4 + 4095) & ~4095UL;
+		if((o->fbgtt = fbnew(o->fbsize, &o->fb, o->fbseg, sizeof o->fbseg)) == 0){
+			o->fb = nil;
+			return "no memory for a frame buffer";
+		}
+	}
+	testpicture(o, t->ha, t->va);
+
+	/* the display power well (pipes B, C and their transcoders) */
+	wr(Pwrwelldriver, Pwrwellreq);
+	if(waitbits(Pwrwelldriver, Pwrwellon, Pwrwellon, 20) < 0)
+		return "power well does not come on";
+
+	/* a free WRPLL for the pixel clock (8 bits a colour: the port clock) */
+	for(pll = 0; pll < 2; pll++)
+		if((rd(Wrpllctl + 0x20*pll) & Wrpllenable) == 0)
+			break;
+	if(pll == 2)
+		return "no free WRPLL";
+	wr(Wrpllctl + 0x20*pll, wrpllval(t->clock*1000));
+	rd(Wrpllctl + 0x20*pll);
+	sleep(1);
+	o->wrpll = pll;
+
+	/* intel_set_pipe_timings */
+	wr(tb + Transvsyncshift, 0);
+	wr(tb + Transhtotal, (t->ha-1) | (t->ht-1)<<16);
+	wr(tb + Transhblank, (t->ha-1) | (t->ht-1)<<16);
+	wr(tb + Transhsync, (t->hss-1) | (t->hse-1)<<16);
+	wr(tb + Transvtotal, (t->va-1) | (t->vt-1)<<16);
+	wr(tb + Transvblank, (t->va-1) | (t->vt-1)<<16);
+	wr(tb + Transvsync, (t->vss-1) | (t->vse-1)<<16);
+	wr(Pipesrc + p*0x1000, (t->ha-1)<<16 | (t->va-1));
+	wr(tb + Transpipemult, 0);
+
+	/* haswell_set_pipeconf: progressive, 8-bit gamma mode, 8 bits a colour */
+	wr(Pipeconf + p*0x1000, 0);
+	rd(Pipeconf + p*0x1000);
+	wr(Gammamode + p*0x800, 0);
+	wr(Pipemisc + p*0x1000, 0);
+
+	/* the DDI encoder's pre_enable: the port's clock; its buffers (intel_prepare_ddi_buffers) */
+	for(i = 0; i < nelem(bdw_ddi_translations_dp); i++){
+		wr(Ddibuftransreg + 0x60*o->port + 8*i, bdw_ddi_translations_dp[i].trans1);
+		wr(Ddibuftransreg + 0x60*o->port + 8*i + 4, bdw_ddi_translations_dp[i].trans2);
+	}
+	wr(Ddibuftransreg + 0x60*o->port + 8*i, bdw_ddi_translations_hdmi[7].trans1);	/* entry 9: HDMI, BDW's default level */
+	wr(Ddibuftransreg + 0x60*o->port + 8*i + 4, bdw_ddi_translations_hdmi[7].trans2);
+	wr(Portclksel + 4*o->port, (u32int)(pll+4)<<29);	/* PORT_CLK_SEL_WRPLL(pll) */
+
+	/* intel_ddi_enable_pipe_clock, the transcoder's function */
+	wr(Transclksel + 4*p, (u32int)(o->port+1)<<29);
+	f = Tddienable | (u32int)o->port<<28 | Tddibpc8 | Tddidvi;
+	if(t->phsync)
+		f |= Tddiphsync;
+	if(t->pvsync)
+		f |= Tddipvsync;
+	wr(tb + Transddifuncctl, f);
+
+	/*
+	 * watermarks (ilk_wm_method1 with level 0's latency, 0.1 µs units;
+	 * two pipes: no LP watermarks)
+	 */
+	sskpd = rd(Mchsskpd) | (uvlong)rd(Mchsskpd+4)<<32;
+	lat = sskpd>>56 & 0xFF;
+	if(lat == 0)
+		lat = sskpd & 0xF;
+	if(lat == 0)
+		lat = 20;
+	wm = ((uvlong)t->clock * 4 * lat + 64*10000 - 1) / (64*10000) + 2;
+	if(wm > 255)
+		wm = 255;
+	wr(Wm1lp+8, 0);
+	wr(Wm1lp+4, 0);
+	wr(Wm1lp, 0);
+	wr(Wm1slp, 0);
+	wr(Wm0pipe + 4*p, wm<<16);	/* the primary plane; sprite and cursor off */
+
+	/* intel_enable_pipe */
+	wr(Pipeconf + p*0x1000, rd(Pipeconf + p*0x1000) | Pipeenable);
+	if(waitbits(Pipeconf + p*0x1000, Pipestate, Pipestate, 100) < 0){
+		modeoff(o);
+		return "pipe B does not start";
+	}
+
+	/* the encoder's enable: the port */
+	wr(Ddibufctl + 0x100*o->port, (rd(Ddibufctl + 0x100*o->port) & (1<<4)) | Ddibufenable);
+
+	/* the plane: the frame buffer, linear x8r8g8b8 */
+	wr(Dspstride + p*0x1000, t->ha*4);
+	wr(Dspoffset + p*0x1000, 0);
+	wr(Dspcntr + p*0x1000, Dspenable | Dspbgrx);
+	wr(Dspsurf + p*0x1000, o->fbgtt);
+	o->ours = 1;
+	readmode(o);
+	o->refresh = (long)t->hz * 1000;
+	return nil;
+}
+
+static int
+parsewxh(char *s, int *w, int *h)
+{
+	char *x;
+
+	*w = strtol(s, &x, 10);
+	if(*x != 'x')
+		return -1;
+	*h = strtol(x+1, &x, 10);
+	return *x == 0 && *w > 0 && *h > 0 ? 0 : -1;
+}
+
+/* write to outputs/<conn>/mode: wxh [hz] (one of the EDID's detailed timings), or off */
+char*
+outsetmode(Output *o, char *req)
+{
+	Timing t;
+	char *f[3];
+	int n, w, h;
+
+	n = tokenize(req, f, nelem(f));
+	if(n == 1 && strcmp(f[0], "off") == 0){
+		if(!o->ours)
+			return "not set by this driver";
+		modeoff(o);
+		return nil;
+	}
+	if(n < 1 || n > 2 || parsewxh(f[0], &w, &h) < 0)
+		return "usage: wxh [hz] | off";
+	if(!o->connected)
+		return "nothing connected";
+	if(findtiming(o, w, h, n == 2 ? atoi(f[1]) : 0, &t) < 0)
+		return "no such mode among the EDID's detailed timings (up to 300 MHz)";
+	return modeset(o, &t);
 }

@@ -261,6 +261,7 @@ enum {
 	Nctx		= 64,
 	Nbo		= 1024,
 	Bomax		= 1<<30,	/* an object's size; their addresses in the clients 1 GB apart */
+	Fbva		= 0x3000000000ULL,	/* the driver's frame buffers (display.c), 1 GB apart */
 	Anyaddr		= ~0,		/* bomap: the driver chooses the GPU address */
 	Fwin		= 256,		/* fences in flight per context */
 	Timeout		= 5000,		/* ms before a fence is given up */
@@ -2282,6 +2283,56 @@ fsread(Req *r)
 	respond(r, nil);
 }
 
+/* the CPU's caches written back to memory: for what the display reads */
+void
+clflushrange(void *p, ulong n)
+{
+	uchar *a, *e;
+
+	a = (uchar*)((uintptr)p & ~63);
+	e = (uchar*)p + n;
+	for(; a < e; a += 64)
+		__asm__ volatile("clflush (%0)" :: "r"(a) : "memory");
+	__asm__ volatile("mfence" ::: "memory");
+}
+
+/*
+ * a frame buffer of the driver's (display.c: an output's picture): pinned
+ * pages, attached here, in the GTT Scanalign-aligned; its GTT address,
+ * 0 if there is none
+ */
+static int nfb;
+
+ulong
+fbnew(ulong size, u32int **p, char *seg, int nseg)
+{
+	uvlong *pa;
+	ulong a;
+
+	size = (size + 4095) & ~4095UL;
+	snprint(seg, nseg, "gpu0fb%d", ++nfb);
+	if((pa = stickyseg(seg, Fbva + (uvlong)(nfb-1)*Bomax, size, 0700)) == nil)
+		return 0;
+	if((*p = segattach(0, seg, nil, size)) == (void*)-1){
+		free(pa);
+		rmseg(seg);
+		return 0;
+	}
+	qlock(&lk);
+	if((a = gttalloc(size + Scanalign)) == 0){
+		qunlock(&lk);
+		segdetach(*p);
+		free(pa);
+		rmseg(seg);
+		return 0;
+	}
+	a = (a + Scanalign-1) & ~(Scanalign-1);
+	gttmap(a, 0, pa, size);
+	qunlock(&lk);
+	free(pa);
+	return a;
+}
+
 /* the plane as it was (aux/vga's draw screen); with lk */
 static void
 scanrestore(void)
@@ -2464,8 +2515,20 @@ fswrite(Req *r)
 		n = sizeof buf-1;
 	memmove(buf, r->ifcall.data, n);
 	buf[n] = 0;
-	n = tokenize(buf, f, nelem(f));
 	fa = r->fid->aux;
+	if((n = ftype(r->fid->file)) >= Xout && n < Xctxbase && (n & 0xF) == Xoutmode){
+		qlock(&ctxlock);
+		e = outsetmode(&outputs[(n - Xout)>>4], buf);
+		qunlock(&ctxlock);
+		if(e != nil){
+			respond(r, e);
+			return;
+		}
+		r->ofcall.count = r->ifcall.count;
+		respond(r, nil);
+		return;
+	}
+	n = tokenize(buf, f, nelem(f));
 	switch(ftype(r->fid->file)){
 	case Xctl:
 		e = devctl(f, n);
@@ -2537,7 +2600,7 @@ mktree(void)
 		o = createfile(n, outputs[i].name, user, DMDIR|0555, nil);
 		createfile(o, "edid", user, 0444, (void*)(uintptr)(Xout | i<<4 | Xoutedid));
 		createfile(o, "modes", user, 0444, (void*)(uintptr)(Xout | i<<4 | Xoutmodes));
-		createfile(o, "mode", user, 0444, (void*)(uintptr)(Xout | i<<4 | Xoutmode));
+		createfile(o, "mode", user, 0664, (void*)(uintptr)(Xout | i<<4 | Xoutmode));
 	}
 }
 
