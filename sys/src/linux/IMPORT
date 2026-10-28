@@ -1,0 +1,17 @@
+# What scripts/linux/import.py takes from a Linux tree into vendor/:
+# globs relative to the tree's root; ! leaves out.  Files whose notice is
+# not MIT-like (GPL only, or none) are not taken: REJECTED lists them,
+# the layer (kpi/, replace/) stands in for what is needed of them.
+drivers/gpu/drm/*.[ch]
+drivers/gpu/drm/display/*.[ch]
+drivers/gpu/drm/ttm/*.[ch]
+drivers/gpu/drm/i915/**/*.[ch]
+!drivers/gpu/drm/i915/gvt/**
+drivers/gpu/drm/i915/Makefile
+drivers/gpu/drm/Makefile
+drivers/gpu/drm/display/Makefile
+drivers/gpu/drm/ttm/Makefile
+drivers/dma-buf/dma-resv.c
+include/drm/**/*.h
+include/uapi/drm/*.h
+include/linux/dma-resv.h

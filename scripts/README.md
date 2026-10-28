@@ -117,3 +117,16 @@ cross compilers from `../9front-gcc`.
 | `common.sh` | settings the others source |
 
 `tests/gpu/build-vktest.sh` links `tests/gpu/vktest.c` against it.
+
+## linux/ — Linux's DRM drivers on the LinuxKPI for 9front
+
+`sys/src/linux`: Linux's DRM code unchanged in `vendor/` (what `IMPORT` names, MIT-like files
+only; `REJECTED` lists the others, `NOTICE` the notices), our layer in `kpi/` and `replace/`,
+the kernel configuration in `kconfig`.
+
+| script | what it does |
+|---|---|
+| `import.py` | a Linux tree into `vendor/`, with the licence check, `VERSION`, `REJECTED`, `NOTICE`. `scripts/linux/import.py ~/Devel/linux-6.6` |
+| `kbuild.py` | the files Linux's Makefiles build with `kconfig`; `--autoconf` makes `kpi/include/generated/autoconf.h`. `scripts/linux/kbuild.py sys/src/linux/vendor drivers/gpu/drm` |
+| `census.py` | compiles every chosen file against the layer and counts what is missing: the measure of progress. `scripts/linux/census.py [-v]` |
+

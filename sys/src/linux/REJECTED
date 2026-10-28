@@ -1,0 +1,76 @@
+# files IMPORT names that import.py left out: their notice is not MIT-like
+drivers/gpu/drm/display/drm_dp_aux_bus.c	GPL-2.0
+drivers/gpu/drm/display/drm_dp_cec.c	GPL-2.0
+drivers/gpu/drm/display/drm_dp_mst_topology_internal.h	GPL-2.0-only
+drivers/gpu/drm/display/drm_hdcp_helper.c	GPL-2.0
+drivers/gpu/drm/drm_bridge_connector.c	GPL-2.0+
+drivers/gpu/drm/drm_edid_load.c	GPL-2.0-or-later
+drivers/gpu/drm/drm_fb_dma_helper.c	GPL-2.0-or-later
+drivers/gpu/drm/drm_gem_atomic_helper.c	GPL-2.0-or-later
+drivers/gpu/drm/drm_gem_dma_helper.c	GPL-2.0-or-later
+drivers/gpu/drm/drm_gem_framebuffer_helper.c	GPL-2.0-or-later
+drivers/gpu/drm/drm_gem_shmem_helper.c	GPL-2.0
+drivers/gpu/drm/drm_gem_ttm_helper.c	GPL-2.0-or-later
+drivers/gpu/drm/drm_gem_vram_helper.c	GPL-2.0-or-later
+drivers/gpu/drm/drm_lease.c	GPL-2.0-or-later
+drivers/gpu/drm/drm_managed.c	GPL-2.0
+drivers/gpu/drm/drm_mipi_dbi.c	GPL-2.0-or-later
+drivers/gpu/drm/drm_of.c	GPL-2.0-only
+drivers/gpu/drm/drm_simple_kms_helper.c	GPL-2.0-or-later
+drivers/gpu/drm/drm_sysfs.c	GPL-2.0-only
+drivers/gpu/drm/drm_trace.h	GPL-2.0
+drivers/gpu/drm/drm_trace_points.c	no notice
+drivers/gpu/drm/drm_writeback.c	GPL-2.0
+drivers/gpu/drm/i915/display/intel_acpi.c	GPL-2.0
+drivers/gpu/drm/i915/display/intel_display_trace.c	GPL-2.0
+drivers/gpu/drm/i915/display/intel_display_trace.h	GPL-2.0
+drivers/gpu/drm/i915/gt/selftest_context.c	GPL-2.0
+drivers/gpu/drm/i915/gt/selftest_engine.c	GPL-2.0
+drivers/gpu/drm/i915/gt/selftest_engine.h	GPL-2.0
+drivers/gpu/drm/i915/gt/selftest_engine_cs.c	GPL-2.0
+drivers/gpu/drm/i915/gt/selftest_engine_pm.c	GPL-2.0
+drivers/gpu/drm/i915/gt/selftest_ring.c	GPL-2.0
+drivers/gpu/drm/i915/i915_trace.h	GPL-2.0
+drivers/gpu/drm/i915/i915_trace_points.c	GPL-2.0
+drivers/gpu/drm/i915/selftests/i915_live_selftests.h	GPL-2.0
+drivers/gpu/drm/i915/selftests/i915_mock_selftests.h	GPL-2.0
+drivers/gpu/drm/i915/selftests/i915_perf_selftests.h	GPL-2.0
+drivers/gpu/drm/i915/selftests/lib_sw_fence.h	GPL-2.0-only
+drivers/gpu/drm/i915/selftests/mock_gem_device.h	GPL-2.0
+include/drm/bridge/analogix_dp.h	GPL-2.0-or-later
+include/drm/bridge/dw_hdmi.h	GPL-2.0-or-later
+include/drm/bridge/dw_mipi_dsi.h	GPL-2.0-only
+include/drm/bridge/mhl.h	GPL-2.0-only
+include/drm/bridge/samsung-dsim.h	GPL-2.0+
+include/drm/display/drm_dp_aux_bus.h	GPL-2.0
+include/drm/drm_accel.h	GPL-2.0
+include/drm/drm_bridge_connector.h	GPL-2.0+
+include/drm/drm_device.h	no notice
+include/drm/drm_fb_dma_helper.h	GPL-2.0
+include/drm/drm_format_helper.h	GPL-2.0-or-later
+include/drm/drm_gem_atomic_helper.h	GPL-2.0-or-later
+include/drm/drm_gem_dma_helper.h	GPL-2.0
+include/drm/drm_gem_framebuffer_helper.h	no notice
+include/drm/drm_gem_shmem_helper.h	GPL-2.0
+include/drm/drm_gem_ttm_helper.h	GPL-2.0-or-later
+include/drm/drm_gem_vram_helper.h	GPL-2.0-or-later
+include/drm/drm_kunit_helpers.h	GPL-2.0
+include/drm/drm_lease.h	GPL-2.0-or-later
+include/drm/drm_managed.h	GPL-2.0
+include/drm/drm_mipi_dbi.h	GPL-2.0-or-later
+include/drm/drm_mipi_dsi.h	GPL-2.0-only
+include/drm/drm_of.h	GPL-2.0
+include/drm/drm_simple_kms_helper.h	GPL-2.0-or-later
+include/drm/drm_sysfs.h	GPL-2.0
+include/drm/drm_writeback.h	GPL-2.0
+include/drm/gma_drm.h	GPL-2.0-only
+include/drm/i2c/tda998x.h	GPL-2.0
+include/drm/i915_hdcp_interface.h	(GPL-2.0+)
+include/drm/intel-gtt.h	GPL-2.0
+include/uapi/drm/armada_drm.h	GPL-2.0 WITH Linux-syscall-note
+include/uapi/drm/etnaviv_drm.h	GPL-2.0 WITH Linux-syscall-note
+include/uapi/drm/exynos_drm.h	GPL-2.0+ WITH Linux-syscall-note
+include/uapi/drm/habanalabs_accel.h	GPL-2.0 WITH Linux-syscall-note
+include/uapi/drm/ivpu_accel.h	GPL-2.0-only WITH Linux-syscall-note
+include/uapi/drm/omap_drm.h	GPL-2.0 WITH Linux-syscall-note
+include/uapi/drm/qaic_accel.h	GPL-2.0 WITH Linux-syscall-note
