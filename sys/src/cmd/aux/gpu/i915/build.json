@@ -61,6 +61,7 @@
 		"Libs": [
 			"--start-group",
 			"/$ARCH/lib.gcc/libi915.a",
+			"/$ARCH/lib.gcc/libkpitest.a",
 			"/$ARCH/lib.gcc/liblinux.a",
 			"/$ARCH/lib.gcc/libkpi.a",
 			"/$ARCH/lib.gcc/libkpi9.a",

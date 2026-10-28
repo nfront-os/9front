@@ -92,6 +92,15 @@ def libs():
 	bydir = {}
 	for c in linuxfiles():
 		bydir.setdefault(os.path.dirname(c), []).append(c)
+	# Linux's own selftests of what the layer stands in for (MIT): aux/i915 -T
+	out.append({
+		'Name': 'linux-selftests',
+		'Noinc': True,
+		'Cflags': linuxflags('drivers/dma-buf/selftest.c', D, 'dmabuf_selftests'),
+		'Install': '/$ARCH/lib.gcc/',
+		'Library': 'libkpitest.a',
+		'SourceFiles': [rel(g['source'](c), D) for c in SELFTESTS],
+	})
 	first = True
 	for d in sorted(bydir):
 		o = {
@@ -109,6 +118,9 @@ def libs():
 		first = False
 		out.append(o)
 	return out
+
+SELFTESTS = ['drivers/dma-buf/selftest.c', 'drivers/dma-buf/st-dma-fence.c', 'drivers/dma-buf/st-dma-fence-chain.c',
+	'drivers/dma-buf/st-dma-fence-unwrap.c', 'drivers/dma-buf/st-dma-resv.c']
 
 P9LIBS = ['lib9p.a', 'libthread.a', 'libauth.a', 'libc.a']
 
@@ -128,7 +140,7 @@ def i915():
 		'Install': '/$ARCH/bin/aux/',
 		'Oflags': ['--entry=_main'],
 		'Libs': ['--start-group'] + ['/$ARCH/lib.gcc/' + l for l in
-			['libi915.a', 'liblinux.a', 'libkpi.a', 'libkpi9.a'] + P9LIBS + ['libgcc.a']] + ['--end-group'],
+			['libi915.a', 'libkpitest.a', 'liblinux.a', 'libkpi.a', 'libkpi9.a'] + P9LIBS + ['libgcc.a']] + ['--end-group'],
 		'Program': 'i915',
 		'SourceFiles': sorted(os.path.basename(f) for f in glob.glob(os.path.join(base, '*.c'))),
 	}, {

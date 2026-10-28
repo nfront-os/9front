@@ -14,6 +14,7 @@
 #include "../i915.h"
 
 int	kpi_init_i915_init(void);
+int	kpi_init_st_init(void);	/* drivers/dma-buf/selftest.c */
 extern int kpi_loglevel;
 
 void
@@ -94,6 +95,7 @@ i915_selftest(void)
 {
 	struct segtest t;
 	struct page *p;
+	int r;
 
 	p = alloc_page(GFP_KERNEL | __GFP_ZERO);
 	if (!p)
@@ -109,7 +111,13 @@ i915_selftest(void)
 	put_page(p);
 	if (t.seen != 0x915915)
 		return -EIO;
-	return vmap_selftest();
+	r = vmap_selftest();
+	if (r)
+		return r;
+	/* Linux's selftests of fences, chains, arrays, reservation objects */
+	r = kpi_init_st_init();
+	pr_info("selftest: Linux's dma-buf selftests: %s (%d)\n", r ? "FAIL" : "ok", r);
+	return r;
 }
 
 /* drm_sysfs: a connector's state changed (the file server will tell its clients) */

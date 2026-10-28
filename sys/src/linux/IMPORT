@@ -12,6 +12,10 @@ drivers/gpu/drm/Makefile
 drivers/gpu/drm/display/Makefile
 drivers/gpu/drm/ttm/Makefile
 drivers/dma-buf/dma-resv.c
+# the selftests of the fences and reservation objects (MIT): aux/i915 -T
+drivers/dma-buf/selftest.[ch]
+drivers/dma-buf/selftests.h
+drivers/dma-buf/st-dma-*.c
 include/drm/**/*.h
 include/uapi/drm/*.h
 include/linux/dma-resv.h

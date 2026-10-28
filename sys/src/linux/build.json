@@ -80,6 +80,52 @@
 		]
 	},
 	{
+		"Name": "linux-selftests",
+		"Noinc": true,
+		"Cflags": [
+			"-std=gnu11",
+			"-O2",
+			"-g",
+			"-fno-strict-aliasing",
+			"-fno-strict-overflow",
+			"-fno-delete-null-pointer-checks",
+			"-fno-common",
+			"-fno-pie",
+			"-fno-stack-protector",
+			"-fno-omit-frame-pointer",
+			"-mcmodel=small",
+			"-fshort-wchar",
+			"-funsigned-char",
+			"-Wno-unused",
+			"-Wno-pointer-sign",
+			"-Wno-address-of-packed-member",
+			"-Wno-format-truncation",
+			"-nostdinc",
+			"-D__KERNEL__",
+			"-DKBUILD_MODNAME=\"dmabuf_selftests\"",
+			"-include",
+			"kpi/include/linux/kconfig.h",
+			"-include",
+			"kpi/include/linux/compiler_types.h",
+			"-Ireplace/include",
+			"-Ikpi/include",
+			"-Ivendor/include",
+			"-Ivendor/include/uapi",
+			"-Ivendor",
+			"-Ivendor/drivers/dma-buf",
+			"-Ireplace/drivers/dma-buf"
+		],
+		"Install": "/$ARCH/lib.gcc/",
+		"Library": "libkpitest.a",
+		"SourceFiles": [
+			"vendor/drivers/dma-buf/selftest.c",
+			"vendor/drivers/dma-buf/st-dma-fence.c",
+			"vendor/drivers/dma-buf/st-dma-fence-chain.c",
+			"vendor/drivers/dma-buf/st-dma-fence-unwrap.c",
+			"vendor/drivers/dma-buf/st-dma-resv.c"
+		]
+	},
+	{
 		"Name": "linux-drivers-dma-buf",
 		"Noinc": true,
 		"Cflags": [

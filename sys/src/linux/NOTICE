@@ -38,6 +38,183 @@ notice; they follow, each once, with the files it covers.  Our own files
  * Authors: Thomas Hellstrom <thellstrom-at-vmware-dot-com>
  */
 
+==== drivers/dma-buf/selftest.c
+==== drivers/dma-buf/st-dma-fence.c
+==== drivers/gpu/drm/i915/display/intel_acpi.h
+==== drivers/gpu/drm/i915/display/intel_atomic.h
+==== drivers/gpu/drm/i915/display/intel_atomic_plane.h
+==== drivers/gpu/drm/i915/display/intel_audio.h
+==== drivers/gpu/drm/i915/display/intel_bw.h
+==== drivers/gpu/drm/i915/display/intel_cdclk.h
+==== drivers/gpu/drm/i915/display/intel_color.h
+==== drivers/gpu/drm/i915/display/intel_combo_phy.h
+==== drivers/gpu/drm/i915/display/intel_connector.h
+==== drivers/gpu/drm/i915/display/intel_crt.h
+==== drivers/gpu/drm/i915/display/intel_ddi.h
+==== drivers/gpu/drm/i915/display/intel_de.h
+==== drivers/gpu/drm/i915/display/intel_display_power.c
+==== drivers/gpu/drm/i915/display/intel_display_power.h
+==== drivers/gpu/drm/i915/display/intel_dmc.h
+==== drivers/gpu/drm/i915/display/intel_dp.h
+==== drivers/gpu/drm/i915/display/intel_dp_aux_backlight.h
+==== drivers/gpu/drm/i915/display/intel_dp_link_training.h
+==== drivers/gpu/drm/i915/display/intel_dp_mst.h
+==== drivers/gpu/drm/i915/display/intel_dpio_phy.h
+==== drivers/gpu/drm/i915/display/intel_dsi_dcs_backlight.h
+==== drivers/gpu/drm/i915/display/intel_dvo.h
+==== drivers/gpu/drm/i915/display/intel_fbc.h
+==== drivers/gpu/drm/i915/display/intel_fbdev.h
+==== drivers/gpu/drm/i915/display/intel_fifo_underrun.h
+==== drivers/gpu/drm/i915/display/intel_gmbus.h
+==== drivers/gpu/drm/i915/display/intel_hdcp.h
+==== drivers/gpu/drm/i915/display/intel_hdmi.h
+==== drivers/gpu/drm/i915/display/intel_hotplug.h
+==== drivers/gpu/drm/i915/display/intel_lpe_audio.h
+==== drivers/gpu/drm/i915/display/intel_lspcon.h
+==== drivers/gpu/drm/i915/display/intel_lvds.h
+==== drivers/gpu/drm/i915/display/intel_overlay.h
+==== drivers/gpu/drm/i915/display/intel_panel.h
+==== drivers/gpu/drm/i915/display/intel_pipe_crc.h
+==== drivers/gpu/drm/i915/display/intel_psr.h
+==== drivers/gpu/drm/i915/display/intel_quirks.h
+==== drivers/gpu/drm/i915/display/intel_sdvo.h
+==== drivers/gpu/drm/i915/display/intel_snps_phy.h
+==== drivers/gpu/drm/i915/display/intel_sprite.h
+==== drivers/gpu/drm/i915/display/intel_tc.h
+==== drivers/gpu/drm/i915/display/intel_tv.h
+==== drivers/gpu/drm/i915/display/intel_vdsc.h
+==== drivers/gpu/drm/i915/display/intel_vga.h
+==== drivers/gpu/drm/i915/display/intel_vrr.h
+==== drivers/gpu/drm/i915/gem/i915_gem_lmem.h
+==== drivers/gpu/drm/i915/gem/i915_gem_region.h
+==== drivers/gpu/drm/i915/gem/i915_gem_shrinker.h
+==== drivers/gpu/drm/i915/gem/i915_gem_stolen.h
+==== drivers/gpu/drm/i915/gt/gen7_renderclear.h
+==== drivers/gpu/drm/i915/gt/intel_breadcrumbs.h
+==== drivers/gpu/drm/i915/gt/intel_breadcrumbs_types.h
+==== drivers/gpu/drm/i915/gt/intel_context.h
+==== drivers/gpu/drm/i915/gt/intel_context_param.h
+==== drivers/gpu/drm/i915/gt/intel_context_types.h
+==== drivers/gpu/drm/i915/gt/intel_engine_heartbeat.h
+==== drivers/gpu/drm/i915/gt/intel_engine_pm.h
+==== drivers/gpu/drm/i915/gt/intel_engine_types.h
+==== drivers/gpu/drm/i915/gt/intel_engine_user.h
+==== drivers/gpu/drm/i915/gt/intel_gt.h
+==== drivers/gpu/drm/i915/gt/intel_gt_debugfs.h
+==== drivers/gpu/drm/i915/gt/intel_gt_defines.h
+==== drivers/gpu/drm/i915/gt/intel_gt_engines_debugfs.h
+==== drivers/gpu/drm/i915/gt/intel_gt_irq.h
+==== drivers/gpu/drm/i915/gt/intel_gt_pm.h
+==== drivers/gpu/drm/i915/gt/intel_gt_pm_debugfs.h
+==== drivers/gpu/drm/i915/gt/intel_gt_pm_irq.h
+==== drivers/gpu/drm/i915/gt/intel_gt_requests.h
+==== drivers/gpu/drm/i915/gt/intel_gt_types.h
+==== drivers/gpu/drm/i915/gt/intel_llc.h
+==== drivers/gpu/drm/i915/gt/intel_llc_types.h
+==== drivers/gpu/drm/i915/gt/intel_rc6.h
+==== drivers/gpu/drm/i915/gt/intel_rc6_types.h
+==== drivers/gpu/drm/i915/gt/intel_region_lmem.h
+==== drivers/gpu/drm/i915/gt/intel_reset_types.h
+==== drivers/gpu/drm/i915/gt/intel_ring.h
+==== drivers/gpu/drm/i915/gt/intel_ring_types.h
+==== drivers/gpu/drm/i915/gt/intel_rps.h
+==== drivers/gpu/drm/i915/gt/intel_rps_types.h
+==== drivers/gpu/drm/i915/gt/intel_sseu.h
+==== drivers/gpu/drm/i915/gt/selftest_llc.h
+==== drivers/gpu/drm/i915/gt/selftest_rc6.h
+==== drivers/gpu/drm/i915/gt/sysfs_engines.h
+==== drivers/gpu/drm/i915/gt/uc/intel_uc_fw_abi.h
+==== drivers/gpu/drm/i915/i915_debugfs.h
+==== drivers/gpu/drm/i915/i915_debugfs_params.h
+==== drivers/gpu/drm/i915/i915_driver.h
+==== drivers/gpu/drm/i915/i915_irq.h
+==== drivers/gpu/drm/i915/i915_memcpy.h
+==== drivers/gpu/drm/i915/i915_perf.h
+==== drivers/gpu/drm/i915/i915_perf_types.h
+==== drivers/gpu/drm/i915/i915_suspend.h
+==== drivers/gpu/drm/i915/i915_sw_fence_work.h
+==== drivers/gpu/drm/i915/i915_switcheroo.h
+==== drivers/gpu/drm/i915/i915_sysfs.h
+==== drivers/gpu/drm/i915/intel_clock_gating.h
+==== drivers/gpu/drm/i915/intel_memory_region.h
+==== drivers/gpu/drm/i915/intel_runtime_pm.h
+==== drivers/gpu/drm/i915/selftests/mock_region.h
+/* SPDX-License-Identifier: MIT */
+/*
+ * Copyright © 2019 Intel Corporation
+ */
+
+==== drivers/dma-buf/selftest.h
+==== drivers/dma-buf/st-dma-fence-chain.c
+==== drivers/gpu/drm/i915/display/intel_bw.c
+==== drivers/gpu/drm/i915/display/intel_snps_phy.c
+==== drivers/gpu/drm/i915/display/intel_tc.c
+==== drivers/gpu/drm/i915/display/intel_vga.c
+==== drivers/gpu/drm/i915/gem/i915_gem_lmem.c
+==== drivers/gpu/drm/i915/gem/i915_gem_region.c
+==== drivers/gpu/drm/i915/gem/selftests/i915_gem_client_blt.c
+==== drivers/gpu/drm/i915/gt/gen7_renderclear.c
+==== drivers/gpu/drm/i915/gt/intel_context.c
+==== drivers/gpu/drm/i915/gt/intel_context_sseu.c
+==== drivers/gpu/drm/i915/gt/intel_engine_heartbeat.c
+==== drivers/gpu/drm/i915/gt/intel_engine_pm.c
+==== drivers/gpu/drm/i915/gt/intel_engine_user.c
+==== drivers/gpu/drm/i915/gt/intel_gt.c
+==== drivers/gpu/drm/i915/gt/intel_gt_debugfs.c
+==== drivers/gpu/drm/i915/gt/intel_gt_engines_debugfs.c
+==== drivers/gpu/drm/i915/gt/intel_gt_irq.c
+==== drivers/gpu/drm/i915/gt/intel_gt_pm.c
+==== drivers/gpu/drm/i915/gt/intel_gt_pm_debugfs.c
+==== drivers/gpu/drm/i915/gt/intel_gt_pm_irq.c
+==== drivers/gpu/drm/i915/gt/intel_gt_requests.c
+==== drivers/gpu/drm/i915/gt/intel_llc.c
+==== drivers/gpu/drm/i915/gt/intel_rc6.c
+==== drivers/gpu/drm/i915/gt/intel_region_lmem.c
+==== drivers/gpu/drm/i915/gt/intel_ring.c
+==== drivers/gpu/drm/i915/gt/intel_rps.c
+==== drivers/gpu/drm/i915/gt/intel_sseu.c
+==== drivers/gpu/drm/i915/gt/selftest_gt_pm.c
+==== drivers/gpu/drm/i915/gt/selftest_llc.c
+==== drivers/gpu/drm/i915/gt/selftest_mocs.c
+==== drivers/gpu/drm/i915/gt/selftest_rc6.c
+==== drivers/gpu/drm/i915/gt/sysfs_engines.c
+==== drivers/gpu/drm/i915/i915_debugfs_params.c
+==== drivers/gpu/drm/i915/i915_sw_fence_work.c
+==== drivers/gpu/drm/i915/i915_switcheroo.c
+==== drivers/gpu/drm/i915/i915_utils.c
+==== drivers/gpu/drm/i915/intel_memory_region.c
+==== drivers/gpu/drm/i915/selftests/intel_memory_region.c
+// SPDX-License-Identifier: MIT
+/*
+ * Copyright © 2019 Intel Corporation
+ */
+
+==== drivers/dma-buf/selftests.h
+/* SPDX-License-Identifier: MIT */
+/* List each unit test as selftest(name, function)
+ *
+ * The name is used as both an enum and expanded as subtest__name to create
+ * a module parameter. It must be unique and legal for a C identifier.
+ *
+ * The function should be of type int function(void). It may be conditionally
+ * compiled using #if IS_ENABLED(CONFIG_DRM_I915_SELFTEST).
+ *
+ * Tests are executed in order by igt/dmabuf_selftest
+ */
+
+==== drivers/dma-buf/st-dma-fence-unwrap.c
+// SPDX-License-Identifier: MIT
+/*
+ * Copyright (C) 2022 Advanced Micro Devices, Inc.
+ */
+
+==== drivers/dma-buf/st-dma-resv.c
+/* SPDX-License-Identifier: MIT */
+/*
+* Copyright © 2019 Intel Corporation
+* Copyright © 2021 Advanced Micro Devices, Inc.
+*/
+
 ==== drivers/gpu/drm/display/drm_display_helper_mod.c
 ==== drivers/gpu/drm/display/drm_hdmi_helper.c
 ==== drivers/gpu/drm/drm_aperture.c
@@ -2594,110 +2771,6 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  * Copyright © 2021 Intel Corporation
  */
 
-==== drivers/gpu/drm/i915/display/intel_acpi.h
-==== drivers/gpu/drm/i915/display/intel_atomic.h
-==== drivers/gpu/drm/i915/display/intel_atomic_plane.h
-==== drivers/gpu/drm/i915/display/intel_audio.h
-==== drivers/gpu/drm/i915/display/intel_bw.h
-==== drivers/gpu/drm/i915/display/intel_cdclk.h
-==== drivers/gpu/drm/i915/display/intel_color.h
-==== drivers/gpu/drm/i915/display/intel_combo_phy.h
-==== drivers/gpu/drm/i915/display/intel_connector.h
-==== drivers/gpu/drm/i915/display/intel_crt.h
-==== drivers/gpu/drm/i915/display/intel_ddi.h
-==== drivers/gpu/drm/i915/display/intel_de.h
-==== drivers/gpu/drm/i915/display/intel_display_power.c
-==== drivers/gpu/drm/i915/display/intel_display_power.h
-==== drivers/gpu/drm/i915/display/intel_dmc.h
-==== drivers/gpu/drm/i915/display/intel_dp.h
-==== drivers/gpu/drm/i915/display/intel_dp_aux_backlight.h
-==== drivers/gpu/drm/i915/display/intel_dp_link_training.h
-==== drivers/gpu/drm/i915/display/intel_dp_mst.h
-==== drivers/gpu/drm/i915/display/intel_dpio_phy.h
-==== drivers/gpu/drm/i915/display/intel_dsi_dcs_backlight.h
-==== drivers/gpu/drm/i915/display/intel_dvo.h
-==== drivers/gpu/drm/i915/display/intel_fbc.h
-==== drivers/gpu/drm/i915/display/intel_fbdev.h
-==== drivers/gpu/drm/i915/display/intel_fifo_underrun.h
-==== drivers/gpu/drm/i915/display/intel_gmbus.h
-==== drivers/gpu/drm/i915/display/intel_hdcp.h
-==== drivers/gpu/drm/i915/display/intel_hdmi.h
-==== drivers/gpu/drm/i915/display/intel_hotplug.h
-==== drivers/gpu/drm/i915/display/intel_lpe_audio.h
-==== drivers/gpu/drm/i915/display/intel_lspcon.h
-==== drivers/gpu/drm/i915/display/intel_lvds.h
-==== drivers/gpu/drm/i915/display/intel_overlay.h
-==== drivers/gpu/drm/i915/display/intel_panel.h
-==== drivers/gpu/drm/i915/display/intel_pipe_crc.h
-==== drivers/gpu/drm/i915/display/intel_psr.h
-==== drivers/gpu/drm/i915/display/intel_quirks.h
-==== drivers/gpu/drm/i915/display/intel_sdvo.h
-==== drivers/gpu/drm/i915/display/intel_snps_phy.h
-==== drivers/gpu/drm/i915/display/intel_sprite.h
-==== drivers/gpu/drm/i915/display/intel_tc.h
-==== drivers/gpu/drm/i915/display/intel_tv.h
-==== drivers/gpu/drm/i915/display/intel_vdsc.h
-==== drivers/gpu/drm/i915/display/intel_vga.h
-==== drivers/gpu/drm/i915/display/intel_vrr.h
-==== drivers/gpu/drm/i915/gem/i915_gem_lmem.h
-==== drivers/gpu/drm/i915/gem/i915_gem_region.h
-==== drivers/gpu/drm/i915/gem/i915_gem_shrinker.h
-==== drivers/gpu/drm/i915/gem/i915_gem_stolen.h
-==== drivers/gpu/drm/i915/gt/gen7_renderclear.h
-==== drivers/gpu/drm/i915/gt/intel_breadcrumbs.h
-==== drivers/gpu/drm/i915/gt/intel_breadcrumbs_types.h
-==== drivers/gpu/drm/i915/gt/intel_context.h
-==== drivers/gpu/drm/i915/gt/intel_context_param.h
-==== drivers/gpu/drm/i915/gt/intel_context_types.h
-==== drivers/gpu/drm/i915/gt/intel_engine_heartbeat.h
-==== drivers/gpu/drm/i915/gt/intel_engine_pm.h
-==== drivers/gpu/drm/i915/gt/intel_engine_types.h
-==== drivers/gpu/drm/i915/gt/intel_engine_user.h
-==== drivers/gpu/drm/i915/gt/intel_gt.h
-==== drivers/gpu/drm/i915/gt/intel_gt_debugfs.h
-==== drivers/gpu/drm/i915/gt/intel_gt_defines.h
-==== drivers/gpu/drm/i915/gt/intel_gt_engines_debugfs.h
-==== drivers/gpu/drm/i915/gt/intel_gt_irq.h
-==== drivers/gpu/drm/i915/gt/intel_gt_pm.h
-==== drivers/gpu/drm/i915/gt/intel_gt_pm_debugfs.h
-==== drivers/gpu/drm/i915/gt/intel_gt_pm_irq.h
-==== drivers/gpu/drm/i915/gt/intel_gt_requests.h
-==== drivers/gpu/drm/i915/gt/intel_gt_types.h
-==== drivers/gpu/drm/i915/gt/intel_llc.h
-==== drivers/gpu/drm/i915/gt/intel_llc_types.h
-==== drivers/gpu/drm/i915/gt/intel_rc6.h
-==== drivers/gpu/drm/i915/gt/intel_rc6_types.h
-==== drivers/gpu/drm/i915/gt/intel_region_lmem.h
-==== drivers/gpu/drm/i915/gt/intel_reset_types.h
-==== drivers/gpu/drm/i915/gt/intel_ring.h
-==== drivers/gpu/drm/i915/gt/intel_ring_types.h
-==== drivers/gpu/drm/i915/gt/intel_rps.h
-==== drivers/gpu/drm/i915/gt/intel_rps_types.h
-==== drivers/gpu/drm/i915/gt/intel_sseu.h
-==== drivers/gpu/drm/i915/gt/selftest_llc.h
-==== drivers/gpu/drm/i915/gt/selftest_rc6.h
-==== drivers/gpu/drm/i915/gt/sysfs_engines.h
-==== drivers/gpu/drm/i915/gt/uc/intel_uc_fw_abi.h
-==== drivers/gpu/drm/i915/i915_debugfs.h
-==== drivers/gpu/drm/i915/i915_debugfs_params.h
-==== drivers/gpu/drm/i915/i915_driver.h
-==== drivers/gpu/drm/i915/i915_irq.h
-==== drivers/gpu/drm/i915/i915_memcpy.h
-==== drivers/gpu/drm/i915/i915_perf.h
-==== drivers/gpu/drm/i915/i915_perf_types.h
-==== drivers/gpu/drm/i915/i915_suspend.h
-==== drivers/gpu/drm/i915/i915_sw_fence_work.h
-==== drivers/gpu/drm/i915/i915_switcheroo.h
-==== drivers/gpu/drm/i915/i915_sysfs.h
-==== drivers/gpu/drm/i915/intel_clock_gating.h
-==== drivers/gpu/drm/i915/intel_memory_region.h
-==== drivers/gpu/drm/i915/intel_runtime_pm.h
-==== drivers/gpu/drm/i915/selftests/mock_region.h
-/* SPDX-License-Identifier: MIT */
-/*
- * Copyright © 2019 Intel Corporation
- */
-
 ==== drivers/gpu/drm/i915/display/intel_atomic.c
 /*
  * Copyright © 2015 Intel Corporation
@@ -2842,49 +2915,6 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  * Please use intel_vbt_defs.h for VBT private data, to hide and abstract away
  * the VBT from the rest of the driver. Add the parsed, clean data to struct
  * intel_vbt_data within struct drm_i915_private.
- */
-
-==== drivers/gpu/drm/i915/display/intel_bw.c
-==== drivers/gpu/drm/i915/display/intel_snps_phy.c
-==== drivers/gpu/drm/i915/display/intel_tc.c
-==== drivers/gpu/drm/i915/display/intel_vga.c
-==== drivers/gpu/drm/i915/gem/i915_gem_lmem.c
-==== drivers/gpu/drm/i915/gem/i915_gem_region.c
-==== drivers/gpu/drm/i915/gem/selftests/i915_gem_client_blt.c
-==== drivers/gpu/drm/i915/gt/gen7_renderclear.c
-==== drivers/gpu/drm/i915/gt/intel_context.c
-==== drivers/gpu/drm/i915/gt/intel_context_sseu.c
-==== drivers/gpu/drm/i915/gt/intel_engine_heartbeat.c
-==== drivers/gpu/drm/i915/gt/intel_engine_pm.c
-==== drivers/gpu/drm/i915/gt/intel_engine_user.c
-==== drivers/gpu/drm/i915/gt/intel_gt.c
-==== drivers/gpu/drm/i915/gt/intel_gt_debugfs.c
-==== drivers/gpu/drm/i915/gt/intel_gt_engines_debugfs.c
-==== drivers/gpu/drm/i915/gt/intel_gt_irq.c
-==== drivers/gpu/drm/i915/gt/intel_gt_pm.c
-==== drivers/gpu/drm/i915/gt/intel_gt_pm_debugfs.c
-==== drivers/gpu/drm/i915/gt/intel_gt_pm_irq.c
-==== drivers/gpu/drm/i915/gt/intel_gt_requests.c
-==== drivers/gpu/drm/i915/gt/intel_llc.c
-==== drivers/gpu/drm/i915/gt/intel_rc6.c
-==== drivers/gpu/drm/i915/gt/intel_region_lmem.c
-==== drivers/gpu/drm/i915/gt/intel_ring.c
-==== drivers/gpu/drm/i915/gt/intel_rps.c
-==== drivers/gpu/drm/i915/gt/intel_sseu.c
-==== drivers/gpu/drm/i915/gt/selftest_gt_pm.c
-==== drivers/gpu/drm/i915/gt/selftest_llc.c
-==== drivers/gpu/drm/i915/gt/selftest_mocs.c
-==== drivers/gpu/drm/i915/gt/selftest_rc6.c
-==== drivers/gpu/drm/i915/gt/sysfs_engines.c
-==== drivers/gpu/drm/i915/i915_debugfs_params.c
-==== drivers/gpu/drm/i915/i915_sw_fence_work.c
-==== drivers/gpu/drm/i915/i915_switcheroo.c
-==== drivers/gpu/drm/i915/i915_utils.c
-==== drivers/gpu/drm/i915/intel_memory_region.c
-==== drivers/gpu/drm/i915/selftests/intel_memory_region.c
-// SPDX-License-Identifier: MIT
-/*
- * Copyright © 2019 Intel Corporation
  */
 
 ==== drivers/gpu/drm/i915/display/intel_cdclk.c
