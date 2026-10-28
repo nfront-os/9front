@@ -82,6 +82,7 @@ A build object has the following keys and types:
 	Ape             bool
 	IncludePath     []string
 	Compat          bool
+	Noinc           bool
 	Append          bool
 	Shared          bool
 	Whole           bool
@@ -149,6 +150,10 @@ C99 math, then APE) and the tree's /$ARCH/include/ape and
 compatibility layer, such as Mesa (sys/src/mesa). With -I the tree's
 APE headers would come first where they are not the compiler's own
 directories, as on 9front building a copy of the tree.
+
+"Noinc" leaves out the standard include path (/$ARCH/include,
+/sys/include and .): the build object brings its own in Cflags, as the
+Linux drivers do with the LinuxKPI's headers (sys/src/linux).
 
 "Append" adds the objects to an existing "Library" archive, replacing
 members of the same name, instead of creating the archive anew. It

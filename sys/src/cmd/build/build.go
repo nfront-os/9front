@@ -138,6 +138,10 @@ type build struct {
 	// APE), the tree's APE directories after it (-idirafter); for code
 	// that needs the compatibility layer, such as Mesa
 	Compat bool
+	// Noinc: no include path of the tree's (/$ARCH/include, /sys/include,
+	// .): code that brings its own, as the Linux drivers on the LinuxKPI
+	// (sys/src/linux) with its headers in Cflags
+	Noinc bool
 	// Append adds to an existing Library archive instead of starting a
 	// new one (libap: one archive from several directories, like mk's ar)
 	Append bool
@@ -373,6 +377,7 @@ func include(f string, targ string, b *build) {
 		b.Clean = append(b.Clean, build.Clean...)
 		b.Ape = b.Ape || build.Ape
 		b.IncludePath = append(b.IncludePath, build.IncludePath...)
+		b.Noinc = b.Noinc || build.Noinc
 		b.Append = b.Append || build.Append
 		b.Shared = b.Shared || build.Shared
 	}
@@ -634,6 +639,9 @@ func compileArgs(b *build) (command string, cArgs, asmArgs []string) {
 			"-idirafter", fromRoot("/$ARCH/include/ape"),
 			"-idirafter", fromRoot("/sys/include/ape"),
 		}
+	}
+	if b.Noinc {
+		incArgs = nil
 	}
 	cArgs = []string{
 		"-std=c11",
