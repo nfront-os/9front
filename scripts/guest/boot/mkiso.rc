@@ -18,7 +18,8 @@ fn fail{
 
 d=/dev/sdC0
 test -f $d/data || fail no disk $d
-ramfs -m /n/ram || fail ramfs
+# -u: no 800 MB limit, the image is larger
+ramfs -u -m /n/ram || fail ramfs
 target=/n/ram/9front.iso
 objtype=amd64
 if(! ~ $#* 0)

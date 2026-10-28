@@ -39,6 +39,8 @@ from arch import OBJTYPE as A
 # beside the programs for boot-cli.sh's multiboot / QEMU -kernel
 KERNELS = {'amd64': ['9pc64'], '386': ['9pc'], 'arm64': ['9qemu', '9qemu.u']}[A]
 
+LINUX = {'amd64': ['sys/src/linux/build.json', 'sys/src/cmd/aux/gpu/i915/build.json']}
+
 def expected():
 	"""{9front path: target name}"""
 	out = {}
@@ -63,6 +65,14 @@ def expected():
 			else:
 				p = e['Install'] + (e.get('program') or os.path.basename(name))
 			out[p.replace('/$ARCH', '/' + A)] = name
+	# Linux's DRM drivers on the LinuxKPI: not from mkfiles, their
+	# manifests from scripts/linux/genbuild.py (amd64 only)
+	for m in LINUX.get(A, []):
+		for b in json.load(open(os.path.join(g.SRC, '..', '..', m))):
+			if 'Library' in b:
+				out[b['Install'].replace('/$ARCH', '/' + A) + b['Library']] = m
+			elif 'Program' in b:
+				out[b['Install'].replace('/$ARCH', '/' + A) + b['Program']] = m
 	return out
 
 def isofiles(iso):
