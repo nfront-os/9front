@@ -23,7 +23,7 @@ plane(ulong *surf, ulong *stride, int *bpp, int *w, int *h, int *tiled)
 	int p;
 
 	for(p = 0; p < 3; p++){
-		cntr = rd(Dspcntr + p*0x1000);
+		cntr = rd(DSPCNTR(p));
 		if((cntr & 1<<31) == 0)
 			continue;
 		switch(cntr>>26 & 0xF){
@@ -31,9 +31,9 @@ plane(ulong *surf, ulong *stride, int *bpp, int *w, int *h, int *tiled)
 		case 6: case 7:	*bpp = 32; break;
 		default:	*bpp = 0; break;
 		}
-		src = rd(Pipesrc + p*0x1000);
-		*surf = rd(Dspsurf + p*0x1000) & ~0xFFF;
-		*stride = rd(Dspstride + p*0x1000);
+		src = rd(PIPESRC(p));
+		*surf = rd(DSPSURF(p)) & ~0xFFF;
+		*stride = rd(DSPSTRIDE(p));
 		*w = (src>>16 & 0xFFF)+1;
 		*h = (src & 0xFFF)+1;
 		*tiled = (cntr & 1<<10) != 0;
@@ -75,7 +75,7 @@ mapplane(Ctx *c)
 	else if((b->gtt = holealloc(&c->holes, size)) != 0)
 		for(off = 0; off < size; off += 4096){
 			pa = gtt[(surf + off)/4096] & 0x7FFFFFF000ULL;
-			if(ppmap(c, b->gtt + off, pa, nil, 4096, Pteuncached) < 0){
+			if(ppmap(c, b->gtt + off, pa, nil, 4096, PPAT_UNCACHED) < 0){
 				ppunmap(c, b->gtt, off);
 				holefree(&c->holes, b->gtt, size);
 				b->gtt = 0;
@@ -96,15 +96,12 @@ mapplane(Ctx *c)
 void
 scanrestore(void)
 {
-	int o;
-
 	if(scan.bo == nil)
 		return;
-	o = scan.p*0x1000;
-	wr(Dspcntr+o, scan.cntr);
-	wr(Dspstride+o, scan.stride);
-	wr(Dspoffset+o, scan.offset);
-	wr(Dspsurf+o, scan.surf);
+	wr(DSPCNTR(scan.p), scan.cntr);
+	wr(DSPSTRIDE(scan.p), scan.stride);
+	wr(DSPOFFSET(scan.p), scan.offset);
+	wr(DSPSURF(scan.p), scan.surf);
 	scan.bo = nil;
 }
 
@@ -121,7 +118,7 @@ char*
 scanout(Ctx *c, int id, int w, int h, int stride)
 {
 	ulong surf, pstride, a;
-	int p, bpp, pw, ph, tiled, o;
+	int p, bpp, pw, ph, tiled;
 	Bo *b;
 
 	if(id == 0){
@@ -145,7 +142,7 @@ scanout(Ctx *c, int id, int w, int h, int stride)
 		if(c->nfence > c->donefence)
 			fencewait(c, c->nfence);
 		qlock(&lk);
-		ppmap(c, b->gtt, 0, b->pa, b->size, uncached ? Pteuncached : Ptewt);
+		ppmap(c, b->gtt, 0, b->pa, b->size, uncached ? PPAT_UNCACHED : PPAT_DISPLAY_ELLC);
 		b->scanwt = 1;
 		qunlock(&lk);
 	}
@@ -164,18 +161,17 @@ scanout(Ctx *c, int id, int w, int h, int stride)
 		}
 		b->scangtt = a;
 	}
-	o = p*0x1000;
 	if(scan.bo == nil){
 		scan.p = p;
-		scan.cntr = rd(Dspcntr+o);
-		scan.stride = rd(Dspstride+o);
-		scan.offset = rd(Dspoffset+o);
-		scan.surf = rd(Dspsurf+o);
+		scan.cntr = rd(DSPCNTR(p));
+		scan.stride = rd(DSPSTRIDE(p));
+		scan.offset = rd(DSPOFFSET(p));
+		scan.surf = rd(DSPSURF(p));
 	}
-	wr(Dspcntr+o, (scan.cntr & ~(Dspfmtmask|Dsptiled)) | Dspbgrx);
-	wr(Dspstride+o, stride);
-	wr(Dspoffset+o, 0);
-	wr(Dspsurf+o, b->scangtt);	/* last: the flip, at the next vertical blank */
+	wr(DSPCNTR(p), (scan.cntr & ~(DISP_FORMAT_MASK|DISP_TILED)) | DISP_FORMAT_BGRX888);
+	wr(DSPSTRIDE(p), stride);
+	wr(DSPOFFSET(p), 0);
+	wr(DSPSURF(p), b->scangtt);	/* last: the flip, at the next vertical blank */
 	scan.bo = b;
 	scan.flip = b->scangtt;
 	qunlock(&lk);
@@ -195,7 +191,7 @@ flipwait(Req *r, ulong surf, int p)
 
 	srvrelease(r->srv);
 	for(t0 = nsec(); nsec() - t0 < 50*1000000LL; sleep(1))
-		if((rd(Dspsurflive + p*0x1000) & ~0xFFF) == surf)
+		if((rd(DSPSURFLIVE(p)) & ~0xFFF) == surf)
 			break;
 	srvacquire(r->srv);
 }

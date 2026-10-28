@@ -48,7 +48,29 @@ I915=\
 
 $O.intelgpu: $I915
 
-$I915 intelgpu.$O: i915_drv.h linux.h
+INTELH=\
+	display/intel_ddi_buf_trans.h\
+	display/intel_display.h\
+	display/intel_display_limits.h\
+	display/intel_display_reg_defs.h\
+	display/intel_dp_aux_regs.h\
+	display/intel_gmbus_regs.h\
+	drm/drm_dp.h\
+	drm/drm_edid.h\
+	gt/intel_engine_regs.h\
+	gt/intel_gpu_commands.h\
+	gt/intel_gt_regs.h\
+	gt/intel_gtt.h\
+	gt/intel_lrc.h\
+	gt/intel_lrc_reg.h\
+	gt/intel_renderstate.h\
+	i915_drv.h\
+	i915_reg.h\
+	i915_reg_defs.h\
+	intel_mchbar_regs.h\
+	linux.h\
+
+$I915 intelgpu.$O: $INTELH
 
 gt/%.$O: gt/%.c
 	$CC $CFLAGS -o $target gt/$stem.c

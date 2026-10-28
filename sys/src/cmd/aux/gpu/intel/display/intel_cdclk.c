@@ -21,10 +21,10 @@ getcdclk(void)
 {
 	u32int l;
 
-	l = rd(Lcpllctl);
+	l = rd(LCPLL_CTL);
 	if(l & 1<<21)
 		return 800000;
-	if(rd(Fusestrap) & 1<<24)
+	if(rd(FUSE_STRAP) & 1<<24)
 		return 450000;
 	switch(l>>26 & 3){
 	case 0:	return 450000;

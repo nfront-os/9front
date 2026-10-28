@@ -68,9 +68,9 @@ tickproc(void)
 			if(e->running != nil && nsec() - e->since > (vlong)Timeout*1000000){
 				fprint(2, "%s: %s hung in context %d: head %#ux acthd %#ux ipehr %#ux eir %#ux execlist %#ux"
 					" pdp0 %#.8ux%.8ux (pd0 %#llux)\n",
-					argv0, e->name, e->running->ctx->id, rd(e->base+Rhead) & Headmask,
-					rd(e->base+Racthd), rd(e->base+Ripehr), rd(e->base+Reir), rd(e->base+Rexecstatus),
-					rd(e->base+Rpdp+4), rd(e->base+Rpdp), pdpval(e->running->ctx, 0));
+					argv0, e->name, e->running->ctx->id, rd(RING_HEAD(e->base)) & HEAD_ADDR,
+					rd(RING_ACTHD(e->base)), rd(RING_IPEHR(e->base)), rd(RING_EIR(e->base)), rd(RING_EXECLIST_STATUS_LO(e->base)),
+					rd(GEN8_RING_PDP_UDW(e->base, 0)), rd(GEN8_RING_PDP_LDW(e->base, 0)), pdpval(e->running->ctx, 0));
 				engreset(e);
 				irqinit();
 				kick(e);

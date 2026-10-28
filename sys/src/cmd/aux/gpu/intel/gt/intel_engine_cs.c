@@ -14,8 +14,8 @@
 #include "../i915_drv.h"
 
 Engine eng[2] = {
-	{ "rcs", 0x2000, 0, 1<<1, Rcsstatepages, 0 },	/* GEN6_GRDOM_RENDER */
-	{ "bcs", 0x22000, 16, 1<<3, Xcsstatepages, 1 },	/* GEN6_GRDOM_BLT */
+	{ "rcs", RENDER_RING_BASE, GEN8_RCS_IRQ_SHIFT, GEN6_GRDOM_RENDER, Rcsstatepages, 0 },
+	{ "bcs", BLT_RING_BASE, GEN8_BCS_IRQ_SHIFT, GEN6_GRDOM_BLT, Xcsstatepages, 1 },
 };
 
 /*
@@ -30,25 +30,25 @@ enginestart(Engine *e)
 
 	e->ok = 0;
 	e->running = nil;
-	wr(e->base+Rhwstam, ~0);
-	wr(e->base+Rimr, ~((Userintr|Ctxswitchintr)<<e->irqshift));
-	wr(e->base+Rhws, e->hwsgtt);
-	rd(e->base+Rhws);
-	wr(e->base+Rmode, masked(Replaymode, 0) | masked(Runlist, 1));
-	rd(e->base+Rmode);
+	wr(RING_HWSTAM(e->base), ~0);
+	wr(RING_IMR(e->base), ~((GT_RENDER_USER_INTERRUPT|GT_CONTEXT_SWITCH_INTERRUPT)<<e->irqshift));
+	wr(RING_HWS_PGA(e->base), e->hwsgtt);
+	rd(RING_HWS_PGA(e->base));
+	wr(RING_MODE_GEN7(e->base), masked(GFX_REPLAY_MODE, 0) | masked(GFX_RUN_LIST_ENABLE, 1));
+	rd(RING_MODE_GEN7(e->base));
 	if(e->idx == 0){
 		/* i915's gen8_init_render_ring */
-		wr(e->base+Rmimode, masked(Asyncflipperfdisable, 1));
-		wr(e->base+Rinstpm, masked(Instpmforceordering, 1));
+		wr(RING_MI_MODE(e->base), masked(ASYNC_FLIP_PERF_DISABLE, 1));
+		wr(RING_INSTPM(e->base), masked(INSTPM_FORCE_ORDERING, 1));
 	}
 	/* after power-up or a reset the write pointer is all ones: read from entry 0 */
-	p = rd(e->base+Rcsbptr) & Csbptrmask;
-	if(p == Csbptrmask)
-		p = Csbentries-1;
+	p = rd(RING_CONTEXT_STATUS_PTR(e->base)) & GEN8_CSB_PTR_MASK;
+	if(p == GEN8_CSB_PTR_MASK)
+		p = GEN8_CSB_ENTRIES-1;
 	e->csbread = p;
 	e->since = nsec();
-	if((rd(e->base+Rmode) & Runlist) == 0){
-		fprint(2, "%s: %s: no execlists: mode %#ux\n", argv0, e->name, rd(e->base+Rmode));
+	if((rd(RING_MODE_GEN7(e->base)) & GFX_RUN_LIST_ENABLE) == 0){
+		fprint(2, "%s: %s: no execlists: mode %#ux\n", argv0, e->name, rd(RING_MODE_GEN7(e->base)));
 		return;
 	}
 	e->ok = 1;

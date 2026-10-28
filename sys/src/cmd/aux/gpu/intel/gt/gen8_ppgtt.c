@@ -88,7 +88,7 @@ ppwalk(Ctx *c, uvlong a, int level, int alloc)
 				return nil;
 			if((n = ptalloc(scratchfill[lvl-1])) < 0)
 				return nil;
-			t[i] = ptphys(n) | Ptepresent | Pterw | (uncached ? Pteuncached : Pdecached);
+			t[i] = ptphys(n) | GEN8_PAGE_PRESENT | GEN8_PAGE_RW | (uncached ? PPAT_UNCACHED : Pdecached);
 			flushcache(&t[i], 8);
 		}
 		t = ptmem(n);
@@ -150,7 +150,7 @@ ppinit(Ctx *c)
 	 * its state (STATE_BASE_ADDRESS, relocated to Rsva) is read through
 	 * the context's PPGTT
 	 */
-	if(ppmap(c, Rsva, rspa, nil, 4096, uncached ? Pteuncached : Ptecached) < 0){
+	if(ppmap(c, Rsva, rspa, nil, 4096, uncached ? PPAT_UNCACHED : PPAT_CACHED) < 0){
 		ppfree(c);
 		return -1;
 	}
@@ -186,7 +186,7 @@ ppmap(Ctx *c, uvlong a, uvlong pa, uvlong *pas, uvlong len, uvlong bits)
 			pa = pas[(v - a)/4096];
 		if((pte = ppwalk(c, v, 0, 1)) == nil)
 			return -1;
-		*pte = pa | Ptepresent | Pterw | bits;
+		*pte = pa | GEN8_PAGE_PRESENT | GEN8_PAGE_RW | bits;
 		flushcache(pte, 8);
 	}
 	c->serial = ++serial;	/* the engines invalidate their TLBs before its next batch */

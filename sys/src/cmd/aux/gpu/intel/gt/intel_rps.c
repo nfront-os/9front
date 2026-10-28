@@ -49,11 +49,11 @@ rpspmmask(int val)
 
 	m = 0;
 	if(val > rps.minsoft)
-		m |= Pmdowneiexpired | Pmdownthreshold | Pmdowntimeout;
+		m |= GEN6_PM_RP_DOWN_EI_EXPIRED | GEN6_PM_RP_DOWN_THRESHOLD | GEN6_PM_RP_DOWN_TIMEOUT;
 	if(val < rps.maxsoft)
-		m |= Pmupeiexpired | Pmupthreshold;
+		m |= GEN6_PM_RP_UP_EI_EXPIRED | GEN6_PM_RP_UP_THRESHOLD;
 	m &= Pmrpsevents;
-	return ~m & ~Pmredirect;
+	return ~m & ~GEN8_PMINTR_DISABLE_REDIRECT_TO_GUC;
 }
 
 void
@@ -89,11 +89,11 @@ rpsthresholds(int val)
 	case Between:	eiup = 13000; up = 90; eidown = 32000; down = 75; break;
 	default:	eiup = 10000; up = 85; eidown = 32000; down = 60; break;
 	}
-	wr(Rpupei, gtinterval(eiup));
-	wr(Rpupthreshold, gtinterval(eiup*up/100));
-	wr(Rpdownei, gtinterval(eidown));
-	wr(Rpdownthreshold, gtinterval(eidown*down/100));
-	wr(Rpcontrol, Rpctlbits);
+	wr(GEN6_RP_UP_EI, gtinterval(eiup));
+	wr(GEN6_RP_UP_THRESHOLD, gtinterval(eiup*up/100));
+	wr(GEN6_RP_DOWN_EI, gtinterval(eidown));
+	wr(GEN6_RP_DOWN_THRESHOLD, gtinterval(eidown*down/100));
+	wr(GEN6_RP_CONTROL, (GEN6_RP_MEDIA_TURBO | GEN6_RP_MEDIA_HW_NORMAL_MODE | GEN6_RP_MEDIA_IS_GFX | GEN6_RP_ENABLE | GEN6_RP_UP_BUSY_AVG | GEN6_RP_DOWN_IDLE_AVG));
 	rps.power = power;
 	rps.lastadj = 0;
 }
@@ -103,11 +103,11 @@ rpsset(int val)
 {
 	if(val != rps.cur){
 		rpsthresholds(val);
-		wr(Rpnswreq, val << 24);	/* HSW_FREQUENCY */
+		wr(GEN6_RPNSWREQ, val << 24);	/* HSW_FREQUENCY */
 	}
-	wr(Rpintlimits, rpslimits(val));
-	wr(Pmintrmsk, rpspmmask(val));
-	rd(Rpnswreq);
+	wr(GEN6_RP_INTERRUPT_LIMITS, rpslimits(val));
+	wr(GEN6_PMINTRMSK, rpspmmask(val));
+	rd(GEN6_RPNSWREQ);
 	rps.cur = val;
 }
 
@@ -121,16 +121,16 @@ rpswork(u32int pm)
 		return;
 	adj = rps.lastadj;
 	val = rps.cur;
-	if(pm & Pmupthreshold){
+	if(pm & GEN6_PM_RP_UP_THRESHOLD){
 		adj = adj > 0 ? adj*2 : 1;
 		if(val < rps.efficient - adj){	/* below RPe: straight there */
 			val = rps.efficient;
 			adj = 0;
 		}
-	}else if(pm & Pmdowntimeout){
+	}else if(pm & GEN6_PM_RP_DOWN_TIMEOUT){
 		val = rps.cur > rps.efficient ? rps.efficient : rps.minsoft;
 		adj = 0;
-	}else if(pm & Pmdownthreshold)
+	}else if(pm & GEN6_PM_RP_DOWN_THRESHOLD)
 		adj = adj < 0 ? adj*2 : -1;
 	else
 		adj = 0;
@@ -158,10 +158,10 @@ rpsinit(void)
 	u32int cap;
 	int i;
 
-	wr(Rcstate, 0);			/* software RC state: RC0 */
-	wr(Rccontrol, 0);		/* RC states off while programming */
+	wr(GEN6_RC_STATE, 0);			/* software RC state: RC0 */
+	wr(GEN6_RC_CONTROL, 0);		/* RC states off while programming */
 
-	cap = rd(Rpstatecap);
+	cap = rd(GEN6_RP_STATE_CAP);
 	rps.rp0 = cap & 0xFF;
 	rps.rp1 = cap>>8 & 0xFF;
 	rps.min = cap>>16 & 0xFF;
@@ -171,25 +171,25 @@ rpsinit(void)
 	rps.maxsoft = rps.max;
 	rps.minsoft = rps.min;
 
-	wr(Rc6wakerate, 40<<16);
-	wr(Rcevalint, 125000);		/* 12500 * 1280 ns */
-	wr(Rcidlehyst, 25);		/* 25 * 1280 ns */
+	wr(GEN6_RC6_WAKE_RATE_LIMIT, 40<<16);
+	wr(GEN6_RC_EVALUATION_INTERVAL, 125000);		/* 12500 * 1280 ns */
+	wr(GEN6_RC_IDLE_HYSTERSIS, 25);		/* 25 * 1280 ns */
 	for(i = 0; i < nelem(eng); i++)
-		wr(eng[i].base + Rmaxidle, 10);
-	wr(Rcsleep, 0);
-	wr(Rc6threshold, 625);		/* 800 µs / 1.28, timeout mode */
-	wr(Rccontrol, Rcctlhw | Rcctlto | Rcctlrc6);
+		wr(RING_MAX_IDLE(eng[i].base), 10);
+	wr(GEN6_RC_SLEEP, 0);
+	wr(GEN6_RC6_THRESHOLD, 625);		/* 800 µs / 1.28, timeout mode */
+	wr(GEN6_RC_CONTROL, GEN6_RC_CTL_HW_ENABLE | GEN7_RC_CTL_TO_MODE | GEN6_RC_CTL_RC6_ENABLE);
 
-	wr(Rpnswreq, rps.rp1 << 24);
-	wr(Rcvideofreq, rps.rp1 << 24);
-	wr(Rpdowntimeout, 100000000/128);	/* 1 s */
-	wr(Rpintlimits, rps.maxsoft << 24 | rps.minsoft << 16);
-	wr(Rpupthreshold, 7600000/128);
-	wr(Rpdownthreshold, 31300000/128);
-	wr(Rpupei, 66000);
-	wr(Rpdownei, 350000);
-	wr(Rpidlehyst, 10);
-	wr(Rpcontrol, Rpctlbits);
+	wr(GEN6_RPNSWREQ, rps.rp1 << 24);
+	wr(GEN6_RC_VIDEO_FREQ, rps.rp1 << 24);
+	wr(GEN6_RP_DOWN_TIMEOUT, 100000000/128);	/* 1 s */
+	wr(GEN6_RP_INTERRUPT_LIMITS, rps.maxsoft << 24 | rps.minsoft << 16);
+	wr(GEN6_RP_UP_THRESHOLD, 7600000/128);
+	wr(GEN6_RP_DOWN_THRESHOLD, 31300000/128);
+	wr(GEN6_RP_UP_EI, 66000);
+	wr(GEN6_RP_DOWN_EI, 350000);
+	wr(GEN6_RP_IDLE_HYSTERSIS, 10);
+	wr(GEN6_RP_CONTROL, (GEN6_RP_MEDIA_TURBO | GEN6_RP_MEDIA_HW_NORMAL_MODE | GEN6_RP_MEDIA_IS_GFX | GEN6_RP_ENABLE | GEN6_RP_UP_BUSY_AVG | GEN6_RP_DOWN_IDLE_AVG));
 
 	rps.power = Highpower;		/* forces the thresholds' programming */
 	rps.cur = 0;

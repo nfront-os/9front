@@ -7,6 +7,22 @@
  */
 
 #include "linux.h"
+#include "i915_reg_defs.h"
+#include "display/intel_display_limits.h"
+#include "display/intel_display.h"
+#include "display/intel_display_reg_defs.h"
+#include "i915_reg.h"
+#include "intel_mchbar_regs.h"
+#include "gt/intel_engine_regs.h"
+#include "gt/intel_gt_regs.h"
+#include "gt/intel_lrc_reg.h"
+#include "gt/intel_lrc.h"
+#include "gt/intel_gpu_commands.h"
+#include "gt/intel_gtt.h"
+#include "display/intel_dp_aux_regs.h"
+#include "display/intel_gmbus_regs.h"
+#include "drm/drm_dp.h"
+#include "drm/drm_edid.h"
 
 
 /* a context's address space: 48 bits (four levels), with -3 32 bits (three) */
@@ -17,195 +33,20 @@
 enum {
 	Pcigmch		= 0x50,		/* GMCH graphics control (16 bits) */
 
-	Forcewakemt	= 0xA188,
-	Forcewakeack	= 0x130044,
 	Fwrange		= 0x40000,	/* gen 8: the GT's registers below need forcewake (intel_uncore.c) */
 	Fwidle		= 5,		/* ms without an access: forcewake off, the GT may sleep (RC6) */
 
-	/* RC6 and RPS (i915's gen8_enable_rps, gen6_set_rps; intel_pm.c) */
-	Rcstate		= 0xA094,	/* GEN6_RC_STATE */
-	Rccontrol	= 0xA090,	/* GEN6_RC_CONTROL */
-	Rcctlrc6	= 1<<18,
-	Rcctlto		= 1<<28,	/* GEN7_RC_CTL_TO_MODE */
-	Rcctlhw		= 1<<31,
-	Rc6wakerate	= 0xA09C,
-	Rcevalint	= 0xA0A8,
-	Rcidlehyst	= 0xA0AC,
-	Rcsleep		= 0xA0B0,
-	Rc6threshold	= 0xA0B8,
-	Rmaxidle	= 0x54,		/* RING_MAX_IDLE, from the engine's base */
-	Rpnswreq	= 0xA008,	/* the frequency asked for: HSW_FREQUENCY(x) = x<<24 */
-	Rcvideofreq	= 0xA00C,
-	Rpdowntimeout	= 0xA010,
-	Rpintlimits	= 0xA014,
-	Rpstat1		= 0xA01C,	/* actual frequency: bits 13:7 (HSW_CAGF), 50 MHz units */
-	Rpcontrol	= 0xA024,
-	Rpctlbits	= 1<<11 | 2<<9 | 1<<8 | 1<<7 | 2<<3 | 2<<0,	/* media turbo, hw normal mode, media is gfx, enable, up busy avg, down idle avg */
-	Rpupthreshold	= 0xA02C,
-	Rpdownthreshold	= 0xA030,
-	Rpupei		= 0xA068,
-	Rpdownei	= 0xA06C,
-	Rpidlehyst	= 0xA070,
-	Rpstatecap	= 0x145998,	/* RP0 7:0, RP1 15:8, RPn 23:16 (MCHBAR mirror) */
-	Pmintrmsk	= 0xA168,
-	Pmredirect	= 1<<31,	/* GEN8_PMINTR_REDIRECT_TO_NON_DISP */
-	Pmdowntimeout	= 1<<6,
-	Pmupthreshold	= 1<<5,
-	Pmdownthreshold	= 1<<4,
-	Pmupeiexpired	= 1<<2,
-	Pmdowneiexpired	= 1<<1,
-	Pmrpsevents	= Pmupthreshold | Pmdownthreshold | Pmdowntimeout,
-	Gtisr2		= 0x44320,	/* bank 2: PM; IMR +4, IIR +8, IER +0xC */
-	Rc6residency	= 0x138108,	/* GEN6_GT_GFX_RC6, 1.28 µs units */
-	Gfxflshcntl	= 0x101008,	/* GTT writes visible */
-	Ppatlo		= 0x40E0,	/* GEN8_PRIVATE_PAT_LO, _HI */
-	Ppathi		= 0x40E4,
+	/* the RPS events we take (i915's gen6_pm_rps_work) */
+	Pmrpsevents	= GEN6_PM_RP_UP_THRESHOLD | GEN6_PM_RP_DOWN_THRESHOLD | GEN6_PM_RP_DOWN_TIMEOUT,
 
-	/* per engine, from its base */
-	Rtail		= 0x30,
-	Rhead		= 0x34,
-	Rstart		= 0x38,
-	Rctl		= 0x3C,
-	Ripehr		= 0x68,
-	Racthd		= 0x74,
-	Rhws		= 0x80,
-	Rmimode		= 0x9C,
-	Rimr		= 0xA8,
-	Reir		= 0xB0,
-	Resr		= 0xB8,
-	Rmode		= 0x29C,
-	Rpdp		= 0x270,	/* PDP n: lower dword at +n*8, upper at +n*8+4 */
-	Relsp		= 0x230,	/* RING_ELSP */
-	Rexecstatus	= 0x234,
-	Rctxctl		= 0x244,	/* RING_CONTEXT_CONTROL */
-	Rcsb		= 0x370,	/* RING_CONTEXT_STATUS_BUF: 6 entries of 2 dwords */
-	Rcsbptr		= 0x3A0,	/* RING_CONTEXT_STATUS_PTR: write 2:0, read 10:8 */
-	Rhwstam		= 0x98,
-	Rbbheadu	= 0x168,
-	Rbbheadl	= 0x140,
-	Rbbstate	= 0x110,
-	Rsbbheadu	= 0x11C,
-	Rsbbheadl	= 0x114,
-	Rsbbstate	= 0x118,
-	Rbbperctx	= 0x1C0,
-	Rindctx		= 0x1C4,
-	Rindctxoff	= 0x1C8,
-	Rctxtimestamp	= 0x3A8,
-	Rresetctl	= 0xD0,		/* RING_RESET_CTL */
-	Resetrequest	= 1<<0,
-	Resetready	= 1<<1,
-	Gdrst		= 0x941C,	/* GEN6_GDRST: engine resets */
-
-	Stopring	= 1<<8,
-	Ringvalid	= 1<<0,
-	Runlist		= 1<<15,
-	Replaymode	= 1<<11,	/* RING_MODE: GFX_REPLAY_MODE */
-	Rpwrclkstate	= 0x20C8,	/* GEN8_R_PWR_CLK_STATE */
-
-	/* context control in the image */
-	Ctxinhibitsyn	= 1<<3,
-	Ctxrestoreinhibit = 1<<0,
-	Ctxrsenable	= 1<<1,
-	Lriposted	= 1<<12,	/* MI_LRI_FORCE_POSTED */
-
-	/* the context descriptor */
-	Descvalid	= 1<<0,
-	Desclegacy32	= 1<<3,		/* LEGACY_32B_CONTEXT << 3 */
-	Desclegacy64	= 3<<3,		/* LEGACY_64B_CONTEXT << 3: 48-bit, four levels */
-	Descl3llc	= 1<<5,
-	Descpriv	= 1<<8,
-
-	/* context status buffer */
-	Csbentries	= 6,
-	Csbptrmask	= 7,
-	Csbpreempted	= 1<<1,
-	Csbelemswitch	= 1<<2,
-	Csbactiveidle	= 1<<3,
-	Csbcomplete	= 1<<4,
-
-	Ctxswitchintr	= 1<<8,		/* GT_CONTEXT_SWITCH_INTERRUPT, in an engine's field */
-	Headmask	= 0x1FFFFC,
-
-	/* interrupts */
-	Masterirq	= 0x44200,
-	Mastercontrol	= 1<<31,
-	Gtisr0		= 0x44300,	/* bank 0: RCS at 0, BCS at 16; IMR +4, IIR +8, IER +0xC */
-	Userintr	= 1<<0,
-
-	/* RCS registers (engine base 0x2000), MI_MODE bit */
-	Asyncflipperfdisable = 1<<14,
-	Rinstpm		= 0xC0,		/* INSTPM */
-	Instpmforceordering = 1<<7,
-
-	/* fuses: slices, subslices, EUs (i915's broadwell_sseu_info_init) */
-	Fuse2		= 0x9120,
-	Eudisable0	= 0x9134,
-	Eudisable1	= 0x9138,
-	Eudisable2	= 0x913C,
-
-	/* GT clock gating, Broadwell (i915's broadwell_init_clock_gating, GT part) */
-	Gamecochk	= 0x4090,
-	Ecochkarbpriosol = 1<<6,
-	Ffthreadmode	= 0x20A0,
-	Ffdsrefcntffme	= 1<<19,
-	Ffvsrefcntffme	= 1<<15,
-	Rcsleeppsmictl	= 0x2050,
-	Rcsemaidlemsgdisable = 1<<12,
-	Ucgctl6		= 0x9430,
-	Sdeunitclockgatedisable = 1<<14,
-	Misccpctl	= 0x9424,
-	Dopclockgateenable = 1<<0,
-	L3sqcreg1	= 0xB100,
-	L3sqcreg1default = 0x784000,
-	Gttcacheen	= 0x4024,
-	Gttcacheenall	= 0xF0007FFF,
-
-	/* display */
-	Pipesrc		= 0x6001C,
-	Dspcntr		= 0x70180,
-	Dspstride	= 0x70188,
-	Dspsurf		= 0x7019C,
-	Dspoffset	= 0x701A4,	/* HSW/BDW: DSPOFFSET, y<<16 | x */
-	Dspsurflive	= 0x701AC,	/* the surface the plane scans out now */
-	Dspfmtmask	= 0xF<<26,
-	Dspbgrx		= 6<<26,	/* x8r8g8b8 */
-	Dsptiled	= 1<<10,
 	Scanalign	= 256*1024,	/* a scanout surface's alignment (gen 9: 256 KB, gen 8: 4 KB) */
 
-	/* commands */
-	Minoop		= 0,
-	Miuserintr	= 0x02<<23,
-	Mibbstart	= 0x31<<23 | 1,	/* gen 8: 3 dwords, GGTT */
-	Mistoredwimm	= 0x20<<23 | 2,	/* gen 8: 4 dwords */
-	Storeggtt	= 1<<22,
-	Bbppgtt		= 1<<8,		/* the batch's address is in the PPGTT */
-	Milri		= 0x22<<23,	/* MI_LOAD_REGISTER_IMM: | 2*n-1 */
-	Miflushdw	= 0x26<<23 | 1,
-	Flushstoredw	= 1<<14,
-	Flushstoreidx	= 1<<21,
-	Flushusegtt	= 1<<2,
-	Flushtlbinval	= 1<<18,
-	Pipecontrol	= 3<<29 | 3<<27 | 2<<24 | (6-2),
-	Pccsstall	= 1<<20,
-	Pcqwwrite	= 1<<14,
-	Pcglobalgtt	= 1<<24,
-	Pcrtflush	= 1<<12,
-	Pcdcflush	= 1<<5,
-	Pcdepthflush	= 1<<0,
-	Pctlbinval	= 1<<18,
-
-	/* PTEs: present, PPAT index by PWT (3), PCD (4), PAT (7) */
-	Ptepresent	= 1,
-	Pterw		= 1<<1,		/* PPGTT entries: writable */
-	Ptecached	= 1<<7,		/* index 4: write-back, LLC (ppatinit) */
-	Pteuncached	= 1<<3 | 1<<4,	/* index 3: uncached */
 	/*
 	 * PDEs: bit 7 is the 2 MB page bit there, not PAT (the blitter
 	 * honours it): index 2, write-through in the LLC, as the GPU only
 	 * reads them (i915's gen8_pde_encode uses no PAT bit either)
 	 */
-	Pdecached	= 1<<4,
-	Ptewt		= 1<<4,		/* index 2: write-through in the LLC, for what the display reads */
+	Pdecached	= PPAT_DISPLAY_ELLC,
 
 	Hwsscratch	= 0x40,		/* dword of an engine's status page the flushes may write */
 
@@ -232,90 +73,6 @@ enum {
 
 /* display (display/) */
 enum {
-	/* DDI ports A-D */
-	Ddibufctl	= 0x64000,	/* DDI_BUF_CTL(port): +0x100 a port */
-	Ddiinitdetected	= 1<<0,		/* port A: a display (eDP) */
-	Sfusestrap	= 0xC2014,	/* ports B, C, D present: bits 2, 1, 0 */
-	Sdeisr		= 0xC4000,	/* the PCH's hotplug status: ports B, C, D at 21, 22, 23 */
-	Portclksel	= 0x46100,	/* PORT_CLK_SEL(port): +4 a port */
-	Lcpllctl	= 0x130040,
-	Fusestrap	= 0x42014,
-	Rawclkfreq	= 0xC6204,	/* PCH_RAWCLK_FREQ, MHz */
-
-	/* transcoders A, B, C, eDP */
-	Transddifuncctl	= 0x400,	/* from the transcoder's base */
-	Tddienable	= 1<<31,
-	Tddiedpinput	= 7<<12,
-	Transhtotal	= 0x00,
-	Transvtotal	= 0x0C,
-	Translinkm	= 0x40,
-	Translinkn	= 0x44,
-	Pipeconf	= 0x70008,	/* PIPECONF(cpu_transcoder): A, B, C +0x1000, eDP at 0x7F008 */
-	Pipeenable	= 1<<31,
-
-	/* DP AUX */
-	Auxsendbusy	= 1<<31,
-	Auxdone		= 1<<30,
-	Auxtimeouterr	= 1<<28,
-	Auxtimeout600	= 1<<26,
-	Auxrecverr	= 1<<25,
-	Auxsizeshift	= 20,
-	Auxprecharge	= 5<<16,
-
-	Auxi2cwrite	= 0x0,
-	Auxi2cread	= 0x1,
-	Auxi2cmot	= 0x4,
-	Auxnativeread	= 0x9,
-	Replynative	= 3,		/* ack 0, nack 1, defer 2 */
-	Replyi2c	= 3<<2,
-
-	/* GMBUS (the PCH's I2C) */
-	Gmbus0		= 0xC5100,	/* pin, rate */
-	Gmbus1		= 0xC5104,	/* command */
-	Gmbus2		= 0xC5108,	/* status */
-	Gmbus3		= 0xC510C,	/* data */
-	Gmbus4		= 0xC5110,	/* interrupt mask */
-	Gmswclrint	= 1<<31,
-	Gmswrdy		= 1<<30,
-	Gmcyclewait	= 1<<25,
-	Gmcycleindex	= 2<<25,
-	Gmcyclestop	= 4<<25,
-	Gmactive	= 1<<9,
-	Gmsatoer	= 1<<10,
-	Gmhwrdy		= 1<<11,
-
-	Ddcaddr		= 0x50,
-
-	/* the modeset: power well, PLLs, buffers, transcoder B, pipe B, plane B */
-	Pwrwelldriver	= 0x45404,	/* HSW_PWR_WELL_DRIVER */
-	Pwrwellreq	= 1<<31,
-	Pwrwellon	= 1<<30,
-	Wrpllctl	= 0x46040,	/* WRPLL_CTL1, +0x20: WRPLL_CTL2 */
-	Wrpllenable	= 1<<31,
-	Wrplllcpll	= 3<<28,	/* reference: the LCPLL */
-	Ddibuftransreg	= 0x64E00,	/* DDI_BUF_TRANS(port): +0x60 a port, 8 an entry */
-	Ddibufidle	= 1<<7,
-	Ddibufenable	= 1<<31,
-	Transclksel	= 0x46140,	/* TRANS_CLK_SEL(transcoder): +4 */
-	Transhblank	= 0x04,
-	Transhsync	= 0x08,
-	Transvblank	= 0x10,
-	Transvsync	= 0x14,
-	Transvsyncshift	= 0x28,
-	Transpipemult	= 0x2C,
-	Gammamode	= 0x4A480,	/* +0x800 a pipe */
-	Pipemisc	= 0x70030,	/* +0x1000 a pipe */
-	Pipestate	= 1<<30,	/* PIPECONF: the pipe runs */
-	Tddibpc8	= 0<<20,
-	Tddipvsync	= 1<<17,
-	Tddiphsync	= 1<<16,
-	Tddidvi		= 1<<24,
-	Dspenable	= 1<<31,
-	Mchsskpd	= 0x145D10,	/* MCH_SSKPD: the memory's latencies (64 bits) */
-	Wm0pipe		= 0x45100,	/* WM0_PIPE[ABC]_ILK: +4 a pipe */
-	Wm1lp		= 0x45108,	/* WM1-3_LP_ILK */
-	Wm1slp		= 0x45120,
-
 	Hdmimaxclock	= 300000,	/* kHz: HDMI 1.4 on DDI (hdmi_port_clock_limit) */
 	Ourpipe		= 1,		/* B: A drives the panel */
 };
@@ -327,6 +84,7 @@ typedef struct Ctx Ctx;
 typedef struct Fidaux Fidaux;
 typedef struct Hole Hole;
 typedef struct Rps Rps;
+typedef struct Displayinfo Displayinfo;
 typedef struct Scan Scan;
 typedef struct Wa Wa;
 
@@ -449,6 +207,13 @@ struct Wa {
 };
 
 
+/* what Linux's DISPLAY_INFO() gives the register macros (display/intel_display.c) */
+struct Displayinfo {
+	u32int	mmio_offset;
+	u32int	pipe_offsets[4];
+	u32int	trans_offsets[4];
+};
+
 /* the outputs (display/) */
 typedef struct Output Output;
 struct Output {
@@ -565,7 +330,7 @@ extern Scan	scan;
 /* display/intel_display.c */
 extern Output	outputs[Maxout];
 extern int	noutputs;
-extern ulong	transbase[4];
+extern Displayinfo	bdw_display_info;
 extern char	*transname[4];
 /* display/intel_cdclk.c */
 extern int	cdclk;

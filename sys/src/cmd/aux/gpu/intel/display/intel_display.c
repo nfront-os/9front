@@ -16,7 +16,16 @@
 
 Output outputs[Maxout];
 int noutputs;
-ulong transbase[4] = { 0x60000, 0x61000, 0x62000, 0x6F000 };
+/*
+ * Broadwell's pipes and transcoders, as Linux's intel_display_device.c
+ * has them (HSW_PIPE_OFFSETS, HSW_TRANSCODER_OFFSETS) for _MMIO_PIPE2
+ * and _MMIO_TRANS2; indexed by our transcoder numbers (eDP: Tedp)
+ */
+Displayinfo bdw_display_info = {
+	0,
+	{ 0x70000, 0x71000, 0x72000, 0x7F000 },
+	{ 0x60000, 0x61000, 0x62000, 0x6F000 },
+};
 char *transname[4] = { "A", "B", "C", "eDP" };
 
 /* the transcoder driving port, its pipe and timings (the hardware state readout) */
@@ -28,12 +37,12 @@ readmode(Output *o)
 	int t, p;
 
 	o->trans = o->pipe = -1;
-	for(t = 0; t < nelem(transbase); t++){
-		f = rd(transbase[t] + Transddifuncctl);
-		if((f & Tddienable) == 0 || (f>>28 & 7) != o->port)
+	for(t = 0; t < nelem(bdw_display_info.trans_offsets); t++){
+		f = rd(TRANS_DDI_FUNC_CTL(t));
+		if((f & TRANS_DDI_FUNC_ENABLE) == 0 || (f>>28 & 7) != o->port)
 			continue;
 		if(t == Tedp)
-			switch(f & Tddiedpinput){
+			switch(f & TRANS_DDI_EDP_INPUT_MASK){
 			case 0<<12: case 4<<12:	p = 0; break;
 			case 5<<12:	p = 1; break;
 			default:	p = 2; break;
@@ -41,25 +50,25 @@ readmode(Output *o)
 		else
 			p = t;
 		/* on DDI hardware PIPECONF is the transcoder's (i915: PIPECONF(cpu_transcoder)) */
-		if((rd(t == Tedp ? 0x7F008 : Pipeconf + t*0x1000) & Pipeenable) == 0)
+		if((rd(TRANSCONF(t)) & TRANSCONF_ENABLE) == 0)
 			continue;
 		o->trans = t;
 		o->pipe = p;
-		ht = rd(transbase[t] + Transhtotal);
-		vt = rd(transbase[t] + Transvtotal);
+		ht = rd(TRANS_HTOTAL(t));
+		vt = rd(TRANS_VTOTAL(t));
 		o->w = (ht & 0xFFFF) + 1;
 		o->h = (vt & 0xFFFF) + 1;
 		/* DP: the dot clock from the link's rate and M/N (intel_dotclock_calculate) */
 		o->refresh = 0;
 		if(o->type != Ohdmi){
-			switch(rd(Portclksel + 4*o->port) >> 29){
+			switch(rd(PORT_CLK_SEL(o->port)) >> 29){
 			case 0:	clk = 270000; break;
 			case 1:	clk = 135000; break;
 			case 2:	clk = 81000; break;
 			default: clk = 0; break;
 			}
-			m = rd(transbase[t] + Translinkm) & 0xFFFFFF;
-			n = rd(transbase[t] + Translinkn);
+			m = rd(PIPE_LINK_M1(t)) & 0xFFFFFF;
+			n = rd(PIPE_LINK_N1(t));
 			if(clk && n){
 				dot = (vlong)clk * m / n;	/* kHz */
 				o->refresh = (vlong)dot * 1000000 / ((vlong)((ht>>16) + 1) * ((vt>>16) + 1));
@@ -97,14 +106,14 @@ dispinit(void)
 
 	cdclk = getcdclk();
 	noutputs = 0;
-	if(rd(Ddibufctl) & Ddiinitdetected){
+	if(rd(DDI_BUF_CTL(PORT_A)) & DDI_INIT_DISPLAY_DETECTED){
 		o = newout("eDP-1", 0, Oedp);
 		o->connected = 1;	/* the panel */
 		readedid(o);
 		readmode(o);
 	}
-	straps = rd(Sfusestrap);
-	hpd = rd(Sdeisr);
+	straps = rd(SFUSE_STRAP);
+	hpd = rd(SDEISR);
 	for(port = 1; port <= 3; port++){
 		if((straps & 1<<(3-port)) == 0)
 			continue;
@@ -131,25 +140,23 @@ dispinit(void)
 void
 modeoff(Output *o)
 {
-	ulong tb;
 	int p;
 
 	if(!o->ours)
 		return;
 	p = Ourpipe;
-	tb = transbase[p];
-	wr(Dspcntr + p*0x1000, 0);
-	wr(Dspsurf + p*0x1000, 0);
-	wr(Pipeconf + p*0x1000, rd(Pipeconf + p*0x1000) & ~Pipeenable);
-	waitbits(Pipeconf + p*0x1000, Pipestate, 0, 100);
-	wr(tb + Transddifuncctl, 0);
-	wr(Transclksel + 4*p, 0);
-	wr(Ddibufctl + 0x100*o->port, rd(Ddibufctl + 0x100*o->port) & ~Ddibufenable);
-	waitbits(Ddibufctl + 0x100*o->port, Ddibufidle, Ddibufidle, 10);
-	wr(Portclksel + 4*o->port, 7u<<29);	/* PORT_CLK_SEL_NONE */
+	wr(DSPCNTR(p), 0);
+	wr(DSPSURF(p), 0);
+	wr(TRANSCONF(p), rd(TRANSCONF(p)) & ~TRANSCONF_ENABLE);
+	waitbits(TRANSCONF(p), TRANSCONF_STATE_ENABLE, 0, 100);
+	wr(TRANS_DDI_FUNC_CTL(p), 0);
+	wr(TRANS_CLK_SEL(p), 0);
+	wr(DDI_BUF_CTL(o->port), rd(DDI_BUF_CTL(o->port)) & ~DDI_BUF_CTL_ENABLE);
+	waitbits(DDI_BUF_CTL(o->port), DDI_BUF_IS_IDLE, DDI_BUF_IS_IDLE, 10);
+	wr(PORT_CLK_SEL(o->port), PORT_CLK_SEL_NONE);	/* PORT_CLK_SEL_NONE */
 	if(o->wrpll >= 0)
-		wr(Wrpllctl + 0x20*o->wrpll, rd(Wrpllctl + 0x20*o->wrpll) & ~Wrpllenable);
-	wr(Wm0pipe + 4*p, 0);
+		wr(WRPLL_CTL(o->wrpll), rd(WRPLL_CTL(o->wrpll)) & ~WRPLL_PLL_ENABLE);
+	wr(WM0_PIPE_ILK(p), 0);
 	o->wrpll = -1;
 	o->ours = 0;
 	o->trans = o->pipe = -1;
@@ -165,7 +172,6 @@ modeset(Output *o, Timing *t)
 {
 	uvlong sskpd;
 	u32int f, wm;
-	ulong tb;
 	int p, i, pll, lat;
 	const struct intel_ddi_buf_trans *bt;
 
@@ -173,8 +179,7 @@ modeset(Output *o, Timing *t)
 		return "only HDMI outputs yet";
 	modeoff(o);
 	p = Ourpipe;
-	tb = transbase[p];
-	if((rd(Pipeconf + p*0x1000) & Pipeenable) != 0)
+	if((rd(TRANSCONF(p)) & TRANSCONF_ENABLE) != 0)
 		return "pipe B in use";
 
 	/* the frame buffer: one of the mode's size, the colour bars */
@@ -188,63 +193,63 @@ modeset(Output *o, Timing *t)
 	testpicture(o, t->ha, t->va);
 
 	/* the display power well (pipes B, C and their transcoders) */
-	wr(Pwrwelldriver, Pwrwellreq);
-	if(waitbits(Pwrwelldriver, Pwrwellon, Pwrwellon, 20) < 0)
+	wr(HSW_PWR_WELL_CTL2, HSW_PWR_WELL_CTL_REQ(HSW_PW_CTL_IDX_GLOBAL));
+	if(waitbits(HSW_PWR_WELL_CTL2, HSW_PWR_WELL_CTL_STATE(HSW_PW_CTL_IDX_GLOBAL), HSW_PWR_WELL_CTL_STATE(HSW_PW_CTL_IDX_GLOBAL), 20) < 0)
 		return "power well does not come on";
 
 	/* a free WRPLL for the pixel clock (8 bits a colour: the port clock) */
 	for(pll = 0; pll < 2; pll++)
-		if((rd(Wrpllctl + 0x20*pll) & Wrpllenable) == 0)
+		if((rd(WRPLL_CTL(pll)) & WRPLL_PLL_ENABLE) == 0)
 			break;
 	if(pll == 2)
 		return "no free WRPLL";
-	wr(Wrpllctl + 0x20*pll, wrpllval(t->clock*1000));
-	rd(Wrpllctl + 0x20*pll);
+	wr(WRPLL_CTL(pll), wrpllval(t->clock*1000));
+	rd(WRPLL_CTL(pll));
 	sleep(1);
 	o->wrpll = pll;
 
 	/* intel_set_pipe_timings */
-	wr(tb + Transvsyncshift, 0);
-	wr(tb + Transhtotal, (t->ha-1) | (t->ht-1)<<16);
-	wr(tb + Transhblank, (t->ha-1) | (t->ht-1)<<16);
-	wr(tb + Transhsync, (t->hss-1) | (t->hse-1)<<16);
-	wr(tb + Transvtotal, (t->va-1) | (t->vt-1)<<16);
-	wr(tb + Transvblank, (t->va-1) | (t->vt-1)<<16);
-	wr(tb + Transvsync, (t->vss-1) | (t->vse-1)<<16);
-	wr(Pipesrc + p*0x1000, (t->ha-1)<<16 | (t->va-1));
-	wr(tb + Transpipemult, 0);
+	wr(TRANS_VSYNCSHIFT(p), 0);
+	wr(TRANS_HTOTAL(p), (t->ha-1) | (t->ht-1)<<16);
+	wr(TRANS_HBLANK(p), (t->ha-1) | (t->ht-1)<<16);
+	wr(TRANS_HSYNC(p), (t->hss-1) | (t->hse-1)<<16);
+	wr(TRANS_VTOTAL(p), (t->va-1) | (t->vt-1)<<16);
+	wr(TRANS_VBLANK(p), (t->va-1) | (t->vt-1)<<16);
+	wr(TRANS_VSYNC(p), (t->vss-1) | (t->vse-1)<<16);
+	wr(PIPESRC(p), (t->ha-1)<<16 | (t->va-1));
+	wr(TRANS_MULT(p), 0);
 
 	/* haswell_set_pipeconf: progressive, 8-bit gamma mode, 8 bits a colour */
-	wr(Pipeconf + p*0x1000, 0);
-	rd(Pipeconf + p*0x1000);
-	wr(Gammamode + p*0x800, 0);
-	wr(Pipemisc + p*0x1000, 0);
+	wr(TRANSCONF(p), 0);
+	rd(TRANSCONF(p));
+	wr(GAMMA_MODE(p), 0);
+	wr(PIPE_MISC(p), 0);
 
 	/* the DDI encoder's pre_enable: the port's clock; its buffers (intel_prepare_ddi_buffers) */
 	bt = bdw_trans(0);
 	for(i = 0; i < bt->num_entries; i++){
-		wr(Ddibuftransreg + 0x60*o->port + 8*i, bt->entries[i].hsw.trans1);
-		wr(Ddibuftransreg + 0x60*o->port + 8*i + 4, bt->entries[i].hsw.trans2);
+		wr(DDI_BUF_TRANS_LO(o->port, i), bt->entries[i].hsw.trans1);
+		wr(DDI_BUF_TRANS_HI(o->port, i), bt->entries[i].hsw.trans2);
 	}
 	bt = bdw_trans(1);	/* entry 9: HDMI, BDW's default level */
-	wr(Ddibuftransreg + 0x60*o->port + 8*i, bt->entries[bt->hdmi_default_entry].hsw.trans1);
-	wr(Ddibuftransreg + 0x60*o->port + 8*i + 4, bt->entries[bt->hdmi_default_entry].hsw.trans2);
-	wr(Portclksel + 4*o->port, (u32int)(pll+4)<<29);	/* PORT_CLK_SEL_WRPLL(pll) */
+	wr(DDI_BUF_TRANS_LO(o->port, i), bt->entries[bt->hdmi_default_entry].hsw.trans1);
+	wr(DDI_BUF_TRANS_HI(o->port, i), bt->entries[bt->hdmi_default_entry].hsw.trans2);
+	wr(PORT_CLK_SEL(o->port), PORT_CLK_SEL_WRPLL(pll));	/* PORT_CLK_SEL_WRPLL(pll) */
 
 	/* intel_ddi_enable_pipe_clock, the transcoder's function */
-	wr(Transclksel + 4*p, (u32int)(o->port+1)<<29);
-	f = Tddienable | (u32int)o->port<<28 | Tddibpc8 | Tddidvi;
+	wr(TRANS_CLK_SEL(p), TRANS_CLK_SEL_PORT(o->port));
+	f = TRANS_DDI_FUNC_ENABLE | (u32int)o->port<<28 | TRANS_DDI_BPC_8 | TRANS_DDI_MODE_SELECT_DVI;
 	if(t->phsync)
-		f |= Tddiphsync;
+		f |= TRANS_DDI_PHSYNC;
 	if(t->pvsync)
-		f |= Tddipvsync;
-	wr(tb + Transddifuncctl, f);
+		f |= TRANS_DDI_PVSYNC;
+	wr(TRANS_DDI_FUNC_CTL(p), f);
 
 	/*
 	 * watermarks (ilk_wm_method1 with level 0's latency, 0.1 µs units;
 	 * two pipes: no LP watermarks)
 	 */
-	sskpd = rd(Mchsskpd) | (uvlong)rd(Mchsskpd+4)<<32;
+	sskpd = rd(MCH_SSKPD) | (uvlong)rd(MCH_SSKPD+4)<<32;
 	lat = sskpd>>56 & 0xFF;
 	if(lat == 0)
 		lat = sskpd & 0xF;
@@ -253,27 +258,27 @@ modeset(Output *o, Timing *t)
 	wm = ((uvlong)t->clock * 4 * lat + 64*10000 - 1) / (64*10000) + 2;
 	if(wm > 255)
 		wm = 255;
-	wr(Wm1lp+8, 0);
-	wr(Wm1lp+4, 0);
-	wr(Wm1lp, 0);
-	wr(Wm1slp, 0);
-	wr(Wm0pipe + 4*p, wm<<16);	/* the primary plane; sprite and cursor off */
+	wr(WM3_LP_ILK, 0);
+	wr(WM2_LP_ILK, 0);
+	wr(WM1_LP_ILK, 0);
+	wr(WM1S_LP_ILK, 0);
+	wr(WM0_PIPE_ILK(p), wm<<16);	/* the primary plane; sprite and cursor off */
 
 	/* intel_enable_pipe */
-	wr(Pipeconf + p*0x1000, rd(Pipeconf + p*0x1000) | Pipeenable);
-	if(waitbits(Pipeconf + p*0x1000, Pipestate, Pipestate, 100) < 0){
+	wr(TRANSCONF(p), rd(TRANSCONF(p)) | TRANSCONF_ENABLE);
+	if(waitbits(TRANSCONF(p), TRANSCONF_STATE_ENABLE, TRANSCONF_STATE_ENABLE, 100) < 0){
 		modeoff(o);
 		return "pipe B does not start";
 	}
 
 	/* the encoder's enable: the port */
-	wr(Ddibufctl + 0x100*o->port, (rd(Ddibufctl + 0x100*o->port) & (1<<4)) | Ddibufenable);
+	wr(DDI_BUF_CTL(o->port), (rd(DDI_BUF_CTL(o->port)) & (1<<4)) | DDI_BUF_CTL_ENABLE);
 
 	/* the plane: the frame buffer, linear x8r8g8b8 */
-	wr(Dspstride + p*0x1000, t->ha*4);
-	wr(Dspoffset + p*0x1000, 0);
-	wr(Dspcntr + p*0x1000, Dspenable | Dspbgrx);
-	wr(Dspsurf + p*0x1000, o->fbgtt);
+	wr(DSPSTRIDE(p), t->ha*4);
+	wr(DSPOFFSET(p), 0);
+	wr(DSPCNTR(p), DISP_ENABLE | DISP_FORMAT_BGRX888);
+	wr(DSPSURF(p), o->fbgtt);
 	o->ours = 1;
 	readmode(o);
 	o->refresh = (long)t->hz * 1000;

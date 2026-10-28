@@ -74,8 +74,8 @@ devinit(void)
 	fwheld = 0;
 	fwon();
 	unlock(&fwlk);
-	if((rd(Forcewakeack) & 1) == 0)
-		sysfatal("forcewake: no ack (%#ux)", rd(Forcewakeack));
+	if((rd(FORCEWAKE_ACK_HSW) & 1) == 0)
+		sysfatal("forcewake: no ack (%#ux)", rd(FORCEWAKE_ACK_HSW));
 	if(!uncached)
 		ppatinit();
 
@@ -111,10 +111,10 @@ devinit(void)
 	}
 	/* a previous driver may have left an engine hung: reset both first */
 	for(i = 0; i < nelem(eng); i++){
-		wr(eng[i].base+Rresetctl, masked(Resetrequest, 1));
-		wr(Gdrst, eng[i].resetbit);
+		wr(RING_RESET_CTL(eng[i].base), masked(RESET_CTL_REQUEST_RESET, 1));
+		wr(GEN6_GDRST, eng[i].resetbit);
 		sleep(10);
-		wr(eng[i].base+Rresetctl, masked(Resetrequest, 0));
+		wr(RING_RESET_CTL(eng[i].base), masked(RESET_CTL_REQUEST_RESET, 0));
 	}
 	sseuinit();
 	if(!noclockgating)

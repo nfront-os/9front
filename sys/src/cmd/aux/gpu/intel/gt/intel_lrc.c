@@ -31,33 +31,33 @@ ecimage(Ectx *ec)
 	memset(ec->image, 0, (1+e->statepages)*4096);
 	r = ec->image + 1024;
 	b = e->base;
-	r[0x01] = Milri | (2*(e->idx == 0 ? 14 : 11) - 1) | Lriposted;
-	r[0x02] = b + Rctxctl;
-	r[0x03] = masked(Ctxinhibitsyn | Ctxrestoreinhibit | Ctxrsenable, 1);
-	r[0x04] = b + Rhead;	r[0x05] = 0;
-	r[0x06] = b + Rtail;	r[0x07] = 0;
-	r[0x08] = b + Rstart;	r[0x09] = ec->ringgtt;
-	r[0x0a] = b + Rctl;	r[0x0b] = (Ringpages-1)<<12 | Ringvalid;
-	r[0x0c] = b + Rbbheadu;	r[0x0d] = 0;
-	r[0x0e] = b + Rbbheadl;	r[0x0f] = 0;
-	r[0x10] = b + Rbbstate;	r[0x11] = 1<<5;
-	r[0x12] = b + Rsbbheadu;	r[0x13] = 0;
-	r[0x14] = b + Rsbbheadl;	r[0x15] = 0;
-	r[0x16] = b + Rsbbstate;	r[0x17] = 0;
+	r[0x01] = MI_LOAD_REGISTER_IMM(e->idx == 0 ? 14 : 11) | MI_LRI_FORCE_POSTED;
+	r[0x02] = RING_CONTEXT_CONTROL(b);
+	r[0x03] = masked(CTX_CTRL_INHIBIT_SYN_CTX_SWITCH | CTX_CTRL_ENGINE_CTX_RESTORE_INHIBIT | CTX_CTRL_RS_CTX_ENABLE, 1);
+	r[0x04] = RING_HEAD(b);	r[0x05] = 0;
+	r[0x06] = RING_TAIL(b);	r[0x07] = 0;
+	r[0x08] = RING_START(b);	r[0x09] = ec->ringgtt;
+	r[0x0a] = RING_CTL(b);	r[0x0b] = (Ringpages-1)<<12 | RING_VALID;
+	r[0x0c] = RING_BBADDR_UDW(b);	r[0x0d] = 0;
+	r[0x0e] = RING_BBADDR(b);	r[0x0f] = 0;
+	r[0x10] = RING_BBSTATE(b);	r[0x11] = 1<<5;
+	r[0x12] = RING_SBBADDR_UDW(b);	r[0x13] = 0;
+	r[0x14] = RING_SBBADDR(b);	r[0x15] = 0;
+	r[0x16] = RING_SBBSTATE(b);	r[0x17] = 0;
 	if(e->idx == 0){
-		r[0x18] = b + Rbbperctx;	r[0x19] = 0;
-		r[0x1a] = b + Rindctx;	r[0x1b] = 0;
-		r[0x1c] = b + Rindctxoff;	r[0x1d] = 0;
+		r[0x18] = RING_BB_PER_CTX_PTR(b);	r[0x19] = 0;
+		r[0x1a] = RING_INDIRECT_CTX(b);	r[0x1b] = 0;
+		r[0x1c] = RING_INDIRECT_CTX_OFFSET(b);	r[0x1d] = 0;
 	}
-	r[0x21] = Milri | (2*9 - 1) | Lriposted;
-	r[0x22] = b + Rctxtimestamp;	r[0x23] = 0;
+	r[0x21] = MI_LOAD_REGISTER_IMM(9) | MI_LRI_FORCE_POSTED;
+	r[0x22] = RING_CTX_TIMESTAMP(b);	r[0x23] = 0;
 	for(n = 3; n >= 0; n--){
-		r[0x24 + (3-n)*4] = b + Rpdp + n*8 + 4;
-		r[0x26 + (3-n)*4] = b + Rpdp + n*8;
+		r[0x24 + (3-n)*4] = GEN8_RING_PDP_UDW(b, n);
+		r[0x26 + (3-n)*4] = GEN8_RING_PDP_LDW(b, n);
 	}
 	if(e->idx == 0){
-		r[0x41] = Milri | (2*1 - 1);
-		r[0x42] = Rpwrclkstate;	r[0x43] = 0;	/* gen 8: no explicit RPCS request (make_rpcs) */
+		r[0x41] = MI_LOAD_REGISTER_IMM(1);
+		r[0x42] = GEN8_R_PWR_CLK_STATE(RENDER_RING_BASE);	r[0x43] = 0;	/* gen 8: no explicit RPCS request (make_rpcs) */
 	}
 	memset(ec->ring, 0, Ringpages*4096);
 	flushcache(ec->image, (1+e->statepages)*4096);
@@ -108,6 +108,6 @@ ecupdate(Ectx *ec)
 uvlong
 descriptor(Ectx *ec)
 {
-	return (uvlong)(ec->lrca>>12)<<32 | ec->lrca | Descvalid | Descl3llc | Descpriv |
-		(global || legacy32 ? Desclegacy32 : Desclegacy64);
+	return (uvlong)(ec->lrca>>12)<<32 | ec->lrca | GEN8_CTX_VALID | GEN8_CTX_L3LLC_COHERENT | GEN8_CTX_PRIVILEGE |
+		(global || legacy32 ? (INTEL_LEGACY_32B_CONTEXT << GEN8_CTX_ADDRESSING_MODE_SHIFT) : (INTEL_LEGACY_64B_CONTEXT << GEN8_CTX_ADDRESSING_MODE_SHIFT));
 }

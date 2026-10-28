@@ -13,6 +13,14 @@
 #include <9p.h>
 #include "../i915_drv.h"
 
+/* Linux 6.6, gt/intel_execlists_submission.c: the context status buffer */
+#define GEN8_CTX_STATUS_IDLE_ACTIVE	(1 << 0)
+#define GEN8_CTX_STATUS_PREEMPTED	(1 << 1)
+#define GEN8_CTX_STATUS_ELEMENT_SWITCH	(1 << 2)
+#define GEN8_CTX_STATUS_ACTIVE_IDLE	(1 << 3)
+#define GEN8_CTX_STATUS_COMPLETE	(1 << 4)
+#define GEN8_CTX_STATUS_LITE_RESTORE	(1 << 15)
+
 /* the next context with work into the idle engine's ELSP; with lk */
 void
 kick(Engine *e)
@@ -28,11 +36,11 @@ kick(Engine *e)
 	ecupdate(ec);
 	d = descriptor(ec);
 	/* both elements, the second (none) first; the first's lower dword starts it */
-	wr(e->base+Relsp, 0);
-	wr(e->base+Relsp, 0);
-	wr(e->base+Relsp, d>>32);
-	wr(e->base+Relsp, d);
-	rd(e->base+Rexecstatus);
+	wr(RING_ELSP(e->base), 0);
+	wr(RING_ELSP(e->base), 0);
+	wr(RING_ELSP(e->base), d>>32);
+	wr(RING_ELSP(e->base), d);
+	rd(RING_EXECLIST_STATUS_LO(e->base));
 	e->running = ec;
 	ec->subtail = ec->tail;
 	e->since = nsec();
@@ -64,18 +72,18 @@ csb(Engine *e)
 	Ectx *ec;
 	int r;
 
-	w = rd(e->base+Rcsbptr) & Csbptrmask;
-	if(w == Csbptrmask || w >= Csbentries)
+	w = rd(RING_CONTEXT_STATUS_PTR(e->base)) & GEN8_CSB_PTR_MASK;
+	if(w == GEN8_CSB_PTR_MASK || w >= GEN8_CSB_ENTRIES)
 		return;
 	r = e->csbread;
 	while(r != w){
-		r = (r + 1) % Csbentries;
-		st = rd(e->base + Rcsb + r*8);
-		id = rd(e->base + Rcsb + r*8 + 4);
+		r = (r + 1) % GEN8_CSB_ENTRIES;
+		st = rd(e->base + GEN8_EXECLISTS_STATUS_BUF + r*8);
+		id = rd(e->base + GEN8_EXECLISTS_STATUS_BUF + r*8 + 4);
 		DBG(2, "%s csb %d: %#ux %#ux\n", e->name, r, st, id);
-		if(st & Csbpreempted)
+		if(st & GEN8_CTX_STATUS_PREEMPTED)
 			fprint(2, "%s: %s: context %#ux preempted\n", argv0, e->name, id);
-		if((st & (Csbcomplete|Csbactiveidle|Csbelemswitch)) == 0)
+		if((st & (GEN8_CTX_STATUS_COMPLETE|GEN8_CTX_STATUS_ACTIVE_IDLE|GEN8_CTX_STATUS_ELEMENT_SWITCH)) == 0)
 			continue;
 		ec = e->running;
 		if(ec == nil || (ec->lrca>>12) != id)
@@ -86,7 +94,7 @@ csb(Engine *e)
 			enqueue(ec);
 	}
 	e->csbread = r;
-	wr(e->base+Rcsbptr, (Csbptrmask<<8)<<16 | (r & Csbptrmask)<<8);
+	wr(RING_CONTEXT_STATUS_PTR(e->base), (GEN8_CSB_PTR_MASK<<8)<<16 | (r & GEN8_CSB_PTR_MASK)<<8);
 	kick(e);
 }
 
@@ -158,40 +166,40 @@ ecsubmit(Ectx *ec, uvlong a, u32int *seq)
 		 * after, then the null render state, a privileged batch in
 		 * the GTT (i915's gen8_init_rcs_context)
 		 */
-		ecemit(ec, Pipecontrol);
-		ecemit(ec, Pccsstall | Pcrtflush | Pcdcflush | Pcdepthflush | Pcqwwrite | Pcglobalgtt);
+		ecemit(ec, GFX_OP_PIPE_CONTROL(6));
+		ecemit(ec, PIPE_CONTROL_CS_STALL | PIPE_CONTROL_RENDER_TARGET_CACHE_FLUSH | PIPE_CONTROL_DC_FLUSH_ENABLE | PIPE_CONTROL_DEPTH_CACHE_FLUSH | PIPE_CONTROL_QW_WRITE | PIPE_CONTROL_GLOBAL_GTT_IVB);
 		ecemit(ec, e->hwsgtt + Hwsscratch*4);
 		ecemit(ec, 0);
 		ecemit(ec, 0);
 		ecemit(ec, 0);
-		ecemit(ec, Milri | (2*nelem(rcswa) - 1));
+		ecemit(ec, MI_LOAD_REGISTER_IMM(nelem(rcswa)));
 		for(n = 0; n < nelem(rcswa); n++){
 			ecemit(ec, rcswa[n].reg);
 			ecemit(ec, rcswa[n].val);
 		}
-		ecemit(ec, Minoop);
-		ecemit(ec, Pipecontrol);
-		ecemit(ec, Pccsstall | Pcrtflush | Pcdcflush | Pcdepthflush | Pcqwwrite | Pcglobalgtt);
+		ecemit(ec, MI_NOOP);
+		ecemit(ec, GFX_OP_PIPE_CONTROL(6));
+		ecemit(ec, PIPE_CONTROL_CS_STALL | PIPE_CONTROL_RENDER_TARGET_CACHE_FLUSH | PIPE_CONTROL_DC_FLUSH_ENABLE | PIPE_CONTROL_DEPTH_CACHE_FLUSH | PIPE_CONTROL_QW_WRITE | PIPE_CONTROL_GLOBAL_GTT_IVB);
 		ecemit(ec, e->hwsgtt + Hwsscratch*4);
 		ecemit(ec, 0);
 		ecemit(ec, 0);
 		ecemit(ec, 0);
-		ecemit(ec, Mibbstart);
+		ecemit(ec, MI_BATCH_BUFFER_START_GEN8);
 		ecemit(ec, rsgtt);
 		ecemit(ec, 0);
 	}
 	ec->fresh = 0;
 	if(!global && ec->serial != ec->ctx->serial){
 		if(e->idx == 0){
-			ecemit(ec, Pipecontrol);
-			ecemit(ec, Pccsstall | Pctlbinval | Pcqwwrite | Pcglobalgtt);
+			ecemit(ec, GFX_OP_PIPE_CONTROL(6));
+			ecemit(ec, PIPE_CONTROL_CS_STALL | PIPE_CONTROL_TLB_INVALIDATE | PIPE_CONTROL_QW_WRITE | PIPE_CONTROL_GLOBAL_GTT_IVB);
 			ecemit(ec, e->hwsgtt + Hwsscratch*4);
 			ecemit(ec, 0);
 			ecemit(ec, 0);
 			ecemit(ec, 0);
 		}else{
-			ecemit(ec, (Miflushdw+1) | Flushtlbinval | Flushstoredw | Flushstoreidx);
-			ecemit(ec, Hwsscratch*4 | Flushusegtt);
+			ecemit(ec, (MI_FLUSH_DW+1) | MI_INVALIDATE_TLB | MI_FLUSH_DW_OP_STOREDW | MI_FLUSH_DW_STORE_INDEX);
+			ecemit(ec, Hwsscratch*4 | MI_FLUSH_DW_USE_GTT);
 			ecemit(ec, 0);
 			ecemit(ec, 0);
 		}
@@ -205,40 +213,40 @@ ecsubmit(Ectx *ec, uvlong a, u32int *seq)
 	 * the engine between two batches of this one
 	 */
 	if(!global){
-		ecemit(ec, Milri | (2*8 - 1));
+		ecemit(ec, MI_LOAD_REGISTER_IMM(8));
 		for(n = 3; n >= 0; n--){
 			pa = pdpval(ec->ctx, n);
-			ecemit(ec, e->base + Rpdp + n*8 + 4);
+			ecemit(ec, GEN8_RING_PDP_UDW(e->base, n));
 			ecemit(ec, pa>>32);
-			ecemit(ec, e->base + Rpdp + n*8);
+			ecemit(ec, GEN8_RING_PDP_LDW(e->base, n));
 			ecemit(ec, pa);
 		}
-		ecemit(ec, Minoop);
+		ecemit(ec, MI_NOOP);
 	}
-	ecemit(ec, Mibbstart | (global ? 0 : Bbppgtt));
+	ecemit(ec, MI_BATCH_BUFFER_START_GEN8 | (global ? 0 : MI_BATCH_PPGTT_HSW));
 	ecemit(ec, a);
 	ecemit(ec, a>>32);
 	if(e->idx == 0){
-		ecemit(ec, Pipecontrol);
-		ecemit(ec, Pccsstall | Pcrtflush | Pcdcflush | Pcdepthflush | Pcqwwrite | Pcglobalgtt);
+		ecemit(ec, GFX_OP_PIPE_CONTROL(6));
+		ecemit(ec, PIPE_CONTROL_CS_STALL | PIPE_CONTROL_RENDER_TARGET_CACHE_FLUSH | PIPE_CONTROL_DC_FLUSH_ENABLE | PIPE_CONTROL_DEPTH_CACHE_FLUSH | PIPE_CONTROL_QW_WRITE | PIPE_CONTROL_GLOBAL_GTT_IVB);
 		ecemit(ec, e->hwsgtt + Hwsscratch*4);
 		ecemit(ec, 0);
 		ecemit(ec, 0);
 		ecemit(ec, 0);
 	}else{
-		ecemit(ec, (Miflushdw+1) | Flushstoredw | Flushstoreidx);
-		ecemit(ec, Hwsscratch*4 | Flushusegtt);
+		ecemit(ec, (MI_FLUSH_DW+1) | MI_FLUSH_DW_OP_STOREDW | MI_FLUSH_DW_STORE_INDEX);
+		ecemit(ec, Hwsscratch*4 | MI_FLUSH_DW_USE_GTT);
 		ecemit(ec, 0);
 		ecemit(ec, 0);
 	}
 	*seq = ++ec->nseq;
-	ecemit(ec, Mistoredwimm | Storeggtt);
+	ecemit(ec, MI_STORE_DWORD_IMM_GEN4 | MI_USE_GGTT);
 	ecemit(ec, ec->seqgtt);
 	ecemit(ec, 0);
 	ecemit(ec, *seq);
-	ecemit(ec, Miuserintr);
+	ecemit(ec, MI_USER_INTERRUPT);
 	while(ec->tail & 7)
-		ecemit(ec, Minoop);
+		ecemit(ec, MI_NOOP);
 	ec->endpos[*seq % Fwin] = ec->tail;
 	if(ec->tail > t0)
 		flushcache(ec->ring + t0/4, ec->tail - t0);

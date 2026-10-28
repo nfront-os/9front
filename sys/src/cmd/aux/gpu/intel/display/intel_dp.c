@@ -19,5 +19,5 @@ dpsink(int port)
 {
 	uchar rev;
 
-	return auxmsg(port, Auxnativeread, 0, &rev, 1) == 0 && rev != 0;
+	return auxmsg(port, DP_AUX_NATIVE_READ, 0, &rev, 1) == 0 && rev != 0;
 }

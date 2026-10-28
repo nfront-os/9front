@@ -48,7 +48,7 @@ bomap(Bo *b, uvlong at)
 			return "no GPU address space left";
 	}else if((at & 4095) != 0 || holetake(&c->holes, at, b->size) < 0)
 		return "GPU address in use or out of range";
-	if(ppmap(c, at, 0, b->pa, b->size, uncached ? Pteuncached : b->scanwt ? Ptewt : Ptecached) < 0){
+	if(ppmap(c, at, 0, b->pa, b->size, uncached ? PPAT_UNCACHED : b->scanwt ? PPAT_DISPLAY_ELLC : PPAT_CACHED) < 0){
 		ppunmap(c, at, b->size);
 		holefree(&c->holes, at, b->size);
 		return "no page tables left";

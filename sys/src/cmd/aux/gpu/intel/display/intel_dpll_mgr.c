@@ -95,5 +95,5 @@ wrpllval(int clock)
 			for(n2 = Vcomin*r2/Lcfreq + 1; n2 <= Vcomax*r2/Lcfreq; n2++)
 				for(p = Pmin; p <= Pmax; p += Pinc)
 					wrpllupdate(freq2k, budget, r2, n2, p, &bp, &bn2, &br2);
-	return Wrpllenable | Wrplllcpll | br2 | bp<<8 | bn2<<16;
+	return WRPLL_PLL_ENABLE | WRPLL_REF_LCPLL | br2 | bp<<8 | bn2<<16;
 }

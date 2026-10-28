@@ -74,9 +74,9 @@ forcewake(void)
 {
 	vlong t;
 
-	((volatile u32int*)mmio)[Forcewakemt/4] = masked(1, 1);
+	((volatile u32int*)mmio)[FORCEWAKE_MT/4] = masked(1, 1);
 	for(t = nsec(); nsec() - t < 50*1000000LL; )
-		if(((volatile u32int*)mmio)[Forcewakeack/4] & 1)
+		if(((volatile u32int*)mmio)[FORCEWAKE_ACK_HSW/4] & 1)
 			return 0;
 	return -1;
 }
@@ -89,7 +89,7 @@ fwproc(void)
 		sleep(Fwidle);
 		lock(&fwlk);
 		if(fwheld && !nopm && nsec() - fwlast > Fwidle*1000000LL){
-			((volatile u32int*)mmio)[Forcewakemt/4] = masked(1, 0);
+			((volatile u32int*)mmio)[FORCEWAKE_MT/4] = masked(1, 0);
 			fwheld = 0;
 		}
 		unlock(&fwlk);

@@ -16,7 +16,7 @@
 ulong
 auxctl(int port)
 {
-	return port == 0 ? 0x64010 : 0xE4110 + (port-1)*0x100;
+	return port == 0 ? DP_AUX_CH_CTL(AUX_CH_A) : PCH_DP_AUX_CH_CTL(port);
 }
 
 /*
@@ -32,16 +32,16 @@ auxch(int port, uchar *send, int n, uchar *recv, int nr)
 	vlong t;
 
 	ctl = auxctl(port);
-	for(try = 0; try < 3 && (rd(ctl) & Auxsendbusy); try++)
+	for(try = 0; try < 3 && (rd(ctl) & DP_AUX_CH_CTL_SEND_BUSY); try++)
 		sleep(1);
 	if(try == 3)
 		return -1;
 	if(port == 0)
 		div = (cdclk + 1000) / 2000;
 	else
-		div = ((rd(Rawclkfreq) & 0x3FF) + 1) / 2;
-	sendctl = Auxsendbusy | Auxdone | Auxtimeouterr | (port == 0 ? Auxtimeout600 : 0) |
-		Auxrecverr | n<<Auxsizeshift | Auxprecharge | div;
+		div = ((rd(PCH_RAWCLK_FREQ) & 0x3FF) + 1) / 2;
+	sendctl = DP_AUX_CH_CTL_SEND_BUSY | DP_AUX_CH_CTL_DONE | DP_AUX_CH_CTL_TIME_OUT_ERROR | (port == 0 ? DP_AUX_CH_CTL_TIME_OUT_600us : 0) |
+		DP_AUX_CH_CTL_RECEIVE_ERROR | DP_AUX_CH_CTL_MESSAGE_SIZE(n) | DP_AUX_CH_CTL_PRECHARGE_2US(5) | div;
 	st = 0;
 	for(try = 0; try < 5; try++){
 		for(i = 0; i < n; i += 4){
@@ -51,21 +51,21 @@ auxch(int port, uchar *send, int n, uchar *recv, int nr)
 			wr(ctl + 4 + i, w);
 		}
 		wr(ctl, sendctl);
-		for(t = nsec(); ((st = rd(ctl)) & Auxsendbusy) && nsec() - t < 10*1000000LL; )
+		for(t = nsec(); ((st = rd(ctl)) & DP_AUX_CH_CTL_SEND_BUSY) && nsec() - t < 10*1000000LL; )
 			sleep(0);
-		wr(ctl, st | Auxdone | Auxtimeouterr | Auxrecverr);
-		if(st & Auxtimeouterr)
+		wr(ctl, st | DP_AUX_CH_CTL_DONE | DP_AUX_CH_CTL_TIME_OUT_ERROR | DP_AUX_CH_CTL_RECEIVE_ERROR);
+		if(st & DP_AUX_CH_CTL_TIME_OUT_ERROR)
 			continue;
-		if(st & Auxrecverr){
+		if(st & DP_AUX_CH_CTL_RECEIVE_ERROR){
 			microwait(500);
 			continue;
 		}
-		if(st & Auxdone)
+		if(st & DP_AUX_CH_CTL_DONE)
 			break;
 	}
-	if((st & Auxdone) == 0 || (st & (Auxtimeouterr|Auxrecverr)))
+	if((st & DP_AUX_CH_CTL_DONE) == 0 || (st & (DP_AUX_CH_CTL_TIME_OUT_ERROR|DP_AUX_CH_CTL_RECEIVE_ERROR)))
 		return -1;
-	got = st>>Auxsizeshift & 0x1F;
+	got = REG_FIELD_GET(DP_AUX_CH_CTL_MESSAGE_SIZE_MASK, st);
 	if(got > nr)
 		got = nr;
 	for(i = 0; i < got; i += 4){
@@ -120,17 +120,17 @@ auxedid(int port, int off, uchar *buf, int n)
 
 	o = off;
 	r = -1;
-	if(auxi2c(port, Auxi2cwrite|Auxi2cmot, nil, 0) < 0 || auxi2c(port, Auxi2cwrite|Auxi2cmot, &o, 1) < 0)
+	if(auxi2c(port, DP_AUX_I2C_WRITE|DP_AUX_I2C_MOT, nil, 0) < 0 || auxi2c(port, DP_AUX_I2C_WRITE|DP_AUX_I2C_MOT, &o, 1) < 0)
 		goto End;
-	if(auxi2c(port, Auxi2cread|Auxi2cmot, nil, 0) < 0)
+	if(auxi2c(port, DP_AUX_I2C_READ|DP_AUX_I2C_MOT, nil, 0) < 0)
 		goto End;
 	for(i = 0; i < n; i += k){
 		k = n - i < 16 ? n - i : 16;
-		if(auxi2c(port, Auxi2cread|Auxi2cmot, buf+i, k) < 0)
+		if(auxi2c(port, DP_AUX_I2C_READ|DP_AUX_I2C_MOT, buf+i, k) < 0)
 			goto End;
 	}
 	r = 0;
 End:
-	auxi2c(port, Auxi2cread, nil, 0);
+	auxi2c(port, DP_AUX_I2C_READ, nil, 0);
 	return r;
 }

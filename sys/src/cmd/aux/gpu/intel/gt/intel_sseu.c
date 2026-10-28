@@ -26,12 +26,12 @@ sseuinit(void)
 	u32int fuse2, eud[3], d0, d1, d2;
 	int s, ss, n, b;
 
-	fuse2 = rd(Fuse2);
+	fuse2 = rd(GEN8_FUSE2);
 	sslices = fuse2>>25 & 7;
 	ssubslices = ~(fuse2>>21) & 7;
-	d0 = rd(Eudisable0);
-	d1 = rd(Eudisable1);
-	d2 = rd(Eudisable2);
+	d0 = rd(GEN8_EU_DISABLE0);
+	d1 = rd(GEN8_EU_DISABLE1);
+	d2 = rd(GEN8_EU_DISABLE2);
 	eud[0] = d0 & 0xFFFFFF;
 	eud[1] = d0>>24 | (d1 & 0xFFFF)<<8;
 	eud[2] = d1>>16 | (d2 & 0xFF)<<16;

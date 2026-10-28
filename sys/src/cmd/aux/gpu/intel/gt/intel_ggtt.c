@@ -117,12 +117,12 @@ gttmap(ulong a, uvlong pa, uvlong *pas, ulong len)
 {
 	uvlong i, n, bits;
 
-	bits = Ptepresent | (uncached ? Pteuncached : Ptecached);
+	bits = GEN8_PAGE_PRESENT | (uncached ? PPAT_UNCACHED : PPAT_CACHED);
 	n = (len + 4095) / 4096;
 	for(i = 0; i < n; i++)
 		gtt[a/4096 + i] = (pas != nil ? pas[i] : pa + i*4096) | bits;
-	wr(Gfxflshcntl, 1);
-	rd(Gfxflshcntl);
+	wr(GFX_FLSH_CNTL_GEN6, 1);
+	rd(GFX_FLSH_CNTL_GEN6);
 }
 
 void
@@ -133,6 +133,6 @@ gttunmap(ulong a, ulong len)
 	n = (len + 4095) / 4096;
 	for(i = 0; i < n; i++)
 		gtt[a/4096 + i] = scratchgtt;
-	wr(Gfxflshcntl, 1);
-	rd(Gfxflshcntl);
+	wr(GFX_FLSH_CNTL_GEN6, 1);
+	rd(GFX_FLSH_CNTL_GEN6);
 }

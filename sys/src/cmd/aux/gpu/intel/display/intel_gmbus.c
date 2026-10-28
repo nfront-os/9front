@@ -21,8 +21,8 @@ gmwait(u32int bits)
 	vlong t;
 
 	for(t = nsec(); nsec() - t < 50*1000000LL; sleep(0)){
-		st = rd(Gmbus2);
-		if(st & Gmsatoer)
+		st = rd(GMBUS2(i915));
+		if(st & GMBUS_SATOER)
 			return -1;
 		if(st & bits)
 			return 0;
@@ -33,9 +33,9 @@ gmwait(u32int bits)
 void
 gmreset(void)
 {
-	wr(Gmbus1, Gmswclrint);
-	wr(Gmbus1, 0);
-	wr(Gmbus0, 0);
+	wr(GMBUS1(i915), GMBUS_SW_CLR_INT);
+	wr(GMBUS1(i915), 0);
+	wr(GMBUS0(i915), 0);
 }
 
 /* EDID bytes from offset over GMBUS pin (gmbus_xfer: an index cycle, then the read) */
@@ -46,21 +46,21 @@ gmedid(int pin, int off, uchar *buf, int n)
 	int i, j;
 	vlong t;
 
-	wr(Gmbus4, 0);
-	wr(Gmbus0, pin);	/* 100 kHz */
-	wr(Gmbus1, Gmcycleindex | off<<8 | Gmcyclewait | n<<16 | Ddcaddr<<1 | 1 | Gmswrdy);
+	wr(GMBUS4(i915), 0);
+	wr(GMBUS0(i915), pin);	/* 100 kHz */
+	wr(GMBUS1(i915), GMBUS_CYCLE_INDEX | off<<GMBUS_SLAVE_INDEX_SHIFT | GMBUS_CYCLE_WAIT | n<<GMBUS_BYTE_COUNT_SHIFT | DDC_ADDR<<GMBUS_SLAVE_ADDR_SHIFT | GMBUS_SLAVE_READ | GMBUS_SW_RDY);
 	for(i = 0; i < n; ){
-		if(gmwait(Gmhwrdy) < 0){
+		if(gmwait(GMBUS_HW_RDY) < 0){
 			gmreset();
 			return -1;
 		}
-		v = rd(Gmbus3);
+		v = rd(GMBUS3(i915));
 		for(j = 0; j < 4 && i < n; j++, i++)
 			buf[i] = v >> 8*j;
 	}
-	wr(Gmbus1, Gmcyclestop | Gmswrdy);
-	for(t = nsec(); (rd(Gmbus2) & Gmactive) && nsec() - t < 10*1000000LL; )
+	wr(GMBUS1(i915), GMBUS_CYCLE_STOP | GMBUS_SW_RDY);
+	for(t = nsec(); (rd(GMBUS2(i915)) & GMBUS_ACTIVE) && nsec() - t < 10*1000000LL; )
 		sleep(0);
-	wr(Gmbus0, 0);
+	wr(GMBUS0(i915), 0);
 	return 0;
 }

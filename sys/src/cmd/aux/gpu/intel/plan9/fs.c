@@ -84,9 +84,9 @@ statusstr(void)
 		t = smprint("%sengine %s %s execlists: running ctx %d, %d queued, %ud switches, csb %d/%d,"
 			" status %#ux mode %#ux acthd %#ux eir %#ux ipehr %#ux pdp0 %#.8ux%.8ux resets %d\n",
 			s, e->name, e->ok ? "ok" : "off", e->running ? e->running->ctx->id : 0, n, e->nswitch,
-			e->csbread, rd(e->base+Rcsbptr) & Csbptrmask, rd(e->base+Rexecstatus), rd(e->base+Rmode),
-			rd(e->base+Racthd), rd(e->base+Reir), rd(e->base+Ripehr), rd(e->base+Rpdp+4),
-			rd(e->base+Rpdp), e->nreset);
+			e->csbread, rd(RING_CONTEXT_STATUS_PTR(e->base)) & GEN8_CSB_PTR_MASK, rd(RING_EXECLIST_STATUS_LO(e->base)), rd(RING_MODE_GEN7(e->base)),
+			rd(RING_ACTHD(e->base)), rd(RING_EIR(e->base)), rd(RING_IPEHR(e->base)), rd(GEN8_RING_PDP_UDW(e->base, 0)),
+			rd(GEN8_RING_PDP_LDW(e->base, 0)), e->nreset);
 		free(s);
 		s = t;
 	}
@@ -98,8 +98,8 @@ statusstr(void)
 	t = smprint("%srcs workarounds %d/%d\nsseu slices %#x subslices %#x eus %d\n"
 		"power rc6 %s %llud ms, %d MHz (asked %d, min %d, rp1 %d, max %d)%s\n", s, n, nelem(rcswa),
 		sslices, ssubslices, seus,
-		rps.on ? "on" : "off", (uvlong)rd(Rc6residency)*128/100000,
-		(rd(Rpstat1)>>7 & 0x7F)*50, rps.cur*50, rps.min*50, rps.rp1*50, rps.max*50,
+		rps.on ? "on" : "off", (uvlong)rd(GEN6_GT_GFX_RC6)*128/100000,
+		(rd(GEN6_RPSTAT1)>>7 & 0x7F)*50, rps.cur*50, rps.min*50, rps.rp1*50, rps.max*50,
 		fwheld ? ", forcewake" : "");
 	free(s);
 	s = t;

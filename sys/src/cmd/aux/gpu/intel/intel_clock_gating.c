@@ -19,13 +19,13 @@ gtinit(void)
 {
 	u32int m;
 
-	wr(Gamecochk, rd(Gamecochk) | Ecochkarbpriosol);
-	wr(Ffthreadmode, rd(Ffthreadmode) & ~(Ffdsrefcntffme | Ffvsrefcntffme));
-	wr(Rcsleeppsmictl, masked(Rcsemaidlemsgdisable, 1));
-	wr(Ucgctl6, rd(Ucgctl6) | Sdeunitclockgatedisable);
-	m = rd(Misccpctl);
-	wr(Misccpctl, m & ~Dopclockgateenable);
-	wr(L3sqcreg1, L3sqcreg1default);
-	wr(Misccpctl, m);
-	wr(Gttcacheen, Gttcacheenall);
+	wr(GAM_ECOCHK, rd(GAM_ECOCHK) | HSW_ECOCHK_ARB_PRIO_SOL);
+	wr(GEN7_FF_THREAD_MODE, rd(GEN7_FF_THREAD_MODE) & ~(GEN8_FF_DS_REF_CNT_FFME | GEN7_FF_VS_REF_CNT_FFME));
+	wr(RING_PSMI_CTL(RENDER_RING_BASE), masked(GEN8_RC_SEMA_IDLE_MSG_DISABLE, 1));
+	wr(GEN8_UCGCTL6, rd(GEN8_UCGCTL6) | GEN8_SDEUNIT_CLOCK_GATE_DISABLE);
+	m = rd(GEN7_MISCCPCTL);
+	wr(GEN7_MISCCPCTL, m & ~GEN7_DOP_CLOCK_GATE_ENABLE);
+	wr(GEN8_L3SQCREG1, (L3_GENERAL_PRIO_CREDITS(30) | L3_HIGH_PRIO_CREDITS(2)));
+	wr(GEN7_MISCCPCTL, m);
+	wr(HSW_GTT_CACHE_EN, GTT_CACHE_EN_ALL);
 }

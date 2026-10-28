@@ -20,9 +20,9 @@ auxi2c(int port, int req, uchar *buf, int size)
 	int try, r;
 
 	for(try = 0; try < 16; try++){
-		if((r = auxmsg(port, req, Ddcaddr, buf, size)) < 0)
+		if((r = auxmsg(port, req, DDC_ADDR, buf, size)) < 0)
 			return -1;
-		if((r & Replynative) == 2 || (r & Replyi2c) == 2<<2){	/* defer */
+		if((r & DP_AUX_NATIVE_REPLY_MASK) == 2 || (r & DP_AUX_I2C_REPLY_MASK) == 2<<2){	/* defer */
 			microwait(500);
 			continue;
 		}

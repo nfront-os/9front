@@ -24,14 +24,14 @@ irqinit(void)
 	mask = 0;
 	for(i = 0; i < nelem(eng); i++)
 		if(eng[i].ok)
-			mask |= (Userintr|Ctxswitchintr) << eng[i].irqshift;
-	wr(Gtisr0+8, ~0);		/* IIR */
-	wr(Gtisr0+0xC, mask);		/* IER */
-	wr(Gtisr0+4, ~mask);		/* IMR */
-	wr(Gtisr2+8, ~0);		/* PM: the RPS events */
-	wr(Gtisr2+0xC, rps.on ? Pmrpsevents : 0);
-	wr(Gtisr2+4, rps.on ? rps.pmimr : ~0);
-	wr(Masterirq, Mastercontrol);
+			mask |= (GT_RENDER_USER_INTERRUPT|GT_CONTEXT_SWITCH_INTERRUPT) << eng[i].irqshift;
+	wr(GEN8_GT_IIR(0), ~0);		/* IIR */
+	wr(GEN8_GT_IER(0), mask);		/* IER */
+	wr(GEN8_GT_IMR(0), ~mask);		/* IMR */
+	wr(GEN8_GT_IIR(2), ~0);		/* PM: the RPS events */
+	wr(GEN8_GT_IER(2), rps.on ? Pmrpsevents : 0);
+	wr(GEN8_GT_IMR(2), rps.on ? rps.pmimr : ~0);
+	wr(GEN8_MASTER_IRQ, GEN8_MASTER_IRQ_CONTROL);
 }
 
 void
@@ -46,13 +46,13 @@ irqproc(void)
 		if(irqfd >= 0){
 			if(read(irqfd, buf, sizeof buf) <= 0)
 				sysfatal("read irq: %r");
-			wr(Masterirq, 0);
-			iir = rd(Gtisr0+8);
-			wr(Gtisr0+8, iir);
-			pm = rd(Gtisr2+8);
+			wr(GEN8_MASTER_IRQ, 0);
+			iir = rd(GEN8_GT_IIR(0));
+			wr(GEN8_GT_IIR(0), iir);
+			pm = rd(GEN8_GT_IIR(2));
 			if(pm != 0)
-				wr(Gtisr2+8, pm);
-			wr(Masterirq, Mastercontrol);
+				wr(GEN8_GT_IIR(2), pm);
+			wr(GEN8_MASTER_IRQ, GEN8_MASTER_IRQ_CONTROL);
 			fprint(gctlfd, "irq ack");
 		}else
 			sleep(1);

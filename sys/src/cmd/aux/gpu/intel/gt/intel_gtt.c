@@ -37,12 +37,12 @@ ppatinit(void)
 {
 	u32int lo, hi;
 
-	lo = rd(Ppatlo);
+	lo = rd(GEN8_PRIVATE_PAT_LO);
 	lo = (lo & 0xFF) | 0x09<<8 | 0x0A<<16 | 0x00<<24;	/* 1 WC llc+ellc, 2 WT llc+ellc, 3 UC */
 	hi = 0x07<<0 | 0x17<<8 | 0x27<<16 | 0x37<<24;		/* 4-7 WB llc, age 0-3 */
-	wr(Ppatlo, lo);
-	wr(Ppathi, hi);
-	DBG(2, "ppat %#.8ux %#.8ux\n", rd(Ppathi), rd(Ppatlo));
+	wr(GEN8_PRIVATE_PAT_LO, lo);
+	wr(GEN8_PRIVATE_PAT_HI, hi);
+	DBG(2, "ppat %#.8ux %#.8ux\n", rd(GEN8_PRIVATE_PAT_HI), rd(GEN8_PRIVATE_PAT_LO));
 }
 
 /*
@@ -61,8 +61,8 @@ scratchinit(void)
 	pa = drvpa + (nelem(eng)+1)*4096;
 	memset(p, 0, 4096);
 	flushcache(p, 4096);
-	scratchpte = pa | Ptepresent | Pterw | (uncached ? Pteuncached : Ptecached);
-	scratchgtt = pa | Ptepresent | (uncached ? Pteuncached : Ptecached);
+	scratchpte = pa | GEN8_PAGE_PRESENT | GEN8_PAGE_RW | (uncached ? PPAT_UNCACHED : PPAT_CACHED);
+	scratchgtt = pa | GEN8_PAGE_PRESENT | (uncached ? PPAT_UNCACHED : PPAT_CACHED);
 	fill = scratchpte;
 	scratchfill[0] = fill;
 	for(l = 0; l < 3; l++){
@@ -71,7 +71,7 @@ scratchinit(void)
 			t[i] = fill;
 		flushcache(t, 4096);
 		scratchtab[l] = drvpa + (nelem(eng)+2+l)*4096;
-		fill = scratchtab[l] | Ptepresent | Pterw | (uncached ? Pteuncached : Pdecached);
+		fill = scratchtab[l] | GEN8_PAGE_PRESENT | GEN8_PAGE_RW | (uncached ? PPAT_UNCACHED : Pdecached);
 		scratchfill[l+1] = fill;
 	}
 }

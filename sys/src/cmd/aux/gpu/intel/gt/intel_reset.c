@@ -26,13 +26,13 @@ engreset(Engine *e)
 	Ctx *c;
 	int i, n;
 
-	wr(e->base+Rresetctl, masked(Resetrequest, 1));
-	for(i = 0; i < 20 && (rd(e->base+Rresetctl) & Resetready) == 0; i++)
+	wr(RING_RESET_CTL(e->base), masked(RESET_CTL_REQUEST_RESET, 1));
+	for(i = 0; i < 20 && (rd(RING_RESET_CTL(e->base)) & RESET_CTL_READY_TO_RESET) == 0; i++)
 		sleep(1);
-	wr(Gdrst, e->resetbit);
-	for(i = 0; i < 500 && (rd(Gdrst) & e->resetbit) != 0; i++)
+	wr(GEN6_GDRST, e->resetbit);
+	for(i = 0; i < 500 && (rd(GEN6_GDRST) & e->resetbit) != 0; i++)
 		sleep(1);
-	wr(e->base+Rresetctl, masked(Resetrequest, 0));
+	wr(RING_RESET_CTL(e->base), masked(RESET_CTL_REQUEST_RESET, 0));
 
 	n = 0;
 	if(e->running != nil)
