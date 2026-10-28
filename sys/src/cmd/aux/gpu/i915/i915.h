@@ -25,3 +25,13 @@ void	i915_fence_count(void *c, u64g *done, u64g *n, int *failed);
 char	*i915_status(void);	/* i915_freestr */
 void	i915_freestr(char *s);
 #define i915_iserr(p)	((unsigned long)(p) >= (unsigned long)-4095)
+
+/* the display (linux/kms.c, linux/ctx.c) */
+int	i915_kms_start(void);
+int	i915_outputs(char **names, int max);	/* names: i915_freestr each */
+int	i915_output_edid(char *name, unsigned char *buf, int n);
+char	*i915_output_modes(char *name);	/* i915_freestr */
+char	*i915_output_mode(char *name);
+char	*i915_plane(void);
+int	i915_scanout(void *c, int id, unsigned int w, unsigned int h, unsigned int stride);
+int	i915_map_plane(void *c, int *id, u64g *gpu, unsigned int *w, unsigned int *h, unsigned int *stride, unsigned int *bpp);

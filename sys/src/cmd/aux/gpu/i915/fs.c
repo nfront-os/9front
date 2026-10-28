@@ -2,8 +2,8 @@
  * SPDX-License-Identifier: MIT
  *
  * aux/i915: the file server, gpu(4)'s files (as aux/intelgpu serves
- * them, so that libdrm9 and Mesa need no change): status, clone and
- * the contexts' ctl, submit and fence.  The work is the Linux side's
+ * them, so that libdrm9 and Mesa need no change): status, clone, the
+ * outputs, and the contexts' ctl, submit and fence.  The work is the Linux side's
  * (linux/ctx.c); this side parses the requests and keeps the files.
  */
 #include <u.h>
@@ -20,7 +20,11 @@ enum {
 	Xctxctl,
 	Xctxsubmit,
 	Xctxfence,
+	Xoutedid,
+	Xoutmodes,
+	Xoutmode,
 	Nctx	= 256,
+	Nout	= 16,
 };
 
 typedef struct Ctx Ctx;
@@ -40,6 +44,8 @@ struct Fidaux {
 	int	query;
 };
 
+static char *outname[Nout];
+static int nout;
 static QLock ctxlock;
 static Ctx *ctxs[Nctx];
 static File *ctxdir;
@@ -199,8 +205,27 @@ fsread(Req *r)
 
 	fa = r->fid->aux;
 	switch(KIND(r->fid->file)){
+	case Xoutedid:
+		{
+			uchar buf[4096];
+			int m;
+
+			m = i915_output_edid(outname[CTXN(r->fid->file)], buf, sizeof buf);
+			readbuf(r, buf, m < 0 ? 0 : m);
+			respond(r, nil);
+			return;
+		}
+	case Xoutmodes:
+	case Xoutmode:
+		t = KIND(r->fid->file) == Xoutmodes ? i915_output_modes(outname[CTXN(r->fid->file)])
+			: i915_output_mode(outname[CTXN(r->fid->file)]);
+		s = estrdup9p(t != nil ? t : "");
+		i915_freestr(t);
+		break;
 	case Xctl:
-		s = estrdup9p("plane none\n");
+		t = i915_plane();
+		s = estrdup9p(t != nil ? t : "plane none\n");
+		i915_freestr(t);
 		break;
 	case Xstatus:
 		t = i915_status();
@@ -264,6 +289,15 @@ ctxctl(Ctx *c, char **f, int n)
 		e = i915_bo_free(c->lc, atoi(f[1]));
 		return e < 0 ? errstr9(e) : nil;
 	}
+	if(n == 2 && strcmp(f[0], "map") == 0 && strcmp(f[1], "plane") == 0){
+		uint w, h, stride, bpp;
+
+		e = i915_map_plane(c->lc, &id, &gpu, &w, &h, &stride, &bpp);
+		if(e < 0)
+			return errstr9(e);
+		setreply(c, "plane %d %#llux %ud %ud %ud %ud\n", id, gpu, stride, bpp, w, h);
+		return nil;
+	}
 	return "unknown ctl message";
 }
 
@@ -288,6 +322,16 @@ fswrite(Req *r)
 		if(n < 1){
 			respond(r, "empty ctl message");
 			return;
+		}
+		if((n == 2 || n == 5) && strcmp(f[0], "scanout") == 0){
+			/* returns when the display shows it: other requests go on */
+			srvrelease(r->srv);
+			x = i915_scanout(fa->ctx->lc, atoi(f[1]), n == 5 ? atoi(f[2]) : 0,
+				n == 5 ? atoi(f[3]) : 0, n == 5 ? atoi(f[4]) : 0);
+			srvacquire(r->srv);
+			if(x < 0)
+				e = errstr9(x);
+			break;
 		}
 		qlock(&ctxlock);
 		e = ctxctl(fa->ctx, f, n);
@@ -327,8 +371,9 @@ fswrite(Req *r)
 static void
 mktree(void)
 {
-	File *gpu, *n;
+	File *gpu, *n, *o, *d;
 	char *user;
+	int i;
 
 	user = getuser();
 	fs.tree = alloctree(user, user, DMDIR|0555, nil);
@@ -338,6 +383,14 @@ mktree(void)
 	createfile(n, "status", user, 0444, (void*)Xstatus);
 	createfile(n, "clone", user, 0666, (void*)Xclone);
 	ctxdir = createfile(n, "ctx", user, DMDIR|0555, nil);
+	nout = i915_outputs(outname, Nout);
+	o = createfile(n, "outputs", user, DMDIR|0555, nil);
+	for(i = 0; i < nout; i++){
+		d = createfile(o, outname[i], user, DMDIR|0555, nil);
+		createfile(d, "edid", user, 0444, (void*)(uintptr)(i<<8 | Xoutedid));
+		createfile(d, "modes", user, 0444, (void*)(uintptr)(i<<8 | Xoutmodes));
+		createfile(d, "mode", user, 0444, (void*)(uintptr)(i<<8 | Xoutmode));
+	}
 }
 
 /* serve gpu(4) as srvname, mounted after /dev */

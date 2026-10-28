@@ -38,6 +38,8 @@
 #include "../i915.h"
 
 struct pci_dev	*kpi_pci_gpu(const char *gdir);
+int	kms_scanout(struct file *from, u32 handle, u32 w, u32 h, u32 stride);
+int	kms_plane(struct file *to, u32 *handle, u32 *w, u32 *h, u32 *stride, u32 *bpp);
 
 enum { Nfence = 64 };
 
@@ -47,7 +49,7 @@ struct bo {
 	struct drm_i915_gem_object	*obj;
 	u64	gpu;		/* softpinned there, 0: not bound */
 	u64	size;
-	char	seg[32];
+	char	seg[32];	/* "": none (the firmware's plane: stolen memory) */
 	unsigned long	va;
 };
 
@@ -65,6 +67,8 @@ struct gctx {
 };
 
 static const struct file_operations ctx_fops = { };
+static struct bo	*newbo(struct gctx *c);
+static u64	chooseaddr(struct gctx *c, u64 size);
 static atomic_t nctx;
 
 static struct drm_device *
@@ -129,9 +133,11 @@ bofree(struct gctx *c, struct bo *b)
 	 * removing the alias segment revokes it (segment(3)): a client that
 	 * still has it attached loses the pages before i915 gets them back
 	 */
-	p9_segfree(b->seg, NULL);
-	i915_gem_object_unpin_pages(b->obj);
-	i915_gem_object_put(b->obj);
+	if (b->seg[0]) {
+		p9_segfree(b->seg, NULL);
+		i915_gem_object_unpin_pages(b->obj);
+		i915_gem_object_put(b->obj);
+	}
 	ioctl(c, DRM_IOCTL_GEM_CLOSE, &cl);
 	memset(b, 0, sizeof(*b));
 }
@@ -143,6 +149,7 @@ i915_ctx_free(void *v)
 	struct drm_device *dev = c->file->minor->dev;
 	int i;
 
+	kms_scanout(c->filp, 0, 0, 0, 0);	/* its picture off the display */
 	for (i = 0; i < Nfence; i++)
 		if (c->fence[i]) {
 			dma_fence_wait_timeout(c->fence[i], false, 5 * HZ);
@@ -170,26 +177,17 @@ i915_bo_new(void *v, u64 size, u64 *gpup, int *id, char *seg, int nseg, u64 *va,
 	struct drm_i915_gem_create cr = { .size = size };
 	struct sgt_iter it;
 	struct page **pages, *p;
-	struct bo *b, *nb;
+	struct bo *b;
 	unsigned int n, i;
 	u64 gpu = *gpup;
 	int r;
 
 	mutex_lock(&c->lock);
-	for (i = 0; i < c->nbo; i++)
-		if (!c->bo[i].used)
-			break;
-	if (i == c->nbo) {
-		nb = krealloc_array(c->bo, c->nbo + 64, sizeof(*nb), GFP_KERNEL);
-		if (!nb) {
-			r = -ENOMEM;
-			goto out;
-		}
-		memset(nb + c->nbo, 0, 64 * sizeof(*nb));
-		c->bo = nb;
-		c->nbo += 64;
+	b = newbo(c);
+	if (!b) {
+		r = -ENOMEM;
+		goto out;
 	}
-	b = &c->bo[i];
 	r = ioctl(c, DRM_IOCTL_I915_GEM_CREATE, &cr);
 	if (r)
 		goto out;
@@ -222,13 +220,8 @@ i915_bo_new(void *v, u64 size, u64 *gpup, int *id, char *seg, int nseg, u64 *va,
 		goto unpin;
 	}
 	b->used = true;
-	if (gpu == ~0ULL) {
-		/* the driver's choice: one after the other, 64 KB apart */
-		if (!c->next)
-			c->next = 1ULL << 20;
-		gpu = c->next;
-		c->next = ALIGN(gpu + b->size, 1ULL << 16);
-	}
+	if (gpu == ~0ULL)	/* the driver's choice: one after the other */
+		gpu = chooseaddr(c, b->size);
 	b->gpu = gpu;
 	*gpup = gpu;
 	*id = b - c->bo + 1;
@@ -287,6 +280,89 @@ i915_bo_free(void *v, int id)
 		bofree(c, b);	/* i915 keeps it while the GPU uses it */
 	mutex_unlock(&c->lock);
 	return r;
+}
+
+/* a free entry of the object table */
+static struct bo *
+newbo(struct gctx *c)
+{
+	struct bo *nb;
+	int i;
+
+	for (i = 0; i < c->nbo; i++)
+		if (!c->bo[i].used)
+			return &c->bo[i];
+	nb = krealloc_array(c->bo, c->nbo + 64, sizeof(*nb), GFP_KERNEL);
+	if (!nb)
+		return NULL;
+	memset(nb + c->nbo, 0, 64 * sizeof(*nb));
+	c->bo = nb;
+	c->nbo += 64;
+	return &c->bo[i];
+}
+
+static u64
+chooseaddr(struct gctx *c, u64 size)
+{
+	u64 a;
+
+	if (!c->next)
+		c->next = 1ULL << 20;
+	a = c->next;
+	c->next = ALIGN(a + size, 1ULL << 16);
+	return a;
+}
+
+int
+i915_scanout(void *v, int id, unsigned int w, unsigned int h, unsigned int stride)
+{
+	struct gctx *c = v;
+	struct bo *b;
+	u32 handle;
+
+	mutex_lock(&c->lock);
+	if (id == 0)
+		handle = 0;
+	else if ((b = findbo(c, id)) != NULL)
+		handle = b->handle;
+	else {
+		mutex_unlock(&c->lock);
+		return -ENOENT;
+	}
+	mutex_unlock(&c->lock);
+	/* returns when the display shows it: a swapchain's FIFO */
+	return kms_scanout(c->filp, handle, w, h, stride);
+}
+
+/* the firmware's plane in the context: its object, address, geometry */
+int
+i915_map_plane(void *v, int *id, u64 *gpu, unsigned int *w, unsigned int *h, unsigned int *stride, unsigned int *bpp)
+{
+	struct gctx *c = v;
+	struct bo *b;
+	u32 handle;
+	int r;
+
+	r = kms_plane(c->filp, &handle, w, h, stride, bpp);
+	if (r)
+		return r;
+	mutex_lock(&c->lock);
+	b = newbo(c);
+	if (!b) {
+		struct drm_gem_close cl = { .handle = handle };
+
+		ioctl(c, DRM_IOCTL_GEM_CLOSE, &cl);
+		mutex_unlock(&c->lock);
+		return -ENOMEM;
+	}
+	b->used = true;
+	b->handle = handle;
+	b->size = ALIGN((u64)*stride * *h, PAGE_SIZE);
+	b->gpu = chooseaddr(c, b->size);
+	*id = b - c->bo + 1;
+	*gpu = b->gpu;
+	mutex_unlock(&c->lock);
+	return 0;
 }
 
 /* gen 8's virtual addresses are 48 bits, in canonical form for i915 */

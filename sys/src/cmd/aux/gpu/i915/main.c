@@ -113,6 +113,8 @@ threadmain(int argc, char **argv)
 		sysfatal("drm: error %d", -r);
 	if((r = i915_start()) < 0)
 		sysfatal("i915: error %d", -r);
+	if(!nodisplay && (r = i915_kms_start()) < 0)
+		fprint(2, "i915: no display: error %d\n", -r);
 	fprint(2, "i915: started\n");
 	if(!noserve)
 		serve(srvname);

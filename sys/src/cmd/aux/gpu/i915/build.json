@@ -41,7 +41,8 @@
 		"Library": "libi915.a",
 		"SourceFiles": [
 			"linux/ctx.c",
-			"linux/i915.c"
+			"linux/i915.c",
+			"linux/kms.c"
 		]
 	},
 	{
