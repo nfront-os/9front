@@ -16,7 +16,15 @@ import kbuild
 
 D = os.path.normpath(os.path.join(HERE, '../../sys/src/linux'))
 V = os.path.join(D, 'vendor')
-DIRS = ['drivers/gpu/drm']
+
+def build():
+	"""what sys/src/linux/BUILD names: (dir|file, path)"""
+	out = []
+	for l in open(os.path.join(D, 'BUILD')):
+		if l.strip() and not l.startswith('#'):
+			k, p = l.split()
+			out.append((k, p))
+	return out
 
 def flags(c):
 	d = os.path.dirname(c)
@@ -66,8 +74,8 @@ def main():
 	files = [a for a in sys.argv[1:] if a != '-v']
 	if not files:
 		files = []
-		for d in DIRS:
-			files += kbuild.objects(V, d, cfg)
+		for kind, path in build():
+			files += kbuild.objects(V, path, cfg) if kind == 'dir' else [path]
 		files = [f for f in files if f not in omitted()]
 	with ThreadPoolExecutor(os.cpu_count()) as ex:
 		res = list(ex.map(compile1, files))
