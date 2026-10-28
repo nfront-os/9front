@@ -131,6 +131,8 @@ notice; they follow, each once, with the files it covers.  Our own files
 ==== include/drm/drm_module.h
 ==== include/drm/drm_pciids.h
 ==== include/drm/drm_vblank_work.h
+==== include/linux/aperture.h
+==== include/video/nomodeset.h
 /* SPDX-License-Identifier: MIT */
 
 ==== drivers/gpu/drm/display/drm_dp_mst_topology.c
@@ -6421,6 +6423,31 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ==== include/drm/ttm/ttm_range_manager.h
 /* SPDX-License-Identifier: GPL-2.0 OR MIT */
 
+==== drivers/video/hdmi.c
+==== include/linux/hdmi.h
+/*
+ * Copyright (C) 2012 Avionic Design GmbH
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sub license,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice (including the
+ * next paragraph) shall be included in all copies or substantial portions
+ * of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+ * DEALINGS IN THE SOFTWARE.
+ */
+
 ==== include/drm/amd_asic_type.h
 /*
  * Copyright 2017 Advanced Micro Devices, Inc.
@@ -7628,6 +7655,48 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  * DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
  * OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
  * USE OR OTHER DEALINGS IN THE SOFTWARE.
+ */
+
+==== include/linux/vga_switcheroo.h
+/*
+ * vga_switcheroo.h - Support for laptop with dual GPU using one set of outputs
+ *
+ * Copyright (c) 2010 Red Hat Inc.
+ * Author : Dave Airlie <airlied@redhat.com>
+ *
+ * Copyright (c) 2015 Lukas Wunner <lukas@wunner.de>
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice (including the next
+ * paragraph) shall be included in all copies or substantial portions of the
+ * Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+ * DEALINGS
+ * IN THE SOFTWARE.
+ *
+ */
+
+==== include/linux/vgaarb.h
+/* SPDX-License-Identifier: MIT */
+/*
+ * The VGA aribiter manages VGA space routing and VGA resource decode to
+ * allow multiple VGA devices to be used in a system in a safe way.
+ *
+ * (C) Copyright 2005 Benjamin Herrenschmidt <benh@kernel.crashing.org>
+ * (C) Copyright 2007 Paulo R. Zanoni <przanoni@gmail.com>
+ * (C) Copyright 2007, 2009 Tiago Vignatti <vignatti@freedesktop.org>
  */
 
 ==== include/uapi/drm/amdgpu_drm.h

@@ -15,3 +15,10 @@ drivers/dma-buf/dma-resv.c
 include/drm/**/*.h
 include/uapi/drm/*.h
 include/linux/dma-resv.h
+# kernel headers and code outside drm that are MIT-like
+include/linux/hdmi.h
+include/linux/aperture.h
+include/linux/vgaarb.h
+include/linux/vga_switcheroo.h
+include/video/nomodeset.h
+drivers/video/hdmi.c
