@@ -7,6 +7,57 @@ TARG=\
 	inteltest\
 	intelprobe\
 
+# aux/intelgpu: files named after Linux 6.6's i915 (UPSTREAM), the
+# Plan 9 parts in plan9/
+I915=\
+	i915_driver.$O\
+	i915_irq.$O\
+	i915_request.$O\
+	intel_clock_gating.$O\
+	intel_uncore.$O\
+	drm_edid.$O\
+	gt/gen8_ppgtt.$O\
+	gt/gen8_renderstate.$O\
+	gt/intel_engine_cs.$O\
+	gt/intel_execlists_submission.$O\
+	gt/intel_ggtt.$O\
+	gt/intel_gtt.$O\
+	gt/intel_lrc.$O\
+	gt/intel_renderstate.$O\
+	gt/intel_reset.$O\
+	gt/intel_rps.$O\
+	gt/intel_sseu.$O\
+	gt/intel_workarounds.$O\
+	gem/i915_gem_context.$O\
+	gem/i915_gem_execbuffer.$O\
+	gem/i915_gem_object.$O\
+	display/drm_dp_helper.$O\
+	display/i9xx_plane.$O\
+	display/intel_cdclk.$O\
+	display/intel_ddi_buf_trans.$O\
+	display/intel_display.$O\
+	display/intel_dp.$O\
+	display/intel_dp_aux.$O\
+	display/intel_dpll_mgr.$O\
+	display/intel_gmbus.$O\
+	plan9/fs.$O\
+	plan9/outputs.$O\
+	plan9/sys.$O\
+
 </sys/src/cmd/mkmany
 
-$O.intelgpu: display.$O
+$O.intelgpu: $I915
+
+$I915 intelgpu.$O: i915_drv.h linux.h
+
+gt/%.$O: gt/%.c
+	$CC $CFLAGS -o $target gt/$stem.c
+
+gem/%.$O: gem/%.c
+	$CC $CFLAGS -o $target gem/$stem.c
+
+display/%.$O: display/%.c
+	$CC $CFLAGS -o $target display/$stem.c
+
+plan9/%.$O: plan9/%.c
+	$CC $CFLAGS -o $target plan9/$stem.c

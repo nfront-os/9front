@@ -1,0 +1,136 @@
+/*
+ * SPDX-License-Identifier: MIT
+ *
+ * aux/intelgpu: the DP AUX channel.
+ *
+ * Follows Linux 6.6 drivers/gpu/drm/i915/display/intel_dp_aux.c (the code first from v4.4);
+ * the notices are in NOTICE.
+ */
+#include <u.h>
+#include <libc.h>
+#include <fcall.h>
+#include <thread.h>
+#include <9p.h>
+#include "../i915_drv.h"
+
+ulong
+auxctl(int port)
+{
+	return port == 0 ? 0x64010 : 0xE4110 + (port-1)*0x100;
+}
+
+/*
+ * one AUX transaction: send n bytes, receive up to nr (intel_dp_aux_ch);
+ * the bytes received or -1
+ */
+int
+auxch(int port, uchar *send, int n, uchar *recv, int nr)
+{
+	ulong ctl;
+	u32int st, sendctl, w;
+	int i, j, div, try, got;
+	vlong t;
+
+	ctl = auxctl(port);
+	for(try = 0; try < 3 && (rd(ctl) & Auxsendbusy); try++)
+		sleep(1);
+	if(try == 3)
+		return -1;
+	if(port == 0)
+		div = (cdclk + 1000) / 2000;
+	else
+		div = ((rd(Rawclkfreq) & 0x3FF) + 1) / 2;
+	sendctl = Auxsendbusy | Auxdone | Auxtimeouterr | (port == 0 ? Auxtimeout600 : 0) |
+		Auxrecverr | n<<Auxsizeshift | Auxprecharge | div;
+	st = 0;
+	for(try = 0; try < 5; try++){
+		for(i = 0; i < n; i += 4){
+			w = 0;
+			for(j = 0; j < 4; j++)
+				w |= (i+j < n ? send[i+j] : 0) << (24 - 8*j);
+			wr(ctl + 4 + i, w);
+		}
+		wr(ctl, sendctl);
+		for(t = nsec(); ((st = rd(ctl)) & Auxsendbusy) && nsec() - t < 10*1000000LL; )
+			sleep(0);
+		wr(ctl, st | Auxdone | Auxtimeouterr | Auxrecverr);
+		if(st & Auxtimeouterr)
+			continue;
+		if(st & Auxrecverr){
+			microwait(500);
+			continue;
+		}
+		if(st & Auxdone)
+			break;
+	}
+	if((st & Auxdone) == 0 || (st & (Auxtimeouterr|Auxrecverr)))
+		return -1;
+	got = st>>Auxsizeshift & 0x1F;
+	if(got > nr)
+		got = nr;
+	for(i = 0; i < got; i += 4){
+		w = rd(ctl + 4 + i);
+		for(j = 0; j < 4 && i+j < got; j++)
+			recv[i+j] = w >> (24 - 8*j);
+	}
+	return got;
+}
+
+/*
+ * an AUX message (intel_dp_aux_transfer): request, address, size bytes
+ * of data; the reply nibble, or -1; reads fill buf
+ */
+int
+auxmsg(int port, int req, int addr, uchar *buf, int size)
+{
+	uchar tx[20], rx[20];
+	int n, nt, r;
+
+	tx[0] = req<<4 | (addr>>16 & 0xF);
+	tx[1] = addr>>8;
+	tx[2] = addr;
+	tx[3] = size - 1;
+	if(req & 1){	/* reads */
+		nt = size ? 4 : 3;
+		if((n = auxch(port, tx, nt, rx, size+1)) <= 0)
+			return -1;
+		r = rx[0]>>4;
+		if(n-1 > 0 && buf != nil)
+			memmove(buf, rx+1, n-1 < size ? n-1 : size);
+		return r;
+	}
+	nt = size ? 4 + size : 3;
+	if(size)
+		memmove(tx+4, buf, size);
+	if((n = auxch(port, tx, nt, rx, 2)) <= 0)
+		return -1;
+	return rx[0]>>4;
+}
+
+/*
+ * EDID bytes from offset over AUX: the offset written, then read, 16
+ * bytes a message (drm_dp_i2c_xfer: a bare address to start each
+ * message, one without MOT to end)
+ */
+int
+auxedid(int port, int off, uchar *buf, int n)
+{
+	uchar o;
+	int i, k, r;
+
+	o = off;
+	r = -1;
+	if(auxi2c(port, Auxi2cwrite|Auxi2cmot, nil, 0) < 0 || auxi2c(port, Auxi2cwrite|Auxi2cmot, &o, 1) < 0)
+		goto End;
+	if(auxi2c(port, Auxi2cread|Auxi2cmot, nil, 0) < 0)
+		goto End;
+	for(i = 0; i < n; i += k){
+		k = n - i < 16 ? n - i : 16;
+		if(auxi2c(port, Auxi2cread|Auxi2cmot, buf+i, k) < 0)
+			goto End;
+	}
+	r = 0;
+End:
+	auxi2c(port, Auxi2cread, nil, 0);
+	return r;
+}
