@@ -20,7 +20,7 @@ DIRS = ['drivers/gpu/drm']
 
 def flags(c):
 	d = os.path.dirname(c)
-	inc = ['replace/include', 'kpi/include', 'kpi/arch/x86/include', 'vendor/include', 'vendor/include/uapi']
+	inc = ['replace/include', 'kpi/include', 'kpi/arch/x86/include', 'vendor/include', 'vendor/include/uapi', 'vendor']
 	f = ['-std=gnu11', '-nostdinc', '-fsyntax-only', '-D__KERNEL__', '-DKBUILD_MODNAME="%s"' % os.path.basename(c)[:-2],
 		'-include', os.path.join(D, 'kpi/include/linux/kconfig.h'),
 		'-include', os.path.join(D, 'kpi/include/linux/compiler_types.h'),

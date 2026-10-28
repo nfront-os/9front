@@ -22,3 +22,4 @@ include/linux/vgaarb.h
 include/linux/vga_switcheroo.h
 include/video/nomodeset.h
 drivers/video/hdmi.c
+include/linux/overflow.h
