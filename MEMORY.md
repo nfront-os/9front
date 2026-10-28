@@ -1029,3 +1029,8 @@ Vorher war eine Bibliothek **ein** gcc-Aufruf mit allen Dateien (gcc übersetzt 
 - 9front-libc hat kein strlcpy/strlcat (port/strlcat.c nicht im mkfile): in kpi/linux/lib.c.
 - libthread exportiert `yield`: Linux' yield() heißt in der KPI kpi_yield.
 - #G-ctl `wbinvd`: wbinvd auf jeder CPU (procwired), für wbinvd_on_all_cpus.
+- 9front teilt per RFMEM nur die Segmente, die beim Fork da sind: später angehängte (#g, BARs)
+  hängt kpi/plan9 p9_fault beim Fault im jeweiligen Proc an (Note-Handler, NCONT).
+- segment(3): Alias-Segmente ("va … alias", "page IDX SRC OFF…"), Tabelle 1024 statt 100 (SEG
+  hatte nur 6 Bit); devgpu: OpRegion als "mem"-Segment (ASLS, nicht vorzeichenerweitert).
+- mkiso: ramfs -u (das Image überschritt 800 MB); check-install kennt aux/i915 (-r löschte es).
