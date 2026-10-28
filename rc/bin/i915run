@@ -5,8 +5,9 @@
 #	i915run [-a] [aux/i915 flags]
 # without -a the display stays 9front's (i915.disable_display); with
 # -a i915 takes the outputs too (the screen may go dark: read the log).
-# The driver gets 60 seconds, then its procs, their call chains and
-# state go in the log; a trap in the driver puts its chain there too.
+# The driver gets until it has started (at most 60 seconds) and 5 more,
+# then its procs, their call chains and state go in the log; a trap in
+# the driver puts its chain there too.
 rfork e
 if(ps | grep -s ' i915$'){
 	echo i915run: aux/i915 runs already: reboot for another run
@@ -36,8 +37,15 @@ echo '## aux/i915 -T (the KPI on this machine)' >>$log
 aux/i915 -T >>$log >[2=1]
 echo '## aux/i915' $flags $* >>$log
 aux/i915 $flags $* >>$log >[2=1] &
-sleep 60
-echo '## after 60 s: procs' >>$log
+# until it has started (or is gone), at most 60 s; then 5 s more
+for(i in `{seq 60}){
+	if(grep -s '^i915: started' $log || ! ps | grep -s ' i915$')
+		i=done
+	if(! ~ $i done)
+		sleep 1
+}
+sleep 5
+echo '## then: procs' >>$log
 ps | grep i915 >>$log
 # still there: each proc's state and call chain (addresses: addr2line
 # -e amd64/bin/aux/i915 on the build machine)
