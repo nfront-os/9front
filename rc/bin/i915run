@@ -45,6 +45,14 @@ for(i in `{seq 60}){
 		sleep 1
 }
 sleep 5
+# the driver through gpu(4): contexts, objects, batches, fences
+if(test -e /dev/gpu/0/clone){
+	echo '## /dev/gpu/0/status' >>$log
+	cat /dev/gpu/0/status >>$log >[2=1]
+	echo '## aux/inteltest' >>$log
+	aux/inteltest >>$log >[2=1]
+	echo '## status' $status >>$log
+}
 echo '## then: procs' >>$log
 ps | grep i915 >>$log
 # still there: each proc's state and call chain (addresses: addr2line

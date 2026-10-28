@@ -40,6 +40,7 @@
 		"Install": "/$ARCH/lib.gcc/",
 		"Library": "libi915.a",
 		"SourceFiles": [
+			"linux/ctx.c",
 			"linux/i915.c"
 		]
 	},
@@ -64,12 +65,14 @@
 			"/$ARCH/lib.gcc/libkpi9.a",
 			"/$ARCH/lib.gcc/lib9p.a",
 			"/$ARCH/lib.gcc/libthread.a",
+			"/$ARCH/lib.gcc/libauth.a",
 			"/$ARCH/lib.gcc/libc.a",
 			"/$ARCH/lib.gcc/libgcc.a",
 			"--end-group"
 		],
 		"Program": "i915",
 		"SourceFiles": [
+			"fs.c",
 			"main.c"
 		]
 	},

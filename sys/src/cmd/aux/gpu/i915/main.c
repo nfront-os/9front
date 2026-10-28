@@ -13,6 +13,8 @@
 #include <kpi/linux.h>
 #include "i915.h"
 
+void	serve(char *srvname);
+
 /*
  * a trap in any proc (they inherit the handler): the note, the pc and
  * the call chain by frame pointers to standard error, that is into the
@@ -45,7 +47,7 @@ trapnote(void *v, char *note)
 static void
 usage(void)
 {
-	fprint(2, "usage: %s [-DTv] [-d drmdebug] [-g #G/n]\n", argv0);
+	fprint(2, "usage: %s [-DTnv] [-d drmdebug] [-g #G/n] [-s srvname]\n", argv0);
 	threadexitsall("usage");
 }
 
@@ -53,12 +55,15 @@ void
 threadmain(int argc, char **argv)
 {
 	char *gdir;
-	int r, nodisplay, loglevel, selftest;
+	int r, nodisplay, loglevel, selftest, noserve;
+	char *srvname;
 	ulong drmdebug;
 
 	gdir = "#G/0";
 	nodisplay = 0;
 	selftest = 0;
+	noserve = 0;
+	srvname = "gpu.0";
 	drmdebug = 0;
 	loglevel = 6;	/* KERN_INFO */
 	ARGBEGIN{
@@ -70,6 +75,12 @@ threadmain(int argc, char **argv)
 		break;
 	case 'T':
 		selftest = 1;
+		break;
+	case 'n':
+		noserve = 1;
+		break;
+	case 's':
+		srvname = EARGF(usage());
 		break;
 	case 'v':
 		loglevel = 7;	/* KERN_DEBUG */
@@ -95,6 +106,8 @@ threadmain(int argc, char **argv)
 	if((r = i915_start()) < 0)
 		sysfatal("i915: error %d", -r);
 	fprint(2, "i915: started\n");
+	if(!noserve)
+		serve(srvname);
 	/* the driver's procs (workqueues, irq, timers) go on */
 	threadexits(nil);
 }

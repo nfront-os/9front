@@ -110,7 +110,7 @@ def libs():
 		out.append(o)
 	return out
 
-P9LIBS = ['lib9p.a', 'libthread.a', 'libc.a']
+P9LIBS = ['lib9p.a', 'libthread.a', 'libauth.a', 'libc.a']
 
 def i915():
 	base = os.path.join(TREE, 'sys/src/cmd/aux/gpu/i915')
