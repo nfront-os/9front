@@ -1,0 +1,76 @@
+[
+	{
+		"Name": "aux-i915-linux",
+		"Noinc": true,
+		"Cflags": [
+			"-std=gnu11",
+			"-O2",
+			"-g",
+			"-fno-strict-aliasing",
+			"-fno-strict-overflow",
+			"-fno-delete-null-pointer-checks",
+			"-fno-common",
+			"-fno-pie",
+			"-fno-stack-protector",
+			"-fno-omit-frame-pointer",
+			"-mcmodel=small",
+			"-fshort-wchar",
+			"-funsigned-char",
+			"-Wno-unused",
+			"-Wno-pointer-sign",
+			"-Wno-address-of-packed-member",
+			"-Wno-format-truncation",
+			"-nostdinc",
+			"-D__KERNEL__",
+			"-DKBUILD_MODNAME=\"i915\"",
+			"-include",
+			"../../../../linux/kpi/include/linux/kconfig.h",
+			"-include",
+			"../../../../linux/kpi/include/linux/compiler_types.h",
+			"-I../../../../linux/replace/include",
+			"-I../../../../linux/kpi/include",
+			"-I../../../../linux/vendor/include",
+			"-I../../../../linux/vendor/include/uapi",
+			"-I../../../../linux/vendor",
+			"-I../../../../linux/vendor/drivers/gpu/drm/i915",
+			"-I../../../../linux/replace/drivers/gpu/drm/i915",
+			"-I../../../../linux/vendor/drivers/gpu/drm/i915",
+			"-I../../../../linux/replace/drivers/gpu/drm/i915"
+		],
+		"Install": "/$ARCH/lib.gcc/",
+		"Library": "libi915.a",
+		"SourceFiles": [
+			"linux/i915.c"
+		]
+	},
+	{
+		"Name": "aux-i915",
+		"Include": [
+			"/$ARCH/cflags.json"
+		],
+		"Cflags": [
+			"-I",
+			"../../../../linux/kpi/include"
+		],
+		"Install": "/$ARCH/bin/aux/",
+		"Oflags": [
+			"--entry=_main"
+		],
+		"Libs": [
+			"--start-group",
+			"/$ARCH/lib.gcc/libi915.a",
+			"/$ARCH/lib.gcc/liblinux.a",
+			"/$ARCH/lib.gcc/libkpi.a",
+			"/$ARCH/lib.gcc/libkpi9.a",
+			"/$ARCH/lib.gcc/lib9p.a",
+			"/$ARCH/lib.gcc/libthread.a",
+			"/$ARCH/lib.gcc/libc.a",
+			"/$ARCH/lib.gcc/libgcc.a",
+			"--end-group"
+		],
+		"Program": "i915",
+		"SourceFiles": [
+			"main.c"
+		]
+	}
+]

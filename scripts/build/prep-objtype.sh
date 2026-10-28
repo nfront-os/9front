@@ -33,6 +33,8 @@ case $objtype in
 	copy "$lib" 386/lib.gcc/libgcc.a
 	;;
 arm64)	copy "$(${TOOLPREFIX-aarch64-linux-musl-}gcc -print-libgcc-file-name)" arm64/lib.gcc/libgcc.a ;;
+# the Linux drivers (sys/src/linux) need gcc's helpers (128-bit division)
+amd64)	copy "$(gcc -print-libgcc-file-name)" amd64/lib.gcc/libgcc.a ;;
 esac
 # POSIX's names of libraries whose functions are all in libap (gcc's APE,
 # as musl): empty archives, for builds that name them (-lm -lpthread -lrt
