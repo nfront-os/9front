@@ -27,6 +27,8 @@ trapnote(void *v, char *note)
 
 	if(strncmp(note, "sys:", 4) != 0)
 		return 0;
+	if(p9_fault(note))
+		return 1;
 	u = v;
 	fprint(2, "i915 %d: %s pc %#llux sp %#llux; chain", getpid(), note, u->pc, u->sp);
 	bp = (uvlong*)u->bp;
@@ -43,7 +45,7 @@ trapnote(void *v, char *note)
 static void
 usage(void)
 {
-	fprint(2, "usage: %s [-D] [-d drmdebug] [-v] [-g #G/n]\n", argv0);
+	fprint(2, "usage: %s [-DTv] [-d drmdebug] [-g #G/n]\n", argv0);
 	threadexitsall("usage");
 }
 
@@ -51,11 +53,12 @@ void
 threadmain(int argc, char **argv)
 {
 	char *gdir;
-	int r, nodisplay, loglevel;
+	int r, nodisplay, loglevel, selftest;
 	ulong drmdebug;
 
 	gdir = "#G/0";
 	nodisplay = 0;
+	selftest = 0;
 	drmdebug = 0;
 	loglevel = 6;	/* KERN_INFO */
 	ARGBEGIN{
@@ -64,6 +67,9 @@ threadmain(int argc, char **argv)
 		break;
 	case 'd':
 		drmdebug = strtoul(EARGF(usage()), nil, 0);
+		break;
+	case 'T':
+		selftest = 1;
 		break;
 	case 'v':
 		loglevel = 7;	/* KERN_DEBUG */
@@ -80,6 +86,10 @@ threadmain(int argc, char **argv)
 	i915_options(nodisplay, drmdebug, loglevel);
 	if((r = kpi_start(gdir)) < 0)
 		sysfatal("kpi: %s: error %d", gdir, -r);
+	if(selftest){
+		r = i915_selftest();
+		threadexitsall(r < 0 ? "selftest failed" : nil);
+	}
 	if((r = kpi_drm_start()) < 0)
 		sysfatal("drm: error %d", -r);
 	if((r = i915_start()) < 0)

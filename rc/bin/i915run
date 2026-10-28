@@ -8,6 +8,10 @@
 # The driver gets 60 seconds, then its procs, their call chains and
 # state go in the log; a trap in the driver puts its chain there too.
 rfork e
+if(ps | grep -s ' i915$'){
+	echo i915run: aux/i915 runs already: reboot for another run
+	exit running
+}
 log=/tmp/i915.log
 for(d in '#σ/usb'/sdU*/esp)
 	if(~ $log /tmp/i915.log && test -r $d){
@@ -28,6 +32,8 @@ if(~ $1 -a){
 {echo '# i915run' `{date}; cat /dev/osversion; echo} >$log
 echo '## #G/0/ctl' >>$log
 cat '#G/0/ctl' >>$log
+echo '## aux/i915 -T (the KPI on this machine)' >>$log
+aux/i915 -T >>$log >[2=1]
 echo '## aux/i915' $flags $* >>$log
 aux/i915 $flags $* >>$log >[2=1] &
 sleep 60

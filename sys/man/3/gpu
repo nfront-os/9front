@@ -57,6 +57,11 @@ for an I/O bar; after
 .BI "bar " i " cached"
 also the write-back and the write-combining segment.
 .TP
+.BI mem " addr size seg
+memory of the firmware's the driver needs, outside the bars: for an
+Intel device the ACPI OpRegion (its address from the device's ASLS
+register), which holds the video BIOS tables; a write-back segment.
+.TP
 .BI fb " addr size seg
 the framebuffer, if allocated, else
 .BR "fb none" .
@@ -66,6 +71,12 @@ The memory bars are attachable segments named
 .BI gpu n bar i\f1,
 uncached; the framebuffer is
 .BI gpu n fb\f1.
+.PP
+Writing
+.B wbinvd
+to
+.B ctl
+writes back and invalidates the caches of all processors.
 .PP
 Writing
 .B ctl

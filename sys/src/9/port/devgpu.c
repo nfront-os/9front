@@ -70,6 +70,15 @@ struct Gpu
 	uchar	*fb;
 	ulong	fbsize;
 	char	fbseg[KNAMELEN];
+
+	uvlong	oppa;		/* Intel: the ACPI OpRegion (ASLS), with the VBT: page */
+	ulong	opsize;		/* and size of its segment */
+	char	opseg[KNAMELEN];
+};
+
+enum {
+	Asls	= 0xFC,		/* Intel graphics: ASL storage, the OpRegion's address */
+	Opsize	= 8*1024,	/* the OpRegion (Linux's OPREGION_SIZE) */
 };
 
 static Gpu gpus[Maxgpu];
@@ -99,6 +108,7 @@ static void
 gpusegs(Gpu *g)
 {
 	Pcidev *p;
+	uvlong pa;
 	int i;
 
 	if(g->segs)
@@ -111,6 +121,17 @@ gpusegs(Gpu *g)
 		snprint(g->barseg[i], KNAMELEN, "gpu%dbar%d", g->id, i);
 		addseg(g->barseg[i], p->mem[i].bar & ~0xFULL, p->mem[i].size,
 			SG_PHYSICAL | SG_DEVICE | SG_NOEXEC);
+	}
+	/*
+	 * Intel: the firmware's OpRegion, memory the driver reads the video
+	 * BIOS tables (VBT) and talks to ACPI through; its address is in the
+	 * device's own configuration space, nothing else is offered
+	 */
+	if(p->vid == 0x8086 && (pa = pcicfgr32(p, Asls)) != 0){
+		g->oppa = pa & ~(uvlong)(BY2PG-1);
+		g->opsize = ROUND(pa - g->oppa + Opsize, BY2PG);
+		snprint(g->opseg, KNAMELEN, "gpu%dopregion", g->id);
+		addseg(g->opseg, g->oppa, g->opsize, SG_PHYSICAL | SG_CACHED | SG_NOEXEC);
 	}
 }
 
@@ -273,6 +294,8 @@ ctlread(Gpu *g, void *a, long n, vlong off)
 			s = seprint(s, e, " %s %s", g->cachedseg[i], g->wcseg[i]);
 		s = seprint(s, e, "\n");
 	}
+	if(g->opseg[0])
+		s = seprint(s, e, "mem %#llux %lud %s\n", g->oppa, g->opsize, g->opseg);
 	if(g->fb != nil)
 		s = seprint(s, e, "fb %#llux %lud %s\n", (uvlong)PADDR(g->fb), g->fbsize, g->fbseg);
 	else
