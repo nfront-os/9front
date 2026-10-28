@@ -7,7 +7,8 @@
 # -a i915 takes the outputs too (the screen may go dark: read the log).
 # The driver gets until it has started (at most 60 seconds) and 5 more,
 # then its procs, their call chains and state go in the log; a trap in
-# the driver puts its chain there too.
+# the driver puts its chain there too.  DRM's debug output without
+# DRM_UT_CORE (a line each ioctl).
 rfork e
 if(ps | grep -s ' (i915|intelgpu)$'){
 	echo i915run: a GPU driver runs already (aux/i915 or aux/intelgpu): reboot first
@@ -25,18 +26,26 @@ for(d in '#σ/usb'/sdU*/esp)
 	}
 if(~ $log /tmp/i915.log)
 	echo i915run: no USB stick with an ESP: the log is $log
-flags=(-D -v -d 0x1ff)
+flags=(-D -v -d 0x1fe)
 if(~ $1 -a){
-	flags=(-v -d 0x1ff)
+	flags=(-v -d 0x1fe)
 	shift
 }
 {echo '# i915run' `{date}; cat /dev/osversion; echo} >$log
-echo '## #G/0/ctl' >>$log
-cat '#G/0/ctl' >>$log
-echo '## aux/i915 -T (the KPI on this machine)' >>$log
-aux/i915 -T >>$log >[2=1]
-echo '## aux/i915' $flags $* >>$log
-aux/i915 $flags $* >>$log >[2=1] &
+# one writer of the log: the driver, the tests and this script write
+# into a pipe, cat appends to the file (two writers of a FAT file
+# overwrite each other); the sleep holds the pipe open meanwhile
+bind '#|' /mnt/temp || exit pipe
+out=/mnt/temp/data
+cat /mnt/temp/data1 >>$log &
+sleep 100000 >>$out &
+holder=$apid
+echo '## #G/0/ctl' >>$out
+cat '#G/0/ctl' >>$out
+echo '## aux/i915 -T (the KPI on this machine)' >>$out
+aux/i915 -T >>$out >[2=1]
+echo '## aux/i915' $flags $* >>$out
+aux/i915 $flags $* >>$out >[2=1] &
 # until it has started (or is gone), at most 60 s; then 5 s more
 for(i in `{seq 60}){
 	if(grep -s '^i915: started' $log || ! ps | grep -s ' i915$')
@@ -47,21 +56,25 @@ for(i in `{seq 60}){
 sleep 5
 # the driver through gpu(4): contexts, objects, batches, fences
 if(test -e /dev/gpu/0/clone){
-	echo '## /dev/gpu/0/status' >>$log
-	cat /dev/gpu/0/status >>$log >[2=1]
-	echo '## aux/inteltest' >>$log
-	aux/inteltest >>$log >[2=1]
-	echo '## status' $status >>$log
+	echo '## /dev/gpu/0/status' >>$out
+	cat /dev/gpu/0/status >>$out >[2=1]
+	echo '## aux/inteltest' >>$out
+	aux/inteltest >>$out >[2=1]
+	echo '## status' $status >>$out
 }
-echo '## then: procs' >>$log
-ps | grep i915 >>$log
+echo '## then: procs' >>$out
+ps | grep i915 >>$out
 # still there: each proc's state and call chain (addresses: addr2line
 # -e amd64/bin/aux/i915 on the build machine)
 for(p in `{ps | awk '$7 == "i915" {print $2}'}){
-	echo '## proc' $p `{cat /proc/$p/status} >>$log
-	aux/i915stk $p >>$log >[2=1]
+	echo '## proc' $p `{cat /proc/$p/status} >>$out
+	aux/i915stk $p >>$out >[2=1]
 }
-echo '## #G/0/ctl' >>$log
-cat '#G/0/ctl' >>$log
-echo '## end' >>$log
+echo '## #G/0/ctl' >>$out
+cat '#G/0/ctl' >>$out
+echo '## end' >>$out
+echo kill >/proc/$holder/note
+sleep 1
+unmount /mnt/temp
+sleep 1
 cat $log | tail -40

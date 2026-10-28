@@ -69,6 +69,7 @@ struct gctx {
 static const struct file_operations ctx_fops = { };
 static struct bo	*newbo(struct gctx *c);
 static u64	chooseaddr(struct gctx *c, u64 size);
+static bool	placeok(struct gctx *c, struct bo *self, u64 gpu, u64 size);
 static atomic_t nctx;
 
 static struct drm_device *
@@ -222,6 +223,12 @@ i915_bo_new(void *v, u64 size, u64 *gpup, int *id, char *seg, int nseg, u64 *va,
 	b->used = true;
 	if (gpu == ~0ULL)	/* the driver's choice: one after the other */
 		gpu = chooseaddr(c, b->size);
+	else if (gpu && !placeok(c, b, gpu, b->size)) {
+		b->used = false;
+		p9_segfree(b->seg, NULL);
+		r = -EADDRINUSE;
+		goto unpin;
+	}
 	b->gpu = gpu;
 	*gpup = gpu;
 	*id = b - c->bo + 1;
@@ -257,8 +264,8 @@ i915_bo_bind(void *v, int id, u64 gpu)
 	b = findbo(c, id);
 	if (!b)
 		r = -ENOENT;
-	else if (gpu & (PAGE_SIZE - 1))
-		r = -EINVAL;
+	else if (gpu && !placeok(c, b, gpu, b->size))
+		r = -EADDRINUSE;
 	else
 		b->gpu = gpu;
 	mutex_unlock(&c->lock);
@@ -280,6 +287,38 @@ i915_bo_free(void *v, int id)
 		bofree(c, b);	/* i915 keeps it while the GPU uses it */
 	mutex_unlock(&c->lock);
 	return r;
+}
+
+/* i915's GETPARAM, as the context's file asks it */
+int
+i915_getparam(void *v, int param, int *value)
+{
+	struct gctx *c = v;
+	struct drm_i915_getparam g = { .param = param, .value = value };
+
+	return ioctl(c, DRM_IOCTL_I915_GETPARAM, &g);
+}
+
+/*
+ * a place for an object of size at gpu in the context's address space:
+ * inside its 48 bits and apart from the other bound objects (but self)
+ */
+static bool
+placeok(struct gctx *c, struct bo *self, u64 gpu, u64 size)
+{
+	int i;
+
+	if (gpu & (PAGE_SIZE - 1) || gpu + size > (1ULL << 48) || gpu + size < gpu)
+		return false;
+	for (i = 0; i < c->nbo; i++) {
+		struct bo *b = &c->bo[i];
+
+		if (!b->used || b == self || !b->gpu)
+			continue;
+		if (gpu < b->gpu + b->size && b->gpu < gpu + size)
+			return false;
+	}
+	return true;
 }
 
 /* a free entry of the object table */

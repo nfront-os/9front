@@ -35,3 +35,4 @@ char	*i915_output_mode(char *name);
 char	*i915_plane(void);
 int	i915_scanout(void *c, int id, unsigned int w, unsigned int h, unsigned int stride);
 int	i915_map_plane(void *c, int *id, u64g *gpu, unsigned int *w, unsigned int *h, unsigned int *stride, unsigned int *bpp);
+int	i915_getparam(void *c, int param, int *value);	/* i915's GETPARAM */

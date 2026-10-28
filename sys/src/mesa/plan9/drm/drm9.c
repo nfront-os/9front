@@ -688,11 +688,41 @@ syncwait(Dev *d, uint32_t *h, uint64_t *pts, unsigned n, int64_t timeout, unsign
 /*
  * the i915 ioctls
  */
+/*
+ * facts of the hardware the driver knows (aux/i915: i915's own
+ * GETPARAM); what this library can do over gpu(4) stays its own
+ */
+static int
+driverparam(Dev *d, int param, int *v)
+{
+	char reply[64];
+
+	switch(param){
+	case I915_PARAM_CHIPSET_ID:
+	case I915_PARAM_REVISION:
+	case I915_PARAM_CS_TIMESTAMP_FREQUENCY:
+	case I915_PARAM_SLICE_MASK:
+	case I915_PARAM_SUBSLICE_MASK:
+	case I915_PARAM_EU_TOTAL:
+	case I915_PARAM_HAS_LLC:
+		break;
+	default:
+		return -1;
+	}
+	if(ctl(d, reply, sizeof reply, "getparam %d", param) < 0)
+		return -1;	/* aux/intelgpu: no getparam */
+	return sscanf(reply, "getparam %*d %d", v) == 1 ? 0 : -1;
+}
+
 static int
 getparam(Dev *d, struct drm_i915_getparam *p)
 {
 	int v;
 
+	if(driverparam(d, p->param, &v) == 0){
+		*p->value = v;
+		return 0;
+	}
 	switch(p->param){
 	case I915_PARAM_CHIPSET_ID:		v = d->gpu->device; break;
 	case I915_PARAM_REVISION:		v = d->gpu->revision; break;

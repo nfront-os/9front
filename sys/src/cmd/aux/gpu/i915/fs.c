@@ -66,6 +66,7 @@ errstr9(int e)
 	case 16:	return "too many fences outstanding";
 	case 19:	return "no device";
 	case 22:	return "bad request";
+	case 98:	return "GPU address in use or out of range";
 	}
 	snprint(buf, sizeof buf, "error %d", -e);
 	return buf;
@@ -288,6 +289,15 @@ ctxctl(Ctx *c, char **f, int n)
 	if(n == 2 && strcmp(f[0], "free") == 0){
 		e = i915_bo_free(c->lc, atoi(f[1]));
 		return e < 0 ? errstr9(e) : nil;
+	}
+	if(n == 2 && strcmp(f[0], "getparam") == 0){
+		int v;
+
+		e = i915_getparam(c->lc, atoi(f[1]), &v);
+		if(e < 0)
+			return errstr9(e);
+		setreply(c, "getparam %d %d\n", atoi(f[1]), v);
+		return nil;
 	}
 	if(n == 2 && strcmp(f[0], "map") == 0 && strcmp(f[1], "plane") == 0){
 		uint w, h, stride, bpp;
