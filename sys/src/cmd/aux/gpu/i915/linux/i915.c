@@ -6,9 +6,20 @@
 #include <linux/kernel.h>
 #include <drm/drm_device.h>
 #include <drm/drm_connector.h>
+#include <drm/drm_print.h>
+#include "i915_params.h"
 #include "../i915.h"
 
 int	kpi_init_i915_init(void);
+extern int kpi_loglevel;
+
+void
+i915_options(int nodisplay, unsigned long drmdebug, int loglevel)
+{
+	i915_modparams.disable_display = nodisplay;
+	__drm_debug = drmdebug;
+	kpi_loglevel = loglevel;
+}
 
 int
 i915_start(void)

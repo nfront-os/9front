@@ -1,0 +1,41 @@
+#!/bin/rc
+# i915run: Linux 6.6's i915 on the LinuxKPI (aux/i915), its output into
+# a log on the ESP (FAT) of the USB stick the system booted from, as
+# i915.log (written through: it survives a hang), as intelrun does.
+#	i915run [-a] [aux/i915 flags]
+# without -a the display stays 9front's (i915.disable_display); with
+# -a i915 takes the outputs too (the screen may go dark: read the log).
+# The driver gets 60 seconds, then its procs and state go in the log.
+rfork e
+log=/tmp/i915.log
+for(d in '#σ/usb'/sdU*/esp)
+	if(~ $log /tmp/i915.log && test -r $d){
+		dossrv -f $d i915run.esp >/dev/null >[2=1]
+		if(mount -c /srv/i915run.esp /n/esp){
+			log=/n/esp/i915.log
+			echo i915run: log on $d as i915.log
+		}
+		rm -f /srv/i915run.esp
+	}
+if(~ $log /tmp/i915.log)
+	echo i915run: no USB stick with an ESP: the log is $log
+flags=(-D -d 0x1ff)
+if(~ $1 -a){
+	flags=(-d 0x1ff)
+	shift
+}
+{echo '# i915run' `{date}; cat /dev/osversion; echo} >$log
+echo '## #G/0/ctl' >>$log
+cat '#G/0/ctl' >>$log
+echo '## aux/i915' $flags $* >>$log
+aux/i915 $flags $* >>$log >[2=1] &
+sleep 60
+echo '## after 60 s: procs' >>$log
+ps | grep i915 >>$log
+for(p in `{ps | awk '$7 == "i915" {print $2}'}){
+	echo '## proc' $p `{cat /proc/$p/status} >>$log
+}
+echo '## #G/0/ctl' >>$log
+cat '#G/0/ctl' >>$log
+echo '## end' >>$log
+cat $log | tail -40

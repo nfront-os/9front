@@ -15,7 +15,7 @@
 static void
 usage(void)
 {
-	fprint(2, "usage: %s [-g #G/n]\n", argv0);
+	fprint(2, "usage: %s [-D] [-d drmdebug] [-v] [-g #G/n]\n", argv0);
 	threadexitsall("usage");
 }
 
@@ -23,10 +23,23 @@ void
 threadmain(int argc, char **argv)
 {
 	char *gdir;
-	int r;
+	int r, nodisplay, loglevel;
+	ulong drmdebug;
 
 	gdir = "#G/0";
+	nodisplay = 0;
+	drmdebug = 0;
+	loglevel = 6;	/* KERN_INFO */
 	ARGBEGIN{
+	case 'D':
+		nodisplay = 1;
+		break;
+	case 'd':
+		drmdebug = strtoul(EARGF(usage()), nil, 0);
+		break;
+	case 'v':
+		loglevel = 7;	/* KERN_DEBUG */
+		break;
 	case 'g':
 		gdir = EARGF(usage());
 		break;
@@ -35,6 +48,7 @@ threadmain(int argc, char **argv)
 	}ARGEND
 	if(argc != 0)
 		usage();
+	i915_options(nodisplay, drmdebug, loglevel);
 	if((r = kpi_start(gdir)) < 0)
 		sysfatal("kpi: %s: error %d", gdir, -r);
 	if((r = kpi_drm_start()) < 0)

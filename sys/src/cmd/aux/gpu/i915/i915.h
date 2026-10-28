@@ -5,3 +5,5 @@
  * plain C types only, both sides include it.
  */
 int	i915_start(void);	/* i915's module_init: probes the device; 0 or -errno */
+/* before i915_start: no display (i915.disable_display), DRM's debug categories, printk's level */
+void	i915_options(int nodisplay, unsigned long drmdebug, int loglevel);
