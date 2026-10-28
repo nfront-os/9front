@@ -3,8 +3,9 @@
  *
  * aux/intelgpu: GMBUS: HDMI's DDC.
  *
- * Follows Linux 6.6 drivers/gpu/drm/i915/display/intel_gmbus.c (the code first from v4.4);
- * the notices are in NOTICE.
+ * Follows Linux 6.6's drivers/gpu/drm/i915/display/intel_gmbus.c (much
+ * of it first written after v4.4); the notices are in NOTICE, UPSTREAM
+ * says which functions correspond.
  */
 #include <u.h>
 #include <libc.h>
@@ -48,7 +49,9 @@ gmedid(int pin, int off, uchar *buf, int n)
 
 	wr(GMBUS4(i915), 0);
 	wr(GMBUS0(i915), pin);	/* 100 kHz */
-	wr(GMBUS1(i915), GMBUS_CYCLE_INDEX | off<<GMBUS_SLAVE_INDEX_SHIFT | GMBUS_CYCLE_WAIT | n<<GMBUS_BYTE_COUNT_SHIFT | DDC_ADDR<<GMBUS_SLAVE_ADDR_SHIFT | GMBUS_SLAVE_READ | GMBUS_SW_RDY);
+	wr(GMBUS1(i915), GMBUS_CYCLE_INDEX | off<<GMBUS_SLAVE_INDEX_SHIFT |
+		GMBUS_CYCLE_WAIT | n<<GMBUS_BYTE_COUNT_SHIFT |
+		DDC_ADDR<<GMBUS_SLAVE_ADDR_SHIFT | GMBUS_SLAVE_READ | GMBUS_SW_RDY);
 	for(i = 0; i < n; ){
 		if(gmbus_wait(GMBUS_HW_RDY) < 0){
 			intel_gmbus_reset();

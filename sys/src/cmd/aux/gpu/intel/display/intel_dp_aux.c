@@ -3,8 +3,9 @@
  *
  * aux/intelgpu: the DP AUX channel.
  *
- * Follows Linux 6.6 drivers/gpu/drm/i915/display/intel_dp_aux.c (the code first from v4.4);
- * the notices are in NOTICE.
+ * Follows Linux 6.6's drivers/gpu/drm/i915/display/intel_dp_aux.c
+ * (much of it first written after v4.4); the notices are in NOTICE,
+ * UPSTREAM says which functions correspond.
  */
 #include <u.h>
 #include <libc.h>
@@ -40,8 +41,11 @@ intel_dp_aux_xfer(int port, uchar *send, int n, uchar *recv, int nr)
 		div = (cdclk + 1000) / 2000;
 	else
 		div = ((rd(PCH_RAWCLK_FREQ) & 0x3FF) + 1) / 2;
-	sendctl = DP_AUX_CH_CTL_SEND_BUSY | DP_AUX_CH_CTL_DONE | DP_AUX_CH_CTL_TIME_OUT_ERROR | (port == 0 ? DP_AUX_CH_CTL_TIME_OUT_600us : 0) |
-		DP_AUX_CH_CTL_RECEIVE_ERROR | DP_AUX_CH_CTL_MESSAGE_SIZE(n) | DP_AUX_CH_CTL_PRECHARGE_2US(5) | div;
+	sendctl = DP_AUX_CH_CTL_SEND_BUSY | DP_AUX_CH_CTL_DONE |
+		DP_AUX_CH_CTL_TIME_OUT_ERROR |
+		(port == 0 ? DP_AUX_CH_CTL_TIME_OUT_600us : 0) |
+		DP_AUX_CH_CTL_RECEIVE_ERROR | DP_AUX_CH_CTL_MESSAGE_SIZE(n) |
+			DP_AUX_CH_CTL_PRECHARGE_2US(5) | div;
 	st = 0;
 	for(try = 0; try < 5; try++){
 		for(i = 0; i < n; i += 4){
@@ -53,7 +57,8 @@ intel_dp_aux_xfer(int port, uchar *send, int n, uchar *recv, int nr)
 		wr(ctl, sendctl);
 		for(t = nsec(); ((st = rd(ctl)) & DP_AUX_CH_CTL_SEND_BUSY) && nsec() - t < 10*1000000LL; )
 			sleep(0);
-		wr(ctl, st | DP_AUX_CH_CTL_DONE | DP_AUX_CH_CTL_TIME_OUT_ERROR | DP_AUX_CH_CTL_RECEIVE_ERROR);
+		wr(ctl, st | DP_AUX_CH_CTL_DONE | DP_AUX_CH_CTL_TIME_OUT_ERROR |
+			DP_AUX_CH_CTL_RECEIVE_ERROR);
 		if(st & DP_AUX_CH_CTL_TIME_OUT_ERROR)
 			continue;
 		if(st & DP_AUX_CH_CTL_RECEIVE_ERROR){

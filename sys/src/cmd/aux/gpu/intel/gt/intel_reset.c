@@ -3,8 +3,9 @@
  *
  * aux/intelgpu: engine reset.
  *
- * Follows Linux 6.6 drivers/gpu/drm/i915/gt/intel_reset.c (the code first from v4.4);
- * the notices are in NOTICE.
+ * Follows Linux 6.6's drivers/gpu/drm/i915/gt/intel_reset.c (much of
+ * it first written after v4.4); the notices are in NOTICE, UPSTREAM
+ * says which functions correspond.
  */
 #include <u.h>
 #include <libc.h>
@@ -26,13 +27,13 @@ engreset(Engine *e)
 	Ctx *c;
 	int i, n;
 
-	wr(RING_RESET_CTL(e->base), masked(RESET_CTL_REQUEST_RESET, 1));
+	wr(RING_RESET_CTL(e->base), _MASKED_BIT_ENABLE(RESET_CTL_REQUEST_RESET));
 	for(i = 0; i < 20 && (rd(RING_RESET_CTL(e->base)) & RESET_CTL_READY_TO_RESET) == 0; i++)
 		sleep(1);
 	wr(GEN6_GDRST, e->resetbit);
 	for(i = 0; i < 500 && (rd(GEN6_GDRST) & e->resetbit) != 0; i++)
 		sleep(1);
-	wr(RING_RESET_CTL(e->base), masked(RESET_CTL_REQUEST_RESET, 0));
+	wr(RING_RESET_CTL(e->base), _MASKED_BIT_DISABLE(RESET_CTL_REQUEST_RESET));
 
 	n = 0;
 	if(e->running != nil)

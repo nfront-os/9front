@@ -3,8 +3,9 @@
  *
  * aux/intelgpu: MMIO with forcewake on demand, waiting for register bits.
  *
- * Follows Linux 6.6 drivers/gpu/drm/i915/intel_uncore.c (the code first from v4.4);
- * the notices are in NOTICE.
+ * Follows Linux 6.6's drivers/gpu/drm/i915/intel_uncore.c (much of it
+ * first written after v4.4); the notices are in NOTICE, UPSTREAM says
+ * which functions correspond.
  */
 #include <u.h>
 #include <libc.h>
@@ -62,21 +63,15 @@ wr(ulong r, u32int v)
 	unlock(&fwlk);
 }
 
-u32int
-masked(u32int bits, int on)
-{
-	return bits<<16 | (on ? bits : 0);
-}
-
 /* the kernel's forcewake bit, and its ack (no sleep: under fwlk) */
 int
 forcewake(void)
 {
 	vlong t;
 
-	((volatile u32int*)mmio)[FORCEWAKE_MT/4] = masked(1, 1);
+	((volatile u32int*)mmio)[FORCEWAKE_MT/4] = _MASKED_BIT_ENABLE(FORCEWAKE_KERNEL);
 	for(t = nsec(); nsec() - t < 50*1000000LL; )
-		if(((volatile u32int*)mmio)[FORCEWAKE_ACK_HSW/4] & 1)
+		if(((volatile u32int*)mmio)[FORCEWAKE_ACK_HSW/4] & FORCEWAKE_KERNEL)
 			return 0;
 	return -1;
 }
@@ -89,7 +84,7 @@ fwproc(void)
 		sleep(Fwidle);
 		lock(&fwlk);
 		if(fwheld && !nopm && nsec() - fwlast > Fwidle*1000000LL){
-			((volatile u32int*)mmio)[FORCEWAKE_MT/4] = masked(1, 0);
+			((volatile u32int*)mmio)[FORCEWAKE_MT/4] = _MASKED_BIT_DISABLE(FORCEWAKE_KERNEL);
 			fwheld = 0;
 		}
 		unlock(&fwlk);

@@ -3,8 +3,9 @@
  *
  * aux/intelgpu: the global GTT: its free ranges, map, unmap.
  *
- * Follows Linux 6.6 drivers/gpu/drm/i915/gt/intel_ggtt.c (the code first from v4.4);
- * the notices are in NOTICE.
+ * Follows Linux 6.6's drivers/gpu/drm/i915/gt/intel_ggtt.c (much of it
+ * first written after v4.4); the notices are in NOTICE, UPSTREAM says
+ * which functions correspond.
  */
 #include <u.h>
 #include <libc.h>

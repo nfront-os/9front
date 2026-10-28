@@ -3,8 +3,9 @@
  *
  * aux/intelgpu: the logical ring context: its image, its descriptor.
  *
- * Follows Linux 6.6 drivers/gpu/drm/i915/gt/intel_lrc.c (the code first from v4.4);
- * the notices are in NOTICE.
+ * Follows Linux 6.6's drivers/gpu/drm/i915/gt/intel_lrc.c (much of it
+ * first written after v4.4); the notices are in NOTICE, UPSTREAM says
+ * which functions correspond.
  */
 #include <u.h>
 #include <libc.h>
@@ -33,7 +34,8 @@ lrc_init_regs(Ectx *ec)
 	b = e->base;
 	r[0x01] = MI_LOAD_REGISTER_IMM(e->idx == 0 ? 14 : 11) | MI_LRI_FORCE_POSTED;
 	r[0x02] = RING_CONTEXT_CONTROL(b);
-	r[0x03] = masked(CTX_CTRL_INHIBIT_SYN_CTX_SWITCH | CTX_CTRL_ENGINE_CTX_RESTORE_INHIBIT | CTX_CTRL_RS_CTX_ENABLE, 1);
+	r[0x03] = _MASKED_BIT_ENABLE(CTX_CTRL_INHIBIT_SYN_CTX_SWITCH |
+		CTX_CTRL_ENGINE_CTX_RESTORE_INHIBIT | CTX_CTRL_RS_CTX_ENABLE);
 	r[0x04] = RING_HEAD(b);	r[0x05] = 0;
 	r[0x06] = RING_TAIL(b);	r[0x07] = 0;
 	r[0x08] = RING_START(b);	r[0x09] = ec->ringgtt;
@@ -108,6 +110,7 @@ lrc_update_regs(Ectx *ec)
 uvlong
 lrc_descriptor(Ectx *ec)
 {
-	return (uvlong)(ec->lrca>>12)<<32 | ec->lrca | GEN8_CTX_VALID | GEN8_CTX_L3LLC_COHERENT | GEN8_CTX_PRIVILEGE |
+	return (uvlong)(ec->lrca>>12)<<32 | ec->lrca | GEN8_CTX_VALID |
+		GEN8_CTX_L3LLC_COHERENT | GEN8_CTX_PRIVILEGE |
 		(global || legacy32 ? (INTEL_LEGACY_32B_CONTEXT << GEN8_CTX_ADDRESSING_MODE_SHIFT) : (INTEL_LEGACY_64B_CONTEXT << GEN8_CTX_ADDRESSING_MODE_SHIFT));
 }

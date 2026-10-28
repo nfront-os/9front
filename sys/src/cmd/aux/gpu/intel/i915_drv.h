@@ -384,7 +384,6 @@ void	i915_driver_probe(void);
 void	fwon(void);
 u32int	rd(ulong r);
 void	wr(ulong r, u32int v);
-u32int	masked(u32int bits, int on);
 int	forcewake(void);
 void	fwproc(void);
 int	intel_wait_for_register(ulong r, u32int mask, u32int want, int ms);

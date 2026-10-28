@@ -3,8 +3,9 @@
  *
  * aux/intelgpu: the engines: start, init.
  *
- * Follows Linux 6.6 drivers/gpu/drm/i915/gt/intel_engine_cs.c (the code first from v4.4);
- * the notices are in NOTICE.
+ * Follows Linux 6.6's drivers/gpu/drm/i915/gt/intel_engine_cs.c (much
+ * of it first written after v4.4); the notices are in NOTICE, UPSTREAM
+ * says which functions correspond.
  */
 #include <u.h>
 #include <libc.h>
@@ -34,12 +35,13 @@ enginestart(Engine *e)
 	wr(RING_IMR(e->base), ~((GT_RENDER_USER_INTERRUPT|GT_CONTEXT_SWITCH_INTERRUPT)<<e->irqshift));
 	wr(RING_HWS_PGA(e->base), e->hwsgtt);
 	rd(RING_HWS_PGA(e->base));
-	wr(RING_MODE_GEN7(e->base), masked(GFX_REPLAY_MODE, 0) | masked(GFX_RUN_LIST_ENABLE, 1));
+	wr(RING_MODE_GEN7(e->base), _MASKED_BIT_DISABLE(GFX_REPLAY_MODE) |
+		_MASKED_BIT_ENABLE(GFX_RUN_LIST_ENABLE));
 	rd(RING_MODE_GEN7(e->base));
 	if(e->idx == 0){
 		/* i915's gen8_init_render_ring */
-		wr(RING_MI_MODE(e->base), masked(ASYNC_FLIP_PERF_DISABLE, 1));
-		wr(RING_INSTPM(e->base), masked(INSTPM_FORCE_ORDERING, 1));
+		wr(RING_MI_MODE(e->base), _MASKED_BIT_ENABLE(ASYNC_FLIP_PERF_DISABLE));
+		wr(RING_INSTPM(e->base), _MASKED_BIT_ENABLE(INSTPM_FORCE_ORDERING));
 	}
 	/* after power-up or a reset the write pointer is all ones: read from entry 0 */
 	p = rd(RING_CONTEXT_STATUS_PTR(e->base)) & GEN8_CSB_PTR_MASK;

@@ -3,8 +3,9 @@
  *
  * aux/intelgpu: RC6 and RPS: the GT sleeps, its frequency follows the load.
  *
- * Follows Linux 6.6 drivers/gpu/drm/i915/gt/intel_rps.c (the code first from v4.4);
- * the notices are in NOTICE.
+ * Follows Linux 6.6's drivers/gpu/drm/i915/gt/intel_rps.c (much of it
+ * first written after v4.4); the notices are in NOTICE, UPSTREAM says
+ * which functions correspond.
  */
 #include <u.h>
 #include <libc.h>
@@ -49,7 +50,8 @@ rps_pm_mask(int val)
 
 	m = 0;
 	if(val > rps.minsoft)
-		m |= GEN6_PM_RP_DOWN_EI_EXPIRED | GEN6_PM_RP_DOWN_THRESHOLD | GEN6_PM_RP_DOWN_TIMEOUT;
+		m |= GEN6_PM_RP_DOWN_EI_EXPIRED | GEN6_PM_RP_DOWN_THRESHOLD |
+			GEN6_PM_RP_DOWN_TIMEOUT;
 	if(val < rps.maxsoft)
 		m |= GEN6_PM_RP_UP_EI_EXPIRED | GEN6_PM_RP_UP_THRESHOLD;
 	m &= Pmrpsevents;
@@ -93,7 +95,9 @@ rps_set_power(int val)
 	wr(GEN6_RP_UP_THRESHOLD, gtinterval(eiup*up/100));
 	wr(GEN6_RP_DOWN_EI, gtinterval(eidown));
 	wr(GEN6_RP_DOWN_THRESHOLD, gtinterval(eidown*down/100));
-	wr(GEN6_RP_CONTROL, (GEN6_RP_MEDIA_TURBO | GEN6_RP_MEDIA_HW_NORMAL_MODE | GEN6_RP_MEDIA_IS_GFX | GEN6_RP_ENABLE | GEN6_RP_UP_BUSY_AVG | GEN6_RP_DOWN_IDLE_AVG));
+	wr(GEN6_RP_CONTROL, (GEN6_RP_MEDIA_TURBO | GEN6_RP_MEDIA_HW_NORMAL_MODE |
+		GEN6_RP_MEDIA_IS_GFX | GEN6_RP_ENABLE | GEN6_RP_UP_BUSY_AVG |
+		GEN6_RP_DOWN_IDLE_AVG));
 	rps.power = power;
 	rps.lastadj = 0;
 }
@@ -176,7 +180,9 @@ intel_rps_enable(void)
 	wr(GEN6_RP_UP_EI, 66000);
 	wr(GEN6_RP_DOWN_EI, 350000);
 	wr(GEN6_RP_IDLE_HYSTERSIS, 10);
-	wr(GEN6_RP_CONTROL, (GEN6_RP_MEDIA_TURBO | GEN6_RP_MEDIA_HW_NORMAL_MODE | GEN6_RP_MEDIA_IS_GFX | GEN6_RP_ENABLE | GEN6_RP_UP_BUSY_AVG | GEN6_RP_DOWN_IDLE_AVG));
+	wr(GEN6_RP_CONTROL, (GEN6_RP_MEDIA_TURBO | GEN6_RP_MEDIA_HW_NORMAL_MODE |
+		GEN6_RP_MEDIA_IS_GFX | GEN6_RP_ENABLE | GEN6_RP_UP_BUSY_AVG |
+		GEN6_RP_DOWN_IDLE_AVG));
 
 	rps.power = Highpower;		/* forces the thresholds' programming */
 	rps.cur = 0;

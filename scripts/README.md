@@ -21,6 +21,7 @@ Run them after a mkfile changes (e.g. after rebasing onto `front`);
 | `genclean.py` | module: the files a manifest's Pre steps generate (its `Clean` key) |
 | `arch.py` | module and tool: objtype, O, TOOLPREFIX, kernel conf, QEMU, manifest suffix. `objtype=386 python3 scripts/gen/arch.py` |
 | `cmds-broken*.txt` | programs that do not build yet, per arch (written by `gencmds.py --probe`) |
+| `i915-regs.py` | aux/intelgpu's register excerpts: the definitions of Linux's i915 the driver uses, verbatim from a Linux tree into excerpts of their headers (`sys/src/cmd/aux/gpu/intel/UPSTREAM`, lines with `*`). `scripts/gen/i915-regs.py ~/Devel/linux-6.6` |
 
 ## build/ — steps the manifests run
 
@@ -78,6 +79,7 @@ Called by `build.exe` (Pre/Post steps); rarely run by hand.
 | `find-shortened-members.py` | member paths shorter than in 9front (`&mc->Mouse` → `&mc`) |
 | `find-added-casts.py`, `find-embedded-casts.py` | casts the port added, casts to embedded member types |
 | `cmp-lp64.sh` | 6c/6a/6l output built as -m32 vs. -m64 host programs. `scripts/check/cmp-lp64.sh 6c file.c` |
+| `i915-upstream.py` | aux/intelgpu and Linux's i915 (`UPSTREAM`): the hunks between two Linux trees that touch our functions, `-c` names still there, `-n` NOTICE's Linux part. `scripts/check/i915-upstream.py ~/Devel/linux-6.6 ~/Devel/linux-6.12` |
 
 ## fix/ — source rewriters for new upstream code
 

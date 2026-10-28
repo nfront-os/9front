@@ -3,8 +3,9 @@
  *
  * aux/intelgpu: EDID: checksum, read, detailed timings.
  *
- * Follows Linux 6.6 drivers/gpu/drm/drm_edid.c (the code first from v4.4);
- * the notices are in NOTICE.
+ * Follows Linux 6.6's drivers/gpu/drm/drm_edid.c (much of it first
+ * written after v4.4); the notices are in NOTICE, UPSTREAM says which
+ * functions correspond.
  */
 #include <u.h>
 #include <libc.h>

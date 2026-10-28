@@ -86,6 +86,7 @@
 #define   GEN6_PM_RP_DOWN_EI_EXPIRED		(1 << 1)
 #define GFX_FLSH_CNTL_GEN6			_MMIO(0x101008)
 #define FORCEWAKE_ACK_HSW			_MMIO(0x130044)
+#define   FORCEWAKE_KERNEL			BIT(0)
 #define GEN6_GT_GFX_RC6				_MMIO(0x138108)
 
 #endif

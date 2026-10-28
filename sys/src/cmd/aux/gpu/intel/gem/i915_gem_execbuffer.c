@@ -3,8 +3,9 @@
  *
  * aux/intelgpu: submit: a batch of a context's on an engine.
  *
- * Follows Linux 6.6 drivers/gpu/drm/i915/gem/i915_gem_execbuffer.c (the code first from v4.4);
- * the notices are in NOTICE.
+ * Follows Linux 6.6's drivers/gpu/drm/i915/gem/i915_gem_execbuffer.c
+ * (much of it first written after v4.4); the notices are in NOTICE,
+ * UPSTREAM says which functions correspond.
  */
 #include <u.h>
 #include <libc.h>

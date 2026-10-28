@@ -3,8 +3,10 @@
  *
  * aux/intelgpu: execlists: ELSP, the context status buffer, the rings.
  *
- * Follows Linux 6.6 drivers/gpu/drm/i915/gt/intel_execlists_submission.c (the code first from v4.4);
- * the notices are in NOTICE.
+ * Follows Linux 6.6's
+ * drivers/gpu/drm/i915/gt/intel_execlists_submission.c (much of it
+ * first written after v4.4); the notices are in NOTICE, UPSTREAM says
+ * which functions correspond.
  */
 #include <u.h>
 #include <libc.h>
@@ -94,7 +96,8 @@ process_csb(Engine *e)
 			enqueue(ec);
 	}
 	e->csbread = r;
-	wr(RING_CONTEXT_STATUS_PTR(e->base), (GEN8_CSB_PTR_MASK<<8)<<16 | (r & GEN8_CSB_PTR_MASK)<<8);
+	wr(RING_CONTEXT_STATUS_PTR(e->base), (GEN8_CSB_PTR_MASK<<8)<<16 |
+		(r & GEN8_CSB_PTR_MASK)<<8);
 	execlists_dequeue(e);
 }
 
@@ -167,7 +170,10 @@ ecsubmit(Ectx *ec, uvlong a, u32int *seq)
 		 * the GTT (i915's gen8_init_rcs_context)
 		 */
 		ecemit(ec, GFX_OP_PIPE_CONTROL(6));
-		ecemit(ec, PIPE_CONTROL_CS_STALL | PIPE_CONTROL_RENDER_TARGET_CACHE_FLUSH | PIPE_CONTROL_DC_FLUSH_ENABLE | PIPE_CONTROL_DEPTH_CACHE_FLUSH | PIPE_CONTROL_QW_WRITE | PIPE_CONTROL_GLOBAL_GTT_IVB);
+		ecemit(ec, PIPE_CONTROL_CS_STALL |
+			PIPE_CONTROL_RENDER_TARGET_CACHE_FLUSH |
+			PIPE_CONTROL_DC_FLUSH_ENABLE | PIPE_CONTROL_DEPTH_CACHE_FLUSH |
+			PIPE_CONTROL_QW_WRITE | PIPE_CONTROL_GLOBAL_GTT_IVB);
 		ecemit(ec, e->hwsgtt + Hwsscratch*4);
 		ecemit(ec, 0);
 		ecemit(ec, 0);
@@ -179,7 +185,10 @@ ecsubmit(Ectx *ec, uvlong a, u32int *seq)
 		}
 		ecemit(ec, MI_NOOP);
 		ecemit(ec, GFX_OP_PIPE_CONTROL(6));
-		ecemit(ec, PIPE_CONTROL_CS_STALL | PIPE_CONTROL_RENDER_TARGET_CACHE_FLUSH | PIPE_CONTROL_DC_FLUSH_ENABLE | PIPE_CONTROL_DEPTH_CACHE_FLUSH | PIPE_CONTROL_QW_WRITE | PIPE_CONTROL_GLOBAL_GTT_IVB);
+		ecemit(ec, PIPE_CONTROL_CS_STALL |
+			PIPE_CONTROL_RENDER_TARGET_CACHE_FLUSH |
+			PIPE_CONTROL_DC_FLUSH_ENABLE | PIPE_CONTROL_DEPTH_CACHE_FLUSH |
+			PIPE_CONTROL_QW_WRITE | PIPE_CONTROL_GLOBAL_GTT_IVB);
 		ecemit(ec, e->hwsgtt + Hwsscratch*4);
 		ecemit(ec, 0);
 		ecemit(ec, 0);
@@ -192,13 +201,15 @@ ecsubmit(Ectx *ec, uvlong a, u32int *seq)
 	if(!global && ec->serial != ec->ctx->serial){
 		if(e->idx == 0){
 			ecemit(ec, GFX_OP_PIPE_CONTROL(6));
-			ecemit(ec, PIPE_CONTROL_CS_STALL | PIPE_CONTROL_TLB_INVALIDATE | PIPE_CONTROL_QW_WRITE | PIPE_CONTROL_GLOBAL_GTT_IVB);
+			ecemit(ec, PIPE_CONTROL_CS_STALL | PIPE_CONTROL_TLB_INVALIDATE |
+				PIPE_CONTROL_QW_WRITE | PIPE_CONTROL_GLOBAL_GTT_IVB);
 			ecemit(ec, e->hwsgtt + Hwsscratch*4);
 			ecemit(ec, 0);
 			ecemit(ec, 0);
 			ecemit(ec, 0);
 		}else{
-			ecemit(ec, (MI_FLUSH_DW+1) | MI_INVALIDATE_TLB | MI_FLUSH_DW_OP_STOREDW | MI_FLUSH_DW_STORE_INDEX);
+			ecemit(ec, (MI_FLUSH_DW+1) | MI_INVALIDATE_TLB |
+				MI_FLUSH_DW_OP_STOREDW | MI_FLUSH_DW_STORE_INDEX);
 			ecemit(ec, Hwsscratch*4 | MI_FLUSH_DW_USE_GTT);
 			ecemit(ec, 0);
 			ecemit(ec, 0);
@@ -228,7 +239,10 @@ ecsubmit(Ectx *ec, uvlong a, u32int *seq)
 	ecemit(ec, a>>32);
 	if(e->idx == 0){
 		ecemit(ec, GFX_OP_PIPE_CONTROL(6));
-		ecemit(ec, PIPE_CONTROL_CS_STALL | PIPE_CONTROL_RENDER_TARGET_CACHE_FLUSH | PIPE_CONTROL_DC_FLUSH_ENABLE | PIPE_CONTROL_DEPTH_CACHE_FLUSH | PIPE_CONTROL_QW_WRITE | PIPE_CONTROL_GLOBAL_GTT_IVB);
+		ecemit(ec, PIPE_CONTROL_CS_STALL |
+			PIPE_CONTROL_RENDER_TARGET_CACHE_FLUSH |
+			PIPE_CONTROL_DC_FLUSH_ENABLE | PIPE_CONTROL_DEPTH_CACHE_FLUSH |
+			PIPE_CONTROL_QW_WRITE | PIPE_CONTROL_GLOBAL_GTT_IVB);
 		ecemit(ec, e->hwsgtt + Hwsscratch*4);
 		ecemit(ec, 0);
 		ecemit(ec, 0);

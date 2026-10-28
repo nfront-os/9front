@@ -3,8 +3,9 @@
  *
  * aux/intelgpu: a context's address space: 48-bit four-level (or 32-bit three-level) PPGTT.
  *
- * Follows Linux 6.6 drivers/gpu/drm/i915/gt/gen8_ppgtt.c (the code first from v4.4);
- * the notices are in NOTICE.
+ * Follows Linux 6.6's drivers/gpu/drm/i915/gt/gen8_ppgtt.c (much of it
+ * first written after v4.4); the notices are in NOTICE, UPSTREAM says
+ * which functions correspond.
  */
 #include <u.h>
 #include <libc.h>
@@ -88,7 +89,8 @@ ppwalk(Ctx *c, uvlong a, int level, int alloc)
 				return nil;
 			if((n = ptalloc(scratchfill[lvl-1])) < 0)
 				return nil;
-			t[i] = ptphys(n) | GEN8_PAGE_PRESENT | GEN8_PAGE_RW | (uncached ? PPAT_UNCACHED : Pdecached);
+			t[i] = ptphys(n) | GEN8_PAGE_PRESENT | GEN8_PAGE_RW |
+				(uncached ? PPAT_UNCACHED : Pdecached);
 			flushcache(&t[i], 8);
 		}
 		t = ptmem(n);

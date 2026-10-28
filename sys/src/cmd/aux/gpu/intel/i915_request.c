@@ -3,8 +3,9 @@
  *
  * aux/intelgpu: fences: a context's sequence numbers done, the hang watch.
  *
- * Follows Linux 6.6 drivers/gpu/drm/i915/i915_request.c (the code first from v4.4);
- * the notices are in NOTICE.
+ * Follows Linux 6.6's drivers/gpu/drm/i915/i915_request.c (much of it
+ * first written after v4.4); the notices are in NOTICE, UPSTREAM says
+ * which functions correspond.
  */
 #include <u.h>
 #include <libc.h>

@@ -1,0 +1,81 @@
+# aux/intelgpu and Linux's i915: which of our files follows which file
+# of Linux, and which functions correspond.
+#
+# base	linux-6.6 ffc253263a1375a65fa6c9f62a893e9767fbebfa
+#
+# Following an update of Linux (scripts/check/i915-upstream.py OLD NEW):
+# the changes between the two trees in the files below, the hunks that
+# touch the names listed; port them into our file of the same name, then
+# set the base here, scripts/gen/i915-regs.py NEW for the register
+# excerpts, scripts/check/i915-upstream.py -n NEW for NOTICE.
+#
+# A line: our file, Linux's file (from the tree's root), the functions:
+#	name		the same in both
+#	ours=linux	our function does what Linux's does
+#	-ours		ours only (Plan 9: segments, the file server, the hang watch)
+#	*		a verbatim excerpt: the names it defines (scripts/gen/i915-regs.py)
+#	+		the same, made by hand
+
+i915_driver.c	drivers/gpu/drm/i915/i915_driver.c	i915_driver_probe -cfg16
+intel_uncore.c	drivers/gpu/drm/i915/intel_uncore.c	forcewake=fw_domains_get_with_fallback fwon=intel_uncore_forcewake_get fwproc=intel_uncore_fw_release_timer
+intel_uncore.c	drivers/gpu/drm/i915/intel_uncore.h	intel_wait_for_register rd=intel_uncore_read wr=intel_uncore_write
+i915_irq.c	drivers/gpu/drm/i915/i915_irq.c	gen8_irq_postinstall irqproc=gen8_irq_handler
+i915_irq.c	drivers/gpu/drm/i915/gt/intel_gt_irq.c	irqproc=gen8_gt_irq_handler
+i915_request.c	drivers/gpu/drm/i915/i915_request.c	fencewait=i915_request_wait fencedone=i915_request_completed -reap -tickproc
+intel_clock_gating.c	drivers/gpu/drm/i915/intel_clock_gating.c	bdw_init_clock_gating gen8_set_l3sqc_credits
+drm_edid.c	drivers/gpu/drm/drm_edid.c	drm_edid_block_valid readedid=drm_get_edid dtdtiming=drm_mode_detailed -findtiming
+gt/gen8_ppgtt.c	drivers/gpu/drm/i915/gt/gen8_ppgtt.c	gen8_ppgtt_create gen8_ppgtt_cleanup gen8_ppgtt_insert gen8_ppgtt_clear ptindex=gen8_pd_index pdpval=gen8_pde_encode -ptalloc -ptfree -ptphys -ptmem -ppwalk -pptfree
+gt/gen8_ppgtt.c	drivers/gpu/drm/i915/gt/intel_ppgtt.c	ptalloc=alloc_pt ptfree=free_px
+gt/gen8_renderstate.c	drivers/gpu/drm/i915/gt/gen8_renderstate.c	gen8_null_state_relocs gen8_null_state_batch
+gt/intel_engine_cs.c	drivers/gpu/drm/i915/gt/intel_engine_cs.c	engineinit=engine_init_common
+gt/intel_engine_cs.c	drivers/gpu/drm/i915/gt/intel_execlists_submission.c	enginestart=execlists_resume enginestart=enable_execlists
+gt/intel_execlists_submission.c	drivers/gpu/drm/i915/gt/intel_execlists_submission.c	execlists_dequeue process_csb enqueue=queue_request ecsubmit=gen8_emit_bb_start ecsubmit=gen8_emit_fini_breadcrumb_rcs ecspace=intel_ring_begin -ecemit -ecdone
+gt/intel_execlists_submission.c	drivers/gpu/drm/i915/gt/gen8_engine_cs.c	ecsubmit=gen8_emit_flush_rcs ecsubmit=gen8_emit_flush_xcs ecsubmit=gen8_emit_bb_start
+gt/intel_ggtt.c	drivers/gpu/drm/i915/gt/intel_ggtt.c	gen8_ggtt_insert_entries gen8_ggtt_clear_range -holealloc -holetake -holefree -gttalloc -gttfree
+gt/intel_gtt.c	drivers/gpu/drm/i915/gt/intel_gtt.c	bdw_setup_private_ppat
+gt/intel_gtt.c	drivers/gpu/drm/i915/gt/gen8_ppgtt.c	gen8_init_scratch
+gt/intel_lrc.c	drivers/gpu/drm/i915/gt/intel_lrc.c	lrc_init_regs lrc_update_regs lrc_descriptor ecinit=lrc_init_state
+gt/intel_rc6.c	drivers/gpu/drm/i915/gt/intel_rc6.c	gen8_rc6_enable intel_rc6_enable
+gt/intel_renderstate.c	drivers/gpu/drm/i915/gt/intel_renderstate.c	intel_renderstate_init
+gt/intel_reset.c	drivers/gpu/drm/i915/gt/intel_reset.c	engreset=gen8_engine_reset_prepare engreset=gen6_hw_domain_reset
+gt/intel_rps.c	drivers/gpu/drm/i915/gt/intel_rps.c	intel_rps_enable gen6_rps_set rps_work rps_limits rps_pm_mask rps_set_power intel_rps_park -gtinterval
+gt/intel_sseu.c	drivers/gpu/drm/i915/gt/intel_sseu.c	bdw_sseu_info_init
+gt/intel_workarounds.c	drivers/gpu/drm/i915/gt/intel_workarounds.c	gen8_ctx_workarounds_init bdw_ctx_workarounds_init intel_engine_init_ctx_wa wa_add wa_masked_en wa_masked_dis wa_masked_field_set
+gem/i915_gem_context.c	drivers/gpu/drm/i915/gem/i915_gem_context.c	newctx=i915_gem_create_context freectx=context_close -ctxslot -ctxmem -ctxmemfree
+gem/i915_gem_execbuffer.c	drivers/gpu/drm/i915/gem/i915_gem_execbuffer.c	submit=i915_gem_do_execbuffer
+gem/i915_gem_object.c	drivers/gpu/drm/i915/gem/i915_gem_object.c	-findbo -bomap -bounmap -bonew -bobind -bofree
+display/drm_dp_helper.c	drivers/gpu/drm/display/drm_dp_helper.c	drm_dp_i2c_xfer
+display/i9xx_plane.c	drivers/gpu/drm/i915/display/i9xx_plane.c	scanout=i9xx_plane_update_arm -plane -mapplane -scanrestore -flipwait
+display/intel_cdclk.c	drivers/gpu/drm/i915/display/intel_cdclk.c	bdw_get_cdclk
+display/intel_ddi_buf_trans.c	drivers/gpu/drm/i915/display/intel_ddi_buf_trans.c	_bdw_trans_dp bdw_trans_dp _bdw_trans_hdmi bdw_trans_hdmi bdw_trans=bdw_get_buf_trans
+display/intel_display.c	drivers/gpu/drm/i915/display/intel_display.c	intel_setup_outputs hsw_crtc_enable hsw_crtc_disable readmode=hsw_get_pipe_config -newout
+display/intel_display.c	drivers/gpu/drm/i915/display/intel_display_device.c	bdw_display_info=bdw_display
+display/intel_dp.c	drivers/gpu/drm/i915/display/intel_dp.c	dpsink=intel_dp_get_dpcd
+display/intel_dp_aux.c	drivers/gpu/drm/i915/display/intel_dp_aux.c	ilk_aux_ctl_reg intel_dp_aux_xfer intel_dp_aux_transfer -auxedid
+display/intel_dpll_mgr.c	drivers/gpu/drm/i915/display/intel_dpll_mgr.c	hsw_wrpll_get_budget_for_freq hsw_wrpll_update_rnp hsw_ddi_calculate_wrpll -absdiff
+display/intel_gmbus.c	drivers/gpu/drm/i915/display/intel_gmbus.c	gmbus_wait intel_gmbus_reset gmedid=gmbus_index_xfer
+
+# verbatim excerpts: register macros, bits, commands, enums, made by
+# scripts/gen/i915-regs.py (the order is its priority for a name defined
+# twice); + an excerpt made by hand (structs and tables)
+i915_reg_defs.h	drivers/gpu/drm/i915/i915_reg_defs.h	*
+display/intel_display_limits.h	drivers/gpu/drm/i915/display/intel_display_limits.h	*
+display/intel_display.h	drivers/gpu/drm/i915/display/intel_display.h	*
+display/intel_display_reg_defs.h	drivers/gpu/drm/i915/display/intel_display_reg_defs.h	*
+gt/intel_engine_regs.h	drivers/gpu/drm/i915/gt/intel_engine_regs.h	*
+gt/intel_gt_regs.h	drivers/gpu/drm/i915/gt/intel_gt_regs.h	*
+i915_reg.h	drivers/gpu/drm/i915/i915_reg.h	*
+intel_mchbar_regs.h	drivers/gpu/drm/i915/intel_mchbar_regs.h	*
+gt/intel_lrc_reg.h	drivers/gpu/drm/i915/gt/intel_lrc_reg.h	*
+gt/intel_lrc.h	drivers/gpu/drm/i915/gt/intel_lrc.h	*
+gt/intel_gpu_commands.h	drivers/gpu/drm/i915/gt/intel_gpu_commands.h	*
+gt/intel_gtt.h	drivers/gpu/drm/i915/gt/intel_gtt.h	*
+display/intel_dp_aux_regs.h	drivers/gpu/drm/i915/display/intel_dp_aux_regs.h	*
+display/intel_gmbus_regs.h	drivers/gpu/drm/i915/display/intel_gmbus_regs.h	*
+drm/drm_dp.h	include/drm/display/drm_dp.h	*
+drm/drm_edid.h	include/drm/drm_edid.h	*
+gt/intel_renderstate.h	drivers/gpu/drm/i915/gt/intel_renderstate.h	+
+display/intel_ddi_buf_trans.h	drivers/gpu/drm/i915/display/intel_ddi_buf_trans.h	+
+
+# Plan 9 only: intelgpu.c (main), plan9/fs.c, plan9/outputs.c, plan9/sys.c,
+# linux.h (what the excerpts need from the kernel's headers)

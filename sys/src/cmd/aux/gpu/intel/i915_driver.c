@@ -3,8 +3,9 @@
  *
  * aux/intelgpu: the device: PCI config, MMIO, GTT, the driver's pages, bring-up.
  *
- * Follows Linux 6.6 drivers/gpu/drm/i915/i915_driver.c (the code first from v4.4);
- * the notices are in NOTICE.
+ * Follows Linux 6.6's drivers/gpu/drm/i915/i915_driver.c (much of it
+ * first written after v4.4); the notices are in NOTICE, UPSTREAM says
+ * which functions correspond.
  */
 #include <u.h>
 #include <libc.h>
@@ -112,10 +113,10 @@ i915_driver_probe(void)
 	}
 	/* a previous driver may have left an engine hung: reset both first */
 	for(i = 0; i < nelem(eng); i++){
-		wr(RING_RESET_CTL(eng[i].base), masked(RESET_CTL_REQUEST_RESET, 1));
+		wr(RING_RESET_CTL(eng[i].base), _MASKED_BIT_ENABLE(RESET_CTL_REQUEST_RESET));
 		wr(GEN6_GDRST, eng[i].resetbit);
 		sleep(10);
-		wr(RING_RESET_CTL(eng[i].base), masked(RESET_CTL_REQUEST_RESET, 0));
+		wr(RING_RESET_CTL(eng[i].base), _MASKED_BIT_DISABLE(RESET_CTL_REQUEST_RESET));
 	}
 	bdw_sseu_info_init();
 	if(!noclockgating)

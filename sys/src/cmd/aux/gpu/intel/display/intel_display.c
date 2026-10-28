@@ -3,8 +3,9 @@
  *
  * aux/intelgpu: the outputs found, the mode read back, a hsw_crtc_enable (HDMI).
  *
- * Follows Linux 6.6 drivers/gpu/drm/i915/display/intel_display.c (the code first from v4.4);
- * the notices are in NOTICE.
+ * Follows Linux 6.6's drivers/gpu/drm/i915/display/intel_display.c
+ * (much of it first written after v4.4); the notices are in NOTICE,
+ * UPSTREAM says which functions correspond.
  */
 #include <u.h>
 #include <libc.h>
@@ -238,7 +239,8 @@ hsw_crtc_enable(Output *o, Timing *t)
 
 	/* intel_ddi_enable_pipe_clock, the transcoder's function */
 	wr(TRANS_CLK_SEL(p), TRANS_CLK_SEL_PORT(o->port));
-	f = TRANS_DDI_FUNC_ENABLE | (u32int)o->port<<28 | TRANS_DDI_BPC_8 | TRANS_DDI_MODE_SELECT_DVI;
+	f = TRANS_DDI_FUNC_ENABLE | (u32int)o->port<<28 | TRANS_DDI_BPC_8 |
+		TRANS_DDI_MODE_SELECT_DVI;
 	if(t->phsync)
 		f |= TRANS_DDI_PHSYNC;
 	if(t->pvsync)
