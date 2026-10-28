@@ -32,7 +32,7 @@ def flags(c):
 	f = ['-std=gnu11', '-nostdinc', '-fsyntax-only', '-D__KERNEL__', '-DKBUILD_MODNAME="%s"' % os.path.basename(c)[:-2],
 		'-include', os.path.join(D, 'kpi/include/linux/kconfig.h'),
 		'-include', os.path.join(D, 'kpi/include/linux/compiler_types.h'),
-		'-Wno-unused', '-Wno-pointer-sign', '-fmax-errors=20']
+		'-Wno-unused', '-Wno-pointer-sign', '-fmax-errors=20', '-fno-stack-protector']
 	for i in inc:
 		f += ['-I', os.path.join(D, i)]
 	# subdir-ccflags: i915's own directory, as Kbuild has it
