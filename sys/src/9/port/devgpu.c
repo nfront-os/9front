@@ -368,6 +368,26 @@ barcached(Gpu *g, int i)
 		SG_PHYSICAL | SG_WC | SG_NOEXEC);
 }
 
+/*
+ * write back and invalidate the caches of every processor (Linux's
+ * wbinvd_on_all_cpus): the drivers need it for memory the GPU reads
+ * past the caches; x86 only (pc, pc64)
+ */
+static void
+wbinvdall(void)
+{
+	int i, w;
+
+	w = up->wired;
+	for(i = 0; i < conf.nmach; i++){
+		procwired(up, i);
+		sched();
+		wbinvd();
+	}
+	up->wired = w;
+	sched();
+}
+
 static long
 gpuwrite(Chan *c, void *a, long n, vlong)
 {
@@ -395,6 +415,8 @@ gpuwrite(Chan *c, void *a, long n, vlong)
 		barcached(g, atoi(cb->f[1]));
 	else if(cb->nf == 2 && strcmp(cb->f[0], "irq") == 0 && strcmp(cb->f[1], "ack") == 0)
 		pcicfgw16(g->pci, PciPCR, pcicfgr16(g->pci, PciPCR) & ~Intdis);
+	else if(cb->nf == 1 && strcmp(cb->f[0], "wbinvd") == 0)
+		wbinvdall();
 	else
 		error(Ebadctl);
 	qunlock(g);
