@@ -128,5 +128,6 @@ the kernel configuration in `kconfig`.
 |---|---|
 | `import.py` | a Linux tree into `vendor/`, with the licence check, `VERSION`, `REJECTED`, `NOTICE`. `scripts/linux/import.py ~/Devel/linux-6.6` |
 | `kbuild.py` | the files Linux's Makefiles build with `kconfig`; `--autoconf` makes `kpi/include/generated/autoconf.h`. `scripts/linux/kbuild.py sys/src/linux/vendor drivers/gpu/drm` |
-| `census.py` | compiles every chosen file against the layer and counts what is missing: the measure of progress. `scripts/linux/census.py [-v]` |
+| `census.py` | compiles every chosen file (without those `OMIT` names) against the layer and counts what is missing: the measure of progress. `scripts/linux/census.py [-v]` |
+| `gentrace.py` | our no-op trace point headers (Linux's are GPL) for the `trace_*` the vendor code calls, with the originals' includes. `scripts/linux/gentrace.py` |
 

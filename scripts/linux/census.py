@@ -35,6 +35,14 @@ def flags(c):
 	f += ['-I', os.path.join(D, 'replace', d)]
 	return f
 
+def omitted():
+	"""the files OMIT leaves out of the build"""
+	out = set()
+	for l in open(os.path.join(D, 'OMIT')):
+		if l.strip() and not l.startswith('#'):
+			out.add(l.split()[0])
+	return out
+
 def source(c):
 	"""our replacement of a file (replace/), else Linux's (vendor/)"""
 	r = os.path.join(D, 'replace', c)
@@ -60,6 +68,7 @@ def main():
 		files = []
 		for d in DIRS:
 			files += kbuild.objects(V, d, cfg)
+		files = [f for f in files if f not in omitted()]
 	with ThreadPoolExecutor(os.cpu_count()) as ex:
 		res = list(ex.map(compile1, files))
 	bad = [(c, e) for c, e in res if e]
