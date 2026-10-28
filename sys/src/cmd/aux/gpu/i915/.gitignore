@@ -1,0 +1,4 @@
+# build products of build.exe (objects, gcc dependency files)
+*.o
+*.d
+*.weak
