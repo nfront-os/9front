@@ -21,7 +21,7 @@ int sslices, ssubslices, seus;	/* sseu: masks of the enabled ones, EUs */
  * EU_TOTAL)
  */
 void
-sseuinit(void)
+bdw_sseu_info_init(void)
 {
 	u32int fuse2, eud[3], d0, d1, d2;
 	int s, ss, n, b;

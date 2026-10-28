@@ -34,6 +34,7 @@
 #define BLT_RING_BASE		0x22000
 #define HSW_GTT_CACHE_EN	_MMIO(0x4024)
 #define   GTT_CACHE_EN_ALL	0xF0007FFF
+#define INSTPM	        _MMIO(0x20c0)
 #define   INSTPM_FORCE_ORDERING				(1 << 7) /* GEN6+ */
 #define GT_CONTEXT_SWITCH_INTERRUPT		(1 <<  8)
 #define GT_RENDER_USER_INTERRUPT		(1 <<  0)

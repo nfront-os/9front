@@ -33,7 +33,7 @@ uvlong scratchtab[3], scratchfill[4];
  * (i915's bdw_setup_private_ppat)
  */
 void
-ppatinit(void)
+bdw_setup_private_ppat(void)
 {
 	u32int lo, hi;
 
@@ -51,7 +51,7 @@ ppatinit(void)
  * a PDP of pointers to that PD
  */
 void
-scratchinit(void)
+gen8_init_scratch(void)
 {
 	uvlong *t, pa, fill;
 	u32int *p;

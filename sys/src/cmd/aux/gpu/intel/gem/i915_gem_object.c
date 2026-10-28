@@ -40,7 +40,7 @@ bomap(Bo *b, uvlong at)
 			return "no GPU address of the client's choice with -G";
 		if((b->gtt = gttalloc(b->size)) == 0)
 			return "no GPU address space left";
-		gttmap(b->gtt, 0, b->pa, b->size);
+		gen8_ggtt_insert_entries(b->gtt, 0, b->pa, b->size);
 		return nil;
 	}
 	if(at == Anyaddr){
@@ -48,8 +48,8 @@ bomap(Bo *b, uvlong at)
 			return "no GPU address space left";
 	}else if((at & 4095) != 0 || holetake(&c->holes, at, b->size) < 0)
 		return "GPU address in use or out of range";
-	if(ppmap(c, at, 0, b->pa, b->size, uncached ? PPAT_UNCACHED : b->scanwt ? PPAT_DISPLAY_ELLC : PPAT_CACHED) < 0){
-		ppunmap(c, at, b->size);
+	if(gen8_ppgtt_insert(c, at, 0, b->pa, b->size, uncached ? PPAT_UNCACHED : b->scanwt ? PPAT_DISPLAY_ELLC : PPAT_CACHED) < 0){
+		gen8_ppgtt_clear(c, at, b->size);
 		holefree(&c->holes, at, b->size);
 		return "no page tables left";
 	}
@@ -65,11 +65,11 @@ bounmap(Bo *b)
 		return;
 	if(global){
 		if(!b->plane){
-			gttunmap(b->gtt, b->size);
+			gen8_ggtt_clear_range(b->gtt, b->size);
 			gttfree(b->gtt, b->size);
 		}
 	}else{
-		ppunmap(b->ctx, b->gtt, b->size);
+		gen8_ppgtt_clear(b->ctx, b->gtt, b->size);
 		holefree(&b->ctx->holes, b->gtt, b->size);
 	}
 	b->gtt = 0;
@@ -143,7 +143,7 @@ bofree(Bo *b)
 	if(scan.bo == b)
 		scanrestore();
 	if(b->scanbase != 0){
-		gttunmap(b->scangtt, b->size);
+		gen8_ggtt_clear_range(b->scangtt, b->size);
 		gttfree(b->scanbase, b->size + Scanalign);
 	}
 	bounmap(b);

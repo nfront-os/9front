@@ -127,7 +127,7 @@ pdpval(Ctx *c, int n)
 }
 
 int
-ppinit(Ctx *c)
+gen8_ppgtt_create(Ctx *c)
 {
 	int n;
 
@@ -138,7 +138,7 @@ ppinit(Ctx *c)
 	if(legacy32)
 		for(n = 0; n < 4; n++)
 			if(ppwalk(c, (uvlong)n<<30, 1, 1) == nil){
-				ppfree(c);
+				gen8_ppgtt_cleanup(c);
 				return -1;
 			}
 	c->holes = emalloc9p(sizeof(Hole));
@@ -150,15 +150,15 @@ ppinit(Ctx *c)
 	 * its state (STATE_BASE_ADDRESS, relocated to Rsva) is read through
 	 * the context's PPGTT
 	 */
-	if(ppmap(c, Rsva, rspa, nil, 4096, uncached ? PPAT_UNCACHED : PPAT_CACHED) < 0){
-		ppfree(c);
+	if(gen8_ppgtt_insert(c, Rsva, rspa, nil, 4096, uncached ? PPAT_UNCACHED : PPAT_CACHED) < 0){
+		gen8_ppgtt_cleanup(c);
 		return -1;
 	}
 	return 0;
 }
 
 void
-ppfree(Ctx *c)
+gen8_ppgtt_cleanup(Ctx *c)
 {
 	Hole *h;
 
@@ -176,7 +176,7 @@ ppfree(Ctx *c)
  * the pages pas[], or contiguous memory at pa if pas is nil
  */
 int
-ppmap(Ctx *c, uvlong a, uvlong pa, uvlong *pas, uvlong len, uvlong bits)
+gen8_ppgtt_insert(Ctx *c, uvlong a, uvlong pa, uvlong *pas, uvlong len, uvlong bits)
 {
 	uvlong *pte, v, end;
 
@@ -194,7 +194,7 @@ ppmap(Ctx *c, uvlong a, uvlong pa, uvlong *pas, uvlong len, uvlong bits)
 }
 
 void
-ppunmap(Ctx *c, uvlong a, uvlong len)
+gen8_ppgtt_clear(Ctx *c, uvlong a, uvlong len)
 {
 	uvlong *pte, v, end;
 

@@ -15,7 +15,7 @@
 
 /* the GT part of i915's broadwell_init_clock_gating */
 void
-gtinit(void)
+bdw_init_clock_gating(void)
 {
 	u32int m;
 

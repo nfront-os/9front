@@ -37,7 +37,7 @@ cfg16(int off)
 }
 
 void
-devinit(void)
+i915_driver_probe(void)
 {
 	char buf[1024], path[64], *s, *f[5];
 	uvlong gttsize;
@@ -77,7 +77,7 @@ devinit(void)
 	if((rd(FORCEWAKE_ACK_HSW) & 1) == 0)
 		sysfatal("forcewake: no ack (%#ux)", rd(FORCEWAKE_ACK_HSW));
 	if(!uncached)
-		ppatinit();
+		bdw_setup_private_ppat();
 
 	/*
 	 * the driver's own pages: the engines' status pages, the null
@@ -88,13 +88,14 @@ devinit(void)
 		sysfatal("#g/gpu0drv: %r");
 	if((drv = segattach(0, "gpu0drv", nil, n*4096)) == (void*)-1)
 		sysfatal("segattach gpu0drv: %r");
-	scratchinit();
+	gen8_init_scratch();
 	/* our part of the GTT to the scratch page, as i915's gen8_ggtt_clear_range */
-	gttunmap(Gttlow, nent*4096 - Gttlow);
+	gen8_ggtt_clear_range(Gttlow, nent*4096 - Gttlow);
 	if((drvgtt = gttalloc(n*4096)) == 0)
 		sysfatal("no GTT for the status pages");
-	gttmap(drvgtt, drvpa, nil, n*4096);
-	rsinit();
+	gen8_ggtt_insert_entries(drvgtt, drvpa, nil, n*4096);
+	intel_engine_init_ctx_wa(&eng[0]);
+	intel_renderstate_init();
 	/* the contexts' pages, here: the procs forked later see only what is attached now */
 	if((ctxpoolpa = fixedseg("gpu0ctx", Ctxva, Nctx*ctxslot(), 0700)) == 0)
 		sysfatal("#g/gpu0ctx: %r");
@@ -102,7 +103,7 @@ devinit(void)
 		sysfatal("segattach gpu0ctx: %r");
 	if((ctxpoolgtt = gttalloc(Nctx*ctxslot())) == 0)
 		sysfatal("no GTT for the contexts");
-	gttmap(ctxpoolgtt, ctxpoolpa, nil, Nctx*ctxslot());
+	gen8_ggtt_insert_entries(ctxpoolgtt, ctxpoolpa, nil, Nctx*ctxslot());
 	if(!global){
 		if((ptpa = fixedseg("gpu0pt", Ptva, Ptpages*4096, 0700)) == 0)
 			sysfatal("#g/gpu0pt: %r");
@@ -116,9 +117,9 @@ devinit(void)
 		sleep(10);
 		wr(RING_RESET_CTL(eng[i].base), masked(RESET_CTL_REQUEST_RESET, 0));
 	}
-	sseuinit();
+	bdw_sseu_info_init();
 	if(!noclockgating)
-		gtinit();
+		bdw_init_clock_gating();
 	for(i = 0; i < nelem(eng); i++)
 		engineinit(&eng[i]);
 
@@ -127,8 +128,10 @@ devinit(void)
 		if((irqfd = open(path, OREAD)) < 0)
 			fprint(2, "%s: no interrupts, polling: %r\n", argv0);
 	}
-	if(!nopm)
-		rpsinit();
-	irqinit();
-	dispinit();
+	if(!nopm){
+		gen8_rc6_enable();
+		intel_rps_enable();
+	}
+	gen8_irq_postinstall();
+	intel_setup_outputs();
 }

@@ -189,7 +189,7 @@ fbnew(ulong size, u32int **p, char *seg, int nseg)
 		return 0;
 	}
 	a = (a + Scanalign-1) & ~(Scanalign-1);
-	gttmap(a, 0, pa, size);
+	gen8_ggtt_insert_entries(a, 0, pa, size);
 	qunlock(&lk);
 	free(pa);
 	return a;

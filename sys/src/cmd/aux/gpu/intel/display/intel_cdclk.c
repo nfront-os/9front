@@ -17,7 +17,7 @@ int cdclk;		/* kHz */
 
 /* broadwell_get_display_clock_speed */
 int
-getcdclk(void)
+bdw_get_cdclk(void)
 {
 	u32int l;
 

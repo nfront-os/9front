@@ -1,7 +1,7 @@
 /*
  * SPDX-License-Identifier: MIT
  *
- * aux/intelgpu: the outputs found, the mode read back, a modeset (HDMI).
+ * aux/intelgpu: the outputs found, the mode read back, a hsw_crtc_enable (HDMI).
  *
  * Follows Linux 6.6 drivers/gpu/drm/i915/display/intel_display.c (the code first from v4.4);
  * the notices are in NOTICE.
@@ -97,14 +97,14 @@ newout(char *name, int port, int type)
 
 /* the outputs (intel_setup_outputs on DDI), what is connected, their EDIDs and modes */
 void
-dispinit(void)
+intel_setup_outputs(void)
 {
 	char name[16];
 	u32int straps, hpd;
 	Output *o, *d, *h;
 	int port;
 
-	cdclk = getcdclk();
+	cdclk = bdw_get_cdclk();
 	noutputs = 0;
 	if(rd(DDI_BUF_CTL(PORT_A)) & DDI_INIT_DISPLAY_DETECTED){
 		o = newout("eDP-1", 0, Oedp);
@@ -138,7 +138,7 @@ dispinit(void)
 
 /* switch off what this driver set (haswell_crtc_disable); the frame buffer stays */
 void
-modeoff(Output *o)
+hsw_crtc_disable(Output *o)
 {
 	int p;
 
@@ -148,11 +148,11 @@ modeoff(Output *o)
 	wr(DSPCNTR(p), 0);
 	wr(DSPSURF(p), 0);
 	wr(TRANSCONF(p), rd(TRANSCONF(p)) & ~TRANSCONF_ENABLE);
-	waitbits(TRANSCONF(p), TRANSCONF_STATE_ENABLE, 0, 100);
+	intel_wait_for_register(TRANSCONF(p), TRANSCONF_STATE_ENABLE, 0, 100);
 	wr(TRANS_DDI_FUNC_CTL(p), 0);
 	wr(TRANS_CLK_SEL(p), 0);
 	wr(DDI_BUF_CTL(o->port), rd(DDI_BUF_CTL(o->port)) & ~DDI_BUF_CTL_ENABLE);
-	waitbits(DDI_BUF_CTL(o->port), DDI_BUF_IS_IDLE, DDI_BUF_IS_IDLE, 10);
+	intel_wait_for_register(DDI_BUF_CTL(o->port), DDI_BUF_IS_IDLE, DDI_BUF_IS_IDLE, 10);
 	wr(PORT_CLK_SEL(o->port), PORT_CLK_SEL_NONE);	/* PORT_CLK_SEL_NONE */
 	if(o->wrpll >= 0)
 		wr(WRPLL_CTL(o->wrpll), rd(WRPLL_CTL(o->wrpll)) & ~WRPLL_PLL_ENABLE);
@@ -168,7 +168,7 @@ modeoff(Output *o)
  * encoder's pre_enable and enable)
  */
 char*
-modeset(Output *o, Timing *t)
+hsw_crtc_enable(Output *o, Timing *t)
 {
 	uvlong sskpd;
 	u32int f, wm;
@@ -177,7 +177,7 @@ modeset(Output *o, Timing *t)
 
 	if(o->type != Ohdmi)
 		return "only HDMI outputs yet";
-	modeoff(o);
+	hsw_crtc_disable(o);
 	p = Ourpipe;
 	if((rd(TRANSCONF(p)) & TRANSCONF_ENABLE) != 0)
 		return "pipe B in use";
@@ -194,7 +194,7 @@ modeset(Output *o, Timing *t)
 
 	/* the display power well (pipes B, C and their transcoders) */
 	wr(HSW_PWR_WELL_CTL2, HSW_PWR_WELL_CTL_REQ(HSW_PW_CTL_IDX_GLOBAL));
-	if(waitbits(HSW_PWR_WELL_CTL2, HSW_PWR_WELL_CTL_STATE(HSW_PW_CTL_IDX_GLOBAL), HSW_PWR_WELL_CTL_STATE(HSW_PW_CTL_IDX_GLOBAL), 20) < 0)
+	if(intel_wait_for_register(HSW_PWR_WELL_CTL2, HSW_PWR_WELL_CTL_STATE(HSW_PW_CTL_IDX_GLOBAL), HSW_PWR_WELL_CTL_STATE(HSW_PW_CTL_IDX_GLOBAL), 20) < 0)
 		return "power well does not come on";
 
 	/* a free WRPLL for the pixel clock (8 bits a colour: the port clock) */
@@ -203,7 +203,7 @@ modeset(Output *o, Timing *t)
 			break;
 	if(pll == 2)
 		return "no free WRPLL";
-	wr(WRPLL_CTL(pll), wrpllval(t->clock*1000));
+	wr(WRPLL_CTL(pll), hsw_ddi_calculate_wrpll(t->clock*1000));
 	rd(WRPLL_CTL(pll));
 	sleep(1);
 	o->wrpll = pll;
@@ -266,8 +266,8 @@ modeset(Output *o, Timing *t)
 
 	/* intel_enable_pipe */
 	wr(TRANSCONF(p), rd(TRANSCONF(p)) | TRANSCONF_ENABLE);
-	if(waitbits(TRANSCONF(p), TRANSCONF_STATE_ENABLE, TRANSCONF_STATE_ENABLE, 100) < 0){
-		modeoff(o);
+	if(intel_wait_for_register(TRANSCONF(p), TRANSCONF_STATE_ENABLE, TRANSCONF_STATE_ENABLE, 100) < 0){
+		hsw_crtc_disable(o);
 		return "pipe B does not start";
 	}
 

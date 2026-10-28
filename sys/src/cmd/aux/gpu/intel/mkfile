@@ -23,6 +23,7 @@ I915=\
 	gt/intel_ggtt.$O\
 	gt/intel_gtt.$O\
 	gt/intel_lrc.$O\
+	gt/intel_rc6.$O\
 	gt/intel_renderstate.$O\
 	gt/intel_reset.$O\
 	gt/intel_rps.$O\

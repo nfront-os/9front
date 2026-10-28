@@ -113,7 +113,7 @@ gttfree(ulong a, ulong len)
  * contiguous memory at pa if pas is nil
  */
 void
-gttmap(ulong a, uvlong pa, uvlong *pas, ulong len)
+gen8_ggtt_insert_entries(ulong a, uvlong pa, uvlong *pas, ulong len)
 {
 	uvlong i, n, bits;
 
@@ -126,7 +126,7 @@ gttmap(ulong a, uvlong pa, uvlong *pas, ulong len)
 }
 
 void
-gttunmap(ulong a, ulong len)
+gen8_ggtt_clear_range(ulong a, ulong len)
 {
 	uvlong i, n;
 

@@ -87,7 +87,7 @@ newctx(void)
 	}
 	qlock(&lk);
 	c->serial = ++serial;
-	if(!global && ppinit(c) < 0){
+	if(!global && gen8_ppgtt_create(c) < 0){
 		qunlock(&lk);
 		ctxmemfree(c);
 		free(c);
@@ -134,7 +134,7 @@ freectx(Ctx *c)
 			rsleep(&done);
 		if(eng[i].running == &c->ec[i]){
 			engreset(&eng[i]);
-			irqinit();
+			gen8_irq_postinstall();
 		}
 		if(c->ec[i].queued){
 			Ectx **l;
@@ -149,12 +149,12 @@ freectx(Ctx *c)
 	}
 	ctxs[c->id-1] = nil;
 	if(!global)
-		ppfree(c);
+		gen8_ppgtt_cleanup(c);
 	qunlock(&lk);
 	ctxmemfree(c);
 	for(i = 0; i < nelem(eng); i++){
 		qlock(&lk);
-		kick(&eng[i]);
+		execlists_dequeue(&eng[i]);
 		qunlock(&lk);
 	}
 	free(c->reply);

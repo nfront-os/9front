@@ -48,6 +48,7 @@ enum {
 	 */
 	Pdecached	= PPAT_DISPLAY_ELLC,
 
+	Nwa		= 16,		/* context workarounds (gt/intel_workarounds.c) */
 	Hwsscratch	= 0x40,		/* dword of an engine's status page the flushes may write */
 
 	Ringpages	= 4,		/* a context's ring on an engine */
@@ -315,7 +316,8 @@ extern int	sslices, ssubslices, seus;
 /* gt/intel_rps.c */
 extern Rps	rps;
 /* gt/intel_workarounds.c */
-extern Wa	rcswa[11];
+extern Wa	rcswa[];
+extern int	nrcswa;
 /* gt/intel_engine_cs.c */
 extern Engine	eng[2];
 /* gem/i915_gem_context.c */
@@ -376,7 +378,7 @@ void	microwait(int us);
 
 /* i915_driver.c */
 ulong	cfg16(int off);
-void	devinit(void);
+void	i915_driver_probe(void);
 
 /* intel_uncore.c */
 void	fwon(void);
@@ -385,10 +387,10 @@ void	wr(ulong r, u32int v);
 u32int	masked(u32int bits, int on);
 int	forcewake(void);
 void	fwproc(void);
-int	waitbits(ulong r, u32int mask, u32int want, int ms);
+int	intel_wait_for_register(ulong r, u32int mask, u32int want, int ms);
 
 /* i915_irq.c */
-void	irqinit(void);
+void	gen8_irq_postinstall(void);
 void	irqproc(void);
 
 /* i915_request.c */
@@ -398,11 +400,11 @@ void	tickproc(void);
 int	fencewait(Ctx *c, uvlong k);
 
 /* intel_clock_gating.c */
-void	gtinit(void);
+void	bdw_init_clock_gating(void);
 
 /* gt/intel_gtt.c */
-void	ppatinit(void);
-void	scratchinit(void);
+void	bdw_setup_private_ppat(void);
+void	gen8_init_scratch(void);
 
 /* gt/intel_ggtt.c */
 uvlong	holealloc(Hole **list, uvlong len);
@@ -410,8 +412,8 @@ int	holetake(Hole **list, uvlong a, uvlong len);
 void	holefree(Hole **list, uvlong a, uvlong len);
 ulong	gttalloc(ulong len);
 void	gttfree(ulong a, ulong len);
-void	gttmap(ulong a, uvlong pa, uvlong *pas, ulong len);
-void	gttunmap(ulong a, ulong len);
+void	gen8_ggtt_insert_entries(ulong a, uvlong pa, uvlong *pas, ulong len);
+void	gen8_ggtt_clear_range(ulong a, ulong len);
 
 /* gt/gen8_ppgtt.c */
 int	ptalloc(uvlong fill);
@@ -422,25 +424,28 @@ int	ptindex(uvlong pa);
 uvlong*ppwalk(Ctx *c, uvlong a, int level, int alloc);
 void	pptfree(int n, int level);
 uvlong	pdpval(Ctx *c, int n);
-int	ppinit(Ctx *c);
-void	ppfree(Ctx *c);
-int	ppmap(Ctx *c, uvlong a, uvlong pa, uvlong *pas, uvlong len, uvlong bits);
-void	ppunmap(Ctx *c, uvlong a, uvlong len);
+int	gen8_ppgtt_create(Ctx *c);
+void	gen8_ppgtt_cleanup(Ctx *c);
+int	gen8_ppgtt_insert(Ctx *c, uvlong a, uvlong pa, uvlong *pas, uvlong len, uvlong bits);
+void	gen8_ppgtt_clear(Ctx *c, uvlong a, uvlong len);
 
 /* gt/intel_engine_cs.c */
 void	enginestart(Engine *e);
 void	engineinit(Engine *e);
 
+/* gt/intel_workarounds.c */
+void	intel_engine_init_ctx_wa(Engine *engine);
+
 /* gt/intel_lrc.c */
-void	ecimage(Ectx *ec);
+void	lrc_init_regs(Ectx *ec);
 void	ecinit(Ctx *c, Ectx *ec, Engine *e, ulong off);
-void	ecupdate(Ectx *ec);
-uvlong	descriptor(Ectx *ec);
+void	lrc_update_regs(Ectx *ec);
+uvlong	lrc_descriptor(Ectx *ec);
 
 /* gt/intel_execlists_submission.c */
-void	kick(Engine *e);
+void	execlists_dequeue(Engine *e);
 void	enqueue(Ectx *ec);
-void	csb(Engine *e);
+void	process_csb(Engine *e);
 void	ecemit(Ectx *ec, u32int v);
 u32int	ecdone(Ectx *ec);
 int	ecspace(Ectx *ec, int n);
@@ -450,20 +455,23 @@ char*ecsubmit(Ectx *ec, uvlong a, u32int *seq);
 void	engreset(Engine *e);
 
 /* gt/intel_renderstate.c */
-void	rsinit(void);
+void	intel_renderstate_init(void);
 
 /* gt/intel_sseu.c */
-void	sseuinit(void);
+void	bdw_sseu_info_init(void);
+
+/* gt/intel_rc6.c */
+void	gen8_rc6_enable(void);
 
 /* gt/intel_rps.c */
 int	gtinterval(int us);
-u32int	rpslimits(int val);
-u32int	rpspmmask(int val);
-void	rpsthresholds(int val);
-void	rpsset(int val);
-void	rpswork(u32int pm);
-void	rpsidle(void);
-void	rpsinit(void);
+u32int	rps_limits(int val);
+u32int	rps_pm_mask(int val);
+void	rps_set_power(int val);
+void	gen6_rps_set(int val);
+void	rps_work(u32int pm);
+void	intel_rps_park(void);
+void	intel_rps_enable(void);
 
 /* gem/i915_gem_object.c */
 Bo*findbo(Ctx *c, int id);
@@ -493,38 +501,38 @@ void	flipwait(Req *r, ulong surf, int p);
 /* display/intel_display.c */
 void	readmode(Output *o);
 Output*newout(char *name, int port, int type);
-void	dispinit(void);
-void	modeoff(Output *o);
-char*modeset(Output *o, Timing *t);
+void	intel_setup_outputs(void);
+void	hsw_crtc_disable(Output *o);
+char*hsw_crtc_enable(Output *o, Timing *t);
 
 /* display/intel_cdclk.c */
-int	getcdclk(void);
+int	bdw_get_cdclk(void);
 
 /* display/intel_dp_aux.c */
-ulong	auxctl(int port);
-int	auxch(int port, uchar *send, int n, uchar *recv, int nr);
-int	auxmsg(int port, int req, int addr, uchar *buf, int size);
+ulong	ilk_aux_ctl_reg(int port);
+int	intel_dp_aux_xfer(int port, uchar *send, int n, uchar *recv, int nr);
+int	intel_dp_aux_transfer(int port, int req, int addr, uchar *buf, int size);
 int	auxedid(int port, int off, uchar *buf, int n);
 
 /* display/intel_dp.c */
 int	dpsink(int port);
 
 /* display/drm_dp_helper.c */
-int	auxi2c(int port, int req, uchar *buf, int size);
+int	drm_dp_i2c_xfer(int port, int req, uchar *buf, int size);
 
 /* display/intel_gmbus.c */
-int	gmwait(u32int bits);
-void	gmreset(void);
+int	gmbus_wait(u32int bits);
+void	intel_gmbus_reset(void);
 int	gmedid(int pin, int off, uchar *buf, int n);
 
 /* display/intel_dpll_mgr.c */
-uint	wrpllbudget(int clock);
+uint	hsw_wrpll_get_budget_for_freq(int clock);
 uvlong	absdiff(uvlong a, uvlong b);
-void	wrpllupdate(uvlong freq2k, uint budget, uint r2, uint n2, uint p, uint *bp, uint *bn2, uint *br2);
-u32int	wrpllval(int clock);
+void	hsw_wrpll_update_rnp(uvlong freq2k, uint budget, uint r2, uint n2, uint p, uint *bp, uint *bn2, uint *br2);
+u32int	hsw_ddi_calculate_wrpll(int clock);
 
 /* drm_edid.c */
-int	edidok(uchar *e);
+int	drm_edid_block_valid(uchar *e);
 void	readedid(Output *o);
 int	dtdtiming(uchar *d, Timing *t);
 int	findtiming(Output *o, int w, int h, int hz, Timing *t);

@@ -23,7 +23,7 @@
 
 /* the next context with work into the idle engine's ELSP; with lk */
 void
-kick(Engine *e)
+execlists_dequeue(Engine *e)
 {
 	Ectx *ec;
 	uvlong d;
@@ -33,8 +33,8 @@ kick(Engine *e)
 	e->queue = ec->next;
 	ec->next = nil;
 	ec->queued = 0;
-	ecupdate(ec);
-	d = descriptor(ec);
+	lrc_update_regs(ec);
+	d = lrc_descriptor(ec);
 	/* both elements, the second (none) first; the first's lower dword starts it */
 	wr(RING_ELSP(e->base), 0);
 	wr(RING_ELSP(e->base), 0);
@@ -66,7 +66,7 @@ enqueue(Ectx *ec)
  * the next; with work added meanwhile it queues again.  With lk.
  */
 void
-csb(Engine *e)
+process_csb(Engine *e)
 {
 	u32int st, id, w;
 	Ectx *ec;
@@ -95,7 +95,7 @@ csb(Engine *e)
 	}
 	e->csbread = r;
 	wr(RING_CONTEXT_STATUS_PTR(e->base), (GEN8_CSB_PTR_MASK<<8)<<16 | (r & GEN8_CSB_PTR_MASK)<<8);
-	kick(e);
+	execlists_dequeue(e);
 }
 
 void
@@ -157,7 +157,7 @@ ecsubmit(Ectx *ec, uvlong a, u32int *seq)
 	e = ec->e;
 	if(!e->ok)
 		return "engine not running";
-	if(ecspace(ec, 72 + 2*nelem(rcswa) + 2 + 2*6 + 3) < 0)
+	if(ecspace(ec, 72 + 2*nrcswa + 2 + 2*6 + 3) < 0)
 		return "ring full (engine hung?)";
 	t0 = ec->tail;
 	if(ec->fresh && e->idx == 0 && !norcsinit){
@@ -172,8 +172,8 @@ ecsubmit(Ectx *ec, uvlong a, u32int *seq)
 		ecemit(ec, 0);
 		ecemit(ec, 0);
 		ecemit(ec, 0);
-		ecemit(ec, MI_LOAD_REGISTER_IMM(nelem(rcswa)));
-		for(n = 0; n < nelem(rcswa); n++){
+		ecemit(ec, MI_LOAD_REGISTER_IMM(nrcswa));
+		for(n = 0; n < nrcswa; n++){
 			ecemit(ec, rcswa[n].reg);
 			ecemit(ec, rcswa[n].val);
 		}
@@ -255,6 +255,6 @@ ecsubmit(Ectx *ec, uvlong a, u32int *seq)
 		flushcache(ec->ring, ec->tail);
 	}
 	enqueue(ec);
-	kick(e);
+	execlists_dequeue(e);
 	return nil;
 }

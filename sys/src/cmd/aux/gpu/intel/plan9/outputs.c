@@ -151,7 +151,7 @@ outsetmode(Output *o, char *req)
 	if(n == 1 && strcmp(f[0], "off") == 0){
 		if(!o->ours)
 			return "not set by this driver";
-		modeoff(o);
+		hsw_crtc_disable(o);
 		return nil;
 	}
 	if(n < 1 || n > 2 || parsewxh(f[0], &w, &h) < 0)
@@ -160,5 +160,5 @@ outsetmode(Output *o, char *req)
 		return "nothing connected";
 	if(findtiming(o, w, h, n == 2 ? atoi(f[1]) : 0, &t) < 0)
 		return "no such mode among the EDID's detailed timings (up to 300 MHz)";
-	return modeset(o, &t);
+	return hsw_crtc_enable(o, &t);
 }

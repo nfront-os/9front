@@ -124,6 +124,7 @@
 			"gt/intel_ggtt.c",
 			"gt/intel_gtt.c",
 			"gt/intel_lrc.c",
+			"gt/intel_rc6.c",
 			"gt/intel_renderstate.c",
 			"gt/intel_reset.c",
 			"gt/intel_rps.c",

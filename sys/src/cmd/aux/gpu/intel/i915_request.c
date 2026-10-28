@@ -64,7 +64,7 @@ tickproc(void)
 			if(e->running == nil && e->queue == nil)
 				continue;
 			busy = 1;
-			csb(e);
+			process_csb(e);
 			if(e->running != nil && nsec() - e->since > (vlong)Timeout*1000000){
 				fprint(2, "%s: %s hung in context %d: head %#ux acthd %#ux ipehr %#ux eir %#ux execlist %#ux"
 					" pdp0 %#.8ux%.8ux (pd0 %#llux)\n",
@@ -72,14 +72,14 @@ tickproc(void)
 					rd(RING_ACTHD(e->base)), rd(RING_IPEHR(e->base)), rd(RING_EIR(e->base)), rd(RING_EXECLIST_STATUS_LO(e->base)),
 					rd(GEN8_RING_PDP_UDW(e->base, 0)), rd(GEN8_RING_PDP_LDW(e->base, 0)), pdpval(e->running->ctx, 0));
 				engreset(e);
-				irqinit();
-				kick(e);
+				gen8_irq_postinstall();
+				execlists_dequeue(e);
 			}
 		}
 		if(busy)
 			rps.busy = nsec();
 		else if(nsec() - rps.busy > 100*1000000LL)
-			rpsidle();
+			intel_rps_park();
 		reap();
 		rwakeupall(&done);
 		qunlock(&lk);

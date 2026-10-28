@@ -16,7 +16,7 @@
 ulong nirq;
 
 void
-irqinit(void)
+gen8_irq_postinstall(void)
 {
 	u32int mask;
 	int i;
@@ -58,9 +58,9 @@ irqproc(void)
 			sleep(1);
 		qlock(&lk);
 		nirq++;
-		rpswork(pm);
+		rps_work(pm);
 		for(i = 0; i < nelem(eng); i++)
-			csb(&eng[i]);
+			process_csb(&eng[i]);
 		reap();
 		rwakeupall(&done);
 		qunlock(&lk);

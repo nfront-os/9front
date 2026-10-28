@@ -97,7 +97,7 @@ fwproc(void)
 }
 
 int
-waitbits(ulong r, u32int mask, u32int want, int ms)
+intel_wait_for_register(ulong r, u32int mask, u32int want, int ms)
 {
 	vlong t;
 

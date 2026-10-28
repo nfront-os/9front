@@ -14,7 +14,7 @@
 #include "../i915_drv.h"
 
 ulong
-auxctl(int port)
+ilk_aux_ctl_reg(int port)
 {
 	return port == 0 ? DP_AUX_CH_CTL(AUX_CH_A) : PCH_DP_AUX_CH_CTL(port);
 }
@@ -24,14 +24,14 @@ auxctl(int port)
  * the bytes received or -1
  */
 int
-auxch(int port, uchar *send, int n, uchar *recv, int nr)
+intel_dp_aux_xfer(int port, uchar *send, int n, uchar *recv, int nr)
 {
 	ulong ctl;
 	u32int st, sendctl, w;
 	int i, j, div, try, got;
 	vlong t;
 
-	ctl = auxctl(port);
+	ctl = ilk_aux_ctl_reg(port);
 	for(try = 0; try < 3 && (rd(ctl) & DP_AUX_CH_CTL_SEND_BUSY); try++)
 		sleep(1);
 	if(try == 3)
@@ -81,7 +81,7 @@ auxch(int port, uchar *send, int n, uchar *recv, int nr)
  * of data; the reply nibble, or -1; reads fill buf
  */
 int
-auxmsg(int port, int req, int addr, uchar *buf, int size)
+intel_dp_aux_transfer(int port, int req, int addr, uchar *buf, int size)
 {
 	uchar tx[20], rx[20];
 	int n, nt, r;
@@ -92,7 +92,7 @@ auxmsg(int port, int req, int addr, uchar *buf, int size)
 	tx[3] = size - 1;
 	if(req & 1){	/* reads */
 		nt = size ? 4 : 3;
-		if((n = auxch(port, tx, nt, rx, size+1)) <= 0)
+		if((n = intel_dp_aux_xfer(port, tx, nt, rx, size+1)) <= 0)
 			return -1;
 		r = rx[0]>>4;
 		if(n-1 > 0 && buf != nil)
@@ -102,7 +102,7 @@ auxmsg(int port, int req, int addr, uchar *buf, int size)
 	nt = size ? 4 + size : 3;
 	if(size)
 		memmove(tx+4, buf, size);
-	if((n = auxch(port, tx, nt, rx, 2)) <= 0)
+	if((n = intel_dp_aux_xfer(port, tx, nt, rx, 2)) <= 0)
 		return -1;
 	return rx[0]>>4;
 }
@@ -120,17 +120,17 @@ auxedid(int port, int off, uchar *buf, int n)
 
 	o = off;
 	r = -1;
-	if(auxi2c(port, DP_AUX_I2C_WRITE|DP_AUX_I2C_MOT, nil, 0) < 0 || auxi2c(port, DP_AUX_I2C_WRITE|DP_AUX_I2C_MOT, &o, 1) < 0)
+	if(drm_dp_i2c_xfer(port, DP_AUX_I2C_WRITE|DP_AUX_I2C_MOT, nil, 0) < 0 || drm_dp_i2c_xfer(port, DP_AUX_I2C_WRITE|DP_AUX_I2C_MOT, &o, 1) < 0)
 		goto End;
-	if(auxi2c(port, DP_AUX_I2C_READ|DP_AUX_I2C_MOT, nil, 0) < 0)
+	if(drm_dp_i2c_xfer(port, DP_AUX_I2C_READ|DP_AUX_I2C_MOT, nil, 0) < 0)
 		goto End;
 	for(i = 0; i < n; i += k){
 		k = n - i < 16 ? n - i : 16;
-		if(auxi2c(port, DP_AUX_I2C_READ|DP_AUX_I2C_MOT, buf+i, k) < 0)
+		if(drm_dp_i2c_xfer(port, DP_AUX_I2C_READ|DP_AUX_I2C_MOT, buf+i, k) < 0)
 			goto End;
 	}
 	r = 0;
 End:
-	auxi2c(port, DP_AUX_I2C_READ, nil, 0);
+	drm_dp_i2c_xfer(port, DP_AUX_I2C_READ, nil, 0);
 	return r;
 }

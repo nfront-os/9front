@@ -106,7 +106,7 @@ main(int argc, char **argv)
 		usage();
 
 	done.l = &lk;
-	devinit();
+	i915_driver_probe();
 	for(i = 0; i < nelem(eng); i++)
 		fprint(2, "%s: %s %s\n", argv0, eng[i].name, eng[i].ok ? "ok" : "off");
 

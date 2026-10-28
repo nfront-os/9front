@@ -14,7 +14,7 @@
 #include "i915_drv.h"
 
 int
-edidok(uchar *e)
+drm_edid_block_valid(uchar *e)
 {
 	static uchar hdr[8] = { 0, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0 };
 	uchar s;
@@ -43,7 +43,7 @@ readedid(Output *o)
 		get = auxedid;
 		a = o->port;
 	}
-	if(get(a, 0, o->edid, 128) < 0 || !edidok(o->edid))
+	if(get(a, 0, o->edid, 128) < 0 || !drm_edid_block_valid(o->edid))
 		return;
 	o->nedid = 128;
 	if(o->edid[126] >= 1 && get(a, 128, o->edid+128, 128) == 0)

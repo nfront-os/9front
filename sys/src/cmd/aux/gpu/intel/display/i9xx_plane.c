@@ -75,8 +75,8 @@ mapplane(Ctx *c)
 	else if((b->gtt = holealloc(&c->holes, size)) != 0)
 		for(off = 0; off < size; off += 4096){
 			pa = gtt[(surf + off)/4096] & 0x7FFFFFF000ULL;
-			if(ppmap(c, b->gtt + off, pa, nil, 4096, PPAT_UNCACHED) < 0){
-				ppunmap(c, b->gtt, off);
+			if(gen8_ppgtt_insert(c, b->gtt + off, pa, nil, 4096, PPAT_UNCACHED) < 0){
+				gen8_ppgtt_clear(c, b->gtt, off);
 				holefree(&c->holes, b->gtt, size);
 				b->gtt = 0;
 				break;
@@ -142,7 +142,7 @@ scanout(Ctx *c, int id, int w, int h, int stride)
 		if(c->nfence > c->donefence)
 			fencewait(c, c->nfence);
 		qlock(&lk);
-		ppmap(c, b->gtt, 0, b->pa, b->size, uncached ? PPAT_UNCACHED : PPAT_DISPLAY_ELLC);
+		gen8_ppgtt_insert(c, b->gtt, 0, b->pa, b->size, uncached ? PPAT_UNCACHED : PPAT_DISPLAY_ELLC);
 		b->scanwt = 1;
 		qunlock(&lk);
 	}
@@ -157,7 +157,7 @@ scanout(Ctx *c, int id, int w, int h, int stride)
 			}
 			b->scanbase = a;
 			a = (a + Scanalign-1) & ~(Scanalign-1);
-			gttmap(a, 0, b->pa, b->size);
+			gen8_ggtt_insert_entries(a, 0, b->pa, b->size);
 		}
 		b->scangtt = a;
 	}

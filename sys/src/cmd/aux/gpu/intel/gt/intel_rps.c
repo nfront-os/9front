@@ -31,7 +31,7 @@ gtinterval(int us)	/* GT_INTERVAL_FROM_US, gen 8: 1.28 µs units */
 }
 
 u32int
-rpslimits(int val)
+rps_limits(int val)
 {
 	u32int l;
 
@@ -43,7 +43,7 @@ rpslimits(int val)
 
 /* the PM interrupts to mask at val (gen6_rps_pm_mask, sanitized for gen 8) */
 u32int
-rpspmmask(int val)
+rps_pm_mask(int val)
 {
 	u32int m;
 
@@ -57,7 +57,7 @@ rpspmmask(int val)
 }
 
 void
-rpsthresholds(int val)
+rps_set_power(int val)
 {
 	int power, up, down, eiup, eidown;
 
@@ -99,21 +99,21 @@ rpsthresholds(int val)
 }
 
 void
-rpsset(int val)
+gen6_rps_set(int val)
 {
 	if(val != rps.cur){
-		rpsthresholds(val);
+		rps_set_power(val);
 		wr(GEN6_RPNSWREQ, val << 24);	/* HSW_FREQUENCY */
 	}
-	wr(GEN6_RP_INTERRUPT_LIMITS, rpslimits(val));
-	wr(GEN6_PMINTRMSK, rpspmmask(val));
+	wr(GEN6_RP_INTERRUPT_LIMITS, rps_limits(val));
+	wr(GEN6_PMINTRMSK, rps_pm_mask(val));
 	rd(GEN6_RPNSWREQ);
 	rps.cur = val;
 }
 
 /* the PM interrupts that came (gen6_pm_rps_work); with lk */
 void
-rpswork(u32int pm)
+rps_work(u32int pm)
 {
 	int val, adj;
 
@@ -140,26 +140,22 @@ rpswork(u32int pm)
 		val = rps.minsoft;
 	if(val > rps.maxsoft)
 		val = rps.maxsoft;
-	rpsset(val);
+	gen6_rps_set(val);
 }
 
 /* the GPU went idle: the idle frequency (gen6_rps_idle); with lk */
 void
-rpsidle(void)
+intel_rps_park(void)
 {
 	if(rps.on && rps.cur > rps.idle)
-		rpsset(rps.idle);
+		gen6_rps_set(rps.idle);
 	rps.lastadj = 0;
 }
 
 void
-rpsinit(void)
+intel_rps_enable(void)
 {
 	u32int cap;
-	int i;
-
-	wr(GEN6_RC_STATE, 0);			/* software RC state: RC0 */
-	wr(GEN6_RC_CONTROL, 0);		/* RC states off while programming */
 
 	cap = rd(GEN6_RP_STATE_CAP);
 	rps.rp0 = cap & 0xFF;
@@ -170,15 +166,6 @@ rpsinit(void)
 	rps.idle = rps.min;
 	rps.maxsoft = rps.max;
 	rps.minsoft = rps.min;
-
-	wr(GEN6_RC6_WAKE_RATE_LIMIT, 40<<16);
-	wr(GEN6_RC_EVALUATION_INTERVAL, 125000);		/* 12500 * 1280 ns */
-	wr(GEN6_RC_IDLE_HYSTERSIS, 25);		/* 25 * 1280 ns */
-	for(i = 0; i < nelem(eng); i++)
-		wr(RING_MAX_IDLE(eng[i].base), 10);
-	wr(GEN6_RC_SLEEP, 0);
-	wr(GEN6_RC6_THRESHOLD, 625);		/* 800 µs / 1.28, timeout mode */
-	wr(GEN6_RC_CONTROL, GEN6_RC_CTL_HW_ENABLE | GEN7_RC_CTL_TO_MODE | GEN6_RC_CTL_RC6_ENABLE);
 
 	wr(GEN6_RPNSWREQ, rps.rp1 << 24);
 	wr(GEN6_RC_VIDEO_FREQ, rps.rp1 << 24);
@@ -194,6 +181,6 @@ rpsinit(void)
 	rps.power = Highpower;		/* forces the thresholds' programming */
 	rps.cur = 0;
 	rps.on = 1;
-	rpsset(rps.idle);
+	gen6_rps_set(rps.idle);
 	rps.pmimr = ~Pmrpsevents;
 }

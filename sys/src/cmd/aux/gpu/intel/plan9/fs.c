@@ -92,11 +92,11 @@ statusstr(void)
 	}
 	/* the render engine's workaround registers as they read now (the last context's) */
 	n = 0;
-	for(i = 0; i < nelem(rcswa); i++)
+	for(i = 0; i < nrcswa; i++)
 		if((rd(rcswa[i].reg) & rcswa[i].val>>16) == (rcswa[i].val & 0xFFFF))
 			n++;
 	t = smprint("%srcs workarounds %d/%d\nsseu slices %#x subslices %#x eus %d\n"
-		"power rc6 %s %llud ms, %d MHz (asked %d, min %d, rp1 %d, max %d)%s\n", s, n, nelem(rcswa),
+		"power rc6 %s %llud ms, %d MHz (asked %d, min %d, rp1 %d, max %d)%s\n", s, n, nrcswa,
 		sslices, ssubslices, seus,
 		rps.on ? "on" : "off", (uvlong)rd(GEN6_GT_GFX_RC6)*128/100000,
 		(rd(GEN6_RPSTAT1)>>7 & 0x7F)*50, rps.cur*50, rps.min*50, rps.rp1*50, rps.max*50,
@@ -326,9 +326,9 @@ devctl(char **f, int n)
 		qlock(&lk);
 		for(i = 0; i < nelem(eng); i++)
 			engreset(&eng[i]);
-		irqinit();
+		gen8_irq_postinstall();
 		for(i = 0; i < nelem(eng); i++)
-			kick(&eng[i]);
+			execlists_dequeue(&eng[i]);
 		reap();
 		rwakeupall(&done);
 		qunlock(&lk);

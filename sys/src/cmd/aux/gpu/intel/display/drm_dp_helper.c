@@ -15,12 +15,12 @@
 
 /* an I2C-over-AUX message with retries on defer (drm_dp_i2c_do_msg) */
 int
-auxi2c(int port, int req, uchar *buf, int size)
+drm_dp_i2c_xfer(int port, int req, uchar *buf, int size)
 {
 	int try, r;
 
 	for(try = 0; try < 16; try++){
-		if((r = auxmsg(port, req, DDC_ADDR, buf, size)) < 0)
+		if((r = intel_dp_aux_transfer(port, req, DDC_ADDR, buf, size)) < 0)
 			return -1;
 		if((r & DP_AUX_NATIVE_REPLY_MASK) == 2 || (r & DP_AUX_I2C_REPLY_MASK) == 2<<2){	/* defer */
 			microwait(500);

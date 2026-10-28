@@ -20,7 +20,7 @@
  * (restore inhibit), the engine writes the rest at the switches
  */
 void
-ecimage(Ectx *ec)
+lrc_init_regs(Ectx *ec)
 {
 	Engine *e;
 	u32int *r;
@@ -83,12 +83,12 @@ ecinit(Ctx *c, Ectx *ec, Engine *e, ulong off)
 	ec->fresh = 1;
 	ec->queued = 0;
 	ec->next = nil;
-	ecimage(ec);
+	lrc_init_regs(ec);
 }
 
 /* the ring's tail and the address space into the image, before the engine loads it */
 void
-ecupdate(Ectx *ec)
+lrc_update_regs(Ectx *ec)
 {
 	u32int *r;
 	uvlong pa;
@@ -106,7 +106,7 @@ ecupdate(Ectx *ec)
 }
 
 uvlong
-descriptor(Ectx *ec)
+lrc_descriptor(Ectx *ec)
 {
 	return (uvlong)(ec->lrca>>12)<<32 | ec->lrca | GEN8_CTX_VALID | GEN8_CTX_L3LLC_COHERENT | GEN8_CTX_PRIVILEGE |
 		(global || legacy32 ? (INTEL_LEGACY_32B_CONTEXT << GEN8_CTX_ADDRESSING_MODE_SHIFT) : (INTEL_LEGACY_64B_CONTEXT << GEN8_CTX_ADDRESSING_MODE_SHIFT));

@@ -17,7 +17,7 @@ enum { Lcfreq = 2700, Pmin = 2, Pmax = 64, Pinc = 2, Refmin = 48, Refmax = 400, 
 
 /* hsw_wrpll_get_budget_for_freq: ppm the WRPLL may be off for a clock (Hz) */
 uint
-wrpllbudget(int clock)
+hsw_wrpll_get_budget_for_freq(int clock)
 {
 	switch(clock){
 	case 25175000: case 25200000: case 27000000: case 27027000: case 37762500:
@@ -49,7 +49,7 @@ absdiff(uvlong a, uvlong b)
 
 /* hsw_wrpll_update_rnp */
 void
-wrpllupdate(uvlong freq2k, uint budget, uint r2, uint n2, uint p, uint *bp, uint *bn2, uint *br2)
+hsw_wrpll_update_rnp(uvlong freq2k, uint budget, uint r2, uint n2, uint p, uint *bp, uint *bn2, uint *br2)
 {
 	uvlong a, b, c, d, diff, diffbest;
 
@@ -80,13 +80,13 @@ wrpllupdate(uvlong freq2k, uint budget, uint r2, uint n2, uint p, uint *bp, uint
 
 /* hsw_ddi_calculate_wrpll: the WRPLL's dividers for a clock (Hz) */
 u32int
-wrpllval(int clock)
+hsw_ddi_calculate_wrpll(int clock)
 {
 	uvlong freq2k;
 	uint budget, r2, n2, p, bp, bn2, br2;
 
 	freq2k = clock / 100;
-	budget = wrpllbudget(clock);
+	budget = hsw_wrpll_get_budget_for_freq(clock);
 	bp = bn2 = br2 = 0;
 	if(freq2k == 5400000){
 		bn2 = 2; bp = 1; br2 = 2;
@@ -94,6 +94,6 @@ wrpllval(int clock)
 		for(r2 = Lcfreq*2/Refmax + 1; r2 <= Lcfreq*2/Refmin; r2++)
 			for(n2 = Vcomin*r2/Lcfreq + 1; n2 <= Vcomax*r2/Lcfreq; n2++)
 				for(p = Pmin; p <= Pmax; p += Pinc)
-					wrpllupdate(freq2k, budget, r2, n2, p, &bp, &bn2, &br2);
+					hsw_wrpll_update_rnp(freq2k, budget, r2, n2, p, &bp, &bn2, &br2);
 	return WRPLL_PLL_ENABLE | WRPLL_REF_LCPLL | br2 | bp<<8 | bn2<<16;
 }

@@ -15,7 +15,7 @@
 
 /* GMBUS: wait for status bits, -1 on a NAK or after 50 ms (gmbus_wait_hw_status) */
 int
-gmwait(u32int bits)
+gmbus_wait(u32int bits)
 {
 	u32int st;
 	vlong t;
@@ -31,7 +31,7 @@ gmwait(u32int bits)
 }
 
 void
-gmreset(void)
+intel_gmbus_reset(void)
 {
 	wr(GMBUS1(i915), GMBUS_SW_CLR_INT);
 	wr(GMBUS1(i915), 0);
@@ -50,8 +50,8 @@ gmedid(int pin, int off, uchar *buf, int n)
 	wr(GMBUS0(i915), pin);	/* 100 kHz */
 	wr(GMBUS1(i915), GMBUS_CYCLE_INDEX | off<<GMBUS_SLAVE_INDEX_SHIFT | GMBUS_CYCLE_WAIT | n<<GMBUS_BYTE_COUNT_SHIFT | DDC_ADDR<<GMBUS_SLAVE_ADDR_SHIFT | GMBUS_SLAVE_READ | GMBUS_SW_RDY);
 	for(i = 0; i < n; ){
-		if(gmwait(GMBUS_HW_RDY) < 0){
-			gmreset();
+		if(gmbus_wait(GMBUS_HW_RDY) < 0){
+			intel_gmbus_reset();
 			return -1;
 		}
 		v = rd(GMBUS3(i915));

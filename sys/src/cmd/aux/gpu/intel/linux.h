@@ -40,6 +40,9 @@ typedef vlong	s64;
 #define _PAGE_PCD		(1<<4)
 #define _PAGE_PAT		(1<<7)
 
+/* Broadwell GT3 (fence destination SLM workaround): not told apart yet, the GT2 we have */
+#define IS_BROADWELL_GT3(i915)	0
+
 /* the display on Broadwell: its pipes' and transcoders' offsets, GMBUS in the PCH */
 #define DISPLAY_INFO(i915)	(&bdw_display_info)
 #define DISPLAY_MMIO_BASE(i915)	(DISPLAY_INFO(i915)->mmio_offset)

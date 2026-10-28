@@ -23,7 +23,7 @@ uvlong rspa;
  * render_state_setup)
  */
 void
-rsinit(void)
+intel_renderstate_init(void)
 {
 	u32int *d, v;
 	int i, r;

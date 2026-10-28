@@ -48,7 +48,7 @@ engreset(Engine *e)
 		flushcache(ec->seqno, 4);
 		ec->queued = 0;
 		ec->next = nil;
-		ecimage(ec);
+		lrc_init_regs(ec);
 		ec->serial = 0;
 		ec->fresh = 1;
 	}
