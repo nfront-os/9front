@@ -40,7 +40,7 @@ with ThreadPoolExecutor(os.cpu_count()) as ex:
 	res = list(ex.map(cc, files)) + list(ex.map(cck, kpi)) + list(ex.map(ccp, p9))
 bad = [(c, e) for c, r, e in res if r]
 for c, e in bad:
-	print('FAIL', c, [l for l in e.split('\n') if 'error' in l or 'Fehler' in l][:2])
+	print('FAIL', c, [l for l in e.split('\n') if 'error' in l or 'Fehler' in l][:8])
 objs = [os.path.join(O, c.replace('/', '_') + '.o') for c, r, e in res if not r]
 subprocess.run(['ld', '-r', '-o', os.path.join(O, 'all.o')] + objs, check=True)
 nm = subprocess.run(['nm', '-u', os.path.join(O, 'all.o')], capture_output=True, text=True).stdout
