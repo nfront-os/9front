@@ -7,3 +7,6 @@ file	drivers/dma-buf/dma-fence.c
 file	drivers/dma-buf/dma-fence-array.c
 file	drivers/dma-buf/dma-fence-chain.c
 file	drivers/dma-buf/dma-fence-unwrap.c
+file	drivers/dma-buf/dma-buf.c
+file	drivers/dma-buf/sync_file.c
+file	lib/scatterlist.c
