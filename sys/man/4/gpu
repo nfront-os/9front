@@ -1,6 +1,6 @@
 .TH GPU 4
 .SH NAME
-gpu, virtiogpu, intelgpu \- graphics device file system
+gpu, virtiogpu, intelgpu, i915 \- graphics device file system
 .SH SYNOPSIS
 .B aux/virtiogpu
 [
@@ -16,6 +16,23 @@ gpu, virtiogpu, intelgpu \- graphics device file system
 .B aux/intelgpu
 [
 .B -3dpCGPRU
+] [
+.B -g
+.I gdir
+] [
+.B -s
+.I srvname
+]
+.PP
+.B aux/i915
+[
+.B -DMTnv
+] [
+.B -d
+.I drmdebug
+] [
+.B -f
+.I filter
 ] [
 .B -g
 .I gdir
@@ -388,6 +405,60 @@ for the host owner.
 and
 .B aux/inteltest
 check the hardware and the driver.
+.SS i915
+.I I915
+is Linux 6.6's i915 driver, nearly unchanged, on a layer of Linux's
+kernel interfaces over 9front's
+.RB ( /sys/src/linux ),
+as a library of this file server: every Intel generation i915 drives.
+It serves the files above as
+.I intelgpu
+does (so that
+.I libdrm9
+and Mesa need no change); a context is an open DRM file of the render
+node, its objects GEM objects whose pages are an alias segment
+.RI ( segment (3))
+the client attaches, revoked in every process when the object is
+freed;
+.B submit
+is i915's execbuffer2 of the bound objects, softpinned.
+The display goes through KMS on the primary node:
+.B outputs
+with EDID, the probed modes and the mode shown;
+.B scanout
+shows an object (PRIME, a framebuffer, a page flip at the next
+vertical blank);
+.B map plane
+gives the firmware's plane to a context.
+.B error
+is i915's error state (as Linux's
+.BR /sys/class/drm/card0/error ):
+what i915 captured when the GPU hung, the text Mesa's
+.I aubinator_error_decode
+reads; writing it clears it.
+A context's
+.B ctl
+also takes
+.BI getparam " n" ,
+i915's GETPARAM.
+.PP
+.B -D
+leaves the display to 9front (i915.disable_display),
+.B -d
+sets DRM's debug categories,
+.B -v
+prints debug messages,
+.B -n
+starts no file server.
+.B -T
+runs the layer's own checks and Linux's dma-buf selftests,
+.B -M
+i915's mock selftests (no hardware; as
+.BR i915.mock_selftests=-1 ,
+.B -f
+as
+.BR i915.st_filter ),
+and exits.
 .SH EXAMPLES
 Switch the screen to 1024x768:
 .EX
@@ -477,6 +548,10 @@ and
 .I vulkaninfo
 are ported this way.
 .SH SOURCE
+.B /sys/src/cmd/aux/gpu/i915
+.br
+.B /sys/src/linux
+.br
 .B /sys/src/cmd/aux/gpu/intel
 .br
 .B /sys/src/cmd/aux/gpu

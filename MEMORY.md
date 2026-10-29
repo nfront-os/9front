@@ -1037,3 +1037,7 @@ Vorher war eine Bibliothek **ein** gcc-Aufruf mit allen Dateien (gcc übersetzt 
 - Freigegebene GPU-Objekte: segment(3) "revoke" (und remove eines Alias-Segments) nimmt die
   Seiten allen Prozessen (segrevoke: segfreemap + TLB-Flush); fixfault liefert für eine fehlende
   Sticky-Seite einen Fault statt einer Kernel-Panik (vorher NULL-Zugriff). Test tests/gpu/segrevoke.c.
+- (Teil 53 Forts.) wait_event muss ein echter Eintrag in der Warteschlange sein (i915_sw_fence
+  geht die Liste selbst durch); schedule_timeout als Timer (9fronts Tick: sonst laufen Timeout und
+  früher fälliger Timer in zufälliger Reihenfolge); i915-Mock-Selbsttests nur über i915_init
+  (Caches); virt_to_page muss auch für kmalloc-Speicher eine struct page liefern.
