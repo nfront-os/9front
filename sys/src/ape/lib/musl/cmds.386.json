@@ -1,8 +1,5 @@
 [
 	{
-		"Include": [
-			"/$ARCH/cflags.json"
-		],
 		"Install": "/$ARCH/lib.gcc/ape/",
 		"Library": "libap.a",
 		"Append": true,
@@ -23,6 +20,20 @@
 			"obj/i386/include/bits/*.h"
 		],
 		"Cflags": [
+			"-fno-pie",
+			"-static",
+			"-fno-stack-protector",
+			"-D__plan9__",
+			"-Ulinux",
+			"-U__linux",
+			"-U__linux__",
+			"-U__gnu_linux__",
+			"-g",
+			"-m32",
+			"-march=pentium",
+			"-mfpmath=387",
+			"-mno-sse",
+			"-mincoming-stack-boundary=2",
 			"-std=c99",
 			"-nostdinc",
 			"-ffreestanding",
@@ -370,9 +381,6 @@
 		]
 	},
 	{
-		"Include": [
-			"/$ARCH/cflags.json"
-		],
 		"Install": "/$ARCH/lib.gcc/ape/",
 		"Library": "libap.a",
 		"Append": true,
@@ -387,6 +395,20 @@
 		],
 		"Name": "ape-lib-musl-engine-libap.a",
 		"Cflags": [
+			"-fno-pie",
+			"-static",
+			"-fno-stack-protector",
+			"-D__plan9__",
+			"-Ulinux",
+			"-U__linux",
+			"-U__linux__",
+			"-U__gnu_linux__",
+			"-g",
+			"-m32",
+			"-march=pentium",
+			"-mfpmath=387",
+			"-mno-sse",
+			"-mincoming-stack-boundary=2",
 			"-std=c99",
 			"-nostdinc",
 			"-ffreestanding",

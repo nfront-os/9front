@@ -24,6 +24,16 @@ ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)),
 DIR = 'sys/src/ape/lib/musl'
 ARCHES = {'amd64': ('x86_64', ''), '386': ('i386', '.386'), 'arm64': ('aarch64', '.arm64')}
 
+# the tree's flags that make its ABI (/$ARCH/cflags.json, gcc.json), not the rest of
+# them (-O0, -std=gnu17, -fno-builtin: they would come after musl's and win)
+TREEFLAGS = ['-fno-pie', '-static', '-fno-stack-protector', '-D__plan9__', '-Ulinux',
+	'-U__linux', '-U__linux__', '-U__gnu_linux__', '-g']
+ARCHFLAGS = {
+	'amd64': ['-mcmodel=small'],
+	'386': ['-m32', '-march=pentium', '-mfpmath=387', '-mno-sse', '-mincoming-stack-boundary=2'],
+	'arm64': ['-fsigned-char', '-mno-outline-atomics'],
+}
+
 # musl's CFLAGS_C99FSE, CFLAGS_AUTO (but -march), -D_XOPEN_SOURCE=700 (musl's Makefile)
 CFLAGS = [
 	'-std=c99', '-nostdinc', '-ffreestanding', '-fexcess-precision=standard',
@@ -68,8 +78,8 @@ def manifests(objtype):
 	srcs = open(os.path.join(ROOT, 'scripts/gen/musl/%s.list' % objtype)).read().split()
 	inc = ['arch/' + march, 'arch/generic', 'src/include', 'src/internal',
 		'obj/%s/include' % march, 'include']
+	flags = TREEFLAGS + ARCHFLAGS[objtype] + CFLAGS
 	base = {
-		'Include': ['/$ARCH/cflags.json'],
 		'Install': '/$ARCH/lib.gcc/ape/',
 		'Library': 'libap.a',
 		'Append': True,
@@ -79,9 +89,9 @@ def manifests(objtype):
 	m = dict(base, Name='ape-lib-musl-libap.a',
 		Pre=['bash ../../../../../scripts/build/gen-musl-bits.sh ' + march],
 		Clean=['obj/%s/include/bits/*.h' % march],
-		Cflags=CFLAGS, SourceFiles=srcs)
+		Cflags=flags, SourceFiles=srcs)
 	e = dict(base, Name='ape-lib-musl-engine-libap.a',
-		Cflags=CFLAGS + ['-D%s=%s' % kv for kv in sorted(ENGINE_RENAMES.items())],
+		Cflags=flags + ['-D%s=%s' % kv for kv in sorted(ENGINE_RENAMES.items())],
 		SourceFiles=ENGINE)
 	return 'cmds%s.json' % sfx, [m, e]
 
