@@ -21,6 +21,23 @@ typedef unsigned long size_t;
 #endif
 
 /* ifndefs because X11 stuff (ugh) */
+#if defined(__GNUC__) || defined(_APE_GNU)
+/* GCC port: as gcc knows them (its built-ins) and <strings.h> declares them;
+ * libbsd's functions, strncasecmp through ap/gnu/string.c (libbsd's takes an
+ * int: SIZE_MAX would be -1) */
+#ifndef bcopy
+extern void	bcopy(const void*, void*, size_t);
+#endif
+#ifndef bcmp
+extern int	bcmp(const void*, const void*, size_t);
+#endif
+#ifndef bzero
+extern void	bzero(void*, size_t);
+#endif
+extern int	ffs(int);
+extern int	strcasecmp(const char*, const char*);
+extern int	strncasecmp(const char*, const char*, size_t) __asm__("__apecompat_strncasecmp");
+#else
 #ifndef bcopy
 extern void	bcopy(void*, void*, size_t);
 #endif
@@ -31,11 +48,12 @@ extern int	bcmp(void*, void*, size_t);
 extern void	bzero(void*, size_t);
 #endif
 extern int	ffs(unsigned int);
+extern int	strcasecmp(char*, char*);
+extern int	strncasecmp(char*, char*,int);
+#endif
 extern void	bhappy(void*);
 extern int	rresvport(int*);
 extern int	rcmd(char**, int, char*, char*, char*, int*);
-extern int	strcasecmp(char*, char*);
-extern int	strncasecmp(char*, char*,int);
 
 extern int	getopt(int, char**, char*);
 extern int	opterr;

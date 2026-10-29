@@ -1,5 +1,12 @@
 #ifndef __STRING_H_
 #define __STRING_H_
+
+#if defined(__GNUC__) || defined(_APE_GNU)
+/* GCC port, for the gcc driver's programs: APE declares strndup and strdup
+ * without const (and strndup without an implementation): the POSIX ones below */
+#define strndup	__ape_strndup
+#define strdup	__ape_strdup
+#endif
 #pragma lib "/$M/lib/ape/libap.a"
 
 #include <stddef.h>
@@ -48,4 +55,26 @@ extern char *strtok_r(char *, const char *, char **);
 }
 #endif
 
+#if defined(__GNUC__) || defined(_APE_GNU)
+#undef strndup
+#undef strdup
+/* GCC port: <string.h> as POSIX.1-2008 has it: stpcpy, stpncpy, strndup, memmem
+ * (ap/gnu/string.c), strsignal (ap/gnu/posix.c), strcasecmp & co. from
+ * <strings.h> as glibc, musl and the BSDs have them here too; strtok_r is
+ * libap's, APE declares it only with _REENTRANT_SOURCE (and its strerror_r) */
+#include <strings.h>
+#ifdef __cplusplus
+extern "C" {
+#endif
+extern char	*strdup(const char *);
+extern char	*stpcpy(char *, const char *);
+extern char	*stpncpy(char *, const char *, size_t);
+extern char	*strndup(const char *, size_t);
+extern char	*strtok_r(char *, const char *, char **);
+extern void	*memmem(const void *, size_t, const void *, size_t);
+extern char	*strsignal(int);
+#ifdef __cplusplus
+}
+#endif
+#endif
 #endif

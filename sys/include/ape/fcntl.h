@@ -56,4 +56,20 @@ extern int creat(const char *, mode_t);
 }
 #endif
 
+#if defined(__GNUC__) || defined(_APE_GNU)
+/* GCC port: POSIX.1-2008's openat with AT_FDCWD (ap/gnu/at.c), posix_fallocate
+ * (ap/gnu/posix.c); APE's open knows no O_CLOEXEC */
+#define AT_FDCWD	(-100)
+#ifndef O_CLOEXEC
+#define O_CLOEXEC	0
+#endif
+#ifdef __cplusplus
+extern "C" {
+#endif
+extern int	openat(int, const char *, int, ...);
+extern int	posix_fallocate(int, off_t, off_t);
+#ifdef __cplusplus
+}
+#endif
+#endif
 #endif

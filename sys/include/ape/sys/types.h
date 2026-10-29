@@ -46,4 +46,10 @@ typedef struct fd_set {
 #endif
 #endif
 
+#if defined(__GNUC__) || defined(_APE_GNU)
+/* GCC port: the types of POSIX APE has not had: clockid_t (clock_gettime,
+ * ap/gnu/c99time.c) and useconds_t (usleep) */
+typedef int clockid_t;
+typedef unsigned int useconds_t;
+#endif
 #endif /* __TYPES_H */

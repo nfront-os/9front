@@ -55,4 +55,14 @@ extern unsigned char _ctype[];
 #define	toascii( c ) ((unsigned)(c) & 0x007f)
 #endif
 
+#if defined(__GNUC__) || defined(_APE_GNU)
+/* GCC port: isascii and toascii (XSI) for the gcc driver's programs, which APE
+ * defines only with _BSD_EXTENSION; as APE's macros */
+#ifndef isascii
+#define isascii(c)	(((unsigned int)(c))<0x80)
+#endif
+#ifndef toascii
+#define toascii(c)	((unsigned)(c) & 0x007f)
+#endif
+#endif
 #endif /* __CTYPE */

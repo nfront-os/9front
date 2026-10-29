@@ -176,4 +176,18 @@ extern int		inet_pton(int af, char *src, void *dst);
 }
 #endif
 
+#if defined(__GNUC__) || defined(_APE_GNU)
+/* GCC port: the IPv6 address tests of RFC 3493 APE has not had */
+#ifndef IN6_IS_ADDR_LINKLOCAL
+#define IN6_IS_ADDR_LINKLOCAL(a) \
+	(((const unsigned char *)(a))[0] == 0xfe && (((const unsigned char *)(a))[1] & 0xc0) == 0x80)
+#endif
+#ifndef IN6_IS_ADDR_SITELOCAL
+#define IN6_IS_ADDR_SITELOCAL(a) \
+	(((const unsigned char *)(a))[0] == 0xfe && (((const unsigned char *)(a))[1] & 0xc0) == 0xc0)
+#endif
+#ifndef IN6_IS_ADDR_MULTICAST
+#define IN6_IS_ADDR_MULTICAST(a) (((const unsigned char *)(a))[0] == 0xff)
+#endif
+#endif
 #endif /* __netinet_in__ */

@@ -117,6 +117,10 @@ struct termios {
 	cc_t		c_cc[NCCS];	/* control characters */
 };
 
+/* GCC port: C linkage for C++ (unistd.h declares tcgetpgrp too) */
+#ifdef __cplusplus
+extern "C" {
+#endif
 extern speed_t cfgetospeed(const struct termios *);
 extern int cfsetospeed(struct termios *, speed_t);
 extern speed_t cfgetispeed(const struct termios *);
@@ -130,3 +134,6 @@ extern int tcsetpgrp(int, pid_t);
 extern int tcdrain(int);
 extern int tcflush(int, int);
 extern int tcflow(int, int);
+#ifdef __cplusplus
+}
+#endif

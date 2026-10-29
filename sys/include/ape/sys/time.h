@@ -30,4 +30,14 @@ extern int gettimeofday(struct timeval *, struct timezone *);
 int getitimer(int, struct itimerval *);
 int setitimer(int, const struct itimerval *, struct itimerval *);
 
+#if defined(__GNUC__) || defined(_APE_GNU)
+/* GCC port: utimes (ap/gnu/posix.c: seconds, stat(5) has no more) */
+#ifdef __cplusplus
+extern "C" {
+#endif
+extern int	utimes(const char *, const struct timeval *);
+#ifdef __cplusplus
+}
+#endif
+#endif
 #endif /* __SYSTIME_H */

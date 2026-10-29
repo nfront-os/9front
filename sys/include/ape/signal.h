@@ -1,5 +1,18 @@
 #ifndef __SIGNAL_H
 #define __SIGNAL_H
+
+#if defined(__GNUC__) || defined(_APE_GNU)
+/* GCC port: APE declares signal handlers K&R-style, "void (*)()", deliberately
+ * without parameter types (some take the note and a Ureg too). C++ and C23 read
+ * "()" as (void): no handler fits. For them the POSIX declarations, void (*)(int),
+ * of the same libap functions; APE's are renamed while the header is read
+ * (struct sigaction keeps its layout). C up to C17 gets APE's as they are. */
+#if defined __cplusplus || (defined __STDC_VERSION__ && __STDC_VERSION__ > 201710L)
+#define __APE_POSIX_SIGNAL
+#define signal		__ape_signal
+#define sigaction	__ape_sigaction
+#endif
+#endif
 #pragma lib "/$M/lib/ape/libap.a"
 
 typedef int sig_atomic_t;
@@ -94,4 +107,58 @@ extern int sigsuspend(const sigset_t *);
 
 #endif /* _POSIX_SOURCE */
 
+#if defined(__GNUC__) || defined(_APE_GNU)
+#ifdef __APE_POSIX_SIGNAL
+#undef signal
+#undef sigaction
+#undef SIG_DFL
+#undef SIG_ERR
+#undef SIG_IGN
+#define SIG_DFL	((void (*)(int))0)
+#define SIG_ERR	((void (*)(int))-1)
+#define SIG_IGN	((void (*)(int))1)
+#ifdef __cplusplus
+extern "C" {
+#endif
+extern void	(*signal(int, void (*)(int)))(int);
+#ifdef _POSIX_SOURCE
+struct sigaction {
+	void		(*sa_handler)(int);
+	sigset_t	sa_mask;
+	int		sa_flags;
+};
+/* the same layout as APE's (a negative array size otherwise) */
+typedef char __ape_sigaction_layout[
+	sizeof(struct sigaction) == sizeof(struct __ape_sigaction) ? 1 : -1];
+extern int	sigaction(int, const struct sigaction *, struct sigaction *);
+#endif
+#ifdef __cplusplus
+}
+#endif
+#endif
+/* POSIX's pthread_sigmask (ap/gnu/pthread.c): the proc's mask, APE's
+ * sigprocmask. siginfo_t and the flags of POSIX's sigaction, for code that
+ * names them (LLVM): APE delivers no siginfo. */
+#ifdef __cplusplus
+extern "C" {
+#endif
+extern int	pthread_sigmask(int, const sigset_t *, sigset_t *);
+#ifdef __cplusplus
+}
+#endif
+#ifndef SA_SIGINFO
+typedef struct {
+	int	si_signo;
+	int	si_code;
+	int	si_pid;
+	int	si_uid;
+	void	*si_addr;
+	int	si_status;
+} siginfo_t;
+#define SA_ONSTACK	0x08000000
+#define SA_RESETHAND	0x80000000
+#define SA_NODEFER	0x40000000
+#define SA_SIGINFO	0x00000004
+#endif
+#endif
 #endif /* __SIGNAL_H */

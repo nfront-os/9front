@@ -73,13 +73,54 @@ extern int chmod(const char *, mode_t);
 
 #ifdef _BSD_EXTENSION
 #pragma lib "/$M/lib/ape/libbsd.a"
+#if defined(__GNUC__) || defined(_APE_GNU)
+/* GCC port: as POSIX declares them (and <unistd.h>); readlink returns ssize_t
+ * (ap/gnu/readlink.c's, libbsd's returns int) */
+extern int	lstat(const char *, struct stat *);
+extern int	symlink(const char *, const char *);
+extern ssize_t	readlink(const char *, char *, size_t) __asm__("__apecompat_readlink");
+#else
 extern int	lstat(char *, struct stat *);
 extern int	symlink(char *, char *);
 extern int	readlink(char *, char*, int);
+#endif
 #endif
 
 #ifdef __cplusplus
 }
 #endif
 
+#if defined(__GNUC__) || defined(_APE_GNU)
+/* GCC port: <sys/stat.h> as POSIX has it: fchmod (libap), lstat (libbsd), the
+ * S_IF* file types APE has only with _BSD_EXTENSION (the same values), S_ISLNK
+ * (only _RESEARCH_SOURCE; 9front has no symbolic links), S_ISSOCK (no sockets in
+ * the file system), mkfifoat (ap/gnu/at.c) */
+#ifdef __cplusplus
+extern "C" {
+#endif
+extern int	fchmod(int, mode_t);
+extern int	mkfifoat(int, const char *, mode_t);
+#ifndef _BSD_EXTENSION
+extern int	lstat(const char *, struct stat *);
+#endif
+#ifdef __cplusplus
+}
+#endif
+#ifndef S_IFMT
+#define S_IFMT	S__MASK
+#define S_IFDIR	0040000
+#define S_IFCHR	0020000
+#define S_IFBLK	0060000
+#define S_IFREG	0100000
+#define S_IFIFO	0010000
+#define S_IFLNK	0120000
+#define S_IFSOCK S_IFIFO
+#endif
+#ifndef S_ISLNK
+#define S_ISLNK(m)	(((m)&S__MASK) == 0120000)
+#endif
+#ifndef S_ISSOCK
+#define S_ISSOCK(m)	0
+#endif
+#endif
 #endif

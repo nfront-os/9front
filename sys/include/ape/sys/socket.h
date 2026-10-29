@@ -1,6 +1,13 @@
 #ifndef __SYS_SOCKET_H__
 #define __SYS_SOCKET_H__
 
+#if defined(__GNUC__) || defined(_APE_GNU)
+/* GCC port: the socket options (get/setsockopt), as POSIX systems have them */
+#ifndef HAVE_SOCK_OPTS
+#define HAVE_SOCK_OPTS
+#endif
+#endif
+
 /* GCC port: a program that includes it wants it: _BSD_EXTENSION for
  * this header (bsd.h's prototypes stay off) */
 #ifndef _BSD_EXTENSION
@@ -206,5 +213,14 @@ extern int socketpair(int, int, int, int *);
 #ifdef __GCC_BSD_SYS_SOCKET_H
 #undef _BSD_EXTENSION
 #undef __GCC_BSD_SYS_SOCKET_H
+#endif
+#if defined(__GNUC__) || defined(_APE_GNU)
+/* GCC port: shutdown's constants; fd_set with it, as POSIX systems have it */
+#ifndef SHUT_RD
+#define SHUT_RD		0
+#define SHUT_WR		1
+#define SHUT_RDWR	2
+#endif
+#include <sys/select.h>
 #endif
 #endif /* !__SYS_SOCKET_H__ */

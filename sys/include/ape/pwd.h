@@ -27,4 +27,16 @@ extern struct passwd *getpwnam(const char *);
 }
 #endif
 
+#if defined(__GNUC__) || defined(_APE_GNU)
+/* GCC port: the reentrant lookups (ap/gnu/posix.c) */
+#include <stddef.h>
+#ifdef __cplusplus
+extern "C" {
+#endif
+extern int	getpwuid_r(uid_t, struct passwd *, char *, size_t, struct passwd **);
+extern int	getpwnam_r(const char *, struct passwd *, char *, size_t, struct passwd **);
+#ifdef __cplusplus
+}
+#endif
+#endif
 #endif

@@ -1,6 +1,16 @@
 #ifndef _STDINT_GENERIC_H_
 #define _STDINT_GENERIC_H_ 1
 
+#if defined(__GNUC__) || defined(_APE_GNU)
+/* GCC port, for the gcc driver's programs: C99's macros APE's stdint.h has
+ * not had (the constant macros, the limits of intptr_t, ptrdiff_t, sig_atomic_t,
+ * wchar_t, wint_t); intmax_t and uintmax_t are the compiler's (__INTMAX_TYPE__:
+ * long on amd64, APE's long long the same size), as printf's %jd and C++'s
+ * std::intmax_t take them: APE's typedefs are renamed while the header is read. */
+#define intmax_t	__ape_intmax_t
+#define uintmax_t	__ape_uintmax_t
+#endif
+
 /*
  * Default for 32 bit architectures, overriden by
  * /$objtype/include/ape/stdint.h if needed.
@@ -119,4 +129,60 @@ typedef _uintptr_t uintptr_t;
 #define SIZE_MAX	UINT32_MAX
 #endif
 
+#if defined(__GNUC__) || defined(_APE_GNU)
+#undef intmax_t
+#undef uintmax_t
+
+typedef __INTMAX_TYPE__ intmax_t;
+typedef __UINTMAX_TYPE__ uintmax_t;
+#undef INTMAX_MIN
+#undef INTMAX_MAX
+#undef UINTMAX_MIN
+#undef UINTMAX_MAX
+#define INTMAX_MIN	(-__INTMAX_MAX__-1)
+#define INTMAX_MAX	__INTMAX_MAX__
+#define UINTMAX_MIN	0
+#define UINTMAX_MAX	__UINTMAX_MAX__
+
+#ifndef INT8_C
+#define INT8_C(c)	c
+#define INT16_C(c)	c
+#define INT32_C(c)	c
+#define INT64_C(c)	c ## LL
+#define UINT8_C(c)	c
+#define UINT16_C(c)	c
+#define UINT32_C(c)	c ## U
+#define UINT64_C(c)	c ## ULL
+#define INTMAX_C(c)	__INTMAX_C(c)
+#define UINTMAX_C(c)	__UINTMAX_C(c)
+#endif
+
+#ifndef INTPTR_MAX
+#if __SIZEOF_POINTER__ == 8
+#define INTPTR_MIN	INT64_MIN
+#define INTPTR_MAX	INT64_MAX
+#define UINTPTR_MAX	UINT64_MAX
+#else
+#define INTPTR_MIN	INT32_MIN
+#define INTPTR_MAX	INT32_MAX
+#define UINTPTR_MAX	UINT32_MAX
+#endif
+#endif
+#ifndef PTRDIFF_MAX
+#define PTRDIFF_MIN	(-__PTRDIFF_MAX__-1)
+#define PTRDIFF_MAX	__PTRDIFF_MAX__
+#endif
+#ifndef SIG_ATOMIC_MAX
+#define SIG_ATOMIC_MIN	INT32_MIN
+#define SIG_ATOMIC_MAX	INT32_MAX
+#endif
+#ifndef WCHAR_MAX
+#define WCHAR_MIN	__WCHAR_MIN__
+#define WCHAR_MAX	__WCHAR_MAX__
+#endif
+#ifndef WINT_MAX
+#define WINT_MIN	__WINT_MIN__
+#define WINT_MAX	__WINT_MAX__
+#endif
+#endif
 #endif
