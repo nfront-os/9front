@@ -494,6 +494,9 @@
 			"src/stdlib/wcstod.c",
 			"src/stdlib/wcstol.c",
 			"ape/bridge.c"
+		],
+		"Post": [
+			"bash ../../../../../scripts/build/musl-localize.sh"
 		]
 	}
 ]

@@ -13,6 +13,8 @@ objects' symbols with libap's; arm64 the same functions, aarch64's file where
 musl has one). The objects are x.musl.o (Objtag): beside libap's of the same
 name. Entry points that libap or programs have under the same names are renamed
 (-D): the engine's printf & co are reached through APE's (ap/gnu/stdio.c).
+What musl's assembly defines beside its function (i386 floor.s is ceil too) and
+libap has, scripts/build/musl-localize.sh makes local after the archive is made.
 
 usage: genmusl.py [--list]	(--list: the manifests, for genbuild.py)
 """
@@ -92,7 +94,9 @@ def manifests(objtype):
 		Cflags=flags, SourceFiles=srcs)
 	e = dict(base, Name='ape-lib-musl-engine-libap.a',
 		Cflags=flags + ['-D%s=%s' % kv for kv in sorted(ENGINE_RENAMES.items())],
-		SourceFiles=ENGINE)
+		SourceFiles=ENGINE,
+		# musl's names libap has too (i386 floor.s: ceil) local in its members
+		Post=['bash ../../../../../scripts/build/musl-localize.sh'])
 	return 'musl%s.json' % sfx, [m, e]
 
 def main():

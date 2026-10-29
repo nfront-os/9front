@@ -5,7 +5,8 @@
  * vector: a constructor asks cpuid, before the program's own.
  */
 #ifdef __i386__
-#include <cpuid.h>
+/* cpuid itself: gcc's <cpuid.h> is not on the tree's include path (-nostdinc);
+ * every CPU of the tree's -march=pentium has the instruction */
 
 __attribute__((visibility("hidden"))) unsigned long __hwcap;
 
@@ -14,7 +15,7 @@ hwcapinit(void)
 {
 	unsigned int a, b, c, d;
 
-	if(__get_cpuid(1, &a, &b, &c, &d))
-		__hwcap = d;
+	__asm__ volatile("cpuid" : "=a"(a), "=b"(b), "=c"(c), "=d"(d) : "a"(1), "c"(0));
+	__hwcap = d;
 }
 #endif

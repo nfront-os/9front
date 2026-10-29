@@ -1,0 +1,22 @@
+#!/bin/rc
+# scripts/build/musl-localize.sh on 9front: in libap.a's musl members, the
+# names libap's own members define too become local
+. $PLAN9/scripts/build/rc/lib.rc
+A=$PLAN9/$objtype/lib.gcc/ape/libap.a
+$GNU/nm -A -g --defined-only $A | awk '$(NF-1) ~ /^[TDBRCVW]$/ {n = split($1, f, ":"); print f[n-1], $NF}' > $TMP/defs
+awk '$1 !~ /\.musl\.o$/ {print $2}' $TMP/defs | sort -u > $TMP/ape
+cd $TMP
+changed=()
+for(m in `{awk '$1 ~ /\.musl\.o$/ {print $1}' defs | sort -u}){
+	awk -v 'm='^$m '$1 == m {print $2}' defs | sort -u > syms
+	loc=`{comm -12 syms ape}
+	if(! ~ $#loc 0){
+		$GNU/ar x $A $m || die ar x
+		$GNU/objcopy `{for(s in $loc) echo '--localize-symbol='^$s} $m || die objcopy
+		$GNU/ar r $A $m || die ar r
+		echo musl-localize: $m: $loc
+		changed=1
+	}
+}
+if(! ~ $#changed 0)
+	$GNU/ranlib $A
