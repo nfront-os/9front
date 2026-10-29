@@ -1050,3 +1050,12 @@ Vorher war eine Bibliothek **ein** gcc-Aufruf mit allen Dateien (gcc übersetzt 
   startet je Gruppe einen eigenen Lauf (Linux bricht nach dem ersten Fehler ab; 300 s Zeitlimit),
   Log `i915live.log` auf dem Stick; nicht portiert (gt_engines, gt_contexts) zählt als Fehler.
   Test `tests/gpu/i915param.rc`. rc: `=` in Argumenten quoten.
+- (Teil 53 Forts.) **Vulkan DEVICE_LOST auf aux/i915 war kein GPU-Hang**: libdrm9s `gemwait`
+  rechnete `end = now() + timeout_ns`; hasvk wartet mit INT64_MAX → Überlauf, sofort ETIME, sobald
+  der Batch beim ersten Blick nicht fertig war (der erste Render-Batch eines Kontexts braucht unter
+  i915 ~230 µs: Kontext-Init). Darum auch keine Hang-Meldung im Log. Jetzt: Timeout über INT64_MAX
+  hinaus = ohne Grenze (fencewait). Noch nicht auf dem Laptop geprüft.
+- inteltest Schritt 7: das Kind erbte `nfail` des Vaters (meldete „fail“ trotz eigener ok). aux/i915
+  schreibt jetzt `rcs workarounds n/m` (ctx_wa_list, wie wa_verify) und `power rc6 …` (rc6-Residenz,
+  RPS) in den Status, wie aux/intelgpu (inteltest 8 und 11).
+- kpi printk.h: `pr_fmt` nur `#ifndef` (überschrieb das Präfix von TTM, drm_fb_helper, …).

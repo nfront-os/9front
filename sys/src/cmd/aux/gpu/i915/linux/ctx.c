@@ -33,6 +33,11 @@
 #include "i915_drv.h"
 #include "gem/i915_gem_object.h"
 #include "i915_scatterlist.h"
+#include "gt/intel_gt.h"
+#include "gt/intel_gt_mcr.h"
+#include "gt/intel_engine.h"
+#include "gt/intel_rc6.h"
+#include "gt/intel_rps.h"
 #include "drivers/gpu/drm/drm_internal.h"
 #include <kpi/p9.h>
 #include "../i915.h"
@@ -526,6 +531,34 @@ i915_fence_count(void *v, u64 *done, u64 *n, int *failed)
 	mutex_unlock(&c->lock);
 }
 
+/*
+ * the render engine's context workarounds (i915's ctx_wa_list, written
+ * into every context image) as the registers read now, the loaded
+ * context's: how many hold, checked as i915's wa_verify does
+ */
+static void
+rcs_workarounds(struct intel_gt *gt, int *ok, int *n)
+{
+	struct intel_engine_cs *e = gt->engine[RCS0];
+	const struct i915_wa *wa;
+	intel_wakeref_t wf;
+	unsigned int i;
+	u32 cur;
+
+	*ok = *n = 0;
+	if (!e)
+		return;
+	*n = e->ctx_wa_list.count;
+	with_intel_runtime_pm(gt->uncore->rpm, wf)
+		for (i = 0; i < e->ctx_wa_list.count; i++) {
+			wa = &e->ctx_wa_list.list[i];
+			cur = wa->is_mcr ? intel_gt_mcr_read_any(gt, wa->mcr_reg) :
+				intel_uncore_read(gt->uncore, wa->reg);
+			if (!((cur ^ wa->set) & wa->read))
+				(*ok)++;
+		}
+}
+
 /* /dev/gpu/0/status, kmalloc'd (i915_freestr) */
 char *
 i915_status(void)
@@ -534,17 +567,39 @@ i915_status(void)
 	struct drm_i915_private *i915;
 	struct pci_dev *p;
 	const struct sseu_dev_info *s;
+	struct intel_gt *gt;
+	struct intel_rps *rps;
+	intel_wakeref_t wf;
+	int waok, nwa;
+	u64 rc6;
+	u32 act;
 
 	if (!dev)
 		return kstrdup("device none\n", GFP_KERNEL);
 	i915 = to_i915(dev);
 	p = to_pci_dev(dev->dev);
-	s = &to_gt(i915)->info.sseu;
+	gt = to_gt(i915);
+	rps = &gt->rps;
+	s = &gt->info.sseu;
+	rcs_workarounds(gt, &waok, &nwa);
+	rc6 = 0;
+	act = 0;
+	with_intel_runtime_pm(gt->uncore->rpm, wf) {
+		rc6 = intel_rc6_residency_ns(&gt->rc6, INTEL_RC6_RES_RC6);
+		act = intel_rps_read_actual_frequency(rps);
+	}
+	/* the lines as aux/intelgpu has them (inteltest reads them) */
 	return kasprintf(GFP_KERNEL,
 		"device intel %04x/%04x, gen %d (%s, Linux 6.6's i915 on the LinuxKPI)\n"
-		"sseu slices %#x subslices %#x eus %d\n",
+		"rcs workarounds %d/%d\n"
+		"sseu slices %#x subslices %#x eus %d\n"
+		"power rc6 %s %llu ms, %u MHz (asked %d, min %d, rp1 %d, max %d)\n",
 		p->vendor, p->device, GRAPHICS_VER(i915), intel_platform_name(INTEL_INFO(i915)->platform),
-		s->slice_mask, s->subslice_mask.hsw[0], s->eu_total);
+		waok, nwa,
+		s->slice_mask, s->subslice_mask.hsw[0], s->eu_total,
+		gt->rc6.enabled ? "on" : "off", (unsigned long long)(rc6 / NSEC_PER_MSEC), act,
+		intel_gpu_freq(rps, rps->cur_freq), intel_gpu_freq(rps, rps->min_freq_softlimit),
+		intel_gpu_freq(rps, rps->rp1_freq), intel_gpu_freq(rps, rps->max_freq_softlimit));
 }
 
 void i915_freestr(char *s) { kfree(s); }

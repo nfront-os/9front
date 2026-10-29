@@ -514,6 +514,8 @@ suite(void)
 		fail("fork: %r");
 		break;
 	case 0:
+		/* the failures before are the parent's */
+		nfail = 0;
 		if(newctx(&b) < 0 || newbo(&b, &bdata, 4096) < 0 || newbo(&b, &bbatch, 4096) < 0)
 			exits("fail");
 		store(&b, &bbatch, 0, &bdata, 0, 0x5eed0001, "rcs");

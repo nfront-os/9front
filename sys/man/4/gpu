@@ -444,6 +444,14 @@ A context's
 also takes
 .BI getparam " n" ,
 i915's GETPARAM.
+.B Status
+has the lines of
+.IR intelgpu :
+.B "rcs workarounds"
+(i915's context workarounds of the render engine that hold, checked as
+i915 verifies them) and
+.B "power rc6"
+(i915's RC6 residency and RPS frequencies).
 .PP
 .B -D
 leaves the display to 9front (i915.disable_display),

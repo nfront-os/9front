@@ -931,11 +931,17 @@ gemwait(Dev *d, struct drm_i915_gem_wait *w)
 		return 0;
 	}
 	pthread_mutex_unlock(&lk);
-	if(w->timeout_ns < 0){
+	/*
+	 * negative: no limit; so is one past INT64_MAX ns from now (Mesa
+	 * waits with INT64_MAX: now() + that overflowed, an instant ETIME
+	 * as soon as a batch took longer than the first look)
+	 */
+	end = now();
+	if(w->timeout_ns < 0 || w->timeout_ns > INT64_MAX - end){
 		fencewait(f);
 		return 0;
 	}
-	end = now() + w->timeout_ns;
+	end += w->timeout_ns;
 	for(;;){
 		pthread_mutex_lock(&lk);
 		if(fencedone(&f)){
