@@ -8,6 +8,13 @@
 int _finishing = 0;
 int _sessleader = 0;
 
+#ifdef __GNUC_MINOR__
+/* GCC port: in a native program with APE in it (../gnu/native.c: Rust's
+ * std), the program's own end: its other procs go too, its status goes to
+ * the parent (an exit in its C would end only the calling proc) */
+extern _Noreturn void __plan9_exit(char *) __attribute__((weak));
+#endif
+
 static char exitstatus[ERRMAX];
 
 _Noreturn void
@@ -33,6 +40,10 @@ _finish(int status, char *term)
 	}
 	if(_sessleader)
 		kill(0, SIGTERM);
+#ifdef __GNUC_MINOR__
+	if(__plan9_exit)
+		__plan9_exit(exitstatus);
+#endif
 	_EXITS(exitstatus);
 }
 
