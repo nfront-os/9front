@@ -80,6 +80,8 @@
 			"/sys/src/ape/lib/ap/stdio/cmds.arm64.json",
 			"/sys/src/ape/lib/ap/syscall/cmds.arm64.json",
 			"/sys/src/ape/lib/ap/arm64/cmds.arm64.json",
+			"/sys/src/ape/lib/ap/gnu/cmds.arm64.json",
+			"/sys/src/ape/lib/musl/musl.arm64.json",
 			"/sys/src/ape/lib/auth/cmds.arm64.json",
 			"/sys/src/ape/lib/bio/cmds.arm64.json",
 			"/sys/src/ape/lib/bsd/cmds.arm64.json",

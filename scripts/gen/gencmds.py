@@ -73,9 +73,10 @@ APELIBS = ['libdraw', 'libplumb', 'libauth', 'libsec', 'libmp', 'libnet', 'libbs
 
 # libap: ape/lib/ap/mkfile builds `$DIRS $objtype' into one archive; the
 # first directory starts it, the others add to it (later ones replace
-# members of the same name: stdio/strtod over gen/strtod, as with ar)
+# members of the same name: stdio/strtod over gen/strtod, as with ar);
+# ape/lib/ap/gnu: gcc's additions (not in the mkfile's DIRS)
 APEDIRS = ['ape/lib/ap/gen', 'ape/lib/ap/math', 'ape/lib/ap/plan9', 'ape/lib/ap/posix',
-	'ape/lib/ap/stdio', 'ape/lib/ap/syscall', 'ape/lib/ap/' + OBJTYPE]
+	'ape/lib/ap/stdio', 'ape/lib/ap/syscall', 'ape/lib/ap/' + OBJTYPE, 'ape/lib/ap/gnu']
 # sources outside the mkfile's OFILES: system call stubs (genall),
 # the note trampolines of the gcc port
 APEEXTRA = {'ape/lib/ap/amd64': ['notify.S'], 'ape/lib/ap/386': ['_seek.c'], 'ape/lib/ap/arm64': ['notify.S']}

@@ -4,13 +4,23 @@
 rfork e
 tests=($*)
 if(~ $#tests 0)
-	tests=(libctest threadtest authtest mptest paktest apetest)
+	tests=(libctest threadtest authtest mptest paktest apetest apegnutest)
 failed=()
 for(t in $tests){
 	echo '==' $t
 	/tests/$t
 	if(! ~ $status '')
 		failed=($failed $t)
+	if(~ $t apegnutest){
+		# its exit ends the thread and the copy proc it left
+		sleep 1
+		if(ps | grep -s apegnutest){
+			echo 'FAIL apegnutest: procs left after exit'
+			failed=($failed $t)
+		}
+		if not
+			echo 'ok apegnutest: no procs left after exit'
+	}
 }
 if(~ $#failed 0)
 	echo 'tests: all passed'

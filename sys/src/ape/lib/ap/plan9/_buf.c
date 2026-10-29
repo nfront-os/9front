@@ -1,3 +1,4 @@
+#ifndef __GNUC_MINOR__	/* GCC port: gcc's APE has ../gnu/buf.c (threads, poll) */
 #define  _BSDTIME_EXTENSION
 #define _LOCK_EXTENSION
 #include "lib.h"
@@ -518,3 +519,4 @@ copynotehandler(void *, char *)
 	_NOTED(1);
 	return 0;
 }
+#endif

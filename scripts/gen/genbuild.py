@@ -7,7 +7,8 @@ $ARCH) and build.<objtype>.json for 386, amd64 and arm64, so that
 
 builds what the system needs, in dependency order: libc, the libraries
 (scripts/gen/genlibs.py --list), the kernel's klib*.a, the programs
-(scripts/gen/gencmds.py --list: sys/src/mkfile's $SUBSYS $CMDS), the files
+(scripts/gen/gencmds.py --list: sys/src/mkfile's $SUBSYS $CMDS; APE's musl
+part after libap's, scripts/gen/genmusl.py --list), the files
 the kernel embeds (scripts/gen-*.sh: rebootcode.i, apbootstrap.i, ...,
 initcode, /boot/boot and $CONF.bootfs.paq), the kernel, its Plan 9
 a.out where 9boot loads it (scripts/build/elf2aout.py), and the check that
@@ -66,6 +67,10 @@ def main():
 		sfx = '' if objtype == 'amd64' else '.' + objtype
 		libs = ['/sys/src/%s/%s%s.json' % (l, l, sfx) for l in listing('genlibs.py', objtype)]
 		cmds = ['/' + c for c in listing('gencmds.py', objtype)]
+		# APE's musl part (gcc only, no mkfile): appended to libap after
+		# ape/lib/ap/gnu, before the programs that link libap
+		gnu = [i for i, c in enumerate(cmds) if c.startswith('/sys/src/ape/lib/ap/gnu/')]
+		cmds[gnu[-1] + 1:gnu[-1] + 1] = ['/' + c for c in listing('genmusl.py', objtype)]
 		write('build.%s.json' % objtype, [
 			{'Name': 'prep', 'Pre': ['bash scripts/build/prep-objtype.sh']},
 			{'Name': 'libc', 'Projects': ['/sys/src/libc/libc%s.json' % sfx]},

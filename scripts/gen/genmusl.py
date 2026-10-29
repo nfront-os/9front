@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Generate the gcc build-tool manifests of APE's musl part,
-sys/src/ape/lib/musl/cmds[.386|.arm64].json: what musl gives APE (C99's float
+sys/src/ape/lib/musl/musl[.386|.arm64].json: what musl gives APE (C99's float
 and long double math, <fenv.h>, <complex.h>, the wide string functions and
 <wctype.h>; and the engine of C99's printf and scanf, bridged to APE's FILE),
 appended to libap.a. Not built by 9front's own compilers (C99 in musl's
@@ -93,7 +93,7 @@ def manifests(objtype):
 	e = dict(base, Name='ape-lib-musl-engine-libap.a',
 		Cflags=flags + ['-D%s=%s' % kv for kv in sorted(ENGINE_RENAMES.items())],
 		SourceFiles=ENGINE)
-	return 'cmds%s.json' % sfx, [m, e]
+	return 'musl%s.json' % sfx, [m, e]
 
 def main():
 	objtype = os.environ.get('objtype', 'amd64')

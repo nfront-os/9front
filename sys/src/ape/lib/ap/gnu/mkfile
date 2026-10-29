@@ -1,0 +1,32 @@
+# GCC port: what gcc's APE adds to libap (C99, POSIX.1-2008, threads; the
+# headers' parts under _APE_GNU): built by the gcc port only (gencmds.py), not
+# part of ../mkfile's DIRS (kencc has no use for it). The macros of the gcc
+# driver (_POSIX_SOURCE, _LIMITS_EXTENSION); buf.c replaces ../plan9/_buf.c.
+APE=/sys/src/ape
+<$APE/config
+LIB=/$objtype/lib/ape/libap.a
+OFILES=\
+	asprintf.$O\
+	at.$O\
+	buf.$O\
+	c99stdio.$O\
+	c99time.$O\
+	dlfcn.$O\
+	hwcap.$O\
+	inttypes.$O\
+	mman.$O\
+	multibyte.$O\
+	posix.$O\
+	pread.$O\
+	pthread.$O\
+	readlink.$O\
+	realpath.$O\
+	stdlib.$O\
+	string.$O\
+	truncate.$O\
+	wstdio.$O\
+	xsysconf.$O\
+
+</sys/src/cmd/mksyslib
+
+CFLAGS=$CFLAGS -c -D_POSIX_SOURCE= -D_LIMITS_EXTENSION= -D_APE_GNU

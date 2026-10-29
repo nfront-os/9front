@@ -2,10 +2,13 @@
 #define __SYS_SOCKET_H__
 
 #if defined(__GNUC__) || defined(_APE_GNU)
-/* GCC port: the socket options (get/setsockopt), as POSIX systems have them */
+/* GCC port: the socket options (get/setsockopt), as POSIX systems have them;
+ * getsockopt answers them (ap/gnu/posix.c: APE's fails without an errno), APE's
+ * declaration renamed while the header is read */
 #ifndef HAVE_SOCK_OPTS
 #define HAVE_SOCK_OPTS
 #endif
+#define getsockopt	__ape_getsockopt
 #endif
 
 /* GCC port: a program that includes it wants it: _BSD_EXTENSION for
@@ -215,6 +218,14 @@ extern int socketpair(int, int, int, int *);
 #undef __GCC_BSD_SYS_SOCKET_H
 #endif
 #if defined(__GNUC__) || defined(_APE_GNU)
+#undef getsockopt
+#ifdef __cplusplus
+extern "C" {
+#endif
+extern int	getsockopt(int, int, int, void *, int *) __asm__("__apecompat_getsockopt");
+#ifdef __cplusplus
+}
+#endif
 /* GCC port: shutdown's constants; fd_set with it, as POSIX systems have it */
 #ifndef SHUT_RD
 #define SHUT_RD		0

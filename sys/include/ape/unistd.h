@@ -219,11 +219,12 @@ extern ssize_t	readlink(const char *, char *, size_t) __asm__("__apecompat_readl
 extern ssize_t	pread(int, void *, size_t, off_t);
 extern ssize_t	pwrite(int, const void *, size_t, off_t);
 extern int	usleep(useconds_t);
-/* ap/gnu/posix.c: a write is done when the file server answers it (fsync);
+/* ap/gnu/posix.c: a write is done when the file server answers it (fsync:
+ * APE's fails);
  * note groups, not sessions (getsid, getpgid: the pid); Plan 9 gives files away
  * only through wstat by their owner (fchown: no change, no error); libbsd's
  * gethostname */
-extern int	fsync(int);
+extern int	fsync(int) __asm__("__apecompat_fsync");
 extern int	fdatasync(int);
 extern pid_t	getsid(pid_t);
 extern pid_t	getpgid(pid_t);

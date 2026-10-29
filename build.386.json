@@ -80,6 +80,8 @@
 			"/sys/src/ape/lib/ap/stdio/cmds.386.json",
 			"/sys/src/ape/lib/ap/syscall/cmds.386.json",
 			"/sys/src/ape/lib/ap/386/cmds.386.json",
+			"/sys/src/ape/lib/ap/gnu/cmds.386.json",
+			"/sys/src/ape/lib/musl/musl.386.json",
 			"/sys/src/ape/lib/auth/cmds.386.json",
 			"/sys/src/ape/lib/bio/cmds.386.json",
 			"/sys/src/ape/lib/bsd/cmds.386.json",

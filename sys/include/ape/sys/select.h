@@ -7,6 +7,10 @@
 #define __GCC_BSD_SYS_SELECT_H
 #endif
 #pragma lib "/$M/lib/ape/libap.a"
+#if defined(__GNUC__) || defined(_APE_GNU)
+/* GCC port: struct timeval, which POSIX has here */
+#include <sys/time.h>
+#endif
 
 #ifndef _FD_SET_T
 #define _FD_SET_T

@@ -17,6 +17,7 @@ Run them after a mkfile changes (e.g. after rebasing onto `front`);
 | `gencmds.py` | program manifests `cmds.json`; `--list` build order, `--probe` rebuilds `cmds-broken*.txt`. `scripts/gen/gencmds.py cmd/rio` |
 | `genkernel.py` | kernel manifest from mkfile + CONF (pc, arm64; pc64's is hand-made). `scripts/gen/genkernel.py pc` |
 | `genbuild.py` | top-level `build.json` and `build.<arch>.json`. `scripts/gen/genbuild.py` |
+| `genmusl.py` | manifests of APE's musl part `sys/src/ape/lib/musl/musl[.386\|.arm64].json` (gcc only; sources per arch in `musl/<objtype>.list`); `--list` for genbuild. `scripts/gen/genmusl.py` |
 | `genclean.py` | module: the files a manifest's Pre steps generate (its `Clean` key) |
 | `arch.py` | module and tool: objtype, O, TOOLPREFIX, kernel conf, QEMU, manifest suffix. `objtype=386 python3 scripts/gen/arch.py` |
 | `cmds-broken*.txt` | programs that do not build yet, per arch (written by `gencmds.py --probe`) |
@@ -33,6 +34,7 @@ Called by `build.exe` (Pre/Post steps); rarely run by hand.
 | `gen-bootfs.sh` | `/boot/boot` and `$CONF.bootfs.paq` embedded in the kernel. `scripts/build/gen-bootfs.sh pc64` |
 | `gen-src.sh` | generated sources of single programs (Pre step in their directory) |
 | `gen-9syscall.sh` | libc's system call stubs (GAS). `objtype=386 scripts/build/gen-9syscall.sh` |
+| `gen-musl-bits.sh` | musl's `bits/alltypes.h` and `bits/syscall.h` for APE's musl part, as musl's Makefile makes them. `scripts/build/gen-musl-bits.sh x86_64` |
 | `gen-mpc.sh`, `gen-runetype.sh`, `gen-latin1-h.sh`, `gen-jpg-tables.sh`, `gen-awk-proctab.sh`, `gen-upas-yacc.sh` | sources made by host tools (mpc, mkrunetype, mklatin, ...) as the mkfiles do |
 | `yacc.sh`, `lex.sh` | 9front's yacc/lex templates with plan9port's tools |
 | `mkinstall.py` | the install rules of the mkfiles (scripts, data files) |

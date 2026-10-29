@@ -26,6 +26,9 @@ struct timezone {
 #define ITIMER_VIRTUAL 1
 #define ITIMER_PROF 3
 
+#if defined(__GNUC__) || defined(_APE_GNU)
+struct timezone;	/* GCC port: gettimeofday's, also without _BSD_EXTENSION */
+#endif
 extern int gettimeofday(struct timeval *, struct timezone *);
 int getitimer(int, struct itimerval *);
 int setitimer(int, const struct itimerval *, struct itimerval *);
