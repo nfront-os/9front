@@ -3,7 +3,8 @@
  * sys/src/ape/lib/musl, the headers' parts under _APE_GNU), run inside 9front
  * (tests/guest/run.sh): C99's printf over musl's engine, the wide functions,
  * aligned blocks (plan9/malloc.c), mmap, POSIX additions, pthreads, select and
- * poll on a pipe written by a thread (gnu/buf.c), and exit with a thread and
+ * poll on a pipe written by a thread and by a forked child (gnu/buf.c: more
+ * than a buffer, the end, close, fork), and exit with a thread and
  * a copy proc still running.
  *
  * Output: one "ok name" or "FAIL name: detail" line per check, then
@@ -27,6 +28,7 @@
 #include <sys/resource.h>
 #include <wchar.h>
 #include <math.h>
+#include <sys/wait.h>
 
 static int nok, nfail;
 
@@ -217,6 +219,121 @@ testselect(void)
 	pthread_join(w, NULL);
 }
 
+/*
+ * APE's read buffering (ap/gnu/buf.c) without threads: a forked child
+ * writes; more than a buffer holds (PERFDMAX 16K: the copy proc waits
+ * for room); the end (EOF, POLLHUP); two descriptors; close of a buffered
+ * descriptor (its copy proc goes); fork after buffering (the child reads
+ * its descriptor itself).
+ */
+static void
+testbuf(void)
+{
+	char buf[8192], c;
+	int a[2], b[2], n, total, st, ok;
+	pid_t pid;
+	fd_set rf;
+	struct timeval tv;
+	struct pollfd pf[2];
+	long want;
+	int i;
+
+	if(pipe(a) < 0 || pipe(b) < 0){
+		check("buf: pipes", 0, "%s", strerror(errno));
+		return;
+	}
+	pid = fork();
+	if(pid == 0){
+		close(a[0]);
+		close(b[0]);
+		usleep(100*1000);
+		write(b[1], "B", 1);	/* the second descriptor first */
+		for(i = 0; i < 100000; i++){	/* 100000 bytes: six buffers */
+			c = i % 251;
+			write(a[1], &c, 1);
+		}
+		close(a[1]);
+		close(b[1]);
+		_exit(0);
+	}
+	close(a[1]);
+	close(b[1]);
+	FD_ZERO(&rf);
+	FD_SET(a[0], &rf);
+	FD_SET(b[0], &rf);
+	tv.tv_sec = 5;
+	tv.tv_usec = 0;
+	n = select((a[0] > b[0] ? a[0] : b[0]) + 1, &rf, NULL, NULL, &tv);
+	check("buf: select on two, without threads", n >= 1 && (FD_ISSET(a[0], &rf) || FD_ISSET(b[0], &rf)), "%d", n);
+	pf[0].fd = b[0];
+	pf[0].events = POLLIN;
+	n = poll(pf, 1, 5000);
+	check("buf: poll, the second", n == 1 && (pf[0].revents & POLLIN) && read(b[0], &c, 1) == 1 && c == 'B', "%d", n);
+	/* all of it, through select, in order */
+	total = 0;
+	ok = 1;
+	for(;;){
+		FD_ZERO(&rf);
+		FD_SET(a[0], &rf);
+		tv.tv_sec = 5;
+		tv.tv_usec = 0;
+		if(select(a[0]+1, &rf, NULL, NULL, &tv) != 1){
+			ok = 0;
+			break;
+		}
+		n = read(a[0], buf, sizeof buf);
+		if(n <= 0)
+			break;
+		for(i = 0; i < n; i++)
+			if((unsigned char)buf[i] != (total+i) % 251)
+				ok = 0;
+		total += n;
+	}
+	want = 100000;
+	check("buf: 100000 bytes through select, in order, then EOF", ok && total == want && n == 0, "%d bytes, ok %d", total, ok);
+	pf[0].fd = a[0];
+	pf[0].events = POLLIN;
+	check("buf: poll after the end: POLLHUP", poll(pf, 1, 0) == 1 && (pf[0].revents & POLLHUP), "%x", pf[0].revents);
+	pf[1].fd = b[0];
+	pf[1].events = POLLIN;
+	n = poll(pf+1, 1, 5000);
+	check("buf: the second's end", n == 1 && read(b[0], &c, 1) == 0, "%d", n);
+	check("buf: close of buffered descriptors", close(a[0]) == 0 && close(b[0]) == 0, NULL);
+	check("buf: the writer", waitpid(pid, &st, 0) == pid && WIFEXITED(st) && WEXITSTATUS(st) == 0, "%x", st);
+
+	/* close while the copy proc waits in a read: it goes */
+	if(pipe(a) < 0)
+		return;
+	pf[0].fd = a[0];
+	pf[0].events = POLLIN;
+	check("buf: poll times out", poll(pf, 1, 50) == 0, NULL);
+	check("buf: close with a copy proc reading", close(a[0]) == 0, NULL);
+	close(a[1]);
+
+	/* fork after buffering: the child reads the descriptor itself */
+	if(pipe(a) < 0)
+		return;
+	pf[0].fd = a[0];
+	pf[0].events = POLLIN;
+	poll(pf, 1, 10);
+	pid = fork();
+	if(pid == 0){
+		n = read(a[0], buf, sizeof buf);
+		_exit(n == 2 && memcmp(buf, "hi", 2) == 0 ? 0 : 1);
+	}
+	usleep(100*1000);
+	write(a[1], "hi", 2);
+	/* the parent's copy proc may take it first: then give it back */
+	usleep(100*1000);
+	if(poll(pf, 1, 0) == 1){
+		n = read(a[0], buf, sizeof buf);
+		write(a[1], buf, n);
+	}
+	check("buf: fork after buffering", waitpid(pid, &st, 0) == pid && WIFEXITED(st) && WEXITSTATUS(st) == 0, "%x", st);
+	close(a[0]);
+	close(a[1]);
+}
+
 static void *
 sleeper(void *v)
 {
@@ -236,6 +353,7 @@ main(void)
 	testposix();
 	testthreads();
 	testselect();
+	testbuf();
 	/* exit goes with a thread and a copy proc still there (run.rc: ps) */
 	pthread_create(&s, NULL, sleeper, NULL);
 	printf("apegnutest: %d ok, %d failed\n", nok, nfail);

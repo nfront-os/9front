@@ -419,7 +419,7 @@ int
 poll(struct pollfd *fds, nfds_t n, int ms)
 {
 	nfds_t i;
-	Waiter w, **l;
+	Waiter *w, **l;
 	long long deadline, left;
 	int c, r;
 
@@ -430,31 +430,44 @@ poll(struct pollfd *fds, nfds_t n, int ms)
 			if(_startbuf(fds[i].fd) < 0)
 				return -1;
 	deadline = ms > 0 ? msnow() + ms : 0;
+	/*
+	 * the copy procs walk the waiters and release their semaphores: shared
+	 * memory, not the stack (main's is the kernel's stack segment, the
+	 * copy procs have copies of it)
+	 */
+	w = NULL;
 	for(;;){
 		lock(&lk);
 		c = ready(fds, n);
 		if(c > 0 || ms == 0){
 			unlock(&lk);
+			free(w);
 			return c;
 		}
-		w.sem = 0;
-		w.next = waiters;
-		waiters = &w;
+		if(w == NULL && (w = malloc(sizeof *w)) == NULL){
+			unlock(&lk);
+			errno = ENOMEM;
+			return -1;
+		}
+		w->sem = 0;
+		w->next = waiters;
+		waiters = w;
 		unlock(&lk);
 		if(ms < 0)
-			r = _SEMACQUIRE(&w.sem, 1);
+			r = _SEMACQUIRE(&w->sem, 1);
 		else{
 			left = deadline - msnow();
-			r = left > 0 ? _TSEMACQUIRE(&w.sem, left) : 0;
+			r = left > 0 ? _TSEMACQUIRE(&w->sem, left) : 0;
 		}
 		lock(&lk);
 		for(l = &waiters; *l != NULL; l = &(*l)->next)
-			if(*l == &w){
-				*l = w.next;
+			if(*l == w){
+				*l = w->next;
 				break;
 			}
 		unlock(&lk);
 		if(r < 0){
+			free(w);
 			errno = EINTR;
 			return -1;
 		}
@@ -462,6 +475,7 @@ poll(struct pollfd *fds, nfds_t n, int ms)
 			lock(&lk);
 			c = ready(fds, n);
 			unlock(&lk);
+			free(w);
 			return c;
 		}
 	}
