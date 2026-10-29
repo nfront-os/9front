@@ -58,6 +58,14 @@ kpitest(){
 }
 check "LinuxKPI selftests (aux/i915 -T: segments, vmap, Linux's dma-buf selftests)" kpitest
 
+# i915's mock selftests (no GPU: a mock device): GEM, GTT, vma, requests, ...
+mocktest(){
+	MEM=4096 CMDWAIT=3300 QEMU_EXTRA="-vga none -device virtio-gpu-pci" \
+		"$ROOT/scripts/guest/boot-cli.sh" 'aux/i915 -M' > "$TMPD/mocktest" 2>&1
+	grep -q "mock selftests: ok" "$CLI_DIR/console.log" || { grep -E 'failed|<3>|mock selftests' "$CLI_DIR/console.log"; return 1; }
+}
+check "i915's mock selftests (aux/i915 -M)" mocktest
+
 shot=$TMPD/screen.png
 boot(){
 	MEM=1024 UFS_EXTRA="$HERE/root" SCREENSHOT="$shot" \

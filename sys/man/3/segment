@@ -76,6 +76,12 @@ with a fixed physical base address suitable for hardware
 DMA access.
 Sticky segments are like normal shared segments but
 preallocated at creation time and never swapped out.
+With a fourth field,
+.BR contig ,
+a sticky segment's pages are also physically contiguous, starting at
+an address aligned to the segment's size (at most 2 MB), as a buddy
+allocator's blocks are; it fails when no such run of free memory is
+left.
 Only the hostowner is allowed to create
 .B fixed
 or

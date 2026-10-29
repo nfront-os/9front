@@ -39,7 +39,7 @@ static Lock globalseglock;
 	Segment* (*_globalsegattach)(char*);
 static	Segment* globalsegattach(char *name);
 
-static	Segment* fixedseg(uintptr va, ulong len);
+static	Segment* fixedseg(uintptr va, ulong len, int type, uintptr align);
 
 /*
  *  returns with globalseg incref'd
@@ -516,7 +516,21 @@ segmentwrite(Chan *c, void *a, long n, vlong voff)
 			if(cb->nf >= 4 && strcmp(cb->f[3], "fixed") == 0){
 				if(!iseve())
 					error(Eperm);
-				g->Segio.s = fixedseg(va, len/BY2PG);
+				g->Segio.s = fixedseg(va, len/BY2PG, SG_FIXED, BY2PG);
+			} else if(cb->nf >= 5 && strcmp(cb->f[3], "sticky") == 0 && strcmp(cb->f[4], "contig") == 0){
+				uintptr align;
+
+				/*
+				 * 9front-ng: sticky, physically contiguous and aligned
+				 * to its size (up to 2 MB), as a buddy allocator's
+				 * blocks are: a GPU driver's pool of pages, whose
+				 * higher orders must be so (Linux's alloc_pages)
+				 */
+				if(!iseve())
+					error(Eperm);
+				for(align = BY2PG; align < len && align < 2*1024*1024; align <<= 1)
+					;
+				g->Segio.s = fixedseg(va, len/BY2PG, SG_STICKY, align);
 			} else if(cb->nf >= 4 && strcmp(cb->f[3], "sticky") == 0){
 				Segment *s;
 
@@ -635,17 +649,18 @@ Found:
 
 /*
  * allocate a fixed segment with sequential run of of adjacent
- * user memory pages.
+ * user memory pages.  9front-ng: or a sticky one (type), the run's
+ * physical start aligned to align
  */
 static Segment*
-fixedseg(uintptr va, ulong len)
+fixedseg(uintptr va, ulong len, int type, uintptr align)
 {
 	Segment *s;
 	Page **f, *p, *l, *h, *t;
 	ulong n, i;
 	int color;
 
-	s = newseg(SG_FIXED, va, len);
+	s = newseg(type, va, len);
 	if(waserror()){
 		putseg(s);
 		nexterror();
@@ -663,7 +678,7 @@ fixedseg(uintptr va, ulong len)
 		 * before the retry -- seconds with gigabytes of memory
 		 */
 		if(l->Ref.ref != 0 || l->image != nil
-		|| (i != 0 ? (l[-1].pa+BY2PG) != l->pa : l->color != color)){
+		|| (i != 0 ? (l[-1].pa+BY2PG) != l->pa : l->color != color || (l->pa & (align-1)) != 0)){
 		Retry:
 			i = 0;
 			continue;
