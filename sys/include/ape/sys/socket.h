@@ -1,8 +1,11 @@
 #ifndef __SYS_SOCKET_H__
 #define __SYS_SOCKET_H__
 
+/* GCC port: a program that includes it wants it: _BSD_EXTENSION for
+ * this header (bsd.h's prototypes stay off) */
 #ifndef _BSD_EXTENSION
-    This header file is an extension to ANSI/POSIX
+#define _BSD_EXTENSION
+#define __GCC_BSD_SYS_SOCKET_H
 #endif
 
 #pragma lib "/$M/lib/ape/libbsd.a"
@@ -200,4 +203,8 @@ extern int socketpair(int, int, int, int *);
 }
 #endif
 
+#ifdef __GCC_BSD_SYS_SOCKET_H
+#undef _BSD_EXTENSION
+#undef __GCC_BSD_SYS_SOCKET_H
+#endif
 #endif /* !__SYS_SOCKET_H__ */

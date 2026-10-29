@@ -1,8 +1,11 @@
 #ifndef __NETDB_H__
 #define __NETDB_H__
 
+/* GCC port: a program that includes it wants it: _BSD_EXTENSION for
+ * this header (bsd.h's prototypes stay off) */
 #ifndef _BSD_EXTENSION
-    This header file is an extension to ANSI/POSIX
+#define _BSD_EXTENSION
+#define __GCC_BSD_NETDB_H
 #endif
 
 #pragma lib "/$M/lib/ape/libbsd.a"
@@ -166,4 +169,8 @@ extern char	*gai_strerror(int);
 }
 #endif
 
+#ifdef __GCC_BSD_NETDB_H
+#undef _BSD_EXTENSION
+#undef __GCC_BSD_NETDB_H
+#endif
 #endif /* !__NETDB_H__ */

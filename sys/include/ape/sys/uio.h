@@ -1,8 +1,11 @@
 #ifndef __SYS_UIO_H__
 #define __SYS_UIO_H__
 
+/* GCC port: a program that includes it wants it: _BSD_EXTENSION for
+ * this header (bsd.h's prototypes stay off) */
 #ifndef _BSD_EXTENSION
-    This header file is an extension to ANSI/POSIX
+#define _BSD_EXTENSION
+#define __GCC_BSD_SYS_UIO_H
 #endif
 
 #ifdef __cplusplus
@@ -31,4 +34,8 @@ extern int readv(int, struct iovec*, int);
 }
 #endif
 
+#ifdef __GCC_BSD_SYS_UIO_H
+#undef _BSD_EXTENSION
+#undef __GCC_BSD_SYS_UIO_H
+#endif
 #endif /* !__SYS_UIO_H__ */

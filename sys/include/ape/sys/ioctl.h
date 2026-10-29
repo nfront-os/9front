@@ -1,8 +1,11 @@
 #ifndef __IOCTL_H__
 #define __IOCTL_H__
 
+/* GCC port: a program that includes it wants it: _BSD_EXTENSION for
+ * this header (bsd.h's prototypes stay off) */
 #ifndef _BSD_EXTENSION
-    This header file is an extension to ANSI/POSIX
+#define _BSD_EXTENSION
+#define __GCC_BSD_SYS_IOCTL_H
 #endif
 
 #ifdef __cplusplus
@@ -19,4 +22,8 @@ int ioctl(int, unsigned long, void*);
 #endif
 
 
+#ifdef __GCC_BSD_SYS_IOCTL_H
+#undef _BSD_EXTENSION
+#undef __GCC_BSD_SYS_IOCTL_H
+#endif
 #endif /* !__IOCTL_H__ */

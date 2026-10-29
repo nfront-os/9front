@@ -1,7 +1,10 @@
 #ifndef __SELECT_H
 #define __SELECT_H
+/* GCC port: a program that includes it wants it: _BSD_EXTENSION for
+ * this header (bsd.h's prototypes stay off) */
 #ifndef _BSD_EXTENSION
-    This header file is an extension to ANSI/POSIX
+#define _BSD_EXTENSION
+#define __GCC_BSD_SELECT_H
 #endif
 #pragma lib "/$M/lib/ape/libap.a"
 
@@ -31,4 +34,8 @@ extern int select(int, fd_set*, fd_set*, fd_set*, struct timeval *);
 }
 #endif
 
+#ifdef __GCC_BSD_SELECT_H
+#undef _BSD_EXTENSION
+#undef __GCC_BSD_SELECT_H
+#endif
 #endif

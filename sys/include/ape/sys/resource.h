@@ -1,8 +1,11 @@
 #ifndef __RESOURCE_H__
 #define __RESOURCE_H__
 
+/* GCC port: a program that includes it wants it: _BSD_EXTENSION for
+ * this header (bsd.h's prototypes stay off) */
 #ifndef _BSD_EXTENSION
-    This header file is an extension to ANSI/POSIX
+#define _BSD_EXTENSION
+#define __GCC_BSD_SYS_RESOURCE_H
 #endif
 
 struct rusage {
@@ -26,4 +29,8 @@ struct rusage {
 #define	ru_last		ru_nivcsw
 };
 
+#ifdef __GCC_BSD_SYS_RESOURCE_H
+#undef _BSD_EXTENSION
+#undef __GCC_BSD_SYS_RESOURCE_H
+#endif
 #endif /* !__RESOURCE_H__ */
