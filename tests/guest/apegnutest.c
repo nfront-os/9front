@@ -179,6 +179,42 @@ testthreads(void)
 	check("pthread_self in threads", others == 4, "%d", others);
 }
 
+/* main's locals shared with threads: main runs on shared memory (pthread.c's
+ * __plan9_mainstack, from APE's _apemain: the tree links without --wrap=main) */
+struct Shared {
+	pthread_mutex_t	mu;
+	long	n;
+};
+
+static void *
+addlocal(void *v)
+{
+	struct Shared *sh = v;
+	int i;
+
+	for(i = 0; i < 10000; i++){
+		pthread_mutex_lock(&sh->mu);
+		sh->n++;
+		pthread_mutex_unlock(&sh->mu);
+	}
+	return NULL;
+}
+
+static void
+testlocals(void)
+{
+	struct Shared sh;
+	pthread_t t[2];
+
+	pthread_mutex_init(&sh.mu, NULL);
+	sh.n = 0;
+	pthread_create(&t[0], NULL, addlocal, &sh);
+	pthread_create(&t[1], NULL, addlocal, &sh);
+	pthread_join(t[0], NULL);
+	pthread_join(t[1], NULL);
+	check("threads on main's locals", sh.n == 20000, "%ld", sh.n);
+}
+
 static int pfd[2];
 
 static void *
@@ -352,6 +388,7 @@ main(void)
 	testmmap();
 	testposix();
 	testthreads();
+	testlocals();
 	testselect();
 	testbuf();
 	/* exit goes with a thread and a copy proc still there (run.rc: ps) */

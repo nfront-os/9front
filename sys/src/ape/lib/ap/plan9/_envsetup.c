@@ -29,6 +29,12 @@ enum {
 
 #pragma profile off
 
+#ifdef __GNUC_MINOR__
+/* GCC port: 0 in a native program with APE in it (../gnu/native.c): its own
+ * note handler stays */
+int _envnotify = 1;
+#endif
+
 void
 _envsetup(void)
 {
@@ -117,6 +123,10 @@ done:
 		p++;
 	}
 	*pp = 0;
+#ifdef __GNUC_MINOR__
+	if(!_envnotify)
+		nohandle = 1;
+#endif
 	if(!nohandle)
 		_NOTIFY(_notehandler);
 }

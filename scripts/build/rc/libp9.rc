@@ -1,0 +1,10 @@
+#!/bin/rc
+# scripts/build/libp9.sh on 9front: libp9.a, the native libc with every
+# symbol it defines renamed __p9_<name> (binutils of ../9front-gcc)
+. $PLAN9/scripts/build/rc/lib.rc
+L=$PLAN9/$objtype/lib.gcc
+$GNU/nm -g --defined-only $L/libc.a | awk 'NF == 3 {print $3, "__p9_" $3}' | sort -u > $TMP/syms
+$GNU/objcopy '--redefine-syms='^$TMP/syms $L/libc.a $TMP/libp9.a || die objcopy
+$GNU/ranlib $TMP/libp9.a || die ranlib
+if(! cmp -s $TMP/libp9.a $L/libp9.a)
+	cp $TMP/libp9.a $L/libp9.a

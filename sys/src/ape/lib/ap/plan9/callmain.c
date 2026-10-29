@@ -17,6 +17,26 @@ enum{
 
 #pragma profile off
 
+#ifdef __GNUC_MINOR__
+/*
+ * GCC port: ../gnu/pthread.c, when linked: runs main on a stack of shared
+ * memory, as the other threads' stacks (each proc has its own copy of the
+ * stack segment: a thread would see a stale copy of main's locals). libgcc's
+ * __wrap_main calls it too, for the gcc driver's programs (--wrap=main); the
+ * tree's own programs link without it, so here as well (it runs main once).
+ */
+extern int __plan9_mainstack(int (*)(int, char **, char **), int, char **, char **)
+	__attribute__((weak));
+
+static int
+apemain3(int argc, char **argv, char **envp)
+{
+	extern int main(int, char**, char**);
+
+	return main(argc, argv, envp);
+}
+#endif
+
 /*
  * GCC port: front takes char *arg0 and passes &arg0 as argv, which
  * relies on 6c leaving the arguments in place on the initial stack.
@@ -53,6 +73,10 @@ _apemain(int argc, char **argv)
 {
 	_envsetup();
 	extern int main(int, char**, char**);
+#ifdef __GNUC_MINOR__
+	if(__plan9_mainstack)
+		return __plan9_mainstack(apemain3, argc, argv, environ);
+#endif
 	return main(argc, argv, environ);
 }
 

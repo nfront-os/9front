@@ -13,7 +13,8 @@
  * the stack (pthread_join, or itself when detached) frees one nobody
  * runs on. main does the same once this object is linked: libgcc's
  * __wrap_main calls __plan9_mainstack, which runs main on a stack from
- * malloc, so that main's locals are shared memory too.
+ * malloc, so that main's locals are shared memory too; APE's _apemain
+ * calls it as well (the tree's programs link without --wrap=main).
  *
  * So the creating thread is on shared memory when it forks, and the new
  * proc returns from rfork onto the same stack as its parent: it must not
@@ -467,6 +468,9 @@ __plan9_mainstack(int (*main)(int, char **, char **), int argc, char **argv, cha
 	struct Mainargs a;
 	char *stack;
 
+	/* once: APE's _apemain, then libgcc's __wrap_main (--wrap=main) */
+	if(mainthread.stack != NULL)
+		return main(argc, argv, envp);
 	stack = malloc(MAINSTACK);
 	if(stack == NULL)
 		return main(argc, argv, envp);

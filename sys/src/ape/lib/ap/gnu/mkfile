@@ -16,6 +16,7 @@ OFILES=\
 	inttypes.$O\
 	mman.$O\
 	multibyte.$O\
+	native.$O\
 	posix.$O\
 	pread.$O\
 	pthread.$O\

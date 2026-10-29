@@ -24,6 +24,7 @@
 			"inttypes.c",
 			"mman.c",
 			"multibyte.c",
+			"native.c",
 			"posix.c",
 			"pread.c",
 			"pthread.c",

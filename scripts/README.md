@@ -34,6 +34,7 @@ Called by `build.exe` (Pre/Post steps); rarely run by hand.
 | `gen-bootfs.sh` | `/boot/boot` and `$CONF.bootfs.paq` embedded in the kernel. `scripts/build/gen-bootfs.sh pc64` |
 | `gen-src.sh` | generated sources of single programs (Pre step in their directory) |
 | `gen-9syscall.sh` | libc's system call stubs (GAS). `objtype=386 scripts/build/gen-9syscall.sh` |
+| `libp9.sh` | `$objtype/lib.gcc/libp9.a`: the native libc with its symbols renamed `__p9_*`, for programs with APE in them too (Rust). libc's Post step |
 | `gen-musl-bits.sh` | musl's `bits/alltypes.h` and `bits/syscall.h` for APE's musl part, as musl's Makefile makes them. `scripts/build/gen-musl-bits.sh x86_64` |
 | `gen-mpc.sh`, `gen-runetype.sh`, `gen-latin1-h.sh`, `gen-jpg-tables.sh`, `gen-awk-proctab.sh`, `gen-upas-yacc.sh` | sources made by host tools (mpc, mkrunetype, mklatin, ...) as the mkfiles do |
 | `yacc.sh`, `lex.sh` | 9front's yacc/lex templates with plan9port's tools |

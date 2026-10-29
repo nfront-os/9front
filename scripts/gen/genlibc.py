@@ -98,6 +98,8 @@ def main():
 		'Projects': ['9syscall/9syscall.json'],
 		'Pre': ['bash ../../../scripts/build/gen-runetype.sh'],
 		'Clean': genclean.clean(['bash ../../../scripts/build/gen-runetype.sh'], LIBC),
+		# libp9.a: libc renamed __p9_*, for programs with APE in them too (Rust)
+		'Post': ['bash ../../../scripts/build/libp9.sh'],
 		'SourceFiles': src,
 	}]
 	archjson = [{'Name': 'archfiles', 'SourceFiles': arch}]
