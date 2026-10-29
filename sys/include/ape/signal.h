@@ -53,9 +53,10 @@ typedef int sig_atomic_t;
 #define SIGVTALRM 21 /* virtual alarm clock */
 #define SIGPROF 22  /* profiling alarm clock */
 #define SIGSYS	23	/* bad system call (note "sys: bad sys call") */
+#define SIGTRAP	24	/* breakpoint (note "sys: breakpoint"; POSIX XSI) */
 
 #ifdef _BSD_EXTENSION
-#define NSIG 24
+#define NSIG 25
 #endif
 
 #ifdef __cplusplus

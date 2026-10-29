@@ -34,6 +34,7 @@ static struct {
 	{"virtual alarm",			SIGVTALRM},
 	{"profiling alarm",			SIGPROF},
 	{"sys: bad sys call",			SIGSYS},
+	{"sys: breakpoint",			SIGTRAP},
 };
 #define NSIGTAB ((sizeof sigtab)/(sizeof (sigtab[0])))
 
