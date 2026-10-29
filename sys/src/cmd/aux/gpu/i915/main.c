@@ -47,7 +47,7 @@ trapnote(void *v, char *note)
 static void
 usage(void)
 {
-	fprint(2, "usage: %s [-DTnv] [-d drmdebug] [-g #G/n] [-s srvname]\n", argv0);
+	fprint(2, "usage: %s [-DMTnv] [-d drmdebug] [-f selftest-filter] [-g #G/n] [-s srvname]\n", argv0);
 	threadexitsall("usage");
 }
 
@@ -55,13 +55,16 @@ void
 threadmain(int argc, char **argv)
 {
 	char *gdir;
-	int r, nodisplay, loglevel, selftest, noserve;
+	int r, nodisplay, loglevel, selftest, noserve, mock;
+	char *filter;
 	char *srvname;
 	ulong drmdebug;
 
 	gdir = "#G/0";
 	nodisplay = 0;
 	selftest = 0;
+	mock = 0;
+	filter = nil;
 	noserve = 0;
 	srvname = "gpu.0";
 	drmdebug = 0;
@@ -75,6 +78,12 @@ threadmain(int argc, char **argv)
 		break;
 	case 'T':
 		selftest = 1;
+		break;
+	case 'M':
+		mock = 1;
+		break;
+	case 'f':
+		filter = EARGF(usage());
 		break;
 	case 'n':
 		noserve = 1;
@@ -106,11 +115,16 @@ threadmain(int argc, char **argv)
 	if((r = kpi_start(gdir)) < 0)
 		sysfatal("kpi: %s: error %d", gdir, -r);
 	if(selftest){
-		r = i915_selftest();
+		r = i915_kpitest();
 		threadexitsall(r < 0 ? "selftest failed" : nil);
 	}
 	if((r = kpi_drm_start()) < 0)
 		sysfatal("drm: error %d", -r);
+	if(mock){
+		r = i915_mock(filter);
+		fprint(2, "i915: mock selftests: %s (%d)\n", r == 0 ? "ok" : "FAIL", r);
+		threadexitsall(r == 0 ? nil : "mock selftests failed");
+	}
 	if((r = i915_start()) < 0)
 		sysfatal("i915: error %d", -r);
 	if(!nodisplay && (r = i915_kms_start()) < 0)

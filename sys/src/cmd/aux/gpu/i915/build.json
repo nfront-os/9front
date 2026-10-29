@@ -34,6 +34,7 @@
 			"-I../../../../linux/vendor",
 			"-I../../../../linux/vendor/drivers/gpu/drm/i915",
 			"-I../../../../linux/replace/drivers/gpu/drm/i915",
+			"-I../../../../linux/replace/drivers/gpu/drm/i915/selftests",
 			"-I../../../../linux/vendor/drivers/gpu/drm/i915",
 			"-I../../../../linux/replace/drivers/gpu/drm/i915"
 		],
@@ -41,6 +42,7 @@
 		"Library": "libi915.a",
 		"SourceFiles": [
 			"linux/ctx.c",
+			"linux/error.c",
 			"linux/i915.c",
 			"linux/kms.c"
 		]

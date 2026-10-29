@@ -8,6 +8,7 @@
 #include <drm/drm_connector.h>
 #include <drm/drm_print.h>
 #include "i915_params.h"
+#include "i915_selftest.h"
 #include <linux/workqueue.h>
 #include <linux/mm.h>
 #include <linux/vmalloc.h>
@@ -91,7 +92,7 @@ vmap_selftest(void)
 }
 
 int
-i915_selftest(void)
+i915_kpitest(void)
 {
 	struct segtest t;
 	struct page *p;
@@ -118,6 +119,28 @@ i915_selftest(void)
 	r = kpi_init_st_init();
 	pr_info("selftest: Linux's dma-buf selftests: %s (%d)\n", r ? "FAIL" : "ok", r);
 	return r;
+}
+
+/*
+ * -M: i915's mock selftests (no hardware: a mock device), as Linux runs
+ * them with i915.mock_selftests=-1: i915_init runs its init functions,
+ * the module's caches first, the selftests among them, then stops
+ * there; filter as i915.st_filter (NULL: all).  0, or the first
+ * failure's error
+ */
+int
+i915_mock(char *filter)
+{
+	int r;
+
+	i915_selftest.mock = -1;
+	i915_selftest.filter = filter;
+	r = kpi_init_i915_init();
+	if (i915_selftest.mock == -ENOTTY)
+		return 0;	/* all ran and passed */
+	if (i915_selftest.mock < 0)
+		return i915_selftest.mock;
+	return r < 0 ? r : -EIO;
 }
 
 /* drm_sysfs: a connector's state changed (the file server will tell its clients) */

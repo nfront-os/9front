@@ -7,7 +7,8 @@
 int	i915_start(void);	/* i915's module_init: probes the device; 0 or -errno */
 /* before i915_start: no display (i915.disable_display), DRM's debug categories, printk's level */
 void	i915_options(int nodisplay, unsigned long drmdebug, int loglevel);
-int	i915_selftest(void);	/* -T: the KPI on this machine; 0 or -errno */
+int	i915_kpitest(void);
+int	i915_mock(char *filter);	/* -M: i915's mock selftests; 0 or -errno */	/* -T: the KPI on this machine; 0 or -errno */
 
 /*
  * gpu(4)'s contexts (linux/ctx.c): errors are -errno; a context is the
@@ -22,7 +23,9 @@ int	i915_bo_free(void *c, int id);
 int	i915_submit(void *c, int id, unsigned int offset, int engine, u64g *k);	/* engine: 0 rcs, 1 bcs */
 int	i915_fence_wait(void *c, u64g k, int query);	/* 1 done, 0 not, <0 none */
 void	i915_fence_count(void *c, u64g *done, u64g *n, int *failed);
-char	*i915_status(void);	/* i915_freestr */
+char	*i915_status(void);
+long	i915_error_read(char *buf, long n, long long off);	/* the GPU's error state */
+void	i915_error_clear(void);	/* i915_freestr */
 void	i915_freestr(char *s);
 #define i915_iserr(p)	((unsigned long)(p) >= (unsigned long)-4095)
 

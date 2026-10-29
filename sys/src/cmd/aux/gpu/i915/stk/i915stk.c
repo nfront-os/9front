@@ -6,6 +6,7 @@
  * a log: the addresses are looked up on the build machine
  * (addr2line -e amd64/bin/aux/i915).  Only amd64.
  *	aux/i915stk pid...
+ *	aux/i915stk -a name	every process of that name (/proc/n/status)
  */
 #include <u.h>
 #include <libc.h>
@@ -62,16 +63,60 @@ stack(char *pid)
 	close(mfd);
 }
 
+/* every process whose name (the first field of its status) is name */
+static void
+stackall(char *name)
+{
+	char path[64], buf[160];
+	Dir *d;
+	long i, n;
+	int fd, m;
+
+	if((fd = open("/proc", OREAD)) < 0)
+		sysfatal("/proc: %r");
+	n = dirreadall(fd, &d);
+	close(fd);
+	for(i = 0; i < n; i++){
+		snprint(path, sizeof path, "/proc/%s/status", d[i].name);
+		if((fd = open(path, OREAD)) < 0)
+			continue;
+		m = read(fd, buf, sizeof buf - 1);
+		close(fd);
+		if(m <= 2*28)
+			continue;
+		buf[m] = 0;
+		if(strncmp(buf, name, strlen(name)) == 0 && buf[strlen(name)] == ' '){
+			/* status: name, user, state, 28 bytes each */
+			print("%s %.12s ", d[i].name, buf + 2*28);
+			stack(d[i].name);
+		}
+	}
+	free(d);
+}
+
+static void
+usage(void)
+{
+	fprint(2, "usage: aux/i915stk [-a name] [pid...]\n");
+	exits("usage");
+}
+
 void
 main(int argc, char **argv)
 {
+	char *all;
 	int i;
 
+	all = nil;
 	ARGBEGIN{
+	case 'a':
+		all = EARGF(usage());
+		break;
 	default:
-		fprint(2, "usage: aux/i915stk pid...\n");
-		exits("usage");
+		usage();
 	}ARGEND
+	if(all != nil)
+		stackall(all);
 	for(i = 0; i < argc; i++)
 		stack(argv[i]);
 	exits(nil);

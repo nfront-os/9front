@@ -20,6 +20,7 @@ enum {
 	Xctxctl,
 	Xctxsubmit,
 	Xctxfence,
+	Xerror,
 	Xoutedid,
 	Xoutmodes,
 	Xoutmode,
@@ -206,6 +207,20 @@ fsread(Req *r)
 
 	fa = r->fid->aux;
 	switch(KIND(r->fid->file)){
+	case Xerror:
+		{
+			long m;
+
+			/* the text is large: as much as asked for, where asked */
+			m = i915_error_read(r->ofcall.data, r->ifcall.count, r->ifcall.offset);
+			if(m < 0){
+				respond(r, errstr9((int)m));
+				return;
+			}
+			r->ofcall.count = m;
+			respond(r, nil);
+			return;
+		}
 	case Xoutedid:
 		{
 			uchar buf[4096];
@@ -328,6 +343,9 @@ fswrite(Req *r)
 	n = tokenize(buf, f, nelem(f));
 	e = nil;
 	switch(KIND(r->fid->file)){
+	case Xerror:
+		i915_error_clear();
+		break;
 	case Xctxctl:
 		if(n < 1){
 			respond(r, "empty ctl message");
@@ -392,6 +410,7 @@ mktree(void)
 	createfile(n, "ctl", user, 0664, (void*)Xctl);
 	createfile(n, "status", user, 0444, (void*)Xstatus);
 	createfile(n, "clone", user, 0666, (void*)Xclone);
+	createfile(n, "error", user, 0664, (void*)Xerror);
 	ctxdir = createfile(n, "ctx", user, DMDIR|0555, nil);
 	nout = i915_outputs(outname, Nout);
 	o = createfile(n, "outputs", user, DMDIR|0555, nil);

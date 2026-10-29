@@ -6,9 +6,10 @@
 #	i915test.log	the checks: selftests, gpu(4), inteltest, Vulkan,
 #			then the driver's procs and their call chains
 # Two files: two writers of one FAT file overwrite each other.
-#	i915run [-a] [aux/i915 flags]
-# without -a the display stays 9front's (i915.disable_display); with
-# -a i915 takes the outputs too (the screen may go dark: read the logs).
+#	i915run [-n] [aux/i915 flags]
+# i915 takes the outputs too (the screen may go dark: read the logs);
+# with -n the display stays 9front's (i915.disable_display), and the
+# checks of the outputs fail.
 # The driver gets until it has started (at most 60 seconds) and 5 more.
 # A trap in the driver puts its call chain in its log.  DRM's debug
 # output without DRM_UT_CORE (a line each ioctl).
@@ -31,12 +32,14 @@ if(~ $dir /tmp)
 	echo i915run: no USB stick with an ESP: the logs are in /tmp
 log=$dir/i915.log
 out=$dir/i915test.log
-flags=(-D -v -d 0x1fe)
-if(~ $1 -a){
-	flags=(-v -d 0x1fe)
+flags=(-v -d 0x1fe)
+if(~ $1 -n){
+	flags=(-D -v -d 0x1fe)
 	shift
 }
-{echo '# i915run' `{date}; cat /dev/osversion; echo '## aux/i915' $flags $*} >$log
+if(~ $1 -a)	# the default now
+	shift
+{echo '# i915run' `{date}; cat /dev/osversion; echo; echo '## aux/i915' $flags $*} >$log
 {echo '# i915run' `{date}; cat /dev/osversion; echo} >$out
 echo '## #G/0/ctl' >>$out
 cat '#G/0/ctl' >>$out
@@ -69,6 +72,11 @@ if(test -e /dev/gpu/0/clone){
 			echo '## status' $status >>$out
 		}
 	}
+}
+# the GPU's error state, if i915 caught a hang (Mesa's aubinator_error_decode reads it)
+if(test -e /dev/gpu/0/error){
+	echo '## /dev/gpu/0/error' >>$out
+	cat /dev/gpu/0/error >>$out >[2=1]
 }
 echo '## then: procs' >>$out
 ps | grep i915 >>$out
