@@ -8,7 +8,8 @@ int	i915_start(void);	/* i915's module_init: probes the device; 0 or -errno */
 /* before i915_start: no display (i915.disable_display), DRM's debug categories, printk's level */
 void	i915_options(int nodisplay, unsigned long drmdebug, int loglevel);
 int	i915_kpitest(void);
-int	i915_mock(char *filter);	/* -M: i915's mock selftests; 0 or -errno */	/* -T: the KPI on this machine; 0 or -errno */
+int	i915_mock(char *filter);
+int	i915_live_result(int);	/* -L: after i915_start; 0 or -errno */	/* -M: i915's mock selftests; 0 or -errno */	/* -T: the KPI on this machine; 0 or -errno */
 
 /*
  * gpu(4)'s contexts (linux/ctx.c): errors are -errno; a context is the

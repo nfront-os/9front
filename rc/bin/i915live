@@ -1,0 +1,87 @@
+#!/bin/rc
+# i915live: i915's live selftests (Linux 6.6's, on the GPU), as Linux
+# runs them with i915.live_selftests=-1 i915.live_<group>=1: one run of
+# aux/i915 -L per group, so that a failure or a hang (a group gets at
+# most 300 seconds) does not hide the groups after it.  The output into
+# i915live.log on the ESP (FAT) of the USB stick the system booted from
+# (written through: it survives a hang), else /tmp.
+#	i915live [-n] [group ...]
+# Without groups all of them, in the order of i915_live_selftests.h.
+# Groups not ported (Linux's tests are GPL) fail without a run.  -n: the
+# display stays 9front's (aux/i915 -D).
+rfork e
+if(ps | grep -s ' (i915|intelgpu)$'){
+	echo 'i915live: a GPU driver runs already (aux/i915 or aux/intelgpu): reboot first'
+	exit running
+}
+flags=(-v)
+if(~ $1 -n){
+	flags=(-D -v)
+	shift
+}
+# as replace/drivers/gpu/drm/i915/selftests/i915_live_selftests.h
+groups=(sanitycheck uncore workarounds gt_engines gt_timelines gt_contexts \
+	gt_lrc gt_mocs gt_pm gt_heartbeat gt_tlb requests migrate active \
+	objects mman dmabuf vma coherency gtt gem evict hugepages \
+	gem_contexts client gem_migrate reset memory_region hangcheck \
+	execlists ring_submission perf slpc guc guc_multi_lrc guc_hang \
+	late_gt_pm)
+notported=(gt_engines gt_contexts)
+if(! ~ $#* 0)
+	groups=($*)
+dir=/tmp
+for(d in '#σ/usb'/sdU*/esp)
+	if(~ $dir /tmp && test -r $d){
+		dossrv -f $d i915live.esp >/dev/null >[2=1]
+		if(mount -c /srv/i915live.esp /n/esp)
+			dir=/n/esp
+		rm -f /srv/i915live.esp
+	}
+log=$dir/i915live.log
+echo i915live: log in $log
+{echo '# i915live' `{date}; cat /dev/osversion; echo; echo '## #G/0/ctl'; cat '#G/0/ctl'} >$log
+ok=()
+failed=()
+for(g in $groups){
+	if(~ $g $notported){
+		echo '## live_'$g: not ported >>$log
+		failed=($failed $g)
+		echo i915live: $g: FAIL '(not ported)'
+	}
+	if not{
+		echo '## aux/i915 -L -p live_'$g $flags >>$log
+		aux/i915 -L -p live_$g $flags >>$log >[2=1] &
+		pid=$apid
+		t=0
+		while(test -e /proc/$pid && test $t -lt 300){
+			sleep 1
+			t=`{echo $t+1 | hoc}
+		}
+		r=timeout
+		if(test -e /proc/$pid){
+			echo '## live_'$g: timeout after 300 s: the procs >>$log
+			for(p in `{ps | awk '$NF == "i915" {print $2}'})
+				echo $p `{cat /proc/$p/status} >>$log
+			echo kill >/proc/$pid/notepg
+			wait $pid
+		}
+		if not{
+			wait $pid
+			if(~ $status '')
+				r=ok
+			if not
+				r=FAIL
+		}
+		echo '## live_'$g: $r >>$log
+		if(~ $r ok)
+			ok=($ok $g)
+		if not
+			failed=($failed $g)
+		echo i915live: $g: $r
+	}
+}
+{echo '## ok:' $ok; echo '## failed:' $failed} >>$log
+echo i915live: $#ok ok, $#failed failed: $failed
+if(! ~ $#failed 0)
+	exit failed
+exit ''

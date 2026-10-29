@@ -1041,3 +1041,12 @@ Vorher war eine Bibliothek **ein** gcc-Aufruf mit allen Dateien (gcc übersetzt 
   geht die Liste selbst durch); schedule_timeout als Timer (9fronts Tick: sonst laufen Timeout und
   früher fälliger Timer in zufälliger Reihenfolge); i915-Mock-Selbsttests nur über i915_init
   (Caches); virt_to_page muss auch für kmalloc-Speicher eine struct page liefern.
+- (Teil 53 Forts.) Modulparameter wie unter Linux: `module_param*` registriert per Konstruktor
+  (kpi/linux/param.c; 9fronts libc ruft keine Konstruktoren, `kpi_start` läuft `__init_array`
+  selbst ab), `aux/i915 -p name=value` = `i915.name=value` (Name exakt oder eindeutige
+  `__name`-Endung: die Selbsttest-Gruppen heißen `igt__<Zeile>__live_<gruppe>`; bool ohne Wert
+  = an, sonst ohne Wert/leer/keine Zahl -EINVAL). `aux/i915 -L` = `live_selftests=-1`, Ergebnis
+  aus `i915_selftest.live` (-ENOTTY = alle bestanden; -1 = nicht gelaufen). `rc/bin/i915live`
+  startet je Gruppe einen eigenen Lauf (Linux bricht nach dem ersten Fehler ab; 300 s Zeitlimit),
+  Log `i915live.log` auf dem Stick; nicht portiert (gt_engines, gt_contexts) zählt als Fehler.
+  Test `tests/gpu/i915param.rc`. rc: `=` in Argumenten quoten.

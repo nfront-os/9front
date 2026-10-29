@@ -1,0 +1,19 @@
+#!/bin/rc
+# i915param: aux/i915 -p name=value sets Linux's module parameters as
+# i915.name=value on Linux's command line: unknown names, a number
+# without value or not a number fail; set ones take effect (the mock
+# selftests' timeout, groups and filter, as their log shows).
+fn t {
+	echo '>>' $*
+	$* >[2]/tmp/i915param.err
+	st=$status
+	grep -e '^i915: |Performing|Running|error' /tmp/i915param.err
+	echo '<<' status $st
+}
+t aux/i915 -p 'bogus=1' -M
+t aux/i915 -p 'st_timeout' -M
+t aux/i915 -p 'st_timeout=' -M
+t aux/i915 -p 'st_timeout=x' -M
+t aux/i915 -p 'st_timeout=2000' -p 'mock_sanitycheck' -p 'mock_vma=1' -p 'mock_vma=n' -M
+t aux/i915 -p 'st_filter=igt_vma_pin1' -p 'mock_vma' -M
+echo i915param: done

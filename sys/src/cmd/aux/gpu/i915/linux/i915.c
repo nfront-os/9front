@@ -125,7 +125,7 @@ i915_kpitest(void)
  * -M: i915's mock selftests (no hardware: a mock device), as Linux runs
  * them with i915.mock_selftests=-1: i915_init runs its init functions,
  * the module's caches first, the selftests among them, then stops
- * there; filter as i915.st_filter (NULL: all).  0, or the first
+ * there; filter as i915.st_filter (NULL: keep it, as -p set it).  0, or the first
  * failure's error
  */
 int
@@ -134,13 +134,36 @@ i915_mock(char *filter)
 	int r;
 
 	i915_selftest.mock = -1;
-	i915_selftest.filter = filter;
+	if (filter)
+		i915_selftest.filter = filter;
 	r = kpi_init_i915_init();
 	if (i915_selftest.mock == -ENOTTY)
 		return 0;	/* all ran and passed */
 	if (i915_selftest.mock < 0)
 		return i915_selftest.mock;
 	return r < 0 ? r : -EIO;
+}
+
+/*
+ * -L: the live selftests ran in the probe (live_selftests=-1); their
+ * outcome, as i915_selftest.live has it: 0 all passed, or the error.
+ * Still -1: they did not run (no device, the probe failed before
+ * them): the probe's error.
+ */
+int
+i915_live_result(int probe)
+{
+	if (i915_selftest.live == -ENOTTY)
+		return 0;
+	if (i915_selftest.live == -1) {
+		/* i915_init succeeds without a device, as in Linux */
+		if (probe < 0)
+			pr_err("i915: live selftests did not run: error %d\n", probe);
+		else
+			pr_err("i915: live selftests did not run: no device probed\n");
+		return probe < 0 ? probe : -ENODEV;
+	}
+	return i915_selftest.live < 0 ? i915_selftest.live : -EIO;
 }
 
 /* drm_sysfs: a connector's state changed (the file server will tell its clients) */

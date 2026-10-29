@@ -47,7 +47,7 @@ trapnote(void *v, char *note)
 static void
 usage(void)
 {
-	fprint(2, "usage: %s [-DMTnv] [-d drmdebug] [-f selftest-filter] [-g #G/n] [-s srvname]\n", argv0);
+	fprint(2, "usage: %s [-DLMTnv] [-d drmdebug] [-f selftest-filter] [-p name=value]... [-g #G/n] [-s srvname]\n", argv0);
 	threadexitsall("usage");
 }
 
@@ -55,7 +55,8 @@ void
 threadmain(int argc, char **argv)
 {
 	char *gdir;
-	int r, nodisplay, loglevel, selftest, noserve, mock;
+	int r, nodisplay, loglevel, selftest, noserve, mock, live, nparam, i;
+	char *param[32];
 	char *filter;
 	char *srvname;
 	ulong drmdebug;
@@ -64,6 +65,8 @@ threadmain(int argc, char **argv)
 	nodisplay = 0;
 	selftest = 0;
 	mock = 0;
+	live = 0;
+	nparam = 0;
 	filter = nil;
 	noserve = 0;
 	srvname = "gpu.0";
@@ -81,6 +84,14 @@ threadmain(int argc, char **argv)
 		break;
 	case 'M':
 		mock = 1;
+		break;
+	case 'L':
+		live = 1;
+		break;
+	case 'p':
+		if(nparam >= nelem(param))
+			sysfatal("too many -p");
+		param[nparam++] = EARGF(usage());
 		break;
 	case 'f':
 		filter = EARGF(usage());
@@ -118,6 +129,11 @@ threadmain(int argc, char **argv)
 		r = i915_kpitest();
 		threadexitsall(r < 0 ? "selftest failed" : nil);
 	}
+	for(i = 0; i < nparam; i++)
+		if((r = kpi_param_set(param[i])) < 0)
+			sysfatal("-p %s: error %d", param[i], -r);
+	if(live && (r = kpi_param_set("live_selftests=-1")) < 0)
+		sysfatal("live selftests: error %d", -r);
 	if((r = kpi_drm_start()) < 0)
 		sysfatal("drm: error %d", -r);
 	if(mock){
@@ -125,7 +141,14 @@ threadmain(int argc, char **argv)
 		fprint(2, "i915: mock selftests: %s (%d)\n", r == 0 ? "ok" : "FAIL", r);
 		threadexitsall(r == 0 ? nil : "mock selftests failed");
 	}
-	if((r = i915_start()) < 0)
+	r = i915_start();
+	if(live){
+		/* the probe ran them and let go of the device */
+		r = i915_live_result(r);
+		fprint(2, "i915: live selftests: %s (%d)\n", r == 0 ? "ok" : "FAIL", r);
+		threadexitsall(r == 0 ? nil : "live selftests failed");
+	}
+	if(r < 0)
 		sysfatal("i915: error %d", -r);
 	if(!nodisplay && (r = i915_kms_start()) < 0)
 		fprint(2, "i915: no display: error %d\n", -r);

@@ -66,6 +66,29 @@ mocktest(){
 }
 check "i915's mock selftests (aux/i915 -M)" mocktest
 
+# Linux's module parameters (aux/i915 -p name=value, i915param.rc):
+# refusals, and set ones take effect in the mock selftests
+i915param(){
+	cp "$HERE/i915param.rc" "$HERE/root/tests/i915param"
+	MEM=4096 CMDWAIT=900 UFS_EXTRA="$HERE/root" QEMU_EXTRA="-vga none -device virtio-gpu-pci" \
+		"$ROOT/scripts/guest/boot-cli.sh" 'rc /tests/i915param' > "$TMPD/i915param" 2>&1
+	tr -d '\r' < "$CLI_DIR/console.log" | awk '
+		/^>>/ { cmd = $0; n++ }
+		/^<</ { st[n] = $0 }
+		/st_timeout=2000/ && /Performing/ { timeout = 1 }
+		/Running/ { run[n] = run[n] " " $NF }
+		END {
+			bad = 0
+			for (i = 1; i <= 4; i++)
+				if (st[i] !~ /error (2|22)$/) { print "case " i " not refused: " st[i]; bad = 1 }
+			if (st[5] !~ /^<< status *$/ || !timeout || run[5] != " sanitycheck") { print "case 5: " st[5] " ran:" run[5]; bad = 1 }
+			if (st[6] !~ /^<< status *$/ || run[6] != " vma i915_vma_mock_selftests/igt_vma_pin1") { print "case 6: " st[6] " ran:" run[6]; bad = 1 }
+			if (n != 6) { print n " cases ran"; bad = 1 }
+			exit bad
+		}'
+}
+check "Linux's module parameters (aux/i915 -p)" i915param
+
 shot=$TMPD/screen.png
 boot(){
 	MEM=1024 UFS_EXTRA="$HERE/root" SCREENSHOT="$shot" \

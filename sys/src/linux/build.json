@@ -62,6 +62,7 @@
 			"kpi/linux/main.c",
 			"kpi/linux/mmap.c",
 			"kpi/linux/page.c",
+			"kpi/linux/param.c",
 			"kpi/linux/pci.c",
 			"kpi/linux/printf.c",
 			"kpi/linux/rbtree.c",

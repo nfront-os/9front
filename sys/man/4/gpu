@@ -26,7 +26,7 @@ gpu, virtiogpu, intelgpu, i915 \- graphics device file system
 .PP
 .B aux/i915
 [
-.B -DMTnv
+.B -DLMTnv
 ] [
 .B -d
 .I drmdebug
@@ -34,6 +34,9 @@ gpu, virtiogpu, intelgpu, i915 \- graphics device file system
 .B -f
 .I filter
 ] [
+.B -p
+.IB name = value
+] ... [
 .B -g
 .I gdir
 ] [
@@ -458,7 +461,30 @@ i915's mock selftests (no hardware; as
 .B -f
 as
 .BR i915.st_filter ),
+.B -L
+its live selftests on the GPU (as
+.BR i915.live_selftests=-1 :
+the probe runs them, then lets go of the device),
 and exits.
+.B -p
+sets one of Linux's module parameters, as
+.BI i915. name = value
+on Linux's command line does (a bool without
+.I value
+is set): those of i915
+.RB ( enable_guc ,
+.BR enable_hangcheck ,
+\&...), of the selftests
+.RB ( st_filter ,
+.BR st_timeout ,
+.BI live_ group
+to run only the named groups) and of DRM.
+.I I915live
+runs the live selftests group by group, a run of
+.B aux/i915 -L
+each, with its log on the boot stick
+.RB ( i915live.log );
+groups whose tests are not ported fail.
 .SH EXAMPLES
 Switch the screen to 1024x768:
 .EX
