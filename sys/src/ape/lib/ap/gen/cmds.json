@@ -27,6 +27,7 @@
 			"div.c",
 			"getenv.c",
 			"putenv.c",
+			"setenv.c",
 			"isalnum.c",
 			"itoa.c",
 			"itol.c",

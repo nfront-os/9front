@@ -1,23 +1,26 @@
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <unistd.h>
 #include <errno.h>
 
+/* 9front has no symbolic links: lstat is stat, no file is a link */
+
 int
-lstat(char *name, struct stat *ans)
+lstat(const char *name, struct stat *ans)
 {
 	return stat(name, ans);
 }
 
 int
-symlink(char *name1, char *name2)
+symlink(const char *name1, const char *name2)
 {
 	errno = EPERM;
 	return -1;
 }
 
-int
-readlink(char *name, char *buf, int size)
+ssize_t
+readlink(const char *name, char *buf, size_t size)
 {
-	errno = EIO;
+	errno = EINVAL;
 	return -1;
 }

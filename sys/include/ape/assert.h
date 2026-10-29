@@ -15,3 +15,10 @@ extern void _assert(char *, unsigned);
 #endif
 #define assert(e) ((e) ? (void)0 : _assert(__FILE__, __LINE__))
 #endif /* NDEBUG */
+
+/* C11: <assert.h> defines static_assert (kencc has no _Static_assert) */
+#if !defined(__cplusplus) && defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
+#ifndef static_assert
+#define static_assert _Static_assert
+#endif
+#endif

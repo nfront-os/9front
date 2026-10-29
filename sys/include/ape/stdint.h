@@ -20,7 +20,7 @@ typedef int _intptr_t;
 typedef unsigned int _uintptr_t;
 #endif
 
-typedef char int8_t;
+typedef signed char int8_t;	/* C: a signed integer type; plain char is not one (gcc: char* and signed char* differ) */
 typedef short int16_t;
 typedef int int32_t;
 typedef long long int64_t;

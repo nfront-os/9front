@@ -10,7 +10,7 @@ enum
 	MAXARG	= 10*ANAMELEN,	/* max length of an argument */
 };
 
-static int	setenv(char*, char*);
+static int	nssetenv(char*, char*);
 static char	*expandarg(char*, char*);
 static int	splitargs(char*, char*[], char*, int);
 static int	nsfile(char*, Biobuf *, AuthRpc *, int);
@@ -70,9 +70,9 @@ buildns(int newns, char *user, char *file)
 	}
 	if(newns){
 		rfork(RFENVG|RFCNAMEG);
-		setenv("user", user);
+		nssetenv("user", user);
 		snprint(home, sizeof home, "/usr/%s", user);
-		setenv("home", home);
+		nssetenv("home", home);
 	}
 
 	cdroot = nsfile(newns ? "newns" : "addns", b, rpc, dfd);
@@ -368,7 +368,7 @@ expandarg(char *arg, char *buf)
 }
 
 static int
-setenv(char *name, char *val)
+nssetenv(char *name, char *val)
 {
 	int f;
 	char ename[ANAMELEN+6];

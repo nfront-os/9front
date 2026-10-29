@@ -27,7 +27,6 @@
 			"posix.c",
 			"pread.c",
 			"pthread.c",
-			"readlink.c",
 			"realpath.c",
 			"stdlib.c",
 			"string.c",

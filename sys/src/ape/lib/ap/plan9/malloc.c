@@ -1,12 +1,14 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
 
 #include <lock.h>
 
 enum
 {
 	MAGIC		= 0xbada110c,
+	ALIGNED		= 0xa11a1190,	/* header of an aligned block, see alignedalloc */
 	MAX2SIZE	= 32,
 	CUTOFF		= 12,
 };
@@ -137,6 +139,13 @@ free(void *ptr)
 	/* Find the start of the structure */
 	bp = (Bucket*)((uintptr_t)ptr - datoff);
 
+	/* an aligned block: free the block it lies in */
+	if(bp->magic == ALIGNED){
+		bp->magic = 0;
+		ptr = bp->next;
+		bp = (Bucket*)((uintptr_t)ptr - datoff);
+	}
+
 	if(bp->magic != MAGIC)
 		abort();
 
@@ -161,6 +170,22 @@ realloc(void *ptr, size_t n)
 	/* Find the start of the structure */
 	bp = (Bucket*)((uintptr_t)ptr - datoff);
 
+	/* an aligned block: what is left of the block it lies in */
+	if(bp->magic == ALIGNED){
+		Bucket *obp;
+
+		obp = (Bucket*)((uintptr_t)bp->next - datoff);
+		if(obp->magic != MAGIC)
+			abort();
+		osize = (1<<obp->size) - ((uintptr_t)ptr - (uintptr_t)bp->next);
+		new = malloc(n);
+		if(new == nil)
+			return nil;
+		memmove(new, ptr, osize < n ? osize : n);
+		free(ptr);
+		return new;
+	}
+
 	if(bp->magic != MAGIC)
 		abort();
 
@@ -177,4 +202,62 @@ realloc(void *ptr, size_t n)
 	free(ptr);
 
 	return new;
+}
+
+/*
+ * Blocks aligned to more than malloc's 16 bytes: a block of
+ * malloc's holds the aligned one, and right before it a header
+ * with magic ALIGNED whose next is the block of malloc's, which
+ * free and realloc take instead.
+ */
+static void*
+alignedalloc(size_t align, size_t size)
+{
+	uintptr_t p;
+	char *raw;
+	Bucket *bp;
+
+	if(align <= 16)
+		return malloc(size);
+	if(size > (size_t)-1 - align - datoff)
+		return nil;
+	raw = malloc(size + align + datoff);
+	if(raw == nil)
+		return nil;
+	p = ((uintptr_t)raw + datoff + align-1) & ~(uintptr_t)(align-1);
+	bp = (Bucket*)(p - datoff);
+	bp->size = 0;
+	bp->magic = ALIGNED;
+	bp->next = (Bucket*)raw;
+	return (void*)p;
+}
+
+int
+posix_memalign(void **memptr, size_t align, size_t size)
+{
+	void *p;
+
+	if(align < sizeof(void*) || (align & (align-1)) != 0)
+		return EINVAL;
+	p = alignedalloc(align, size);
+	if(p == nil)
+		return ENOMEM;
+	*memptr = p;
+	return 0;
+}
+
+void*
+aligned_alloc(size_t align, size_t size)
+{
+	if(align == 0 || (align & (align-1)) != 0){
+		errno = EINVAL;
+		return nil;
+	}
+	return alignedalloc(align, size);
+}
+
+void*
+memalign(size_t align, size_t size)
+{
+	return aligned_alloc(align, size);
 }

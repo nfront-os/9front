@@ -14,7 +14,7 @@ putenv(char *str)	/* GCC port: types as in the prototype, kencc ignored the diff
 				environ[n] = (char*)str;
 				return 0;
 			}
-	e = realloc(environ, (n+1) * sizeof(char*));
+	e = realloc(environ, (n+2) * sizeof(char*));	/* the new one and the nil */
 	if(e == 0)
 		return -1;
 	environ = e;

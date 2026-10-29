@@ -145,6 +145,11 @@ extern long fpathconf(int, int);
 #ifdef __TYPES_H
 extern int chown(const char *, uid_t, gid_t);
 #endif
+/* symbolic links (POSIX; libbsd: 9front has none) */
+#define __APE_POSIX_LINKS 1
+#pragma lib "/$M/lib/ape/libbsd.a"
+extern int symlink(const char *, const char *);
+extern ssize_t readlink(const char *, char *, size_t);
 
 /* input and output primitives */
 extern int pipe(int *);
@@ -180,8 +185,7 @@ extern char *getlogin_r(char *, int);
 
 #if defined(__GNUC__) || defined(_APE_GNU)
 /* GCC port: <unistd.h> as POSIX has it: getopt and mktemp (POSIX puts them here,
- * APE only in bsd.h; libbsd), truncate, readlink (APE's libbsd returns int:
- * ap/gnu/readlink.c's), symlink, pread, pwrite, usleep, sysconf with the
+ * APE only in bsd.h; libbsd), truncate, pread, pwrite, usleep, sysconf with the
  * processors, the page size and the pages of memory (ap/gnu) */
 #undef execv
 #undef execle
@@ -215,7 +219,6 @@ extern int	execle(const char *, const char *, ...);
 extern int	execve(const char *, char *const *, char *const *);
 extern int	execvp(const char *, char *const *);
 extern int	truncate(const char *, off_t);
-extern ssize_t	readlink(const char *, char *, size_t) __asm__("__apecompat_readlink");
 extern ssize_t	pread(int, void *, size_t, off_t);
 extern ssize_t	pwrite(int, const void *, size_t, off_t);
 extern int	usleep(useconds_t);
@@ -236,7 +239,6 @@ extern int	getopt(int, char *const *, const char *);
 extern char	*optarg;
 extern int	optind, opterr, optopt;
 extern char	*mktemp(char *);
-extern int	symlink(const char *, const char *);
 #endif
 #ifdef __cplusplus
 }

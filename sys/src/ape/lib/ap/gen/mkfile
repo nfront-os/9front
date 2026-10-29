@@ -18,6 +18,7 @@ ALLOFILES=\
 	div.$O\
 	getenv.$O\
 	putenv.$O\
+	setenv.$O\
 	isalnum.$O\
 	itoa.$O\
 	itol.$O\

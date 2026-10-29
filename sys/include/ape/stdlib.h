@@ -48,6 +48,10 @@ extern int atexit(void (*func)(void));
 extern _Noreturn void exit(int);
 extern char *getenv(const char *);
 extern int putenv(char *);
+#if defined(_POSIX_SOURCE) || defined(_POSIX_C_SOURCE)
+extern int setenv(const char *, const char *, int);
+extern int unsetenv(const char *);
+#endif
 extern int system(const char *);
 extern void *bsearch(const void *, const void *, size_t, size_t, int (*)(const void *, const void *));
 extern void qsort(void *, size_t, size_t, int (*)(const void *, const void *));
@@ -65,9 +69,14 @@ extern size_t wcstombs(char *, const wchar_t *, size_t);
 extern char *mktemp(char *);
 #endif
 
-#ifdef _POSIX_C_SOURCE
-extern int mkstemp(char *template);
+#if defined(_POSIX_SOURCE) || defined(_POSIX_C_SOURCE)
+extern int mkstemp(char *);
+extern int mkstemps(char *, int);
 #endif
+
+/* malloc.c: blocks aligned to a power of two (POSIX, C11) */
+extern int posix_memalign(void **, size_t, size_t);
+extern void *aligned_alloc(size_t, size_t);
 
 #ifdef __cplusplus
 }

@@ -19,7 +19,6 @@ OFILES=\
 	posix.$O\
 	pread.$O\
 	pthread.$O\
-	readlink.$O\
 	realpath.$O\
 	stdlib.$O\
 	string.$O\

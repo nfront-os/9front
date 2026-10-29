@@ -52,9 +52,10 @@ typedef int sig_atomic_t;
 #define SIGTTOU	20	/* write to ctl tty by member of background */
 #define SIGVTALRM 21 /* virtual alarm clock */
 #define SIGPROF 22  /* profiling alarm clock */
+#define SIGSYS	23	/* bad system call (note "sys: bad sys call") */
 
 #ifdef _BSD_EXTENSION
-#define NSIG 23
+#define NSIG 24
 #endif
 
 #ifdef __cplusplus
