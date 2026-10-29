@@ -1,0 +1,29 @@
+#!/bin/rc
+# i915live.rc: rc/bin/i915live against a stand-in for aux/i915 -L (no
+# Intel GPU needed): gt_lrc fails, gem hangs (no output: killed after
+# quietmax seconds), the other groups pass. Each run must start after the
+# group that stopped the run before; the not-ported groups fail too.
+cat >/tmp/fakei915 <<'!'
+#!/bin/rc
+echo '<6>i915: Performing live selftests with st_random_seed=0x1 st_timeout=500' >[1=2]
+while(! ~ $#* 0){
+	if(~ $1 -p){
+		g=`{echo $2 | sed 's/^live_//'}
+		echo '<6>i915: Running '$g >[1=2]
+		echo '<6>i915: Running intel_'$g'_live_selftests/a' >[1=2]
+		if(~ $g gt_lrc){
+			echo '<3>i915: live_'$g' failed' >[1=2]
+			exit 'live selftests failed'
+		}
+		if(~ $g gem)
+			sleep 1000
+		shift
+	}
+	shift
+}
+exit ''
+!
+chmod +x /tmp/fakei915
+bind /tmp/fakei915 /bin/aux/i915
+quietmax=5 i915live
+echo i915live.rc: done

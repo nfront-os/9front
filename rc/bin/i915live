@@ -1,14 +1,17 @@
 #!/bin/rc
 # i915live: i915's live selftests (Linux 6.6's, on the GPU), as Linux
-# runs them with i915.live_selftests=-1 i915.live_<group>=1: one run of
-# aux/i915 -L per group, so that a failure or a hang (a group gets at
-# most 300 seconds) does not hide the groups after it.  The output into
-# i915live.log on the ESP (FAT) of the USB stick the system booted from
-# (written through: it survives a hang), else /tmp.
+# runs them with i915.live_selftests=-1: aux/i915 -L with the groups
+# still to run (i915.live_<group>=1 each), in the order of
+# i915_live_selftests.h.  As in Linux a run stops at the first group that
+# fails; its last "i915: Running <group>" line names it, and the next run
+# starts after it, so the driver starts again only after a failure.  A
+# run without output for 300 seconds hangs: it is killed and counts as a
+# failure of the group it was running.  The output into i915live.log on
+# the ESP (FAT) of the USB stick the system booted from (written
+# through: it survives a hang), else /tmp.
 #	i915live [-n] [group ...]
-# Without groups all of them, in the order of i915_live_selftests.h.
-# Groups not ported (Linux's tests are GPL) fail without a run.  -n: the
-# display stays 9front's (aux/i915 -D).
+# Without groups all of them.  Groups not ported (Linux's tests are
+# GPL) fail without a run.  -n: the display stays 9front's (aux/i915 -D).
 rfork e
 if(ps | grep -s ' (i915|intelgpu)$'){
 	echo 'i915live: a GPU driver runs already (aux/i915 or aux/intelgpu): reboot first'
@@ -20,13 +23,17 @@ if(~ $1 -n){
 	shift
 }
 # as replace/drivers/gpu/drm/i915/selftests/i915_live_selftests.h
-groups=(sanitycheck uncore workarounds gt_engines gt_timelines gt_contexts \
+all=(sanitycheck uncore workarounds gt_engines gt_timelines gt_contexts \
 	gt_lrc gt_mocs gt_pm gt_heartbeat gt_tlb requests migrate active \
 	objects mman dmabuf vma coherency gtt gem evict hugepages \
 	gem_contexts client gem_migrate reset memory_region hangcheck \
 	execlists ring_submission perf slpc guc guc_multi_lrc guc_hang \
 	late_gt_pm)
 notported=(gt_engines gt_contexts)
+# seconds without output that count as a hang
+if(~ $#quietmax 0)
+	quietmax=300
+groups=$all
 if(! ~ $#* 0)
 	groups=($*)
 dir=/tmp
@@ -42,46 +49,117 @@ echo i915live: log in $log
 {echo '# i915live' `{date}; cat /dev/osversion; echo; echo '## #G/0/ctl'; cat '#G/0/ctl'} >$log
 ok=()
 failed=()
+todo=()
 for(g in $groups){
 	if(~ $g $notported){
 		echo '## live_'$g: not ported >>$log
 		failed=($failed $g)
 		echo i915live: $g: FAIL '(not ported)'
 	}
-	if not{
-		echo '## aux/i915 -L -p live_'$g $flags >>$log
-		aux/i915 -L -p live_$g $flags >>$log >[2=1] &
-		pid=$apid
-		t=0
-		while(test -e /proc/$pid && test $t -lt 300){
-			sleep 1
-			t=`{echo $t+1 | hoc}
+	if not
+		todo=($todo $g)
+}
+fn size { ls -l $log | awk '{print $6}' }
+fn lines { wc -l <$log }
+nrun=0
+while(! ~ $#todo 0){
+	nrun=`{echo $nrun+1 | hoc}
+	p=()
+	for(g in $todo)
+		p=($p -p live_$g)
+	echo '## run' $nrun: aux/i915 -L $flags: $todo >>$log
+	echo i915live: run $nrun: $#todo groups
+	start=`{lines}
+	# its status in a file: rc's wait loses a status that sleep or test
+	# reaped before
+	rm -f /tmp/i915live.status
+	@{
+		aux/i915 -L $p $flags >>$log >[2=1]
+		if(~ $status '')
+			echo ok >/tmp/i915live.status
+		if not
+			echo fail >/tmp/i915live.status
+	} &
+	pid=$apid
+	last=`{size}
+	quiet=0
+	while(test -e /proc/$pid && test $quiet -lt $quietmax){
+		sleep 1
+		now=`{size}
+		if(~ $now $last)
+			quiet=`{echo $quiet+1 | hoc}
+		if not{
+			last=$now
+			quiet=0
 		}
-		r=timeout
-		if(test -e /proc/$pid){
-			echo '## live_'$g: timeout after 300 s: the procs >>$log
-			for(p in `{ps | awk '$NF == "i915" {print $2}'})
-				echo $p `{cat /proc/$p/status} >>$log
-			echo kill >/proc/$pid/notepg
-			wait $pid
+	}
+	r=FAIL
+	if(test -e /proc/$pid){
+		echo '## run' $nrun: no output for $quietmax s: hangs, the procs >>$log
+		for(q in `{ps | awk '$NF == "i915" {print $2}'})
+			echo $q `{cat /proc/$q/status} >>$log
+		# as slay: through ctl, which no note handler keeps from dying
+		for(q in $pid `{ps | awk '$NF == "i915" {print $2}'})
+			echo kill >/proc/$q/ctl >[2]/dev/null
+		for(i in 1 2 3 4 5 6 7 8 9 10)
+			if(test -e /proc/$pid || ps | grep -s ' i915$')
+				sleep 1
+		r=hang
+	}
+	if not if(~ `{cat /tmp/i915live.status >[2]/dev/null} ok)
+		r=ok
+	# the groups this run began, in order (not a subtest: those have a /)
+	ran=`{sed -n `{echo $start+1 | hoc}^',$p' $log |
+		awk '/i915: Running / && $NF !~ /\// {print $NF}'}
+	if(~ $r ok){
+		for(g in $todo){
+			echo '## live_'$g: ok >>$log
+			echo i915live: $g: ok
+		}
+		ok=($ok $todo)
+		todo=()
+	}
+	if not if(~ $#ran 0){
+		# the probe failed before the first group: a new run would too
+		echo '## run' $nrun: $r before the first group: $todo not run >>$log
+		echo i915live: run $nrun: $r before the first group: $#todo groups not run
+		failed=($failed $todo)
+		todo=()
+	}
+	if not{
+		# the last group begun failed (or hung); those before it passed
+		bad=$ran($#ran)
+		if(! ~ $bad $todo){
+			# a group not asked for: count none of them as passed
+			echo '## run' $nrun: $r in $bad, not one of: $todo >>$log
+			echo i915live: run $nrun: $r in $bad, not asked for
+			failed=($failed $todo)
+			todo=()
 		}
 		if not{
-			wait $pid
-			if(~ $status '')
-				r=ok
-			if not
-				r=FAIL
+			rest=()
+			seen=0
+			for(g in $todo){
+				if(~ $seen 1)
+					rest=($rest $g)
+				if not if(~ $g $bad){
+					seen=1
+					echo '## live_'$g: $r >>$log
+					echo i915live: $g: $r
+					failed=($failed $g)
+				}
+				if not{
+					echo '## live_'$g: ok >>$log
+					echo i915live: $g: ok
+					ok=($ok $g)
+				}
+			}
+			todo=$rest
 		}
-		echo '## live_'$g: $r >>$log
-		if(~ $r ok)
-			ok=($ok $g)
-		if not
-			failed=($failed $g)
-		echo i915live: $g: $r
 	}
 }
-{echo '## ok:' $ok; echo '## failed:' $failed} >>$log
-echo i915live: $#ok ok, $#failed failed: $failed
+{echo '## ok:' $ok; echo '## failed:' $failed; echo '## runs:' $nrun} >>$log
+echo i915live: $#ok ok, $#failed failed: $failed '('$nrun runs')'
 if(! ~ $#failed 0)
 	exit failed
 exit ''

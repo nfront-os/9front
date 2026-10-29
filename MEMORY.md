@@ -1047,8 +1047,12 @@ Vorher war eine Bibliothek **ein** gcc-Aufruf mit allen Dateien (gcc übersetzt 
   `__name`-Endung: die Selbsttest-Gruppen heißen `igt__<Zeile>__live_<gruppe>`; bool ohne Wert
   = an, sonst ohne Wert/leer/keine Zahl -EINVAL). `aux/i915 -L` = `live_selftests=-1`, Ergebnis
   aus `i915_selftest.live` (-ENOTTY = alle bestanden; -1 = nicht gelaufen). `rc/bin/i915live`
-  startet je Gruppe einen eigenen Lauf (Linux bricht nach dem ersten Fehler ab; 300 s Zeitlimit),
-  Log `i915live.log` auf dem Stick; nicht portiert (gt_engines, gt_contexts) zählt als Fehler.
+  startet einen Lauf für alle Gruppen und nur nach einem Fehler/Hänger (300 s ohne Ausgabe) einen
+  neuen ab der Gruppe danach (die letzte Zeile „i915: Running <gruppe>“ nennt sie; je Gruppe neu
+  starten war zu langsam), Log `i915live.log` auf dem Stick; nicht portiert (gt_engines,
+  gt_contexts) zählt als Fehler. rc-Fallen dabei: `wait $pid` verliert den Status, wenn sleep/test
+  die Wait-Meldung vorher abholten (Status in eine Datei); `tr -d '\r'` löscht `\` und `r`;
+  Notizen kann rc/ein Handler abfangen, Beenden über `/proc/n/ctl` (wie slay). Test i915live.rc.
   Test `tests/gpu/i915param.rc`. rc: `=` in Argumenten quoten.
 - (Teil 53 Forts.) **Vulkan DEVICE_LOST auf aux/i915 war kein GPU-Hang**: libdrm9s `gemwait`
   rechnete `end = now() + timeout_ns`; hasvk wartet mit INT64_MAX → Überlauf, sofort ETIME, sobald

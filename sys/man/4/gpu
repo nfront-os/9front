@@ -488,9 +488,11 @@ is set): those of i915
 .BI live_ group
 to run only the named groups) and of DRM.
 .I I915live
-runs the live selftests group by group, a run of
-.B aux/i915 -L
-each, with its log on the boot stick
+runs the live selftests with
+.BR "aux/i915 -L" :
+as in Linux a run stops at the first group that fails, and the next
+run starts after it; a run without output for 300 seconds hangs and is
+killed.  Its log is on the boot stick
 .RB ( i915live.log );
 groups whose tests are not ported fail.
 .SH EXAMPLES

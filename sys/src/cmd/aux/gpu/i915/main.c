@@ -56,7 +56,7 @@ threadmain(int argc, char **argv)
 {
 	char *gdir;
 	int r, nodisplay, loglevel, selftest, noserve, mock, live, nparam, i;
-	char *param[32];
+	char *param[64];
 	char *filter;
 	char *srvname;
 	ulong drmdebug;

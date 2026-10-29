@@ -89,6 +89,17 @@ i915param(){
 }
 check "Linux's module parameters (aux/i915 -p)" i915param
 
+# rc/bin/i915live (one run of aux/i915 -L for all groups, a new run only
+# after a failure or a hang) against a stand-in driver (i915live.rc)
+i915live(){
+	cp "$HERE/i915live.rc" "$HERE/root/tests/i915live"
+	MEM=1024 CMDWAIT=300 UFS_EXTRA="$HERE/root" \
+		"$ROOT/scripts/guest/boot-cli.sh" 'rc /tests/i915live' > "$TMPD/i915live" 2>&1
+	tr -d '\r' < "$CLI_DIR/console.log" | grep -q '^i915live: 33 ok, 4 failed: gt_engines gt_contexts gt_lrc gem (3 runs)$' ||
+		{ tr -d '\r' < "$CLI_DIR/console.log" | grep '^i915live:'; return 1; }
+}
+check "i915live: the live selftests in as few runs as failures allow" i915live
+
 shot=$TMPD/screen.png
 boot(){
 	MEM=1024 UFS_EXTRA="$HERE/root" SCREENSHOT="$shot" \
