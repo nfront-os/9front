@@ -29,8 +29,8 @@ extern intmax_t strtoimax(const char *, char **, int);
 /*
  * GCC port, for the gcc driver's programs: the <inttypes.h> macros of C99 APE's lacks (PRIi, PRIX,
  * the SCN family, the MAX/PTR, LEAST/FAST variants), for APE's types:
- * int8..int32 int (promoted), 64 bit long long, intptr_t long long on
- * amd64 and int on 386; intmax_t the compiler's (<stdint.h>: j).
+ * int8..int32 int (promoted), 64 bit long long, intptr_t long on
+ * amd64 and arm64 (the compiler's) and int on 386; intmax_t the compiler's (<stdint.h>: j).
  */
 
 
@@ -75,7 +75,7 @@ extern intmax_t strtoimax(const char *, char **, int);
 #endif
 #ifndef PRIdPTR
 #if __SIZEOF_POINTER__ == 8
-#define PRIdPTR "lld"
+#define PRIdPTR "ld"
 #else
 #define PRIdPTR "d"
 #endif
@@ -121,7 +121,7 @@ extern intmax_t strtoimax(const char *, char **, int);
 #endif
 #ifndef PRIiPTR
 #if __SIZEOF_POINTER__ == 8
-#define PRIiPTR "lli"
+#define PRIiPTR "li"
 #else
 #define PRIiPTR "i"
 #endif
@@ -167,7 +167,7 @@ extern intmax_t strtoimax(const char *, char **, int);
 #endif
 #ifndef PRIoPTR
 #if __SIZEOF_POINTER__ == 8
-#define PRIoPTR "llo"
+#define PRIoPTR "lo"
 #else
 #define PRIoPTR "o"
 #endif
@@ -213,7 +213,7 @@ extern intmax_t strtoimax(const char *, char **, int);
 #endif
 #ifndef PRIuPTR
 #if __SIZEOF_POINTER__ == 8
-#define PRIuPTR "llu"
+#define PRIuPTR "lu"
 #else
 #define PRIuPTR "u"
 #endif
@@ -259,7 +259,7 @@ extern intmax_t strtoimax(const char *, char **, int);
 #endif
 #ifndef PRIxPTR
 #if __SIZEOF_POINTER__ == 8
-#define PRIxPTR "llx"
+#define PRIxPTR "lx"
 #else
 #define PRIxPTR "x"
 #endif
@@ -305,7 +305,7 @@ extern intmax_t strtoimax(const char *, char **, int);
 #endif
 #ifndef PRIXPTR
 #if __SIZEOF_POINTER__ == 8
-#define PRIXPTR "llX"
+#define PRIXPTR "lX"
 #else
 #define PRIXPTR "X"
 #endif
@@ -351,7 +351,7 @@ extern intmax_t strtoimax(const char *, char **, int);
 #endif
 #ifndef SCNdPTR
 #if __SIZEOF_POINTER__ == 8
-#define SCNdPTR "lld"
+#define SCNdPTR "ld"
 #else
 #define SCNdPTR "d"
 #endif
@@ -397,7 +397,7 @@ extern intmax_t strtoimax(const char *, char **, int);
 #endif
 #ifndef SCNiPTR
 #if __SIZEOF_POINTER__ == 8
-#define SCNiPTR "lli"
+#define SCNiPTR "li"
 #else
 #define SCNiPTR "i"
 #endif
@@ -443,7 +443,7 @@ extern intmax_t strtoimax(const char *, char **, int);
 #endif
 #ifndef SCNoPTR
 #if __SIZEOF_POINTER__ == 8
-#define SCNoPTR "llo"
+#define SCNoPTR "lo"
 #else
 #define SCNoPTR "o"
 #endif
@@ -489,7 +489,7 @@ extern intmax_t strtoimax(const char *, char **, int);
 #endif
 #ifndef SCNuPTR
 #if __SIZEOF_POINTER__ == 8
-#define SCNuPTR "llu"
+#define SCNuPTR "lu"
 #else
 #define SCNuPTR "u"
 #endif
@@ -535,7 +535,7 @@ extern intmax_t strtoimax(const char *, char **, int);
 #endif
 #ifndef SCNxPTR
 #if __SIZEOF_POINTER__ == 8
-#define SCNxPTR "llx"
+#define SCNxPTR "lx"
 #else
 #define SCNxPTR "x"
 #endif

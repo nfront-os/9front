@@ -6,9 +6,14 @@
  * not had (the constant macros, the limits of intptr_t, ptrdiff_t, sig_atomic_t,
  * wchar_t, wint_t); intmax_t and uintmax_t are the compiler's (__INTMAX_TYPE__:
  * long on amd64, APE's long long the same size), as printf's %jd and C++'s
- * std::intmax_t take them: APE's typedefs are renamed while the header is read. */
+ * std::intmax_t take them: APE's typedefs are renamed while the header is read.
+ * intptr_t and uintptr_t too (__INTPTR_TYPE__: long on amd64 and arm64, as size_t
+ * and on every LP64 system; APE's long long the same size, but another type:
+ * a uintptr_t * was no size_t *). */
 #define intmax_t	__ape_intmax_t
 #define uintmax_t	__ape_uintmax_t
+#define intptr_t	__ape_intptr_t
+#define uintptr_t	__ape_uintptr_t
 #endif
 
 /*
@@ -132,6 +137,10 @@ typedef _uintptr_t uintptr_t;
 #if defined(__GNUC__) || defined(_APE_GNU)
 #undef intmax_t
 #undef uintmax_t
+#undef intptr_t
+#undef uintptr_t
+typedef __INTPTR_TYPE__ intptr_t;
+typedef __UINTPTR_TYPE__ uintptr_t;
 
 typedef __INTMAX_TYPE__ intmax_t;
 typedef __UINTMAX_TYPE__ uintmax_t;
