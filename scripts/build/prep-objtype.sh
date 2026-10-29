@@ -34,3 +34,10 @@ case $objtype in
 	;;
 arm64)	copy "$(${TOOLPREFIX-aarch64-linux-musl-}gcc -print-libgcc-file-name)" arm64/lib.gcc/libgcc.a ;;
 esac
+# POSIX's names of libraries whose functions are all in libap (gcc's APE,
+# as musl): empty archives, for builds that name them (-lm -lpthread -lrt
+# -ldl: LLVM, autoconf)
+mkdir -p $objtype/lib.gcc/ape
+for l in m pthread rt dl; do
+	[ -f $objtype/lib.gcc/ape/lib$l.a ] || printf '!<arch>\n' > $objtype/lib.gcc/ape/lib$l.a
+done

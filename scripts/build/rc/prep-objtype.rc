@@ -12,3 +12,8 @@ case 386 arm64
 		cp $f $objtype/lib.gcc/libgcc.a || die libgcc.a
 }
 exit ''
+# POSIX's names of libraries whose functions are all in libap: empty archives
+mkdir -p $objtype/lib.gcc/ape
+for(l in m pthread rt dl)
+	if(! test -f $objtype/lib.gcc/ape/lib$l.a)
+		echo '!<arch>' > $objtype/lib.gcc/ape/lib$l.a
