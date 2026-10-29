@@ -127,6 +127,11 @@ type build struct {
 	Install string // where to place the resulting binary/lib
 	// Ape compiles like pcc: only /$ARCH/include/ape, /sys/include/ape and .
 	Ape bool
+	// IncludePath replaces the standard include path (/$ARCH/include,
+	// /sys/include, . or Ape's): sources with headers of their own,
+	// musl's in APE (sys/src/ape/lib/musl). Relative to the manifest's
+	// directory, absolute ones re-rooted as the standard ones.
+	IncludePath []string
 	// Append adds to an existing Library archive instead of starting a
 	// new one (libap: one archive from several directories, like mk's ar)
 	Append bool
@@ -355,6 +360,7 @@ func include(f string, targ string, b *build) {
 		b.Library += build.Library
 		b.Clean = append(b.Clean, build.Clean...)
 		b.Ape = b.Ape || build.Ape
+		b.IncludePath = append(b.IncludePath, build.IncludePath...)
 		b.Append = b.Append || build.Append
 		b.Shared = b.Shared || build.Shared
 	}
@@ -592,6 +598,15 @@ func compileArgs(b *build) (command string, cArgs, asmArgs []string) {
 			"-I", fromRoot("/$ARCH/include/ape"),
 			"-I", fromRoot("/sys/include/ape"),
 			"-I", ".",
+		}
+	}
+	if len(b.IncludePath) > 0 {
+		incArgs = nil
+		for _, d := range b.IncludePath {
+			if path.IsAbs(d) {
+				d = fromRoot(d)
+			}
+			incArgs = append(incArgs, "-I", d)
 		}
 	}
 	cArgs = []string{

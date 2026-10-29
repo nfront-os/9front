@@ -78,6 +78,7 @@ A build object has the following keys and types:
 	Library         string
 	Install         string
 	Ape             bool
+	IncludePath     []string
 	Append          bool
 	Shared          bool
 	Objtag          string
@@ -131,6 +132,11 @@ binary or library, named by "Program" or "Library" respectively.
 "Ape" compiles the sources the way pcc does for the ANSI/POSIX
 environment: the include path is /$ARCH/include/ape, /sys/include/ape
 and . instead of /$ARCH/include, /sys/include and .
+
+"IncludePath" replaces the standard include path (that of "Ape" too):
+sources with headers of their own (musl's, in APE). The directories are
+relative to the buildfile's directory; absolute ones are re-rooted as the
+standard ones.
 
 "Append" adds the objects to an existing "Library" archive, replacing
 members of the same name, instead of creating the archive anew. It

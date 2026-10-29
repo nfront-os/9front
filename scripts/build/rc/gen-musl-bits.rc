@@ -1,0 +1,16 @@
+#!/bin/rc
+# gen-musl-bits.sh: musl's bits/alltypes.h and bits/syscall.h (APE's musl part)
+. $PLAN9/scripts/build/rc/lib.rc
+M=$PLAN9/sys/src/ape/lib/musl
+A=$1
+O=$M/obj/$A/include/bits
+mkdir -p $O
+fn put {
+	if(! cmp -s $O/.new $1 >[2]/dev/null) mv $O/.new $1
+	if not rm -f $O/.new
+}
+sed -f $M/tools/mkalltypes.sed $M/arch/$A/bits/alltypes.h.in $M/include/alltypes.h.in >$O/.new || die sed
+put $O/alltypes.h
+{ cat $M/arch/$A/bits/syscall.h.in; sed -n -e 's/__NR_/SYS_/p' <$M/arch/$A/bits/syscall.h.in } >$O/.new
+put $O/syscall.h
+exit ''
