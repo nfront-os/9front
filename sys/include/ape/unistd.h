@@ -234,6 +234,7 @@ extern pid_t	getpgid(pid_t);
 extern int	fchown(int, uid_t, gid_t);
 extern int	gethostname(char *, int);
 extern long	sysconf(int) __asm__("__apecompat_sysconf");
+extern int	getpagesize(void);	/* BSD's (ap/gnu/xsysconf.c) */
 #ifndef _BSD_EXTENSION
 extern int	getopt(int, char *const *, const char *);
 extern char	*optarg;

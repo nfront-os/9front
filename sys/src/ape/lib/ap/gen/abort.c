@@ -3,16 +3,17 @@
 #include <signal.h>
 
 #ifdef __GNUC_MINOR__
-/* GCC port: as in plan9/_exit.c: a native program (Rust's std) ends whole */
-extern _Noreturn void __plan9_exit(char *) __attribute__((weak));
+/* GCC port: in a native program with APE in it (Rust's std): its other procs
+ * go, this one ends with a trap and stays Broken (its stack for acid) */
+extern _Noreturn void __plan9_abort(void) __attribute__((weak));
 #endif
 
 _Noreturn void
 abort(void)
 {
 #ifdef __GNUC_MINOR__
-	if(__plan9_exit)
-		__plan9_exit("abort");
+	if(__plan9_abort)
+		__plan9_abort();
 #endif
 	kill(getpid(), SIGABRT);
 }
