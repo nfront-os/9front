@@ -8,6 +8,8 @@ eval "$(python3 "$ROOT/scripts/gen/arch.py")" || exit 1
 KBIN=$objtype/bin/9$KERNEL
 case $objtype in amd64) KDIR=pc64 ;; 386) KDIR=pc ;; *) KDIR=$objtype ;; esac	# sys/src/9/$KDIR
 export objtype SUFFIX KERNEL KBIN KDIR
+# guests with several processors: threads really run at once (races one hides)
+export SMP=${SMP:-4}
 # the build tool (go build in sys/src/cmd/build) and how to build everything
 BUILDEXE=$ROOT/sys/src/cmd/build/build.exe
 BUILDHOW="CC=gcc ARCH=$objtype sys/src/cmd/build/build.exe"

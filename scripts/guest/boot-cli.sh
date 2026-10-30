@@ -32,6 +32,7 @@
 #         KARGS       more kernel parameters (plan9.ini variables), e.g.
 #                     "vgasize=1024x768x16 monitor=vesa mouseport=ps2"
 #         MEM NIC     QEMU memory (256) and NIC model (e1000)
+#         SMP         QEMU processors (QEMU's default: 1; tests/lib.sh sets 4)
 #         QEMU_EXTRA  extra QEMU flags (e.g. "-s -S" for gdb)
 #         BOOTKERNEL  the kernel to boot (default: the build's
 #                     $objtype/bin/$KNAME; e.g. one built with kencc)
@@ -104,7 +105,7 @@ if [ -n "$BOOTDISK$BOOTISO" ]; then
 		[ -f "$BOOTDISK" ] || die "$BOOTDISK missing"
 		media=(-drive "file=$BOOTDISK,format=raw,if=ide,index=0")
 	fi
-	qemu=($QEMU "${fw[@]}" "${media[@]}" -m "$MEM"
+	qemu=($QEMU "${fw[@]}" "${media[@]}" -m "$MEM" ${SMP:+-smp "$SMP"}
 		-display none -no-reboot -monitor none
 		-netdev user,id=net0 -device "$NIC",netdev=net0
 		-cpu $CPU "${accel[@]}")
@@ -177,13 +178,13 @@ disk=()
 if [ $objtype = arm64 ]; then
 	# pciqemu.c expects the low PCIe ECAM window (0x3f000000): highmem=off
 	[ -z "$DISK" ] || disk=(-drive "file=$DISK,format=raw,if=none,id=d0" -device virtio-blk-pci,drive=d0,disable-legacy=on)
-	qemu=($QEMU -M virt,gic-version=3,highmem=off -cpu $CPU -m "$MEM"
+	qemu=($QEMU -M virt,gic-version=3,highmem=off -cpu $CPU -m "$MEM" ${SMP:+-smp "$SMP"}
 		-bios "$CLI_DIR/uboot/u-boot.bin"
 		-drive "file=$FAT,format=raw,if=none,id=fat" -device virtio-blk-pci,drive=fat,disable-legacy=on
 		-display none -no-reboot -monitor none
 		-netdev user,id=net0,$fwd -device virtio-net-pci,netdev=net0,disable-legacy=on "${disk[@]}")	# virtio 1.0 only (ethervirtio10.c, sdvirtio10.c)
 else
-qemu=($QEMU "${fw[@]}" -cdrom "$CLI_DIR/$KNAME.iso" -m "$MEM"
+qemu=($QEMU "${fw[@]}" -cdrom "$CLI_DIR/$KNAME.iso" -m "$MEM" ${SMP:+-smp "$SMP"}
 	-display none -no-reboot -monitor none
 	-netdev user,id=net0,$fwd -device "$NIC",netdev=net0 "${disk[@]}"
 	-cpu $CPU "${accel[@]}")	# RDRAND: kernel entropy fast path, dial() needs it
