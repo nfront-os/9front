@@ -1271,7 +1271,13 @@ static int ext4_ftruncate_no_lock(ext4_file *file, u64int size)
 
 	/*Sync file size*/
 	file->fsize = ext4_inode_get_size(&file->mp->fs.sb, ref.inode);
-	if (file->fsize <= size) {
+	/* GCC port branch: the length it has is no change, not an error (truncating an empty
+	 * file to 0: cargo's set_len(0) failed with "space preallocation not supported") */
+	if (file->fsize == size) {
+		r = 0;
+		goto Finish;
+	}
+	if (file->fsize < size) {
 		werrstr("space preallocation not supported");
 		r = -1;
 		goto Finish;
