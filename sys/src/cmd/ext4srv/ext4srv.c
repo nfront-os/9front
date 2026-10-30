@@ -5,6 +5,7 @@
 #include <9p.h>
 #include <bio.h>
 #include "ext4_inode.h"
+#include "ext4_super.h"	/* GCC port branch: ext4_sb_get_block_size */
 #include "group.h"
 #include "common.h"
 
@@ -427,6 +428,7 @@ rcreate(Req *r)
 		goto ext4errorrm;
 	ext4_owner_set(mp, s, a->uid, a->uid);
 	tm = time(nil);
+	ext4_atime_set(mp, s, tm);	/* GCC port branch: atime too, as other Plan 9 servers (it was 0) */
 	ext4_mtime_set(mp, s, tm);
 	ext4_ctime_set(mp, s, tm);
 
@@ -574,6 +576,23 @@ rread(Req *r)
 	respond(r, nil);
 }
 
+/*
+ * GCC port branch: a file's length from its inode; an ext4_file keeps the one it had when
+ * opened, another fid's wstat or write may have changed it since (rwrite filled the gap to
+ * its offset from the old end: over the other's data, or not at all after a truncation).
+ */
+static u64int
+filesize(ext4_file *f)
+{
+	struct ext4_inode_ref ref;
+
+	if(ext4_fs_get_inode_ref(&f->mp->fs, f->inode, &ref) == 0){
+		f->fsize = ext4_inode_get_size(&f->mp->fs.sb, ref.inode);
+		ext4_fs_put_inode_ref(&ref);
+	}
+	return f->fsize;
+}
+
 static void
 rwrite(Req *r)
 {
@@ -582,6 +601,7 @@ rwrite(Req *r)
 
 	a = r->fid->aux;
 	if(a->type == Afile){
+		filesize(a->file);	/* GCC port branch */
 		while(ext4_fsize(a->file) < r->ifcall.offset){
 			ext4_fseek(a->file, 0, 2);
 			sz = MIN(r->ifcall.offset-ext4_fsize(a->file), sizeof(zero));
@@ -674,6 +694,8 @@ static void
 rwstat(Req *r)
 {
 	int res, isdir, wrperm, isowner, n;
+	usize wn;
+	u32int bs;
 	struct ext4_mountpoint *mp;
 	struct ext4_inode inode;
 	u32int uid, gid, iflags;
@@ -758,7 +780,24 @@ rwstat(Req *r)
 	if(r->d.length >= 0 && ext4_inode_can_truncate(a->p->sb, &inode)){
 		if(ext4_fopen2(mp, &f, a->path, toext4mode(OWRITE, 0, 0)) < 0)
 			goto error;
-		res = ext4_ftruncate(&f, r->d.length);
+		/* GCC port branch: a longer length extends the file with zeros (stat(5)), as rwrite
+		 * past the end; lwext4's truncate only shortens ("space preallocation not supported") */
+		res = 0;
+		while(res == 0 && ext4_fsize(&f) < r->d.length){
+			ext4_fseek(&f, 0, 2);
+			wn = MIN(r->d.length - ext4_fsize(&f), sizeof(zero));
+			res = ext4_fwrite(&f, zero, wn, &wn);
+		}
+		/* GCC port branch: shorter, the rest of the last block zeroed first: lwext4 frees the
+		 * blocks after it but leaves its old bytes, which a later extension showed again */
+		bs = ext4_sb_get_block_size(&mp->fs.sb);
+		if(res == 0 && r->d.length < ext4_fsize(&f) && r->d.length % bs != 0){
+			wn = MIN(ext4_fsize(&f) - r->d.length, bs - r->d.length % bs);
+			ext4_fseek(&f, r->d.length, 0);
+			res = ext4_fwrite(&f, zero, wn, &wn);
+		}
+		if(res == 0)
+			res = ext4_ftruncate(&f, r->d.length);
 		vbump(f.inode);
 		ext4_fclose(&f);
 		if(res != 0)
