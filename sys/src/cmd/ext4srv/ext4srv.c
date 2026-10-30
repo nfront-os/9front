@@ -44,6 +44,56 @@ qvers(u32int ino, struct ext4_inode *inode)
 		0x9e3779b9U * *vslot(ino);
 }
 
+/*
+ * GCC port branch: exclusive-use files (DMEXCL), as open(5) has them: one open at a time,
+ * another open or create fails with "file is locked" (cargo's and rustc's locks on 9front).
+ * Kept in the inode as EXT4_INODE_FLAG_UNRM (chattr's u, not implemented by Linux), as DMTMP
+ * is NODUMP. The opens are those of this ext4srv: a list of the open fids' inodes, freed
+ * when the fid is clunked. The server does not break a lock (open(5) lets it; cwfs does
+ * after five minutes): a 9P connection that goes clunks its fids.
+ */
+#define EXCLFLAG EXT4_INODE_FLAG_UNRM
+static char Elocked[] = "file is locked";
+
+typedef struct Excl Excl;
+struct Excl {
+	Part *p;
+	u32int ino;
+	Excl *next;
+};
+static Excl *excls;
+
+static int
+exclopen(Part *p, u32int ino)
+{
+	Excl *e;
+
+	for(e = excls; e != nil; e = e->next)
+		if(e->p == p && e->ino == ino){
+			werrstr(Elocked);
+			return -1;
+		}
+	e = emalloc9p(sizeof(*e));
+	e->p = p;
+	e->ino = ino;
+	e->next = excls;
+	excls = e;
+	return 0;
+}
+
+static void
+exclclose(Part *p, u32int ino)
+{
+	Excl **l, *e;
+
+	for(l = &excls; (e = *l) != nil; l = &e->next)
+		if(e->p == p && e->ino == ino){
+			*l = e->next;
+			free(e);
+			return;
+		}
+}
+
 #define MIN(a,b) ((a)<(b)?(a):(b))
 
 int mainstacksize = 65536;
@@ -61,6 +111,7 @@ struct Aux {
 	};
 	int type;
 	bool rclose;
+	u32int exclino;	/* GCC port branch: the DMEXCL file this fid has open */
 };
 
 enum {
@@ -204,6 +255,8 @@ static void
 ropen(Req *r)
 {
 	struct ext4_mountpoint *mp;
+	struct ext4_inode inode;
+	u32int ino;
 	char *path;
 	int res;
 	Aux *a;
@@ -246,6 +299,15 @@ ropen(Req *r)
 			respond(r, "double open");
 			return;
 		}
+		/* GCC port branch: DMEXCL, one open at a time */
+		if(ext4_raw_inode_fill(mp, a->path, &ino, &inode) == 0 &&
+		    (ext4_inode_get_flags(&inode) & EXCLFLAG) != 0){
+			if(exclopen(a->p, ino) < 0){
+				responderror(r);
+				return;
+			}
+			a->exclino = ino;
+		}
 		if((a->file = malloc(sizeof(*a->file))) == nil)
 			goto Nomem;
 		if((path = estrdup9p(a->path)) == nil){
@@ -258,6 +320,10 @@ ropen(Req *r)
 		if(res != 0){
 			free(a->file);
 			a->file = nil;
+			if(a->exclino != 0){
+				exclclose(a->p, a->exclino);
+				a->exclino = 0;
+			}
 			responderror(r);
 			return;
 		}
@@ -267,6 +333,10 @@ ropen(Req *r)
 		break;
 
 Nomem:
+		if(a->type == Afile && a->exclino != 0){
+			exclclose(a->p, a->exclino);
+			a->exclino = 0;
+		}
 		respond(r, "memory");
 		return;
 	}
@@ -347,6 +417,12 @@ rcreate(Req *r)
 		iflags |= EXT4_INODE_FLAG_APPEND;
 	if(r->ifcall.perm & DMTMP)
 		iflags |= EXT4_INODE_FLAG_NODUMP;
+	if(!mkdir && (r->ifcall.perm & DMEXCL) != 0){	/* GCC port branch: DMEXCL */
+		iflags |= EXCLFLAG;
+		if(exclopen(a->p, a->file->inode) < 0)
+			goto ext4errorrm;
+		a->exclino = a->file->inode;
+	}
 	if(ext4_mode_set(mp, s, perm, iflags) < 0)
 		goto ext4errorrm;
 	ext4_owner_set(mp, s, a->uid, a->uid);
@@ -358,6 +434,8 @@ rcreate(Req *r)
 	vbump(a->file->inode);
 	r->fid->qid.vers = tm + 0x9e3779b9U * *vslot(a->file->inode);
 	r->fid->qid.type = 0;
+	if(iflags & EXCLFLAG)
+		r->fid->qid.type |= QTEXCL;
 	r->ofcall.qid = r->fid->qid;
 
 	free(a->path);
@@ -421,6 +499,10 @@ dirfill(Dir *dir, Aux *a, char *path)
 	if(iflags & EXT4_INODE_FLAG_NODUMP){
 		dir->qid.type |= QTTMP;
 		dir->mode |= DMTMP;
+	}
+	if(t != EXT4_INODE_MODE_DIRECTORY && (iflags & EXCLFLAG) != 0){	/* GCC port branch */
+		dir->qid.type |= QTEXCL;
+		dir->mode |= DMEXCL;
 	}
 
 	if(path != nil && (s = strrchr(path, '/')) != nil)
@@ -690,6 +772,8 @@ rwstat(Req *r)
 			iflags |= EXT4_INODE_FLAG_APPEND;
 		if(r->d.mode & DMTMP)
 			iflags |= EXT4_INODE_FLAG_NODUMP;
+		if(r->d.mode & DMEXCL)	/* GCC port branch */
+			iflags |= EXCLFLAG;
 		if(ext4_mode_set(mp, a->path, r->d.mode & 0777, iflags) < 0)
 			goto error;
 	}
@@ -774,6 +858,8 @@ err:
 		qid->type |= QTAPPEND;
 	if(iflags & EXT4_INODE_FLAG_NODUMP)
 		qid->type |= QTTMP;
+	if(t != EXT4_INODE_MODE_DIRECTORY && (iflags & EXCLFLAG) != 0)	/* GCC port branch */
+		qid->type |= QTEXCL;
 	free(a->path);
 	a->path = s;
 	fid->qid = *qid;
@@ -795,6 +881,7 @@ rclone(Fid *oldfid, Fid *newfid)
 	c->file = nil;
 	c->dir = nil;
 	c->rclose = false;
+	c->exclino = 0;
 
 	incref(c->p);
 	newfid->aux = c;
@@ -821,6 +908,8 @@ rdestroyfid(Fid *fid)
 		if(a->rclose)
 			ext4_fremove(&a->p->mp, a->path);
 	}
+	if(a->exclino != 0)	/* GCC port branch: the DMEXCL file is free */
+		exclclose(a->p, a->exclino);
 
 	if(decref(a->p) < 1)
 		closepart(a->p);

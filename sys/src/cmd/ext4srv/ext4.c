@@ -1841,9 +1841,10 @@ int ext4_mode_set(struct ext4_mountpoint *mp, const char *path, u32int mode, u32
 	orig_mode &= ~0xFFF;
 	orig_mode |= mode & 0xFFF;
 	ext4_inode_set_mode(&mp->fs.sb, inode_ref.inode, orig_mode);
-	iflags &= EXT4_INODE_FLAG_APPEND | EXT4_INODE_FLAG_NODUMP;
+	/* GCC port branch: and DMEXCL (EXCLFLAG, ext4srv.c) */
+	iflags &= EXT4_INODE_FLAG_APPEND | EXT4_INODE_FLAG_NODUMP | EXT4_INODE_FLAG_UNRM;
 	ext4_inode_set_flag(inode_ref.inode, iflags);
-	iflags ^= EXT4_INODE_FLAG_APPEND | EXT4_INODE_FLAG_NODUMP;
+	iflags ^= EXT4_INODE_FLAG_APPEND | EXT4_INODE_FLAG_NODUMP | EXT4_INODE_FLAG_UNRM;
 	ext4_inode_clear_flag(inode_ref.inode, iflags);
 
 	inode_ref.dirty = true;
