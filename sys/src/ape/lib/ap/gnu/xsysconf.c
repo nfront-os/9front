@@ -77,10 +77,3 @@ sysconf(int name)
 	}
 	return __apesysconf(name);
 }
-
-/* BSD's getpagesize (libbacktrace's mmap): sysconf's page size */
-int
-getpagesize(void)
-{
-	return 4096;
-}

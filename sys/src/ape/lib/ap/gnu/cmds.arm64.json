@@ -20,6 +20,7 @@
 			"c99stdio.c",
 			"c99time.c",
 			"dlfcn.c",
+			"getpagesize.c",
 			"hwcap.c",
 			"inttypes.c",
 			"mman.c",
