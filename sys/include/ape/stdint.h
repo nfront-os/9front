@@ -9,7 +9,7 @@
  * std::intmax_t take them: APE's typedefs are renamed while the header is read.
  * intptr_t and uintptr_t too (__INTPTR_TYPE__: long on amd64 and arm64, as size_t
  * and on every LP64 system; APE's long long the same size, but another type:
- * a uintptr_t * was no size_t *). */
+ * a uintptr_t * was no size_t *; on 386 long as size_t, APE's int). */
 #define intmax_t	__ape_intmax_t
 #define uintmax_t	__ape_uintmax_t
 #define intptr_t	__ape_intptr_t

@@ -29,8 +29,10 @@ extern intmax_t strtoimax(const char *, char **, int);
 /*
  * GCC port, for the gcc driver's programs: the <inttypes.h> macros of C99 APE's lacks (PRIi, PRIX,
  * the SCN family, the MAX/PTR, LEAST/FAST variants), for APE's types:
- * int8..int32 int (promoted), 64 bit long long, intptr_t long on
- * amd64 and arm64 (the compiler's) and int on 386; intmax_t the compiler's (<stdint.h>: j).
+ * int8..int32 int (promoted), 64 bit long long, intptr_t long (the compiler's: on amd64
+ * and arm64 as on LP64, on 386 as size_t under i686-pc-plan9-gcc, __plan9__; the
+ * tree's own build, gcc -m32, has int); intmax_t the compiler's
+ * (<stdint.h>: j).
  */
 
 
@@ -74,7 +76,7 @@ extern intmax_t strtoimax(const char *, char **, int);
 #define PRIdMAX "jd"
 #endif
 #ifndef PRIdPTR
-#if __SIZEOF_POINTER__ == 8
+#if __SIZEOF_POINTER__ == 8 || (defined(__i386__) && defined(__plan9__))
 #define PRIdPTR "ld"
 #else
 #define PRIdPTR "d"
@@ -120,7 +122,7 @@ extern intmax_t strtoimax(const char *, char **, int);
 #define PRIiMAX "ji"
 #endif
 #ifndef PRIiPTR
-#if __SIZEOF_POINTER__ == 8
+#if __SIZEOF_POINTER__ == 8 || (defined(__i386__) && defined(__plan9__))
 #define PRIiPTR "li"
 #else
 #define PRIiPTR "i"
@@ -166,7 +168,7 @@ extern intmax_t strtoimax(const char *, char **, int);
 #define PRIoMAX "jo"
 #endif
 #ifndef PRIoPTR
-#if __SIZEOF_POINTER__ == 8
+#if __SIZEOF_POINTER__ == 8 || (defined(__i386__) && defined(__plan9__))
 #define PRIoPTR "lo"
 #else
 #define PRIoPTR "o"
@@ -212,7 +214,7 @@ extern intmax_t strtoimax(const char *, char **, int);
 #define PRIuMAX "ju"
 #endif
 #ifndef PRIuPTR
-#if __SIZEOF_POINTER__ == 8
+#if __SIZEOF_POINTER__ == 8 || (defined(__i386__) && defined(__plan9__))
 #define PRIuPTR "lu"
 #else
 #define PRIuPTR "u"
@@ -258,7 +260,7 @@ extern intmax_t strtoimax(const char *, char **, int);
 #define PRIxMAX "jx"
 #endif
 #ifndef PRIxPTR
-#if __SIZEOF_POINTER__ == 8
+#if __SIZEOF_POINTER__ == 8 || (defined(__i386__) && defined(__plan9__))
 #define PRIxPTR "lx"
 #else
 #define PRIxPTR "x"
@@ -304,7 +306,7 @@ extern intmax_t strtoimax(const char *, char **, int);
 #define PRIXMAX "jX"
 #endif
 #ifndef PRIXPTR
-#if __SIZEOF_POINTER__ == 8
+#if __SIZEOF_POINTER__ == 8 || (defined(__i386__) && defined(__plan9__))
 #define PRIXPTR "lX"
 #else
 #define PRIXPTR "X"
@@ -350,7 +352,7 @@ extern intmax_t strtoimax(const char *, char **, int);
 #define SCNdMAX "jd"
 #endif
 #ifndef SCNdPTR
-#if __SIZEOF_POINTER__ == 8
+#if __SIZEOF_POINTER__ == 8 || (defined(__i386__) && defined(__plan9__))
 #define SCNdPTR "ld"
 #else
 #define SCNdPTR "d"
@@ -396,7 +398,7 @@ extern intmax_t strtoimax(const char *, char **, int);
 #define SCNiMAX "ji"
 #endif
 #ifndef SCNiPTR
-#if __SIZEOF_POINTER__ == 8
+#if __SIZEOF_POINTER__ == 8 || (defined(__i386__) && defined(__plan9__))
 #define SCNiPTR "li"
 #else
 #define SCNiPTR "i"
@@ -442,7 +444,7 @@ extern intmax_t strtoimax(const char *, char **, int);
 #define SCNoMAX "jo"
 #endif
 #ifndef SCNoPTR
-#if __SIZEOF_POINTER__ == 8
+#if __SIZEOF_POINTER__ == 8 || (defined(__i386__) && defined(__plan9__))
 #define SCNoPTR "lo"
 #else
 #define SCNoPTR "o"
@@ -488,7 +490,7 @@ extern intmax_t strtoimax(const char *, char **, int);
 #define SCNuMAX "ju"
 #endif
 #ifndef SCNuPTR
-#if __SIZEOF_POINTER__ == 8
+#if __SIZEOF_POINTER__ == 8 || (defined(__i386__) && defined(__plan9__))
 #define SCNuPTR "lu"
 #else
 #define SCNuPTR "u"
@@ -534,7 +536,7 @@ extern intmax_t strtoimax(const char *, char **, int);
 #define SCNxMAX "jx"
 #endif
 #ifndef SCNxPTR
-#if __SIZEOF_POINTER__ == 8
+#if __SIZEOF_POINTER__ == 8 || (defined(__i386__) && defined(__plan9__))
 #define SCNxPTR "lx"
 #else
 #define SCNxPTR "x"
