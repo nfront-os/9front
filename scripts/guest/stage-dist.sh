@@ -18,7 +18,10 @@
 # the gcc build's archives (distproto ships /amd64/lib empty, as 9front
 # does: libraries are built with mk on the installed system), and
 # scripts/guest/boot/gnuproto /amd64/gnu, the native gcc and binutils of
-# ../9front-gcc (its out/$objtype; GCC_OUT, if it exists);
+# ../9front-gcc (its out/$objtype; GCC_OUT, if it exists), and
+# scripts/guest/boot/rustproto /amd64/rust, Rust of ../9front-rust (its
+# out/$objtype from scripts/install.sh; only if RUST_OUT is set: an optional
+# install, otherwise from its archives on the installed system);
 # scripts/guest/proto.py expands the protos. Our
 # binaries carry DWARF (8l writes none) and are stripped. The guest's install script
 # (scripts/guest/boot/mkdisk.rc) reads the result as /n/src9.
@@ -80,6 +83,14 @@ if [ -d "$GCC_OUT/$A/gnu" ]; then
 	PROTOS+=("$ROOT/scripts/guest/boot/gnuproto")
 else
 	echo "stage-dist: no $GCC_OUT/$A/gnu, the distribution has no gcc" >&2
+fi
+# Rust only if asked (RUST_OUT=../9front-rust/out/$objtype, its scripts/install.sh): an
+# optional install, else from its archives (rust-T.tgz, rust-tools-T.tgz) on the installed
+# system; as /$objtype/rust, linking with the gcc above
+if [ -n "$RUST_OUT" ]; then
+	[ -d "$RUST_OUT/$A/rust" ] || { echo "stage-dist: no $RUST_OUT/$A/rust" >&2; exit 1; }
+	ln -s "$RUST_OUT/$A/rust" "$VIEW/$A/rust"
+	PROTOS+=("$ROOT/scripts/guest/boot/rustproto")
 fi
 
 rm -rf "$OUT"
