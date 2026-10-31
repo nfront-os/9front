@@ -126,6 +126,7 @@ extern void fiq(Ureg*);
 /* sysreg */
 extern uvlong	sysrd(ulong);
 extern void	syswr(ulong, uvlong);
+extern void	acipiinit(void);	/* NIX */
 
 /* trap: pmc(3) */
 extern void	pmcipiinit(void);

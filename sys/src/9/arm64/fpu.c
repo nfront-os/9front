@@ -216,6 +216,39 @@ fpuprocsave(Proc *p)
 	p->fpstate = FPinactive;
 }
 
+/*
+ * NIX: an application core loads and saves the process' FPU state
+ * in full, it takes no FP traps (port/nix.c).
+ * acfpuprep runs on the TC before the process goes to the AC.
+ */
+void
+acfpuprep(Proc *p)
+{
+	int s;
+
+	s = splhi();
+	fpuprocsave(p);
+	if(p->fpsave == nil)
+		p->fpsave = fpalloc(nil);
+	splx(s);
+}
+
+void
+acfpurestore(Proc *p)
+{
+	if((p->fpstate & ~FPnotify) == FPinactive)
+		fprestore(p->fpsave);
+	else
+		fpinit();
+}
+
+void
+acfpusave(Proc *p)
+{
+	fpsave(p->fpsave);
+	p->fpstate = FPinactive | (p->fpstate & FPnotify);
+}
+
 void
 fpuprocrestore(Proc*)
 {

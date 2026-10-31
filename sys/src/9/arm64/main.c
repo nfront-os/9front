@@ -134,6 +134,7 @@ mpinit(void)
 	extern void _start(void);
 	int i;
 
+	nixboot(conf.nmach);	/* NIX: the last *nixac become application cores */
 	for(i = 1; i < conf.nmach; i++){
 		Ureg u = {0};
 
@@ -171,10 +172,17 @@ main(void)
 		trapinit();
 		fpuinit();
 		intrinit();
+		acipiinit();	/* NIX */
 		pmcipiinit();	/* pmc(3) */
 		clockinit();
 		cpuidprint();
 		synccycles();
+		if(isac(m->machno)){
+			/* NIX: an application core, no clock, no scheduler */
+			active.machs[m->machno] = 0;
+			mmu1init();
+			acinit();
+		}
 		timersinit();
 		mmu1init();
 		m->ticks = MACHP(0)->ticks;
@@ -191,6 +199,7 @@ main(void)
 	trapinit();
 	fpuinit();
 	intrinit();
+	acipiinit();	/* NIX */
 	pmcipiinit();	/* pmc(3) */
 	clockinit();
 	cpuidprint();

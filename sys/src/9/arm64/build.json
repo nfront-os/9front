@@ -195,6 +195,7 @@
 			"../port/edf.c",
 			"../port/fault.c",
 			"../port/mul64fract.c",
+			"../port/nix.c",
 			"../port/page.c",
 			"../port/parse.c",
 			"../port/pgrp.c",

@@ -837,3 +837,23 @@ hvccall:
 
 	ldp	x29, x30, [sp], #48
 	ret
+
+/*
+ * NIX: actouser(Ureg*) goes to user mode on an application core
+ * (port/nix.c): the Ureg becomes the trap frame at the top of the
+ * AC's Mach stack, where SP_EL1 is when the next trap from EL0 comes,
+ * and noteret restores it in full.
+ */
+.globl actouser
+actouser:
+	msr	daifset, #0x3	// interrupts off
+	mov	x1, #(MACHSIZE-TRAPFRAMESIZE)
+	add	x1, x27, x1
+	mov	sp, x1
+	add	x2, sp, #16	// ureg
+	mov	x3, #35		// sizeof(Ureg)/8
+1:	ldr	x4, [x0], #8
+	str	x4, [x2], #8
+	subs	x3, x3, #1
+	b.ne	1b
+	b	noteret

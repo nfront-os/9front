@@ -4,7 +4,7 @@
 #include "dat.h"
 #include "fns.h"
 #include "../port/error.h"
-#include "io.h"	/* pmc(3): IRQpmc */
+#include "io.h"	/* NIX: IRQipi; pmc(3): IRQpmc */
 
 #include <tos.h>
 #include "ureg.h"
@@ -126,6 +126,132 @@ sendsgi(Mach *mp, int sgi)
 		((mpidr>>8)&0xFF)<<16 | (uvlong)sgi<<24 | 1<<(mp->machno&15));
 }
 
+/*
+ * NIX: the inter-core interrupt (port/nix.c). It gets an application
+ * core out of user mode, or a time-sharing core out of wfi.
+ */
+static int ipipending[MAXMACH];
+
+static void
+ipiintr(Ureg*, void*)
+{
+	ipipending[m->machno] = 1;
+}
+
+/* on every processor: SGIs are banked per redistributor */
+void
+acipiinit(void)
+{
+	intrenable(IRQipi, ipiintr, nil, BUSUNKNOWN, "ipi");
+}
+
+void
+acipi(Mach *mp)
+{
+	uvlong mpidr;
+
+	/* QEMU virt: one cluster, Aff0 is the machno (main.c:/mpinit) */
+	mpidr = sysrd(MPIDR_EL1);
+	syswr(ICC_SGI1R_EL1, ((mpidr>>32)&0xFF)<<48 | ((mpidr>>16)&0xFF)<<32 |
+		((mpidr>>8)&0xFF)<<16 | (uvlong)IRQipi<<24 | 1<<(mp->machno&15));
+}
+
+void
+acidle(void)
+{
+}
+
+/* NIX: no clock on an application core */
+void
+acarchinit(void)
+{
+	syswr(CNTV_CTL_EL0, 0);
+}
+
+/* the process leaves the AC: its TLS register goes with it */
+static void
+acleave(Ureg *ureg, int rc, uintptr addr)
+{
+	Proc *p;
+
+	if((p = m->PMach.icc->running) != nil)
+		p->tpidr = sysrd(TPIDR_EL0);
+	acexit(ureg, rc, addr);
+}
+
+/*
+ * NIX: a trap from user mode on an application core. Interrupts
+ * are handled here and return to user mode; everything else, and
+ * the IPI, goes back to the process' TC.
+ */
+static void
+actrap(Ureg *ureg)
+{
+	u32int type, intr;
+	int ipi;
+
+	intr = ureg->type >> 32;
+	type = (u32int)ureg->type >> 26;
+	if(intr == 1){
+		ipipending[m->machno] = 0;
+		irq(ureg);
+		ipi = ipipending[m->machno];
+		ipipending[m->machno] = 0;
+		if(!ipi)
+			return;
+		acleave(ureg, ICCTRAP, 0);
+	}
+	switch(type){
+	case 0x20:	// instruction abort from lower level
+	case 0x24:	// data abort from lower level
+		if(intr == 0)
+			acleave(ureg, ICCTRAP, getfar());
+	}
+	acleave(ureg, ICCTRAP, 0);
+}
+
+/*
+ * NIX: on the TC, serve what the process did on its application core
+ * (port/nix.c:/runacore). Like syscall() and trap(); ureg is always
+ * restored in full when the process goes back to the AC.
+ */
+void
+acservice(Ureg *ureg, int rc)
+{
+	ulong scallnr;
+	u32int type;
+
+	syswr(TPIDR_EL0, up->tpidr);	/* procsave takes it from here */
+	switch(rc){
+	case ICCSYSCALL:
+		kenter(ureg);
+		fpukenter(ureg);
+		scallnr = ureg->r0;
+		dosyscall(scallnr, (Sargs*)(ureg->sp+BY2WD), &ureg->r0);
+		if(up->procctl || up->nnote)
+			donotify(ureg);
+		if(up->delaysched)
+			sched();
+		kexit(ureg);
+		fpukexit(ureg);
+		break;
+	case ICCTRAP:
+		if((ureg->type >> 32) == 1){
+			/* the IPI: a note, a flush or "core 0" */
+			kenter(ureg);
+			if(up->procctl || up->nnote)
+				donotify(ureg);
+			kexit(ureg);
+			break;
+		}
+		type = (u32int)ureg->type >> 26;
+		if(type == 0x20 || type == 0x24)
+			up->acfault = 1;
+		trap(ureg);
+		break;
+	}
+}
+
 void
 trap(Ureg *ureg)
 {
@@ -135,6 +261,10 @@ trap(Ureg *ureg)
 	intr = ureg->type >> 32;
 	if(intr == 2){
 		fiq(ureg);
+		return;
+	}
+	if(m->PMach.nixtype == NIXAC && userureg(ureg)){
+		actrap(ureg);	/* NIX */
 		return;
 	}
 	splflo();
@@ -221,6 +351,8 @@ syscall(Ureg *ureg)
 {
 	ulong scallnr;
 
+	if(m->PMach.nixtype == NIXAC)
+		acleave(ureg, ICCSYSCALL, 0);	/* NIX */
 	if(!kenter(ureg))
 		panic("syscall from  kernel");
 	fpukenter(ureg);
@@ -331,6 +463,11 @@ faultarm64(Ureg *ureg)
 	}
 
 	addr = getfar();
+	if(up != nil && up->acfault){
+		/* NIX: the fault happened on the process' AC */
+		up->acfault = 0;
+		addr = up->acaddr;
+	}
 	read = (ureg->type & (1<<6)) == 0;
 
 	switch((u32int)ureg->type & 0x3F){

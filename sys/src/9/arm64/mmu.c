@@ -3,6 +3,7 @@
 #include "mem.h"
 #include "dat.h"
 #include "fns.h"
+#include "../arm64/sysreg.h"	/* NIX: TPIDR_EL0 */
 
 #define INITMAP	(ROUND((uintptr)end + BY2PG, PGLSZ(1))-KZERO)
 
@@ -270,8 +271,24 @@ putasid(Proc *p)
 	if(conf.nmach > 1)
 		mmuswitch(nil, 0);
 
-	if(p->asid > 0)
+	/*
+	 * NIX: an application core may run p while this one switched
+	 * away from it: keep the asid (port/nix.c).
+	 */
+	if(p->asid > 0 && p->ac == nil)
 		p->asid = -p->asid;
+}
+
+/*
+ * NIX: on an application core, map p's user space (none for nil),
+ * with its TLS register.
+ */
+void
+acmmuswitch(Proc *p)
+{
+	mmuswitch(p, 0);
+	if(p != nil)
+		syswr(TPIDR_EL0, p->tpidr);
 }
 
 void

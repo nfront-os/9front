@@ -1013,7 +1013,8 @@ TEXT actouser(SB), 1, $-4
 	CLD
 	REP; MOVSB
 	LEAQ	(MACHSIZE-23*8-8)(RMACH), SP	/* the arg slot noteret pops */
-	JMP	noteret(SB)
+	MOVQ	$noteret(SB), AX		/* JMP x(SB) would be indirect */
+	JMP*	AX
 
 /*
  * Interrupt/exception handling.

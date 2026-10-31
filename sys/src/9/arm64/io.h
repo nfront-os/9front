@@ -6,6 +6,7 @@ enum {
 
 	IRQcntvns	= PPI+11,
 
+	IRQipi		= 1,		/* NIX: SGI, inter-core call (port/nix.c) */
 	IRQpmc		= 2,		/* pmc(3): SGI, performance counter request (port/devpmc.c) */
 
 	IRQuart		= SPI+1,
