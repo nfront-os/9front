@@ -13,13 +13,21 @@
  * target's Pmccore, sends it an interrupt (pmcipi: its own vector
  * on amd64, an SGI on arm64) and sleeps; the target's handler
  * (pmcintr) serves it, wakes the requester and interrupts the
- * requester's processor too (it may idle in halt). A request for
- * the processor the requester runs on is served at once, at splhi.
+ * requester's processor too (it may idle in halt). That works on a
+ * time-sharing core (TC) as on an application core (AC, port/nix.c):
+ * an AC takes no clock and no device interrupts, but this one; in
+ * user mode the AC serves it and returns to the process, which
+ * does not notice (not a round trip to its TC as the IPI of
+ * port/nix.c). A request for the processor the requester runs on is
+ * served at once, at splhi.
  *
- * Unlike NIX: NIX's processors served requests at their next kernel
- * entry or exit (_pmcupdate in trap, kexit); requests time out here
- * (Etimedout). NIX's libc found the processor it runs on in the Tos
- * (getcore(2)); here it reads #ε/core.
+ * Unlike NIX: NIX's TCs served requests at their next kernel entry
+ * or exit (_pmcupdate in trap, kexit), an AC through runac() only
+ * when the process asking was the one on that AC (its ICC call never
+ * readied the caller), and any other process asking for an AC's
+ * counters waited for good. Requests time out here (Etimedout).
+ * NIX's libc found the processor it runs on in the Tos (getcore(2));
+ * here it reads #ε/core.
  */
 #include	"u.h"
 #include	"../port/lib.h"
@@ -80,11 +88,15 @@ static int	pmcdebug;
 static int
 pmccoreok(int core)
 {
+	Mach *mp;
+
 	if(core < 0 || core >= conf.nmach || core >= MAXMACH)
 		return 0;
-	if(MACHP(core) == nil)
+	if((mp = MACHP(core)) == nil)
 		return 0;
-	return active.machs[core] != 0;
+	if(active.machs[core])
+		return 1;
+	return mp->PMach.nixtype == NIXAC && mp->PMach.icc != nil;	/* NIX: an AC */
 }
 
 static void
@@ -131,8 +143,8 @@ pmcintr(void)
 		return;
 	/*
 	 * the requester's processor may idle in halt (no MONITOR) and
-	 * see it ready only at its next interrupt: interrupt it; there
-	 * pmcintr finds nothing to do.
+	 * see it ready only at its next interrupt: interrupt it, as
+	 * acexit does (port/nix.c); there pmcintr finds nothing to do.
 	 */
 	if(wakeup(&c->r) != nil && waiter != m->machno)
 		pmcipi(waiter);

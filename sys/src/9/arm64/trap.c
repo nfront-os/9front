@@ -96,7 +96,8 @@ static char *traps[64] = {
 
 /*
  * pmc(3): performance counter requests (port/devpmc.c) come as
- * SGI IRQpmc; devpmc (pmcio.c) sets pmcintrfn.
+ * SGI IRQpmc; devpmc (pmcio.c) sets pmcintrfn. NIX: not IRQipi,
+ * on an AC that would take the process back to its TC.
  */
 void	(*pmcintrfn)(void);
 
@@ -148,12 +149,7 @@ acipiinit(void)
 void
 acipi(Mach *mp)
 {
-	uvlong mpidr;
-
-	/* QEMU virt: one cluster, Aff0 is the machno (main.c:/mpinit) */
-	mpidr = sysrd(MPIDR_EL1);
-	syswr(ICC_SGI1R_EL1, ((mpidr>>32)&0xFF)<<48 | ((mpidr>>16)&0xFF)<<32 |
-		((mpidr>>8)&0xFF)<<16 | (uvlong)IRQipi<<24 | 1<<(mp->machno&15));
+	sendsgi(mp, IRQipi);
 }
 
 void

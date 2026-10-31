@@ -49,8 +49,11 @@ Both use
 .BR #ε ,
 see
 .IR pmc (3).
-The process may move to another processor between two calls,
-even within one (it finds its processor in
+On an application core (see
+.IR execac (2))
+the process stays on its processor; on a time-sharing core it may
+move to another processor between two calls, even within one
+(it finds its processor in
 .BR #ε/core ,
 then opens the counter), unless it is wired (see
 .IR proc (3)).

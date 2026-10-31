@@ -23,7 +23,11 @@ device serves a two-level directory giving access to the hardware
 performance counters of the processors.
 There is a directory per processor,
 .BI core NNNN
-(its number).
+(its number, as in
+.IR getcore (2)),
+for time-sharing and application cores (see
+.IR execac (2))
+alike.
 Reading
 .B core
 gives the number of the processor the reader runs on, in decimal.
@@ -88,11 +92,14 @@ counts in user mode only, and so on; both
 and
 .B os
 count everywhere.
-The counters count what the processor does, whatever process runs.
+The counters count what the processor does, whatever process runs;
+the counters of an application core count the one process there
+(in the kernel: its idle loop).
 .PP
 The counters are registers of each processor. A request for the
 counters of another processor is sent there with an interrupt of
-its own; the request is served at once, not at the
+its own, which an application core serves without disturbing the
+process running on it; the request is served at once, not at the
 next entry into the kernel. A processor that does not answer within
 a second makes it fail with
 .LR "connection timed out" .

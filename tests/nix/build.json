@@ -30,7 +30,8 @@
 		"SourceFilesCmd": [
 			"nixtest.c",
 			"nixbench.c",
-			"ziotest.c"
+			"ziotest.c",
+			"pmctest.c"
 		]
 	}
 ]

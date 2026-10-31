@@ -68,6 +68,7 @@ Options (environment):
 - The guest unit tests in a running system: `/tests/run [test...]`.
 - `bash tests/nix/zio.sh`: NIX zero-copy I/O (`zread(2)`, `zp(3)`, `segment(3)` kmsg/umsg and `free`): `tests/nix/ziotest.c` on a time-sharing core and on an application core (`execac`), boot with `*nixac=1` on 4 CPUs (`NCPU`, `NAC`; amd64, arm64).
 - `bash tests/nix/bench.sh`: NIX benchmark (not a test, amd64 under KVM): `tests/nix/nixbench.c` on a time-sharing core and on an application core, idle and with a busy loop on each TC — computation, a 64 MB pointer chase, gaps over 10 µs, one system call (`NCPU`, `REPS`).
+- `bash tests/nix/pmc.sh`: NIX performance counters (`#ε`, pmc(3), pmc(2)): `tests/nix/pmctest.c` on a wired TC and on the AC (counts over a loop, user/os filters, RDPMC or `PMEVCNTR0_EL0` in user mode, another core's counter, two readers at once, no round trips of the AC's process for requests); x86 boots with `PMU=1` (KVM's virtual counters), then once more without them (no counters); arm64 (TCG) has PMUv3 (`cycles` only, no instructions without `-icount`). ~2 min amd64.
 - `tests/vm.py`: the Python module `rio` and `usb` use — boots a CD to rio, keys and mouse through QMP, an rc on the serial line; a base for new guest tests.
 - Boot a CD in QEMU like `iso` does and see where it stops: `tests/iso/drive.py`
   (`python3 tests/iso/drive.py file.iso cd bios workdir`; the screen dumps
