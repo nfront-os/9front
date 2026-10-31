@@ -121,7 +121,6 @@
 			"mtime.c",
 			"mug.c",
 			"mv.c",
-			"news.c",
 			"nfs.c",
 			"nm.c",
 			"nntpfs.c",
