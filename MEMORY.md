@@ -954,7 +954,7 @@ Der Nutzer wollte, dass C/C++ in Rust-Programmen ohne die ape9-Umbenennung linkt
 9front. Im gcc-Branch bleiben sie, bis 9front sie hat oder ablehnt. Ein Patch ist jeweils aus
 dem Commit zu schneiden, nicht aus `git diff front` (in `tcp.c` stehen auch die Port-Änderungen,
 etwa das halbe Schließen); die `GCC port`-Kommentare fallen dabei weg.
-- **ext4srv** (Teil 45): Loch in `ext4_fread` las Block 0; „file not found“ statt „file does
+- **ext4srv** (Teil 43): Loch in `ext4_fread` las Block 0; „file not found“ statt „file does
   not exist“. Fehler in 9front.
 - **tcp.c, veralteter bypass-Zeiger** (Commit 942d1df69, zusammen mit dem halben Schließen):
   `tcpclose` legte das rq einer inzwischen neuen Conv auf. Fehler in 9front.
