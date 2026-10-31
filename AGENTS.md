@@ -15,7 +15,7 @@ The **9front** OS source tree (Plan 9 fork). Branch `front` = mirror of github.c
 - One manifest: `CC=gcc ARCH=amd64 sys/src/cmd/build/build.exe <path/to/x.json>`.
 - Only what is out of date (like mk): add `-D`. After switching ARCH it rebuilds everything (objects of another arch are out of date).
 - Never run two builds in the same tree at once (they share object files).
-- After kernel changes rebuild with the full command, not the kernel manifest alone: its generated files (`sys/src/9/port/initcode.i`, ...) are shared by the arches and made by the full build just before the kernel.
+- After kernel changes rebuild with the full command, not the kernel manifest alone: its generated files (`sys/src/9/port/initcode.i`, ...) are shared by the arches and made by the full build just before the kernel. arm64: the guest boots `arm64/9qemu.u`, which only `scripts/guest/build-boot.sh` remakes.
 - Manifests (`*.json`) are generated from 9front's mkfiles and checked in. Never hand-edit; regenerate: `scripts/gen/genlibc.py genlibs.py gencmds.py genkernel.py genbuild.py` (other arch: `objtype=386 python3 scripts/...`).
 - Boot loaders: `scripts/guest/build-boot.sh` (in a QEMU guest). Self-hosting (the guest builds the tree with the native gcc): `scripts/guest/build-self.sh`. Install CD: `objtype=amd64 scripts/guest/mkiso.sh`.
 - Tests: `bash tests/static/run.sh` (no build needed), `bash tests/run.sh [static asm syscall build guest boot gui disk iso rio usb]` (see `tests/README.md`).
