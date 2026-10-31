@@ -611,6 +611,7 @@ static void
 rwstat(Req *r)
 {
 	int res, isdir, wrperm, isowner, n;
+	usize wn;
 	struct ext4_mountpoint *mp;
 	struct ext4_inode inode;
 	u32int uid, gid, iflags;
@@ -695,7 +696,19 @@ rwstat(Req *r)
 	if(r->d.length >= 0 && ext4_inode_can_truncate(a->p->sb, &inode)){
 		if(ext4_fopen2(mp, &f, a->path, toext4mode(OWRITE, 0, 0)) < 0)
 			goto error;
-		res = ext4_ftruncate(&f, r->d.length);
+		/*
+		 * a longer length extends the file with zeros (stat(5)),
+		 * as rwrite does past the end; ext4_ftruncate only
+		 * shortens.
+		 */
+		res = 0;
+		while(res == 0 && ext4_fsize(&f) < r->d.length){
+			ext4_fseek(&f, 0, 2);
+			wn = MIN(r->d.length - ext4_fsize(&f), sizeof(zero));
+			res = ext4_fwrite(&f, zero, wn, &wn);
+		}
+		if(res == 0)
+			res = ext4_ftruncate(&f, r->d.length);
 		vbump(f.inode);
 		ext4_fclose(&f);
 		if(res != 0)
