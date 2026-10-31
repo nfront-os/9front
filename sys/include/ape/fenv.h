@@ -1,7 +1,7 @@
 /*
  * APE (GCC port): C99's <fenv.h>; the functions are musl's
  * (libap), the types and values those of musl's bits/fenv.h
- * for the machine (x86, riscv64).
+ * for the machine (x86, riscv64, arm64).
  */
 #ifndef __APE_FENV
 #define __APE_FENV
@@ -23,6 +23,27 @@
 
 typedef unsigned int fexcept_t;
 typedef unsigned int fenv_t;
+#elif defined(__aarch64__)
+/* GCC port: arm64, fpsr's flags and fpcr's rounding modes (were x87's) */
+#define FE_INVALID	1
+#define FE_DIVBYZERO	2
+#define FE_OVERFLOW	4
+#define FE_UNDERFLOW	8
+#define FE_INEXACT	16
+
+#define FE_ALL_EXCEPT	31
+
+#define FE_TONEAREST	0
+#define FE_DOWNWARD	0x800000
+#define FE_UPWARD	0x400000
+#define FE_TOWARDZERO	0xc00000
+
+typedef unsigned int fexcept_t;
+
+typedef struct {
+	unsigned int __fpcr;
+	unsigned int __fpsr;
+} fenv_t;
 #else
 #define FE_INVALID	1
 #define __FE_DENORM	2
