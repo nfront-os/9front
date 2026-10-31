@@ -1,6 +1,7 @@
 #include <u.h>
 #include <libc.h>
 #include <fcall.h>
+#include <zio.h>	/* NIX: zpread, zpwrite, zfree */
 
 char	buf[1048576];
 enum{ NARG = 5 };

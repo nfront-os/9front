@@ -39,6 +39,7 @@ dev
 	kbd
 	
 	segment
+	zp
 	vmx
 	dtracy
 #	performance counters, pmc(3)

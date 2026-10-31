@@ -11,6 +11,7 @@ segment \- long lived memory segments
 .BI #g/ seg2
 .BI #g/ seg2 /ctl
 .BI #g/ seg2 /data
+.BI #g/ seg2 /free
  ...
 .fi
 .SH DESCRIPTION
@@ -45,18 +46,26 @@ it.
 Within each segment directory are two files,
 .B data
 and
-.BR ctl .
+.BR ctl ,
+and for zero-copy segments a third,
+.BR free .
 Reading and writing
 .B data
 affects the contents of the segment.
 Reading and writing 
 .B ctl
 retrieves and sets the segment's properties.
+The
+.B free
+file manages the buffers of zero-copy segments, see below.
 .PP
-There is only one control message, which sets the segment's
+The control messages set the segment's
 virtual address and length in bytes:
 .EX
 	va \fIaddress length type\fP
+	addr \fIaddress length\fP
+	umsg \fIaddress length\fP
+	kmsg \fIaddress length\fP
 .EE
 .I Address
 is automatically rounded down to a page boundary and
@@ -81,6 +90,18 @@ or
 .B sticky
 segments.
 .PP
+.B Addr
+creates a normal shared segment, as
+.B va
+does without a type.
+.B Umsg
+creates a shared segment for use with zero-copy,
+.B kmsg
+one for zero copy, identified as the one for use by the kernel.
+See below for an explanation.
+For these three, if the address given is zero, the system picks a
+unique address (system-wide) for the segment.
+.PP
 When the segment is attached using
 .IR segattach,
 the address and length arguments are ignored in the call;
@@ -94,6 +115,12 @@ returns a message of the same format with the segment's actual
 start address and length. For
 .B fixed
 segments, the type and physical base address are appended.
+For zero-copy segments the message starts with
+.B umsg
+or
+.BR kmsg
+instead of
+.BR va .
 .PP
 Opening
 .B data
@@ -107,6 +134,45 @@ The permissions check when
 is equivalent to the one performed when opening
 .B data
 with mode ORDWR.
+.PP
+Segments for zero copy (either
+.I umsg
+or
+.I kmsg
+segments) make use of the
+.B free
+file to control data buffers for zero-copy, see
+.IR zread (2).
+Each process exchanging zero-copy
+buffers must attach at least to a
+.I kmsg
+segment, also known as a KZIO (kernel zero-copy I/O) segment. It might also attach
+to one or more
+.I umsg
+segments, also known as ZIO (zero-copy I/O) segments. ZIO system calls assume
+that addresses contained in ZIO (or KZIO) segments may be exchanged for I/O without
+requiring data copies. This is not so for addresses referring to any other segment.
+.PP
+Allocation of buffers within a ZIO segment is handled by the process that created
+the segment. Other processes, and the kernel, are expected only to use such buffers,
+but they do not allocate or deallocate buffers directly. Allocation of buffers within a KZIO
+segment is handled only by the kernel. User processes are expected to use such buffers, but
+not to allocate or deallocate them.
+.PP
+When a buffer is no longer in use, its virtual address can be written to the
+.B free
+file (or given to
+.IR zfree ,
+see
+.IR zread (2)).
+As a result, the kernel will notify
+any process reading such file of the address for the, now unused, data buffer:
+a read blocks until there is one and returns one or more addresses, 19
+bytes each (a hexadecimal number and a blank). If the
+address refers to a KZIO segment, the kernel handles deallocation on its own;
+its
+.B free
+file cannot be read.
 .SH EXAMPLE
 .PP
 Create a one megabyte segment at address 0x10000000:
@@ -130,6 +196,9 @@ Attach the segment to a process:
 }
 .EE
 .SH "SEE ALSO
-.IR segattach (2)
+.IR segattach (2),
+.IR newseg (2),
+.IR zread (2),
+.IR zp (3)
 .SH SOURCE
 .B /sys/src/9/port/devsegment.c

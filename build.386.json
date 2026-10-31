@@ -47,6 +47,7 @@
 			"/sys/src/libplumb/libplumb.386.json",
 			"/sys/src/libsat/libsat.386.json",
 			"/sys/src/libscribble/libscribble.386.json",
+			"/sys/src/libseg/libseg.386.json",
 			"/sys/src/libstdio/libstdio.386.json",
 			"/sys/src/libsunrpc/libsunrpc.386.json",
 			"/sys/src/libttf/libttf.386.json",

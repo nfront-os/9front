@@ -10,6 +10,7 @@
 		],
 		"Libs": [
 			"--start-group",
+			"/$ARCH/lib.gcc/libseg.a",
 			"/$ARCH/lib.gcc/libdisk.a",
 			"/$ARCH/lib.gcc/lib9p.a",
 			"/$ARCH/lib.gcc/libthread.a",
@@ -28,7 +29,8 @@
 		],
 		"SourceFilesCmd": [
 			"nixtest.c",
-			"nixbench.c"
+			"nixbench.c",
+			"ziotest.c"
 		]
 	}
 ]

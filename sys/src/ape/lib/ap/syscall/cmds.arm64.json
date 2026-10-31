@@ -54,6 +54,9 @@
 			"_PWRITE.S",
 			"_TSEMACQUIRE.S",
 			"_EXECAC.S",
+			"_ZPREAD.S",
+			"_ZPWRITE.S",
+			"_ZFREE.S",
 			"_NIXSYSCALL.S"
 		],
 		"Append": true,

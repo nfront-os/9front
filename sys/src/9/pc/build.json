@@ -451,6 +451,7 @@
 			"../port/syscallfmt.c",
 			"../port/sysfile.c",
 			"../port/sysproc.c",
+			"../port/syszio.c",
 			"../port/sysexecelf.c",
 			"../port/taslock.c",
 			"../port/tod.c",

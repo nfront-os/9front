@@ -214,6 +214,9 @@ putseg(Segment *s)
 	if(s->profile != nil)
 		free(s->profile);
 
+	if(s->type&SG_ZIO)	/* NIX: zero-copy buffers (port/syszio.c) */
+		freezseg(s);
+
 	free(s);
 }
 
@@ -950,7 +953,7 @@ segattach(int attr, char *name, uintptr va, uintptr len)
 		error(Enovmem);
 
 	/* Turn off what is not allowed */
-	attr &= ~(SG_TYPE | SG_CACHED | SG_DEVICE);
+	attr &= ~(SG_TYPE | SG_CACHED | SG_DEVICE | SG_ZIO | SG_KZIO);	/* NIX: zero copy only by segment(3) */
 
 	/* Copy in defaults */
 	attr |= ps->attr;

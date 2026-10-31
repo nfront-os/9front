@@ -47,6 +47,7 @@
 			"/sys/src/libplumb/libplumb.arm64.json",
 			"/sys/src/libsat/libsat.arm64.json",
 			"/sys/src/libscribble/libscribble.arm64.json",
+			"/sys/src/libseg/libseg.arm64.json",
 			"/sys/src/libstdio/libstdio.arm64.json",
 			"/sys/src/libsunrpc/libsunrpc.arm64.json",
 			"/sys/src/libttf/libttf.arm64.json",

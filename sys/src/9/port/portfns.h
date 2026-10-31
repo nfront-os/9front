@@ -493,6 +493,18 @@ void		acmmuswitch(Proc*);
 void		acservice(Ureg*, int);
 _Noreturn void	actouser(Ureg*);
 
+/* NIX: zero-copy I/O (port/syszio.c) */
+void*		alloczio(Segment*, long);
+int		devzread(Chan*, Kzio*, int, usize, vlong);
+int		devzwrite(Chan*, Kzio*, int, vlong);
+void		freezseg(Segment*);
+Segment*	getzkseg(void);
+void		newzmap(Segment*);
+long		readzio(Kzio*, int, void*, long);
+uintptr		zgetaddr(Segment*);
+int		zputaddr(Segment*, uintptr);
+void		zrelease(Kzio*);
+
 #pragma varargck argpos iprint	1
 #pragma	varargck argpos	panic	1
 #pragma varargck argpos pprint	1

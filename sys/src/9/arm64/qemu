@@ -20,6 +20,8 @@ dev
 	rtc
 	pci	pci
 	sd
+	segment
+	zp
 #	performance counters, pmc(3)
 	pmc	pmcio
 

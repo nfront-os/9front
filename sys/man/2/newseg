@@ -1,0 +1,38 @@
+.TH NEWSEG 2
+.SH NAME
+newseg \- create and attach a global segment
+.SH SYNOPSIS
+.B #include <u.h>
+.br
+.B #include <libc.h>
+.br
+.B #include <seg.h>
+.PP
+.B
+void* newseg(char *name, uvlong va, ulong len)
+.SH DESCRIPTION
+.I Newseg
+binds
+.IR segment (3)
+on
+.B /mnt/seg
+(once), creates the global segment
+.I name
+there with the control message
+.B addr
+.I va
+.I len
+unless it exists, and attaches it with
+.IR segattach (2).
+If
+.I va
+is zero, the system picks the address.
+It returns the address of the segment, or nil on errors.
+.SH SOURCE
+.B /sys/src/libseg/seg.c
+.SH SEE ALSO
+.IR segattach (2),
+.IR segment (3)
+.SH DIAGNOSTICS
+Sets
+.IR errstr .

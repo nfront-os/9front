@@ -15,6 +15,7 @@ typedef struct DevConf	DevConf;
 typedef struct Icc	Icc;	/* NIX */
 typedef struct Nixpctl	Nixpctl;	/* NIX: port/nixcall.c */
 typedef struct Image	Image;
+typedef struct Kzio	Kzio;	/* NIX: zero-copy I/O (port/syszio.c) */
 typedef struct Lock	Lock;
 typedef struct Log	Log;
 typedef struct Logflag	Logflag;
@@ -55,6 +56,8 @@ typedef struct Waitq	Waitq;
 typedef struct Walkqid	Walkqid;
 typedef struct Watchpt	Watchpt;
 typedef struct Watchdog	Watchdog;
+typedef struct Zio	Zio;	/* NIX */
+typedef struct Zseg	Zseg;	/* NIX */
 typedef int    Devgen(Chan*, char*, Dirtab*, int, int, Dir*);
 
 #pragma incomplete DevConf
@@ -275,6 +278,9 @@ struct Dev
 	int	(*wstat)(Chan*, uchar*, int);
 	void	(*power)(int);	/* power mgt: power(1) => on, power (0) => off */
 	int	(*config)(int, char*, DevConf*);	/* returns nil on error */
+	/* NIX: zero-copy read and write (port/syszio.c), nil: devzread/devzwrite */
+	int	(*zread)(Chan*, Kzio*, int, usize, vlong);
+	int	(*zwrite)(Chan*, Kzio*, int, vlong);
 };
 
 struct Dirtab
@@ -408,6 +414,8 @@ enum
 	SG_CACHED	= 0400,		/* Normal cached memory */
 	SG_DEVICE	= 01000,	/* Memory mapped device */
 	SG_NOEXEC	= 02000,	/* No execute */
+	SG_ZIO		= 04000,	/* NIX: used for zero copy (NIX: 0200) */
+	SG_KZIO		= 010000,	/* NIX: kernel zero copy segment (NIX: 0400) */
 };
 
 #define PG_ONSWAP	1
@@ -432,6 +440,16 @@ struct Sema
 	int	waiting;
 	Sema	*next;
 	Sema	*prev;
+};
+
+/* NIX: zero copy per-segment information (locked by the Segment's QLock) */
+struct Zseg
+{
+	void*	map;	/* memory map for buffers within this segment (SG_KZIO) */
+	uintptr	*addr;	/* array of addresses released (SG_ZIO) */
+	int	naddr;	/* size allocated for the array */
+	int	end;	/* 1+ last used index in addr */
+	Rendez	rr;	/* process waiting to read free addresses */
 };
 
 struct Segment
@@ -466,6 +484,24 @@ struct Segment
 	int	firstproc;	/* lowest proc->index having segment attached */
 	int	lastproc;	/* highest proc->index having segment attached */
 	int	segno;		/* last attached proc->seg[segno] number */
+
+	Zseg	zseg;		/* NIX: zero copy, SG_ZIO segments */
+};
+
+/*
+ * NIX: zero-copy I/O; Zio as in libc.h, Kzio holds a reference
+ * to the segment of the buffer.
+ */
+struct Zio
+{
+	void*	data;
+	ulong	size;
+};
+
+struct Kzio
+{
+	Zio;
+	Segment	*seg;
 };
 
 /*

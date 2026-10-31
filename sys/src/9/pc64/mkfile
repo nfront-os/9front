@@ -41,6 +41,7 @@ PORT=\
 	syscallfmt.$O\
 	sysfile.$O\
 	sysproc.$O\
+	syszio.$O\
 	sysexecelf.$O\
 	taslock.$O\
 	tod.$O\

@@ -1,0 +1,13 @@
+[
+	{
+		"Name": "Seg",
+		"Include": [
+			"../lib.json"
+		],
+		"Install": "/$ARCH/lib.gcc/",
+		"Library": "libseg.a",
+		"SourceFiles": [
+			"seg.c"
+		]
+	}
+]

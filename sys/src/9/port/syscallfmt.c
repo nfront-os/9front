@@ -311,6 +311,24 @@ syscallfmt(ulong syscallno, uintptr pc, uchar *list)
 		a = ARG(list, char*);
 		fmtuserstring(&fmt, a, "");
 		break;
+	case ZPREAD:	/* NIX */
+	case ZPWRITE:
+		i[0] = ARG(list, int);
+		v = ARG(list, void*);
+		i[1] = ARG(list, int);
+		fmtprint(&fmt, "%d %#p %d", i[0], v, i[1]);
+		if(syscallno == ZPREAD){
+			p = ARG(list, usize);
+			fmtprint(&fmt, " %llud", (uvlong)p);
+		}
+		vl = ARG(list, vlong);
+		fmtprint(&fmt, " %lld", vl);
+		break;
+	case ZFREE:	/* NIX */
+		v = ARG(list, void*);
+		i[0] = ARG(list, int);
+		fmtprint(&fmt, "%#p %d", v, i[0]);
+		break;
 	case PREAD:
 		i[0] = ARG(list, int);
 		v = ARG(list, void*);

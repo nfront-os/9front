@@ -209,6 +209,7 @@
                     "usb",
                     "kbd",
                     "segment",
+                    "zp",
                     "vmx",
                     "dtracy",
                     "pmc pmcio"
@@ -341,6 +342,7 @@
             "../port/devusb.c",
             "devvga.c",
             "devvmx.c",
+            "../port/devzp.c",
             "dma.c",
             "../port/dtracydev.c",
             "../port/dtracysys.c",
@@ -437,6 +439,7 @@
             "../port/sysexecelf.c",
             "../port/sysfile.c",
             "../port/sysproc.c",
+            "../port/syszio.c",
             "../port/taslock.c",
             "../ip/tcp.c",
             "../port/tod.c",

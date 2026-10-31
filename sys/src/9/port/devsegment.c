@@ -11,6 +11,7 @@ enum
 	Qsegdir,
 	Qctl,
 	Qdata,
+	Qfree,		/* NIX: free buffers of zero-copy segments */
 };
 
 #define TYPE(c) 	(int)( (c)->qid.path & 0x7 )
@@ -38,6 +39,11 @@ static Lock globalseglock;
 static	Segment* globalsegattach(char *name);
 
 static	Segment* fixedseg(uintptr va, ulong len);
+
+/* NIX: zero-copy segments (kmsg, umsg) and their free file, after NIX's port/devsegment.c */
+static	uintptr	placeseg(uintptr len);
+static	long	zfreeread(Segment*, char*, long);
+static	void	zfreewrite(Segment*, char*, long);
 
 /*
  *  returns with globalseg incref'd
@@ -118,6 +124,7 @@ segmentgen(Chan *c, char*, Dirtab*, int, int s, Dir *dp)
 		/* fall through */
 	case Qctl:
 	case Qdata:
+	case Qfree:	/* NIX */
 		switch(s){
 		case 0:
 			g = getgseg(c);
@@ -137,6 +144,18 @@ segmentgen(Chan *c, char*, Dirtab*, int, int s, Dir *dp)
 			else
 				size = 0;
 			devdir(c, q, "data", size, g->uid, g->perm, dp);
+			putgseg(g);
+			break;
+		case 2:	/* NIX: only for zero-copy segments */
+			g = getgseg(c);
+			if(g->Segio.s == nil || (g->Segio.s->type&SG_ZIO) == 0){
+				putgseg(g);
+				return -1;
+			}
+			q.vers = 0;
+			q.path = PATH(SEG(c), Qfree);
+			q.type = QTFILE;
+			devdir(c, q, "free", 0, g->uid, g->perm, dp);
 			putgseg(g);
 			break;
 		default:
@@ -185,6 +204,7 @@ segmentopen(Chan *c, int omode)
 		break;
 	case Qctl:
 	case Qdata:
+	case Qfree:	/* NIX */
 		g = getgseg(c);
 		if(waserror()){
 			putgseg(g);
@@ -193,6 +213,8 @@ segmentopen(Chan *c, int omode)
 		devpermcheck(g->uid, g->perm, omode);
 		if(TYPE(c) == Qdata && g->Segio.s == nil)
 			error("segment not yet allocated");
+		if(TYPE(c) == Qfree && (g->Segio.s == nil || (g->Segio.s->type&SG_ZIO) == 0))
+			error("not a zero-copy segment");	/* NIX */
 		c->aux = g;
 		poperror();
 		break;
@@ -238,6 +260,7 @@ segmentclose(Chan *c)
 			break;
 		case Qctl:
 		case Qdata:
+		case Qfree:	/* NIX */
 			putgseg(c->aux);
 			c->aux = nil;
 			break;
@@ -321,14 +344,144 @@ segmentread(Chan *c, void *a, long n, vlong voff)
 				g->Segio.s->map[0]->pages[0]->pa);
 		else if((g->Segio.s->type&SG_TYPE) == SG_STICKY)
 			snprint(buf, sizeof(buf), "va %#p %#p sticky\n", g->Segio.s->base, g->Segio.s->top-g->Segio.s->base);
+		else if(g->Segio.s->type&SG_ZIO)	/* NIX */
+			snprint(buf, sizeof(buf), "%s %#p %#p\n", (g->Segio.s->type&SG_KZIO)? "kmsg": "umsg",
+				g->Segio.s->base, g->Segio.s->top-g->Segio.s->base);
 		else
 			snprint(buf, sizeof(buf), "va %#p %#p\n", g->Segio.s->base, g->Segio.s->top-g->Segio.s->base);
 		return readstr(voff, a, n, buf);
 	case Qdata:
 		return segio(&g->Segio,g->Segio.s,a,n,voff,1);
+	case Qfree:	/* NIX */
+		return zfreeread(g->Segio.s, a, n);
 	default:
 		panic("segmentread");
 	}
+}
+
+/*
+ * NIX: segment types of the ctl messages kmsg (kernel zero-copy buffers),
+ * umsg (user zero-copy buffers) and addr (shared, as va)
+ */
+static int
+zsegtype(char *name)
+{
+	if(strcmp(name, "kmsg") == 0)
+		return SG_SHARED|SG_ZIO|SG_KZIO;
+	if(strcmp(name, "umsg") == 0)
+		return SG_SHARED|SG_ZIO;
+	if(strcmp(name, "addr") == 0)
+		return SG_SHARED;
+	return -1;
+}
+
+/*
+ * NIX: a system-wide address for a segment, from the middle
+ * of the user address space down, with a guard page above.
+ * BUG: we allocate virtual addresses but never give them
+ * back when the segment is destroyed.
+ */
+static uintptr
+placeseg(uintptr len)
+{
+	static Lock lck;
+	static uintptr va;
+	uintptr v;
+
+	len = PGROUND(len) + BY2PG;
+	lock(&lck);
+	if(va == 0)
+		va = ((USTKTOP-USTKSIZE)/2) & ~(uintptr)(BY2PG-1);
+	if(len >= va/2){
+		unlock(&lck);
+		error(Enovmem);
+	}
+	va -= len;
+	v = va;
+	unlock(&lck);
+	return v;
+}
+
+enum{
+	PTRSIZE = 19,	/* "0x1234567812345678 " */
+	Nfree = 32,	/* addresses per read of free */
+};
+
+static int
+znotempty(void *x)
+{
+	return ((Zseg*)x)->end != 0;
+}
+
+/*
+ * NIX: read of free: wait for buffers given back to the umsg
+ * segment s, return their addresses, PTRSIZE bytes each.
+ */
+static long
+zfreeread(Segment *s, char *a, long n)
+{
+	uintptr va[Nfree];
+	char buf[PTRSIZE+1];
+	int i, nva;
+
+	if(n < PTRSIZE)
+		error("read buffer too small");
+	if(s->type&SG_KZIO)
+		error("the kernel frees kmsg buffers");
+	for(;;){
+		qlock(&s->QLock);
+		if((va[0] = zgetaddr(s)) != 0)
+			break;
+		qunlock(&s->QLock);
+		sleep(&s->zseg.rr, znotempty, &s->zseg);
+	}
+	for(nva = 1; nva < Nfree && (nva+1)*PTRSIZE <= n; nva++)
+		if((va[nva] = zgetaddr(s)) == 0)
+			break;
+	qunlock(&s->QLock);
+	/* a may be in s: touch it unlocked */
+	for(i = 0; i < nva; i++){
+		snprint(buf, sizeof buf, "0x%016llux ", (uvlong)va[i]);
+		memmove(a+i*PTRSIZE, buf, PTRSIZE);
+	}
+	return nva*PTRSIZE;
+}
+
+/*
+ * NIX: write of free: give the buffers at the addresses back.
+ */
+static void
+zfreewrite(Segment *s, char *a, long n)
+{
+	char *buf, *p, *e;
+	uintptr va;
+	int r;
+
+	if(n > 64*1024)
+		error(Etoobig);
+	buf = smalloc(n+1);
+	if(waserror()){
+		free(buf);
+		nexterror();
+	}
+	memmove(buf, a, n);
+	buf[n] = 0;
+	for(p = buf;; p = e){
+		while(*p == ' ' || *p == '\t' || *p == '\n')
+			p++;
+		if(*p == 0)
+			break;
+		va = strtoull(p, &e, 0);
+		if(e == p)
+			error(Ebadarg);
+		qlock(&s->QLock);
+		r = zputaddr(s, va);
+		qunlock(&s->QLock);
+		if(r < 0)
+			error("not a zero-copy buffer");
+	}
+	free(buf);
+	poperror();
 }
 
 static long
@@ -337,6 +490,7 @@ segmentwrite(Chan *c, void *a, long n, vlong voff)
 	Cmdbuf *cb;
 	Globalseg *g;
 	uintptr va, top, len;
+	int type;
 
 	if(c->qid.type == QTDIR)
 		error(Eperm);
@@ -383,6 +537,28 @@ segmentwrite(Chan *c, void *a, long n, vlong voff)
 				g->Segio.s = s;
 			} else
 				g->Segio.s = newseg(SG_SHARED, va, len/BY2PG);
+		} else if(cb->nf > 0 && (type = zsegtype(cb->f[0])) != -1){
+			/* NIX: "kmsg|umsg|addr va len", va 0: the system picks one */
+			if(g->Segio.s != nil)
+				error("already has a virtual address");
+			if(cb->nf < 3)
+				error(Ebadarg);
+			va = strtoull(cb->f[1], 0, 0);
+			len = strtoull(cb->f[2], 0, 0);
+			if(len == 0 || len > SEGMAXSIZE)
+				error(Ebadarg);
+			if(va == 0)
+				va = placeseg(len);
+			top = PGROUND(va + len);
+			va = va&~(BY2PG-1);
+			if(va == 0 || top > USTKTOP || top <= va)
+				error(Ebadarg);
+			len = top - va;
+			if(len > SEGMAXSIZE)
+				error(Enovmem);
+			g->Segio.s = newseg(type, va, len/BY2PG);
+			if(type & SG_KZIO)
+				newzmap(g->Segio.s);
 		} else
 			error(Ebadctl);
 		free(cb);
@@ -390,6 +566,9 @@ segmentwrite(Chan *c, void *a, long n, vlong voff)
 		return n;
 	case Qdata:
 		return segio(&g->Segio,g->Segio.s,a,n,voff,0);
+	case Qfree:	/* NIX */
+		zfreewrite(g->Segio.s, a, n);
+		return n;
 	default:
 		panic("segmentwrite");
 	}
