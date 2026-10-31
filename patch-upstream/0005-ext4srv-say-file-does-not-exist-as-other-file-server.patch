@@ -1,0 +1,32 @@
+From 14bab7b6d46233cf9dc0c26452a891ef490a57f2 Mon Sep 17 00:00:00 2001
+From: Stefan Hertenberger <erde74@gmail.com>
+Date: Sat, 31 Oct 2026 10:35:28 +0100
+Subject: [PATCH 05/15] ext4srv: say "file does not exist" as other file
+ servers
+
+A missing file gave "file not found". Plan 9's file servers and the
+kernel say "file does not exist" (Enonexist), and programs look for it:
+APE maps only that to ENOENT, so a POSIX program (gcc searching its -I
+directories) took a missing file on ext4 for a hard error.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ sys/src/cmd/ext4srv/ext4.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/sys/src/cmd/ext4srv/ext4.c b/sys/src/cmd/ext4srv/ext4.c
+index aa017d1df..9cd937086 100644
+--- a/sys/src/cmd/ext4srv/ext4.c
++++ b/sys/src/cmd/ext4srv/ext4.c
+@@ -15,7 +15,7 @@ char Einval[] = "invalid operation";
+ char Eio[] = "i/o error";
+ char Enomem[] = "no memory";
+ char Enospc[] = "no space";
+-char Enotfound[] = "file not found";
++char Enotfound[] = "file does not exist";
+ char Eperm[] = "permission denied";
+ char Erdonlyfs[] = "read-only fs";
+ 
+-- 
+2.56.0
+

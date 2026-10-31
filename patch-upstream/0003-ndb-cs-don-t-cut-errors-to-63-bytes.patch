@@ -1,0 +1,35 @@
+From ccae23010861223807c40a879c50437d05c72d59 Mon Sep 17 00:00:00 2001
+From: Stefan Hertenberger <erde74@gmail.com>
+Date: Sat, 31 Oct 2026 10:34:44 +0100
+Subject: [PATCH 03/15] ndb/cs: don't cut errors to 63 bytes
+
+rwrite() read the error of a failed lookup into curerr[64], and
+sendmsg() prefixes it with "cs: ". For a long name the reason got lost:
+
+	cs: can't translate address no-such-host-abcdefghijklmnopqrstuvwxyz
+
+instead of "... .invalid: dns: name does not exist", so programs that
+look at the error ("does not exist") cannot tell a missing name from
+other failures. Use ERRMAX, as the rest of cs does.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ sys/src/cmd/ndb/cs.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/sys/src/cmd/ndb/cs.c b/sys/src/cmd/ndb/cs.c
+index 23d253d08..6718b3769 100644
+--- a/sys/src/cmd/ndb/cs.c
++++ b/sys/src/cmd/ndb/cs.c
+@@ -775,7 +775,7 @@ rwrite(Job *job, Mfile *mf)
+ 	int cnt, n;
+ 	char *err;
+ 	char *field[4];
+-	char curerr[64];
++	char curerr[ERRMAX];
+ 
+ 	err = nil;
+ 	cnt = job->request.count;
+-- 
+2.56.0
+

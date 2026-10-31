@@ -6,6 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Branches
 - `front`: mirror of upstream `github.com/9front/9front`, branch `front`. Treat as pristine 9front source; update it by fast-forward to `origin/front`, then rebase `gcc` onto it.
+- `upstream`: fixes for 9front itself found on `gcc` (not about gcc), one commit each on `origin/front`, exported to `patch-upstream/` (README.md there). A new one goes on `gcc` and on `upstream`.
 - `gcc` (work branch): the gcc port. Keep diffs against `front` minimal and reviewable. After a rebase, regenerate the manifests (upstream mkfile changes add sources) and run `tests/static`.
 
 ## gcc port status: MEMORY.md

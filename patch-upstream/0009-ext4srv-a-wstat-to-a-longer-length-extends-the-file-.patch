@@ -1,0 +1,56 @@
+From 06d42135a76e064a2c0b456d66ae76a5c91f9ada Mon Sep 17 00:00:00 2001
+From: Stefan Hertenberger <erde74@gmail.com>
+Date: Sat, 31 Oct 2026 10:36:56 +0100
+Subject: [PATCH 09/15] ext4srv: a wstat to a longer length extends the file
+ with zeros
+
+stat(5): a wstat of length changes the file's length, and a longer one
+reads as zeros past the old end. ext4srv passed every length to
+ext4_ftruncate(), which only shortens, so any longer length failed with
+"space preallocation not supported" (POSIX programs' ftruncate and
+Rust's File::set_len to a larger size).
+
+Write zeros up to the new length first, as rwrite() does for a write
+past the end.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ sys/src/cmd/ext4srv/ext4srv.c | 15 ++++++++++++++-
+ 1 file changed, 14 insertions(+), 1 deletion(-)
+
+diff --git a/sys/src/cmd/ext4srv/ext4srv.c b/sys/src/cmd/ext4srv/ext4srv.c
+index 2fce61068..f56abb23a 100644
+--- a/sys/src/cmd/ext4srv/ext4srv.c
++++ b/sys/src/cmd/ext4srv/ext4srv.c
+@@ -611,6 +611,7 @@ static void
+ rwstat(Req *r)
+ {
+ 	int res, isdir, wrperm, isowner, n;
++	usize wn;
+ 	struct ext4_mountpoint *mp;
+ 	struct ext4_inode inode;
+ 	u32int uid, gid, iflags;
+@@ -695,7 +696,19 @@ rwstat(Req *r)
+ 	if(r->d.length >= 0 && ext4_inode_can_truncate(a->p->sb, &inode)){
+ 		if(ext4_fopen2(mp, &f, a->path, toext4mode(OWRITE, 0, 0)) < 0)
+ 			goto error;
+-		res = ext4_ftruncate(&f, r->d.length);
++		/*
++		 * a longer length extends the file with zeros (stat(5)),
++		 * as rwrite does past the end; ext4_ftruncate only
++		 * shortens.
++		 */
++		res = 0;
++		while(res == 0 && ext4_fsize(&f) < r->d.length){
++			ext4_fseek(&f, 0, 2);
++			wn = MIN(r->d.length - ext4_fsize(&f), sizeof(zero));
++			res = ext4_fwrite(&f, zero, wn, &wn);
++		}
++		if(res == 0)
++			res = ext4_ftruncate(&f, r->d.length);
+ 		vbump(f.inode);
+ 		ext4_fclose(&f);
+ 		if(res != 0)
+-- 
+2.56.0
+

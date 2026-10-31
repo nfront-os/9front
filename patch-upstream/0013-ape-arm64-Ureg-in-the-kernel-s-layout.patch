@@ -1,0 +1,46 @@
+From 2cd94ea61402d5580b31a4b1c2516c4efe9ec948 Mon Sep 17 00:00:00 2001
+From: Stefan Hertenberger <erde74@gmail.com>
+Date: Sat, 31 Oct 2026 10:38:59 +0100
+Subject: [PATCH 13/15] ape: arm64 Ureg in the kernel's layout
+
+/arm64/include/ape/ureg.h had r29 and sp in a union and type, psr, pc
+after r30, where the kernel's /arm64/include/ureg.h has r29, r30, sp,
+pc, psr, type. APE's notetramp.c sets u->pc = notecont to continue a
+note in the signal handler: it set psr instead, and every APE program
+on arm64 that caught a signal died at pc 0 when the handler ran (also
+built with 7c). Use the kernel's layout.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ arm64/include/ape/ureg.h | 10 ++++------
+ 1 file changed, 4 insertions(+), 6 deletions(-)
+
+diff --git a/arm64/include/ape/ureg.h b/arm64/include/ape/ureg.h
+index 4e27aad54..e3d1470d7 100644
+--- a/arm64/include/ape/ureg.h
++++ b/arm64/include/ape/ureg.h
+@@ -34,17 +34,15 @@ struct Ureg {
+ 	unsigned long long	r26;
+ 	unsigned long long	r27;
+ 	unsigned long long	r28;	/* sb */
+-	union {
+-		unsigned long long	r29;
+-		unsigned long long	sp;
+-	};
++	unsigned long long	r29;
+ 	union {
+ 		unsigned long long	r30;
+ 		unsigned long long	link;
+ 	};
+-	unsigned long long	type;	/* of exception */
+-	unsigned long long	psr;
++	unsigned long long	sp;
+ 	unsigned long long	pc;	/* interrupted addr */
++	unsigned long long	psr;
++	unsigned long long	type;	/* of exception */
+ };
+ 
+ #endif
+-- 
+2.56.0
+

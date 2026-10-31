@@ -1,0 +1,44 @@
+From 2db097cee8aced6a7051e3a8c7f98ec64ebfe65c Mon Sep 17 00:00:00 2001
+From: Stefan Hertenberger <erde74@gmail.com>
+Date: Sat, 31 Oct 2026 10:34:18 +0100
+Subject: [PATCH 01/15] ip/tcp: don't hang up a reused conversation through a
+ stale bypass pointer
+
+A spliced loopback connection (tcpsplice) has each side's bypass pointing
+to the other. When one side reaches Closed it clears only its own bypass.
+If the other side is closed later, tcpclose() hung up the rq of the
+conversation its stale bypass still pointed to, which may have been reused
+by then for a new connection or announcement: a new listener got
+"listen hungup" and its clients "connection refused".
+
+Only hang up the other side if it still points back to us, as tcpbypass()
+already checks before passing data.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ sys/src/9/ip/tcp.c | 9 ++++++++-
+ 1 file changed, 8 insertions(+), 1 deletion(-)
+
+diff --git a/sys/src/9/ip/tcp.c b/sys/src/9/ip/tcp.c
+index d40cdc843..797342f0c 100644
+--- a/sys/src/9/ip/tcp.c
++++ b/sys/src/9/ip/tcp.c
+@@ -529,7 +529,14 @@ tcpclose(Conv *c)
+ 		break;
+ 	case Established:
+ 		if(tcb->bypass != nil){
+-			qhangup(tcb->bypass->rq, nil);
++			/*
++			 * the other side clears only its own bypass when it
++			 * closes, and its conversation may have been reused
++			 * by now: only hang up its rq if it still points back
++			 * to us (as tcpbypass() checks).
++			 */
++			if(((Tcpctl*)tcb->bypass->ptcl)->bypass == c)
++				qhangup(tcb->bypass->rq, nil);
+ 			localclose(c, nil);
+ 			break;
+ 		}
+-- 
+2.56.0
+

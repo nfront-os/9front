@@ -1,0 +1,33 @@
+From 30d80bd390f7e7c7ad9b8b4956b384c69bac5d26 Mon Sep 17 00:00:00 2001
+From: Stefan Hertenberger <erde74@gmail.com>
+Date: Sat, 31 Oct 2026 10:38:59 +0100
+Subject: [PATCH 14/15] pc: register the xhci controller (usbxhcipci first, as
+ in pc64)
+
+The link section of a kernel configuration calls only the first name's
+link function (mkdevc). pc had "usbxhci pci usbxhcipci": usbxhcilink()
+is empty, so usbxhcipcilink(), which registers the controller type
+(addhcitype "xhci"), was never called and 9pc found no xhci
+controller. pc64 has "usbxhcipci pci usbxhci".
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ sys/src/9/pc/pc | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/sys/src/9/pc/pc b/sys/src/9/pc/pc
+index d3b110d6f..7c82a5785 100644
+--- a/sys/src/9/pc/pc
++++ b/sys/src/9/pc/pc
+@@ -87,7 +87,7 @@ link
+ 	usbuhci		pci
+ 	usbohci		pci
+ 	usbehci		pci usbehcipc
+-	usbxhci		pci usbxhcipci
++	usbxhcipci	pci usbxhci
+ 
+ 	audiosb16	dma
+ 	audioac97	pci audioac97mix
+-- 
+2.56.0
+

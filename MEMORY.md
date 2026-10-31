@@ -950,16 +950,11 @@ Der Nutzer wollte, dass C/C++ in Rust-Programmen ohne die ape9-Umbenennung linkt
 
 ## Patch-Kandidaten für 9front
 
-Änderungen im gcc-Branch, die auch für front gelten (nicht gcc-bedingt), zum Einreichen bei
-9front. Im gcc-Branch bleiben sie, bis 9front sie hat oder ablehnt. Ein Patch ist jeweils aus
-dem Commit zu schneiden, nicht aus `git diff front` (in `tcp.c` stehen auch die Port-Änderungen,
-etwa das halbe Schließen); die `GCC port`-Kommentare fallen dabei weg.
-- **ext4srv** (Teil 43): Loch in `ext4_fread` las Block 0; „file not found“ statt „file does
-  not exist“. Fehler in 9front.
-- **tcp.c, veralteter bypass-Zeiger** (Commit 942d1df69, zusammen mit dem halben Schließen):
-  `tcpclose` legte das rq einer inzwischen neuen Conv auf. Fehler in 9front.
-- **ndb/cs, gekürzte Fehler** (Commit fcfecdfcf): `curerr[64]` → `ERRMAX`. Fehler in 9front.
-- **tcp.c, volle Anrufschlange** (Commit f0b8b1f7a): Anruf bleibt im Limbo statt Reset.
-  Verhaltensänderung (wie BSD/Linux), mit Begründung einreichen: der Reset traf Verbindungen,
-  die der Client schon als verbunden hatte. Nicht eingereicht: das halbe Schließen (ctl
-  `shutdown`, neue Schnittstelle für den Rust-Port).
+Gesammelt und auf Englisch dokumentiert in `patch-upstream/` (README.md, 15 Patches im
+`git format-patch`-Format auf `origin/front` 350266104); Quelle ist der Branch `upstream`
+(Worktree `../9front-upstream`), ein Commit pro Patch, ohne `GCC port`-Kommentare. Im
+gcc-Branch bleiben die Änderungen, bis 9front sie hat oder ablehnt. Neue Kandidaten: als
+Commit auf `upstream`, dann die Patches neu erzeugen (README.md, „Regenerate“). Geprüft:
+Code gleich dem gcc-Branch (bis auf Kommentare), mit 6c/8c/7c -FTVw im Gast gegen die Header
+von `upstream` übersetzt, als Serie auf origin/front anwendbar. Nicht dabei: das halbe
+Schließen von TCP (neue Schnittstelle für den Rust-Port).

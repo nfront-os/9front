@@ -1,0 +1,32 @@
+From 9a4a01e07c396ec8c90fa554e492508bfdbbd890 Mon Sep 17 00:00:00 2001
+From: Stefan Hertenberger <erde74@gmail.com>
+Date: Sat, 31 Oct 2026 10:38:59 +0100
+Subject: [PATCH 15/15] glenda's riostart: make the stats window first, not in
+ the background
+
+"window 0,0,161,117 ..." is the old syntax: window(1) makes such a
+window from a background job (mount $wsys 'new ...' &), which can be
+done after the windows below it. A new window becomes the current one,
+so stats sometimes took the focus from the console window (console=0:
+rc on the serial console), and the typing went to stats. With -r the
+window is made at once through wctl.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ sys/lib/dist/usr/glenda/bin/rc/riostart | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/sys/lib/dist/usr/glenda/bin/rc/riostart b/sys/lib/dist/usr/glenda/bin/rc/riostart
+index fde27dff3..96fe03dc0 100755
+--- a/sys/lib/dist/usr/glenda/bin/rc/riostart
++++ b/sys/lib/dist/usr/glenda/bin/rc/riostart
+@@ -1,5 +1,5 @@
+ #!/bin/rc
+-window 0,0,161,117 stats -lmisce
++window -r 0 0 161 117 stats -lmisce
+ window -miny 130
+ 
+ # run a system shell on the serial console
+-- 
+2.56.0
+

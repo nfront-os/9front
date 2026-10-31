@@ -1,0 +1,60 @@
+From 8d1b1519661559d54ca1dd079aa67ad99360e20c Mon Sep 17 00:00:00 2001
+From: Stefan Hertenberger <erde74@gmail.com>
+Date: Sat, 31 Oct 2026 10:36:56 +0100
+Subject: [PATCH 10/15] ext4srv: zero the rest of the last block when a file is
+ shortened
+
+ext4_ftruncate() frees the blocks past the new length but leaves the old
+bytes in the rest of the new last block. Extending the file again (a
+longer wstat, previous patch) showed them where it should read zeros:
+old data came back (found by Rust's std tests: set_len shorter, then
+longer).
+
+Write zeros over the rest of the last block before truncating.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ sys/src/cmd/ext4srv/ext4srv.c | 13 +++++++++++++
+ 1 file changed, 13 insertions(+)
+
+diff --git a/sys/src/cmd/ext4srv/ext4srv.c b/sys/src/cmd/ext4srv/ext4srv.c
+index f56abb23a..499997492 100644
+--- a/sys/src/cmd/ext4srv/ext4srv.c
++++ b/sys/src/cmd/ext4srv/ext4srv.c
+@@ -5,6 +5,7 @@
+ #include <9p.h>
+ #include <bio.h>
+ #include "ext4_inode.h"
++#include "ext4_super.h"
+ #include "group.h"
+ #include "common.h"
+ 
+@@ -612,6 +613,7 @@ rwstat(Req *r)
+ {
+ 	int res, isdir, wrperm, isowner, n;
+ 	usize wn;
++	u32int bs;
+ 	struct ext4_mountpoint *mp;
+ 	struct ext4_inode inode;
+ 	u32int uid, gid, iflags;
+@@ -707,6 +709,17 @@ rwstat(Req *r)
+ 			wn = MIN(r->d.length - ext4_fsize(&f), sizeof(zero));
+ 			res = ext4_fwrite(&f, zero, wn, &wn);
+ 		}
++		/*
++		 * shorter: zero the rest of the new last block first,
++		 * ext4_ftruncate frees the blocks after it but leaves its
++		 * old bytes, which a later extension showed again.
++		 */
++		bs = ext4_sb_get_block_size(&mp->fs.sb);
++		if(res == 0 && r->d.length < ext4_fsize(&f) && r->d.length % bs != 0){
++			wn = MIN(ext4_fsize(&f) - r->d.length, bs - r->d.length % bs);
++			ext4_fseek(&f, r->d.length, 0);
++			res = ext4_fwrite(&f, zero, wn, &wn);
++		}
+ 		if(res == 0)
+ 			res = ext4_ftruncate(&f, r->d.length);
+ 		vbump(f.inode);
+-- 
+2.56.0
+

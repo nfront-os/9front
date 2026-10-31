@@ -1,0 +1,28 @@
+From 671ffc1ef77a8f5fec6ea31db20097585924b2d3 Mon Sep 17 00:00:00 2001
+From: Stefan Hertenberger <erde74@gmail.com>
+Date: Sat, 31 Oct 2026 10:37:20 +0100
+Subject: [PATCH 11/15] ext4srv: set atime of a new file
+
+rcreate() set mtime and ctime but left atime 0: a file just made
+showed an access time of 1970.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ sys/src/cmd/ext4srv/ext4srv.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/sys/src/cmd/ext4srv/ext4srv.c b/sys/src/cmd/ext4srv/ext4srv.c
+index 499997492..6f8bb0281 100644
+--- a/sys/src/cmd/ext4srv/ext4srv.c
++++ b/sys/src/cmd/ext4srv/ext4srv.c
+@@ -353,6 +353,7 @@ rcreate(Req *r)
+ 		goto ext4errorrm;
+ 	ext4_owner_set(mp, s, a->uid, a->uid);
+ 	tm = time(nil);
++	ext4_atime_set(mp, s, tm);
+ 	ext4_mtime_set(mp, s, tm);
+ 	ext4_ctime_set(mp, s, tm);
+ 
+-- 
+2.56.0
+
