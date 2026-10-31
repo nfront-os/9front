@@ -47,6 +47,8 @@ sysrfork(uchar *list)
 		error(Ebadarg);
 	if((flag & (RFPREPAGE|RFCPREPAGE)) == (RFPREPAGE|RFCPREPAGE))
 		error(Ebadarg);
+	if((flag & (RFCORE|RFCCORE)) == (RFCORE|RFCCORE))
+		error(Ebadarg);
 
 	if((flag&RFPROC) == 0) {
 		Fgrp *ofg;
@@ -133,6 +135,14 @@ sysrfork(uchar *list)
 		}
 		if(flag & RFCPREPAGE)
 			up->prepagemem = 0;
+		/* NIX: to any free application core, or back */
+		if((flag & RFCORE) != 0 && up->ac == nil){
+			up->ac = getac(up, -1);
+			up->prepagemem = 1;
+			up->procctl = Proc_toac;
+		}
+		if((flag & RFCCORE) != 0 && up->ac != nil)
+			up->acback = 1;	/* runacore goes back to the TC */
 		return 0;
 	}
 
@@ -282,6 +292,17 @@ sysrfork(uchar *list)
 	procpriority(p, up->basepri, up->fixedpri);
 	if(up->wired)
 		procwired(p, up->affinity);
+
+	/*
+	 * NIX: the child goes to a free application core when it first
+	 * enters the kernel; stays on the TCs if there is none (as NIX)
+	 */
+	if((flag & RFCORE) != 0 && !waserror()){
+		p->ac = getac(p, -1);
+		p->prepagemem = 1;
+		p->procctl = Proc_toac;
+		poperror();
+	}
 
 	ready(p);
 	sched();

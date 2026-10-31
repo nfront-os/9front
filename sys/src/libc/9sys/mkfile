@@ -24,6 +24,7 @@ OFILES=\
 	fork.$O\
 	getnetconninfo.$O\
 	getenv.$O\
+	getcore.$O\
 	getpid.$O\
 	getppid.$O\
 	getuser.$O\

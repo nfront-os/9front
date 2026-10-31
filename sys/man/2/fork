@@ -96,6 +96,21 @@ Is inherited by children and mutually exclusive with
 .B RFCPREPAGE
 If set, no more such prepaging.
 .TP
+.B RFCORE
+Without
+.BR RFPROC ,
+move the process to a free application core the next time it leaves
+the kernel; with
+.BR RFPROC ,
+the child, when it first enters the kernel, if there is a free one
+(see
+.IR execac (2)).
+Is mutually exclusive with
+.BR RFCCORE .
+.TP
+.B RFCCORE
+Move the process back to the time-sharing cores.
+.TP
 .B RFENVG
 If set, the environment variables are copied;
 otherwise the two processes share environment variables.

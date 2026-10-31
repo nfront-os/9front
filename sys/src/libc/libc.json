@@ -48,6 +48,7 @@
 			"9sys/fork.c",
 			"9sys/getnetconninfo.c",
 			"9sys/getenv.c",
+			"9sys/getcore.c",
 			"9sys/getpid.c",
 			"9sys/getppid.c",
 			"9sys/getuser.c",

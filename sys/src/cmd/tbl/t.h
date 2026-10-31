@@ -2,6 +2,7 @@
 
 #include <u.h>
 #include <libc.h>
+#define getcore tblgetcore	/* NIX: libc has getcore(2) */
 #include <bio.h>
 # include <ctype.h>
 

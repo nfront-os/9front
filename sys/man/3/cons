@@ -285,7 +285,16 @@ idle time and interrupt time are percentage units;
 the others are total counts from boot time.
 If the machine is a multiprocessor,
 .B sysstat
-holds one line per processor.
+holds one line per processor,
+each ending with its role:
+.B TC
+(time-sharing core),
+.B AC
+(application core, see
+.IR execac (2))
+or
+.B KC
+(kernel core).
 Writing anything to
 .B sysstat
 resets all of the counts on all processors.

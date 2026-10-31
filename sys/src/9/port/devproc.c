@@ -80,7 +80,7 @@ enum{
 	Emask = Nevents - 1,
 };
 
-#define	STATSIZE	(2*28+12+9*12)
+#define	STATSIZE	(2*28+12+9*12+3*12)	/* NIX: +3 counters */
 /*
  * Status, fd, and ns are left fully readable (0444) because of their use in debugging,
  * particularly on shared servers.
@@ -1026,7 +1026,8 @@ procread(Chan *c, void *va, long n, vlong off)
 			"%-27s %-27s %-11s "
 			"%11lud %11lud %11lud "
 			"%11lud %11lud %11lud "
-			"%11lud %11lud %11lud\n",
+			"%11lud %11lud %11lud "
+			"%11lud %11lud %11lud\n",	/* NIX: round trips to the AC, syscalls, traps */
 			p->text, p->user, sps,
 			tk2ms(p->time[TUser]),
 			tk2ms(p->time[TSys]),
@@ -1035,7 +1036,8 @@ procread(Chan *c, void *va, long n, vlong off)
 			tk2ms(p->time[TCSys]),
 			tk2ms(p->time[TCReal]),
 			(ulong)(procpagecount(p)*BY2PG/1024),
-			p->basepri, p->priority);
+			p->basepri, p->priority,
+			p->nicc, p->nacsyscall, p->nactrap);
 	statbufread:
 		if(offset >= j)
 			return 0;

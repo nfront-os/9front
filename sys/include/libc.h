@@ -702,7 +702,9 @@ enum
 	RFREND		= (1<<13),
 	RFNOMNT		= (1<<14),
 	RFPREPAGE	= (1<<15),	/* NIX: fault in all pages, now and of new segments */
-	RFCPREPAGE	= (1<<16)	/* NIX: no more */
+	RFCPREPAGE	= (1<<16),	/* NIX: no more */
+	RFCORE		= (1<<17),	/* NIX: to an application core */
+	RFCCORE		= (1<<18)	/* NIX: back to the time-sharing cores */
 };
 
 typedef
@@ -768,6 +770,12 @@ enum {						/* confpmc's mode, pmc(2) */
 extern	int	confpmc(int, int, int, char*);	/* pmc(2) */
 extern	uvlong	rdpmc(int);			/* pmc(2) */
 extern	int	execac(int, char*, char*[]);	/* NIX */
+extern	int	getcore(int*);			/* NIX */
+enum {						/* NIX: core roles, getcore(2) */
+	NIXTC = 0,	/* time-sharing core */
+	NIXKC,		/* kernel core */
+	NIXAC,		/* application core */
+};
 extern	int	execl(char*, ...);
 extern	int	fork(void);
 extern	int	rfork(int);

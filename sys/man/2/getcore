@@ -1,0 +1,38 @@
+.TH GETCORE 2
+.SH NAME
+getcore \- core number and role
+.SH SYNOPSIS
+.B #include <u.h>
+.br
+.B #include <libc.h>
+.PP
+.B
+int	getcore(int *rolep)
+.SH DESCRIPTION
+.I Getcore
+returns the number of the processor the process runs on and, if
+.I rolep
+is not nil, sets
+.BI * rolep
+to its role, one of
+.B NIXTC
+(time-sharing core),
+.B NIXAC
+(application core, see
+.IR execac (2))
+and
+.B NIXKC
+(kernel core).
+It reads them from the
+.B Tos
+structure (see
+.IR exec (2)),
+which the kernel updates each time the process leaves it,
+and makes no system call.
+On a time-sharing core the number may be stale: the process may
+have moved since.
+.SH SOURCE
+.B /sys/src/libc/9sys/getcore.c
+.SH SEE ALSO
+.IR execac (2),
+.IR cons (3)

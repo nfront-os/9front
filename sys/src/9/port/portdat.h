@@ -653,6 +653,8 @@ enum
 	RFNOMNT		= (1<<14),
 	RFPREPAGE	= (1<<15),	/* NIX: fault in all pages (port/nix.c) */
 	RFCPREPAGE	= (1<<16),	/* NIX: no more */
+	RFCORE		= (1<<17),	/* NIX: to an application core */
+	RFCCORE		= (1<<18),	/* NIX: back to the time-sharing cores */
 };
 
 /*
@@ -861,6 +863,8 @@ struct Proc
 	int	acback;		/* devproc: back to the TC */
 	Ureg	*acureg;	/* user registers while on the AC */
 	ulong	nicc;		/* round trips to the AC */
+	ulong	nacsyscall;	/* of them system calls */
+	ulong	nactrap;	/* of them traps and IPIs */
 	int	prepagemem;	/* fault in new segments at once (RFPREPAGE) */
 };
 
@@ -1104,6 +1108,7 @@ struct PMach
 enum
 {
 	NIXTC = 0,		/* time-sharing core: runs the scheduler */
+	NIXKC,			/* kernel core (NIX's values, as in libc.h) */
 	NIXAC,			/* application core */
 
 	ICCSYSCALL = 1,		/* Proc.acrc: the AC made a system call */

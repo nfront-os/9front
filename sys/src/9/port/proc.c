@@ -138,6 +138,14 @@ kexit(Ureg*)
 	tos->kcycles += t - up->kentry;
 	tos->pcycles = t + up->pcycles;
 	tos->pid = up->pid;
+	/* NIX: the core the process runs on (getcore(2)) */
+	if(up->ac != nil){
+		tos->core = up->ac->machno;
+		tos->nixtype = NIXAC;
+	} else {
+		tos->core = m->machno;
+		tos->nixtype = m->PMach.nixtype;
+	}
 }
 
 static void
@@ -752,6 +760,8 @@ newproc(void)
 	p->acback = 0;
 	p->acfault = 0;
 	p->nicc = 0;
+	p->nacsyscall = 0;
+	p->nactrap = 0;
 	p->prepagemem = 0;
 
 	return p;

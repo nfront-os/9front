@@ -159,6 +159,10 @@ acexit(Ureg *ureg, int rc, uintptr addr)
 	p->acrc = rc;
 	p->acaddr = addr;
 	p->nicc++;
+	if(rc == ICCSYSCALL)
+		p->nacsyscall++;
+	else
+		p->nactrap++;
 	tc = p->actc;
 	coherence();
 	p->acdone = 1;

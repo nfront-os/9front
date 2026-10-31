@@ -154,6 +154,12 @@ file
 the amount of memory used by the process in units of 1024 bytes
 .IP \-
 the base and current scheduling priority, each 11 character numbers
+.IP \-
+the round trips between an application core and the time-sharing cores
+(see
+.IR execac (2)),
+and of them the system calls and the traps,
+each 11 character numbers
 .PP
 The
 .B args

@@ -291,6 +291,62 @@ spintest(void)
 		ok("spin");
 }
 
+/* getcore(2), rfork RFCCORE/RFCORE; last: they move the process */
+static void
+coretest(int want)
+{
+	int role, c, pid;
+	Waitmsg *w;
+	char *p;
+
+	c = getcore(&role);
+	if(c != want || role != NIXAC)
+		fail("getcore", "core %d role %d, want %d %d", c, role, want, NIXAC);
+	else
+		ok("getcore");
+
+	/* a child asking for an AC: one if there is a free one, else a TC */
+	switch(pid = rfork(RFPROC|RFCORE|RFFDG)){
+	case -1:
+		fail("rfork RFPROC|RFCORE", "rfork: %r");
+		break;
+	case 0:
+		sleep(0);	/* enters the kernel: moves */
+		sleep(0);
+		c = getcore(&role);
+		exits(role == NIXAC && c > 0 && c == mycore()? "ac":
+			role == NIXTC && mycore() == 0? "tc": "bad");
+	default:
+		w = wait();
+		/* the message is "name pid: status" */
+		if(w == nil || w->pid != pid || (p = strrchr(w->msg, ' ')) == nil
+		|| strcmp(p+1, "ac") != 0 && strcmp(p+1, "tc") != 0)
+			fail("rfork RFPROC|RFCORE", "child: %s", w != nil? w->msg: "no wait");
+		else
+			ok("rfork RFPROC|RFCORE");
+		free(w);
+	}
+
+	rfork(RFCCORE);
+	sleep(0);	/* the round trip that takes us back */
+	c = getcore(&role);
+	if(role != NIXTC || mycore() != 0)
+		fail("rfork RFCCORE", "core %d role %d, proc core %d", c, role, mycore());
+	else
+		ok("rfork RFCCORE");
+
+	if(rfork(RFCORE) < 0){
+		fail("rfork RFCORE", "rfork: %r");
+		return;
+	}
+	sleep(0);
+	c = getcore(&role);
+	if(role != NIXAC || c <= 0 || mycore() != c)
+		fail("rfork RFCORE", "core %d role %d, proc core %d", c, role, mycore());
+	else
+		ok("rfork RFCORE");
+}
+
 void
 main(int argc, char *argv[])
 {
@@ -313,5 +369,6 @@ main(int argc, char *argv[])
 		fail("core after", "on core %d, want %d", core, want);
 	else
 		ok("core after");
+	coretest(want);
 	exits(failed? "failed": nil);
 }

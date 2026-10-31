@@ -18,6 +18,8 @@ struct Tos {
 	vlong	pcycles;	/* cycles spent in process (kernel + user) */
 	ulong	pid;		/* might as well put the pid here */
 	ulong	clock;
+	int	nixtype;	/* NIX: role of the core we run on (getcore(2)) */
+	int	core;		/* NIX: the core we run on */
 	/* top of stack is here */
 };
 

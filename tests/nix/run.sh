@@ -21,6 +21,8 @@ par=()
 boot(){
 	SMP=$NCPU KARGS="${KARGS:+$KARGS }*ncpu=$NCPU *nixac=$NAC" "$ROOT/scripts/guest/boot-cli.sh" \
 		'cat /dev/sysstat | wc -l' \
+		"grep -c ' AC\$' /dev/sysstat" \
+		"execac -c $ac /bin/rc -c 'awk ''{print NF}'' /proc/\$pid/status'" \
 		"execac -c $ac /tests/nixtest $ac" \
 		"execac -c $ac /bin/hoc -e 'sqrt(2)*3'" \
 		"execac -c $ac /bin/rc -c 'for(i in 1 2 3 4 5 6 7 8) echo \$i | wc -c' | wc -l" \
@@ -38,14 +40,16 @@ L=$TMPD/log
 out(){ grep -A1 -F "# $1" "$L" | tail -1; }
 
 check "$NAC application cores (cpu$ntc-cpu$ac)" test "$(grep -c '^cpu[0-9]*: application core' "$L")" -eq $NAC
-check "/dev/sysstat lists the $ntc time-sharing cores" test "$(out 'cat /dev/sysstat | wc -l' | tr -d ' ')" -eq $ntc
+check "/dev/sysstat lists all $NCPU cores" test "$(out 'cat /dev/sysstat | wc -l' | tr -d ' ')" -eq $NCPU
+check "/dev/sysstat: $NAC with role AC" test "$(out "grep -c ' AC\$' /dev/sysstat" | tr -d ' ')" -eq $NAC
+check "/proc/n/status: 15 fields (3 NIX counters)" test "$(out "execac -c $ac /bin/rc -c 'awk" | tr -d ' ')" = 15
 while read -r st name; do
 	case $st in
 	ok)	pass "nixtest on the AC: $name" ;;
 	FAIL)	fail "nixtest on the AC: $name" ;;
 	esac
 done < <(grep -E '^(ok|FAIL) ' "$L")
-check "nixtest: all checks ran (9)" test "$(grep -cE '^(ok|FAIL) ' "$L")" -eq 9
+check "nixtest: all checks ran (13)" test "$(grep -cE '^(ok|FAIL) ' "$L")" -eq 13
 check "hoc (floating point) on the AC" test "$(out "execac -c $ac /bin/hoc")" = 4.24264068712
 check "rc forks and waits on the AC" test "$(out "execac -c $ac /bin/rc -c 'for" | tr -d ' ')" = 8
 check "a loop on the AC: core $ac, killed by a note" bash -c "grep -A2 -F \"# execac -c $ac /bin/rc -c 'while\" '$L' | grep -q '^core $ac\$' && grep -A2 -F \"# execac -c $ac /bin/rc -c 'while\" '$L' | grep -q '^killed\$'"
@@ -53,6 +57,6 @@ check "ctl core $ac moves a process to the AC, core 0 back" bash -c "grep -A2 -F
 check "execac on a TC fails" test "$(out 'execac -c 1')" = "execac: execac /bin/echo: not an application core"
 check "a busy AC is refused" test "$(out "execac -c $ac /bin/sleep 3")" = "execac: execac /bin/echo: application core busy"
 check "execac without -c picks a free AC" test "$(out 'execac /bin/echo any')" = any
-[ "$NAC" -lt 2 ] || check "nixtest on cpu$((ac-1)) and cpu$ac at once" bash -c "grep -A1 -F '# execac -c $((ac-1)) /tests/nixtest' '$L' | grep -q '^par 9 9\$'"
+[ "$NAC" -lt 2 ] || check "nixtest on cpu$((ac-1)) and cpu$ac at once" bash -c "grep -A1 -F '# execac -c $((ac-1)) /tests/nixtest' '$L' | grep -q '^par 13 13\$'"
 check "no kernel panic" bash -c "! grep -qE '^panic:|acexit: no process' '$L'"
 done_tests

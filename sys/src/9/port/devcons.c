@@ -539,10 +539,10 @@ consread(Chan *c, void *buf, long n, vlong off)
 		return readstr((ulong)offset, buf, n, configfile);
 
 	case Qsysstat:
-		b = smalloc(conf.nmach*(NUMSIZE*11+1) + 1);	/* +1 for NUL */
+		b = smalloc(conf.nmach*(NUMSIZE*11+3+1) + 1);	/* +1 for NUL; NIX: +3 for the role */
 		bp = b;
 		for(id = 0; id < MAXMACH; id++) {
-			if(active.machs[id]) {
+			if(active.machs[id] || isac(id) && MACHP(id) != nil && MACHP(id)->PMach.icc != nil) {	/* NIX: application cores too */
 				mp = MACHP(id);
 				readnum(0, bp, NUMSIZE, id, NUMSIZE);
 				bp += NUMSIZE;
@@ -569,6 +569,18 @@ consread(Chan *c, void *buf, long n, vlong off)
 				readnum(0, bp, NUMSIZE,
 					(mp->PMach.perf.avg_inintr*100)/l, NUMSIZE);
 				bp += NUMSIZE;
+				/* NIX: the role of the core */
+				switch(mp->PMach.nixtype){
+				case NIXAC:
+					strcpy(bp, " AC");
+					break;
+				case NIXKC:
+					strcpy(bp, " KC");
+					break;
+				default:
+					strcpy(bp, " TC");
+				}
+				bp += 3;
 				*bp++ = '\n';
 			}
 		}
