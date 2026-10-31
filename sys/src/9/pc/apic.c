@@ -338,6 +338,26 @@ lapicinit(Apic* apic)
 	 */
 }
 
+/*
+ * NIX: interrupt the processor machno (port/nix.c)
+ */
+void
+lapicipi(int machno)
+{
+	Apic *apic;
+	uvlong crhi;
+
+	for(apic = mplapic; apic != nil; apic = apic->next)
+		if(apic->online && apic->machno == machno)
+			break;
+	if(apic == nil)
+		return;
+	crhi = (uvlong)apic->apicno << 32;
+	if(lapicbase != nil && apic->apicno <= MaxAPICNO)
+		crhi <<= 24;
+	lapicicr(crhi | ApicFIXED|ApicEDGE|(VectorPIC+IrqIPI));
+}
+
 void
 lapicstartap(Apic* apic, ulong v)
 {

@@ -490,6 +490,29 @@ mmuswitch(Proc *proc, int newtlb)
 	taskswitch((uintptr)proc);
 }
 
+/*
+ * NIX: on an application core, map proc's user space (none for nil);
+ * traps from user mode come on the AC's own stack (port/nix.c).
+ */
+void
+acmmuswitch(Proc *proc)
+{
+	if(proc != nil)
+		mmuswitch(proc, 0);
+	else
+		mmuzap();
+	taskswitch((uintptr)m+MACHSIZE);
+}
+
+/*
+ * NIX: system calls on an application core enter at acsyscallentry.
+ */
+void
+acarchinit(void)
+{
+	wrmsr(Lstar, (uvlong)acsyscallentry);
+}
+
 void
 mmurelease(Proc *proc)
 {

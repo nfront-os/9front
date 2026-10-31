@@ -460,6 +460,30 @@ vlong		uptime(void);
 ulong		µs(void);
 long		lcycles(void);
 
+/* NIX: application cores (port/nix.c; ac* below these from the arch) */
+extern int	nixnac;
+_Noreturn void	acexit(Ureg*, int, uintptr);
+Mach*		acflush(Proc*, ulong*);
+int		acflushed(Mach*, Proc*, ulong);
+_Noreturn void	acinit(void);
+_Noreturn void	acsched(void);
+Mach*		getac(Proc*, int);
+int		isac(int);
+int		nixboot(int);
+void		procctlcore(Proc*, int);
+void		putac(Proc*);
+void		putacs(Proc*, Mach*);
+int		runacore(Ureg*);
+void		acarchinit(void);
+void		acfpuprep(Proc*);
+void		acfpurestore(Proc*);
+void		acfpusave(Proc*);
+void		acidle(void);
+void		acipi(Mach*);
+void		acmmuswitch(Proc*);
+void		acservice(Ureg*, int);
+_Noreturn void	actouser(Ureg*);
+
 #pragma varargck argpos iprint	1
 #pragma	varargck argpos	panic	1
 #pragma varargck argpos pprint	1

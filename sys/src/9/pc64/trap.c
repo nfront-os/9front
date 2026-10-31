@@ -127,12 +127,37 @@ usertrap(int vno)
 	return 0;
 }
 
+/*
+ * NIX: a trap from user mode on an application core. Interrupts
+ * are handled here and return to user mode; everything else, and
+ * the IPI, goes back to the process' TC (port/nix.c).
+ */
+static void
+actrap(Ureg *ureg)
+{
+	int vno;
+
+	vno = ureg->type;
+	if(vno == VectorPF)
+		acexit(ureg, ICCTRAP, getcr2());
+	if(vno >= VectorPIC && vno != VectorSYSCALL){
+		irqhandled(ureg, vno);
+		if(vno != VectorPIC+IrqIPI)
+			return;
+	}
+	acexit(ureg, ICCTRAP, 0);
+}
+
 void
 trap(Ureg *ureg)
 {
 	int vno, user;
 
 	vno = ureg->type;
+	if(m->PMach.nixtype == NIXAC && userureg(ureg)){
+		actrap(ureg);	/* NIX */
+		return;
+	}
 	user = kenter(ureg);
 	if(vno != VectorCNA)
 		fpukenter(ureg);
@@ -371,6 +396,11 @@ faultamd64(Ureg* ureg, void*)
 	int read, user;
 
 	addr = getcr2();
+	if(up != nil && up->acfault){
+		/* NIX: the fault happened on the process' AC */
+		up->acfault = 0;
+		addr = up->acaddr;
+	}
 	read = !(ureg->error & 2);
 	user = userureg(ureg);
 	if(!user){
@@ -445,6 +475,73 @@ syscall(Ureg* ureg)
 		sched();
 	kexit(ureg);
 	fpukexit(ureg);
+}
+
+/*
+ * NIX: a system call on an application core (l.S:/acsyscallentry).
+ * Only what syscallentry saves is valid; clear the rest, as forkret
+ * does on the way out.
+ */
+void
+acsyscall(Ureg *ureg)
+{
+	ureg->bx = ureg->dx = ureg->si = ureg->di = 0;
+	ureg->r8 = ureg->r9 = ureg->r10 = ureg->r12 = ureg->r13 = 0;
+	ureg->cx = ureg->r11 = 0;
+	ureg->ds = ureg->es = ureg->fs = ureg->gs = UDSEL;
+	acexit(ureg, ICCSYSCALL, 0);
+}
+
+/*
+ * NIX: on the TC, serve what the process did on its application core
+ * (port/nix.c:/runacore). Like syscall() and trap(), but ureg is always
+ * restored in full when the process goes back to the AC.
+ */
+void
+acservice(Ureg *ureg, int rc)
+{
+	ulong scallnr;
+
+	switch(rc){
+	case ICCSYSCALL:
+		kenter(ureg);
+		fpukenter(ureg);
+		scallnr = ureg->bp;	/* RARG */
+		dosyscall(scallnr, (Sargs*)(ureg->sp+BY2WD), &ureg->ax);
+		if(up->procctl || up->nnote)
+			donotify(ureg);
+		if(up->delaysched)
+			sched();
+		kexit(ureg);
+		fpukexit(ureg);
+		break;
+	case ICCTRAP:
+		if(ureg->type == VectorPIC+IrqIPI){
+			/* a note, a flush or "core 0"; no EOI on this core */
+			kenter(ureg);
+			if(up->procctl || up->nnote)
+				donotify(ureg);
+			kexit(ureg);
+			break;
+		}
+		if(ureg->type == VectorPF)
+			up->acfault = 1;
+		trap(ureg);
+		break;
+	}
+}
+
+void
+acipi(Mach *mp)
+{
+	lapicipi(mp->machno);
+}
+
+void
+acidle(void)
+{
+	if(m->cpuidcx & Monitor)
+		mwait((void*)&m->PMach.icc->fn);
 }
 
 Ureg*

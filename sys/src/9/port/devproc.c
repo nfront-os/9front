@@ -38,6 +38,7 @@ enum
 	Qprofile,
 	Qsyscall,
 	Qwatchpt,
+	Qcore,		/* NIX */
 };
 
 enum
@@ -58,6 +59,7 @@ enum
 	CMstop,
 	CMwaitstop,
 	CMwired,
+	CMcore,		/* NIX */
 	CMtrace,
 	CMinterrupt,
 	CMnointerrupt,
@@ -110,6 +112,7 @@ Dirtab procdir[] =
 	"profile",	{Qprofile},	0,			0400,
 	"syscall",	{Qsyscall},	0,			0400,	
 	"watchpt",	{Qwatchpt},	0,			0600,
+	"core",		{Qcore},	0,			0444,	/* NIX */
 };
 
 static
@@ -130,6 +133,7 @@ Cmdtab proccmd[] = {
 	CMstop,			"stop",			1,
 	CMwaitstop,		"waitstop",		1,
 	CMwired,		"wired",		2,
+	CMcore,			"core",			2,	/* NIX */
 	CMtrace,		"trace",		0,
 	CMinterrupt,		"interrupt",		1,
 	CMnointerrupt,		"nointerrupt",		1,
@@ -425,6 +429,7 @@ procopen(Chan *c, int omode0)
 
 	case Qstatus:
 	case Qppid:
+	case Qcore:	/* NIX */
 	case Qproc:
 #ifdef KFPSTATE
 	case Qkfpregs:
@@ -948,6 +953,9 @@ procread(Chan *c, void *va, long n, vlong off)
 
 	case Qppid:
 		return readnum(offset, va, n, p->parentpid, NUMSIZE);
+
+	case Qcore:	/* NIX: the AC p runs on, 0 for a TC */
+		return readnum(offset, va, n, p->ac != nil? p->ac->machno: 0, NUMSIZE);
 
 	case Qprofile:
 		s = p->seg[TSEG];
@@ -1547,6 +1555,9 @@ procctlreq(Proc *p, char *va, int n)
 		break;
 	case CMwired:
 		procwired(p, atoi(cb->f[1]));
+		break;
+	case CMcore:	/* NIX */
+		procctlcore(p, atoi(cb->f[1]));
 		break;
 	case CMtrace:
 		switch(cb->nf){

@@ -133,6 +133,7 @@
 			"9syscall/pwrite.S",
 			"9syscall/tsemacquire.S",
 			"9syscall/_nsec.S",
+			"9syscall/execac.S",
 			"fmt/dofmt.c",
 			"fmt/dorfmt.c",
 			"fmt/errfmt.c",

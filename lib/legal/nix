@@ -1,7 +1,8 @@
-The performance counters (sys/src/9/port/devpmc.c, pmc.h,
-pc64/pmcio.c, arm64/pmcio.c, sys/src/libc/9sys/confpmc.c, rdpmc.c,
-pmc(2), pmc(3)) follow the design and code of the NIX
-kernel (Lsub, Bell Labs, Sandia, Vita Nuova; 2011), as
+The NIX application cores (sys/src/9/port/nix.c and the ac* parts of
+the amd64 and arm64 kernels, execac(1), execac(2)), the performance
+counters (sys/src/9/port/devpmc.c, pmc.h, pc64/pmcio.c, arm64/pmcio.c,
+sys/src/libc/9sys/confpmc.c, rdpmc.c, pmc(2), pmc(3)) follow the design
+and code of the NIX kernel (Lsub, Bell Labs, Sandia, Vita Nuova; 2011), as
 published at https://github.com/rminnich/nix-os (branch regen), whose
 license, reproduced verbatim below, is the MIT license:
 

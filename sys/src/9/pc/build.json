@@ -435,6 +435,7 @@
 			"../port/fault.c",
 			"../port/iomap.c",
 			"../port/memmap.c",
+			"../port/nixnone.c",
 			"../port/page.c",
 			"../port/parse.c",
 			"../port/pgrp.c",

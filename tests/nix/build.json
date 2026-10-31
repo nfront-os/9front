@@ -1,0 +1,33 @@
+[
+	{
+		"Name": "nix-tests",
+		"Include": [
+			"/$ARCH/cflags.json"
+		],
+		"Install": "/tests/nix/root/tests/",
+		"Oflags": [
+			"--entry=_main"
+		],
+		"Libs": [
+			"--start-group",
+			"/$ARCH/lib.gcc/libdisk.a",
+			"/$ARCH/lib.gcc/lib9p.a",
+			"/$ARCH/lib.gcc/libthread.a",
+			"/$ARCH/lib.gcc/libauth.a",
+			"/$ARCH/lib.gcc/libauthsrv.a",
+			"/$ARCH/lib.gcc/libndb.a",
+			"/$ARCH/lib.gcc/libip.a",
+			"/$ARCH/lib.gcc/libsec.a",
+			"/$ARCH/lib.gcc/libmp.a",
+			"/$ARCH/lib.gcc/libflate.a",
+			"/$ARCH/lib.gcc/libregexp.a",
+			"/$ARCH/lib.gcc/libString.a",
+			"/$ARCH/lib.gcc/libbio.a",
+			"/$ARCH/lib.gcc/libc.a",
+			"--end-group"
+		],
+		"SourceFilesCmd": [
+			"nixtest.c"
+		]
+	}
+]

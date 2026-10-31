@@ -149,6 +149,7 @@ extern void lapicclock(Ureg*, void*);
 extern int lapiceoi(int);
 extern void lapicerror(Ureg*, void*);
 extern void lapicicr(uvlong);
+extern void lapicipi(int);	/* NIX */
 extern void lapicinit(Apic*);
 extern void lapicintroff(void);
 extern void lapicintron(void);

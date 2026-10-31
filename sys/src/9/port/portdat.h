@@ -12,6 +12,7 @@ typedef struct Egrp	Egrp;
 typedef struct Evalue	Evalue;
 typedef struct Fgrp	Fgrp;
 typedef struct DevConf	DevConf;
+typedef struct Icc	Icc;	/* NIX */
 typedef struct Image	Image;
 typedef struct Lock	Lock;
 typedef struct Log	Log;
@@ -682,6 +683,7 @@ enum
 	Proc_traceme,
 	Proc_exitbig,
 	Proc_tracesyscall,
+	Proc_toac,		/* NIX: move to the application core in Proc.ac */
 
 	TUser = 0, 		/* Proc.time */
 	TSys,
@@ -844,6 +846,19 @@ struct Proc
 	
 	Watchpt	*watchpt;	/* watchpoints */
 	int	nwatchpt;
+
+	/* NIX: running on an application core (port/nix.c) */
+	Mach	*ac;		/* the AC this process runs on, or nil */
+	Rendez	acr;		/* sleep here while the AC runs */
+	int	acdone;		/* the AC came back */
+	int	acrc;		/* why: ICCSYSCALL or ICCTRAP */
+	uintptr	acaddr;		/* faulting address of an ICCTRAP */
+	int	acfault;	/* fault() takes acaddr, not the hardware's */
+	int	actc;		/* machno of the TC to wake */
+	int	acrunning;	/* in runacore() */
+	int	acback;		/* devproc: back to the TC */
+	Ureg	*acureg;	/* user registers while on the AC */
+	ulong	nicc;		/* round trips to the AC */
 };
 
 enum
@@ -1070,6 +1085,36 @@ struct PMach
 	Perf	perf;			/* performance counters */
 
 	uvlong	cyclefreq;		/* Frequency of user readable cycle counter */
+
+	/* NIX: core role (port/nix.c) */
+	int	nixtype;		/* NIXTC or NIXAC */
+	Icc	*icc;			/* inter-core call mailbox of an AC */
+	Proc	*acowner;		/* process the AC is reserved for */
+};
+
+/*
+ * NIX: core roles and the mailbox of an application core (AC).
+ * An AC runs one user process and no scheduler; its system calls,
+ * faults and notes are served by the process on a time-sharing
+ * core (TC). See port/nix.c.
+ */
+enum
+{
+	NIXTC = 0,		/* time-sharing core: runs the scheduler */
+	NIXAC,			/* application core */
+
+	ICCSYSCALL = 1,		/* Proc.acrc: the AC made a system call */
+	ICCTRAP,		/* Proc.acrc: a trap or an IPI on the AC */
+};
+
+struct Icc
+{
+	void	(*volatile fn)(void);	/* set by the TC, run by the AC */
+	uchar	_pad_[64];		/* fn in a cache line of its own */
+	Proc	*volatile proc;		/* the process to run */
+	Proc	*volatile running;	/* in user mode on the AC */
+	volatile int	busy;		/* the AC still touches proc */
+	volatile ulong	nuser;		/* times the AC left user mode */
 };
 
 /* queue state bits,  Qmsg, Qcoalesce, and Qkick can be set in qopen */

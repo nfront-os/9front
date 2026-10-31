@@ -804,6 +804,38 @@ sysexec(uchar *list)
 	return execregs(entry, argc, argv, tos);
 }
 
+/*
+ * NIX: execac(2): exec, then run on the AC numbered core
+ * (any one for core < 0, the TC for core 0).
+ */
+uintptr
+sysexecac(uchar *list)
+{
+	int core;
+	Mach *ac;
+	uintptr r;
+
+	core = ARG(list, int);
+	ac = nil;
+	if(core != 0)
+		ac = getac(up, core);
+	if(waserror()){
+		if(ac != nil && ac != up->ac)
+			putacs(up, up->ac);
+		nexterror();
+	}
+	r = sysexec(list);
+	poperror();
+	if(ac == nil){
+		putac(up);
+		return r;
+	}
+	putacs(up, ac);
+	up->ac = ac;
+	up->procctl = Proc_toac;
+	return r;
+}
+
 int
 return0(void*)
 {
@@ -989,11 +1021,15 @@ donotify(Ureg *ureg)
 {
 	Ureg *nureg;
 	char *msg;
+	int r;
 
-	if(up->procctl)
+	r = 0;
+	if(up->procctl == Proc_toac)
+		r = runacore(ureg);	/* NIX: back from the AC, ureg changed */
+	else if(up->procctl)
 		procctl();
 	if(up->nnote == 0)
-		return 0;
+		return r;
 
 	spllo();
 	qlock(&up->debug);
@@ -1001,7 +1037,7 @@ donotify(Ureg *ureg)
 	if(msg == nil){
 		qunlock(&up->debug);
 		splhi();
-		return 0;
+		return r;
 	}
 	splhi();
 	fpunotify(up);

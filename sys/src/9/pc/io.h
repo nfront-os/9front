@@ -36,6 +36,7 @@ enum {
 	IrqTIMER	= 18,
 	IrqERROR	= 19,
 	IrqPCINT	= 20,
+	IrqIPI		= 21,		/* NIX: inter-core call (port/nix.c) */
 	IrqPMC		= 22,		/* pmc(3): performance counter request (port/devpmc.c) */
 	IrqSPURIOUS	= 31,		/* must have bits [3-0] == 0x0F */
 	MaxIrqLAPIC	= 31,

@@ -751,7 +751,7 @@ mtrrclock(void)
 	 * done at roughly the same time on all processors.
 	 */
 	incref(&bar1);
-	while(bar1.ref < conf.nmach)
+	while(bar1.ref < conf.nmach-nixnac)	/* NIX: an AC takes no clock */
 		microdelay(10);
 
 	putstate(&cpu0state);
@@ -761,7 +761,7 @@ mtrrclock(void)
 	 * executing while the MTRRs are still being set up.
 	 */
 	incref(&bar2);
-	while(bar2.ref < conf.nmach)
+	while(bar2.ref < conf.nmach-nixnac)	/* NIX: an AC takes no clock */
 		microdelay(10);
 	decref(&bar1);
 	while(bar1.ref > 0)

@@ -1,0 +1,65 @@
+.TH EXECAC 2
+.SH NAME
+execac \- execute a file on an application core
+.SH SYNOPSIS
+.B #include <u.h>
+.br
+.B #include <libc.h>
+.PP
+.B
+int execac(int core, char *name, char* argv[])
+.SH DESCRIPTION
+.I Execac
+is
+.IR exec (2),
+after which the process runs on the application core
+.IR core ,
+on any free one if
+.I core
+is negative, or on the time-sharing cores if
+.I core
+is zero.
+.PP
+Application cores (ACs) are the processors the boot option
+.B *nixac
+(see
+.IR plan9.ini (8))
+sets aside.
+An AC runs no scheduler and takes no clock and no device interrupts;
+it runs the user code of one process at a time, undisturbed.
+The process' system calls, page faults and notes are served by
+the kernel on a time-sharing core (TC), which then sends the
+process back to the AC.
+The calls work as usual but take a round trip between the cores;
+the process should compute rather than call.
+Its children, made by
+.IR fork (2),
+run on the TCs.
+The
+.B core
+file and the
+.B core
+control message of
+.IR proc (3)
+show and change the core of a process.
+.SH SOURCE
+.B /sys/src/9/port/nix.c
+.SH SEE ALSO
+.IR execac (1),
+.IR exec (2),
+.IR proc (3),
+.IR plan9.ini (8)
+.br
+.I
+NIX: a case for a manycore system for cloud computing,
+Bell Labs Technical Journal, 2012.
+.SH DIAGNOSTICS
+Sets
+.IR errstr :
+.B no application cores
+(none at boot, and always on 386),
+.BR "not an application core" ,
+.BR "application core busy" ,
+.BR "no free application core" .
+.SH BUGS
+An AC is reserved for one process; its other cores stay idle.

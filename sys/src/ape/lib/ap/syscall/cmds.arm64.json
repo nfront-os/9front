@@ -52,7 +52,8 @@
 			"_AWAIT.S",
 			"_PREAD.S",
 			"_PWRITE.S",
-			"_TSEMACQUIRE.S"
+			"_TSEMACQUIRE.S",
+			"_EXECAC.S"
 		],
 		"Append": true,
 		"Clean": [

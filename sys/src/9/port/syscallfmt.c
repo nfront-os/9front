@@ -150,6 +150,10 @@ syscallfmt(ulong syscallno, uintptr pc, uchar *list)
 		l = ARG(list, u32int);	/* GCC port: 6c long, see ARG */
 		fmtprint(&fmt, "%#lud ", l);
 		break;
+	case EXECAC:	/* NIX */
+		i[0] = ARG(list, int);
+		fmtprint(&fmt, "%d ", i[0]);
+		/* wet floor */
 	case EXEC:
 		a = ARG(list, char*);
 		fmtuserstring(&fmt, a, "");
@@ -359,6 +363,7 @@ sysretfmt(ulong syscallno, uchar *list, uintptr ret, uvlong start, uvlong stop)
 	errstr = "\"\"";
 	switch(syscallno){
 	case EXEC:
+	case EXECAC:	/* NIX */
 	case SEGBRK:
 	case SEGATTACH:
 	case RENDEZVOUS:

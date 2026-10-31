@@ -18,6 +18,13 @@ squidboy(Apic* apic)
 		arch->clockinit();
 	cpuidprint();
 	syncclock();
+	if(isac(m->machno)){
+		/* NIX: an application core, no clock, no scheduler */
+		apic->online = 1;
+		lapicinit(apic);
+		lapicintron();
+		acinit();
+	}
 	active.machs[m->machno] = 1;
 	apic->online = 1;
 	lapicinit(apic);

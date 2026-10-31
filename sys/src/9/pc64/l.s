@@ -970,6 +970,52 @@ TEXT forkret(SB), 1, $-4
 	BYTE $0x48; SYSRET			/* SYSRETQ */
 
 /*
+ * NIX: system call entry on an application core (port/nix.c).
+ * Like syscallentry, but on the AC's own stack (m+MACHSIZE) and
+ * with no process (up = nil); acsyscall does not return.
+ */
+TEXT acsyscallentry(SB), 1, $-4
+	SWAPGS
+	BYTE $0x65; MOVQ 0, AX			/* m-> (MOVQ GS:0x0, AX) */
+	MOVQ	SP, R13
+	LEAQ	MACHSIZE(AX), SP
+
+	PUSHQ	$UDSEL				/* old stack segment */
+	PUSHQ	R13				/* old sp */
+	PUSHQ	R11				/* old flags */
+	PUSHQ	$UESEL				/* old code segment */
+	PUSHQ	CX				/* old ip */
+	PUSHQ	$0				/* error code */
+	PUSHQ	$64				/* trap number (VectorSYSCALL) */
+
+	SUBQ	$(8 + 23*8-7*8), SP		/* arg + sizeof(Ureg)-pushed */
+
+	MOVQ	RMACH, (15*8)(SP)		/* old r15 */
+	MOVQ	RUSER, (14*8)(SP)		/* old r14 */
+	MOVQ	RARG, (7*8)(SP)			/* system call number */
+
+	MOVQ	AX, RMACH			/* m */
+	MOVQ	$0, RUSER			/* up */
+
+	LEAQ	8(SP), RARG			/* Ureg* arg */
+
+	CALL	acsyscall(SB)
+
+/*
+ * NIX: actouser(Ureg*) goes to user mode on an application core:
+ * the Ureg is copied to the top of the AC's stack, where the next
+ * trap from user mode comes, and restored in full by noteret.
+ */
+TEXT actouser(SB), 1, $-4
+	MOVQ	RARG, SI			/* from */
+	LEAQ	(MACHSIZE-23*8)(RMACH), DI	/* to: sizeof(Ureg) below the top */
+	MOVQ	$(23*8), CX
+	CLD
+	REP; MOVSB
+	LEAQ	(MACHSIZE-23*8-8)(RMACH), SP	/* the arg slot noteret pops */
+	JMP	noteret(SB)
+
+/*
  * Interrupt/exception handling.
  */
 

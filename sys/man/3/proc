@@ -129,6 +129,13 @@ starting virtual address, in hexadecimal;
 ending virtual address, and reference count.
 .PP
 The read-only
+.B core
+file holds the number of the application core the process runs on,
+or zero
+(see
+.IR execac (2)).
+.PP
+The read-only
 .B status
 file contains a string with twelve fields, each followed by a space.
 The fields are:
@@ -380,6 +387,19 @@ When
 .I n
 is a negative,
 pick a processor with the lowest number of processes wired to it.
+.TP 10n
+.B "core\ \fIn
+Move the process to application core
+.I n
+(see
+.IR execac (2)),
+any free one for a negative
+.IR n ,
+or back to the time-sharing cores for
+.I n
+zero.
+The move happens the next time the process crosses the
+user/kernel boundary.
 .TP 10n
 .B trace
 Without an argument, toggle trace event generation for this process into

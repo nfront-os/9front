@@ -1,0 +1,48 @@
+.TH EXECAC 1
+.SH NAME
+execac \- run a command on an application core
+.SH SYNOPSIS
+.B execac
+[
+.B -c
+.I core
+]
+.I command
+[
+.I arg ...
+]
+.SH DESCRIPTION
+.I Execac
+runs
+.I command
+with its arguments on the application core
+.IR core ,
+on any free one by default
+(see
+.IR execac (2)).
+A
+.I command
+without a leading
+.L /
+or
+.L ./
+is looked up in
+.BR /bin .
+The application cores are those set aside by
+.B *nixac
+in
+.IR plan9.ini (8).
+.SH EXAMPLES
+On a machine booted with
+.BR *nixac=1 ,
+four processors:
+.IP
+.EX
+% execac -c 3 rc -c 'cat /proc/$pid/core'
+          3
+.EE
+.SH SOURCE
+.B /sys/src/cmd/execac.c
+.SH SEE ALSO
+.IR execac (2),
+.IR proc (3)

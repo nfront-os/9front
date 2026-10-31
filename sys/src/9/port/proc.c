@@ -473,7 +473,8 @@ ready(Proc *p)
 		splx(s);
 		return;
 	case 0:
-		if(up != p && (!p->wired || p->affinity == m->machno))
+		if(up != p && (!p->wired || p->affinity == m->machno)
+		&& m->PMach.nixtype != NIXAC)	/* NIX: an AC runs no scheduler */
 			m->PMach.readied = p;	/* group scheduling */
 		pri = reprioritize(p);
 		break;
@@ -745,6 +746,13 @@ newproc(void)
 	p->lastupdate = MACHP(0)->PMach.ticks*Scaling;
 	p->edf = nil;
 
+	/* NIX: not on an application core */
+	p->ac = nil;
+	p->acrunning = 0;
+	p->acback = 0;
+	p->acfault = 0;
+	p->nicc = 0;
+
 	return p;
 }
 
@@ -769,11 +777,13 @@ procwired(Proc *p, int a)
 		}
 		a = 0;
 		for(i=0; i<conf.nmach; i++)
-			if(nwired[i] < nwired[a])
+			if(nwired[i] < nwired[a] && !isac(i))	/* NIX */
 				a = i;
 	} else {
 		/* use the virtual machine requested */
 		a = a % conf.nmach;
+		if(isac(a))
+			a = 0;	/* NIX: an AC runs no scheduler */
 	}
 	p->affinity = a;
 	p->wired = 1;
@@ -1270,6 +1280,8 @@ pexit(char *exitstr, int freemem)
 
 	up->alarm = 0;
 	timerdel(&up->Timer);
+	if(up->ac != nil || nixnac != 0)
+		putac(up);	/* NIX */
 	pt = proctrace;
 	if(pt != nil)
 		pt(up, SDead, 0);
@@ -1501,6 +1513,8 @@ procflushmmu(int firstproc, int lastproc, int (*match)(Proc*, void*), void *a)
 	Proc *await[MAXMACH];
 	int i, nm, nwait;
 	Proc *p;
+	Mach *ac;
+	ulong nuser;
 
 	/*
 	 *  tell all matching processes to flush their mmu's
@@ -1510,6 +1524,11 @@ procflushmmu(int firstproc, int lastproc, int (*match)(Proc*, void*), void *a)
 	for(i = firstproc; i <= lastproc && (p = proctab(i)) != nil; i++){
 		if(p->state > New && (*match)(p, a)){
 			p->newtlb = 1;
+			/* NIX: on an AC, wait till it left user mode */
+			if((ac = acflush(p, &nuser)) != nil){
+				while(!acflushed(ac, p, nuser))
+					sched();
+			}
 			for(nm = 0; nm < conf.nmach; nm++){
 				if(MACHP(nm)->proc == p){
 					coherence();

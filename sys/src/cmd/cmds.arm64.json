@@ -85,6 +85,7 @@
 			"ecp.c",
 			"ed.c",
 			"evdump.c",
+			"execac.c",
 			"factor.c",
 			"fcp.c",
 			"file.c",

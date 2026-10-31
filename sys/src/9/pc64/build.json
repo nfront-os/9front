@@ -398,6 +398,7 @@
             "../ip/netdevmedium.c",
             "../port/netif.c",
             "../ip/netlog.c",
+            "../port/nix.c",
             "../ip/nullmedium.c",
             "../port/page.c",
             "../port/parse.c",

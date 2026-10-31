@@ -53,6 +53,7 @@ char*	getconf(char*);
 void	halt(void);
 void	mwait(void*);
 void	lapicipiirq(int, int);	/* pmc(3) */
+void	lapicipi(int);	/* NIX */
 int	i8042auxcmd(int);
 void	i8042auxenable(void (*)(int, int));
 void	i8042reset(void);
@@ -154,6 +155,8 @@ void	setconfenv(void);
 void*	sigsearch(char*, int);
 void	syncclock(void);
 void	syscallentry(void);
+void	acsyscallentry(void);	/* NIX */
+void	acsyscall(Ureg*);	/* NIX */
 void	touser(void*);
 void	trapenable(int, void (*)(Ureg*, void*), void*, char*);
 void	trapinit(void);

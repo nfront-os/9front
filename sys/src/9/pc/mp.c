@@ -187,12 +187,21 @@ printapic(Apic *apic)
 	}
 }
 
+/*
+ * NIX: the inter-core interrupt. It only gets an application core
+ * out of user mode, or a time-sharing core out of halt.
+ */
+static void
+ipiintr(Ureg*, void*)
+{
+}
+
 void
 mpinit(void)
 {
 	Apic *apic, *ioapic;
 	char *cp;
-	int ncpu;
+	int ncpu, ncpus;
 
 	i8259init();
 	syncclock();
@@ -227,6 +236,7 @@ mpinit(void)
 	intrenable(IrqTIMER, lapicclock, 0, BUSUNKNOWN, "clock");
 	intrenable(IrqERROR, lapicerror, 0, BUSUNKNOWN, "lapicerror");
 	intrenable(IrqSPURIOUS, lapicspurious, 0, BUSUNKNOWN, "lapicspurious");
+	intrenable(IrqIPI, ipiintr, 0, BUSUNKNOWN, "ipi");	/* NIX */
 	lapiconline();
 
 	/*
@@ -251,6 +261,15 @@ mpinit(void)
 		else if(ncpu > MAXMACH)
 			ncpu = MAXMACH;
 	}
+
+	/*
+	 * NIX: the last *nixac processors become application cores.
+	 */
+	ncpus = conf.nmach;
+	for(apic = mplapic; apic != nil; apic = apic->next)
+		if((apic->flags & PcmpEN) != 0 && !apic->online && ncpus < ncpu)
+			ncpus++;
+	nixboot(ncpus);
 
 	/*
 	 * Initialise the application processors.
@@ -303,7 +322,8 @@ allocdest(int *pmachno)
 	for(i=1;;i++){
 		if(apic == nil)
 			apic = mplapic;
-		if(apic->online && apic->apicno <= MaxAPICNO)
+		if(apic->online && apic->apicno <= MaxAPICNO
+		&& !isac(apic->machno))	/* NIX: no device interrupts on an AC */
 			break;
 		if(i >= nmplapic)
 			return -1;

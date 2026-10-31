@@ -765,6 +765,7 @@ enum {						/* confpmc's mode, pmc(2) */
 };
 extern	int	confpmc(int, int, int, char*);	/* pmc(2) */
 extern	uvlong	rdpmc(int);			/* pmc(2) */
+extern	int	execac(int, char*, char*[]);	/* NIX */
 extern	int	execl(char*, ...);
 extern	int	fork(void);
 extern	int	rfork(int);

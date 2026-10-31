@@ -45,6 +45,8 @@ cp -r "$ROOT"/sys/lib "$OUT"/sys/
 [ ! -d "$ROOT"/tests/guest/root ] || cp -r "$ROOT"/tests/guest/root/. "$OUT"/
 # performance counter tests (tests/pmc), if built
 [ ! -d "$ROOT"/tests/pmc/root ] || cp -r "$ROOT"/tests/pmc/root/. "$OUT"/
+# NIX application core tests (tests/nix), if built
+[ ! -d "$ROOT"/tests/nix/root ] || cp -r "$ROOT"/tests/nix/root/. "$OUT"/
 
 echo "ufs root in $OUT:"
 ls "$OUT"/$A/bin
