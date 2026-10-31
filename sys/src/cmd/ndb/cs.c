@@ -775,7 +775,7 @@ rwrite(Job *job, Mfile *mf)
 	int cnt, n;
 	char *err;
 	char *field[4];
-	char curerr[64];
+	char curerr[ERRMAX];
 
 	err = nil;
 	cnt = job->request.count;
