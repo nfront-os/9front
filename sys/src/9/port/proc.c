@@ -95,6 +95,8 @@ schedinit(void)
 		up = nil;
 	}
 out:
+	if(m->PMach.nixtype == NIXAC)
+		acsched();	/* NIX: became an application core (nixtoac) */
 	sched();
 	panic("schedinit");
 }
@@ -624,6 +626,7 @@ runproc(void)
 	/* cooperative scheduling until the clock ticks */
 	if((p = m->PMach.readied) != nil && p->mach == nil && p->state == Ready
 	&& (!p->wired || p->affinity == m->machno)
+	&& (m->PMach.nixtype != NIXKC || p->kp || p->acrunning)	/* NIX: kernel core */
 	&& runq[Nrq-1].head == nil && runq[Nrq-2].head == nil){
 		skipscheds++;
 		rq = &runq[p->priority];
@@ -646,6 +649,9 @@ loop:
 		 */
 		for(rq = &runq[Nrq-1]; rq >= runq; rq--){
 			for(p = rq->head; p != nil; p = p->rnext){
+				/* NIX: a kernel core runs kprocs and the TC half of AC processes */
+				if(m->PMach.nixtype == NIXKC && !p->kp && !p->acrunning)
+					continue;
 				if(p->affinity < 0 || p->affinity == m->machno
 				|| (!p->wired && i > 0))
 					goto found;
@@ -788,13 +794,13 @@ procwired(Proc *p, int a)
 		}
 		a = 0;
 		for(i=0; i<conf.nmach; i++)
-			if(nwired[i] < nwired[a] && !isac(i))	/* NIX */
+			if(nwired[i] < nwired[a] && !isac(i) && MACHP(i)->PMach.nixtype == NIXTC)	/* NIX */
 				a = i;
 	} else {
 		/* use the virtual machine requested */
 		a = a % conf.nmach;
-		if(isac(a))
-			a = 0;	/* NIX: an AC runs no scheduler */
+		if(isac(a) || MACHP(a)->PMach.nixtype != NIXTC)
+			a = 0;	/* NIX: an AC runs no scheduler, a KC no user code */
 	}
 	p->affinity = a;
 	p->wired = 1;

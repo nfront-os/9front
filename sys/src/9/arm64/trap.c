@@ -168,6 +168,20 @@ acarchinit(void)
 	syswr(CNTV_CTL_EL0, 0);
 }
 
+/* NIX: the clock again, the core becomes a TC (timersinit sets it) */
+void
+acarchexit(void)
+{
+	syswr(CNTV_TVAL_EL0, ~0UL);
+	syswr(CNTV_CTL_EL0, 1);	/* Enable, clock.c */
+}
+
+/* NIX: all device interrupts (SPIs) go to cpu0 (gic.c), which keeps its role */
+void
+intrmove(int)
+{
+}
+
 /* the process leaves the AC: its TLS register goes with it */
 static void
 acleave(Ureg *ureg, int rc, uintptr addr)

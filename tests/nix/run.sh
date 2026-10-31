@@ -15,6 +15,7 @@ check "build tests/nix with the port toolchain" buildtests || { done_tests; exit
 
 NCPU=${NCPU:-4} NAC=${NAC:-1}
 ac=$((NCPU-1)) ntc=$((NCPU-NAC))
+rt=$((NCPU-NAC-1))	# a TC that becomes an AC at run time
 # with two ACs or more: nixtest on two of them at once
 par=()
 [ "$NAC" -lt 2 ] || par=("execac -c $((ac-1)) /tests/nixtest $((ac-1)) > /tmp/par1 & execac -c $ac /tests/nixtest $ac > /tmp/par2; wait; echo par \`{grep -c '^ok' /tmp/par1} \`{grep -c '^ok' /tmp/par2}")
@@ -32,14 +33,23 @@ boot(){
 		"execac -c $ac /bin/sleep 3 & sleep 1; execac -c $ac /bin/echo y; wait" \
 		'execac /bin/echo any' \
 		"${par[@]}" \
+		'cat /dev/nixctl' \
+		"echo ac $rt > /dev/nixctl; grep -c ' AC\$' /dev/sysstat" \
+		"execac -c $rt /tests/nixtest $rt | grep -c '^ok'" \
+		'ls /bin | wc -l' \
+		"echo tc $rt > /dev/nixctl; grep -c ' AC\$' /dev/sysstat" \
+		"execac -c $rt /bin/echo x" \
+		"echo kc 1 > /dev/nixctl; k=(); for(i in 1 2 3) { rc -c 'while(){}' & k=(\$k \$apid) }; sleep 4; awk '\$1 == 1 {print \"kc\", \$8} \$1 == 0 {print \"tc\", \$8}' /dev/sysstat; for(i in \$k) echo kill > /proc/\$i/note; echo tc 1 > /dev/nixctl" \
 		> "$TMPD/console" 2>&1
 	tr -d '\r' < "$TMPD/console" > "$TMPD/log"
 }
 check "boot with *nixac=$NAC on $NCPU processors" boot || { done_tests; exit; }
 L=$TMPD/log
 out(){ grep -A1 -F "# $1" "$L" | tail -1; }
+# the last output line of a command (kernel messages may come first)
+last(){ awk -v c="# $1" 'f && /# / {exit} f {l=$0} index($0, c) {f=1} END {print l}' "$L"; }
 
-check "$NAC application cores (cpu$ntc-cpu$ac)" test "$(grep -c '^cpu[0-9]*: application core' "$L")" -eq $NAC
+check "$NAC application cores (cpu$ntc-cpu$ac)" test "$(sed '/^init: starting/q' "$L" | grep -c '^cpu[0-9]*: application core')" -eq $NAC
 check "/dev/sysstat lists all $NCPU cores" test "$(out 'cat /dev/sysstat | wc -l' | tr -d ' ')" -eq $NCPU
 check "/dev/sysstat: $NAC with role AC" test "$(out "grep -c ' AC\$' /dev/sysstat" | tr -d ' ')" -eq $NAC
 check "/proc/n/status: 15 fields (3 NIX counters)" test "$(out "execac -c $ac /bin/rc -c 'awk" | tr -d ' ')" = 15
@@ -58,5 +68,13 @@ check "execac on a TC fails" test "$(out 'execac -c 1')" = "execac: execac /bin/
 check "a busy AC is refused" test "$(out "execac -c $ac /bin/sleep 3")" = "execac: execac /bin/echo: application core busy"
 check "execac without -c picks a free AC" test "$(out 'execac /bin/echo any')" = any
 [ "$NAC" -lt 2 ] || check "nixtest on cpu$((ac-1)) and cpu$ac at once" bash -c "grep -A1 -F '# execac -c $((ac-1)) /tests/nixtest' '$L' | grep -q '^par 13 13\$'"
+check "/dev/nixctl: cpu$ac is an AC" bash -c "grep -A$NCPU -F '# cat /dev/nixctl' '$L' | grep -q '^$ac AC '"
+check "cpu$rt becomes an AC at run time" test "$(last "echo ac $rt > /dev/nixctl" | tr -d ' ')" -eq $((NAC+1))
+check "nixtest on the run-time AC cpu$rt" test "$(out "execac -c $rt /tests/nixtest" | tr -d ' ')" -eq 13
+check "the root file system still answers (interrupts moved)" test "$(out 'ls /bin | wc -l' | tr -d ' ')" -gt 100
+check "cpu$rt back to a TC" test "$(last "echo tc $rt > /dev/nixctl" | tr -d ' ')" -eq $NAC
+check "execac to the former AC fails" test "$(out "execac -c $rt /bin/echo x")" = "execac: execac /bin/echo: not an application core"
+kcload(){ grep -A2 -F '# echo kc 1 > /dev/nixctl' "$L" | awk -v w=$1 '$1 == w {print $2}'; }
+check "KC cpu1 runs no user loop (load < 300), TC cpu0 does (> 700)" bash -c "[ \"\$(echo $(kcload kc))\" -lt 300 ] && [ \"\$(echo $(kcload tc))\" -gt 700 ]"
 check "no kernel panic" bash -c "! grep -qE '^panic:|acexit: no process' '$L'"
 done_tests

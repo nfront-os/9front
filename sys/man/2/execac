@@ -49,7 +49,11 @@ file and the
 .B core
 control message of
 .IR proc (3)
-show and change the core of a process.
+show and change the core of a process;
+.B nixctl
+in
+.IR cons (3)
+changes the roles of processors at run time.
 .SH SOURCE
 .B /sys/src/9/port/nix.c
 .SH SEE ALSO

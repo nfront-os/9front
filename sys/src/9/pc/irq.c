@@ -105,6 +105,27 @@ irqhandled(Ureg *ureg, int vno)
 	return -1;
 }
 
+/*
+ * NIX: no more device interrupts to processor machno, it becomes
+ * an application core (port/nix.c); mp.c:/intrredirect.
+ */
+void
+intrmove(int machno)
+{
+	extern void intrredirect(Vctl*);
+	Vctl *v;
+	int vno;
+
+	ilock(&vctllock);
+	for(vno = VectorPIC; vno < nelem(vctl); vno++){
+		v = vctl[vno];
+		if(v == nil || v->local || v->machno != machno || v->enable == nil)
+			continue;
+		intrredirect(v);
+	}
+	iunlock(&vctllock);
+}
+
 void
 trapenable(int vno, void (*f)(Ureg*, void*), void* a, char *name)
 {

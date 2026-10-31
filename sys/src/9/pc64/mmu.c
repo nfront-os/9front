@@ -510,7 +510,16 @@ acmmuswitch(Proc *proc)
 void
 acarchinit(void)
 {
+	lapictimeroff();	/* a TC that becomes an AC at run time had it */
 	wrmsr(Lstar, (uvlong)acsyscallentry);
+}
+
+/* NIX: an application core becomes a time-sharing core again */
+void
+acarchexit(void)
+{
+	wrmsr(Lstar, (uvlong)syscallentry);
+	lapiconline();	/* the clock, interrupts accepted */
 }
 
 void

@@ -292,6 +292,29 @@ mpinit(void)
 	 */
 	if(m->cpuidfamily == 3 || conf.nmach > 1)
 		conf.copymode = 1;
+	nixbootkc();	/* NIX: the kernel cores of *nixkc */
+}
+
+static int allocdest(int*);
+
+/*
+ * NIX: send the interrupt of v (and those sharing its vector)
+ * to another processor: its own becomes an application core.
+ */
+void
+intrredirect(Vctl *v)
+{
+	Vctl *w;
+	int dest, machno;
+
+	dest = allocdest(&machno);
+	if(dest < 0)
+		return;
+	for(w = v; w != nil; w = w->next){
+		w->dest = dest;
+		w->machno = machno;
+	}
+	(*v->enable)(v, 0);
 }
 
 static int

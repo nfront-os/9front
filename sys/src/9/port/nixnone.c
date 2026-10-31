@@ -24,6 +24,29 @@ isac(int)
 }
 
 void
+nixbootkc(void)
+{
+}
+
+_Noreturn void
+acsched(void)
+{
+	panic("acsched: no application cores");
+}
+
+long
+nixctlread(void*, long, vlong)
+{
+	return 0;
+}
+
+void
+nixctlwrite(char*, long)
+{
+	error("no application cores");
+}
+
+void
 nixprepage(uintptr)
 {
 }

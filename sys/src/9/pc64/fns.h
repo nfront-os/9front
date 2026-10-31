@@ -54,6 +54,8 @@ void	halt(void);
 void	mwait(void*);
 void	lapicipiirq(int, int);	/* pmc(3) */
 void	lapicipi(int);	/* NIX */
+void	lapictimeroff(void);	/* NIX */
+void	lapiconline(void);	/* NIX */
 int	i8042auxcmd(int);
 void	i8042auxenable(void (*)(int, int));
 void	i8042reset(void);

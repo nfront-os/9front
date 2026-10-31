@@ -15,6 +15,7 @@ cons \- console, clocks, process/process group ids, user, null, reboot, etc.
 .B /dev/kmesg
 .B /dev/kprint
 .B /dev/mordor
+.B /dev/nixctl
 .B /dev/null
 .B /dev/osversion
 .B /dev/pid
@@ -298,6 +299,32 @@ or
 Writing anything to
 .B sysstat
 resets all of the counts on all processors.
+.PP
+The
+.B nixctl
+file (amd64 and arm64) holds a line per processor: its number, its role
+.RB ( TC ,
+.B AC
+or
+.BR KC )
+and the process an application core is reserved for (0 for none).
+The host owner may write
+.BI ac " n" \fR,
+.BI tc " n
+or
+.BI kc " n
+to make processor
+.I n
+an application core (see
+.IR execac (2)),
+a time-sharing core or a kernel core at run time.
+A kernel core runs only kernel processes and the kernel halves of
+processes on application cores.
+An application core takes no clock and no device interrupts;
+its timers and interrupts move to other processors,
+and processes wired to it are wired to processor 0.
+Processor 0 keeps its role.
+An application core in use by a process can not change its role.
 .PP
 Reads and writes to
 .IR mordor

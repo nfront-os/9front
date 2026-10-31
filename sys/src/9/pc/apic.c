@@ -533,6 +533,13 @@ lapicclock(Ureg *u, void*)
 	timerintr(u, 0);
 }
 
+/* NIX: no clock interrupts on this processor (an application core) */
+void
+lapictimeroff(void)
+{
+	lapicw(LapicTIMER, ApicIMASK|LapicCLKIN|LapicONESHOT|(VectorPIC+IrqTIMER));
+}
+
 void
 lapicintron(void)
 {

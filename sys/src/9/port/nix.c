@@ -3,7 +3,9 @@
  * (Lsub, Bell Labs, Sandia, Vita Nuova; k8/acore.c, k8/tcore.c;
  * MIT license, see /lib/legal/nix).
  *
- * The boot option *nixac=n makes the last n processors ACs.
+ * The boot option *nixac=n makes the last n processors ACs, *nixkc=k
+ * the k before them kernel cores (KCs: they run only kprocs and the
+ * TC halves of AC processes). /dev/nixctl changes roles at run time.
  * An AC never runs the scheduler, takes no clock and no device
  * interrupts, and runs one user process at a time: the one that
  * execac(2) or the ctl message "core n" (proc(3)) moved there.
@@ -38,7 +40,9 @@
 
 int	nixnac;			/* number of ACs */
 static	uchar	nixrole[MAXMACH];
+static	uchar	nixkcboot[MAXMACH];
 static	Lock	nixlock;
+static	QLock	nixctllock;
 
 /*
  * Called by the bootstrap processor before it starts the others,
@@ -49,7 +53,7 @@ int
 nixboot(int ncpu)
 {
 	char *s;
-	int i, n;
+	int i, n, k;
 
 	if((s = getconf("*nixac")) == nil)
 		return 0;
@@ -61,7 +65,27 @@ nixboot(int ncpu)
 	for(i = ncpu-n; i < ncpu; i++)
 		nixrole[i] = NIXAC;
 	nixnac = n;
+	if((s = getconf("*nixkc")) != nil){
+		k = strtol(s, nil, 0);
+		for(i = ncpu-n-1; i >= 1 && k > 0; i--, k--)
+			nixkcboot[i] = 1;
+	}
 	return n;
+}
+
+/*
+ * After the processors started: the kernel cores of *nixkc.
+ */
+void
+nixbootkc(void)
+{
+	int i;
+
+	for(i = 1; i < conf.nmach; i++)
+		if(nixkcboot[i] && MACHP(i) != nil && !isac(i)){
+			MACHP(i)->PMach.nixtype = NIXKC;
+			print("cpu%d: kernel core\n", i);
+		}
 }
 
 int
@@ -99,16 +123,23 @@ acsched(void)
  * The application processor machno becomes an AC
  * instead of entering the scheduler.
  */
-_Noreturn void
-acinit(void)
+static Icc*
+iccalloc(void)
 {
 	Icc *icc;
 
 	icc = mallocalign(sizeof(Icc), 64, 0, 0);
 	if(icc == nil)
-		panic("acinit: no memory");
+		panic("iccalloc: no memory");
 	memset(icc, 0, sizeof(Icc));
-	m->PMach.icc = icc;
+	return icc;
+}
+
+_Noreturn void
+acinit(void)
+{
+	if(m->PMach.icc == nil)
+		m->PMach.icc = iccalloc();
 	m->PMach.nixtype = NIXAC;
 	acarchinit();
 	iprint("cpu%d: application core\n", m->machno);
@@ -285,6 +316,9 @@ runacore(Ureg *ureg)
 		spllo();
 	}
 	up->acrunning = 0;
+	/* back to user mode, but not on a kernel core */
+	while(m->PMach.nixtype == NIXKC)
+		sched();
 	splhi();
 	return 1;
 }
@@ -410,4 +444,178 @@ acflushed(Mach *mp, Proc *p, ulong nuser)
 
 	icc = mp->PMach.icc;
 	return icc->running != p || icc->nuser != nuser;
+}
+
+/*
+ * Roles at run time (/dev/nixctl). Processor 0 keeps its role:
+ * it takes the clock duties (checkalarms) and, on arm64, all
+ * device interrupts.
+ */
+/*
+ * Processes wired to processor n (aux/timesync wires itself) go to
+ * processor 0, which keeps its role.
+ */
+static void
+nixunwire(int n)
+{
+	Proc *p;
+	int i;
+
+	for(i = 0; (p = proctab(i)) != nil; i++)
+		if(p != up && p->state > New && p->wired && p->affinity == n){
+			p->affinity = 0;
+			print("cpu%d: process %lud %s now wired to cpu0\n", n, p->pid, p->text);
+		}
+}
+
+/* on the AC: become a time-sharing core */
+static void
+actotc(void)
+{
+	nixrole[m->machno] = NIXTC;
+	nixnac--;
+	acarchexit();
+	m->PMach.nixtype = NIXTC;
+	m->PMach.ticks = MACHP(0)->PMach.ticks;
+	active.machs[m->machno] = 1;
+	timersinit();
+	iprint("cpu%d: time-sharing core\n", m->machno);
+	schedinit();
+}
+
+static void
+settc(int n)
+{
+	Mach *mp;
+	Icc *icc;
+
+	mp = MACHP(n);
+	if(!isac(n)){
+		mp->PMach.nixtype = NIXTC;
+		return;
+	}
+	lock(&nixlock);
+	if(mp->PMach.acowner != nil){
+		unlock(&nixlock);
+		error("application core busy");
+	}
+	mp->PMach.acowner = up;	/* nobody gets it meanwhile */
+	unlock(&nixlock);
+	icc = mp->PMach.icc;
+	coherence();
+	icc->fn = actotc;
+	while(mp->PMach.nixtype == NIXAC)
+		tsleep(&up->sleep, return0, nil, 10);
+	lock(&nixlock);
+	mp->PMach.acowner = nil;
+	unlock(&nixlock);
+}
+
+static void
+setac(int n)
+{
+	Mach *mp;
+	Icc *icc;
+	int owired, oaff, s;
+
+	if(isac(n))
+		return;
+	mp = MACHP(n);
+	nixunwire(n);
+	if(mp->PMach.icc == nil)
+		mp->PMach.icc = iccalloc();
+	icc = mp->PMach.icc;
+	memset(icc, 0, sizeof(Icc));
+	mp->PMach.nixtype = NIXTC;	/* a KC runs no user process: us */
+
+	/* go there; it makes itself an AC */
+	owired = up->wired;
+	oaff = up->affinity;
+	up->wired = 1;
+	up->affinity = n;
+	while(m->machno != n)
+		sched();
+	s = splhi();
+	nixrole[n] = NIXAC;
+	nixnac++;
+	m->PMach.nixtype = NIXAC;
+	m->PMach.readied = nil;
+	active.machs[n] = 0;
+	acarchinit();
+	timersmove();
+	intrmove(n);
+	up->wired = owired;
+	up->affinity = owired? oaff: -1;
+	iprint("cpu%d: application core\n", n);
+	sched();	/* schedinit on n goes to acsched */
+	splx(s);
+}
+
+long
+nixctlread(void *a, long n, vlong off)
+{
+	char *buf, *p, *e, *role;
+	Mach *mp;
+	Proc *o;
+	int i;
+
+	buf = smalloc(READSTR);
+	p = buf;
+	e = buf + READSTR;
+	for(i = 0; i < conf.nmach; i++){
+		if((mp = MACHP(i)) == nil)
+			continue;
+		if(isac(i))
+			role = "AC";
+		else if(mp->PMach.nixtype == NIXKC)
+			role = "KC";
+		else
+			role = "TC";
+		o = mp->PMach.acowner;
+		p = seprint(p, e, "%d %s %lud\n", i, role, o != nil? o->pid: 0);
+	}
+	n = readstr(off, a, n, buf);
+	free(buf);
+	return n;
+}
+
+/*
+ * "ac n", "tc n", "kc n": processor n becomes an application,
+ * time-sharing or kernel core.
+ */
+void
+nixctlwrite(char *a, long n)
+{
+	Cmdbuf *cb;
+	int c;
+
+	cb = parsecmd(a, n);
+	if(waserror()){
+		free(cb);
+		nexterror();
+	}
+	if(cb->nf != 2)
+		error(Ebadarg);
+	c = atoi(cb->f[1]);
+	if(c < 1 || c >= conf.nmach || MACHP(c) == nil)
+		error("bad processor (not 0, which keeps its role)");
+	eqlock(&nixctllock);
+	if(waserror()){
+		qunlock(&nixctllock);
+		nexterror();
+	}
+	if(strcmp(cb->f[0], "ac") == 0)
+		setac(c);
+	else if(strcmp(cb->f[0], "tc") == 0)
+		settc(c);
+	else if(strcmp(cb->f[0], "kc") == 0){
+		settc(c);
+		nixunwire(c);
+		MACHP(c)->PMach.nixtype = NIXKC;
+	} else
+		error(Ebadctl);
+	qunlock(&nixctllock);
+	poperror();
+	free(cb);
+	poperror();
 }

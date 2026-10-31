@@ -328,6 +328,7 @@ enum{
 	Qzero,
 	Qmordor,
 	Qconfig,
+	Qnixctl,	/* NIX */
 };
 
 enum
@@ -359,6 +360,7 @@ static Dirtab consdir[]={
 	"zero",		{Qzero},	0,		0444,
 	"config",	{Qconfig},	0,		0444,
 	"mordor",	{Qmordor},	0,		0666,
+	"nixctl",	{Qnixctl},	0,		0664,	/* NIX: core roles */
 };
 
 int
@@ -537,6 +539,9 @@ consread(Chan *c, void *buf, long n, vlong off)
 
 	case Qconfig:
 		return readstr((ulong)offset, buf, n, configfile);
+
+	case Qnixctl:
+		return nixctlread(buf, n, offset);	/* NIX */
 
 	case Qsysstat:
 		b = smalloc(conf.nmach*(NUMSIZE*11+3+1) + 1);	/* +1 for NUL; NIX: +3 for the role */
@@ -756,6 +761,12 @@ conswrite(Chan *c, void *va, long n, vlong off)
 		}
 		poperror();
 		free(cb);
+		break;
+
+	case Qnixctl:	/* NIX */
+		if(!iseve())
+			error(Eperm);
+		nixctlwrite(a, n);
 		break;
 
 	case Qsysstat:

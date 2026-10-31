@@ -243,6 +243,53 @@ timersinit(void)
 	timeradd(t);
 }
 
+/*
+ * NIX: this processor becomes an application core (port/nix.c):
+ * its timers go to processor 0, keeping their times; its HZ clock
+ * goes away (timersinit makes a new one when it is a TC again).
+ */
+void
+timersmove(void)
+{
+	Timers *tt, *t0;
+	Timer *t, **last;
+
+	tt = &timers[m->machno];
+	t0 = &timers[0];
+	for(;;){
+		ilock(&tt->Lock);
+		t = tt->head;
+		iunlock(&tt->Lock);
+		if(t == nil)
+			break;
+		/* the lock order of timeradd and timerdel: Timer, then Timers */
+		ilock(&t->Lock);
+		ilock(&tt->Lock);
+		if(t->tt != tt){	/* deleted meanwhile */
+			iunlock(&tt->Lock);
+			iunlock(&t->Lock);
+			continue;
+		}
+		tdel(t);
+		iunlock(&tt->Lock);
+		if(t->tf == nil && t->tmode == Tperiodic){
+			iunlock(&t->Lock);
+			free(t);	/* the HZ clock of this processor */
+			continue;
+		}
+		/* keep twhen: tadd would give a Trelative one a new time */
+		ilock(&t0->Lock);
+		for(last = &t0->head; *last != nil; last = &(*last)->tnext)
+			if((*last)->twhen > t->twhen)
+				break;
+		t->tnext = *last;
+		*last = t;
+		t->tt = t0;
+		iunlock(&t0->Lock);
+		iunlock(&t->Lock);
+	}
+}
+
 Timer*
 addclock0link(void (*f)(void), int ms)
 {

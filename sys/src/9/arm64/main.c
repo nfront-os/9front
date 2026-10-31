@@ -156,6 +156,7 @@ mpinit(void)
 			sev();
 	}
 	synccycles();
+	nixbootkc();	/* NIX: the kernel cores of *nixkc */
 }
 
 void
