@@ -145,6 +145,14 @@ mpinit(void)
 		u.r2 = PADDR(_start);
 		u.r3 = i;
 		hvccall(&u);
+		/*
+		 * GCC port: the new cpu waits in _start's wfe for an event
+		 * (bcm64 sends sev() too); one sent before it runs is lost,
+		 * so repeat until it is in main. Without, the last cpu never
+		 * came up and synccycles() waited for it.
+		 */
+		while(((volatile char*)active.machs)[i] == 0)
+			sev();
 	}
 	synccycles();
 }

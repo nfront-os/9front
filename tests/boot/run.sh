@@ -3,14 +3,13 @@
 # stand-in, init -c, cpurc, console rc
 . "$(dirname "$0")/../lib.sh"
 [ -f "$ROOT/$KBIN" ] || { skip "boot" "no kernel $KBIN, run $BUILDHOW"; done_tests; exit; }
-# PC hardware (VESA BIOS, NCR 53C810) only on pc and pc64. arm64: one
-# CPU -- 9front's arm64 mpinit starts the others with PSCI CPU_ON, and
-# they wait in _start's wfe for an event nothing sends (bcm64 does
-# sev()); QEMU >= 11 models wfe exactly, older versions let it return
-case $objtype in 386|amd64) pc=1 ncpu=4 ;; *) pc= ncpu=1 ;; esac
+# PC hardware (VESA BIOS, NCR 53C810) only on pc and pc64. arm64: 4 CPUs
+# since mpinit sends sev() until each new one runs (they wait in _start's
+# wfe; QEMU >= 11 models wfe exactly)
+case $objtype in 386|amd64) pc=1 ncpu=4 ;; *) pc= ncpu=4 ;; esac
 
 boot(){
-	QEMU_EXTRA="-smp $ncpu" "$ROOT/scripts/guest/boot-cli.sh" \
+	QEMU_EXTRA="-smp $ncpu" KARGS="${KARGS:+$KARGS }*ncpu=$ncpu" "$ROOT/scripts/guest/boot-cli.sh" \
 		'echo hello' 'cat /dev/sysstat | wc -l' 'ls /bin | wc -l' 'date -i' 'ps | wc -l' 'cat /dev/sysname; echo' \
 		'cat /proc/$pid/segment | wc -l' \
 		${pc:+"bind -a '#v' /dev; aux/realemu && aux/vga -m vesa -l 1024x768x16 && grep size /dev/vgactl"} \
