@@ -529,7 +529,14 @@ tcpclose(Conv *c)
 		break;
 	case Established:
 		if(tcb->bypass != nil){
-			qhangup(tcb->bypass->rq, nil);
+			/*
+			 * the other side clears only its own bypass when it
+			 * closes, and its conversation may have been reused
+			 * by now: only hang up its rq if it still points back
+			 * to us (as tcpbypass() checks).
+			 */
+			if(((Tcpctl*)tcb->bypass->ptcl)->bypass == c)
+				qhangup(tcb->bypass->rq, nil);
 			localclose(c, nil);
 			break;
 		}
