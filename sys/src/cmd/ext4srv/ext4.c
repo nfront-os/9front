@@ -15,7 +15,7 @@ char Einval[] = "invalid operation";
 char Eio[] = "i/o error";
 char Enomem[] = "no memory";
 char Enospc[] = "no space";
-char Enotfound[] = "file not found";
+char Enotfound[] = "file does not exist";
 char Eperm[] = "permission denied";
 char Erdonlyfs[] = "read-only fs";
 
