@@ -1,0 +1,41 @@
+From d4f27b8aa4a23979a070a8aabfb05ae81cbfed46 Mon Sep 17 00:00:00 2001
+From: Stefan Hertenberger <erde74@gmail.com>
+Date: Sat, 31 Oct 2026 19:57:30 +0100
+Subject: [PATCH 16/16] arm64: wake each new cpu until it runs (sev until it is
+ in main)
+
+mpinit starts the other processors with PSCI CPU_ON; they wait in
+_start's wfe for an event, and nothing sent one, so on a QEMU that
+models wfe exactly (QEMU 11) no other cpu came up and synccycles()
+waited forever. A single sev() after CPU_ON (as bcm64 does) is not
+enough: when it comes before the new cpu runs, it is lost. Each cpu
+was then woken only by the sev for the next one, and the last one
+never came up. Now mpinit sends sev() until the new cpu has set
+active.machs[i] in machinit.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ sys/src/9/arm64/main.c | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/sys/src/9/arm64/main.c b/sys/src/9/arm64/main.c
+index cd3b31ff1..483fa1eb5 100644
+--- a/sys/src/9/arm64/main.c
++++ b/sys/src/9/arm64/main.c
+@@ -145,6 +145,13 @@ mpinit(void)
+ 		u.r2 = PADDR(_start);
+ 		u.r3 = i;
+ 		hvccall(&u);
++		/*
++		 * the new cpu waits in _start's wfe for an event;
++		 * one sent before it runs is lost, so repeat
++		 * until it is in main.
++		 */
++		while(((volatile char*)active.machs)[i] == 0)
++			sev();
+ 	}
+ 	synccycles();
+ }
+-- 
+2.56.0
+

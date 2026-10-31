@@ -1,7 +1,7 @@
 From eecc54c40f4f88ec9303b58f0dce20db0ad96749 Mon Sep 17 00:00:00 2001
 From: Stefan Hertenberger <erde74@gmail.com>
 Date: Sat, 31 Oct 2026 10:36:26 +0100
-Subject: [PATCH 08/15] ext4srv: rwrite takes the file's length from its inode
+Subject: [PATCH 08/16] ext4srv: rwrite takes the file's length from its inode
 
 An open file (ext4_file) keeps the length it had when it was opened.
 rwrite() fills the gap from the end to the write's offset with zeros

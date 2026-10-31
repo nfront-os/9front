@@ -1,7 +1,7 @@
 From 30d80bd390f7e7c7ad9b8b4956b384c69bac5d26 Mon Sep 17 00:00:00 2001
 From: Stefan Hertenberger <erde74@gmail.com>
 Date: Sat, 31 Oct 2026 10:38:59 +0100
-Subject: [PATCH 14/15] pc: register the xhci controller (usbxhcipci first, as
+Subject: [PATCH 14/16] pc: register the xhci controller (usbxhcipci first, as
  in pc64)
 
 The link section of a kernel configuration calls only the first name's

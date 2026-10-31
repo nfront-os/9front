@@ -25,7 +25,7 @@ taken or declined them.
 On Unix: `git am patch-upstream/0*.patch` on a checkout of `front`.
 On 9front: `git/import` takes the files as they are.
 
-All 15 apply as a series. Each applies alone too, except:
+All 16 apply as a series. Each applies alone too, except:
 
 - 0009 needs 0007 (context: `vbump` in `rwstat`),
 - 0010 needs 0007 and 0009,
@@ -45,7 +45,8 @@ made with an AI assistant); drop it if 9front does not want it.
   (not the gcc branch's), in a 9front guest: every `.c` of ext4srv,
   `ndb/cs.c` and `9/ip/tcp.c` (from `pc64` and `pc`) with `6c` and `8c`
   `-FTVw` (the mkfiles' flags); APE's `arm64/notetramp.c` with
-  `7c -FTVw -p` against the patched `ureg.h`. No errors, no warnings.
+  `7c -FTVw -p` against the patched `ureg.h`; `9/arm64/main.c` (0016)
+  with `7c -FTVw`. No errors, no warnings.
 - **Not done**: a kernel and ext4srv built with 9front's compilers and run
   with these patches. The kernel conf (0014) and riostart (0015) are not
   compiled code.
@@ -69,6 +70,7 @@ made with an AI assistant); drop it if 9front does not want it.
 | 0013 | ape: arm64 Ureg layout differs from the kernel's | bug fix |
 | 0014 | pc: xhci controller never registered | bug fix |
 | 0015 | riostart: stats window can take the console's focus | bug fix |
+| 0016 | arm64: the last cpu never comes up (sev lost) | bug fix |
 
 ### 0001 ip/tcp: don't hang up a reused conversation through a stale bypass pointer
 
@@ -240,6 +242,20 @@ stats. `window -r 0 0 161 117 stats -lmisce` makes it at once through wctl.
 Found by: the gcc port's disk and gui tests, which boot a terminal and type
 into the serial console window: the input was lost on about every second
 boot under KVM.
+
+### 0016 arm64: wake each new cpu until it runs
+
+`mpinit` starts the other processors with PSCI CPU_ON; they wait in
+`_start`'s `wfe` for an event, and nothing sent one: on a QEMU that models
+wfe exactly (QEMU 11) no other cpu came up and `synccycles()` waited
+forever. A single `sev()` after CPU_ON (as bcm64 does) is not enough: when
+it comes before the new cpu runs, it is lost; each cpu was then woken only
+by the sev for the next one, and the last one never came up. Now `mpinit`
+sends `sev()` until the new cpu has set `active.machs[i]` in `machinit`.
+
+Found by: the gcc port's NIX branch, booting arm64 (QEMU virt, cortex-a72)
+with 4 to 8 cpus: cpu3 of 4 never came up, also without NIX. Shown by: the
+boot test with 4 cpus and the NIX tests with 6 and 8 (all cpus up).
 
 ## Not included
 
