@@ -5,6 +5,7 @@
 #include <9p.h>
 #include <bio.h>
 #include "ext4_inode.h"
+#include "ext4_super.h"
 #include "group.h"
 #include "common.h"
 
@@ -612,6 +613,7 @@ rwstat(Req *r)
 {
 	int res, isdir, wrperm, isowner, n;
 	usize wn;
+	u32int bs;
 	struct ext4_mountpoint *mp;
 	struct ext4_inode inode;
 	u32int uid, gid, iflags;
@@ -705,6 +707,17 @@ rwstat(Req *r)
 		while(res == 0 && ext4_fsize(&f) < r->d.length){
 			ext4_fseek(&f, 0, 2);
 			wn = MIN(r->d.length - ext4_fsize(&f), sizeof(zero));
+			res = ext4_fwrite(&f, zero, wn, &wn);
+		}
+		/*
+		 * shorter: zero the rest of the new last block first,
+		 * ext4_ftruncate frees the blocks after it but leaves its
+		 * old bytes, which a later extension showed again.
+		 */
+		bs = ext4_sb_get_block_size(&mp->fs.sb);
+		if(res == 0 && r->d.length < ext4_fsize(&f) && r->d.length % bs != 0){
+			wn = MIN(ext4_fsize(&f) - r->d.length, bs - r->d.length % bs);
+			ext4_fseek(&f, r->d.length, 0);
 			res = ext4_fwrite(&f, zero, wn, &wn);
 		}
 		if(res == 0)
