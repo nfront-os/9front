@@ -493,6 +493,23 @@ rread(Req *r)
 	respond(r, nil);
 }
 
+/*
+ * a file's length from its inode: an ext4_file keeps the one it had
+ * when it was opened, a wstat or write through another fid may have
+ * changed it since.
+ */
+static u64int
+filesize(ext4_file *f)
+{
+	struct ext4_inode_ref ref;
+
+	if(ext4_fs_get_inode_ref(&f->mp->fs, f->inode, &ref) == 0){
+		f->fsize = ext4_inode_get_size(&f->mp->fs.sb, ref.inode);
+		ext4_fs_put_inode_ref(&ref);
+	}
+	return f->fsize;
+}
+
 static void
 rwrite(Req *r)
 {
@@ -501,6 +518,7 @@ rwrite(Req *r)
 
 	a = r->fid->aux;
 	if(a->type == Afile){
+		filesize(a->file);
 		while(ext4_fsize(a->file) < r->ifcall.offset){
 			ext4_fseek(a->file, 0, 2);
 			sz = MIN(r->ifcall.offset-ext4_fsize(a->file), sizeof(zero));
