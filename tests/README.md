@@ -66,6 +66,7 @@ Options (environment):
 		scripts/guest/boot-cli.sh 'ls /bin' 'ps'  # type the lines, print the console
 
 - The guest unit tests in a running system: `/tests/run [test...]`.
+- `bash tests/nix/bench.sh`: NIX benchmark (not a test, amd64 under KVM): `tests/nix/nixbench.c` on a time-sharing core and on an application core, idle and with a busy loop on each TC — computation, a 64 MB pointer chase, gaps over 10 µs, one system call (`NCPU`, `REPS`).
 - `tests/vm.py`: the Python module `rio` and `usb` use — boots a CD to rio, keys and mouse through QMP, an rc on the serial line; a base for new guest tests.
 - Boot a CD in QEMU like `iso` does and see where it stops: `tests/iso/drive.py`
   (`python3 tests/iso/drive.py file.iso cd bios workdir`; the screen dumps

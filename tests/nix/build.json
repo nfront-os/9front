@@ -27,7 +27,8 @@
 			"--end-group"
 		],
 		"SourceFilesCmd": [
-			"nixtest.c"
+			"nixtest.c",
+			"nixbench.c"
 		]
 	}
 ]
