@@ -32,6 +32,14 @@ the kernel on a time-sharing core (TC), which then sends the
 process back to the AC.
 The calls work as usual but take a round trip between the cores;
 the process should compute rather than call.
+Before it goes to the AC, its pages are faulted in
+(of the stack the part in use),
+and so are those of each segment it attaches later
+(see
+.B RFPREPAGE
+in
+.IR fork (2)),
+so page faults rarely take a round trip.
 Its children, made by
 .IR fork (2),
 run on the TCs.

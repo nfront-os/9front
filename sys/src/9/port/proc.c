@@ -752,6 +752,7 @@ newproc(void)
 	p->acback = 0;
 	p->acfault = 0;
 	p->nicc = 0;
+	p->prepagemem = 0;
 
 	return p;
 }

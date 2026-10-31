@@ -16,6 +16,9 @@
  * then serves the call or the trap on the TC with the usual code
  * (acservice) and sends the process back, until it leaves the AC.
  *
+ * The process' pages are faulted in before it goes to the AC
+ * (nixprepage, as NIX does), so it rarely comes back for a fault.
+ *
  * A note for the process interrupts runacore()'s sleep; it then
  * sends the AC an IPI, which brings the process back to the TC to
  * take the note. procflushmmu() does the same when the process'
@@ -166,6 +169,58 @@ acexit(Ureg *ureg, int rc, uintptr addr)
 	acsched();
 }
 
+/*
+ * Fault in all pages of s from from up (prepaging). Text and
+ * read-only segments by reading, the others by writing, so a
+ * copy-on-write page is copied now, not on the AC.
+ */
+static void
+prepageseg(Segment *s, uintptr from)
+{
+	uintptr addr;
+	int read;
+
+	read = (s->type&SG_TYPE) == SG_TEXT || (s->type&SG_RONLY) != 0;
+	for(addr = from; addr < s->top; addr += BY2PG)
+		if(fault(addr, 0, read) < 0)
+			break;
+}
+
+/*
+ * NIX: prepage up's segments, as NIX does before a process goes to
+ * an AC. NIX's 2M pages made that cheap for the whole stack; here
+ * the stack is prepaged only from the user's sp up, what it uses.
+ */
+void
+nixprepage(uintptr sp)
+{
+	Segment *s;
+	uintptr from;
+	int i;
+
+	for(i = 0; i < NSEG; i++){
+		if((s = up->seg[i]) == nil)
+			continue;
+		from = s->base;
+		if((s->type&SG_TYPE) == SG_STACK){
+			from = sp & ~(BY2PG-1);
+			if(from < s->base || from >= s->top)
+				from = s->top - BY2PG;
+		}
+		prepageseg(s, from);
+	}
+}
+
+/* NIX: prepage the segment at va, just attached */
+void
+nixprepageva(uintptr va)
+{
+	Segment *s;
+
+	if((s = seg(up, va, 0)) != nil)
+		prepageseg(s, s->base);
+}
+
 static int
 acdonef(void *a)
 {
@@ -188,6 +243,14 @@ runacore(Ureg *ureg)
 		return 0;	/* execac on the AC: the loop below goes on */
 	up->acrunning = 1;
 	spllo();
+	if(up->prepagemem)
+		nixprepage(ureg->sp);
+	/*
+	 * the Tos (pid, cycles) as at the end of a system call: the call
+	 * that brought us here ends only when we come back to the TC.
+	 * acservice does it for each round trip after this one.
+	 */
+	kexit(ureg);
 	while((ac = up->ac) != nil){
 		if(up->acback){
 			up->acback = 0;
@@ -312,6 +375,7 @@ procctlcore(Proc *p, int core)
 	if(p->procctl != 0)
 		error(Einuse);
 	p->ac = getac(p, core);
+	p->prepagemem = 1;	/* in runacore, as p */
 	p->procctl = Proc_toac;
 }
 

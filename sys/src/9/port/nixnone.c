@@ -23,6 +23,16 @@ isac(int)
 	return 0;
 }
 
+void
+nixprepage(uintptr)
+{
+}
+
+void
+nixprepageva(uintptr)
+{
+}
+
 int
 runacore(Ureg*)
 {

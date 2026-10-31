@@ -954,8 +954,10 @@ procread(Chan *c, void *va, long n, vlong off)
 	case Qppid:
 		return readnum(offset, va, n, p->parentpid, NUMSIZE);
 
-	case Qcore:	/* NIX: the AC p runs on, 0 for a TC */
-		return readnum(offset, va, n, p->ac != nil? p->ac->machno: 0, NUMSIZE);
+	case Qcore:	/* NIX: the AC p runs on (0 for a TC), round trips to it */
+		snprint(statbuf, sizeof statbuf, "%11d %11lud\n",
+			p->ac != nil? p->ac->machno: 0, p->nicc);
+		return readstr(offset, va, n, statbuf);
 
 	case Qprofile:
 		s = p->seg[TSEG];

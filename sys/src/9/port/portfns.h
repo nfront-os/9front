@@ -470,6 +470,8 @@ _Noreturn void	acsched(void);
 Mach*		getac(Proc*, int);
 int		isac(int);
 int		nixboot(int);
+void		nixprepage(uintptr);
+void		nixprepageva(uintptr);
 void		procctlcore(Proc*, int);
 void		putac(Proc*);
 void		putacs(Proc*, Mach*);

@@ -651,6 +651,8 @@ enum
 	RFCFDG		= (1<<12),
 	RFREND		= (1<<13),
 	RFNOMNT		= (1<<14),
+	RFPREPAGE	= (1<<15),	/* NIX: fault in all pages (port/nix.c) */
+	RFCPREPAGE	= (1<<16),	/* NIX: no more */
 };
 
 /*
@@ -859,6 +861,7 @@ struct Proc
 	int	acback;		/* devproc: back to the TC */
 	Ureg	*acureg;	/* user registers while on the AC */
 	ulong	nicc;		/* round trips to the AC */
+	int	prepagemem;	/* fault in new segments at once (RFPREPAGE) */
 };
 
 enum

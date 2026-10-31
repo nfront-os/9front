@@ -130,10 +130,12 @@ ending virtual address, and reference count.
 .PP
 The read-only
 .B core
-file holds the number of the application core the process runs on,
+file holds two numbers: the application core the process runs on,
 or zero
 (see
-.IR execac (2)).
+.IR execac (2)),
+and the round trips it made between that core and the time-sharing
+cores.
 .PP
 The read-only
 .B status

@@ -27,10 +27,11 @@ fail(char *name, char *fmt, ...)
 	failed++;
 }
 
+/* /proc/n/core: the core and the round trips to it */
 static int
-mycore(void)
+coreinfo(ulong *nicc)
 {
-	char buf[32];
+	char buf[64], *f[2];
 	int fd, n;
 
 	snprint(buf, sizeof buf, "/proc/%d/core", getpid());
@@ -41,7 +42,87 @@ mycore(void)
 	if(n <= 0)
 		return -1;
 	buf[n] = 0;
-	return atoi(buf);
+	if(tokenize(buf, f, 2) != 2)
+		return -1;
+	if(nicc != nil)
+		*nicc = strtoul(f[1], nil, 10);
+	return atoi(f[0]);
+}
+
+static int
+mycore(void)
+{
+	return coreinfo(nil);
+}
+
+/*
+ * the pages were faulted in before we came to the AC (prepaging):
+ * touching 256 bss pages we never used takes no round trips but
+ * those of reading /proc/n/core (open, read, close)
+ */
+enum { Npre = 256 };
+static char prebuf[Npre*4096];
+
+/* round trips for touching npg pages of a new shared segment */
+static long
+segtouch(int npg)
+{
+	ulong n0, n1;
+	char *p;
+	int i;
+
+	p = segattach(0, "shared", nil, npg*4096);
+	if(p == (char*)-1)
+		return -1;
+	coreinfo(&n0);
+	for(i = 0; i < npg; i++)
+		p[i*4096] = i;
+	coreinfo(&n1);
+	segdetach(p);
+	return n1 - n0;
+}
+
+/*
+ * segattach prepages while prepaging is on (execac set it);
+ * rfork(RFCPREPAGE) turns it off, rfork(RFPREPAGE) on again
+ */
+static void
+segprepagetest(void)
+{
+	long on, off, again;
+
+	on = segtouch(64);
+	rfork(RFCPREPAGE);
+	off = segtouch(64);
+	rfork(RFPREPAGE);
+	again = segtouch(64);
+	if(on < 0 || on > 16)
+		fail("segattach prepage", "%ld round trips for 64 pages", on);
+	else
+		ok("segattach prepage");
+	if(off < 64 || again < 0 || again > 16)
+		fail("rfork RFCPREPAGE/RFPREPAGE", "%ld off, %ld on again", off, again);
+	else
+		ok("rfork RFCPREPAGE/RFPREPAGE");
+}
+
+static void
+prepagetest(void)
+{
+	ulong n0, n1;
+	int i;
+
+	if(coreinfo(&n0) <= 0){
+		fail("prepage", "no core info");
+		return;
+	}
+	for(i = 0; i < Npre; i++)
+		prebuf[i*4096] = i;
+	coreinfo(&n1);
+	if(n1 - n0 > 16)
+		fail("prepage", "%lud round trips for %d pages", n1 - n0, Npre);
+	else
+		ok("prepage");
 }
 
 /* floating point, kept in registers across system calls */
@@ -221,6 +302,8 @@ main(int argc, char *argv[])
 		fail("core", "on core %d, want %d", core, want);
 	else
 		ok("core");
+	prepagetest();
+	segprepagetest();
 	fputest();
 	notetest();
 	flushtest();

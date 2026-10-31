@@ -81,6 +81,21 @@ and
 .IR proc (3) 
 can not be walked.
 .TP
+.B RFPREPAGE
+Fault in all pages of the process' segments (of the stack the part in
+use), and from then on of each segment it attaches; with
+.B RFPROC
+of the child's, when it goes to an application core
+(see
+.IR execac (2)).
+A process on an application core then rarely comes back to a
+time-sharing core for a page fault.
+Is inherited by children and mutually exclusive with
+.BR RFCPREPAGE .
+.TP
+.B RFCPREPAGE
+If set, no more such prepaging.
+.TP
 .B RFENVG
 If set, the environment variables are copied;
 otherwise the two processes share environment variables.

@@ -38,8 +38,8 @@ On a machine booted with
 four processors:
 .IP
 .EX
-% execac -c 3 rc -c 'cat /proc/$pid/core'
-          3
+% execac -c 3 rc -c 'x=`{cat /proc/$pid/core}; echo $x(1)'
+3
 .EE
 .SH SOURCE
 .B /sys/src/cmd/execac.c

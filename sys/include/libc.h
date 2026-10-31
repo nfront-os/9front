@@ -700,7 +700,9 @@ enum
 	RFCENVG		= (1<<11),
 	RFCFDG		= (1<<12),
 	RFREND		= (1<<13),
-	RFNOMNT		= (1<<14)
+	RFNOMNT		= (1<<14),
+	RFPREPAGE	= (1<<15),	/* NIX: fault in all pages, now and of new segments */
+	RFCPREPAGE	= (1<<16)	/* NIX: no more */
 };
 
 typedef

@@ -45,6 +45,8 @@ sysrfork(uchar *list)
 		error(Ebadarg);
 	if((flag & (RFENVG|RFCENVG)) == (RFENVG|RFCENVG))
 		error(Ebadarg);
+	if((flag & (RFPREPAGE|RFCPREPAGE)) == (RFPREPAGE|RFCPREPAGE))
+		error(Ebadarg);
 
 	if((flag&RFPROC) == 0) {
 		Fgrp *ofg;
@@ -124,6 +126,13 @@ sysrfork(uchar *list)
 			setnoteid(up, 0);	/* can't error() with 0 argument */
 			qunlock(&up->debug);
 		}
+		/* NIX: prepage now and new segments from now on */
+		if(flag & RFPREPAGE){
+			up->prepagemem = 1;
+			nixprepage(up->dbgreg->sp);
+		}
+		if(flag & RFCPREPAGE)
+			up->prepagemem = 0;
 		return 0;
 	}
 
@@ -135,6 +144,12 @@ sysrfork(uchar *list)
 
 	p->scallnr = up->scallnr;
 	p->s = up->s;
+	/* NIX: the child prepages as its parent, or as flag says */
+	p->prepagemem = up->prepagemem;
+	if(flag & RFPREPAGE)
+		p->prepagemem = 1;
+	if(flag & RFCPREPAGE)
+		p->prepagemem = 0;
 	p->slash = up->slash;
 	p->dot = up->dot;
 	incref(&p->dot->Ref);
@@ -832,6 +847,7 @@ sysexecac(uchar *list)
 	}
 	putacs(up, ac);
 	up->ac = ac;
+	up->prepagemem = 1;	/* in runacore */
 	up->procctl = Proc_toac;
 	return r;
 }
@@ -1158,6 +1174,8 @@ syssegattach(uchar *list)
 	va = segattach(attr, name, va, len);
 	free(name);
 	poperror();
+	if(up->prepagemem)
+		nixprepageva(va);	/* NIX */
 	return va;
 }
 

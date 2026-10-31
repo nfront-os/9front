@@ -24,8 +24,8 @@ boot(){
 		"execac -c $ac /tests/nixtest $ac" \
 		"execac -c $ac /bin/hoc -e 'sqrt(2)*3'" \
 		"execac -c $ac /bin/rc -c 'for(i in 1 2 3 4 5 6 7 8) echo \$i | wc -c' | wc -l" \
-		"execac -c $ac /bin/rc -c 'while(){}' & sleep 2; echo core \`{cat /proc/\$apid/core}; echo kill > /proc/\$apid/note; sleep 1; ls /proc/\$apid >[2]/dev/null || echo killed" \
-		"rc -c 'while(){}' & sleep 1; echo core $ac > /proc/\$apid/ctl; sleep 1; echo moved \`{cat /proc/\$apid/core}; echo core 0 > /proc/\$apid/ctl; sleep 1; echo back \`{cat /proc/\$apid/core}; echo kill > /proc/\$apid/note" \
+		"execac -c $ac /bin/rc -c 'while(){}' & sleep 2; x=\`{cat /proc/\$apid/core}; echo core \$x(1); echo kill > /proc/\$apid/note; sleep 1; ls /proc/\$apid >[2]/dev/null || echo killed" \
+		"rc -c 'while(){}' & sleep 1; echo core $ac > /proc/\$apid/ctl; sleep 1; x=\`{cat /proc/\$apid/core}; echo moved \$x(1); echo core 0 > /proc/\$apid/ctl; sleep 1; x=\`{cat /proc/\$apid/core}; echo back \$x(1); echo kill > /proc/\$apid/note" \
 		'execac -c 1 /bin/echo x' \
 		"execac -c $ac /bin/sleep 3 & sleep 1; execac -c $ac /bin/echo y; wait" \
 		'execac /bin/echo any' \
@@ -45,7 +45,7 @@ while read -r st name; do
 	FAIL)	fail "nixtest on the AC: $name" ;;
 	esac
 done < <(grep -E '^(ok|FAIL) ' "$L")
-check "nixtest: all checks ran (6)" test "$(grep -cE '^(ok|FAIL) ' "$L")" -eq 6
+check "nixtest: all checks ran (9)" test "$(grep -cE '^(ok|FAIL) ' "$L")" -eq 9
 check "hoc (floating point) on the AC" test "$(out "execac -c $ac /bin/hoc")" = 4.24264068712
 check "rc forks and waits on the AC" test "$(out "execac -c $ac /bin/rc -c 'for" | tr -d ' ')" = 8
 check "a loop on the AC: core $ac, killed by a note" bash -c "grep -A2 -F \"# execac -c $ac /bin/rc -c 'while\" '$L' | grep -q '^core $ac\$' && grep -A2 -F \"# execac -c $ac /bin/rc -c 'while\" '$L' | grep -q '^killed\$'"
@@ -53,6 +53,6 @@ check "ctl core $ac moves a process to the AC, core 0 back" bash -c "grep -A2 -F
 check "execac on a TC fails" test "$(out 'execac -c 1')" = "execac: execac /bin/echo: not an application core"
 check "a busy AC is refused" test "$(out "execac -c $ac /bin/sleep 3")" = "execac: execac /bin/echo: application core busy"
 check "execac without -c picks a free AC" test "$(out 'execac /bin/echo any')" = any
-[ "$NAC" -lt 2 ] || check "nixtest on cpu$((ac-1)) and cpu$ac at once" bash -c "grep -A1 -F '# execac -c $((ac-1)) /tests/nixtest' '$L' | grep -q '^par 6 6\$'"
+[ "$NAC" -lt 2 ] || check "nixtest on cpu$((ac-1)) and cpu$ac at once" bash -c "grep -A1 -F '# execac -c $((ac-1)) /tests/nixtest' '$L' | grep -q '^par 9 9\$'"
 check "no kernel panic" bash -c "! grep -qE '^panic:|acexit: no process' '$L'"
 done_tests
