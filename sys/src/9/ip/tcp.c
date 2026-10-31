@@ -1658,7 +1658,7 @@ tcpsplice(Conv *new, Conv *old)
  *  called with proto locked
  */
 static Conv*
-tcpincoming(Conv *s, Tcp *seg, uchar *src, uchar *dst, int version)
+tcpincoming(Conv *s, Tcp *seg, uchar *src, uchar *dst, int version, int *full)	/* GCC port branch: full */
 {
 	Tcppriv *tpriv;
 	Route *rp;
@@ -1679,6 +1679,12 @@ tcpincoming(Conv *s, Tcp *seg, uchar *src, uchar *dst, int version)
 	if(seg->seq != lp->irs+1 || seg->ack != lp->iss+1){
 		netlog(s->p->f, Logtcp, "tcpincoming s %lux/%lux a %lux %lux\n",
 			seg->seq, lp->irs+1, seg->ack, lp->iss+1);
+		/*
+		 * GCC port branch: it acks our syn-ack, a later segment of a call kept in
+		 * limbo (no room yet, below): drop it, it is sent again
+		 */
+		if(seg->ack == lp->iss+1 && seq_gt(seg->seq, lp->irs+1))
+			*full = 1;
 		return nil;
 	}
 	tpriv->nlimbo--;
@@ -1686,7 +1692,17 @@ tcpincoming(Conv *s, Tcp *seg, uchar *src, uchar *dst, int version)
 
 	new = Fsnewcall(s, src, seg->source, dst, seg->dest, version);
 	if(new == nil){
-		free(lp);
+		/*
+		 * GCC port branch: the listener's queue is full (Maxincall) or no
+		 * conversation is free: keep the call in limbo and drop the ack, as BSD and
+		 * Linux do with a full backlog; limborexmit sends the syn-ack again and the
+		 * call comes in once there is room. A reset here hung up a call the other
+		 * side had as established (20 connects at once: "eof" at once).
+		 */
+		lp->next = *l;
+		*l = lp;
+		tpriv->nlimbo++;
+		*full = 1;
 		return nil;
 	}
 
@@ -1956,6 +1972,7 @@ tcpiput(Proto *tcp, Ipifc *ifc, Block *bp)
 	Tcppriv *tpriv;
 	char *reason;
 	int version, ttl, proto;
+	int full;	/* GCC port branch: tcpincoming found no room */
 
 	f = tcp->f;
 	tpriv = (Tcppriv*)tcp->priv;
@@ -2103,9 +2120,17 @@ reset:
 		 *  if there's a matching call in limbo, tcpincoming will
 		 *  return it in state Established
 		 */
-		s = tcpincoming(s, &seg, source, dest, version);
-		if(s == nil)
+		full = 0;
+		s = tcpincoming(s, &seg, source, dest, version, &full);
+		if(s == nil){
+			/* GCC port branch: no room for it yet: drop, it stays in limbo */
+			if(full){
+				qunlock(&tcp->QLock);
+				freeblist(bp);
+				return;
+			}
 			goto reset;
+		}
 	}
 
 	/* The rest of the input state machine is run with the control block
