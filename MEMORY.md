@@ -945,5 +945,21 @@ Der Nutzer wollte, dass C/C++ in Rust-Programmen ohne die ape9-Umbenennung linkt
 - **TCP halb schließen** (Nutzerwunsch, für Rusts `shutdown(Write)`/tokio; Verhaltensänderung gegen front, nur eine neue ctl-Nachricht): `tcp.c` ctl `shutdown`: FIN nach dem Gepufferten, wq aufgelegt, die Leseseite bleibt offen (Feld `halfclose`: Finwait2 nimmt Daten an statt Reset „send to Finwait2“, kein Finwait2-Timer/`tcpgc` dafür; `close` löscht es). Loopback (`bypass`): das rq der Gegenseite auflegen. `close`/`hangup` unverändert. std nimmt `shutdown`, ohne es (anderer Kernel: „unknown control request“) `close`.
 - **Bug in 9front behoben: veralteter bypass-Zeiger** (Loopback-TCP): eine geschlossene Seite (`tcpsetstate` Closed) löscht nur ihren eigenen `bypass`; schließt der Partner später, legte `tcpclose` das rq ihres Conv auf — inzwischen eine neue Verbindung (ein neuer Listener: „listen hungup“, Clients „connection refused“). Jetzt nur, wenn der Partner noch zurückzeigt (wie `tcpbypass` schon prüft). Gefunden mit tokio-Tests (Rust), Kandidat für einen Patch an 9front.
 - **Bug in 9front behoben: ndb/cs kürzte Fehler** (`rwrite`: `curerr[64]`, dann „cs: “ davor): bei langen Namen fehlte der Grund („can't translate address no-such-host-…“ ohne „dns: name does not exist“). Jetzt `ERRMAX`. Gefunden mit Rusts DNS-Test (tlsdns), Kandidat für einen Patch an 9front.
-- **TCP: volle Anrufschlange ohne Reset** (Verhaltensänderung gegen front, wie BSD/Linux bei vollem Backlog): `tcpincoming` warf bei voller `incall`-Schlange (`Maxincall` 10) oder ohne freie Conv den Limbo-Eintrag weg, `tcpiput` schickte einen Reset — die Gegenseite hatte die Verbindung schon als Established (ihr connect war fertig) und las sofort EOF (Rust/tokio: 20 Clients auf einmal, sporadisch „early eof“/„eof after 0“). Jetzt bleibt der Anruf im Limbo, das Segment wird verworfen; `limborexmit` schickt das SYN-ACK erneut (bis 5-mal), der Anruf kommt, sobald Platz ist. Spätere Segmente desselben Anrufs (ack = iss+1, seq > irs+1) werden ebenso verworfen statt mit Reset beantwortet.
+- **TCP: volle Anrufschlange ohne Reset** (Verhaltensänderung gegen front, wie BSD/Linux bei vollem Backlog; vom Nutzer bestätigt 2026-10-31: bleibt im gcc-Branch, Patch-Kandidat für 9front, siehe unten): `tcpincoming` warf bei voller `incall`-Schlange (`Maxincall` 10) oder ohne freie Conv den Limbo-Eintrag weg, `tcpiput` schickte einen Reset — die Gegenseite hatte die Verbindung schon als Established (ihr connect war fertig) und las sofort EOF (Rust/tokio: 20 Clients auf einmal, sporadisch „early eof“/„eof after 0“). Jetzt bleibt der Anruf im Limbo, das Segment wird verworfen; `limborexmit` schickt das SYN-ACK erneut (bis 5-mal), der Anruf kommt, sobald Platz ist. Spätere Segmente desselben Anrufs (ack = iss+1, seq > irs+1) werden ebenso verworfen statt mit Reset beantwortet.
 - **Gäste mit 4 CPUs** (Hinweis eines Nebenagenten: bis dahin lief jeder Gasttest mit einer CPU, der erste Lauf mit vieren fand sofort den call_once-Hänger in libstdc++): `boot-cli.sh` nimmt `SMP` (`-smp`), `tests/lib.sh` setzt 4. guest (127) und boot (18) mit 4 CPUs grün.
+
+## Patch-Kandidaten für 9front
+
+Änderungen im gcc-Branch, die auch für front gelten (nicht gcc-bedingt), zum Einreichen bei
+9front. Im gcc-Branch bleiben sie, bis 9front sie hat oder ablehnt. Ein Patch ist jeweils aus
+dem Commit zu schneiden, nicht aus `git diff front` (in `tcp.c` stehen auch die Port-Änderungen,
+etwa das halbe Schließen); die `GCC port`-Kommentare fallen dabei weg.
+- **ext4srv** (Teil 45): Loch in `ext4_fread` las Block 0; „file not found“ statt „file does
+  not exist“. Fehler in 9front.
+- **tcp.c, veralteter bypass-Zeiger** (Commit 942d1df69, zusammen mit dem halben Schließen):
+  `tcpclose` legte das rq einer inzwischen neuen Conv auf. Fehler in 9front.
+- **ndb/cs, gekürzte Fehler** (Commit fcfecdfcf): `curerr[64]` → `ERRMAX`. Fehler in 9front.
+- **tcp.c, volle Anrufschlange** (Commit f0b8b1f7a): Anruf bleibt im Limbo statt Reset.
+  Verhaltensänderung (wie BSD/Linux), mit Begründung einreichen: der Reset traf Verbindungen,
+  die der Client schon als verbunden hatte. Nicht eingereicht: das halbe Schließen (ctl
+  `shutdown`, neue Schnittstelle für den Rust-Port).
