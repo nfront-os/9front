@@ -775,7 +775,7 @@ rwrite(Job *job, Mfile *mf)
 	int cnt, n;
 	char *err;
 	char *field[4];
-	char curerr[64];
+	char curerr[ERRMAX];	/* GCC port branch: 64 cut "dns: name does not exist" off long names (9front bug) */
 
 	err = nil;
 	cnt = job->request.count;
