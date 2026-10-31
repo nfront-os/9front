@@ -1657,7 +1657,7 @@ tcpsplice(Conv *new, Conv *old)
  *  called with proto locked
  */
 static Conv*
-tcpincoming(Conv *s, Tcp *seg, uchar *src, uchar *dst, int version)
+tcpincoming(Conv *s, Tcp *seg, uchar *src, uchar *dst, int version, int *full)
 {
 	Tcppriv *tpriv;
 	Route *rp;
@@ -1678,6 +1678,12 @@ tcpincoming(Conv *s, Tcp *seg, uchar *src, uchar *dst, int version)
 	if(seg->seq != lp->irs+1 || seg->ack != lp->iss+1){
 		netlog(s->p->f, Logtcp, "tcpincoming s %lux/%lux a %lux %lux\n",
 			seg->seq, lp->irs+1, seg->ack, lp->iss+1);
+		/*
+		 * it acks our syn-ack: a later segment of a call
+		 * still waiting in limbo for room (below), drop it.
+		 */
+		if(seg->ack == lp->iss+1 && seq_gt(seg->seq, lp->irs+1))
+			*full = 1;
 		return nil;
 	}
 	tpriv->nlimbo--;
@@ -1685,7 +1691,18 @@ tcpincoming(Conv *s, Tcp *seg, uchar *src, uchar *dst, int version)
 
 	new = Fsnewcall(s, src, seg->source, dst, seg->dest, version);
 	if(new == nil){
-		free(lp);
+		/*
+		 * the listener's queue is full (Maxincall) or there is
+		 * no free conversation: keep the call in limbo and drop
+		 * the ack, limborexmit() sends the syn-ack again and the
+		 * call comes in once there is room. the other side has
+		 * the connection as established already, a reset here
+		 * would end it right after its connect.
+		 */
+		lp->next = *l;
+		*l = lp;
+		tpriv->nlimbo++;
+		*full = 1;
 		return nil;
 	}
 
@@ -1954,7 +1971,7 @@ tcpiput(Proto *tcp, Ipifc *ifc, Block *bp)
 	Fs *f;
 	Tcppriv *tpriv;
 	char *reason;
-	int version, ttl, proto;
+	int version, ttl, proto, full;
 
 	f = tcp->f;
 	tpriv = (Tcppriv*)tcp->priv;
@@ -2102,9 +2119,17 @@ reset:
 		 *  if there's a matching call in limbo, tcpincoming will
 		 *  return it in state Established
 		 */
-		s = tcpincoming(s, &seg, source, dest, version);
-		if(s == nil)
+		full = 0;
+		s = tcpincoming(s, &seg, source, dest, version, &full);
+		if(s == nil){
+			if(full){
+				/* no room for it yet, it stays in limbo */
+				qunlock(&tcp->QLock);
+				freeblist(bp);
+				return;
+			}
 			goto reset;
+		}
 	}
 
 	/* The rest of the input state machine is run with the control block
