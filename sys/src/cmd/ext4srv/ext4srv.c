@@ -8,6 +8,43 @@
 #include "group.h"
 #include "common.h"
 
+/*
+ * qid.vers changes with every change of a file, as with other file
+ * servers: the kernel keeps the text of programs by qid, and a program
+ * rebuilt in place (the linker writes it anew, an inode number comes
+ * back) ran the old text with the new data. The inode's generation
+ * stays the same on writes (checksums use it); its mtime goes in, and
+ * a count of the changes since ext4srv started, per inode.
+ */
+enum { Nvtab = 4096 };
+static struct { u32int ino, n; } vtab[Nvtab];
+
+static u32int *
+vslot(u32int ino)
+{
+	u32int i, k;
+
+	for(k = 0, i = ino % Nvtab; k < Nvtab; k++, i = (i+1) % Nvtab)
+		if(vtab[i].ino == ino || vtab[i].ino == 0){
+			vtab[i].ino = ino;
+			return &vtab[i].n;
+		}
+	return &vtab[ino % Nvtab].n;	/* full: shared, still counts */
+}
+
+static void
+vbump(u32int ino)
+{
+	(*vslot(ino))++;
+}
+
+static u32int
+qvers(u32int ino, struct ext4_inode *inode)
+{
+	return ext4_inode_get_generation(inode) + ext4_inode_get_modif_time(inode) +
+		0x9e3779b9U * *vslot(ino);
+}
+
 #define MIN(a,b) ((a)<(b)?(a):(b))
 
 int mainstacksize = 65536;
@@ -226,6 +263,8 @@ ropen(Req *r)
 			return;
 		}
 		a->rclose = (r->ifcall.mode & ORCLOSE) != 0;
+		if(r->ifcall.mode & OTRUNC)
+			vbump(a->file->inode);
 		break;
 
 Nomem:
@@ -317,7 +356,8 @@ rcreate(Req *r)
 	ext4_ctime_set(mp, s, tm);
 
 	r->fid->qid.path = a->p->qidmask.path | a->file->inode;
-	r->fid->qid.vers = 0;
+	vbump(a->file->inode);
+	r->fid->qid.vers = tm + 0x9e3779b9U * *vslot(a->file->inode);
 	r->fid->qid.type = 0;
 	r->ofcall.qid = r->fid->qid;
 
@@ -365,7 +405,7 @@ dirfill(Dir *dir, Aux *a, char *path)
 
 	dir->mode = ext4_inode_get_mode(a->p->sb, &inode) & 0777;
 	dir->qid.path = a->p->qidmask.path | ino;
-	dir->qid.vers = ext4_inode_get_generation(&inode);
+	dir->qid.vers = qvers(ino, &inode);
 	dir->qid.type = 0;
 	t = ext4_inode_type(a->p->sb, &inode);
 	if(t == EXT4_INODE_MODE_DIRECTORY){
@@ -477,6 +517,7 @@ rwrite(Req *r)
 		}
 		if(ext4_fwrite(a->file, r->ifcall.data, r->ifcall.count, &n) < 0)
 			goto error;
+		vbump(a->file->inode);
 
 		assert(r->ifcall.count >= n);
 		r->ofcall.count = n;
@@ -637,6 +678,7 @@ rwstat(Req *r)
 		if(ext4_fopen2(mp, &f, a->path, toext4mode(OWRITE, 0, 0)) < 0)
 			goto error;
 		res = ext4_ftruncate(&f, r->d.length);
+		vbump(f.inode);
 		ext4_fclose(&f);
 		if(res != 0)
 			goto error;
@@ -722,7 +764,7 @@ err:
 
 	qid->type = 0;
 	qid->path = a->p->qidmask.path | ino;
-	qid->vers = ext4_inode_get_generation(&inode);
+	qid->vers = qvers(ino, &inode);
 	if(t == EXT4_INODE_MODE_DIRECTORY){
 		qid->type |= QTDIR;
 		a->type = Adir;
