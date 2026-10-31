@@ -204,6 +204,7 @@ struct Tcpctl
 	uchar	state;			/* Connection state */
 	uchar	flags;			/* State flags */
 	uchar	flgcnt;			/* Number of flags in the send sequence (FIN,SYN) */
+	uchar	halfclose;		/* GCC port branch: shutdown: our FIN sent, still receiving */
 	struct {
 		ulong	una;		/* Unacked data pointer */
 		ulong	nxt;		/* Next sequence expected */
@@ -509,6 +510,7 @@ tcpclose(Conv *c)
 {
 	Tcpctl *tcb = (Tcpctl*)c->ptcl;
 
+	tcb->halfclose = 0;	/* GCC port branch: closed now, no more receiving */
 	qhangup(c->rq, nil);
 	qhangup(c->wq, nil);
 	qhangup(c->eq, nil);
@@ -529,7 +531,13 @@ tcpclose(Conv *c)
 		break;
 	case Established:
 		if(tcb->bypass != nil){
-			qhangup(tcb->bypass->rq, nil);
+			/*
+			 * GCC port branch: only if the other is still ours, as tcpbypass
+			 * checks: a closed one clears its own link only, and its Conv may be
+			 * a new conversation by now (its rq hung up: "listen hungup").
+			 */
+			if(((Tcpctl*)tcb->bypass->ptcl)->bypass == c)
+				qhangup(tcb->bypass->rq, nil);
 			localclose(c, nil);
 			break;
 		}
@@ -2256,8 +2264,10 @@ reset:
 				tcphalt(tpriv, &tcb->katimer);
 				tcb->time = NOW;
 				tcpsetstate(s, Finwait2);
-				tcb->katimer.start = MSL2*(1000 / MSPTICK);
-				tcpgo(tpriv, &tcb->katimer);
+				if(!tcb->halfclose){	/* GCC port branch: alive while half closed */
+					tcb->katimer.start = MSL2*(1000 / MSPTICK);
+					tcpgo(tpriv, &tcb->katimer);
+				}
 			}
 			break;
 		case Closing:
@@ -2309,6 +2319,14 @@ reset:
 				tcb->rcv.nxt += length;
 				break;
 			case Finwait2:
+				if(tcb->halfclose){	/* GCC port branch: still receiving */
+					if(bp != nil) {
+						qpassnolim(s->rq, packblock(bp));
+						bp = nil;
+					}
+					tcb->rcv.nxt += length;
+					break;
+				}
 				reason = "send to Finwait2";
 				goto reset2;
 			}
@@ -3077,12 +3095,53 @@ tcpmssclamp(uchar *p, int n, int mtu)
 	}
 }
 
+/*
+ * GCC port branch: half close, ctl "shutdown" (BSD's shutdown(SHUT_WR), Rust's
+ * shutdown(Write)): a FIN after what is queued, no more writes, and the receive
+ * side stays open: Finwait1 and Finwait2 take data (halfclose) until the other
+ * side's FIN or a close. "close" shuts both sides, as before.
+ */
+static void
+tcpshutdown(Conv *c)
+{
+	Tcpctl *tcb = (Tcpctl*)c->ptcl;
+
+	if(tcb->halfclose)
+		return;
+	switch(tcb->state){
+	case Established:
+		qhangup(c->wq, nil);
+		tcb->halfclose = 1;
+		if(tcb->bypass != nil){
+			/* local: the other's input ends, ours goes on (the other still ours) */
+			if(((Tcpctl*)tcb->bypass->ptcl)->bypass == c)
+				qhangup(tcb->bypass->rq, nil);
+			break;
+		}
+		tcb->flgcnt++;
+		tcb->snd.nxt++;
+		tcpsetstate(c, Finwait1);
+		tcpoutput(c);
+		break;
+	case Close_wait:
+		qhangup(c->wq, nil);
+		tcb->halfclose = 1;
+		tcb->flgcnt++;
+		tcb->snd.nxt++;
+		tcpsetstate(c, Last_ack);
+		tcpoutput(c);
+		break;
+	}
+}
+
 /* called with c qlocked */
 static char*
 tcpctl(Conv* c, char** f, int n)
 {
 	if(n == 1 && strcmp(f[0], "close") == 0)
 		return tcpclose(c), nil;
+	if(n == 1 && strcmp(f[0], "shutdown") == 0)	/* GCC port branch */
+		return tcpshutdown(c), nil;
 	if(n == 1 && strcmp(f[0], "hangup") == 0)
 		return tcphangup(c);
 	if(n >= 1 && strcmp(f[0], "keepalive") == 0)
@@ -3141,7 +3200,7 @@ tcpgc(Proto *tcp)
 			}
 			break;
 		case Finwait2:
-			if(now - tcb->time > 5*60*1000){
+			if(!tcb->halfclose && now - tcb->time > 5*60*1000){	/* GCC port branch: halfclose */
 				localclose(c, Etimedout);
 				n++;
 			}
