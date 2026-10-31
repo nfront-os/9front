@@ -28,7 +28,8 @@
 #                     host root, the image's boot loader, kernel and hjfs
 #         BOOTISO     boot this CD image instead (scripts/guest/mkiso.sh)
 #         UEFI        1: UEFI firmware (OVMF, $OVMF_CODE) instead of the BIOS
-#         KVM         0: no KVM acceleration (default: use /dev/kvm if writable)
+#         KVM         0: no KVM acceleration; otherwise x86 guests need /dev/kvm
+#                     (an arm64 guest on an x86 host is always emulated)
 #         KARGS       more kernel parameters (plan9.ini variables), e.g.
 #                     "vgasize=1024x768x16 monitor=vesa mouseport=ps2"
 #         MEM NIC     QEMU memory (256) and NIC model (e1000)
@@ -70,9 +71,12 @@ NIC=${NIC:-e1000}
 # bootrc's tcp root: fs!564, which QEMU forwards to the host's ufs
 FSADDR=10.0.2.100
 SRC9ADDR=10.0.2.101
-# KVM when the host has it (KVM=0: emulation only); same CPU model either way
+# KVM always for x86 guests (KVM=0: emulation); same CPU model either way
 accel=()
-[ "${KVM:-1}" != 0 ] && [ -w /dev/kvm ] && accel=(-accel kvm)
+if [ "${KVM:-1}" != 0 ] && [ $objtype != arm64 ]; then
+	[ -w /dev/kvm ] || { echo "boot-cli: /dev/kvm not writable (KVM=0 to emulate)" >&2; exit 1; }
+	accel=(-accel kvm)
+fi
 SRC9_PORT=${SRC9_PORT:-5641}	# host port of the src9 ufs; the guest's is always 5641
 
 die(){ echo "boot-cli: $*" >&2; exit 1; }

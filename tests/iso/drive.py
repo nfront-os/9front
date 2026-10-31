@@ -22,7 +22,9 @@ for f in (sock, serial):
 q = ['qemu-system-x86_64', '-m', '1024', '-display', 'none', '-no-reboot',
 	'-cpu', 'qemu64,+rdrand', '-qmp', 'unix:%s,server,nowait' % sock,
 	'-serial', 'file:' + serial, '-netdev', 'user,id=n0', '-device', 'e1000,netdev=n0']
-if os.access('/dev/kvm', os.W_OK) and os.environ.get('KVM', '1') != '0':
+if os.environ.get('KVM', '1') != '0':	# KVM always (KVM=0: emulation)
+	if not os.access('/dev/kvm', os.W_OK):
+		sys.exit('drive: /dev/kvm not writable (KVM=0 to emulate)')
 	q += ['-accel', 'kvm']
 if fw == 'uefi':
 	code = os.environ.get('OVMF_CODE', '/usr/share/edk2/x64/OVMF_CODE.4m.fd')

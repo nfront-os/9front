@@ -37,7 +37,9 @@ class VM:
 			'-chardev', 'socket,id=ser,path=%s,server=on,wait=off' % ssock, '-serial', 'chardev:ser',
 			'-netdev', 'user,id=n0', '-device', 'e1000,netdev=n0',
 			'-drive', 'file=%s,format=raw,if=ide,index=2,media=cdrom,readonly=on' % iso]
-		if os.access('/dev/kvm', os.W_OK) and os.environ.get('KVM', '1') != '0':
+		if os.environ.get('KVM', '1') != '0':	# KVM always (KVM=0: emulation)
+			if not os.access('/dev/kvm', os.W_OK):
+				raise SystemExit('vm: /dev/kvm not writable (KVM=0 to emulate)')
 			q += ['-accel', 'kvm']
 		self.vm = subprocess.Popen(q + list(extra), stdout=subprocess.DEVNULL,
 			stderr=open(os.path.join(work, 'qemu.log'), 'w'))
