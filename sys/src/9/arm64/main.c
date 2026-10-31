@@ -145,6 +145,13 @@ mpinit(void)
 		u.r2 = PADDR(_start);
 		u.r3 = i;
 		hvccall(&u);
+		/*
+		 * the new cpu waits in _start's wfe for an event;
+		 * one sent before it runs is lost, so repeat
+		 * until it is in main.
+		 */
+		while(((volatile char*)active.machs)[i] == 0)
+			sev();
 	}
 	synccycles();
 }
