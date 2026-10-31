@@ -353,6 +353,7 @@ rcreate(Req *r)
 		goto ext4errorrm;
 	ext4_owner_set(mp, s, a->uid, a->uid);
 	tm = time(nil);
+	ext4_atime_set(mp, s, tm);
 	ext4_mtime_set(mp, s, tm);
 	ext4_ctime_set(mp, s, tm);
 
