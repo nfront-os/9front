@@ -5,6 +5,7 @@
  */
 #include <u.h>
 #include <libc.h>
+#include <tos.h>
 
 static int failed;
 
@@ -291,6 +292,144 @@ spintest(void)
 		ok("spin");
 }
 
+/*
+ * nixcall(2): pwrites through the call queue, made by the kernel
+ * process; few round trips to the TC. The calls have the process'
+ * rights, not eve's.
+ */
+enum { Ncall = 50, Linesz = 16, OPENcall = 14, CLOSEcall = 4, PWRITEcall = 51 };
+static char lines[Ncall][Linesz];
+
+static long
+waitret(Nixret *r)
+{
+	long spin;
+
+	for(spin = 0; spin < 2000000000L; spin++)
+		if(nixret(r) != nil)
+			return 0;
+	return -1;
+}
+
+static void
+nixcalltest(void)
+{
+	Nixcall c;
+	Nixret r;
+	char name[64], buf[Ncall*Linesz+1];
+	ulong n0, n1;
+	int fd, i, nok;
+
+	if(nixsyscall() < 0){
+		fail("nixcall", "nixsyscall: %r");
+		return;
+	}
+	snprint(name, sizeof name, "/tmp/nixcall.%d", getpid());
+	if((fd = create(name, ORDWR, 0644)) < 0){
+		fail("nixcall", "create %s: %r", name);
+		return;
+	}
+	coreinfo(&n0);
+	for(i = 0; i < Ncall; i++){
+		snprint(lines[i], Linesz, "line %9d\n", i);
+		memset(&c, 0, sizeof c);
+		c.tag = (void*)(uintptr)(i+1);
+		c.scall = PWRITEcall;
+		c.arg[0] = fd;
+		c.arg[1] = (uintptr)lines[i];
+		c.arg[2] = Linesz-1;
+		c.arg[3] = (uvlong)i*(Linesz-1);
+		if(nixcall(&c, 1) < 0){
+			fail("nixcall", "nixcall: %r");
+			return;
+		}
+	}
+	nok = 0;
+	for(i = 0; i < Ncall; i++){
+		if(waitret(&r) < 0){
+			fail("nixcall", "no reply %d", i);
+			return;
+		}
+		if(r.sret == Linesz-1)
+			nok++;
+	}
+	coreinfo(&n1);
+	memset(buf, 0, sizeof buf);
+	pread(fd, buf, Ncall*(Linesz-1), 0);
+	close(fd);
+	remove(name);
+	for(i = 0; i < Ncall; i++)
+		if(memcmp(buf+i*(Linesz-1), lines[i], Linesz-1) != 0)
+			break;
+	if(nok != Ncall || i != Ncall)
+		fail("nixcall", "%d of %d pwrites, file right up to %d", nok, Ncall, i);
+	else if(n1 - n0 > Ncall/2)
+		fail("nixcall", "%lud round trips for %d calls", n1 - n0, Ncall);
+	else
+		ok("nixcall");
+}
+
+/* open #c/reboot for writing (eve only) through the queue */
+static int
+nixopenreboot(char *err, int nerr)
+{
+	static char file[] = "#c/reboot";
+	Nixcall c;
+	Nixret r;
+
+	memset(&c, 0, sizeof c);
+	c.tag = file;	/* nixret returns the tag: not nil */
+	c.scall = OPENcall;
+	c.arg[0] = (uintptr)file;
+	c.arg[1] = OWRITE;
+	if(nixcall(&c, 1) < 0 || waitret(&r) < 0){
+		snprint(err, nerr, "no reply");
+		return -2;
+	}
+	snprint(err, nerr, "%s", r.err);
+	if(r.sret >= 0){
+		memset(&c, 0, sizeof c);
+		c.tag = file;
+		c.scall = CLOSEcall;
+		c.arg[0] = r.sret;
+		nixcall(&c, 1);
+		waitret(&r);
+		return 0;
+	}
+	return -1;
+}
+
+static void
+nixcallrights(void)
+{
+	char err[128];
+	int fd, pid;
+	Waitmsg *w;
+
+	if(nixopenreboot(err, sizeof err) != 0){
+		fail("nixcall rights", "hostowner can't open #c/reboot: %s", err);
+		return;
+	}
+	switch(pid = rfork(RFPROC|RFFDG|RFNAMEG|RFCCORE)){
+	case -1:
+		fail("nixcall rights", "rfork: %r");
+		return;
+	case 0:
+		if((fd = open("/dev/user", OWRITE)) < 0 || write(fd, "none", 4) != 4)
+			exits("can't become none");
+		close(fd);
+		if(nixsyscall() < 0)
+			exits("nixsyscall");
+		exits(nixopenreboot(err, sizeof err) == -1 && strstr(err, "perm") != nil? nil: "none could open #c/reboot");
+	}
+	w = wait();
+	if(w == nil || w->pid != pid || w->msg[0] != 0)
+		fail("nixcall rights", "%s", w != nil? w->msg: "no wait");
+	else
+		ok("nixcall rights");
+	free(w);
+}
+
 /* getcore(2), rfork RFCCORE/RFCORE; last: they move the process */
 static void
 coretest(int want)
@@ -369,6 +508,8 @@ main(int argc, char *argv[])
 		fail("core after", "on core %d, want %d", core, want);
 	else
 		ok("core after");
+	nixcalltest();
+	nixcallrights();
 	coretest(want);
 	exits(failed? "failed": nil);
 }

@@ -25,6 +25,7 @@ OFILES=\
 	getnetconninfo.$O\
 	getenv.$O\
 	getcore.$O\
+	nixcall.$O\
 	getpid.$O\
 	getppid.$O\
 	getuser.$O\

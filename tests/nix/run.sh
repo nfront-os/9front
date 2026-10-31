@@ -59,7 +59,7 @@ while read -r st name; do
 	FAIL)	fail "nixtest on the AC: $name" ;;
 	esac
 done < <(grep -E '^(ok|FAIL) ' "$L")
-check "nixtest: all checks ran (13)" test "$(grep -cE '^(ok|FAIL) ' "$L")" -eq 13
+check "nixtest: all checks ran (15)" test "$(grep -cE '^(ok|FAIL) ' "$L")" -eq 15
 check "hoc (floating point) on the AC" test "$(out "execac -c $ac /bin/hoc")" = 4.24264068712
 check "rc forks and waits on the AC" test "$(out "execac -c $ac /bin/rc -c 'for" | tr -d ' ')" = 8
 check "a loop on the AC: core $ac, killed by a note" bash -c "grep -A2 -F \"# execac -c $ac /bin/rc -c 'while\" '$L' | grep -q '^core $ac\$' && grep -A2 -F \"# execac -c $ac /bin/rc -c 'while\" '$L' | grep -q '^killed\$'"
@@ -67,10 +67,10 @@ check "ctl core $ac moves a process to the AC, core 0 back" bash -c "grep -A2 -F
 check "execac on a TC fails" test "$(out 'execac -c 1')" = "execac: execac /bin/echo: not an application core"
 check "a busy AC is refused" test "$(out "execac -c $ac /bin/sleep 3")" = "execac: execac /bin/echo: application core busy"
 check "execac without -c picks a free AC" test "$(out 'execac /bin/echo any')" = any
-[ "$NAC" -lt 2 ] || check "nixtest on cpu$((ac-1)) and cpu$ac at once" bash -c "grep -A1 -F '# execac -c $((ac-1)) /tests/nixtest' '$L' | grep -q '^par 13 13\$'"
+[ "$NAC" -lt 2 ] || check "nixtest on cpu$((ac-1)) and cpu$ac at once" bash -c "grep -A1 -F '# execac -c $((ac-1)) /tests/nixtest' '$L' | grep -q '^par 15 15\$'"
 check "/dev/nixctl: cpu$ac is an AC" bash -c "grep -A$NCPU -F '# cat /dev/nixctl' '$L' | grep -q '^$ac AC '"
 check "cpu$rt becomes an AC at run time" test "$(last "echo ac $rt > /dev/nixctl" | tr -d ' ')" -eq $((NAC+1))
-check "nixtest on the run-time AC cpu$rt" test "$(out "execac -c $rt /tests/nixtest" | tr -d ' ')" -eq 13
+check "nixtest on the run-time AC cpu$rt" test "$(out "execac -c $rt /tests/nixtest" | tr -d ' ')" -eq 15
 check "the root file system still answers (interrupts moved)" test "$(out 'ls /bin | wc -l' | tr -d ' ')" -gt 100
 check "cpu$rt back to a TC" test "$(last "echo tc $rt > /dev/nixctl" | tr -d ' ')" -eq $NAC
 check "execac to the former AC fails" test "$(out "execac -c $rt /bin/echo x")" = "execac: execac /bin/echo: not an application core"

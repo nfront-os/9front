@@ -53,7 +53,8 @@
 			"_PREAD.S",
 			"_PWRITE.S",
 			"_TSEMACQUIRE.S",
-			"_EXECAC.S"
+			"_EXECAC.S",
+			"_NIXSYSCALL.S"
 		],
 		"Append": true,
 		"Clean": [

@@ -201,6 +201,7 @@ WRAP2(dtwrap_systsemacquire, TSEMACQUIRE, systsemacquire, long *, ulong)
 WRAP4(dtwrap_sysseek, SEEK, sysseek, vlong*, int, vlong, int)
 WRAP1(dtwrap_sys_nsec, _NSEC, sys_nsec, vlong*)
 WRAP3(dtwrap_sysexecac, EXECAC, sysexecac, int, char *, char **)	/* NIX */
+WRAP0(dtwrap_sysnixsyscall, NIXSYSCALL, sysnixsyscall)	/* NIX */
 
 static Syscall *wraptab[]={
 	[SYSR1]		dtwrap_sysr1,
@@ -256,6 +257,7 @@ static Syscall *wraptab[]={
 	[TSEMACQUIRE]	dtwrap_systsemacquire,
 	[_NSEC]		dtwrap_sys_nsec,
 	[EXECAC]	dtwrap_sysexecac,	/* NIX */
+	[NIXSYSCALL]	dtwrap_sysnixsyscall,	/* NIX */
 };
 
 static void

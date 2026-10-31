@@ -25,6 +25,7 @@ PORT=\
 	iomap.$O\
 	memmap.$O\
 	nix.$O\
+	nixcall.$O\
 	page.$O\
 	parse.$O\
 	pgrp.$O\

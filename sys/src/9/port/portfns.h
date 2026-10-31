@@ -477,6 +477,7 @@ void		timersmove(void);
 void		acarchexit(void);
 void		intrmove(int);
 void		nixprepage(uintptr);
+void		stopnixproc(void);
 void		nixprepageva(uintptr);
 void		procctlcore(Proc*, int);
 void		putac(Proc*);

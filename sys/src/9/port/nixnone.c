@@ -28,6 +28,17 @@ nixbootkc(void)
 {
 }
 
+void
+stopnixproc(void)
+{
+}
+
+uintptr
+sysnixsyscall(uchar*)
+{
+	error("no queue-based system calls");
+}
+
 _Noreturn void
 acsched(void)
 {

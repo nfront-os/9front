@@ -13,6 +13,7 @@ typedef struct Evalue	Evalue;
 typedef struct Fgrp	Fgrp;
 typedef struct DevConf	DevConf;
 typedef struct Icc	Icc;	/* NIX */
+typedef struct Nixpctl	Nixpctl;	/* NIX: port/nixcall.c */
 typedef struct Image	Image;
 typedef struct Lock	Lock;
 typedef struct Log	Log;
@@ -866,6 +867,7 @@ struct Proc
 	ulong	nacsyscall;	/* of them system calls */
 	ulong	nactrap;	/* of them traps and IPIs */
 	int	prepagemem;	/* fault in new segments at once (RFPREPAGE) */
+	Nixpctl	*nixpctl;	/* kernel process of nixcall(2) */
 };
 
 enum

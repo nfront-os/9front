@@ -769,6 +769,7 @@ newproc(void)
 	p->nacsyscall = 0;
 	p->nactrap = 0;
 	p->prepagemem = 0;
+	p->nixpctl = nil;
 
 	return p;
 }
@@ -1299,6 +1300,8 @@ pexit(char *exitstr, int freemem)
 	timerdel(&up->Timer);
 	if(up->ac != nil || nixnac != 0)
 		putac(up);	/* NIX */
+	if(up->nixpctl != nil)
+		stopnixproc();	/* NIX: nixcall(2) */
 	pt = proctrace;
 	if(pt != nil)
 		pt(up, SDead, 0);

@@ -399,6 +399,7 @@
             "../port/netif.c",
             "../ip/netlog.c",
             "../port/nix.c",
+            "../port/nixcall.c",
             "../ip/nullmedium.c",
             "../port/page.c",
             "../port/parse.c",

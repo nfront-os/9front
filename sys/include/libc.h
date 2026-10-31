@@ -771,6 +771,11 @@ extern	int	confpmc(int, int, int, char*);	/* pmc(2) */
 extern	uvlong	rdpmc(int);			/* pmc(2) */
 extern	int	execac(int, char*, char*[]);	/* NIX */
 extern	int	getcore(int*);			/* NIX */
+struct	Nixcall;				/* NIX: nixcall(2), in <tos.h> */
+struct	Nixret;
+extern	int	nixsyscall(void);
+extern	int	nixcall(struct Nixcall*, int);
+extern	void*	nixret(struct Nixret*);
 enum {						/* NIX: core roles, getcore(2) */
 	NIXTC = 0,	/* time-sharing core */
 	NIXKC,		/* kernel core */

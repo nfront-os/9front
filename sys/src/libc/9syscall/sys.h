@@ -51,3 +51,4 @@
 #define	TSEMACQUIRE	52
 #define _NSEC		53
 #define	EXECAC		128
+#define	NIXSYSCALL	135

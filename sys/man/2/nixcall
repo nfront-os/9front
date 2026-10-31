@@ -1,0 +1,98 @@
+.TH NIXCALL 2
+.SH NAME
+nixsyscall, nixcall, nixret \- system calls through a queue
+.SH SYNOPSIS
+.B #include <u.h>
+.br
+.B #include <libc.h>
+.br
+.B #include <tos.h>
+.PP
+.B
+int	nixsyscall(void)
+.PP
+.B
+int	nixcall(Nixcall *c, int wakekernel)
+.PP
+.B
+void*	nixret(Nixret *r)
+.SH DESCRIPTION
+A process can make system calls without entering the kernel:
+it puts them in the call queue of its
+.B Tos
+(see
+.IR exec (2)),
+and a kernel process makes them for it and puts the replies in the
+same queue.
+A process on an application core
+(see
+.IR execac (2))
+so does I/O without a round trip to a time-sharing core per call.
+.PP
+.I Nixsyscall
+starts the kernel process of the calling process, the first time,
+and wakes it when it sleeps.
+It must be called before the first
+.IR nixcall .
+.PP
+.I Nixcall
+queues the call
+.IR c :
+.B c->scall
+is the number of the system call (see
+.BR /sys/src/libc/9syscall/sys.h ),
+.B c->arg
+its arguments, one 8-byte slot each as the system call stubs pass
+them, and
+.B c->tag
+a value that comes back with the reply; it must not be nil.
+If
+.I wakekernel
+is set and the kernel process sleeps,
+.I nixcall
+wakes it.
+It returns \-1 if the queue is full.
+.PP
+.I Nixret
+returns the tag of the next reply and copies the reply to
+.I r
+if it is not nil, or returns nil if there is no reply yet.
+.B r->sret
+is what the system call returned and, if that is \-1,
+.B r->err
+its error string.
+.PP
+The kernel process has the user, name space, file descriptors,
+environment and current directory of the process; the calls have its
+rights.
+It makes the calls one after another, in their order; a call that
+blocks holds up those behind it.
+Only calls that make sense from another process are allowed:
+.IR open ,
+.IR create ,
+.IR close ,
+.IR pread ,
+.IR pwrite ,
+.IR seek ,
+.IR stat ,
+.IR fstat ,
+.IR wstat ,
+.IR fwstat ,
+.IR remove ,
+.IR dup ,
+.I fd2path
+and
+.IR nsec ;
+the others fail.
+The kernel process goes away when the process exits or execs.
+.SH SOURCE
+.B /sys/src/libc/9sys/nixcall.c
+.br
+.B /sys/src/9/port/nixcall.c
+.SH SEE ALSO
+.IR execac (2)
+.SH BUGS
+Segments the process attaches after the first
+.I nixsyscall
+are not seen by the kernel process.
+The queue has 64 entries (NIX's had 512).

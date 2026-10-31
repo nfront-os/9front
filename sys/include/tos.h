@@ -1,7 +1,44 @@
 typedef struct Tos Tos;
 typedef struct Plink Plink;
+typedef struct Callq Callq;	/* NIX: nixcall(2) */
+typedef struct Nixcall Nixcall;
+typedef struct Nixret Nixret;
 
 #pragma incomplete Plink
+
+/*
+ * NIX: system calls through a queue (nixcall(2)), after NIX's Callq;
+ * a kernel process makes the calls: no trap per call.
+ */
+enum {
+	CALLQSZ = 64,		/* NIX had 512 */
+	NIXCALLARG = 8,		/* argument slots, as the system call stubs pass them */
+};
+
+struct Nixcall
+{
+	void	*tag;
+	int	scall;
+	uvlong	arg[NIXCALLARG];	/* NIX: a va_list, not portable to gcc */
+};
+
+struct Nixret
+{
+	void	*tag;
+	vlong	sret;
+	char	err[128];		/* ERRMAX; NIX: a kernel pointer */
+};
+
+struct Callq
+{
+	int	ksleep;			/* the kernel process sleeps: wake it */
+	unsigned int	qr;	/* not uint: APE includes this too */
+	unsigned int	qw;
+	unsigned int	rr;
+	unsigned int	rw;
+	Nixcall	q[CALLQSZ];
+	Nixret	r[CALLQSZ];
+};
 
 struct Tos {
 	struct			/* Per process profiling */
@@ -20,6 +57,7 @@ struct Tos {
 	ulong	clock;
 	int	nixtype;	/* NIX: role of the core we run on (getcore(2)) */
 	int	core;		/* NIX: the core we run on */
+	Callq	callq;		/* NIX: queue-based system calls */
 	/* top of stack is here */
 };
 

@@ -820,6 +820,7 @@ sysexec(uchar *list)
 	up->noswap = 0;
 	up->pcycles = -up->kentry;
 	procsetup(up);
+	stopnixproc();	/* NIX: the old image's call queue is gone */
 	qunlock(&up->debug);
 
 	up->errbuf0[0] = '\0';
