@@ -34,17 +34,15 @@ struct Ureg {
 	unsigned long long	r26;
 	unsigned long long	r27;
 	unsigned long long	r28;	/* sb */
-	union {
-		unsigned long long	r29;
-		unsigned long long	sp;
-	};
+	unsigned long long	r29;
 	union {
 		unsigned long long	r30;
 		unsigned long long	link;
 	};
-	unsigned long long	type;	/* of exception */
-	unsigned long long	psr;
+	unsigned long long	sp;
 	unsigned long long	pc;	/* interrupted addr */
+	unsigned long long	psr;
+	unsigned long long	type;	/* of exception */
 };
 
 #endif
