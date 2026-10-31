@@ -1271,7 +1271,11 @@ static int ext4_ftruncate_no_lock(ext4_file *file, u64int size)
 
 	/*Sync file size*/
 	file->fsize = ext4_inode_get_size(&file->mp->fs.sb, ref.inode);
-	if (file->fsize <= size) {
+	if (file->fsize == size) {
+		r = 0;
+		goto Finish;
+	}
+	if (file->fsize < size) {
 		werrstr("space preallocation not supported");
 		r = -1;
 		goto Finish;
