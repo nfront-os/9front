@@ -25,6 +25,20 @@ sys=/sys/bus/pci/devices
 die(){ echo "vfio-gpu: $*" >&2; exit 1; }
 driver(){ [ -e "$sys/$1/driver" ] && basename "$(readlink "$sys/$1/driver")" || echo none; }
 group(){ basename "$(readlink "$sys/$1/iommu_group")"; }
+# processes with the ALSA devices of a function's sound card open: the
+# kernel's unbind waits (unkillable) until they are closed
+sndusers(){
+	for c in "$sys/$1"/sound/card*; do
+		[ -e "$c" ] || continue
+		n=${c##*card}
+		for f in /proc/[0-9]*/fd/*; do
+			case $(readlink "$f" 2>/dev/null) in
+			/dev/snd/controlC$n|/dev/snd/pcmC${n}D*|/dev/snd/hwC${n}D*)
+				p=${f%/fd/*}; echo "${p#/proc/} $(cat "$p/comm" 2>/dev/null)";;
+			esac
+		done
+	done | sort -u
+}
 
 status(){
 	for d in $DEVS; do
@@ -51,6 +65,8 @@ bind)
 		[ "$(ls /sys/kernel/iommu_groups/$g/devices | wc -l)" = 1 ] || die "$d shares IOMMU group $g with other devices"
 		echo vfio-pci > "$sys/$d/driver_override"
 		if [ "$(driver "$d")" != vfio-pci ]; then
+			u=$(sndusers "$d")
+			[ -z "$u" ] || die "$d: its sound card is open in: $u (close them, e.g. systemctl --user restart wireplumber, or stop pipewire)"
 			if [ -e "$sys/$d/driver" ]; then
 				echo "$d" > "$sys/$d/driver/unbind" || die "$d: unbind from $(driver "$d") failed"
 			fi
