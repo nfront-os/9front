@@ -1,3 +1,3 @@
-default	sysinfo,boot	
+default	sysinfo,boot,guest,disk,usb,net,stress,gcc	
 hang	hangme,boot	hwtestcfg=hang
 again	boot	hwtestcfg=again

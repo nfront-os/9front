@@ -120,12 +120,12 @@ check "GAS ports: no 6a/8a assembly in them" gasonly
 rcsyntax(){
 	local p9p=${PLAN9PORT:-$ROOT/../plan9port} bad=0 f
 	[ -x "$p9p/bin/rc" ] || { echo "no $p9p/bin/rc"; return 1; }
-	for f in scripts/build/rc/*.rc scripts/guest/boot/*.rc; do
+	for f in scripts/build/rc/*.rc scripts/guest/boot/*.rc tests/hw/*.rc tests/hw/cat/*.rc tests/hw/termrc; do
 		{ echo 'fn __syntax {'; cat "$f"; echo; echo '}'; } |
 			PLAN9=$p9p "$p9p/bin/rc" 2>&1 | sed "s|/dev/stdin|$f|" | grep . && bad=1
 	done
 	return $bad
 }
-check "rc scripts (scripts/build/rc, scripts/guest/boot) parse" rcsyntax
+check "rc scripts (scripts/build/rc, scripts/guest/boot, tests/hw) parse" rcsyntax
 
 done_tests

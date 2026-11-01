@@ -1,0 +1,36 @@
+#!/bin/rc
+# net: the network interfaces (listed, not configured: there may be no
+# network) and the stack over loopback: ping, a TCP connection
+fn ok { echo ok $* }
+fn fail { echo FAIL $* }
+fn skip { echo SKIP $* }
+for(i in 0 1 2 3)
+	bind -qa '#l'^$i /net >[2]/dev/null
+n=0
+for(e in /net/ether*){
+	if(test -d $e){
+		n=`{echo $n + 1 | hoc}
+		echo '###' $e `{cat $e/addr}
+		cat $e/ifstats >[2]/dev/null | sed 10q
+	}
+}
+if(test $n -ge 1)
+	ok net: $n ethernet interfaces
+if not
+	skip net: no ethernet interface (driver or firmware missing)
+if(! grep -s '^127.0.0.1' /net/ipselftab)
+	ip/ipconfig -N loopback /dev/null 127.1
+n=`{ip/ping -n 3 -i 100 127.1 >[2]/dev/null | grep -c rtt}
+if(test $n -ge 1)
+	ok net: ping 127.1: $n replies
+if not
+	fail net: ping 127.1: no reply
+aux/listen1 -t tcp!127.1!17019 /bin/echo hwtest-tcp &
+l=$apid
+sleep 1
+r=`{sleep 2 | aux/trampoline tcp!127.1!17019 >[2=1]}	# stdin open: trampoline ends at its EOF
+echo kill > /proc/$l/note >[2]/dev/null
+if(~ $r hwtest-tcp)
+	ok net: tcp over loopback
+if not
+	fail net: tcp over loopback: $r

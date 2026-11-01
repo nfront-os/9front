@@ -16,6 +16,22 @@ if [ -z "$STICK" ]; then
 	mk(){ CONSOLE=1 CONFIGS="$HERE/configs.qemu" bash "$ROOT/scripts/hw/mkstick.sh" "$IMG"; }
 	check "make the stick image (scripts/hw/mkstick.sh)" mk || { done_tests; exit; }
 fi
+# an internal disk, writable (as a laptop's): cat/disk.rc must not write to it, its checksum is compared below
+DISK=$CLI_DIR/hwtest-dryrun-disk.img
+python3 - "$DISK" <<'PY'
+import sys
+# 128 MB with an MBR: one partition (type 0x83), a pattern in every MB
+f = open(sys.argv[1], 'wb')
+mbr = bytearray(512)
+mbr[446:462] = bytes([0, 0, 0, 0, 0x83, 0, 0, 0]) + (2048).to_bytes(4, 'little') + (260096).to_bytes(4, 'little')
+mbr[510:512] = b'\x55\xaa'
+f.write(mbr)
+for i in range(128):
+	f.seek(i*1024*1024 + 4096)
+	f.write(b'hwtest %d\n' % i)
+f.truncate(128*1024*1024)
+PY
+DISKSUM=$(md5sum < "$DISK")
 QPID=
 stopvm(){ [ -n "$QPID" ] && kill "$QPID" 2>/dev/null; wait "$QPID" 2>/dev/null; QPID=; }
 trap 'stopvm; rm -rf "$TMPD"' EXIT
@@ -25,7 +41,9 @@ bootuntil(){
 	qemu-system-x86_64 -accel kvm -cpu qemu64,+rdrand -m 1024 -smp 4 -display none \
 		-device qemu-xhci,id=xhci -drive if=none,id=stick,file="$IMG",format=raw \
 		-device usb-storage,bus=xhci.0,drive=stick,bootindex=0 \
-		-serial file:"$1" -nic none -monitor none > "$1.qemu" 2>&1 &
+		-drive file="$DISK",if=ide,format=raw \
+		-nic user,model=e1000 \
+		-serial file:"$1" -monitor none > "$1.qemu" 2>&1 &
 	QPID=$!
 	for i in $(seq "$3"); do
 		grep -qE "$2" "$1" 2>/dev/null && break
@@ -37,7 +55,7 @@ bootuntil(){
 	return $r
 }
 check "boot from the stick: default, then hang: power off in hangme" \
-	bootuntil "$LOGS.con1" 'hwtest: hang: hangme' 600
+	bootuntil "$LOGS.con1" 'hwtest: hang: hangme' 1200
 check "power on again: HANG logged, the run goes on to the end" \
 	bootuntil "$LOGS.con2" 'hwtest: finished run' 600
 coll(){ rm -rf "$LOGS"; python3 "$ROOT/scripts/hw/collect.py" "$IMG" "$LOGS"; }
@@ -46,6 +64,14 @@ S=$LOGS/hwtest/run1
 has(){ grep -qF "$2" "$S/$1/summary.txt"; }
 check "default: sysinfo" has default 'sysinfo: 1 passed, 0 failed'
 check "default: boot checks (8)" has default 'boot: 8 passed, 0 failed'
+step(){ grep -qE "^$2: $3 passed, 0 failed, $4 skipped" "$S/$1/summary.txt"; }
+check "default: guest unit tests, none failed" step default guest '[1-9][0-9]*' 0
+check "default: disk: the IDE disk read (5; QEMU's empty CD skipped)" step default disk 5 '[01]'
+check "default: usb (3)" step default usb 3 0
+check "default: net: e1000, ping, tcp (3)" step default net 3 0
+check "default: stress (2)" step default stress 2 0
+check "default: gcc: gccmk builds and runs a program" step default gcc 1 0
+check "the internal disk is unchanged" test "$(md5sum < "$DISK")" = "$DISKSUM"
 check "hang: hangme logged as HANG" has hang 'HANG hangme'
 check "hang: the next step ran after the power-off" has hang 'boot: 8 passed, 0 failed'
 check "again: booted after the reset into it" has again 'boot: 8 passed, 0 failed'

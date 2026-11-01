@@ -131,6 +131,10 @@ if [ $objtype = arm64 ]; then
 	for f in "$ROOT/sys/src/boot/qemu/boot.scr" "$ROOT/arm64/9qemu.u"; do
 		[ -s "$f" ] || die "$f missing, run scripts/guest/build-boot.sh"
 	done
+	# 9qemu.u is made from 9qemu by build-boot.sh: an older one would
+	# boot the kernel of an earlier build, silently
+	[ ! "$ROOT/arm64/9qemu" -nt "$ROOT/arm64/9qemu.u" ] \
+		|| die "arm64/9qemu.u is older than arm64/9qemu, run scripts/guest/build-boot.sh"
 	bash "$ROOT/scripts/guest/build-uboot.sh" > "$CLI_DIR/uboot.log" 2>&1 \
 		|| die "u-boot build failed (log: $CLI_DIR/uboot.log)"
 	{

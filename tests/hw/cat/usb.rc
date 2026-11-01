@@ -1,0 +1,25 @@
+#!/bin/rc
+# usb: the host controllers and devices, the stick read back
+fn ok { echo ok $* }
+fn fail { echo FAIL $* }
+fn skip { echo SKIP $* }
+cat /dev/usb/ctl
+usbtree >[2=1]
+n=`{ls -d /dev/usb/ep*.0 >[2]/dev/null | wc -l}
+if(test $n -ge 2)
+	ok usb: $n devices (hubs included)
+if not
+	fail usb: only $n devices
+if(grep -s 'csp 0x[0-9a-f]*08( |$)' /dev/usb/ctl)	# class 8: storage
+	ok usb: a storage device (the stick)
+# the stick we booted from
+dev=`{echo $bootargs | sed 's,^local!,,; s,/[^/]*$,,'}
+if(test -f $dev/data){
+	t=`{{time dd -if $dev/data -of /dev/null -bs 1048576 -count 64} >[2=1] | tr '\012' ' '}
+	if(~ $t *'64+0 records in'*)
+		ok usb: 64 MB read from the stick: $t
+	if not
+		fail usb: read from the stick: $t
+}
+if not
+	skip usb: no stick data file

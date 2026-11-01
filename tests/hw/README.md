@@ -53,13 +53,18 @@ Logs: `hwtest/run<N>/<config>/<step>.log`, `summary.txt`, `kmesg.txt`;
 
 	scripts/hw/collect.py /dev/sdX1-or-image [dir]	# copies hwtest/, prints the summaries
 
+Configurations (`tests/hw/configs`): `default` (all steps), `ncpu1`
+(`*ncpu=1`: boot, guest, stress), `again` (boot after a reset).
+
 ## The dry run in QEMU
 
 `bash tests/hw/run.sh` (category `hw`) makes the image with
 `configs.qemu` and a serial console and boots it in QEMU as a USB stick on
 xHCI, with KVM: the configurations with resets between them, a power-off
 during the step `hangme` (HANG, then the run goes on), the logs read back
-with `collect.py`, `plan9.ini` set back at the end. `STICK=image` uses an
+with `collect.py`, `plan9.ini` set back at the end. It also attaches an
+IDE disk (`disk` only reads it: its checksum is compared afterwards)
+and an e1000. `STICK=image` uses an
 existing image.
 
 ## Categories
@@ -68,4 +73,10 @@ existing image.
 |---|---|
 | sysinfo | kmesg, PCI, cpuid, archctl, sysstat, memory, disks, USB, ether, IRQs |
 | boot | the system came up: processors, /bin, RTC, ps, sysname, root from USB, no panic |
+| guest | tests/guest's unit tests (libc, libthread, auth, mp, pak, APE): `/tests/run` |
+| disk | internal disks, only read: inquiry, size, partition tables (`fdisk -r`, `prep -r`), 64 MB read at start, middle, end, timed |
+| usb | controllers and devices (`usbtree`), the stick as storage, 64 MB read from it |
+| net | ethernet interfaces listed (not configured), ping and TCP over loopback |
+| stress | all processors a minute on the same floating point sum (one result), a ramfs copy compared, temperatures (`#P/cputemp`) |
+| gcc | the native gcc: `gccmk` builds a program from a 9front mkfile, it runs (SKIP without `/$objtype/gnu`) |
 | hangme | hangs (dry run only) |

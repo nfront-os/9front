@@ -1,0 +1,46 @@
+#!/bin/rc
+# disk: the internal disks, only read: inquiry, size, the partition
+# tables (disk/fdisk -r, disk/prep -r: read-only), 64 MB read at the
+# start, the middle and the end, timed. Nothing here writes to a disk.
+fn ok { echo ok $* }
+fn fail { echo FAIL $* }
+fn skip { echo SKIP $* }
+disks=()
+for(d in /dev/sd*){
+	# not the stick nor another USB disk; not the CD
+	if(test -f $d/data && ! ~ $d /dev/sdU*)
+		disks=($disks $d)
+}
+if(~ $#disks 0){
+	skip disk: no internal disk
+	exit
+}
+for(d in $disks){
+	n=`{basename $d}
+	echo '###' $n
+	grep -i 'inquiry|geometry' $d/ctl
+	ls -l $d
+	size=`{ls -l $d/data | awk '{print $6}'}
+	if(~ $size 0){
+		skip $n: no medium
+	}
+	if not {
+		ok $n: $size bytes
+		if(disk/fdisk -rp $d/data >[2=1])
+			ok $n: MBR read
+		if not
+			skip $n: no MBR table
+		if(test -f $d/plan9 && disk/prep -rp $d/plan9 >[2=1])
+			ok $n: plan9 partition table read
+		mb=`{echo $size / 1048576 | hoc | sed 's/\..*//'}
+		for(at in 0 `{echo $mb / 2 | hoc | sed 's/\..*//'} `{echo $mb - 64 | hoc | sed 's/\..*//'}){
+			if(test $at -ge 0){
+				t=`{{time dd -if $d/data -of /dev/null -bs 1048576 -count 64 -iseek $at} >[2=1] | tr '\012' ' '}
+				if(~ $t *'64+0 records in'*)
+					ok $n: 64 MB read at $at MB: $t
+				if not
+					fail $n: read at $at MB: $t
+			}
+		}
+	}
+}

@@ -1,0 +1,29 @@
+#!/bin/rc
+# gcc: the native gcc (../9front-gcc), if the stick has it: gccmk builds
+# a program from a 9front mkfile, which then runs
+fn ok { echo ok $* }
+fn fail { echo FAIL $* }
+g=/$objtype/gnu/bin/gccmk
+if(! test -x $g){
+	echo SKIP gcc: no $g on the stick
+	exit
+}
+rm -rf /tmp/hwgcc
+mkdir /tmp/hwgcc
+cd /tmp/hwgcc
+echo '#include <u.h>
+#include <libc.h>
+void main(void){ print("hello %d\n", 6*7); exits(nil); }' > hw.c
+echo '</$objtype/mkfile
+TARG=hw
+OFILES=hw.$O
+BIN=/tmp/hwgcc
+</sys/src/cmd/mkone' > mkfile
+$g >[2=1]
+o=`{ls [0-9].out >[2]/dev/null}
+if(! ~ $#o 0 && ~ `{./$o} 'hello 42')
+	ok gcc: gccmk built a program, it ran
+if not
+	fail gcc: hello
+cd /
+rm -rf /tmp/hwgcc

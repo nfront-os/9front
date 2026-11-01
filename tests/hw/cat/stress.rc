@@ -1,0 +1,40 @@
+#!/bin/rc
+# stress: every processor busy for about a minute with the same
+# floating point sum (each must give the same result), 32 MB in a ramfs
+# copied and compared; the temperatures before and after
+fn ok { echo ok $* }
+fn fail { echo FAIL $* }
+fn temp { cat '#P/cputemp' >[2]/dev/null | sed 8q }
+echo '###' temperatures before; temp
+ncpu=`{cat /dev/sysstat | wc -l}
+rm -f /tmp/stress.*
+t0=`{date -n}
+for(i in `{seq $ncpu}){
+	@{
+		while(test `{date -n} -lt `{echo $t0 + 60 | hoc})
+			echo 'x=0
+for(i=1; i<300000; i=i+1) x=x+sqrt(i)*sin(i)
+x' | hoc > /tmp/stress.$i
+	} &
+}
+sleep 30
+echo '###' load after 30 s; cat /dev/sysstat
+wait
+r=`{cat /tmp/stress.* | sort -u}
+if(~ $#r 1)
+	ok stress: $ncpu processors, 60 s, one result: $r
+if not
+	fail stress: results differ: $r
+echo '###' temperatures after; temp
+ramfs -m /n/stress
+# 32 MB (512 times 64K of programs): it fits a small machine's memory twice
+{for(f in /bin/rc /bin/hoc /bin/sed /bin/awk) dd -if $f -bs 16384 -count 1 -quiet 1} > /n/stress/s
+{for(i in `{seq 512}) cat /n/stress/s} > /n/stress/a
+cp /n/stress/a /n/stress/b
+sz=`{ls -l /n/stress/a | awk '{print $6}'}
+if(cmp /n/stress/a /n/stress/b && ~ `{md5sum < /n/stress/a} `{md5sum < /n/stress/b})
+	ok stress: $sz bytes in a ramfs copied and compared
+if not
+	fail stress: ramfs copy differs
+unmount /n/stress
+rm -f /tmp/stress.*

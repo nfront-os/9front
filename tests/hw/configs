@@ -1,2 +1,3 @@
-default	sysinfo,boot	
+default	sysinfo,boot,guest,disk,usb,net,stress,gcc	
+ncpu1	boot,guest,stress	*ncpu=1
 again	boot	hwtestcfg=again

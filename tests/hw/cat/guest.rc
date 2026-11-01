@@ -1,0 +1,8 @@
+#!/bin/rc
+# guest: the unit tests of tests/guest (libc, libthread, auth, mp, pak,
+# APE) on this machine, as tests/guest runs them in QEMU
+if(! test -f /tests/run){
+	echo SKIP guest: no /tests/run on the stick
+	exit
+}
+rc /tests/run >[2=1]
