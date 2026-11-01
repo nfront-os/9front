@@ -1,6 +1,8 @@
 sys/src/linux/vendor holds files of Linux 6.6.0, unchanged, each under its own
 notice; they follow, each once, with the files it covers.  Our own files
-(kpi/, replace/, the programs using them) are MIT.
+(kpi/, replace/, the programs using them) are MIT; the LinuxKPI is derived
+from OpenBSD's (ISC, BSD, public domain: their notices are in the files,
+and all of them in openbsd/NOTICE).
 
 ==== drivers/dma-buf/dma-resv.c
 // SPDX-License-Identifier: MIT

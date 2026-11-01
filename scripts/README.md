@@ -122,14 +122,19 @@ cross compilers from `../9front-gcc`.
 
 `sys/src/linux`: Linux's DRM code unchanged in `vendor/` (what `IMPORT` names, MIT-like files
 only; `REJECTED` lists the others, `NOTICE` the notices), our layer in `kpi/` and `replace/`,
-the kernel configuration in `kconfig`.
+the kernel configuration in `kconfig`. The layer follows OpenBSD's LinuxKPI (`openbsd/`, unchanged,
+at the commit in `OPENBSD`): `kpi/include` are OpenBSD's headers adapted to the unchanged Linux code
+(changes marked `9front`), `kpi/obsd` the OpenBSD kernel API they build on (mutex, rwlock,
+tsleep, timeout, task, pool, pci) on 9front, `kpi/linux/drm_linux.c` OpenBSD's; the rest of
+`kpi/linux` are the 9front backends (pages, PCI on #G, IRQ proc, files, RCU).
 
 | script | what it does |
 |---|---|
 | `import.py` | a Linux tree into `vendor/`, with the licence check, `VERSION`, `REJECTED`, `NOTICE`. `scripts/linux/import.py ~/Devel/linux-6.6` |
+| `import-openbsd.py` | OpenBSD's LinuxKPI (its own headers, `drm_linux.c`, `linux_*.c`, its public-domain versions of GPL drm files, `sys/tree.h`, `sys/queue.h`) at the commit in `sys/src/linux/OPENBSD` (Linux 6.6.x era) unchanged into `sys/src/linux/openbsd/`, the template of `kpi/`; licence check, `openbsd/NOTICE`. `scripts/linux/import-openbsd.py ~/Devel/openbsd` |
 | `kbuild.py` | the files Linux's Makefiles build with `kconfig`; `--autoconf` makes `kpi/include/generated/autoconf.h`. `scripts/linux/kbuild.py sys/src/linux/vendor drivers/gpu/drm` |
 | `census.py` | compiles every chosen file (without those `OMIT` names) against the layer and counts what is missing: the measure of progress. `scripts/linux/census.py [-v]` |
 | `undef.py` | compiles all (vendor, replace, kpi/linux, kpi/plan9), links them relocatably and lists the symbols nothing defines: what the layer still lacks. `scripts/linux/undef.py [outdir]` |
 | `genbuild.py` | the build.exe manifests: `sys/src/linux/build.json` (libkpi9.a, libkpi.a, liblinux.a, one object per directory, -O2 as Linux) and `sys/src/cmd/aux/gpu/i915/build.json`; `-n` compares (tests/static). `scripts/linux/genbuild.py` |
-| `gentrace.py` | our no-op trace point headers (Linux's are GPL) for the `trace_*` the vendor code calls, with the originals' includes. `scripts/linux/gentrace.py` |
+| `gentrace.py` | no-op trace point headers (Linux's are GPL) for the `trace_*` the vendor code calls, with the originals' includes; i915's and drm's are OpenBSD's now (replace/include), for drivers OpenBSD has none for. `scripts/linux/gentrace.py` |
 
