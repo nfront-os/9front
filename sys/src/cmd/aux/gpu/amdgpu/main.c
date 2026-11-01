@@ -15,6 +15,13 @@
 #include <kpi/linux.h>
 #include "amdgpu.h"
 
+/*
+ * the Linux code runs on the procs' stacks: DC's bandwidth calculation
+ * (DML) takes more than libthread's 8 KB (Linux gives its kernel code
+ * 16 KB): an overflow into the heap, where the stack is, broke it
+ */
+int	mainstacksize = 1024*1024;
+
 void	serve(char *srvname);
 int	screenstart(char *gdir);	/* screen.c */
 

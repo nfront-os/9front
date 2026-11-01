@@ -52,6 +52,67 @@ static Ctx *ctxs[Nctx];
 static File *ctxdir;
 static Srv fs;
 
+/*
+ * the display's requests go to DC, whose bandwidth calculation needs more
+ * stack than lib9p's procs have (32 KB): a proc of its own does them
+ */
+typedef struct Kreq Kreq;
+struct Kreq {
+	void	*lc;
+	int	free;	/* amdgpu_ctx_free: its picture off the display */
+	int	id, w, h, stride;
+	int	r;
+	Channel	*done;
+};
+static Channel *kmsc;
+
+static void
+kmsproc(void*)
+{
+	Kreq *k;
+
+	for(;;){
+		k = recvp(kmsc);
+		if(k->free)
+			amdgpu_ctx_free(k->lc);
+		else
+			k->r = amdgpu_scanout(k->lc, k->id, k->w, k->h, k->stride);
+		sendul(k->done, 1);
+	}
+}
+
+static void
+ctxfree(void *lc)
+{
+	Kreq k;
+
+	memset(&k, 0, sizeof k);
+	k.lc = lc;
+	k.free = 1;
+	k.done = chancreate(sizeof(ulong), 0);
+	sendp(kmsc, &k);
+	recvul(k.done);
+	chanfree(k.done);
+}
+
+static int
+scanout(void *lc, int id, int w, int h, int stride)
+{
+	Kreq k;
+
+	k.lc = lc;
+	k.free = 0;
+	k.id = id;
+	k.w = w;
+	k.h = h;
+	k.stride = stride;
+	k.done = chancreate(sizeof(ulong), 0);
+	sendp(kmsc, &k);
+	recvul(k.done);
+	chanfree(k.done);
+	return k.r;
+}
+
 /* a file's kind and context: aux holds the kind, ctx files the context too */
 #define KIND(f)		((uintptr)(f)->aux & 0xFF)
 #define CTXN(f)		((uintptr)(f)->aux >> 8)
@@ -123,7 +184,7 @@ static void
 freectx(Ctx *c)
 {
 	ctxs[c->id] = nil;
-	amdgpu_ctx_free(c->lc);
+	ctxfree(c->lc);
 	removefile(c->fence);
 	removefile(c->submit);
 	removefile(c->ctl);
@@ -341,7 +402,7 @@ fswrite(Req *r)
 		if((n == 2 || n == 5) && strcmp(f[0], "scanout") == 0){
 			/* returns when the display shows it: other requests go on */
 			srvrelease(r->srv);
-			x = amdgpu_scanout(fa->ctx->lc, atoi(f[1]), n == 5 ? atoi(f[2]) : 0,
+			x = scanout(fa->ctx->lc, atoi(f[1]), n == 5 ? atoi(f[2]) : 0,
 				n == 5 ? atoi(f[3]) : 0, n == 5 ? atoi(f[4]) : 0);
 			srvacquire(r->srv);
 			if(x < 0)
@@ -426,6 +487,8 @@ serve(char *srvname)
 	fs.read = fsread;
 	fs.write = fswrite;
 	fs.destroyfid = fsdestroyfid;
+	kmsc = chancreate(sizeof(void*), 0);
+	proccreate(kmsproc, nil, 1024*1024);
 	mktree();
 	threadpostmountsrv(&fs, srvname, "/dev", MAFTER);
 }
