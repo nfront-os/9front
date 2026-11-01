@@ -59,9 +59,11 @@ amdgpu_status(void)
 	p = s;
 	e = s + 4096;
 	if (!a) {
-		snprintf(s, e - s, "no device\n");
+		snprintf(s, e - s, "device none\n");
 		return s;
 	}
+	p += scnprintf(p, e - p, "device amd %04x/%04x (Linux 6.6's amdgpu on the LinuxKPI)\n",
+	    a->pdev->vendor, a->pdev->device);
 	p += scnprintf(p, e - p, "asic %s family %u rev %u external rev %u\n",
 	    amdgpu_asic_name[a->asic_type], a->family, a->rev_id, a->external_rev_id);
 	p += scnprintf(p, e - p, "vram %llu MB visible %llu MB gtt %llu MB\n",

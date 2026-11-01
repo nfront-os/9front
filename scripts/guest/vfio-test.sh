@@ -49,6 +49,12 @@ for f in $FW; do
 	done
 done
 
+# the GPU tests (tests/gpu's build: amdctxtest) as /tests
+if [ -d "$ROOT/tests/gpu/root/tests" ]; then
+	mkdir -p "$X/tests"
+	cp "$ROOT/tests/gpu/root/tests"/* "$X/tests/" 2>/dev/null || true
+fi
+
 # by default: the PCI devices with their BARs (pci -bv), and the first
 # words of the AMD functions' configuration space (vendor 1002)
 cmds=${1:-"pci -bv; for(f in '#\$/pci/'*ctl) if(grep -s '1002/' \$f){ echo \$f; cat \$f; xd -x4 \`{echo \$f | sed 's/ctl\$/raw/'} | sed 4q }"}

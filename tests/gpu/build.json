@@ -18,6 +18,7 @@
 		"SourceFilesCmd": [
 			"gputest.c",
 			"gpuctxtest.c",
+			"amdctxtest.c",
 			"segrevoke.c"
 		]
 	},

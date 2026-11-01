@@ -4,8 +4,8 @@
  * aux/amdgpu: Linux 6.6's amdgpu driver on the LinuxKPI (sys/src/linux),
  * for gpu(4).  This first part starts the KPI, DRM's core, the DRM
  * scheduler and amdgpu, which probes the device of #G (the video BIOS,
- * the firmware from /lib/firmware/amdgpu, the IP blocks), and prints
- * what came up; the file server follows.
+ * the firmware from /lib/firmware/amdgpu, the IP blocks), prints what
+ * came up and serves gpu(4)'s files (fs.c).
  */
 #include <u.h>
 #include <libc.h>
@@ -14,6 +14,8 @@
 #include "../../../../libthread/threadimpl.h"	/* threaddump: libthread's procs and threads */
 #include <kpi/linux.h>
 #include "amdgpu.h"
+
+void	serve(char *srvname);
 
 /* the call chain by frame pointers, for addr2line on the build machine */
 static void
@@ -107,18 +109,20 @@ findgpu(void)
 static void
 usage(void)
 {
-	fprint(2, "usage: %s [-W secs] [-d drmdebug] [-l loglevel] [-p name=value]... [-g #G/n (default: the first AMD one)]\n", argv0);
+	fprint(2, "usage: %s [-n] [-W secs] [-d drmdebug] [-l loglevel] [-p name=value]... [-g #G/n (default: the first AMD one)] [-s srvname]\n", argv0);
 	threadexitsall("usage");
 }
 
 void
 threadmain(int argc, char **argv)
 {
-	char *gdir, *param[64], *s;
-	int r, i, nparam, loglevel;
+	char *gdir, *param[64], *s, *srvname;
+	int r, i, nparam, loglevel, noserve;
 	ulong drmdebug;
 
 	gdir = nil;
+	srvname = "gpu.0";
+	noserve = 0;
 	nparam = 0;
 	drmdebug = 0;
 	loglevel = 6;	/* KERN_INFO */
@@ -140,6 +144,12 @@ threadmain(int argc, char **argv)
 	case 'g':
 		gdir = EARGF(usage());
 		break;
+	case 'n':
+		noserve = 1;
+		break;
+	case 's':
+		srvname = EARGF(usage());
+		break;
 	default:
 		usage();
 	}ARGEND
@@ -148,6 +158,13 @@ threadmain(int argc, char **argv)
 
 	if(gdir == nil && (gdir = findgpu()) == nil)
 		sysfatal("no AMD GPU in #G");
+	if(!noserve){
+		char path[64];
+
+		snprint(path, sizeof path, "/srv/%s", srvname);
+		if(access(path, AEXIST) == 0)
+			sysfatal("%s exists: another driver serves a GPU there (-s)", path);
+	}
 
 	atnotify(trapnote, 1);
 	threadnotify(trapnote, 1);	/* libthread passes the main proc's other notes (threaddump) only so */
@@ -164,6 +181,8 @@ threadmain(int argc, char **argv)
 	s = amdgpu_status();
 	fprint(2, "amdgpu: started\n%s", s != nil ? s : "");
 	amdgpu_freestr(s);
+	if(!noserve)
+		serve(srvname);
 	/* the driver's procs (workqueues, irq, timers) go on */
 	threadexits(nil);
 }

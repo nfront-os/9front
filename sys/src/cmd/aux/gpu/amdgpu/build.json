@@ -69,7 +69,8 @@
 		"Install": "/$ARCH/lib.gcc/",
 		"Library": "libamdgpuaux.a",
 		"SourceFiles": [
-			"linux/amdgpu.c"
+			"linux/amdgpu.c",
+			"linux/ctx.c"
 		]
 	},
 	{
@@ -101,6 +102,7 @@
 		],
 		"Program": "amdgpu",
 		"SourceFiles": [
+			"fs.c",
 			"main.c"
 		]
 	}
