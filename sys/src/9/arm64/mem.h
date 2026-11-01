@@ -25,6 +25,7 @@
 #define PTLEVELS	(((EVASHIFT-PGSHIFT)+PTSHIFT-1)/PTSHIFT)	
 #define PTLX(v, l)	((((v) & EVAMASK) >> (PGSHIFT + (l)*PTSHIFT)) & ((1 << PTSHIFT)-1))
 #define PGLSZ(l)	(1ULL << (PGSHIFT + (l)*PTSHIFT))
+#define	ELFMACHINE	183	/* GCC port: EM_AARCH64 for port/sysexecelf.c (7c defines no __aarch64__) */
 
 #define PTL1X(v, l)	(L1TABLEX(v, l) | PTLX(v, l))
 #define L1TABLEX(v, l)	(L1TABLE(v, l) << PTSHIFT)

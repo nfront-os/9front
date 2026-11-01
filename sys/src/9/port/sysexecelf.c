@@ -6,8 +6,9 @@
  * supplements) -- not adapted from any other kernel's loader. Lives in
  * port/ and dispatches on EI_CLASS at runtime so the same code serves
  * both pc (ELFCLASS32/EM_386) and pc64 (ELFCLASS64/EM_X86_64), and the
- * arm64 kernels (ELFCLASS64/EM_AARCH64: the machine of the kernel's own
- * compiler, __aarch64__); the two
+ * arm64 kernels (ELFCLASS64/EM_AARCH64: ELFMACHINE in arm64/mem.h; it
+ * was __aarch64__, which only gcc defines: the 7c-built kernel took
+ * x86-64 ELF and refused every arm64 program); the two
  * classes' Ehdr/Phdr layouts differ in field order, not just width
  * (p_flags moves from offset 4 in Elf64_Phdr to offset 24 in
  * Elf32_Phdr), so each field is read at its class-specific offset
@@ -42,8 +43,8 @@ enum {
 	EM_386		= 3,
 	EM_X86_64	= 62,
 	EM_AARCH64	= 183,
-#ifdef __aarch64__
-	EM_64		= EM_AARCH64,
+#ifdef ELFMACHINE
+	EM_64		= ELFMACHINE,	/* mem.h: the kernel's machine, whatever compiler built it */
 #else
 	EM_64		= EM_X86_64,
 #endif
