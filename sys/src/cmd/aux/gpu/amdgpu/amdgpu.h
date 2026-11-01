@@ -8,6 +8,7 @@
 void	amdgpu_options(unsigned long drmdebug, int loglevel);
 int	amdgpu_start(void);	/* the scheduler's and amdgpu's module_init: probes the device; 0 or -errno */
 char	*amdgpu_status(void);	/* amdgpu_freestr */
+int	amdgpu_ih_kick(void);	/* ctl "ih process" */
 void	amdgpu_freestr(char *s);
 void	amdgpu_test_poweroff(void);	/* -X: orderly_poweroff, as at a critical temperature; does not return */
 
@@ -25,6 +26,7 @@ int	amdgpu_bo_free(void *c, int id);
 int	amdgpu_submit(void *c, int id, unsigned int offset, unsigned int ndw, int ip, u64g *k);	/* ip: 0 gfx, 1 compute, 2 sdma */
 int	amdgpu_fence_wait(void *c, u64g k, int query);	/* 1 done, 0 not, <0 none */
 void	amdgpu_fence_count(void *c, u64g *done, u64g *n, int *failed);
+extern int amdgpu_fencetrace;	/* -t */
 #define amdgpu_iserr(p)	((unsigned long)(p) >= (unsigned long)-4095)
 
 /* the display (linux/kms.c, linux/ctx.c) */

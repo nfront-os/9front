@@ -87,12 +87,14 @@ struct gctx {
 	u64	nfence;
 	u64	next;		/* the next address the driver chooses */
 	struct dma_fence	*fence[Nfence];	/* fence k at k % Nfence */
+	ktime_t	tsub[Nfence], tcs[Nfence];	/* -t: before the CS, after it */
 	bool	failed;
 };
 
 static const struct file_operations ctx_fops = { };
 static struct bo	*newbo(struct gctx *c);
 static atomic_t nctx;
+int	amdgpu_fencetrace;	/* -t: where a fence's time goes */
 
 static struct drm_device *
 drmdev(void)
@@ -591,7 +593,9 @@ amdgpu_submit(void *v, int id, u32 offset, u32 ndw, int ip, u64 *k)
 		chunkp[2] = (u64)(uintptr_t)&chunk[2];
 		cs.in.num_chunks = 3;
 	}
+	c->tsub[(c->nfence + 1) % Nfence] = ktime_get();
 	r = ioctl(c, DRM_IOCTL_AMDGPU_CS, &cs);
+	c->tcs[(c->nfence + 1) % Nfence] = ktime_get();
 	kfree(ent);
 	if (r)
 		goto out;
@@ -643,6 +647,14 @@ amdgpu_fence_wait(void *v, u64 k, int query)
 	done = dma_fence_is_signaled(f);
 	if (done && f->error < 0 && f->error != -ECANCELED)
 		c->failed = true;
+	if (amdgpu_fencetrace && done && !query) {
+		ktime_t now = ktime_get(), t0 = c->tsub[k % Nfence];
+
+		pr_info("amdgpu: ctx %d fence %llu: cs %lld us, signalled +%lld us, woken +%lld us\n", c->id, k,
+		    ktime_us_delta(c->tcs[k % Nfence], t0),
+		    test_bit(DMA_FENCE_FLAG_TIMESTAMP_BIT, &f->flags) ? ktime_us_delta(f->timestamp, t0) : -1LL,
+		    ktime_us_delta(now, t0));
+	}
 	dma_fence_put(f);
 	return done;
 }

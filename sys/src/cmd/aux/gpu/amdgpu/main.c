@@ -117,7 +117,7 @@ findgpu(void)
 static void
 usage(void)
 {
-	fprint(2, "usage: %s [-DnSX] [-W secs] [-d drmdebug] [-l loglevel] [-p name=value]... [-g #G/n (default: the first AMD one)] [-s srvname]\n", argv0);
+	fprint(2, "usage: %s [-DnStX] [-W secs] [-d drmdebug] [-l loglevel] [-p name=value]... [-g #G/n (default: the first AMD one)] [-s srvname]\n", argv0);
 	threadexitsall("usage");
 }
 
@@ -163,6 +163,9 @@ threadmain(int argc, char **argv)
 		break;
 	case 'S':
 		noscreen = 1;	/* draw(3)'s screen stays where it is */
+		break;
+	case 't':
+		amdgpu_fencetrace = 1;	/* each fence waited for: where its time went */
 		break;
 	case 'X':
 		poweroff = 1;	/* after the start: the machine goes down */

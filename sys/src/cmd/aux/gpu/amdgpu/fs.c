@@ -394,6 +394,14 @@ fswrite(Req *r)
 	n = tokenize(buf, f, nelem(f));
 	e = nil;
 	switch(KIND(r->fid->file)){
+	case Xctl:
+		if(n == 2 && strcmp(f[0], "ih") == 0 && strcmp(f[1], "process") == 0){
+			x = amdgpu_ih_kick();
+			if(x < 0)
+				e = errstr9(x);
+		}else
+			e = "unknown ctl message";
+		break;
 	case Xctxctl:
 		if(n < 1){
 			respond(r, "empty ctl message");

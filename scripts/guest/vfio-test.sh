@@ -49,11 +49,13 @@ for f in $FW; do
 	done
 done
 
-# the GPU tests (tests/gpu's build: amdctxtest) as /tests
+# the GPU tests (tests/gpu's build: amdctxtest, amdscanout, gputest) and
+# their rc scripts (tests/gpu/amd*.rc: rc /tests/amdall.rc) as /tests
+mkdir -p "$X/tests"
 if [ -d "$ROOT/tests/gpu/root/tests" ]; then
-	mkdir -p "$X/tests"
 	cp "$ROOT/tests/gpu/root/tests"/* "$X/tests/" 2>/dev/null || true
 fi
+cp "$ROOT"/tests/gpu/amd*.rc "$X/tests/" 2>/dev/null || true
 
 # by default: the PCI devices with their BARs (pci -bv), and the first
 # words of the AMD functions' configuration space (vendor 1002)

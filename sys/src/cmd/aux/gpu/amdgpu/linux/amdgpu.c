@@ -26,14 +26,32 @@ amdgpu_options(unsigned long drmdebug, int loglevel)
 	kpi_loglevel = loglevel;
 }
 
+static struct amdgpu_device	*adev(void);
+
 int
 amdgpu_start(void)
 {
 	int r;
 
+	struct amdgpu_device *a;
+
 	if ((r = kpi_init_drm_sched_fence_slab_init()) < 0)
 		return r;
-	return kpi_init_amdgpu_init();
+	if ((r = kpi_init_amdgpu_init()) < 0)
+		return r;
+	/*
+	 * the interrupt ring once more, now that the driver is up: with MSI
+	 * (IH_RB_CNTL.RPTR_REARM) the ring interrupts again only after the
+	 * read pointer was written.  Seen on the RX 7600 in a VFIO guest: the
+	 * one interrupt during the start found the ring empty, the unchanged
+	 * read pointer written back did not re-arm it, and no interrupt came
+	 * after (the fences went by amdgpu's fallback timer, 500 ms each).
+	 * Processing what is there writes the read pointer; the interrupts
+	 * come from then on.
+	 */
+	if ((a = adev()) != NULL && a->irq.installed)
+		amdgpu_ih_process(a, &a->irq.ih);
+	return 0;
 }
 
 static struct amdgpu_device *
@@ -93,6 +111,34 @@ power(char *p, char *e, struct amdgpu_device *a)
 	return p;
 }
 
+void	kpi_irq_counts(unsigned int irq, unsigned long *calls, unsigned long *handled);
+
+/* the interrupt ring: amdgpu's read pointer, the registers, the writeback copy; the handler's runs */
+static char *
+ihstate(char *p, char *e, struct amdgpu_device *adev)
+{
+	struct amdgpu_ih_ring *ih = &adev->irq.ih;
+	unsigned long calls, handled;
+
+	kpi_irq_counts(adev->irq.irq, &calls, &handled);
+	p += scnprintf(p, e - p, "ih rptr %#x, regs rptr %#x wptr %#x, writeback wptr %#x rptr %#x, doorbell %d; irq %d: %lu runs, %lu handled\n",
+	    ih->rptr, RREG32(ih->ih_regs.ih_rb_rptr), RREG32(ih->ih_regs.ih_rb_wptr),
+	    ih->wptr_cpu ? *ih->wptr_cpu : 0, ih->rptr_cpu ? *ih->rptr_cpu : 0, ih->use_doorbell,
+	    adev->irq.irq, calls, handled);
+	return p;
+}
+
+/* ctl "ih process": amdgpu's processing of the interrupt ring once, by hand (diagnosis) */
+int
+amdgpu_ih_kick(void)
+{
+	struct amdgpu_device *a = adev();
+
+	if (!a || !a->irq.installed)
+		return -ENODEV;
+	return amdgpu_ih_process(a, &a->irq.ih) == IRQ_HANDLED ? 0 : -EIO;
+}
+
 /* the chip, its memory and the blocks that came up */
 char *
 amdgpu_status(void)
@@ -119,6 +165,8 @@ amdgpu_status(void)
 	p += scnprintf(p, e - p, "accel %s\n", a->accel_working ? "working" : "not working");
 	if (a->pm.dpm_enabled)
 		p = power(p, e, a);
+	if (a->irq.installed)
+		p = ihstate(p, e, a);
 	for (i = 0; i < a->num_ip_blocks; i++)
 		p += scnprintf(p, e - p, "ip %s valid %d sw %d hw %d late %d\n",
 		    a->ip_blocks[i].version->funcs->name,
