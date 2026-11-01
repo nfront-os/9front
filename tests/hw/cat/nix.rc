@@ -52,7 +52,11 @@ echo '###' zero-copy I/O
 execac -c $ac /tests/ziotest ac
 echo '###' performance counters
 cat '#ε/ctrdesc' >[2=1]
-/tests/pmctest tc $ac
-execac -c $ac /tests/pmctest ac 0
+if(test `{ls '#ε/core0000' >[2]/dev/null | wc -l} -gt 0){
+	/tests/pmctest tc $ac
+	execac -c $ac /tests/pmctest ac 0
+}
+if not
+	skip nix: no performance counters
 if(! grep -s '^panic' /dev/kmesg) ok nix: no panic in kmesg
 if not fail nix: panic in kmesg

@@ -48,13 +48,15 @@ Logs: `hwtest/run<N>/<config>/<step>.log`, `summary.txt`, `kmesg.txt`;
   boot, and the run goes on.
 - A configuration whose kernel hangs while booting: power on, press a key
   when 9boot prints `plan9.ini`, type `hwskip=1` and `boot`: it is logged
-  as `BOOTHANG` and the run goes on (9boot has no boot menu; `hwskip`
-  must also make the kernel ignore the configuration's own options).
+  as `BOOTHANG` and the run goes on (9boot has no boot menu). With
+  `hwskip` the kernel ignores `*nixac` and `*nixkc`; other options of
+  the configuration still apply.
 
 	scripts/hw/collect.py /dev/sdX1-or-image [dir]	# copies hwtest/, prints the summaries
 
 Configurations (`tests/hw/configs`): `default` (all steps), `ncpu1`
-(`*ncpu=1`: boot, guest, stress), `again` (boot after a reset).
+(`*ncpu=1`: boot, guest, stress), `again` (boot after a reset), `nixac1` (`*nixac=1`: nix, big, bench),
+`nixac2kc1` (`*nixac=2`, `*nixkc=1`).
 
 ## The dry run in QEMU
 
@@ -79,4 +81,7 @@ existing image.
 | net | ethernet interfaces listed (not configured), ping and TCP over loopback |
 | stress | all processors a minute on the same floating point sum (one result), a ramfs copy compared, temperatures (`#P/cputemp`), the clock idle and under load (`hwfreq`: APERF/MPERF) |
 | gcc | the native gcc: `gccmk` builds a program from a 9front mkfile, it runs (SKIP without `/$objtype/gnu`) |
+| nix | NIX (with `*nixac`): tests/nix's programs on a TC and the last AC (nixtest, hoc, rc, a killed loop), a TC made an AC at run time and back, semtest, ziotest, pmctest |
+| big | segments of 2 MB pages: bigtest on a TC and the AC |
+| bench | nixbench on a TC and the AC, 4K and 2 MB pages, idle and with the TCs busy (numbers in the log) |
 | hangme | hangs (dry run only) |

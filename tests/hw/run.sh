@@ -71,6 +71,8 @@ check "default: usb (3)" step default usb 3 0
 check "default: net: e1000, ping, tcp (3)" step default net 3 0
 check "default: stress (2, and the clock if QEMU gives APERF)" step default stress '[234]' 0
 check "default: gcc: gccmk builds and runs a program" step default gcc 1 0
+check "nixac1: nix on the AC, none failed" step nixac1 nix '[1-9][0-9]*' '[0-9]*'
+check "nixac1: big, none failed (26)" step nixac1 big 26 0
 check "the internal disk is unchanged" test "$(md5sum < "$DISK")" = "$DISKSUM"
 check "hang: hangme logged as HANG" has hang 'HANG hangme'
 check "hang: the next step ran after the power-off" has hang 'boot: 8 passed, 0 failed'
