@@ -3,14 +3,21 @@
 . "$(dirname "$0")/../lib.sh"
 cd "$ROOT"
 
-# 1. manifests are what the generators produce from 9front's mkfiles
+# 1. manifests are what the generators produce from 9front's mkfiles,
+#    for every arch (objtype=386, arm64: the .386.json/.arm64.json ones),
+#    the kernels' too (genkernel.py pc, arm64; pc64's is hand-made)
 manifests(){
-	local files="sys/src/libc/libc.json sys/src/libc/amd64/build.json
-		$(ls sys/src/lib*/lib*.json) $(find sys/src/cmd -name cmds.json)
-		build.json build.amd64.json build.386.json build.arm64.json"
+	local files="$(ls sys/src/libc/libc*.json sys/src/libc/amd64/build.json)
+		$(ls sys/src/lib*/lib*.json) $(find sys/src/cmd sys/src/ape -name 'cmds*.json')
+		$(ls build*.json) sys/src/9/pc/build.json sys/src/9/arm64/build.json"
 	for f in $files; do cp "$f" "$TMPD/$(echo $f | tr / _)"; done
-	python3 scripts/gen/genlibc.py >/dev/null && python3 scripts/gen/genlibs.py >/dev/null &&
-		python3 scripts/gen/gencmds.py >/dev/null && python3 scripts/gen/genbuild.py >/dev/null || return 1
+	local a
+	for a in amd64 386 arm64; do
+		objtype=$a python3 scripts/gen/genlibc.py >/dev/null && objtype=$a python3 scripts/gen/genlibs.py >/dev/null &&
+			objtype=$a python3 scripts/gen/gencmds.py >/dev/null && objtype=$a python3 scripts/gen/genbuild.py >/dev/null || return 1
+	done
+	objtype=386 python3 scripts/gen/genkernel.py pc >/dev/null &&
+		objtype=arm64 python3 scripts/gen/genkernel.py arm64 >/dev/null || return 1
 	local bad=0
 	for f in $files; do
 		if ! cmp -s "$f" "$TMPD/$(echo $f | tr / _)"; then
@@ -18,9 +25,11 @@ manifests(){
 			cp "$TMPD/$(echo $f | tr / _)" "$f"	# leave the tree as it was
 		fi
 	done
+	# a generator that made a file not checked in
+	[ -z "$(git status --porcelain -- '*.json' | grep '^??')" ] || { git status --porcelain -- '*.json' | grep '^??'; bad=1; }
 	return $bad
 }
-check "manifests match scripts/gen/gen{libc,libs,cmds,build}.py" manifests
+check "manifests match scripts/gen/gen{libc,libs,cmds,build,kernel}.py (amd64, 386, arm64)" manifests
 
 # 2. no 32-bit ulong compared against the 64-bit ~0UL (scripts/fix/fixulongmax.py)
 ulongmax(){
