@@ -45,6 +45,13 @@ Called by `build.exe` (Pre/Post steps); rarely run by hand.
 | `clean.sh` | remove the build's files from the source dirs (`-i`: installed files too). `scripts/build/clean.sh` |
 | `rc/*.rc` | the same steps in rc, for `build.exe` running on 9front itself (self-hosting): `build.exe` maps `bash …/X.sh` and `python3 …/X.py` to `rc …/rc/X.rc`. `lib.rc` holds the shared helpers (`hostcc`: helper programs with the native gcc, `bin2c`, `mkvar`) |
 
+## hw/ — the hardware test stick (tests/hw/README.md)
+
+| script | what it does |
+|---|---|
+| `mkstick.sh` | build the stick image (9fat with logs, hjfs root with the test runner and test programs) in a QEMU guest; `PACK=1`: a hand-off dir (packed image, collect.py, HOWTO.txt with the dd line). `scripts/hw/mkstick.sh [image]` |
+| `collect.py` | copy `hwtest/` from the stick's 9fat (or the image) and print the summaries. `scripts/hw/collect.py /dev/sdX [dir]` |
+
 ## guest/ — QEMU guest, install media, boot loaders
 
 | script | what it does |

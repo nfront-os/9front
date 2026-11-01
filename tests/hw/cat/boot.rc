@@ -1,0 +1,24 @@
+#!/bin/rc
+# boot: the system came up (tests/boot's checks, without QEMU's devices)
+fn ok { echo ok $* }
+fn fail { echo FAIL $* }
+n=`{cat /dev/sysstat | wc -l}
+if(test $n -ge 1) ok processors active: $n
+if not fail no processor in /dev/sysstat
+n=`{ls /bin | wc -l}
+if(test $n -gt 100) ok ls /bin: $n
+if not fail ls /bin: $n
+y=`{date -i | sed 's,-.*,,'}
+if(test $y -ge 2025) ok RTC year $y
+if not fail RTC year $y
+n=`{ps | wc -l}
+if(test $n -gt 10) ok ps: $n processes
+if not fail ps: $n processes
+if(~ `{cat /dev/sysname} hwtest) ok sysname hwtest
+if not fail sysname `{cat /dev/sysname}
+if(~ $bootargs local!/dev/sdU*) ok root from a USB disk: $bootargs
+if not fail root not from a USB disk: $bootargs
+if(! grep -s '^panic' /dev/kmesg) ok no panic in kmesg
+if not fail panic in kmesg
+if(~ `{echo abc | tr a-z A-Z} ABC) ok rc pipelines
+if not fail rc pipelines

@@ -1,0 +1,3 @@
+default	sysinfo,boot	
+hang	hangme,boot	hwtestcfg=hang
+again	boot	hwtestcfg=again

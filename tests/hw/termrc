@@ -1,0 +1,5 @@
+#!/bin/rc
+# /cfg/hwtest/termrc: termrc runs this on the hardware test stick
+# (sysname=hwtest); the tests only with hwtest in plan9.ini
+if(! ~ $#hwtest 0)
+	rc /rc/bin/hwtest

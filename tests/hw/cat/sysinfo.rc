@@ -1,0 +1,26 @@
+#!/bin/rc
+# sysinfo: what the machine is, into the log
+fn sect { echo; echo '###' $* }
+sect sysname; cat /dev/sysname; echo
+sect kernel; cat /dev/osversion; echo
+sect plan9.ini
+for(v in '#ec'/*){
+	# rc: no `{} in a concatenation, it may be empty
+	echo -n `{basename $v}^'='
+	cat $v
+	echo
+}
+sect cpus; cat /dev/sysstat
+sect cpuid; aux/cpuid >[2=1]
+sect archctl; cat '#P/archctl' >[2=1]
+sect memory; cat /dev/swap >[2=1]
+sect pci; pci -v >[2=1]
+sect disks; for(d in /dev/sd*) { echo $d; grep -i 'inquiry|geometry' $d/ctl >[2]/dev/null; ls $d >[2]/dev/null }
+sect usb; cat /dev/usb/ctl >[2=1]; ls /dev/usb >[2=1]
+sect ether; for(e in /net/ether*) { echo $e; cat $e/addr >[2]/dev/null; echo }
+sect irqs; cat '#P/irqalloc' >[2=1]
+sect acpi; ls '#P' >[2=1]
+sect nixctl; cat /dev/nixctl >[2=1]
+sect kmesg; cat /dev/kmesg
+echo
+echo ok sysinfo

@@ -1,0 +1,84 @@
+#!/bin/rc
+# Make the hardware test stick on the disk sdC0, run inside the guest by
+# scripts/hw/mkstick.sh: scripts/guest/boot/mkdisk.rc's installation plus,
+# from /n/src9/hwtest (staged by mkstick.sh), the test runner
+# (tests/hw/hwtest.rc), its categories, the guest test programs and a
+# plan9.ini for an unattended boot from the USB stick (bootpart=fs: see
+# bootrc). The machine's internal disks are never touched by the tests'
+# boot: bootrc looks for the partition on USB disks only.
+rfork en
+fn fail{
+	echo mkstick: failed: $*
+	exit failed
+}
+
+d=/dev/sdC0
+s=newfs
+proto=/n/src9/sys/lib/sysconfig/proto/distproto
+bootproto=/n/src9/sys/lib/sysconfig/proto/9bootproto
+gccproto=/n/src9/gccproto
+kernel=/n/src9/amd64/9pc64
+hw=/n/src9/hwtest
+
+test -f $d/data || fail no disk $d
+if(! test -d /n/src9/amd64)
+	srv tcp!10.0.2.101!5641 src9 && mount -nc /srv/src9 /n/src9 || fail mount src9
+test -f $hw/hwtest.rc || fail no $hw
+
+> /env/plan9.ini {
+	echo 'bootfile='^`{basename $kernel}
+	echo 'bootpart=fs'
+	echo 'user=glenda'
+	echo 'service=terminal'
+	echo 'sysname=hwtest'
+	echo 'hwtest=1'
+	if(test -f $hw/console)
+		cat $hw/console
+}
+fatfiles=(/n/src9/386/9bootfat /env/plan9.ini $kernel)
+
+disk/mbr $d/data || fail mbr
+disk/mbr -m /n/src9/386/mbr $d/data || fail mbr -m
+disk/fdisk -baw $d/data || fail fdisk
+disk/prep -bw -a^(9fat nvram fs) $d/plan9 || fail prep
+disk/format -b /n/src9/386/pbs -d -r 2 $d/9fat $fatfiles || fail format
+
+# hwtest/ on the 9fat: configurations, the base plan9.ini, how to skip
+dossrv dosstick
+mount -c /srv/dosstick /n/9fat $d/9fat || fail mount 9fat
+mkdir -p /n/9fat/hwtest
+cp $hw/configs /n/9fat/hwtest/configs
+cp /env/plan9.ini /n/9fat/hwtest/plan9.base
+cp $hw/README.txt /n/9fat/hwtest/README.txt
+unmount /n/9fat
+
+hjfs -f $d/fs -n $s -S -r || fail hjfs
+{
+	echo echo on
+	echo create /dist sys sys 775 d
+	echo create /usr sys sys 775 d
+	user=glenda
+	echo newuser $user
+	echo newuser adm +$user
+	echo newuser sys +$user
+	echo newuser upas +$user
+	echo echo off
+	sleep 1
+} >> /srv/$s.cmd
+mount -N -c /srv/$s /n/newfs || fail mount newfs
+disk/mkfs -z 4096 -U -s /n/src9 -d /n/newfs <{cat $proto $bootproto $gccproto}
+
+# the runner, its categories and the test programs
+cp $hw/hwtest.rc /n/newfs/rc/bin/hwtest || fail runner
+chmod 775 /n/newfs/rc/bin/hwtest
+mkdir -p /n/newfs/cfg/hwtest /n/newfs/sys/lib/hwtest /n/newfs/tests
+cp $hw/termrc /n/newfs/cfg/hwtest/termrc
+for(f in $hw/cat/*)
+	cp $f /n/newfs/sys/lib/hwtest/
+chmod 775 /n/newfs/cfg/hwtest/termrc /n/newfs/sys/lib/hwtest/*.rc
+if(test -d $hw/tests)
+	dircp $hw/tests /n/newfs/tests
+echo sync >> /srv/$s.cmd
+echo halt >> /srv/$s.cmd
+while(test -e /srv/$s.cmd) sleep 1
+echo mkstick: done

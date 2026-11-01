@@ -1,0 +1,5 @@
+#!/bin/rc
+# hangme: hangs; tests/hw/run.sh powers the VM off here (only in
+# configs.qemu, never on real hardware)
+echo hanging
+sleep 1000000

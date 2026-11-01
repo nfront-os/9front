@@ -1,0 +1,128 @@
+#!/bin/rc
+# hwtest: the tests of tests/hw on this machine (tests/hw/README.md),
+# started by /cfg/hwtest/termrc when plan9.ini has hwtest=1. Logs go to
+# hwtest/ on the 9fat of the USB stick we booted from:
+#	hwtest/state		run, configuration, phase, step
+#	hwtest/configs		name<tab>steps<tab>plan9.ini lines (; separated)
+#	hwtest/plan9.base	plan9.ini without the configuration's lines
+#	hwtest/<run>/<config>/<step>.log, summary.txt, done
+# After the last step of a configuration plan9.ini becomes the next one
+# and the machine resets; after the last one plan9.ini is the base again
+# (without hwtest) and the machine halts. A step running when the machine
+# died is a HANG at the next boot; hwskip=1 typed at the 9boot console
+# skips a configuration that hangs while booting (BOOTHANG).
+rfork e
+if(~ $#hwtest 0)
+	exit
+L=/sys/lib/hwtest
+fat=/n/9fat
+H=$fat/hwtest
+
+fn say { echo hwtest: $* }
+
+# the 9fat of the disk we booted from: bootargs is local!/dev/sdXX/fs
+dev=`{echo $bootargs | sed 's,^local!,,; s,/[^/]*$,,'}
+if(! test -f $dev/9fat){
+	say no 9fat on $dev, nothing logged
+	exit no9fat
+}
+if(! test -e /srv/dos)
+	dossrv
+mount -c /srv/dos $fat $dev/9fat || exit nomount
+if(! test -f $H/configs){
+	say no $H/configs
+	exit noconfigs
+}
+# the clock: termrc starts timesync only after us, and there is no network
+if(test `{date -n} -lt 1000000000){
+	aux/timesync -r
+	sleep 2
+}
+
+# state: run cfg phase step
+if(! test -f $H/state){
+	n=0
+	if(test -f $H/runs)
+		n=`{cat $H/runs}
+	n=`{echo $n + 1 | hoc}
+	echo $n > $H/runs
+	echo $n 1 booting > $H/state
+}
+st=`{cat $H/state}
+run=$st(1) cfg=$st(2) phase=$st(3) step=$st(4)
+nl=`{wc -l < $H/configs}
+line=`{sed -n $cfg^p $H/configs | sed 's/	/ /g'}
+cname=$line(1)
+steps=`{sed -n $cfg^p $H/configs | awk -F'	' '{print $2}'}
+R=$H/run$run/$cname
+mkdir -p $H/run$run $R
+touch $R/done $R/summary.txt
+
+fn summary { echo $* >> $R/summary.txt; say $cname: $* }
+
+fn nextcfg {
+	n=`{echo $cfg + 1 | hoc}
+	if(test $n -le $nl){
+		vars=`{sed -n $n^p $H/configs | awk -F'	' '{print $3}'}
+		{ cat $H/plan9.base; echo $vars | tr ';' '\012' | grep -v '^$' } > $fat/plan9.ini
+		echo $run $n booting > $H/state
+		next=`{sed -n $n^p $H/configs | awk -F'	' '{print $1}'}
+		say next configuration $next: resetting
+		say 'if it hangs while booting: power on, press a key at 9boot, type hwskip=1 and boot'
+		unmount $fat
+		sleep 2
+		echo reboot > '#c/reboot'
+		exit reboot
+	}
+	grep -v '^hwtest=' $H/plan9.base > $fat/plan9.ini
+	echo $run $cfg finished > $H/state
+	say finished run $run: logs in hwtest/run$run on the 9fat
+	cat $H/run$run/*/summary.txt
+	unmount $fat
+	exit
+}
+
+switch($phase){
+case booting
+	summary booted: `{cat /dev/sysname} `{cat /dev/sysstat | wc -l} cpus
+	if(! ~ $#hwskip 0){
+		summary BOOTHANG $cname
+		nextcfg
+	}
+case running
+	# the machine died during $step
+	if(! ~ $#step 0 && ! grep -s '^'$step'$' $R/done){
+		summary HANG $step
+		echo $step >> $R/done
+	}
+case finished
+	# a new run
+	rm -f $H/state
+	exec rc /rc/bin/hwtest
+}
+
+for(s in `{echo $steps | tr ',' ' '}){
+	if(! grep -s '^'$s'$' $R/done && test -f $L/$s.rc){
+		echo $run $cfg running $s > $H/state
+		say $cname: $s
+		t=600
+		if(test -f $L/$s.timeout)
+			t=`{cat $L/$s.timeout}
+		@{rfork n; rc $L/$s.rc >$R/$s.log >[2=1]} &
+		p=$apid
+		{sleep $t; echo kill > /proc/$p/notepg; echo TIMEOUT after $t s >> $R/$s.log} &
+		w=$apid
+		wait $p
+		echo kill > /proc/$w/note >[2]/dev/null
+		npass=`{grep -c '^ok ' $R/$s.log}
+		nfail=`{grep -c '^FAIL ' $R/$s.log}
+		nskip=`{grep -c '^SKIP ' $R/$s.log}
+		grep '^(FAIL|SKIP) ' $R/$s.log | sed 's/^/	/' >> $R/summary.txt
+		if(grep -s '^TIMEOUT' $R/$s.log)
+			summary TIMEOUT $s
+		summary $s: $npass passed, $nfail failed, $nskip skipped
+		echo $s >> $R/done
+	}
+}
+cat /dev/kmesg > $R/kmesg.txt
+nextcfg

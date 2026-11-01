@@ -1,0 +1,2 @@
+default	sysinfo,boot	
+again	boot	hwtestcfg=again
