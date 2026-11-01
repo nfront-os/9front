@@ -1,5 +1,4 @@
 # files Linux's Makefiles build that we leave out (census.py, the build):
 # helpers nothing we build calls; GPL, so we would have to write them
 drivers/gpu/drm/drm_simple_kms_helper.c	simple display pipes: for small drivers, not i915
-drivers/gpu/drm/drm_gem_framebuffer_helper.c	GEM framebuffers: i915 has its own (intel_fb.c); intel_fbdev.c is not built
 drivers/gpu/drm/drm_bridge_connector.c	bridge connectors: for SoC display bridges
