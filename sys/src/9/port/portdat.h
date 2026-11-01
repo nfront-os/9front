@@ -69,6 +69,7 @@ typedef int    Devgen(Chan*, char*, Dirtab*, int, int, Dir*);
 #pragma incomplete Queue
 #pragma incomplete Timers
 #pragma incomplete Tos
+#pragma incomplete Nixpctl	/* NIX: complete only in port/nixcall.c; kencc's -T signatures differ otherwise */
 
 #include <fcall.h>
 

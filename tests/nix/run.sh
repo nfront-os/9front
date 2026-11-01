@@ -34,7 +34,7 @@ boot(){
 		'execac /bin/echo any' \
 		"${par[@]}" \
 		"execac -c $ac /bin/rc -c 'while(){}' & l=\$apid; sleep 1; echo stop > /proc/\$l/ctl; st=\`{cat /proc/\$l/status}; echo stopped \$st(3); r=\`{cat /proc/\$l/regs | wc -c}; echo regs \$r; echo start > /proc/\$l/ctl; sleep 1; st=\`{cat /proc/\$l/status}; c=\`{cat /proc/\$l/core}; echo started \$st(3) core \$c(1); echo kill > /proc/\$l/note" \
-		"execac -c $ac /bin/rc -c 'while(){ cat /dev/null }' & l=\$apid; sleep 1; ratrace \$l > /tmp/rt >[2=1] & t=\$apid; sleep 2; echo kill > /proc/\$t/note; echo kill > /proc/\$l/ctl; sleep 1; n=\`{grep -c ' RFORK ' /tmp/rt}; echo traced \$n; grep '^$ac ' /dev/nixctl" \
+		"execac -c $ac /bin/rc -c 'while(){ cat /dev/null }' & l=\$apid; sleep 1; ratrace \$l > /tmp/rt >[2=1] & t=\$apid; sleep 2; echo kill > /proc/\$t/note; echo kill > /proc/\$l/ctl; sleep 1; n=\`{grep -c ' Rfork ' /tmp/rt}; echo traced \$n; grep '^$ac ' /dev/nixctl" \
 		'cat /dev/nixctl' \
 		"echo ac $rt > /dev/nixctl; grep -c ' AC\$' /dev/sysstat" \
 		"execac -c $rt /tests/nixtest $rt | grep -c '^ok'" \
