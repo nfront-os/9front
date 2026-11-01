@@ -181,7 +181,9 @@ if [ -n "$SRC9" ]; then
 	fwd=$fwd,guestfwd=tcp:$SRC9ADDR:5641-tcp:127.0.0.1:$SRC9_PORT
 fi
 disk=()
-[ -z "$DISK" ] || disk=(-drive "file=$DISK,format=raw,if=ide,index=0,media=disk")
+# the kernel CD boots first: the BIOS would try a disk with a boot
+# signature (any MBR, a GPT's protective one) before the CD
+[ -z "$DISK" ] || disk=(-drive "file=$DISK,format=raw,if=ide,index=0,media=disk" -boot order=d)
 
 if [ $objtype = arm64 ]; then
 	# pciqemu.c expects the low PCIe ECAM window (0x3f000000): highmem=off

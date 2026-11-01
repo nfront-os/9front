@@ -74,7 +74,7 @@ existing image.
 | sysinfo | kmesg, PCI, cpuid, archctl, sysstat, memory, disks, USB, ether, IRQs |
 | boot | the system came up: processors, /bin, RTC, ps, sysname, root from USB, no panic |
 | guest | tests/guest's unit tests (libc, libthread, auth, mp, pak, APE): `/tests/run` |
-| disk | internal disks, only read: inquiry, size, partition tables (`fdisk -r`, `prep -r`), 64 MB read at start, middle, end, timed |
+| disk | internal disks, only read: inquiry, size, partition tables (`fdisk -r`, `edisk -r` for GPT, `prep -r`), 64 MB read at start, middle, end, timed |
 | usb | controllers and devices (`usbtree`), the stick as storage, 64 MB read from it |
 | net | ethernet interfaces listed (not configured), ping and TCP over loopback |
 | stress | all processors a minute on the same floating point sum (one result), a ramfs copy compared, temperatures (`#P/cputemp`) |

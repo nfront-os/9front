@@ -20,16 +20,16 @@ fi
 DISK=$CLI_DIR/hwtest-dryrun-disk.img
 python3 - "$DISK" <<'PY'
 import sys
-# 128 MB with an MBR: one partition (type 0x83), a pattern in every MB
+# 256 MB with an MBR: one partition (type 0x83), a pattern in every MB
 f = open(sys.argv[1], 'wb')
 mbr = bytearray(512)
-mbr[446:462] = bytes([0, 0, 0, 0, 0x83, 0, 0, 0]) + (2048).to_bytes(4, 'little') + (260096).to_bytes(4, 'little')
+mbr[446:462] = bytes([0, 0, 0, 0, 0x83, 0, 0, 0]) + (2048).to_bytes(4, 'little') + (522240).to_bytes(4, 'little')
 mbr[510:512] = b'\x55\xaa'
 f.write(mbr)
-for i in range(128):
+for i in range(256):
 	f.seek(i*1024*1024 + 4096)
 	f.write(b'hwtest %d\n' % i)
-f.truncate(128*1024*1024)
+f.truncate(256*1024*1024)
 PY
 DISKSUM=$(md5sum < "$DISK")
 QPID=
