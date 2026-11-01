@@ -19,7 +19,9 @@
  *				it through BAR 0 (the first 256 MB without a
  *				resized BAR); the client attaches BAR 0's
  *				write-combining segment (gpu(3)) and finds the
- *				object at its offset there
+ *				object at its offset there.  Not always valid in
+ *				the VM, so that it can go to the display (amdgpu
+ *				exports no such object): each CS lists it
  *	bind id gpuaddr		GEM_VA: unmapped, mapped there instead
  *	submit id offset ndw ip	CS of one IB, ndw dwords at offset in the
  *				object, on ip (0 gfx, 1 compute, 2 sdma),
@@ -280,7 +282,8 @@ amdgpu_bo_new(void *v, u64 size, u64 *gpup, int vram, int *id, char *seg, int ns
 		.in.bo_size = PAGE_ALIGN(size),
 		.in.alignment = PAGE_SIZE,
 		.in.domains = vram ? AMDGPU_GEM_DOMAIN_VRAM : AMDGPU_GEM_DOMAIN_GTT,
-		.in.domain_flags = AMDGPU_GEM_CREATE_CPU_ACCESS_REQUIRED | AMDGPU_GEM_CREATE_VM_ALWAYS_VALID,
+		.in.domain_flags = AMDGPU_GEM_CREATE_CPU_ACCESS_REQUIRED |
+		    (vram ? 0 : AMDGPU_GEM_CREATE_VM_ALWAYS_VALID),
 	};
 	struct amdgpu_device *adev;
 	struct drm_gem_object *gobj;
@@ -493,12 +496,14 @@ amdgpu_submit(void *v, int id, u32 offset, u32 ndw, int ip, u64 *k)
 	struct gctx *c = v;
 	struct drm_amdgpu_cs_chunk_ib ib = { };
 	struct drm_amdgpu_cs_chunk_sem out = { };
-	struct drm_amdgpu_cs_chunk chunk[2];
-	u64 chunkp[2];
+	struct drm_amdgpu_bo_list_in list = { };
+	struct drm_amdgpu_bo_list_entry *ent = NULL;
+	struct drm_amdgpu_cs_chunk chunk[3];
+	u64 chunkp[3];
 	union drm_amdgpu_cs cs = { };
 	struct dma_fence *f;
 	struct bo *b;
-	int r;
+	int i, n, r;
 
 	if (ip != AMDGPU_HW_IP_GFX && ip != AMDGPU_HW_IP_COMPUTE && ip != AMDGPU_HW_IP_DMA)
 		return -EINVAL;
@@ -532,7 +537,30 @@ amdgpu_submit(void *v, int id, u32 offset, u32 ndw, int ip, u64 *k)
 	cs.in.ctx_id = c->ctxid;
 	cs.in.num_chunks = 2;
 	cs.in.chunks = (u64)(uintptr_t)chunkp;
+	/* the objects not always valid in the VM (VRAM ones), as Mesa lists them */
+	for (i = n = 0; i < c->nbo; i++)
+		if (c->bo[i].used && c->bo[i].vram && c->bo[i].gpu)
+			n++;
+	if (n) {
+		ent = kcalloc(n, sizeof(*ent), GFP_KERNEL);
+		if (!ent) {
+			r = -ENOMEM;
+			goto out;
+		}
+		for (i = n = 0; i < c->nbo; i++)
+			if (c->bo[i].used && c->bo[i].vram && c->bo[i].gpu)
+				ent[n++].bo_handle = c->bo[i].handle;
+		list.bo_number = n;
+		list.bo_info_size = sizeof(*ent);
+		list.bo_info_ptr = (u64)(uintptr_t)ent;
+		chunk[2].chunk_id = AMDGPU_CHUNK_ID_BO_HANDLES;
+		chunk[2].length_dw = sizeof(list) / 4;
+		chunk[2].chunk_data = (u64)(uintptr_t)&list;
+		chunkp[2] = (u64)(uintptr_t)&chunk[2];
+		cs.in.num_chunks = 3;
+	}
 	r = ioctl(c, DRM_IOCTL_AMDGPU_CS, &cs);
+	kfree(ent);
 	if (r)
 		goto out;
 	/* the syncobj holds the submission's fence now */
