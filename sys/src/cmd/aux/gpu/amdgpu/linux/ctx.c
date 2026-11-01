@@ -182,7 +182,7 @@ unpin(struct amdgpu_bo *abo)
 		amdgpu_bo_unpin(abo);
 		amdgpu_bo_unreserve(abo);
 	}
-	amdgpu_bo_unref(&abo);
+	drm_gem_object_put(&abo->tbo.base);	/* drm_gem_object_lookup's: a GEM reference, not TTM's */
 }
 
 static void
@@ -286,10 +286,12 @@ amdgpu_bo_new(void *v, u64 size, u64 *gpup, int *id, char *seg, int nseg, u64 *v
 		goto out;
 	}
 	r = ioctl(c, DRM_IOCTL_AMDGPU_GEM_CREATE, &cr);
-	if (r)
+	if (r) {
+		pr_warn("amdgpu: ctx %d: bo of %llu bytes: GEM_CREATE: error %d\n", c->id, size, r);
 		goto out;
+	}
 	b->handle = cr.out.handle;
-	b->size = cr.in.bo_size;
+	b->size = PAGE_ALIGN(size);	/* not cr.in: the union holds the reply now */
 	gobj = drm_gem_object_lookup(c->file, b->handle);
 	if (!gobj) {
 		r = -ENOENT;
@@ -302,17 +304,21 @@ amdgpu_bo_new(void *v, u64 size, u64 *gpup, int *id, char *seg, int nseg, u64 *v
 		goto put;
 	r = amdgpu_bo_pin(b->abo, AMDGPU_GEM_DOMAIN_GTT);
 	amdgpu_bo_unreserve(b->abo);
-	if (r)
+	if (r) {
+		pr_warn("amdgpu: ctx %d: bo %u: pin in GTT: error %d\n", c->id, b->handle, r);
 		goto put;
+	}
 	tt = b->abo->tbo.ttm;
 	n = b->size >> PAGE_SHIFT;
 	if (!tt || !tt->pages || tt->num_pages < n) {
+		pr_warn("amdgpu: ctx %d: bo %u: no pages in GTT\n", c->id, b->handle);
 		r = -EIO;
 		goto unpin;
 	}
 	snprintf(b->seg, sizeof(b->seg), "amdgpu.%d.%d.%u", p9_getpid(), c->id, b->handle);
 	b->va = (unsigned long)kpi_alias_pages(b->seg, tt->pages, n, false);
 	if (!b->va) {
+		pr_warn("amdgpu: ctx %d: bo %u: no alias segment %s\n", c->id, b->handle, b->seg);
 		b->seg[0] = 0;
 		r = -ENOMEM;
 		goto unpin;
@@ -345,7 +351,8 @@ unpin:
 	b->abo = NULL;
 	goto close;
 put:
-	amdgpu_bo_unref(&b->abo);
+	drm_gem_object_put(&b->abo->tbo.base);
+	b->abo = NULL;
 close:
 	{
 		struct drm_gem_close cl = { .handle = b->handle };
