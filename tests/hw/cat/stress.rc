@@ -1,11 +1,22 @@
 #!/bin/rc
 # stress: every processor busy for about a minute with the same
 # floating point sum (each must give the same result), 32 MB in a ramfs
-# copied and compared; the temperatures before and after
+# copied and compared; the temperatures before and after, the clock
+# idle and under load (tests/hw/src/hwfreq.c)
 fn ok { echo ok $* }
 fn fail { echo FAIL $* }
 fn temp { cat '#P/cputemp' >[2]/dev/null | sed 8q }
 echo '###' temperatures before; temp
+# the clock each processor runs at (APERF/MPERF; 9front sets no P-state)
+fn clock {
+	if(test -x /tests/hwfreq){
+		/tests/hwfreq -l $1 > /tmp/hwfreq >[2=1]
+		cat /tmp/hwfreq
+		f=`{awk '$3 ~ /^[0-9]+$/ {print $3}' /tmp/hwfreq}
+		if(! ~ $#f 0) ok stress: clock $1: $f MHz
+	}
+}
+echo '###' clock idle; clock idle
 ncpu=`{cat /dev/sysstat | wc -l}
 rm -f /tmp/stress.*
 t0=`{date -n}
@@ -19,6 +30,7 @@ x' | hoc > /tmp/stress.$i
 }
 sleep 30
 echo '###' load after 30 s; cat /dev/sysstat
+echo '###' clock under load; clock load
 wait
 r=`{cat /tmp/stress.* | sort -u}
 if(~ $#r 1)

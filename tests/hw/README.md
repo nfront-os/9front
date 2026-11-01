@@ -77,6 +77,6 @@ existing image.
 | disk | internal disks, only read: inquiry, size, partition tables (`fdisk -r`, `edisk -r` for GPT, `prep -r`), 64 MB read at start, middle, end, timed |
 | usb | controllers and devices (`usbtree`), the stick as storage, 64 MB read from it |
 | net | ethernet interfaces listed (not configured), ping and TCP over loopback |
-| stress | all processors a minute on the same floating point sum (one result), a ramfs copy compared, temperatures (`#P/cputemp`) |
+| stress | all processors a minute on the same floating point sum (one result), a ramfs copy compared, temperatures (`#P/cputemp`), the clock idle and under load (`hwfreq`: APERF/MPERF) |
 | gcc | the native gcc: `gccmk` builds a program from a 9front mkfile, it runs (SKIP without `/$objtype/gnu`) |
 | hangme | hangs (dry run only) |

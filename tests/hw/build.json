@@ -1,0 +1,20 @@
+[
+	{
+		"Name": "hw-tests",
+		"Include": [
+			"/$ARCH/cflags.json"
+		],
+		"Install": "/tests/hw/root/tests/",
+		"Oflags": [
+			"--entry=_main"
+		],
+		"Libs": [
+			"--start-group",
+			"/$ARCH/lib.gcc/libc.a",
+			"--end-group"
+		],
+		"SourceFilesCmd": [
+			"src/hwfreq.c"
+		]
+	}
+]

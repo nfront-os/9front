@@ -69,7 +69,7 @@ check "default: guest unit tests, none failed" step default guest '[1-9][0-9]*' 
 check "default: disk: the IDE disk read (5; QEMU's empty CD skipped)" step default disk 5 '[01]'
 check "default: usb (3)" step default usb 3 0
 check "default: net: e1000, ping, tcp (3)" step default net 3 0
-check "default: stress (2)" step default stress 2 0
+check "default: stress (2, and the clock if QEMU gives APERF)" step default stress '[234]' 0
 check "default: gcc: gccmk builds and runs a program" step default gcc 1 0
 check "the internal disk is unchanged" test "$(md5sum < "$DISK")" = "$DISKSUM"
 check "hang: hangme logged as HANG" has hang 'HANG hangme'
