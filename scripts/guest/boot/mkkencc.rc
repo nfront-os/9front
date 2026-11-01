@@ -38,8 +38,15 @@ fn mkvar{
 dirs=(`{mkvar LIBS} `{mkvar SUBSYS} `{mkvar CMDS})
 if(~ $1 kernel arm64)	# the libraries and the kernel (its bootfs: the guest's gcc-built programs)
 	dirs=(`{mkvar LIBS})
-if(~ $1 arm64)	# the arm64 kernel, cross: the libraries for it with 7c/7a
+if(~ $1 arm64){	# the arm64 kernel, cross: the libraries for it with 7c/7a
+	# libc's ucd builds mkrunetype for the build machine ($cputype,
+	# 6l): it needs the kencc libc of amd64 first
+	echo mkkencc: dir libc '(amd64, for the host tools)'
+	@{cd libc && mk -k install >[2=1]}
+	if(! ~ $status '')
+		echo mkkencc: status libc amd64 $status
 	objtype=arm64
+}
 echo mkkencc: mk install $dirs
 bad=()
 for(i in $dirs){
