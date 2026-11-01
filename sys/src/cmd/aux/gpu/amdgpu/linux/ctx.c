@@ -29,6 +29,21 @@
  *	free id			GEM_VA unmap, GEM_CLOSE, after the object's
  *				segment is revoked in every process
  *	scanout id w h stride	the object (VRAM) on the display (kms.c)
+ *
+ * And amdgpu's ioctls themselves, as a process makes them on Linux
+ * (libdrm_amdgpu, Mesa's RADV): the context's arena is memory at one
+ * address in the client and here (an alias segment both attach at its
+ * place); the client puts an ioctl's structure and all it points to
+ * there and names the command and the address; drm_ioctl runs with the
+ * proc's user window on the arena, so that the ioctl reaches nothing
+ * else of ours (copy_from_user, access_ok: kpi/obsd/systm.c).
+ *
+ *	arena			the arena (made at the first request)
+ *	ioctl cmd addr		(the ioctl file) drm_ioctl, its result
+ *	map handle		the processor's view of an object the client
+ *				made: GTT pinned, an alias segment; VRAM in one
+ *				piece where BAR 0 shows it
+ *	unmap handle
  */
 #include <linux/kernel.h>
 #include <linux/slab.h>
@@ -89,7 +104,23 @@ struct gctx {
 	struct dma_fence	*fence[Nfence];	/* fence k at k % Nfence */
 	ktime_t	tsub[Nfence], tcs[Nfence];	/* -t: before the CS, after it */
 	bool	failed;
+	char	arenaseg[32];		/* the arena: at arena in both */
+	void	*arena;
+	struct page	**arenapages;
+	unsigned int	narena;
+	struct list_head	maps;	/* the client's objects it maps (struct map) */
 };
+
+/* an object of the client's (made by its ioctls) that it has a view of */
+struct map {
+	struct list_head	node;
+	u32	handle;
+	struct amdgpu_bo	*abo;	/* pinned, a GEM reference of ours */
+	bool	vram;
+	char	seg[32];
+};
+
+enum { Arenapages = 1024 };	/* 4 MB */
 
 static const struct file_operations ctx_fops = { };
 static struct bo	*newbo(struct gctx *c);
@@ -139,6 +170,7 @@ amdgpu_ctx_new(int *id)
 	if (!c)
 		return ERR_PTR(-ENOMEM);
 	mutex_init(&c->lock);
+	INIT_LIST_HEAD(&c->maps);
 	c->filp = kpi_alloc_file(NULL, &ctx_fops, NULL, O_RDWR);
 	if (IS_ERR(c->filp)) {
 		r = PTR_ERR(c->filp);
@@ -220,6 +252,8 @@ bofree(struct gctx *c, struct bo *b)
 	memset(b, 0, sizeof(*b));
 }
 
+static void unmap(struct gctx *c, struct map *m);
+
 void
 amdgpu_ctx_free(void *v)
 {
@@ -236,6 +270,14 @@ amdgpu_ctx_free(void *v)
 		if (c->bo[i].used)
 			bofree(c, &c->bo[i]);
 	kfree(c->bo);
+	while (!list_empty(&c->maps))
+		unmap(c, list_first_entry(&c->maps, struct map, node));
+	if (c->arena) {
+		p9_segfree(c->arenaseg, c->arena);	/* the client's view revoked */
+		for (i = 0; i < c->narena; i++)
+			__free_page(c->arenapages[i]);
+		kfree(c->arenapages);
+	}
 	closefile(c);	/* amdgpu_driver_postclose_kms: the contexts, the VM, the syncobjs */
 	kfree(c);
 }
@@ -674,4 +716,181 @@ amdgpu_fence_count(void *v, u64 *done, u64 *n, int *failed)
 	*n = c->nfence;
 	*failed = c->failed;
 	mutex_unlock(&c->lock);
+}
+
+/* the arena: its segment, address and size for the client */
+int
+amdgpu_arena(void *v, char *seg, int nseg, u64 *va, u64 *size)
+{
+	struct gctx *c = v;
+	unsigned int i;
+	int r = 0;
+
+	mutex_lock(&c->lock);
+	if (!c->arena) {
+		c->arenapages = kcalloc(Arenapages, sizeof(*c->arenapages), GFP_KERNEL);
+		if (!c->arenapages) {
+			r = -ENOMEM;
+			goto out;
+		}
+		for (i = 0; i < Arenapages; i++)
+			if (!(c->arenapages[i] = alloc_page(GFP_KERNEL | __GFP_ZERO)))
+				break;
+		c->narena = i;
+		snprintf(c->arenaseg, sizeof(c->arenaseg), "amdgpu.%d.%d.arena", p9_getpid(), c->id);
+		/* attached here too: the same address on both sides */
+		if (i == Arenapages)
+			c->arena = kpi_alias_pages(c->arenaseg, c->arenapages, Arenapages, true);
+		if (!c->arena) {
+			while (c->narena > 0)
+				__free_page(c->arenapages[--c->narena]);
+			kfree(c->arenapages);
+			c->arenapages = NULL;
+			r = -ENOMEM;
+			goto out;
+		}
+	}
+	strscpy(seg, c->arenaseg, nseg);
+	*va = (unsigned long)c->arena;
+	*size = (u64)Arenapages << PAGE_SHIFT;
+out:
+	mutex_unlock(&c->lock);
+	return r;
+}
+
+/* the client's ioctl: its arguments at addr in the arena, and all they point to */
+long
+amdgpu_ioctl(void *v, unsigned int cmd, u64 addr)
+{
+	struct gctx *c = v;
+	unsigned long a = addr, size = (unsigned long)Arenapages << PAGE_SHIFT;
+	long r;
+
+	if (!c->arena)
+		return -ENXIO;
+	if (a < (unsigned long)c->arena || a + _IOC_SIZE(cmd) > (unsigned long)c->arena + size)
+		return -EFAULT;
+	kpi_user_window(c->arena, size);
+	r = drm_ioctl(c->filp, cmd, a);
+	kpi_user_window(NULL, 0);
+	return r;
+}
+
+static void
+unmap(struct gctx *c, struct map *m)
+{
+	list_del(&m->node);
+	if (!m->vram)
+		p9_segfree(m->seg, NULL);	/* revoked in every process */
+	unpin(m->abo);
+	kfree(m);
+}
+
+/*
+ * the processor's view of the client's object handle: GTT, an alias
+ * segment of its pages (va); VRAM, BAR 0's segment and where in it (off)
+ */
+int
+amdgpu_map(void *v, u32 handle, char *seg, int nseg, u64 *va, u64 *size, u64 *off, u64 *barsize)
+{
+	struct gctx *c = v;
+	struct drm_gem_object *gobj;
+	struct amdgpu_device *adev;
+	struct amdgpu_res_cursor cur;
+	struct ttm_tt *tt;
+	struct map *m;
+	u32 domain;
+	u64 next;
+	int r;
+
+	mutex_lock(&c->lock);
+	list_for_each_entry(m, &c->maps, node)
+		if (m->handle == handle) {
+			r = -EBUSY;	/* mapped already */
+			goto out;
+		}
+	gobj = drm_gem_object_lookup(c->file, handle);
+	if (!gobj) {
+		r = -ENOENT;
+		goto out;
+	}
+	m = kzalloc(sizeof(*m), GFP_KERNEL);
+	if (!m) {
+		drm_gem_object_put(gobj);
+		r = -ENOMEM;
+		goto out;
+	}
+	m->handle = handle;
+	m->abo = gem_to_amdgpu_bo(gobj);
+	adev = amdgpu_ttm_adev(m->abo->tbo.bdev);
+	domain = m->abo->preferred_domains & AMDGPU_GEM_DOMAIN_VRAM ? AMDGPU_GEM_DOMAIN_VRAM : AMDGPU_GEM_DOMAIN_GTT;
+	m->vram = domain == AMDGPU_GEM_DOMAIN_VRAM;
+	*size = amdgpu_bo_size(m->abo);
+	r = amdgpu_bo_reserve(m->abo, false);
+	if (r == 0) {
+		r = amdgpu_bo_pin(m->abo, domain);
+		amdgpu_bo_unreserve(m->abo);
+	}
+	if (r) {
+		drm_gem_object_put(gobj);
+		kfree(m);
+		goto out;
+	}
+	*off = *barsize = *va = 0;
+	if (m->vram) {
+		/* in one piece, in the part BAR 0 shows */
+		amdgpu_res_first(m->abo->tbo.resource, 0, *size, &cur);
+		*off = cur.start;
+		for (next = cur.start; cur.remaining; amdgpu_res_next(&cur, cur.size)) {
+			if (cur.start != next)
+				break;
+			next = cur.start + cur.size;
+		}
+		if (cur.remaining || *off + *size > adev->gmc.visible_vram_size ||
+		    p9_barseg(0, 1, m->seg, sizeof(m->seg)) < 0) {
+			r = -ENOSPC;
+			goto unpin;
+		}
+		*barsize = adev->gmc.visible_vram_size;
+	} else {
+		tt = m->abo->tbo.ttm;
+		if (!tt || !tt->pages || tt->num_pages < (*size >> PAGE_SHIFT)) {
+			r = -EIO;
+			goto unpin;
+		}
+		snprintf(m->seg, sizeof(m->seg), "amdgpu.%d.%d.m%u", p9_getpid(), c->id, handle);
+		*va = (unsigned long)kpi_alias_pages(m->seg, tt->pages, *size >> PAGE_SHIFT, false);
+		if (!*va) {
+			r = -ENOMEM;
+			goto unpin;
+		}
+	}
+	strscpy(seg, m->seg, nseg);
+	list_add(&m->node, &c->maps);
+	mutex_unlock(&c->lock);
+	return 0;
+unpin:
+	unpin(m->abo);
+	kfree(m);
+out:
+	mutex_unlock(&c->lock);
+	return r;
+}
+
+int
+amdgpu_unmap(void *v, u32 handle)
+{
+	struct gctx *c = v;
+	struct map *m;
+	int r = -ENOENT;
+
+	mutex_lock(&c->lock);
+	list_for_each_entry(m, &c->maps, node)
+		if (m->handle == handle) {
+			unmap(c, m);
+			r = 0;
+			break;
+		}
+	mutex_unlock(&c->lock);
+	return r;
 }
