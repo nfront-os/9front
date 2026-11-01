@@ -159,6 +159,7 @@ writes(int sfd, int ffd, Bo *cmd, Bo *d, char *what, int k0)
 	char buf[128];
 	u32int v;
 	int ip, ndw, n;
+	vlong t0;
 
 	for(ip = 0; ip < 3; ip++){
 		v = 0xC0DE0000 | k0 << 8 | ip;
@@ -167,6 +168,7 @@ writes(int sfd, int ffd, Bo *cmd, Bo *d, char *what, int k0)
 			fail("%s %s: submit: %r", what, ipname[ip]);
 			continue;
 		}
+		t0 = nsec();
 		if(fprint(ffd, "wait %d", k0+ip+1) < 0 || (n = pread(ffd, buf, sizeof buf - 1, 0)) <= 0){
 			fail("%s %s: fence %d: %r", what, ipname[ip], k0+ip+1);
 			continue;
@@ -179,7 +181,7 @@ writes(int sfd, int ffd, Bo *cmd, Bo *d, char *what, int k0)
 		if(d->p[ip] != v)
 			fail("%s %s: wrote %#ux, memory has %#ux", what, ipname[ip], v, d->p[ip]);
 		else
-			ok("%s %s: IB wrote %#ux, fence %d done", what, ipname[ip], v, k0+ip+1);
+			ok("%s %s: IB wrote %#ux, fence %d done in %lld µs", what, ipname[ip], v, k0+ip+1, (nsec() - t0) / 1000);
 	}
 }
 
