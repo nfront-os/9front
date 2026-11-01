@@ -38,8 +38,6 @@ static Lock globalseglock;
 	Segment* (*_globalsegattach)(char*);
 static	Segment* globalsegattach(char *name);
 
-static	Segment* fixedseg(uintptr va, ulong len);
-
 /* NIX: zero-copy segments (kmsg, umsg) and their free file, after NIX's port/devsegment.c */
 static	uintptr	placeseg(uintptr len);
 static	long	zfreeread(Segment*, char*, long);
@@ -520,7 +518,7 @@ segmentwrite(Chan *c, void *a, long n, vlong voff)
 			if(cb->nf >= 4 && strcmp(cb->f[3], "fixed") == 0){
 				if(!iseve())
 					error(Eperm);
-				g->Segio.s = fixedseg(va, len/BY2PG);
+				g->Segio.s = fixedseg(va, len/BY2PG, SG_FIXED, BY2PG);
 			} else if(cb->nf >= 4 && strcmp(cb->f[3], "sticky") == 0){
 				Segment *s;
 
@@ -646,17 +644,18 @@ Found:
 
 /*
  * allocate a fixed segment with sequential run of of adjacent
- * user memory pages.
+ * user memory pages.  NIX: or another type (segattach's 2 MB pages,
+ * port/segment.c), the run's physical start aligned to align
  */
-static Segment*
-fixedseg(uintptr va, ulong len)
+Segment*
+fixedseg(uintptr va, ulong len, int type, uintptr align)
 {
 	Segment *s;
 	Page **f, *p, *l, *h, *t;
 	ulong n, i;
 	int color;
 
-	s = newseg(SG_FIXED, va, len);
+	s = newseg(type, va, len);
 	if(waserror()){
 		putseg(s);
 		nexterror();
@@ -668,7 +667,7 @@ fixedseg(uintptr va, ulong len)
 	color = getpgcolor(va);
 	for(n = palloc.user; n >= len; n--, l++){
 		if(l->Ref.ref != 0 || l->image != nil
-		|| i != 0 ? (l[-1].pa+BY2PG) != l->pa : l->color != color){
+		|| (i != 0 ? (l[-1].pa+BY2PG) != l->pa : l->color != color || (l->pa & (align-1)) != 0)){	/* NIX: align (and the parentheses ?: lacked) */
 		Retry:
 			i = 0;
 			continue;

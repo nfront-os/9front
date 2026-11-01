@@ -286,6 +286,7 @@ int		pushnote(Proc*, Note*);
 void		putimage(Image*);
 void		putmhead(Mhead*);
 void		putmmu(uintptr, uintptr, Page*);
+void		putmmubig(uintptr, uintptr);	/* NIX: BIGPGSZ only */
 void		putpage(Page*);
 void		putseg(Segment*);
 void		putstrn(char*, int);
@@ -505,6 +506,7 @@ uintptr		zgetaddr(Segment*);
 int		zputaddr(Segment*, uintptr);
 void		zrelease(Kzio*);
 /* NIX: optimistic semaphores (port/segment.c, port/syssem.c; tubes: port/tube.h) */
+Segment*	fixedseg(uintptr, ulong, int, uintptr);	/* NIX: and 2 MB pages */
 Usem*		segmksem(Segment*, int*);
 void		segfreesems(Segment*);
 

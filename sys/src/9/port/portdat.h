@@ -417,6 +417,7 @@ enum
 	SG_NOEXEC	= 02000,	/* No execute */
 	SG_ZIO		= 04000,	/* NIX: used for zero copy (NIX: 0200) */
 	SG_KZIO		= 010000,	/* NIX: kernel zero copy segment (NIX: 0400) */
+	SG_BIG		= 020000,	/* NIX: 2 MB pages (segattach "big", BIGPGSZ) */
 };
 
 #define PG_ONSWAP	1

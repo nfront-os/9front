@@ -11,6 +11,10 @@
 static Physseg physseg[10] = {
 	{ SG_SHARED,	"shared",	0,	SEGMAXSIZE	},
 	{ SG_BSS,	"memory",	0,	SEGMAXSIZE	},
+#ifdef BIGPGSZ
+	/* NIX: 2 MB pages, physically contiguous, preallocated (segattach(2)) */
+	{ SG_STICKY|SG_BIG|SG_NOEXEC,	"big",	0,	SEGMAXSIZE	},
+#endif
 	{ 0,		0,		0,	0		},
 };
 
@@ -803,6 +807,8 @@ ibrk(int segno, uintptr newtop)
 
 	if(newtop == 0)
 		return s->base;
+	if(s->type & SG_BIG)	/* NIX: 2 MB pages stay as attached */
+		error(Ebadarg);
 
 	qlock(&s->QLock);
 
@@ -939,6 +945,7 @@ segattach(int attr, char *name, uintptr va, uintptr len)
 	int segno;
 	Segment *s, *os;
 	Physseg *ps;
+	uintptr align;
 
 	if(va != 0 && va >= USTKTOP)
 		error(Ebadarg);
@@ -967,9 +974,17 @@ segattach(int attr, char *name, uintptr va, uintptr len)
 		}
 	}
 
+	/* NIX: 2 MB pages: va and len in them */
+	align = BY2PG;
+	ps = findphysseg(name);
+#ifdef BIGPGSZ
+	if(ps != nil && (ps->attr & SG_BIG) != 0)
+		align = BIGPGSZ;
+#endif
+
 	/* round up va+len */
-	len += va & (BY2PG-1);
-	len = PGROUND(len);
+	len += va & (align-1);	/* NIX: align, was BY2PG */
+	len = ROUND(len, align);
 
 	if(len == 0)
 		error(Ebadarg);
@@ -988,17 +1003,17 @@ segattach(int attr, char *name, uintptr va, uintptr len)
 			if(len >= va)
 				error(Enovmem);
 			va -= len;
+			va &= ~(align-1);	/* NIX */
 		}
 	}
 
-	va &= ~(BY2PG-1);
+	va &= ~(align-1);	/* NIX: align, was BY2PG */
 	if(va == 0 || (va+len) > USTKTOP || (va+len) < va)
 		error(Ebadarg);
 
 	if(isoverlap(va, len) != nil)
 		error(Esoverlap);
 
-	ps = findphysseg(name);
 	if(ps == nil)
 		error(Ebadarg);
 
@@ -1010,12 +1025,15 @@ segattach(int attr, char *name, uintptr va, uintptr len)
 		error(Enovmem);
 
 	/* Turn off what is not allowed */
-	attr &= ~(SG_TYPE | SG_CACHED | SG_DEVICE | SG_ZIO | SG_KZIO);	/* NIX: zero copy only by segment(3) */
+	attr &= ~(SG_TYPE | SG_CACHED | SG_DEVICE | SG_ZIO | SG_KZIO | SG_BIG);	/* NIX: zero copy only by segment(3), 2 MB pages only "big" */
 
 	/* Copy in defaults */
 	attr |= ps->attr;
 
-	s = newseg(attr, va, len/BY2PG);
+	if(attr & SG_BIG)
+		s = fixedseg(va, len/BY2PG, attr, align);	/* NIX */
+	else
+		s = newseg(attr, va, len/BY2PG);
 	s->pseg = ps;
 done:
 	attachseg(up, segno, s);

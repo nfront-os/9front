@@ -39,6 +39,24 @@ in the file being
 .IR exec'ed ;
 otherwise the segment will be inherited.
 .PP
+On amd64 and arm64 the class
+.B big
+gives memory in pages of 2 megabytes: the segment is physically
+contiguous and aligned to them,
+.I va
+and
+.I len
+are rounded to them, its memory is allocated and zeroed at once and
+never paged out.
+Each 2 megabytes take one entry of the MMU, so a process walking
+much memory misses the TLB less.
+Like a shared segment it is inherited across
+.IR fork (2);
+it cannot be executed nor grown or shrunk by
+.IR segbrk (2).
+.I Segattach
+fails if no such run of free memory is left.
+.PP
 Some machines provide a segment class
 .BR lock .
 Lock segments allow access to special lock hardware provided

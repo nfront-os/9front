@@ -187,6 +187,15 @@ mmuwalk(uintptr va, int level)
 	table = m->mmutop;
 	for(i = PTLEVELS-2; i >= level; i--){
 		pte = table[x];
+		if((pte & (PTEVALID|PTETABLE)) == PTEVALID){
+			/*
+			 * NIX: a 2 MB block (putmmubig) of a segment that is gone:
+			 * a table replaces it
+			 */
+			table[x] = 0;
+			flushasid((uvlong)up->asid<<48);
+			pte = 0;
+		}
 		if(pte & PTEVALID) {
 			if(pte & (0xFFFFULL<<48))
 				iprint("strange pte %#p va %#p\n", pte, va);
@@ -316,6 +325,35 @@ putmmu(uintptr va, uintptr pa, Page *pg)
 		cacheiinvse((void*)va, BY2PG);
 		donetxtflush(pg);
 	}
+	splx(s);
+}
+
+/*
+ * NIX: map the 2 MB page at va (aligned) to pa (aligned, with the
+ * flags of putmmu) with one block descriptor at level 1, for a
+ * segment of 2 MB pages (port/fault.c, never executable). A table
+ * that was there stays on p's list until mmufree.
+ */
+void
+putmmubig(uintptr va, uintptr pa)
+{
+	uintptr *pte, old;
+	int s;
+
+	s = splhi();
+	while((pte = mmuwalk(va, 1)) == nil){
+		spllo();
+		up->mmufree = newpage(0, nil);
+		splhi();
+	}
+	old = *pte;
+	*pte = 0;
+	if((old & (PTEVALID|PTETABLE)) == (PTEVALID|PTETABLE))
+		flushasid((uvlong)up->asid<<48);	/* its 4K pages */
+	else if(old & PTEVALID)
+		flushasidva((uvlong)up->asid<<48 | va>>12);
+	*pte = pa | PTEBLOCK | PTEUSER | PTEPXN | PTENG | PTEAF |
+		(((pa & PTEMA(7)) == PTECACHED)? PTESH(SHARE_INNER): PTESH(SHARE_OUTER));
 	splx(s);
 }
 

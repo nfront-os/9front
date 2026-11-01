@@ -1,6 +1,6 @@
 /*
  * NIX: what an application core gives a process, measured.
- *	nixbench [-r reps]
+ *	nixbench [-b] [-r reps]	(-b: memwalk on 2 MB pages, segattach "big")
  * Run it on a time-sharing core and on an AC (execac -c n nixbench)
  * and compare: tests/nix/bench.sh. Prints one line per measurement:
  *	name core mean min max unit
@@ -78,7 +78,8 @@ compute(void)
 
 /* random pointer chase through 64 MB: caches and the TLB */
 enum { Memsz = 64*1024*1024, Nslot = Memsz/sizeof(uintptr), Steps = 20000000 };
-static uintptr mem[Nslot];
+static uintptr smem[Nslot];
+static uintptr *mem = smem;	/* -b: a segment of 2 MB pages */
 
 static void
 meminit(void)
@@ -169,11 +170,19 @@ void
 main(int argc, char *argv[])
 {
 	double v[32], g[32];
+	char *walk;
 	int i;
 
+	walk = "memwalk";
 	ARGBEGIN{
+	case 'b':
+		mem = segattach(0, "big", 0, Memsz);
+		if(mem == (void*)-1)
+			sysfatal("segattach big: %r");
+		walk = "memwalk-big";
+		break;
 	case 'r':
-		reps = atoi(EARGF(sysfatal("usage: nixbench [-r reps]")));
+		reps = atoi(EARGF(sysfatal("usage: nixbench [-b] [-r reps]")));
 		break;
 	}ARGEND
 	if(reps < 1 || reps > nelem(v))
@@ -186,7 +195,7 @@ main(int argc, char *argv[])
 	report("compute", v, reps, 1000, "ms");
 	for(i = 0; i < reps; i++)
 		v[i] = memwalk();
-	report("memwalk", v, reps, 1000, "ms");
+	report(walk, v, reps, 1000, "ms");
 	for(i = 0; i < reps; i++){
 		v[i] = jitter();
 		g[i] = maxgap;

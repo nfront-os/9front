@@ -175,6 +175,7 @@
 
 #define PTLX(v, l)	(((v)>>(((l)*PTSHIFT)+PGSHIFT)) & ((1<<PTSHIFT)-1))
 #define PGLSZ(l)	(1ull<<(((l)*PTSHIFT)+PGSHIFT))
+#define	BIGPGSZ		PGLSZ(1)	/* NIX: 2 MB pages (segattach "big") */
 
 #define	getpgcolor(a)	0
 

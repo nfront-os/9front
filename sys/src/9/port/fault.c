@@ -256,6 +256,17 @@ fixfault(Segment *s, uintptr addr, int read)
 
 	qunlock(&s->QLock);
 
+#ifdef BIGPGSZ
+	/*
+	 * NIX: a segment of 2 MB pages (segattach "big") is physically
+	 * contiguous and aligned to them: one entry maps all of addr's
+	 */
+	if(s->type & SG_BIG){
+		putmmubig(addr & ~(BIGPGSZ-1), mmuphys - (addr & (BIGPGSZ-1)));
+		return 0;
+	}
+#endif
+
 	putmmu(addr, mmuphys, new);
 
 	return 0;

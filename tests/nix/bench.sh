@@ -17,6 +17,7 @@ for i in $(seq 1 $ac); do kill="$kill echo kill > /proc/\$l$i/note;"; done
 SMP=$NCPU MEM=${MEM:-1024} CMDWAIT=900 KARGS="${KARGS:+$KARGS }*ncpu=$NCPU *nixac=1" \
 	"$ROOT/scripts/guest/boot-cli.sh" \
 	"echo '##' idle; /tests/nixbench -r $REPS; execac -c $ac /tests/nixbench -r $REPS" \
+	"echo '##' 2 MB pages; /tests/nixbench -b -r $REPS | grep memwalk; execac -c $ac /tests/nixbench -b -r $REPS | grep memwalk" \
 	"$load echo '##' load: $ac busy loops on the $ac TCs; /tests/nixbench -r $REPS; execac -c $ac /tests/nixbench -r $REPS; $kill" \
 	> "$TMPD/console" 2>&1
 tr -d '\r' < "$TMPD/console" | grep -E '^(## |compute|memwalk|gaps|maxgap|syscall)'

@@ -557,6 +557,39 @@ putmmu(uintptr va, uintptr pa, Page *)
 }
 
 /*
+ * NIX: map the 2 MB page at va (aligned) to pa (aligned, with the
+ * flags of putmmu) with one page directory entry, for a segment of
+ * 2 MB pages (port/fault.c). A page table that was there (va mapped
+ * by 4K pages before) stays on up's list until mmufree.
+ */
+void
+putmmubig(uintptr va, uintptr pa)
+{
+	uintptr *pde, old;
+	int x, i;
+
+	x = splhi();
+	if((pde = mmuwalk(m->pml4, va, 1, 1)) == nil){
+		flushmmu();
+		while((pde = mmuwalk(m->pml4, va, 1, 1)) == nil){
+			int y = spllo();
+			resrcwait("out of MMU pages");
+			splx(y);
+		}
+	}
+	old = *pde;
+	*pde = pa | PTESIZE|PTEACCESSED|PTEDIRTY|PTEUSER;
+	splx(x);
+	if(old & PTEVALID){
+		if(old & PTESIZE)
+			invlpg(va);
+		else
+			for(i = 0; i < BIGPGSZ; i += BY2PG)
+				invlpg(va+i);
+	}
+}
+
+/*
  * Double-check the user MMU.
  * Error checking only.
  */
