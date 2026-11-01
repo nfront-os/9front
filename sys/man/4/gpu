@@ -1,6 +1,6 @@
 .TH GPU 4
 .SH NAME
-gpu, virtiogpu, intelgpu, i915 \- graphics device file system
+gpu, virtiogpu, intelgpu, i915, amdgpu \- graphics device file system
 .SH SYNOPSIS
 .B aux/virtiogpu
 [
@@ -33,6 +33,29 @@ gpu, virtiogpu, intelgpu, i915 \- graphics device file system
 ] [
 .B -f
 .I filter
+] [
+.B -p
+.IB name = value
+] ... [
+.B -g
+.I gdir
+] [
+.B -s
+.I srvname
+]
+.PP
+.B aux/amdgpu
+[
+.B -n
+] [
+.B -W
+.I secs
+] [
+.B -d
+.I drmdebug
+] [
+.B -l
+.I loglevel
 ] [
 .B -p
 .IB name = value
@@ -495,6 +518,80 @@ run starts after it; a run without output for 300 seconds hangs and is
 killed.  Its log is on the boot stick
 .RB ( i915live.log );
 groups whose tests are not ported fail.
+.SS amdgpu
+.I Amdgpu
+is Linux 6.6's amdgpu driver on the same layer as
+.IR i915 :
+the Radeons of the GCN 1.2 and later families amdgpu drives (tried on
+a Navi 33, RX 7600 XT, GFX 11).
+It takes the first AMD device of
+.IR gpu (3)
+.RB ( -g
+another), loads the card's firmware from
+.BR /lib/firmware/amdgpu
+(the files of
+.BR linux-firmware ,
+unpacked; amdgpu picks them by the card's IP blocks) and reads the
+video BIOS from the card's ROM.
+A context is an open DRM file of the render node, with a GPU address
+space of its own and one amdgpu context in it; the requests are
+amdgpu's ioctls, as libdrm_amdgpu makes them:
+.TF "\fLbo\fP \fIsize"
+.TP
+.BI bo " size \fR[\fPgpuaddr\fR] [\fPvram\fR]
+creates an object.
+By default in GTT, system memory the GPU reaches; its pages are an
+alias segment
+.RI ( segment (3)),
+reply
+.BI bo " id seg va size gpuaddr" ,
+revoked in every process when the object is freed.
+With
+.B vram
+in the card's memory, in one piece in the part the processor sees
+through BAR 0 (the first 256 MB without a resized BAR); reply
+.BI bo " id seg va size gpuaddr off barsize" :
+.I seg
+is BAR 0's write-combining segment
+.RI ( gpu (3)),
+which the client attaches once
+.RI ( barsize
+bytes), the object at
+.IR off .
+As for
+.IR intelgpu ,
+the driver chooses the GPU address, or the client does (page aligned,
+above 2 MB, below 2\u47\d; 0 maps the object nowhere).
+.TP
+.BI bind " id gpuaddr
+.TP
+.BI free " id
+as above.
+.PD
+.PP
+Writing
+.IB "bo offset ndw " \fR[\fPgfx\fR|\fPcompute\fR|\fPsdma\fR]\fP
+to
+.B submit
+runs
+.I ndw
+dwords at
+.I offset
+in object
+.I bo
+as one IB (PM4 packets on gfx and compute, SDMA packets on sdma); the
+fences are as above.
+.B Status
+names the chip, its memory and the state of each IP block.
+.PP
+The processor's view of the GPU is not isolated: BAR 0's segment shows
+all the visible VRAM, the driver's own data there too (the GART
+table), and as with every physical segment
+.RI ( segment (3),
+.IR vga (3))
+any process may attach it, as it may the register BAR; the GPU's own
+address spaces are per context.
+The driver is for the host owner.
 .SH EXAMPLES
 Switch the screen to 1024x768:
 .EX
@@ -586,6 +683,8 @@ are ported this way.
 .SH SOURCE
 .B /sys/src/cmd/aux/gpu/i915
 .br
+.B /sys/src/cmd/aux/gpu/amdgpu
+.br
 .B /sys/src/linux
 .br
 .B /sys/src/cmd/aux/gpu/intel
@@ -612,6 +711,11 @@ Command buffers are limited to the context's segment (1 MB).
 The host visible bar is mapped uncached.
 .br
 No sync files and no dma-buf sharing between processes.
+.br
+.IR Amdgpu :
+no display yet (outputs, scanout); a freed VRAM object stays visible
+through BAR 0; at a critical temperature the driver stops (Linux powers
+the machine off), the card's firmware protects itself.
 .br
 Presenting copies every frame twice (device to host memory, host to
 draw(3)); the kernel's console draws over the screen without rio.
