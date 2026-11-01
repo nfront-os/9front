@@ -46,7 +46,7 @@ gpu, virtiogpu, intelgpu, i915, amdgpu \- graphics device file system
 .PP
 .B aux/amdgpu
 [
-.B -n
+.B -nX
 ] [
 .B -W
 .I secs
@@ -592,6 +592,16 @@ table), and as with every physical segment
 any process may attach it, as it may the register BAR; the GPU's own
 address spaces are per context.
 The driver is for the host owner.
+.PP
+At a critical temperature amdgpu powers the machine off, as on Linux
+(orderly_poweroff): the layer runs
+.IR fshalt (8)
+(the file servers halted, then
+.BR scram ),
+and the driver keeps running the card, its fans and clocks, until the
+power is off.
+.B -X
+does that once the driver has started, to try it.
 .SH EXAMPLES
 Switch the screen to 1024x768:
 .EX
@@ -714,8 +724,7 @@ No sync files and no dma-buf sharing between processes.
 .br
 .IR Amdgpu :
 no display yet (outputs, scanout); a freed VRAM object stays visible
-through BAR 0; at a critical temperature the driver stops (Linux powers
-the machine off), the card's firmware protects itself.
+through BAR 0.
 .br
 Presenting copies every frame twice (device to host memory, host to
 draw(3)); the kernel's console draws over the screen without rio.

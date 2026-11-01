@@ -109,7 +109,7 @@ findgpu(void)
 static void
 usage(void)
 {
-	fprint(2, "usage: %s [-n] [-W secs] [-d drmdebug] [-l loglevel] [-p name=value]... [-g #G/n (default: the first AMD one)] [-s srvname]\n", argv0);
+	fprint(2, "usage: %s [-nX] [-W secs] [-d drmdebug] [-l loglevel] [-p name=value]... [-g #G/n (default: the first AMD one)] [-s srvname]\n", argv0);
 	threadexitsall("usage");
 }
 
@@ -117,12 +117,13 @@ void
 threadmain(int argc, char **argv)
 {
 	char *gdir, *param[64], *s, *srvname;
-	int r, i, nparam, loglevel, noserve;
+	int r, i, nparam, loglevel, noserve, poweroff;
 	ulong drmdebug;
 
 	gdir = nil;
 	srvname = "gpu.0";
 	noserve = 0;
+	poweroff = 0;
 	nparam = 0;
 	drmdebug = 0;
 	loglevel = 6;	/* KERN_INFO */
@@ -146,6 +147,9 @@ threadmain(int argc, char **argv)
 		break;
 	case 'n':
 		noserve = 1;
+		break;
+	case 'X':
+		poweroff = 1;	/* after the start: the machine goes down */
 		break;
 	case 's':
 		srvname = EARGF(usage());
@@ -181,6 +185,8 @@ threadmain(int argc, char **argv)
 	s = amdgpu_status();
 	fprint(2, "amdgpu: started\n%s", s != nil ? s : "");
 	amdgpu_freestr(s);
+	if(poweroff)
+		amdgpu_test_poweroff();
 	if(!noserve)
 		serve(srvname);
 	/* the driver's procs (workqueues, irq, timers) go on */

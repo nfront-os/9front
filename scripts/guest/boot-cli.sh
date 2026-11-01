@@ -227,6 +227,9 @@ qmp=()
 [ "$VNC" != 1 ] || { rm -f "$CLI_DIR/vnc.sock"; qmp+=(-vnc "unix:$CLI_DIR/vnc.sock"); }
 "${qemu[@]}" -serial pty "${qmp[@]}" $QEMU_EXTRA > "$CLI_DIR/qemu.log" 2>&1 &
 pids+=($!)
+qemupid=$!
+# the guest powered itself off (fshalt, scram): nothing more to wait for
+running(){ kill -0 $qemupid 2>/dev/null; }
 for _ in $(seq 50); do
 	pts=$(grep -oE "/dev/pts/[0-9]+" "$CLI_DIR/qemu.log" | head -1)
 	[ -n "$pts" ] && break
@@ -287,9 +290,10 @@ while [ $SECONDS -lt $end ] && ! prompted; do
 done
 for c in "${cmds[@]}"; do
 	end=$((SECONDS + ${PROMPTWAIT:-300}))
-	until prompted || [ $SECONDS -ge $end ]; do
+	until prompted || [ $SECONDS -ge $end ] || ! running; do
 		sleep 1
 	done
+	running || break
 	# in pieces: the serial input buffer drops what exceeds about 128
 	# bytes at once (the rest of a long line, its newline with it)
 	start=$(stat -c %s "$CLI_DIR/console.log")
@@ -300,16 +304,17 @@ for c in "${cmds[@]}"; do
 		sleep 0.2
 	done
 	end=$((SECONDS + ${CMDWAIT:-60}))
-	until replied $start || [ $SECONDS -ge $end ]; do
+	until replied $start || [ $SECONDS -ge $end ] || ! running; do
 		sleep 0.5
 	done
 done
 if [ -n "$WAITFOR" ]; then
 	end=$((SECONDS + ${WAITMAX:-3600}))
-	until tr -d '\r' < "$CLI_DIR/console.log" | grep -qE "$WAITFOR" || [ $SECONDS -ge $end ]; do
+	until tr -d '\r' < "$CLI_DIR/console.log" | grep -qE "$WAITFOR" || [ $SECONDS -ge $end ] || ! running; do
 		sleep 2
 	done
 fi
+running || echo "boot-cli: the guest powered off" >> "$CLI_DIR/console.log"
 sleep 1
 if [ -n "$SCREENSHOT" ] && [ "$VNC" = 1 ]; then
 	python3 "$ROOT/scripts/debug/vncshot.py" "$CLI_DIR/vnc.sock" "$SCREENSHOT" $SHOTPOINTS \

@@ -9,6 +9,7 @@ void	amdgpu_options(unsigned long drmdebug, int loglevel);
 int	amdgpu_start(void);	/* the scheduler's and amdgpu's module_init: probes the device; 0 or -errno */
 char	*amdgpu_status(void);	/* amdgpu_freestr */
 void	amdgpu_freestr(char *s);
+void	amdgpu_test_poweroff(void);	/* -X: orderly_poweroff, as at a critical temperature; does not return */
 
 /*
  * gpu(4)'s contexts (linux/ctx.c): errors are -errno; a context is the

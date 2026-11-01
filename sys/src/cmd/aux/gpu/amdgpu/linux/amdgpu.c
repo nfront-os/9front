@@ -6,6 +6,7 @@
 #include <linux/kernel.h>
 #include <linux/pci.h>
 #include <linux/slab.h>
+#include <linux/reboot.h>
 #include <drm/drm_print.h>
 #include <drm/drm_connector.h>
 #include "amdgpu.h"
@@ -134,6 +135,14 @@ kpi_drm_hotplug(struct drm_device *dev, struct drm_connector *connector)
 		pr_info("amdgpu: hotplug %s\n", connector->name);
 	else
 		pr_info("amdgpu: hotplug\n");
+}
+
+/* -X: what amdgpu does at a critical temperature (smu_v13_0_irq_process: CTF), to try it */
+void
+amdgpu_test_poweroff(void)
+{
+	pr_emerg("amdgpu: -X: as at a critical temperature: orderly_poweroff\n");
+	orderly_poweroff(true);
 }
 
 void
