@@ -11,6 +11,12 @@
  * scanout 0 turns the display off again (or back to a plane that was
  * lit).  A display engine of a discrete Radeon scans out VRAM only: the
  * objects are VRAM ones (bo size vram).
+ *
+ * The screen of draw(3) (amdgpu_screen_start): a VRAM object of the
+ * mode's size, in one piece where the processor sees it through BAR 0,
+ * on a connected output; the Plan 9 side (screen.c) copies into it what
+ * devdraw changes in #G's framebuffer.  It is the plane scanout 0 goes
+ * back to.
  */
 #include <linux/kernel.h>
 #include <linux/slab.h>
@@ -28,6 +34,10 @@
 #include <drm/drm_probe_helper.h>
 #include <drm/drm_fourcc.h>
 #include <drm/drm_mode.h>
+#include "amdgpu.h"
+#include "amdgpu_object.h"
+#include "amdgpu_gem.h"
+#include "amdgpu_res_cursor.h"
 #include "../amdgpu.h"
 
 struct pci_dev	*kpi_pci_gpu(const char *gdir);
@@ -401,10 +411,17 @@ kms_scanout(struct file *from, u32 handle, u32 w, u32 h, u32 stride)
 			goto out;
 		}
 		r = 0;
-		if (old && lit_crtc)
-			r = unlight();
-		else if (old && orig_fb)
+		if (old && orig_fb && lit_crtc) {
+			/* a mode of the client's: the screen's again */
+			r = light(orig_fb, orig_w, orig_h);
+			if (r == 0) {
+				crtc_id = lit_crtc;
+				lit_crtc = 0;
+			}
+		} else if (old && orig_fb)
 			r = flip(crtc_id, orig_fb);
+		else if (old && lit_crtc)
+			r = unlight();
 		shown_fb = 0;
 		shown_by = NULL;
 		goto rm;
@@ -439,6 +456,78 @@ rm:
 		kioctl(kms, DRM_IOCTL_MODE_RMFB, &old);
 out:
 	mutex_unlock(&kmslock);
+	return r;
+}
+
+/*
+ * the screen: a VRAM object w x h (x8r8g8b8) on a connected output;
+ * where it is in BAR 0 and its pitch, for the copies
+ */
+int
+amdgpu_screen_start(unsigned int w, unsigned int h, unsigned long long *baroff, unsigned int *pitch)
+{
+	struct drm_device *dev = drmdev();
+	struct amdgpu_device *adev;
+	struct drm_gem_object *gobj;
+	struct drm_mode_fb_cmd2 fb = { };
+	struct amdgpu_res_cursor cur;
+	struct amdgpu_bo *abo;
+	u64 size, next;
+	u32 handle;
+	int r;
+
+	if (!dev || !kms)
+		return -ENODEV;
+	adev = drm_to_adev(dev);
+	*pitch = ALIGN(w * 4, 256);	/* DCN: pitches of 256 bytes */
+	size = PAGE_ALIGN((u64)*pitch * h);
+	r = amdgpu_gem_object_create(adev, size, PAGE_SIZE, AMDGPU_GEM_DOMAIN_VRAM,
+	    AMDGPU_GEM_CREATE_CPU_ACCESS_REQUIRED | AMDGPU_GEM_CREATE_VRAM_CONTIGUOUS,
+	    ttm_bo_type_device, NULL, &gobj, 0);
+	if (r)
+		return r;
+	r = drm_gem_handle_create(kms->private_data, gobj, &handle);
+	abo = gem_to_amdgpu_bo(gobj);
+	if (r)
+		goto put;
+	r = amdgpu_bo_reserve(abo, false);
+	if (r)
+		goto put;
+	r = amdgpu_bo_pin(abo, AMDGPU_GEM_DOMAIN_VRAM);	/* for good: the screen stays */
+	amdgpu_bo_unreserve(abo);
+	if (r)
+		goto put;
+	amdgpu_res_first(abo->tbo.resource, 0, size, &cur);
+	*baroff = cur.start;
+	for (next = cur.start; cur.remaining; amdgpu_res_next(&cur, cur.size)) {
+		if (cur.start != next)
+			break;
+		next = cur.start + cur.size;
+	}
+	if (cur.remaining || *baroff + size > adev->gmc.visible_vram_size) {
+		r = -ENOSPC;
+		goto put;
+	}
+	fb.width = w;
+	fb.height = h;
+	fb.pixel_format = DRM_FORMAT_XRGB8888;
+	fb.pitches[0] = *pitch;
+	fb.handles[0] = handle;
+	mutex_lock(&kmslock);
+	r = kioctl(kms, DRM_IOCTL_MODE_ADDFB2, &fb);
+	if (r == 0 && (r = light(fb.fb_id, w, h)) == 0) {
+		/* the plane scanout 0 comes back to */
+		crtc_id = lit_crtc;
+		orig_fb = fb.fb_id;
+		orig_w = w;
+		orig_h = h;
+		orig_stride = *pitch;
+		orig_bpp = 32;
+		lit_crtc = 0;
+	}
+	mutex_unlock(&kmslock);
+put:
+	drm_gem_object_put(gobj);	/* the handle (and the framebuffer) hold it */
 	return r;
 }
 

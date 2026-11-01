@@ -83,6 +83,7 @@ enum {
 
 static Gpu gpus[Maxgpu];
 static int ngpu;
+static Gpu *screengpu;	/* the one whose framebuffer is the screen (vgagpu.c): the first with one */
 
 static Dirtab gpudir[] = {
 	"ctl",		{Qctl},		0,	0660,
@@ -358,6 +359,8 @@ fballoc(Gpu *g, ulong size)
 	g->fbsize = size;
 	snprint(g->fbseg, KNAMELEN, "gpu%dfb", g->id);
 	addseg(g->fbseg, PADDR(g->fb), size, SG_PHYSICAL | SG_NOEXEC);
+	if(screengpu == nil)
+		screengpu = g;
 }
 
 /*
@@ -457,9 +460,9 @@ gpufb(uvlong *pa, void **va, ulong *size)
 {
 	Gpu *g;
 
-	if(ngpu == 0 || gpus[0].fb == nil)
+	/* not always #G/0: a VM's own VGA may come first, a passed-through card after */
+	if((g = screengpu) == nil || g->fb == nil)
 		return -1;
-	g = &gpus[0];
 	*pa = PADDR(g->fb);
 	*va = g->fb;
 	*size = g->fbsize;
@@ -471,9 +474,8 @@ gpudirty(int x0, int y0, int x1, int y1)
 {
 	Gpu *g;
 
-	if(ngpu == 0)
+	if((g = screengpu) == nil)
 		return;
-	g = &gpus[0];
 	lock(&g->dirtylock);
 	if(!g->isdirty){
 		g->dirty[0] = x0;

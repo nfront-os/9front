@@ -104,7 +104,8 @@
 		"Program": "amdgpu",
 		"SourceFiles": [
 			"fs.c",
-			"main.c"
+			"main.c",
+			"screen.c"
 		]
 	}
 ]

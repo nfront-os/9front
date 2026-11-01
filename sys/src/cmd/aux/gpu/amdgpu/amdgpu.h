@@ -36,3 +36,5 @@ char	*amdgpu_output_mode(char *name);
 char	*amdgpu_outputs_status(void);
 char	*amdgpu_plane(void);
 int	amdgpu_scanout(void *c, int id, unsigned int w, unsigned int h, unsigned int stride);	/* id 0: off again */
+/* the screen of draw(3) (screen.c): a VRAM object w x h on a connected output, at baroff in BAR 0 */
+int	amdgpu_screen_start(unsigned int w, unsigned int h, unsigned long long *baroff, unsigned int *pitch);

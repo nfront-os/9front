@@ -16,6 +16,7 @@
 #include "amdgpu.h"
 
 void	serve(char *srvname);
+int	screenstart(char *gdir);	/* screen.c */
 
 /* the call chain by frame pointers, for addr2line on the build machine */
 static void
@@ -109,7 +110,7 @@ findgpu(void)
 static void
 usage(void)
 {
-	fprint(2, "usage: %s [-DnX] [-W secs] [-d drmdebug] [-l loglevel] [-p name=value]... [-g #G/n (default: the first AMD one)] [-s srvname]\n", argv0);
+	fprint(2, "usage: %s [-DnSX] [-W secs] [-d drmdebug] [-l loglevel] [-p name=value]... [-g #G/n (default: the first AMD one)] [-s srvname]\n", argv0);
 	threadexitsall("usage");
 }
 
@@ -117,7 +118,7 @@ void
 threadmain(int argc, char **argv)
 {
 	char *gdir, *param[64], *s, *srvname;
-	int r, i, nparam, loglevel, noserve, poweroff, nodisplay;
+	int r, i, nparam, loglevel, noserve, poweroff, nodisplay, noscreen;
 	ulong drmdebug;
 
 	gdir = nil;
@@ -125,6 +126,7 @@ threadmain(int argc, char **argv)
 	noserve = 0;
 	poweroff = 0;
 	nodisplay = 0;
+	noscreen = 0;
 	nparam = 0;
 	drmdebug = 0;
 	loglevel = 6;	/* KERN_INFO */
@@ -151,6 +153,9 @@ threadmain(int argc, char **argv)
 		break;
 	case 'n':
 		noserve = 1;
+		break;
+	case 'S':
+		noscreen = 1;	/* draw(3)'s screen stays where it is */
 		break;
 	case 'X':
 		poweroff = 1;	/* after the start: the machine goes down */
@@ -189,8 +194,12 @@ threadmain(int argc, char **argv)
 	s = amdgpu_status();
 	fprint(2, "amdgpu: started\n%s", s != nil ? s : "");
 	amdgpu_freestr(s);
-	if(!nodisplay && (r = amdgpu_kms_start()) < 0)
+	if(!nodisplay && (r = amdgpu_kms_start()) < 0){
 		fprint(2, "amdgpu: no display: error %d\n", -r);
+		nodisplay = 1;
+	}
+	if(!nodisplay && !noscreen && screenstart(gdir) < 0)
+		fprint(2, "amdgpu: no screen: %r\n");
 	if(poweroff)
 		amdgpu_test_poweroff();
 	if(!noserve)
