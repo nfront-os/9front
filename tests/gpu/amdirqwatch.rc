@@ -1,0 +1,16 @@
+#!/bin/rc
+# aux/amdgpu, radvtest in the background, once a second: the kernel's
+# interrupt count (#G), the handler's runs, the interrupt ring, the fences
+bind -a '#i' /dev
+bind -a '#v' /dev
+aux/amdgpu $* >/tmp/amd.log >[2=1]
+sleep 2
+/tests/radvtest >/tmp/radv.log >[2=1] &
+for(i in 1 2 3 4 5 6 7 8){
+	echo t $i `{grep '^irq' '#G/1/ctl'}
+	grep '^(ih|ring gfx|ring sdma)' /dev/gpu/0/status
+	sleep 1
+}
+cat /tmp/radv.log
+grep -i 'kpi|irq' /tmp/amd.log | sed 10q
+echo TESTEND

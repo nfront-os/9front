@@ -1,0 +1,12 @@
+#!/bin/rc
+# amdgpu's ioctls with objects low in the GPU's address space and at its top (where RADV puts them)
+aux/amdgpu -S $* >/tmp/amd.log >[2=1]
+sleep 2
+echo low
+/tests/amdioctl | grep 'FAIL|passed|GPU wrote'
+echo high
+/tests/amdioctl -b 0xffff800000000000 | grep 'FAIL|passed|GPU wrote|GEM_VA'
+echo radv
+/tests/amdioctl -r -b 0xffff800000000000 | grep 'FAIL|passed|GPU wrote|map'
+grep 'WARN|error|fault|fallback' /tmp/amd.log | sed 10q
+echo TESTEND

@@ -836,6 +836,16 @@ amdgpu_map(void *v, u32 handle, char *seg, int nseg, u64 *va, u64 *size, u64 *of
 		kfree(m);
 		goto out;
 	}
+	/*
+	 * pinning may have moved it (an sdma copy, not done yet): the processor
+	 * writes after the move, as amdgpu_bo_kmap waits for it; else the copy
+	 * lands later over what the client wrote (RADV's first command dwords
+	 * were the old contents of that VRAM)
+	 */
+	r = dma_resv_wait_timeout(m->abo->tbo.base.resv, DMA_RESV_USAGE_KERNEL, false, MAX_SCHEDULE_TIMEOUT);
+	if (r < 0)
+		goto unpin;
+	r = 0;
 	*off = *barsize = *va = 0;
 	if (m->vram) {
 		/* in one piece, in the part BAR 0 shows */

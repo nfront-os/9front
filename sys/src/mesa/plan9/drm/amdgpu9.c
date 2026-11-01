@@ -517,6 +517,114 @@ refused(unsigned nr)
 	return 0;
 }
 
+/*
+ * DRM9DEBUG=3: the IBs' contents with each CS; for that, which object is
+ * at which GPU address (GEM_VA) and where the processor sees it (cpu_map)
+ */
+enum { Ndbgmap = 512 };
+static struct {
+	uint32_t	handle;
+	uint64_t	va, size;
+	void	*cpu;
+} dbgmap[Ndbgmap];
+static pthread_mutex_t dbglk = PTHREAD_MUTEX_INITIALIZER;
+
+static int
+dbglevel(void)
+{
+	static int l = -1;
+
+	if(l < 0)
+		l = getenv("DRM9DEBUG") != NULL ? atoi(getenv("DRM9DEBUG")) : 0;
+	return l;
+}
+
+static void
+dbgva(uint32_t handle, uint64_t va, uint64_t size, int map)
+{
+	int i, f;
+
+	pthread_mutex_lock(&dbglk);
+	f = -1;
+	for(i = 0; i < Ndbgmap; i++){
+		if(dbgmap[i].size != 0 && dbgmap[i].handle == handle && dbgmap[i].va == va){
+			if(!map)
+				dbgmap[i].size = 0;
+			f = -2;
+			break;
+		}
+		if(dbgmap[i].size == 0 && f == -1)
+			f = i;
+	}
+	if(map && f >= 0){
+		dbgmap[f].handle = handle;
+		dbgmap[f].va = va;
+		dbgmap[f].size = size;
+		dbgmap[f].cpu = NULL;
+	}
+	pthread_mutex_unlock(&dbglk);
+}
+
+static void
+dbgcpu(uint32_t handle, void *cpu)
+{
+	int i;
+
+	pthread_mutex_lock(&dbglk);
+	for(i = 0; i < Ndbgmap; i++)
+		if(dbgmap[i].size != 0 && dbgmap[i].handle == handle)
+			dbgmap[i].cpu = cpu;
+	pthread_mutex_unlock(&dbglk);
+}
+
+/* the dwords at GPU address va, if the processor has them; then the IBs it calls (INDIRECT_BUFFER) */
+static void
+dbgdump(uint64_t va, uint32_t bytes)
+{
+	uint32_t *p, i, n, h;
+	int k;
+
+	p = NULL;
+	pthread_mutex_lock(&dbglk);
+	for(k = 0; k < Ndbgmap; k++)
+		if(dbgmap[k].size != 0 && dbgmap[k].cpu != NULL && va >= dbgmap[k].va && va + bytes <= dbgmap[k].va + dbgmap[k].size){
+			p = (uint32_t*)((char*)dbgmap[k].cpu + (va - dbgmap[k].va));
+			break;
+		}
+	pthread_mutex_unlock(&dbglk);
+	if(p == NULL){
+		fprintf(stderr, "amdgpu9: ib %#llx: not mapped for the processor\n", (unsigned long long)va);
+		return;
+	}
+	fprintf(stderr, "amdgpu9: ib %#llx:", (unsigned long long)va);
+	for(i = 0; i < bytes/4; i++)
+		fprintf(stderr, "%s%08x", i % 8 == 0 ? "\namdgpu9:  " : " ", p[i]);
+	fprintf(stderr, "\n");
+	/* PM4 type 3 packets: header, count+1 dwords; INDIRECT_BUFFER is opcode 0x3f */
+	for(i = 0; i < bytes/4; i += n + 2){
+		h = p[i];
+		if(h >> 30 != 3){
+			n = -1;	/* type 2 (one dword) and others: step one */
+			continue;
+		}
+		n = h >> 16 & 0x3fff;
+		if((h >> 8 & 0xff) == 0x3f && n == 2 && i + 3 < bytes/4)
+			dbgdump((uint64_t)p[i+1] | (uint64_t)p[i+2] << 32, (p[i+3] & 0xfffff) * 4);
+	}
+}
+
+/* DRM9DEBUG=2: GEM_CREATE's request (the answer overwrites it) */
+static void
+tracecreate(void *arg)
+{
+	union drm_amdgpu_gem_create *g = arg;
+
+	if(getenv("DRM9DEBUG") != NULL && atoi(getenv("DRM9DEBUG")) >= 2)
+		fprintf(stderr, "amdgpu9: gem_create size %#llx align %#llx domains %#llx flags %#llx\n",
+			(unsigned long long)g->in.bo_size, (unsigned long long)g->in.alignment,
+			(unsigned long long)g->in.domains, (unsigned long long)g->in.domain_flags);
+}
+
 /* DRM9DEBUG=2: every ioctl, with what CS and syncobj waits carry */
 static void
 trace(unsigned nr, void *arg, int r)
@@ -543,11 +651,41 @@ trace(unsigned nr, void *arg, int r)
 		for(i = 0; i < cs->in.num_chunks; i++){
 			ch = (struct drm_amdgpu_cs_chunk*)(uintptr_t)cp[i];
 			fprintf(stderr, " [%u %u]", ch->chunk_id, ch->length_dw);
+			if(ch->chunk_id == AMDGPU_CHUNK_ID_IB){
+				struct drm_amdgpu_cs_chunk_ib *ib = (void*)(uintptr_t)ch->chunk_data;
+
+				fprintf(stderr, "=ib(flags %#x ip %u/%u ring %u va %#llx %u bytes)", ib->flags, ib->ip_type,
+					ib->ip_instance, ib->ring, (unsigned long long)ib->va_start, ib->ib_bytes);
+			}
+			if(ch->chunk_id == AMDGPU_CHUNK_ID_FENCE){
+				struct drm_amdgpu_cs_chunk_fence *fe = (void*)(uintptr_t)ch->chunk_data;
+
+				fprintf(stderr, "=fence(bo %u offset %u)", fe->handle, fe->offset);
+			}
+			if(ch->chunk_id == AMDGPU_CHUNK_ID_SYNCOBJ_TIMELINE_SIGNAL || ch->chunk_id == AMDGPU_CHUNK_ID_SYNCOBJ_TIMELINE_WAIT){
+				struct drm_amdgpu_cs_chunk_syncobj *sy = (void*)(uintptr_t)ch->chunk_data;
+				uint32_t k;
+
+				for(k = 0; k < ch->length_dw * 4 / sizeof *sy; k++)
+					fprintf(stderr, "=syncobj(%u flags %#x point %llu)", sy[k].handle, sy[k].flags,
+						(unsigned long long)sy[k].point);
+			}
 			if(ch->chunk_id == AMDGPU_CHUNK_ID_SYNCOBJ_OUT || ch->chunk_id == AMDGPU_CHUNK_ID_SYNCOBJ_IN)
 				fprintf(stderr, "=%u", ((struct drm_amdgpu_cs_chunk_sem*)(uintptr_t)ch->chunk_data)->handle);
 		}
 		if(r == 0)
 			fprintf(stderr, " seq %llu", (unsigned long long)cs->out.handle);
+		if(dbglevel() >= 3){
+			fprintf(stderr, "\n");
+			for(i = 0; i < cs->in.num_chunks; i++){
+				ch = (struct drm_amdgpu_cs_chunk*)(uintptr_t)cp[i];
+				if(ch->chunk_id == AMDGPU_CHUNK_ID_IB)
+					dbgdump(((struct drm_amdgpu_cs_chunk_ib*)(uintptr_t)ch->chunk_data)->va_start,
+						((struct drm_amdgpu_cs_chunk_ib*)(uintptr_t)ch->chunk_data)->ib_bytes);
+			}
+			errno = e;
+			return;
+		}
 		break;
 	case 0xc3 /* DRM_IOCTL_SYNCOBJ_WAIT */:
 		w = arg;
@@ -557,6 +695,22 @@ trace(unsigned nr, void *arg, int r)
 			fprintf(stderr, " %u", h[i]);
 		fprintf(stderr, ": %d", r);
 		break;
+	case DRM_COMMAND_BASE + DRM_AMDGPU_GEM_CREATE: {
+		union drm_amdgpu_gem_create *g = arg;
+
+		/* after the ioctl the union holds the answer: the request's fields are gone then */
+		fprintf(stderr, "amdgpu9: gem_create: handle %u: %d", g->out.handle, r);
+		break;
+	}
+	case DRM_COMMAND_BASE + DRM_AMDGPU_GEM_VA: {
+		struct drm_amdgpu_gem_va *v = arg;
+
+		fprintf(stderr, "amdgpu9: gem_va op %u handle %u flags %#x va %#llx size %#llx: %d", v->operation,
+			v->handle, v->flags, (unsigned long long)v->va_address, (unsigned long long)v->map_size, r);
+		if(r == 0 && (v->operation == AMDGPU_VA_OP_MAP || v->operation == AMDGPU_VA_OP_UNMAP))
+			dbgva(v->handle, v->va_address, v->map_size, v->operation == AMDGPU_VA_OP_MAP);
+		break;
+	}
 	default:
 		fprintf(stderr, "amdgpu9: ioctl %#x: %d", nr, r);
 	}
@@ -607,6 +761,8 @@ amd9ioctl(Amd *a, unsigned long req, void *arg)
 	m.n = 0;
 	s = mput(&m, arg, size);
 	nested(&m, nr, s, arg, 0);
+	if(nr == DRM_COMMAND_BASE + DRM_AMDGPU_GEM_CREATE)
+		tracecreate(s);
 	r = call(a, lcmd, s);
 	trace(nr, s, r);
 	if(r < 0){
@@ -1121,6 +1277,8 @@ amdgpu_bo_cpu_map(amdgpu_bo_handle b, void **cpu)
 	b->cpu = p;
 	b->maps = 1;
 	pthread_mutex_unlock(&b->dev->lk);
+	if(dbglevel() >= 3)
+		dbgcpu(b->handle, p);
 	*cpu = p;
 	return 0;
 }

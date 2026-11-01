@@ -25,13 +25,13 @@ int	mainstacksize = 1024*1024;
 void	serve(char *srvname);
 int	screenstart(char *gdir);	/* screen.c */
 
-/* the call chain by frame pointers, for addr2line on the build machine */
+/* the call chain by frame pointers, for addr2line on the build machine; bp between lo and hi */
 static void
-chain(uvlong *bp)
+chain(uvlong *bp, uvlong lo, uvlong hi)
 {
 	int i;
 
-	for(i = 0; i < 40 && bp != nil && ((uintptr)bp & 7) == 0; i++){
+	for(i = 0; i < 40 && (uvlong)bp >= lo && (uvlong)bp + 16 <= hi && ((uintptr)bp & 7) == 0; i++){
 		fprint(2, " %#llux", bp[1]);
 		if((uvlong*)bp[0] <= bp)
 			break;
@@ -40,21 +40,46 @@ chain(uvlong *bp)
 	fprint(2, "\n");
 }
 
-/* every thread of every proc with its call chain (libthread's lists): who waits where */
+/*
+ * every proc (libthread's list) with its call chain: a proc in the
+ * kernel (blocked: what a hang looks like) from its user registers
+ * (/proc/n/regs), its other threads from their saved contexts; frames
+ * are followed only on the stack (1 MB above the stack pointer, the
+ * largest stack here), so a wrong frame pointer does not fault
+ */
 static void
 threaddump(void)
 {
+	char path[64];
+	struct Ureg u;
 	Proc *p;
 	Thread *t;
 	uvlong *jb;
+	int fd, n;
 
-	for(p = _threadpq.head; p != nil; p = p->next)
-		for(t = p->threads.head; t != nil; t = t->nextt){
-			jb = (uvlong*)t->sched;
-			fprint(2, "amdgpu thread: pid %d id %d %s state %d pc %#llux; chain",
-				p->pid, t->id, t->cmdname ? t->cmdname : "", t->state, jb[1]);
-			chain((uvlong*)jb[2]);
+	for(p = _threadpq.head; p != nil; p = p->next){
+		snprint(path, sizeof path, "/proc/%d/regs", p->pid);
+		n = -1;
+		if((fd = open(path, OREAD)) >= 0){
+			n = pread(fd, &u, sizeof u, 0);
+			close(fd);
 		}
+		t = p->thread;
+		fprint(2, "amdgpu proc %d %s:", p->pid, t != nil && t->cmdname != nil ? t->cmdname : "");
+		if(n == sizeof u){
+			fprint(2, " pc %#llux sp %#llux; chain", u.pc, u.sp);
+			chain((uvlong*)u.bp, u.sp, u.sp + 1024*1024);
+		}else
+			fprint(2, " no registers\n");
+		for(t = p->threads.head; t != nil; t = t->nextt){
+			if(t == p->thread)
+				continue;
+			jb = (uvlong*)t->sched;
+			fprint(2, "amdgpu  thread %d %s state %d pc %#llux; chain", t->id,
+				t->cmdname ? t->cmdname : "", t->state, jb[JMPBUFPC]);
+			chain((uvlong*)jb[2], jb[JMPBUFSP], jb[JMPBUFSP] + 1024*1024);	/* jb[2]: rbp (libc/amd64/setjmp.S) */
+		}
+	}
 }
 
 /* -W s: a thread dump every s seconds, for hangs (a note waits for a running thread) */
@@ -86,7 +111,7 @@ trapnote(void *v, char *note)
 		return 1;
 	u = v;
 	fprint(2, "amdgpu %d: %s pc %#llux sp %#llux; chain", getpid(), note, u->pc, u->sp);
-	chain((uvlong*)u->bp);
+	chain((uvlong*)u->bp, u->sp, u->sp + 1024*1024);
 	return 0;
 }
 

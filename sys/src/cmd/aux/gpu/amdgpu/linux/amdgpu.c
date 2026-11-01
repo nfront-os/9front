@@ -147,11 +147,11 @@ amdgpu_status(void)
 	char *s, *e, *p;
 	int i;
 
-	s = kmalloc(4096, GFP_KERNEL);
+	s = kmalloc(8192, GFP_KERNEL);
 	if (!s)
 		return NULL;
 	p = s;
-	e = s + 4096;
+	e = s + 8192;
 	if (!a) {
 		snprintf(s, e - s, "device none\n");
 		return s;
@@ -167,6 +167,17 @@ amdgpu_status(void)
 		p = power(p, e, a);
 	if (a->irq.installed)
 		p = ihstate(p, e, a);
+	p += kpi_timeout_status(p, e - p);
+	/* each ring's fences: emitted, signaled (processed), as the ring wrote it */
+	for (i = 0; i < AMDGPU_MAX_RINGS; i++) {
+		struct amdgpu_ring *r = a->rings[i];
+
+		if (!r || !r->fence_drv.initialized || !r->fence_drv.cpu_addr)
+			continue;
+		p += scnprintf(p, e - p, "ring %s fence emitted %u signaled %u written %u\n", r->name,
+		    r->fence_drv.sync_seq, atomic_read(&r->fence_drv.last_seq),
+		    le32_to_cpu(*(volatile u32 *)r->fence_drv.cpu_addr));
+	}
 	for (i = 0; i < a->num_ip_blocks; i++)
 		p += scnprintf(p, e - p, "ip %s valid %d sw %d hw %d late %d\n",
 		    a->ip_blocks[i].version->funcs->name,

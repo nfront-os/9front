@@ -10,11 +10,22 @@ if(~ $#perftest 0)
 	perftest=''
 aux/amdgpu $* >/tmp/amd.log >[2=1]
 sleep 2
+grep '^irq' '#G/1/ctl'
 DRM9DEBUG=$drm9debug RADV_DEBUG=$radvdebug RADV_PERFTEST=$perftest /tests/radvtest >[2=1]
 echo radvtest status $status
-grep '^(ring|ih|timeouts)' /dev/gpu/0/status
+grep '^irq' '#G/1/ctl'
+grep '^(ring sdma|ring gfx|ih|timeouts)' /dev/gpu/0/status
+if(~ $1 -W){
+	sleep 7
+	echo last threaddump
+	awk '/threaddump after/ { n = 0; delete l } { l[n++] = $0 } END { for(i = 0; i < n; i++) print l[i] }' /tmp/amd.log
+}
+echo ih process
+echo ih process >/dev/gpu/0/ctl
+grep '^irq' '#G/1/ctl'
+grep '^(ring sdma|ring gfx|ih|timeouts)' /dev/gpu/0/status
 sleep 12
 echo after 12 s
 grep '^(ring|ih|timeouts)' /dev/gpu/0/status
-grep -i 'fault|warn|error|fallback|reset|hang' /tmp/amd.log | sed 30q
+grep -i 'kpi|irq|fault|warn|error|fallback|reset|hang' /tmp/amd.log | grep -v 'MES failed|unmap legacy' | sed 30q
 echo TESTEND

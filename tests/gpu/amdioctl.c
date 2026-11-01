@@ -88,7 +88,9 @@ struct Gemclose {	/* drm_gem_close */
 enum {
 	Ginfo	= 0x05, Ggemcreate = 0x00, Gctx = 0x02, Ggemva = 0x08, Gcs = 0x04, Gwaitcs = 0x09,
 	Infodev	= 0x16, Infovramgtt = 0x14,
-	Domgtt	= 2,
+	Domgtt	= 2, Domvram = 4,
+	Cpuaccess	= 1<<0, Uswc = 1<<2, Explicitsync = 1<<7,
+	Varadvib	= 1<<1 | 1<<3 | 4<<5,	/* readable, executable, MTYPE_UC: RADV's IBs */
 	Ctxalloc	= 1,
 	Vamap	= 1,
 	Vaflags	= 1<<1 | 1<<2 | 1<<3,	/* readable, writeable, executable */
@@ -178,6 +180,31 @@ ioctl(u32int cmd, void *a)
 	return strtol(buf, nil, 10);
 }
 
+/* the processor's view of an object: its segment (GTT), or BAR 0 at its offset (VRAM) */
+static u32int*
+map(u32int h, uchar **bar0)
+{
+	char buf[256], *f[8];
+	void *p;
+	int n;
+
+	if(ctl(buf, sizeof buf, "map %ud", h) < 0)
+		sysfatal("map %ud: %r", h);
+	n = tokenize(buf, f, nelem(f));
+	if(n == 7){	/* "map h seg 0 size off barsize" */
+		if(*bar0 == nil && (*bar0 = segattach(0, f[2], nil, strtoull(f[6], nil, 0))) == (void*)-1)
+			sysfatal("segattach %s: %r", f[2]);
+		ok("map %ud: VRAM at %s+%s", h, f[2], f[5]);
+		return (u32int*)(*bar0 + strtoull(f[5], nil, 0));
+	}
+	if(n != 5)
+		sysfatal("map %ud: %s", h, buf);
+	if((p = segattach(0, f[2], nil, 4096)) == (void*)-1)
+		sysfatal("segattach %s: %r", f[2]);
+	ok("map %ud: GTT, %s", h, f[2]);
+	return p;
+}
+
 void
 main(int argc, char **argv)
 {
@@ -197,11 +224,21 @@ main(int argc, char **argv)
 	Gemclose *cl;
 	uvlong *chp;
 	u32int h[2], ctxid, *cmd, *dst;
-	uvlong gpu[2];
+	uvlong gpu[2], base;
 	long r;
-	int ctx, i;
+	int ctx, i, radv;
+	uchar *bar0;
 
+	base = 0x200000000ULL;
+	radv = 0;
+	bar0 = nil;
 	ARGBEGIN{
+	case 'r':	/* objects as RADV makes its command buffers: VRAM or GTT, explicit sync, the IB uncached */
+		radv = 1;
+		break;
+	case 'b':	/* the objects' GPU addresses (RADV takes them from the top: 0xffff800000000000) */
+		base = strtoull(EARGF(sysfatal("usage: amdioctl [-r] [-b gpuaddr] [dev]")), nil, 0);
+		break;
 	}ARGEND
 	if(argc > 0)
 		dev = argv[0];
@@ -274,28 +311,28 @@ main(int argc, char **argv)
 		gc->bo_size = 4096;
 		gc->alignment = 4096;
 		gc->domains = Domgtt;
+		if(radv){
+			gc->domains = Domgtt | Domvram;
+			gc->domain_flags = Cpuaccess | Uswc | Explicitsync;
+		}
 		if((r = ioctl(IOWR(CMD+Ggemcreate, Gemcreate), gc)) != 0)
 			sysfatal("GEM_CREATE: %ld", r);
 		h[i] = *(u32int*)gc;	/* out.handle */
-		gpu[i] = 0x200000000ULL + i*0x100000;
+		gpu[i] = base + i*0x100000;
 		va = amalloc(sizeof *va);
 		va->handle = h[i];
 		va->operation = Vamap;
 		va->flags = Vaflags;
+		if(radv && i == 0)
+			va->flags = Varadvib;
 		va->va_address = gpu[i];
 		va->map_size = 4096;
 		if((r = ioctl(IOW(CMD+Ggemva, Gemva), va)) != 0)
 			sysfatal("GEM_VA: %ld", r);
 		ok("GEM_CREATE handle %ud, GEM_VA at %#llux", h[i], gpu[i]);
 	}
-	if(ctl(buf, sizeof buf, "map %ud", h[0]) < 0 || tokenize(buf, f, nelem(f)) != 5)
-		sysfatal("map %ud: %r %s", h[0], buf);
-	if((cmd = segattach(0, f[2], nil, 4096)) == (void*)-1)
-		sysfatal("segattach %s: %r", f[2]);
-	if(ctl(buf, sizeof buf, "map %ud", h[1]) < 0 || tokenize(buf, f, nelem(f)) != 5)
-		sysfatal("map %ud: %r %s", h[1], buf);
-	if((dst = segattach(0, f[2], nil, 4096)) == (void*)-1)
-		sysfatal("segattach %s: %r", f[2]);
+	cmd = map(h[0], &bar0);
+	dst = map(h[1], &bar0);
 	ok("map: the processor sees both");
 
 	/* one IB: WRITE_DATA (PM4) into the second object */

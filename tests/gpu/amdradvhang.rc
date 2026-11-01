@@ -1,0 +1,14 @@
+#!/bin/rc
+# aux/amdgpu, radvtest with RADV_DEBUG=hang: RADV's hang report (the
+# command streams, where the CP stopped) from /tmp/radv_dumps_*
+bind -a '#i' /dev
+bind -a '#v' /dev
+aux/amdgpu $* >/tmp/amd.log >[2=1]
+sleep 2
+HOME=/tmp RADV_DEBUG=hang /tests/radvtest >[2=1]
+ls -l /tmp/radv_dumps_*
+for(f in /tmp/radv_dumps_*/*){
+	echo '==' $f
+	sed 120q $f
+}
+echo TESTEND
