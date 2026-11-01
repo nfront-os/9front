@@ -25,6 +25,6 @@ lim=$(ulimit -l)
 
 # by default: the PCI devices with their BARs (pci -bv), and the first
 # words of the AMD functions' configuration space (vendor 1002)
-cmds=${1:-'pci -bv; for(f in ''#$/pci/''*ctl) if(grep -s ''1002/'' $f){ echo $f; cat $f; xd -x4 `{echo $f | sed ''s/ctl$/raw/''} | sed 4q }'}
+cmds=${1:-"pci -bv; for(f in '#\$/pci/'*ctl) if(grep -s '1002/' \$f){ echo \$f; cat \$f; xd -x4 \`{echo \$f | sed 's/ctl\$/raw/'} | sed 4q }"}
 MEM=${MEM:-4096} CPU=${CPU:-host} QEMU_EXTRA="-device vfio-pci,host=$GPU,multifunction=on -device vfio-pci,host=$AUDIO $QEMU_EXTRA" \
 	"$ROOT/scripts/guest/boot-cli.sh" "$cmds"
