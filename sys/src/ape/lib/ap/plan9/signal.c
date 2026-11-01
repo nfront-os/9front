@@ -24,6 +24,7 @@ static struct {
 	{"exit",				SIGKILL},
 	{"die",					SIGKILL},
 	{"kill",				SIGKILL},
+	{"sys: trap: fault",			SIGSEGV},	/* 9front next generation: 9front's page faults (port/fault.c: "sys: trap: fault read addr=...") */
 	{"sys: trap: bus error",		SIGSEGV},
 	{"sys: trap: address error",		SIGSEGV},
 	{"sys: trap: TLB",			SIGSEGV},
