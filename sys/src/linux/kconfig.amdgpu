@@ -1,0 +1,11 @@
+# The configuration for amdgpu, on top of kconfig (census.py -a: what amdgpu
+# still lacks of the layer; not yet in the build).  The RX 7600 (Navi 33:
+# GFX 11, DCN 3.2); DC with the DCN floating point code (a proc of the file
+# server has its own FPU state).
+CONFIG_DRM_AMDGPU=y
+CONFIG_DRM_AMD_DC=y
+CONFIG_DRM_AMD_DC_FP=y
+CONFIG_DRM_SCHED=y
+CONFIG_DRM_EXEC=y
+CONFIG_DRM_SUBALLOC_HELPER=y
+CONFIG_DRM_TTM_HELPER=y

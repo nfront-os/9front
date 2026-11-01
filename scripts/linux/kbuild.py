@@ -17,7 +17,10 @@ KCONFIG = os.path.join(HERE, '../../sys/src/linux/kconfig')
 
 def config(path=KCONFIG):
 	c = {}
-	for l in open(path):
+	paths = [path]
+	if os.environ.get('KPI_AMDGPU'):	# census.py -a
+		paths.append(path + '.amdgpu')
+	for l in (l for p in paths for l in open(p)):
 		l = l.strip()
 		if l and not l.startswith('#'):
 			k, _, v = l.partition('=')
