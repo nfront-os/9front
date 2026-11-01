@@ -1,0 +1,34 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Stefan Hertenberger <erde74@gmail.com>
+Date: Sun, 1 Nov 2026 23:18:40 +0100
+Subject: [PATCH] radv: on 9front its vk_icdGetInstanceProcAddr has a name of
+ its own (radeon_: the drivers are linked into the program)
+
+---
+ src/amd/vulkan/radv_instance.c | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/src/amd/vulkan/radv_instance.c b/src/amd/vulkan/radv_instance.c
+index e6407ac..cc60135 100644
+--- a/src/amd/vulkan/radv_instance.c
++++ b/src/amd/vulkan/radv_instance.c
+@@ -20,6 +20,7 @@
+ #include "tools/radv_debug_hang.h"
+ #include "radv_entrypoints.h"
+ #include "radv_instance.h"
++#include "util/detect_os.h"
+ #include "radv_wsi.h"
+ 
+ #include "vk_instance.h"
+@@ -434,6 +435,11 @@ radv_GetInstanceProcAddr(VkInstance _instance, const char *pName)
+ /* The loader wants us to expose a second GetInstanceProcAddr function
+  * to work around certain LD_PRELOAD issues seen in apps.
+  */
++#if DETECT_OS_PLAN9
++/* 9front links its drivers into the program, each under a name of its own */
++#define vk_icdGetInstanceProcAddr radeon_icdGetInstanceProcAddr
++PUBLIC VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL vk_icdGetInstanceProcAddr(VkInstance, const char*);
++#endif
+ PUBLIC
+ VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL
+ vk_icdGetInstanceProcAddr(VkInstance instance, const char *pName)

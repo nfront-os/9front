@@ -23,6 +23,9 @@
  * Getparams answer what the driver says (status: sseu) or what i915
  * answers on gen 8; queries (topology, engines, memory regions) fail,
  * and Mesa falls back to getparams, as with older kernels.
+ *
+ * AMD's GPUs (aux/amdgpu) are amdgpu9.c's: their ioctls, syncobjs and
+ * version go to Linux's amdgpu itself, through the context's arena.
  */
 #define _GNU_SOURCE
 #include <errno.h>
@@ -42,6 +45,8 @@
 #include <xf86drm.h>
 #include <drm-uapi/i915_drm.h>
 #include <drm-uapi/dma-buf.h>
+
+#include "amdgpu9.h"
 
 /* as Mesa's build has it (meson: -DETIME=ETIMEDOUT) */
 #ifndef ETIME
@@ -76,6 +81,7 @@ struct Gpu {
 	uint8_t	bus, dev, func;
 	int	slicemask, subslicemask, eutotal;
 	uint64_t	aperture;
+	int	amd;		/* aux/amdgpu: amdgpu9.c */
 };
 
 /* a context's batch k; ctx nil: none, signalled */
@@ -120,6 +126,7 @@ struct Dev {
 	int	ngem;
 	Sync	*sync;
 	int	nsync;
+	Amd	*amd;		/* an AMD GPU's context (amdgpu9.c) */
 };
 
 enum { Knone, Kdev, Kdmabuf, Ksyncfile };
@@ -225,12 +232,13 @@ scan(void)
 		snprintf(path, sizeof path, "/dev/gpu/%d/status", i);
 		if(readfile(path, buf, sizeof buf) < 0)
 			continue;
-		if((s = keyline(buf, "device")) == NULL || strncmp(s, "intel ", 6) != 0)
+		if((s = keyline(buf, "device")) == NULL || (strncmp(s, "intel ", 6) != 0 && strncmp(s, "amd ", 4) != 0))
 			continue;
-		if(sscanf(s+6, "%x/%x", &v, &d) != 2)
+		if(sscanf(s + (s[0] == 'a' ? 4 : 6), "%x/%x", &v, &d) != 2)
 			continue;
 		g = &gpus[ngpu];
 		memset(g, 0, sizeof *g);
+		g->amd = s[0] == 'a';
 		g->n = i;
 		snprintf(g->dir, sizeof g->dir, "/dev/gpu/%d", i);
 		g->vendor = v;
@@ -303,6 +311,13 @@ getdev(int fd)
 	if(f->kind == Kdev && f->dev->ino == q)
 		return f->dev;
 	f->kind = Knone;
+	/* a descriptor dup'd from a known one (libdrm_amdgpu dups): the same context */
+	for(i = 0; i < Maxfd; i++)
+		if(i != fd && fds[i].kind == Kdev && fds[i].dev->ino == q){
+			f->kind = Kdev;
+			f->dev = fds[i].dev;
+			return f->dev;
+		}
 	scan();
 	for(i = 0; i < ngpu; i++){
 		n = strlen(gpus[i].dir);
@@ -337,6 +352,12 @@ getdev(int fd)
 	}
 	if((s = strchr(buf, '\n')) != NULL)
 		*s = 0;
+	if(d->gpu->amd && (d->amd = amd9attach(fd, d->gpu->dir, d->ctx)) == NULL){
+		close(d->submitfd);
+		close(d->statfd);
+		free(d);
+		return NULL;
+	}
 	f->kind = Kdev;
 	f->dev = d;
 	return d;
@@ -1213,6 +1234,8 @@ ioctl(int fd, unsigned long req, void *arg)
 			dbg("ioctl %#lx on %d: not a GPU context", req, fd);
 			return seterr(ENOTTY);
 		}
+		if(d->amd != NULL)
+			return amd9ioctl(d->amd, req, arg);
 		if(i915ioctl(d, req, arg) < 0){
 			dbg("ioctl %#lx (nr %#lx): %s", req, req & 0xff, strerror(errno));
 			return -1;
@@ -1337,12 +1360,26 @@ drmGetDevice(int fd, drmDevicePtr *dev)
 	return drmGetDevice2(fd, 0, dev);
 }
 
+/* the device whose node has the id (stat's st_rdev, as RADV keeps it) */
 int
 drmGetDeviceFromDevId(dev_t id, uint32_t flags, drmDevicePtr *dev)
 {
-	(void)id;
+	struct stat st;
+	char path[64];
+	int i;
+
 	(void)flags;
-	(void)dev;
+	pthread_mutex_lock(&lk);
+	scan();
+	for(i = 0; i < ngpu; i++){
+		snprintf(path, sizeof path, "%s/clone", gpus[i].dir);
+		if(stat(path, &st) == 0 && st.st_rdev == id){
+			*dev = mkdevice(&gpus[i]);
+			pthread_mutex_unlock(&lk);
+			return *dev != NULL ? 0 : -ENOMEM;
+		}
+	}
+	pthread_mutex_unlock(&lk);
 	return -ENODEV;
 }
 
@@ -1418,6 +1455,52 @@ drmGetRenderDeviceNameFromFd(int fd)
 	return nodename(fd);
 }
 
+/* the AMD context of a descriptor (amdgpu9.c), or NULL */
+Amd*
+amd9of(int fd)
+{
+	Dev *d;
+
+	pthread_mutex_lock(&lk);
+	d = getdev(fd);
+	pthread_mutex_unlock(&lk);
+	return d != NULL ? d->amd : NULL;
+}
+
+/* amdgpu's version, as libdrm asks it: the lengths, then the strings */
+static drmVersionPtr
+amdversion(int fd)
+{
+	struct drm_version dv;
+	drmVersionPtr v;
+
+	memset(&dv, 0, sizeof dv);
+	if(drmIoctl(fd, DRM_IOCTL_VERSION, &dv) < 0)
+		return NULL;
+	if((v = calloc(1, sizeof *v)) == NULL)
+		return NULL;
+	dv.name = calloc(1, dv.name_len + 1);
+	dv.date = calloc(1, dv.date_len + 1);
+	dv.desc = calloc(1, dv.desc_len + 1);
+	if(dv.name == NULL || dv.date == NULL || dv.desc == NULL || drmIoctl(fd, DRM_IOCTL_VERSION, &dv) < 0){
+		free(dv.name);
+		free(dv.date);
+		free(dv.desc);
+		free(v);
+		return NULL;
+	}
+	v->version_major = dv.version_major;
+	v->version_minor = dv.version_minor;
+	v->version_patchlevel = dv.version_patchlevel;
+	v->name = dv.name;
+	v->name_len = dv.name_len;
+	v->date = dv.date;
+	v->date_len = dv.date_len;
+	v->desc = dv.desc;
+	v->desc_len = dv.desc_len;
+	return v;
+}
+
 drmVersionPtr
 drmGetVersion(int fd)
 {
@@ -1429,6 +1512,8 @@ drmGetVersion(int fd)
 	pthread_mutex_unlock(&lk);
 	if(d == NULL)
 		return NULL;
+	if(d->amd != NULL)
+		return amdversion(fd);
 	if((v = calloc(1, sizeof *v)) == NULL)
 		return NULL;
 	v->version_major = 1;
@@ -1456,7 +1541,16 @@ drmFreeVersion(drmVersionPtr v)
 int
 drmGetCap(int fd, uint64_t cap, uint64_t *val)
 {
-	(void)fd;
+	if(amd9of(fd) != NULL){
+		struct drm_get_cap c;
+
+		memset(&c, 0, sizeof c);
+		c.capability = cap;
+		if(drmIoctl(fd, DRM_IOCTL_GET_CAP, &c) < 0)
+			return -errno;
+		*val = c.value;
+		return 0;
+	}
 	switch(cap){
 	case DRM_CAP_SYNCOBJ:
 	case DRM_CAP_SYNCOBJ_TIMELINE:
@@ -1533,6 +1627,14 @@ syncdev(int fd)
 int
 drmSyncobjCreate(int fd, uint32_t flags, uint32_t *handle)
 {
+	if(amd9of(fd) != NULL){
+		struct drm_syncobj_create c = { .flags = flags };
+
+		if(drmIoctl(fd, DRM_IOCTL_SYNCOBJ_CREATE, &c) < 0)
+			return -1;
+		*handle = c.handle;
+		return 0;
+	}
 	Sync *ns;
 	Dev *d;
 	int i;
@@ -1564,6 +1666,11 @@ drmSyncobjCreate(int fd, uint32_t flags, uint32_t *handle)
 int
 drmSyncobjDestroy(int fd, uint32_t handle)
 {
+	if(amd9of(fd) != NULL){
+		struct drm_syncobj_destroy c = { .handle = handle };
+
+		return drmIoctl(fd, DRM_IOCTL_SYNCOBJ_DESTROY, &c);
+	}
 	Sync *s;
 	Dev *d;
 
@@ -1581,6 +1688,11 @@ drmSyncobjDestroy(int fd, uint32_t handle)
 int
 drmSyncobjReset(int fd, const uint32_t *h, uint32_t n)
 {
+	if(amd9of(fd) != NULL){
+		struct drm_syncobj_array a = { .handles = (uint64_t)(uintptr_t)h, .count_handles = n };
+
+		return drmIoctl(fd, DRM_IOCTL_SYNCOBJ_RESET, &a);
+	}
 	Sync *s;
 	Dev *d;
 	uint32_t i;
@@ -1599,6 +1711,11 @@ drmSyncobjReset(int fd, const uint32_t *h, uint32_t n)
 int
 drmSyncobjSignal(int fd, const uint32_t *h, uint32_t n)
 {
+	if(amd9of(fd) != NULL){
+		struct drm_syncobj_array a = { .handles = (uint64_t)(uintptr_t)h, .count_handles = n };
+
+		return drmIoctl(fd, DRM_IOCTL_SYNCOBJ_SIGNAL, &a);
+	}
 	Fence none;
 	Sync *s;
 	Dev *d;
@@ -1617,6 +1734,12 @@ drmSyncobjSignal(int fd, const uint32_t *h, uint32_t n)
 int
 drmSyncobjTimelineSignal(int fd, const uint32_t *h, uint64_t *pts, uint32_t n)
 {
+	if(amd9of(fd) != NULL){
+		struct drm_syncobj_timeline_array a = { .handles = (uint64_t)(uintptr_t)h,
+			.points = (uint64_t)(uintptr_t)pts, .count_handles = n };
+
+		return drmIoctl(fd, DRM_IOCTL_SYNCOBJ_TIMELINE_SIGNAL, &a);
+	}
 	Fence none;
 	Sync *s;
 	Dev *d;
@@ -1635,6 +1758,16 @@ drmSyncobjTimelineSignal(int fd, const uint32_t *h, uint64_t *pts, uint32_t n)
 int
 drmSyncobjWait(int fd, uint32_t *h, unsigned n, int64_t timeout, unsigned flags, uint32_t *first)
 {
+	if(amd9of(fd) != NULL){
+		struct drm_syncobj_wait w = { .handles = (uint64_t)(uintptr_t)h, .timeout_nsec = timeout,
+			.count_handles = n, .flags = flags };
+
+		if(drmIoctl(fd, DRM_IOCTL_SYNCOBJ_WAIT, &w) < 0)
+			return -errno;
+		if(first != NULL)
+			*first = w.first_signaled;
+		return 0;
+	}
 	Dev *d;
 
 	if((d = syncdev(fd)) == NULL)
@@ -1646,6 +1779,16 @@ drmSyncobjWait(int fd, uint32_t *h, unsigned n, int64_t timeout, unsigned flags,
 int
 drmSyncobjTimelineWait(int fd, uint32_t *h, uint64_t *pts, unsigned n, int64_t timeout, unsigned flags, uint32_t *first)
 {
+	if(amd9of(fd) != NULL){
+		struct drm_syncobj_timeline_wait w = { .handles = (uint64_t)(uintptr_t)h,
+			.points = (uint64_t)(uintptr_t)pts, .timeout_nsec = timeout, .count_handles = n, .flags = flags };
+
+		if(drmIoctl(fd, DRM_IOCTL_SYNCOBJ_TIMELINE_WAIT, &w) < 0)
+			return -errno;
+		if(first != NULL)
+			*first = w.first_signaled;
+		return 0;
+	}
 	Dev *d;
 
 	if((d = syncdev(fd)) == NULL)
@@ -1657,6 +1800,12 @@ drmSyncobjTimelineWait(int fd, uint32_t *h, uint64_t *pts, unsigned n, int64_t t
 int
 drmSyncobjQuery2(int fd, uint32_t *h, uint64_t *pts, uint32_t n, uint32_t flags)
 {
+	if(amd9of(fd) != NULL){
+		struct drm_syncobj_timeline_array a = { .handles = (uint64_t)(uintptr_t)h,
+			.points = (uint64_t)(uintptr_t)pts, .count_handles = n, .flags = flags };
+
+		return drmIoctl(fd, DRM_IOCTL_SYNCOBJ_QUERY, &a);
+	}
 	Sync *s;
 	Dev *d;
 	uint32_t i;
@@ -1688,6 +1837,12 @@ drmSyncobjQuery(int fd, uint32_t *h, uint64_t *pts, uint32_t n)
 int
 drmSyncobjTransfer(int fd, uint32_t dst, uint64_t dstpt, uint32_t src, uint64_t srcpt, uint32_t flags)
 {
+	if(amd9of(fd) != NULL){
+		struct drm_syncobj_transfer t = { .src_handle = src, .dst_handle = dst, .src_point = srcpt,
+			.dst_point = dstpt, .flags = flags };
+
+		return drmIoctl(fd, DRM_IOCTL_SYNCOBJ_TRANSFER, &t);
+	}
 	Sync *ds, *ss;
 	Fence f;
 	Dev *d;
@@ -1713,12 +1868,16 @@ drmSyncobjTransfer(int fd, uint32_t dst, uint64_t dstpt, uint32_t src, uint64_t 
 int
 drmSyncobjHandleToFD(int fd, uint32_t handle, int *out)
 {
+	if(amd9of(fd) != NULL)
+		return seterr(EOPNOTSUPP);	/* no sync file descriptors for amdgpu here */
 	return drmSyncobjExportSyncFile(fd, handle, out);
 }
 
 int
 drmSyncobjFDToHandle(int fd, int sfd, uint32_t *handle)
 {
+	if(amd9of(fd) != NULL)
+		return seterr(EOPNOTSUPP);	/* no sync file descriptors for amdgpu here */
 	if(drmSyncobjCreate(fd, 0, handle) < 0)
 		return -1;
 	if(drmSyncobjImportSyncFile(fd, *handle, sfd) < 0){
@@ -1731,6 +1890,8 @@ drmSyncobjFDToHandle(int fd, int sfd, uint32_t *handle)
 int
 drmSyncobjExportSyncFile(int fd, uint32_t handle, int *out)
 {
+	if(amd9of(fd) != NULL)
+		return seterr(EOPNOTSUPP);	/* no sync file descriptors for amdgpu here */
 	Fence f;
 	Sync *s;
 	Dev *d;
@@ -1760,6 +1921,8 @@ drmSyncobjExportSyncFile(int fd, uint32_t handle, int *out)
 int
 drmSyncobjImportSyncFile(int fd, uint32_t handle, int sfd)
 {
+	if(amd9of(fd) != NULL)
+		return seterr(EOPNOTSUPP);	/* no sync file descriptors for amdgpu here */
 	Sync *s;
 	Dev *d;
 	Fd *f;

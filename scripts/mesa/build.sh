@@ -38,10 +38,13 @@ rm -f "$BUILD/plan9/libmesaplan9.a"
 "$CROSS/$TRIPLE-ar" rcs "$BUILD/plan9/libmesaplan9.a" $objs
 
 # libdrm for 9front, with Mesa's uAPI headers, and its pkg-config file
-"$CROSS/$TRIPLE-gcc" -std=c11 -O2 -Wall -I"$P9/drm/include" -I"$P9/include" -I"$SRC/include" \
-	-c -o "$BUILD/plan9/drm9.o" "$P9/drm/drm9.c"
+# (drm9.c: Intel's and the descriptors; amdgpu9.c: libdrm_amdgpu and AMD's ioctls)
+for c in drm9 amdgpu9; do
+	"$CROSS/$TRIPLE-gcc" -std=c11 -O2 -Wall -I"$P9/drm/include" -I"$P9/include" -I"$SRC/include" \
+		-c -o "$BUILD/plan9/$c.o" "$P9/drm/$c.c"
+done
 rm -f "$BUILD/plan9/libdrm.a"
-"$CROSS/$TRIPLE-ar" rcs "$BUILD/plan9/libdrm.a" "$BUILD/plan9/drm9.o"
+"$CROSS/$TRIPLE-ar" rcs "$BUILD/plan9/libdrm.a" "$BUILD/plan9/drm9.o" "$BUILD/plan9/amdgpu9.o"
 mkdir -p "$BUILD/plan9/pkgconfig"
 cat > "$BUILD/plan9/pkgconfig/libdrm.pc" <<EOC
 Name: libdrm

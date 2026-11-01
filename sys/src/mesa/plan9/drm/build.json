@@ -10,6 +10,7 @@
 			"-I../../vendor/include"
 		],
 		"SourceFiles": [
+			"amdgpu9.c",
 			"drm9.c"
 		]
 	}

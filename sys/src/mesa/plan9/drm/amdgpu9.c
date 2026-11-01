@@ -1,0 +1,1090 @@
+/*
+ * SPDX-License-Identifier: MIT
+ *
+ * libdrm_amdgpu on 9front, and amdgpu's ioctls, over aux/amdgpu
+ * (gpu(4)): what Mesa's RADV (src/amd/common/ac_linux_drm.c) uses.
+ *
+ * A descriptor is a context of aux/amdgpu, opened by /dev/gpu/N/clone
+ * (drm9.c finds it); the context's arena is memory at one address here
+ * and in the driver. An ioctl's structure and everything it points to
+ * (CS chunks, BO lists, INFO's result, syncobj handles, ...) are copied
+ * there, the ioctl is written to the context's ioctl file as "cmd addr",
+ * and what the driver wrote comes back. The driver is Linux's amdgpu:
+ * its ioctl numbers are Linux's (here BSD's encoding, sys/ioccom.h), its
+ * errors Linux's errno values (here APE's).
+ *
+ *	libdrm_amdgpu	device, objects (GEM_CREATE; cpu_map: the driver's
+ *			"map", a segment), the GPU's address space (a
+ *			manager of its own over AMDGPU_INFO's ranges, as
+ *			libdrm's)
+ *	not here	userptr objects, dma-buf and sync file descriptors
+ *			(PRIME, syncobj fds), user queues
+ */
+#define _GNU_SOURCE
+#include <errno.h>
+#include <fcntl.h>
+#include <pthread.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/stat.h>
+
+#include <stdarg.h>
+#include <xf86drm.h>
+#include <amdgpu.h>
+#include <drm-uapi/drm.h>
+#include <drm-uapi/amdgpu_drm.h>
+
+#include "amdgpu9.h"
+
+#ifndef ETIME
+#define ETIME	ETIMEDOUT
+#endif
+
+extern void	*_SEGATTACH(int, char*, void*, unsigned long);
+extern int	_SEGDETACH(void*);
+
+enum {
+	Slot	= 64*1024,	/* the arena in slots, one or more a call */
+	Nfid	= 8,		/* ioctl files kept open */
+	Maxbo	= 4096,
+};
+
+struct Amd {
+	int	fd;		/* the context's ctl */
+	int	ctx;
+	char	dir[32];	/* /dev/gpu/N */
+	pthread_mutex_t	lk;
+	pthread_cond_t	free;
+	unsigned char	*arena;
+	uint64_t	asize;
+	int	nslot;
+	unsigned char	*used;	/* per slot */
+	int	fids[Nfid];
+	int	nfids;
+	unsigned char	*bar0;	/* BAR 0, for VRAM objects' views */
+	uint64_t	bar0size;
+};
+
+/*
+ * the arena
+ */
+/* DRM9DEBUG=1: the ioctls that fail, as drm9.c's */
+static void
+dbg(const char *fmt, ...)
+{
+	static int on = -1;
+	va_list arg;
+	int e;
+
+	e = errno;
+	if(on < 0)
+		on = getenv("DRM9DEBUG") != NULL;
+	if(on){
+		fprintf(stderr, "amdgpu9: ");
+		va_start(arg, fmt);
+		vfprintf(stderr, fmt, arg);
+		va_end(arg);
+		fprintf(stderr, "\n");
+	}
+	errno = e;
+}
+
+static int
+ctlreq(Amd *a, char *reply, int n, const char *fmt, ...)
+{
+	char buf[256];
+	va_list arg;
+	int m;
+
+	va_start(arg, fmt);
+	m = vsnprintf(buf, sizeof buf, fmt, arg);
+	va_end(arg);
+	pthread_mutex_lock(&a->lk);	/* the reply is the context's: one at a time */
+	if(write(a->fd, buf, m) != m){
+		pthread_mutex_unlock(&a->lk);
+		return -1;
+	}
+	if(reply != NULL){
+		m = pread(a->fd, reply, n-1, 0);
+		if(m < 0){
+			pthread_mutex_unlock(&a->lk);
+			return -1;
+		}
+		reply[m] = 0;
+	}
+	pthread_mutex_unlock(&a->lk);
+	return 0;
+}
+
+Amd*
+amd9attach(int fd, const char *dir, int ctx)
+{
+	char buf[256], seg[64];
+	unsigned long long va, size;
+	Amd *a;
+
+	a = calloc(1, sizeof *a);
+	if(a == NULL)
+		return NULL;
+	a->fd = fd;
+	a->ctx = ctx;
+	snprintf(a->dir, sizeof a->dir, "%s", dir);
+	pthread_mutex_init(&a->lk, NULL);
+	pthread_cond_init(&a->free, NULL);
+	if(ctlreq(a, buf, sizeof buf, "arena") < 0 ||
+	   sscanf(buf, "arena %63s %lli %lli", seg, &va, &size) != 3){
+		free(a);
+		return NULL;
+	}
+	/* the driver's pointers into it are ours: it attaches where it is */
+	a->arena = _SEGATTACH(0, seg, NULL, size);
+	if(a->arena == (void*)-1 || (uintptr_t)a->arena != va){
+		if(a->arena != (void*)-1)
+			_SEGDETACH(a->arena);
+		free(a);
+		return NULL;
+	}
+	a->asize = size;
+	a->nslot = size / Slot;
+	a->used = calloc(a->nslot, 1);
+	if(a->used == NULL){
+		_SEGDETACH(a->arena);
+		free(a);
+		return NULL;
+	}
+	return a;
+}
+
+/* n bytes of the arena, contiguous slots; waits for them */
+static unsigned char*
+aget(Amd *a, uint64_t n, int *first, int *count)
+{
+	int i, j, k;
+
+	k = (n + Slot - 1) / Slot;
+	if(k == 0)
+		k = 1;
+	if(k > a->nslot)
+		return NULL;
+	pthread_mutex_lock(&a->lk);
+	for(;;){
+		for(i = 0; i + k <= a->nslot; i++){
+			for(j = 0; j < k && !a->used[i+j]; j++)
+				;
+			if(j == k){
+				memset(a->used + i, 1, k);
+				pthread_mutex_unlock(&a->lk);
+				*first = i;
+				*count = k;
+				return a->arena + (uint64_t)i*Slot;
+			}
+		}
+		pthread_cond_wait(&a->free, &a->lk);
+	}
+}
+
+static void
+aput(Amd *a, int first, int count)
+{
+	pthread_mutex_lock(&a->lk);
+	memset(a->used + first, 0, count);
+	pthread_cond_broadcast(&a->free);
+	pthread_mutex_unlock(&a->lk);
+}
+
+/* an ioctl file of the context: kept open, one per call at a time */
+static int
+fidget(Amd *a)
+{
+	char path[64];
+	int fd;
+
+	pthread_mutex_lock(&a->lk);
+	if(a->nfids > 0){
+		fd = a->fids[--a->nfids];
+		pthread_mutex_unlock(&a->lk);
+		return fd;
+	}
+	pthread_mutex_unlock(&a->lk);
+	snprintf(path, sizeof path, "%s/ctx/%d/ioctl", a->dir, a->ctx);
+	return open(path, O_RDWR);
+}
+
+static void
+fidput(Amd *a, int fd)
+{
+	pthread_mutex_lock(&a->lk);
+	if(a->nfids < Nfid){
+		a->fids[a->nfids++] = fd;
+		fd = -1;
+	}
+	pthread_mutex_unlock(&a->lk);
+	if(fd >= 0)
+		close(fd);
+}
+
+/* Linux's errno values (the driver's) as APE's */
+static int
+apeerrno(long e)
+{
+	switch(e){
+	case 1:		return EPERM;
+	case 2:		return ENOENT;
+	case 3:		return ESRCH;
+	case 4:		return EINTR;
+	case 5:		return EIO;
+	case 6:		return ENXIO;
+	case 7:		return E2BIG;
+	case 9:		return EBADF;
+	case 11:	return EAGAIN;
+	case 12:	return ENOMEM;
+	case 13:	return EACCES;
+	case 14:	return EFAULT;
+	case 16:	return EBUSY;
+	case 17:	return EEXIST;
+	case 19:	return ENODEV;
+	case 22:	return EINVAL;
+	case 24:	return EMFILE;
+	case 25:	return ENOTTY;
+	case 28:	return ENOSPC;
+	case 34:	return ERANGE;
+	case 35:	return EDEADLK;
+	case 38:	return ENOSYS;
+	case 61:	return ENODATA;
+	case 62:	return ETIME;
+	case 75:	return EOVERFLOW;
+	case 95:	return EOPNOTSUPP;
+	case 110:	return ETIMEDOUT;
+	case 125:	return ECANCELED;
+	case 512:	return EINTR;	/* ERESTARTSYS */
+	}
+	return EIO;
+}
+
+/* the ioctl with its arguments at p in the arena: 0, or -1 and errno */
+static int
+call(Amd *a, unsigned long lcmd, void *p)
+{
+	char buf[64];
+	long r;
+	int fd, n;
+
+	if((fd = fidget(a)) < 0)
+		return -1;
+	n = snprintf(buf, sizeof buf, "%#lx %#llx", lcmd, (unsigned long long)(uintptr_t)p);
+	if(write(fd, buf, n) != n || (n = pread(fd, buf, sizeof buf - 1, 0)) <= 0){
+		close(fd);
+		errno = EIO;
+		return -1;
+	}
+	fidput(a, fd);
+	buf[n] = 0;
+	r = strtol(buf, NULL, 10);
+	if(r < 0){
+		errno = apeerrno(-r);
+		return -1;
+	}
+	return 0;
+}
+
+/*
+ * marshalling: the structure and what it points to, copied into the
+ * arena (a first pass only counts), and back
+ */
+typedef struct M M;
+struct M {
+	unsigned char	*base;	/* nil: counting */
+	uint64_t	n;
+};
+
+/* room for n bytes: the copy of src (or zeros) */
+static void*
+mput(M *m, const void *src, uint64_t n)
+{
+	void *p;
+
+	n = (n + 15) & ~(uint64_t)15;
+	if(m->base == NULL){
+		m->n += n;
+		return (void*)(uintptr_t)16;	/* not used when counting */
+	}
+	p = m->base + m->n;
+	m->n += n;
+	if(src != NULL)
+		memcpy(p, src, n);
+	else
+		memset(p, 0, n);
+	return p;
+}
+
+#define P(x)	((void*)(uintptr_t)(x))
+#define U(p)	((uint64_t)(uintptr_t)(p))
+
+/*
+ * the nested parts of an ioctl's arguments s (in the arena already):
+ * copied in (dir 0) or back out to the caller's (dir 1, orig: the
+ * caller's structure)
+ */
+static int
+nested(M *m, unsigned nr, void *s, void *orig, int out)
+{
+	switch(nr){
+	case 0x00: {	/* VERSION */
+		struct drm_version *v = s, *o = orig;
+
+		if(!out){
+			v->name = o->name_len ? mput(m, NULL, o->name_len) : NULL;
+			v->date = o->date_len ? mput(m, NULL, o->date_len) : NULL;
+			v->desc = o->desc_len ? mput(m, NULL, o->desc_len) : NULL;
+		}else{
+			if(o->name && v->name)
+				memcpy(o->name, v->name, o->name_len < v->name_len ? o->name_len : v->name_len);
+			if(o->date && v->date)
+				memcpy(o->date, v->date, o->date_len < v->date_len ? o->date_len : v->date_len);
+			if(o->desc && v->desc)
+				memcpy(o->desc, v->desc, o->desc_len < v->desc_len ? o->desc_len : v->desc_len);
+			o->version_major = v->version_major;
+			o->version_minor = v->version_minor;
+			o->version_patchlevel = v->version_patchlevel;
+			o->name_len = v->name_len;
+			o->date_len = v->date_len;
+			o->desc_len = v->desc_len;
+			return 1;	/* copied: the pointers are the caller's */
+		}
+		break;
+	}
+	case 0xC3: {	/* SYNCOBJ_WAIT */
+		struct drm_syncobj_wait *w = s, *o = orig;
+
+		if(!out)
+			w->handles = U(mput(m, P(o->handles), (uint64_t)o->count_handles * 4));
+		else{
+			o->first_signaled = w->first_signaled;
+			return 1;
+		}
+		break;
+	}
+	case 0xC4:	/* SYNCOBJ_RESET */
+	case 0xC5: {	/* SYNCOBJ_SIGNAL */
+		struct drm_syncobj_array *y = s, *o = orig;
+
+		if(!out)
+			y->handles = U(mput(m, P(o->handles), (uint64_t)o->count_handles * 4));
+		else
+			return 1;
+		break;
+	}
+	case 0xCA: {	/* SYNCOBJ_TIMELINE_WAIT */
+		struct drm_syncobj_timeline_wait *w = s, *o = orig;
+
+		if(!out){
+			w->handles = U(mput(m, P(o->handles), (uint64_t)o->count_handles * 4));
+			w->points = U(mput(m, P(o->points), (uint64_t)o->count_handles * 8));
+		}else{
+			o->first_signaled = w->first_signaled;
+			return 1;
+		}
+		break;
+	}
+	case 0xCB:	/* SYNCOBJ_QUERY */
+	case 0xCD: {	/* SYNCOBJ_TIMELINE_SIGNAL */
+		struct drm_syncobj_timeline_array *y = s, *o = orig;
+
+		if(!out){
+			y->handles = U(mput(m, P(o->handles), (uint64_t)o->count_handles * 4));
+			y->points = U(mput(m, P(o->points), (uint64_t)o->count_handles * 8));
+		}else{
+			if(nr == 0xCB && o->points)
+				memcpy(P(o->points), P(y->points), (uint64_t)o->count_handles * 8);
+			return 1;
+		}
+		break;
+	}
+	case DRM_COMMAND_BASE + DRM_AMDGPU_BO_LIST: {
+		union drm_amdgpu_bo_list *l = s, *o = orig;
+
+		if(!out)
+			l->in.bo_info_ptr = U(mput(m, P(o->in.bo_info_ptr),
+				(uint64_t)o->in.bo_number * o->in.bo_info_size));
+		else{
+			o->out = l->out;
+			return 1;
+		}
+		break;
+	}
+	case DRM_COMMAND_BASE + DRM_AMDGPU_CS: {
+		union drm_amdgpu_cs *c = s, *o = orig;
+		uint64_t *chp, *och;
+		struct drm_amdgpu_cs_chunk *ch, *oc;
+		struct drm_amdgpu_bo_list_in *bl, *obl;
+		uint32_t i;
+
+		if(out){
+			o->out = c->out;
+			return 1;
+		}
+		och = P(o->in.chunks);
+		chp = mput(m, NULL, (uint64_t)o->in.num_chunks * 8);
+		c->in.chunks = U(chp);
+		for(i = 0; i < o->in.num_chunks; i++){
+			oc = P(och[i]);
+			ch = mput(m, oc, sizeof *ch);
+			if(m->base != NULL)
+				chp[i] = U(ch);
+			if(m->base == NULL){
+				mput(m, NULL, (uint64_t)oc->length_dw * 4);
+				if(oc->chunk_id == AMDGPU_CHUNK_ID_BO_HANDLES){
+					obl = P(oc->chunk_data);
+					mput(m, NULL, (uint64_t)obl->bo_number * obl->bo_info_size);
+				}
+				continue;
+			}
+			ch->chunk_data = U(mput(m, P(oc->chunk_data), (uint64_t)oc->length_dw * 4));
+			if(oc->chunk_id == AMDGPU_CHUNK_ID_BO_HANDLES){
+				bl = P(ch->chunk_data);
+				obl = P(oc->chunk_data);
+				bl->bo_info_ptr = U(mput(m, P(obl->bo_info_ptr), (uint64_t)obl->bo_number * obl->bo_info_size));
+			}
+		}
+		break;
+	}
+	case DRM_COMMAND_BASE + DRM_AMDGPU_INFO: {
+		struct drm_amdgpu_info *in = s, *o = orig;
+
+		if(!out)
+			in->return_pointer = U(mput(m, NULL, o->return_size));
+		else{
+			memcpy(P(o->return_pointer), P(in->return_pointer), o->return_size);
+			return 1;
+		}
+		break;
+	}
+	case DRM_COMMAND_BASE + DRM_AMDGPU_GEM_OP: {
+		struct drm_amdgpu_gem_op *g = s, *o = orig;
+
+		if(o->op != AMDGPU_GEM_OP_GET_GEM_CREATE_INFO)
+			break;
+		if(!out)
+			g->value = U(mput(m, NULL, sizeof(struct drm_amdgpu_gem_create_in)));
+		else{
+			memcpy(P(o->value), P(g->value), sizeof(struct drm_amdgpu_gem_create_in));
+			return 1;
+		}
+		break;
+	}
+	case DRM_COMMAND_BASE + DRM_AMDGPU_WAIT_FENCES: {
+		union drm_amdgpu_wait_fences *w = s, *o = orig;
+
+		if(!out)
+			w->in.fences = U(mput(m, P(o->in.fences), (uint64_t)o->in.fence_count * sizeof(struct drm_amdgpu_fence)));
+		else{
+			o->out = w->out;
+			return 1;
+		}
+		break;
+	}
+	}
+	return 0;
+}
+
+/* ioctls that pass descriptors or user memory: none here */
+static int
+refused(unsigned nr)
+{
+	switch(nr){
+	case 0x2d: case 0x2e:			/* PRIME */
+	case 0xC1: case 0xC2: case 0xCF:	/* syncobj fds, eventfd */
+	case DRM_COMMAND_BASE + DRM_AMDGPU_GEM_USERPTR:
+	case DRM_COMMAND_BASE + DRM_AMDGPU_USERQ:
+	case DRM_COMMAND_BASE + DRM_AMDGPU_USERQ_SIGNAL:
+	case DRM_COMMAND_BASE + DRM_AMDGPU_USERQ_WAIT:
+		return 1;
+	case DRM_COMMAND_BASE + DRM_AMDGPU_FENCE_TO_HANDLE:
+		return 0;	/* a syncobj only: checked below */
+	}
+	return 0;
+}
+
+int
+amd9ioctl(Amd *a, unsigned long req, void *arg)
+{
+	unsigned nr, size, dir;
+	unsigned long lcmd;
+	unsigned char *p;
+	int first, count, r;
+	M m;
+	void *s;
+
+	nr = req & 0xff;
+	size = (req >> 16) & IOCPARM_MASK;
+	if(refused(nr)){
+		dbg("ioctl %#x: not here", nr);
+		return errno = EOPNOTSUPP, -1;
+	}
+	if(nr == DRM_COMMAND_BASE + DRM_AMDGPU_FENCE_TO_HANDLE &&
+	   ((union drm_amdgpu_fence_to_handle*)arg)->in.what != AMDGPU_FENCE_TO_HANDLE_GET_SYNCOBJ)
+		return errno = EOPNOTSUPP, -1;	/* sync file descriptors: none */
+	/* Linux's encoding: 1 the caller writes (IOC_IN), 2 it reads (IOC_OUT) */
+	dir = ((req & IOC_IN) ? 1 : 0) | ((req & IOC_OUT) ? 2 : 0);
+	lcmd = (unsigned long)dir << 30 | (unsigned long)size << 16 | DRM_IOCTL_BASE << 8 | nr;
+	/* the size of the copy */
+	m.base = NULL;
+	m.n = 0;
+	s = mput(&m, NULL, size);
+	if(m.n > 0 && size > 0){
+		/* count the nested parts on a copy of the caller's structure */
+		unsigned char tmp[4096];
+
+		if(size > sizeof tmp)
+			return errno = EINVAL, -1;
+		memcpy(tmp, arg, size);
+		nested(&m, nr, tmp, arg, 0);
+	}
+	if((p = aget(a, m.n, &first, &count)) == NULL)
+		return errno = E2BIG, -1;
+	m.base = p;
+	m.n = 0;
+	s = mput(&m, arg, size);
+	nested(&m, nr, s, arg, 0);
+	r = call(a, lcmd, s);
+	if(r < 0){
+		if(nr == DRM_COMMAND_BASE + DRM_AMDGPU_INFO)
+			dbg("ioctl %#x (INFO query %#x, %u %u): %s", nr, ((struct drm_amdgpu_info*)arg)->query,
+				((struct drm_amdgpu_info*)arg)->query_hw_ip.type, ((struct drm_amdgpu_info*)arg)->query_hw_ip.ip_instance,
+				strerror(errno));
+		else
+			dbg("ioctl %#x: %s", nr, strerror(errno));
+	}
+	/*
+	 * what the driver wrote: through the structure's pointers whatever its
+	 * direction (INFO is an IOW: its result goes to return_pointer), the
+	 * structure itself if the caller reads it
+	 */
+	if(r == 0 && !nested(&m, nr, s, arg, 1) && (dir & 2))
+		memcpy(arg, s, size);
+	aput(a, first, count);
+	return r;
+}
+
+/*
+ * libdrm_amdgpu
+ */
+struct amdgpu_device {
+	int	fd;
+	int	ref;
+	uint32_t	major, minor;
+	struct drm_amdgpu_info_device	info;
+	struct amdgpu_device	*next;
+	pthread_mutex_t	lk;
+	struct Vam	*vam[4];	/* 32-bit, general, high 32-bit, high */
+};
+
+struct amdgpu_bo {
+	struct amdgpu_device	*dev;
+	uint32_t	handle;
+	uint64_t	size;
+	void	*cpu;		/* mapped: the view */
+	int	maps;
+	int	vram;		/* the view is in BAR 0 */
+	int	seg;		/* the view is a segment of its own (detach) */
+};
+
+/* the GPU's address space: holes, ascending */
+typedef struct Hole Hole;
+struct Hole {
+	uint64_t	start, end;
+	Hole	*next;
+};
+typedef struct Vam Vam;
+struct Vam {
+	uint64_t	start, end, align;
+	Hole	*holes;
+};
+struct amdgpu_va {
+	struct amdgpu_device	*dev;
+	Vam	*vam;
+	uint64_t	start, size;
+};
+
+static pthread_mutex_t devlk = PTHREAD_MUTEX_INITIALIZER;
+
+/* two descriptors of one context (libdrm dedups devices so) */
+static int
+samefile(int a, int b)
+{
+	struct stat sa, sb;
+
+	return fstat(a, &sa) == 0 && fstat(b, &sb) == 0 && sa.st_ino == sb.st_ino && sa.st_dev == sb.st_dev;
+}
+static struct amdgpu_device *devs;
+
+static Vam*
+vaminit(uint64_t start, uint64_t end, uint64_t align)
+{
+	Vam *v;
+
+	v = calloc(1, sizeof *v);
+	if(v == NULL)
+		return NULL;
+	v->start = start;
+	v->end = end;
+	v->align = align ? align : 4096;
+	if(end > start){
+		v->holes = calloc(1, sizeof(Hole));
+		if(v->holes == NULL){
+			free(v);
+			return NULL;
+		}
+		v->holes->start = start;
+		v->holes->end = end;
+	}
+	return v;
+}
+
+/* size at want (0: anywhere), aligned; 0 or -1 */
+static int
+vamalloc(Vam *v, uint64_t size, uint64_t align, uint64_t want, uint64_t *got)
+{
+	Hole *h, **l, *n;
+	uint64_t a;
+
+	if(align < v->align)
+		align = v->align;
+	for(l = &v->holes; (h = *l) != NULL; l = &h->next){
+		if(want){
+			if(want < h->start || want + size > h->end)
+				continue;
+			a = want;
+		}else{
+			a = (h->start + align - 1) & ~(align - 1);
+			if(a + size > h->end || a + size < a)
+				continue;
+		}
+		/* split the hole around [a, a+size) */
+		if(a + size < h->end && a > h->start){
+			n = calloc(1, sizeof *n);
+			if(n == NULL)
+				return -1;
+			n->start = a + size;
+			n->end = h->end;
+			n->next = h->next;
+			h->end = a;
+			h->next = n;
+		}else if(a > h->start)
+			h->end = a;
+		else if(a + size < h->end)
+			h->start = a + size;
+		else{
+			*l = h->next;
+			free(h);
+		}
+		*got = a;
+		return 0;
+	}
+	return -1;
+}
+
+static void
+vamfree(Vam *v, uint64_t start, uint64_t size)
+{
+	Hole *h, **l, *n, *p;
+
+	p = NULL;
+	for(l = &v->holes; (h = *l) != NULL && h->start < start; l = &h->next)
+		p = h;
+	n = calloc(1, sizeof *n);
+	if(n == NULL)
+		return;	/* lost to the manager */
+	n->start = start;
+	n->end = start + size;
+	n->next = h;
+	*l = n;
+	/* joined with its neighbours */
+	if(h != NULL && n->end == h->start){
+		n->end = h->end;
+		n->next = h->next;
+		free(h);
+	}
+	if(p != NULL && p->end == n->start){
+		p->end = n->end;
+		p->next = n->next;
+		free(n);
+	}
+}
+
+static int
+devioctl(struct amdgpu_device *d, unsigned long req, void *arg)
+{
+	return drmIoctl(d->fd, req, arg) < 0 ? -errno : 0;
+}
+
+int
+amdgpu_device_initialize(int fd, uint32_t *major, uint32_t *minor, amdgpu_device_handle *out)
+{
+	struct amdgpu_device *d;
+	struct drm_amdgpu_info in;
+	drmVersionPtr v;
+	uint64_t start, max, align;
+	int r;
+
+	pthread_mutex_lock(&devlk);
+	for(d = devs; d != NULL; d = d->next)
+		if(samefile(d->fd, fd)){
+			d->ref++;
+			*major = d->major;
+			*minor = d->minor;
+			*out = d;
+			pthread_mutex_unlock(&devlk);
+			return 0;
+		}
+	pthread_mutex_unlock(&devlk);
+	if((v = drmGetVersion(fd)) == NULL)
+		return -errno;
+	if(strcmp(v->name, "amdgpu") != 0){
+		drmFreeVersion(v);
+		return -ENODEV;
+	}
+	d = calloc(1, sizeof *d);
+	if(d == NULL){
+		drmFreeVersion(v);
+		return -ENOMEM;
+	}
+	/* as libdrm: a descriptor of its own, the caller may close its one */
+	if((d->fd = dup(fd)) < 0){	/* APE: no F_DUPFD_CLOEXEC */
+		free(d);
+		return -errno;
+	}
+	fcntl(d->fd, F_SETFD, FD_CLOEXEC);
+	d->ref = 1;
+	d->major = v->version_major;
+	d->minor = v->version_minor;
+	drmFreeVersion(v);
+	pthread_mutex_init(&d->lk, NULL);
+	memset(&in, 0, sizeof in);
+	in.return_pointer = U(&d->info);
+	in.return_size = sizeof d->info;
+	in.query = AMDGPU_INFO_DEV_INFO;
+	if((r = devioctl(d, DRM_IOCTL_AMDGPU_INFO, &in)) < 0){
+		close(d->fd);
+		free(d);
+		return r;
+	}
+	/* as libdrm divides the space: below 4 GB, the rest, and the same high */
+	align = d->info.virtual_address_alignment;
+	start = d->info.virtual_address_offset;
+	max = d->info.virtual_address_max < 0x100000000ULL ? d->info.virtual_address_max : 0x100000000ULL;
+	d->vam[0] = vaminit(start, max, align);
+	start = max;
+	max = d->info.virtual_address_max > 0x100000000ULL ? d->info.virtual_address_max : 0x100000000ULL;
+	d->vam[1] = vaminit(start, max, align);
+	start = d->info.high_va_offset;
+	max = (start & ~0xffffffffULL) + 0x100000000ULL;
+	if(d->info.high_va_max < max)
+		max = d->info.high_va_max;
+	d->vam[2] = vaminit(start, max, align);
+	start = max;
+	max = d->info.high_va_max > (start & ~0xffffffffULL) + 0x100000000ULL ?
+		d->info.high_va_max : (start & ~0xffffffffULL) + 0x100000000ULL;
+	d->vam[3] = vaminit(start, max, align);
+	pthread_mutex_lock(&devlk);
+	d->next = devs;
+	devs = d;
+	pthread_mutex_unlock(&devlk);
+	*major = d->major;
+	*minor = d->minor;
+	*out = d;
+	return 0;
+}
+
+int
+amdgpu_device_deinitialize(amdgpu_device_handle d)
+{
+	struct amdgpu_device **l;
+
+	pthread_mutex_lock(&devlk);
+	if(--d->ref > 0){
+		pthread_mutex_unlock(&devlk);
+		return 0;
+	}
+	for(l = &devs; *l != NULL; l = &(*l)->next)
+		if(*l == d){
+			*l = d->next;
+			break;
+		}
+	pthread_mutex_unlock(&devlk);
+	close(d->fd);
+	free(d);	/* the holes go with the process */
+	return 0;
+}
+
+int
+amdgpu_device_get_fd(amdgpu_device_handle d)
+{
+	return d->fd;
+}
+
+const char*
+amdgpu_get_marketing_name(amdgpu_device_handle d)
+{
+	switch(d->info.device_id){
+	case 0x7480:	return "AMD Radeon RX 7600 / 7600 XT";
+	case 0x7483:	return "AMD Radeon RX 7600M";
+	case 0x744c:	return "AMD Radeon RX 7900 XT / XTX";
+	case 0x747e:	return "AMD Radeon RX 7800 XT / 7700 XT";
+	}
+	return NULL;
+}
+
+int
+amdgpu_query_sw_info(amdgpu_device_handle d, enum amdgpu_sw_info info, void *value)
+{
+	uint32_t *v = value;
+
+	switch(info){
+	case amdgpu_sw_info_address32_hi:
+		if(d->vam[2]->end > d->vam[2]->start)
+			*v = (d->vam[2]->end - 1) >> 32;
+		else
+			*v = (d->vam[0]->end - 1) >> 32;
+		return 0;
+	case amdgpu_sw_info_address_prt_wa_control_bit:
+		*v = ~0U;	/* no PRT half of the range reserved */
+		return 0;
+	}
+	return -EINVAL;
+}
+
+int
+amdgpu_query_uq_fw_area_info(amdgpu_device_handle d, unsigned type, unsigned inst,
+	struct drm_amdgpu_info_uq_fw_areas *info)
+{
+	(void)d; (void)type; (void)inst; (void)info;
+	return -EINVAL;	/* no user queues */
+}
+
+int
+amdgpu_va_range_alloc(amdgpu_device_handle d, enum amdgpu_gpu_va_range type, uint64_t size,
+	uint64_t align, uint64_t want, uint64_t *got, amdgpu_va_handle *out, uint64_t flags)
+{
+	struct amdgpu_va *va;
+	Vam *v;
+	int i, r;
+
+	(void)type;
+	i = (flags & AMDGPU_VA_RANGE_HIGH) ? 2 : 0;
+	if(!(flags & AMDGPU_VA_RANGE_32_BIT))
+		i++;
+	v = d->vam[i];
+	size = (size + v->align - 1) & ~(v->align - 1);
+	va = calloc(1, sizeof *va);
+	if(va == NULL)
+		return -ENOMEM;
+	pthread_mutex_lock(&d->lk);
+	r = vamalloc(v, size, align, want, got);
+	if(r < 0 && !want && !(flags & AMDGPU_VA_RANGE_32_BIT) && i == 1)
+		r = vamalloc(d->vam[0], size, align, 0, got), v = d->vam[0];	/* as libdrm: the 32-bit part too */
+	pthread_mutex_unlock(&d->lk);
+	if(r < 0){
+		free(va);
+		return -ENOMEM;
+	}
+	va->dev = d;
+	va->vam = v;
+	va->start = *got;
+	va->size = size;
+	*out = va;
+	return 0;
+}
+
+int
+amdgpu_va_range_free(amdgpu_va_handle va)
+{
+	if(va == NULL)
+		return 0;
+	pthread_mutex_lock(&va->dev->lk);
+	vamfree(va->vam, va->start, va->size);
+	pthread_mutex_unlock(&va->dev->lk);
+	free(va);
+	return 0;
+}
+
+int
+amdgpu_va_range_query(amdgpu_device_handle d, enum amdgpu_gpu_va_range type, uint64_t *start, uint64_t *end)
+{
+	if(type != amdgpu_gpu_va_range_general)
+		return -EINVAL;
+	*start = d->vam[1]->start;
+	*end = d->vam[1]->end;
+	return 0;
+}
+
+int
+amdgpu_bo_alloc(amdgpu_device_handle d, struct amdgpu_bo_alloc_request *req, amdgpu_bo_handle *out)
+{
+	union drm_amdgpu_gem_create c;
+	struct amdgpu_bo *b;
+	int r;
+
+	memset(&c, 0, sizeof c);
+	c.in.bo_size = req->alloc_size;
+	c.in.alignment = req->phys_alignment;
+	c.in.domains = req->preferred_heap;
+	c.in.domain_flags = req->flags;
+	if((r = devioctl(d, DRM_IOCTL_AMDGPU_GEM_CREATE, &c)) < 0)
+		return r;
+	b = calloc(1, sizeof *b);
+	if(b == NULL){
+		struct drm_gem_close cl = { .handle = c.out.handle };
+
+		devioctl(d, DRM_IOCTL_GEM_CLOSE, &cl);
+		return -ENOMEM;
+	}
+	b->dev = d;
+	b->handle = c.out.handle;
+	b->size = req->alloc_size;
+	*out = b;
+	return 0;
+}
+
+int
+amdgpu_bo_export(amdgpu_bo_handle b, enum amdgpu_bo_handle_type type, uint32_t *shared)
+{
+	switch(type){
+	case amdgpu_bo_handle_type_kms:
+	case amdgpu_bo_handle_type_kms_noimport:
+		*shared = b->handle;
+		return 0;
+	default:
+		return -EINVAL;	/* no flink names, no dma-buf descriptors */
+	}
+}
+
+int
+amdgpu_bo_import(amdgpu_device_handle d, enum amdgpu_bo_handle_type type, uint32_t shared,
+	struct amdgpu_bo_import_result *out)
+{
+	struct drm_amdgpu_gem_op op;
+	struct drm_amdgpu_gem_create_in info;
+	struct amdgpu_bo *b;
+	int r;
+
+	if(type != amdgpu_bo_handle_type_kms && type != amdgpu_bo_handle_type_kms_noimport)
+		return -EINVAL;
+	memset(&op, 0, sizeof op);
+	op.handle = shared;
+	op.op = AMDGPU_GEM_OP_GET_GEM_CREATE_INFO;
+	op.value = U(&info);
+	if((r = devioctl(d, DRM_IOCTL_AMDGPU_GEM_OP, &op)) < 0)
+		return r;
+	b = calloc(1, sizeof *b);
+	if(b == NULL)
+		return -ENOMEM;
+	b->dev = d;
+	b->handle = shared;
+	b->size = info.bo_size;
+	out->buf_handle = b;
+	out->alloc_size = info.bo_size;
+	return 0;
+}
+
+int
+amdgpu_create_bo_from_user_mem(amdgpu_device_handle d, void *cpu, uint64_t size, amdgpu_bo_handle *out)
+{
+	(void)d; (void)cpu; (void)size; (void)out;
+	return -EINVAL;	/* the driver cannot reach the process's memory */
+}
+
+/* the driver's view of the object: GTT a segment of its own, VRAM where BAR 0 shows it */
+int
+amdgpu_bo_cpu_map(amdgpu_bo_handle b, void **cpu)
+{
+	Amd *a;
+	char reply[256], seg[64];
+	unsigned long long va, size, off, barsize;
+	void *p;
+
+	pthread_mutex_lock(&b->dev->lk);
+	if(b->cpu != NULL){
+		b->maps++;
+		*cpu = b->cpu;
+		pthread_mutex_unlock(&b->dev->lk);
+		return 0;
+	}
+	pthread_mutex_unlock(&b->dev->lk);
+	if((a = amd9of(b->dev->fd)) == NULL)
+		return -EBADF;
+	if(ctlreq(a, reply, sizeof reply, "map %u", b->handle) < 0)
+		return -errno;
+	if(sscanf(reply, "map %*u %63s %lli %lli %lli %lli", seg, &va, &size, &off, &barsize) == 5){
+		/* VRAM: BAR 0, once for the descriptor */
+		pthread_mutex_lock(&a->lk);
+		if(a->bar0 == NULL){
+			a->bar0 = _SEGATTACH(0, seg, NULL, barsize);
+			if(a->bar0 == (void*)-1)
+				a->bar0 = NULL;
+			a->bar0size = barsize;
+		}
+		pthread_mutex_unlock(&a->lk);
+		if(a->bar0 == NULL || off + size > a->bar0size){
+			ctlreq(a, NULL, 0, "unmap %u", b->handle);
+			return -ENOMEM;
+		}
+		p = a->bar0 + off;
+		b->vram = 1;
+	}else if(sscanf(reply, "map %*u %63s %lli %lli", seg, &va, &size) == 3){
+		p = _SEGATTACH(0, seg, NULL, size);
+		if(p == (void*)-1){
+			ctlreq(a, NULL, 0, "unmap %u", b->handle);
+			return -ENOMEM;
+		}
+		b->seg = 1;
+	}else
+		return -EIO;
+	pthread_mutex_lock(&b->dev->lk);
+	b->cpu = p;
+	b->maps = 1;
+	pthread_mutex_unlock(&b->dev->lk);
+	*cpu = p;
+	return 0;
+}
+
+int
+amdgpu_bo_cpu_unmap(amdgpu_bo_handle b)
+{
+	Amd *a;
+	void *p;
+
+	pthread_mutex_lock(&b->dev->lk);
+	if(b->cpu == NULL || --b->maps > 0){
+		pthread_mutex_unlock(&b->dev->lk);
+		return 0;
+	}
+	p = b->cpu;
+	b->cpu = NULL;
+	pthread_mutex_unlock(&b->dev->lk);
+	if(b->seg)
+		_SEGDETACH(p);
+	b->seg = b->vram = 0;
+	if((a = amd9of(b->dev->fd)) != NULL)
+		ctlreq(a, NULL, 0, "unmap %u", b->handle);
+	return 0;
+}
+
+int
+amdgpu_bo_free(amdgpu_bo_handle b)
+{
+	struct drm_gem_close cl;
+
+	if(b->cpu != NULL){
+		b->maps = 1;
+		amdgpu_bo_cpu_unmap(b);
+	}
+	memset(&cl, 0, sizeof cl);
+	cl.handle = b->handle;
+	devioctl(b->dev, DRM_IOCTL_GEM_CLOSE, &cl);
+	free(b);
+	return 0;
+}

@@ -2,13 +2,13 @@
  * SPDX-License-Identifier: MIT
  *
  * The static Vulkan loader of 9front: libvulkan.a is this loader and
- * the drivers (ICDs: Mesa's venus, hasvk) linked together, as 9front
+ * the drivers (ICDs: Mesa's venus, hasvk, radv) linked together, as 9front
  * has no shared libraries.  Programs call vkCreateInstance, vkCmdDraw
  * and the rest as anywhere else.
  *
  * An instance is one driver's: the first, in the order of icds[], that
- * finds a physical device (hasvk on Intel's gen 7-8, venus on
- * virtio-gpu), or the one $VK_DRIVER names.  Each driver's entry points
+ * finds a physical device (hasvk on Intel's gen 7-8, radv on AMD's
+ * Radeons, venus on virtio-gpu), or the one $VK_DRIVER names.  Each driver's entry points
  * are renamed (vk_icdGetInstanceProcAddr to
  * intel_hasvk_icdGetInstanceProcAddr, ...: Mesa's patch for 9front);
  * the ones not built are weak, nil.
@@ -41,11 +41,13 @@ VKAPI_ATTR void VKAPI_CALL vkl_DestroyInstance(VkInstance, const VkAllocationCal
 #define ICD(n) \
 	extern VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL n##_icdGetInstanceProcAddr(VkInstance, const char*) __attribute__((weak));
 ICD(intel_hasvk)
+ICD(radeon)
 ICD(venus)
 extern VKAPI_ATTR VkResult VKAPI_CALL vk_icdNegotiateLoaderICDInterfaceVersion(uint32_t*);
 
 static Vklicd icds[] = {
 	{ "intel_hasvk", intel_hasvk_icdGetInstanceProcAddr },
+	{ "radeon", radeon_icdGetInstanceProcAddr },
 	{ "venus", venus_icdGetInstanceProcAddr },
 };
 
