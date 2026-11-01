@@ -4,7 +4,8 @@
 # mkfiles with 6c/6a/6l (objtype=amd64) as 9front builds itself --
 # cd /sys/src; mk install (libraries, ape, acme, cmd, games) and the
 # kernel pc64 (mk in sys/src/9/pc64); "mkkencc kernel" only the
-# libraries and the kernel. The sources are the build host's
+# libraries and the kernel; "mkkencc arm64" the arm64 libraries
+# (objtype=arm64: 7c/7a/7l) and the arm64 qemu kernel, 9qemu.u. The sources are the build host's
 # copy, served as /n/src9; mk install installs into the guest's root
 # (scripts/guest/gen-ufs-root.sh makes it anew for every boot), over the
 # gcc-built programs, as 9front's own build does: what is built later
@@ -35,8 +36,10 @@ fn mkvar{
 	sed -n '/^'^$1^'=/,/^$/p' mkfile | sed 's/^'^$1^'=//; s/\\$//'
 }
 dirs=(`{mkvar LIBS} `{mkvar SUBSYS} `{mkvar CMDS})
-if(~ $1 kernel)	# the libraries and the kernel (its bootfs: the guest's gcc-built programs)
+if(~ $1 kernel arm64)	# the libraries and the kernel (its bootfs: the guest's gcc-built programs)
 	dirs=(`{mkvar LIBS})
+if(~ $1 arm64)	# the arm64 kernel, cross: the libraries for it with 7c/7a
+	objtype=arm64
 echo mkkencc: mk install $dirs
 bad=()
 for(i in $dirs){
@@ -48,6 +51,16 @@ for(i in $dirs){
 	}
 }
 echo mkkencc: dirs with errors: $bad
+if(~ $1 arm64){
+	# the qemu kernel and its u-boot image (arm64/mkfile's $p$CONF.u);
+	# its bootfs takes the build's gcc-built arm64 programs
+	cd /sys/src/9/arm64 || fail cd arm64
+	echo mkkencc: kernel arm64
+	mk 9qemu.u >[2=1]
+	echo mkkencc: status kernel arm64 $status
+	echo mkkencc: done
+	exit
+}
 cd /sys/src/9/pc64 || fail cd pc64
 echo mkkencc: kernel pc64
 mk >[2=1]

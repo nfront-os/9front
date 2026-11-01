@@ -36,7 +36,8 @@
 #         SMP         QEMU processors (QEMU's default: 1; tests/lib.sh sets 4)
 #         QEMU_EXTRA  extra QEMU flags (e.g. "-s -S" for gdb)
 #         BOOTKERNEL  the kernel to boot (default: the build's
-#                     $objtype/bin/$KNAME; e.g. one built with kencc)
+#                     $objtype/bin/$KNAME; e.g. one built with kencc);
+#                     on arm64 its u-boot image (default arm64/9qemu.u)
 #         UFS_EXTRA   directory whose contents are added to the root
 #                     (tests/guest puts its test programs in /tests)
 #         BOOTWAIT    seconds at most for the boot: until rc prompts (300);
@@ -128,12 +129,14 @@ if [ $objtype = arm64 ]; then
 	# u-boot (scripts/guest/build-uboot.sh) runs boot.scr from the FAT
 	# partition, which loads plan9.ini and the u-boot image 9qemu.u
 	# (scripts/guest/build-boot.sh makes both with aux/txt2uimage, aux/aout2uimage)
-	for f in "$ROOT/sys/src/boot/qemu/boot.scr" "$ROOT/arm64/9qemu.u"; do
+	# BOOTKERNEL: another u-boot image (e.g. build-kencc.sh arm64's)
+	UIMAGE=${BOOTKERNEL:-$ROOT/arm64/9qemu.u}
+	for f in "$ROOT/sys/src/boot/qemu/boot.scr" "$UIMAGE"; do
 		[ -s "$f" ] || die "$f missing, run scripts/guest/build-boot.sh"
 	done
 	# 9qemu.u is made from 9qemu by build-boot.sh: an older one would
 	# boot the kernel of an earlier build, silently
-	[ ! "$ROOT/arm64/9qemu" -nt "$ROOT/arm64/9qemu.u" ] \
+	[ -n "$BOOTKERNEL" ] || [ ! "$ROOT/arm64/9qemu" -nt "$ROOT/arm64/9qemu.u" ] \
 		|| die "arm64/9qemu.u is older than arm64/9qemu, run scripts/guest/build-boot.sh"
 	bash "$ROOT/scripts/guest/build-uboot.sh" > "$CLI_DIR/uboot.log" 2>&1 \
 		|| die "u-boot build failed (log: $CLI_DIR/uboot.log)"
@@ -150,7 +153,8 @@ if [ $objtype = arm64 ]; then
 	truncate -s 64M "$FAT"
 	echo 'start=2048, type=c, bootable' | sfdisk -q "$FAT" > /dev/null
 	mformat -i "$FAT@@1M" -F :: > /dev/null
-	mcopy -i "$FAT@@1M" "$ROOT/sys/src/boot/qemu/boot.scr" "$CLI_DIR/plan9.ini" "$ROOT/arm64/9qemu.u" ::
+	cp "$UIMAGE" "$CLI_DIR/9qemu.u"
+	mcopy -i "$FAT@@1M" "$ROOT/sys/src/boot/qemu/boot.scr" "$CLI_DIR/plan9.ini" "$CLI_DIR/9qemu.u" ::
 else
 	# GRUB multiboot ISO; GRUB itself also talks on the serial line, so a
 	# boot that stops at the grub> prompt is visible

@@ -9,11 +9,15 @@
 # result is read from mk's messages: every "mk: ... exit status" is a
 # failure, listed with the lines before it.
 #
-# usage: scripts/guest/build-kencc.sh [kernel]   (needs the build first: CC=gcc ARCH=amd64 sys/src/cmd/build/build.exe)
+# usage: scripts/guest/build-kencc.sh [kernel|arm64]   (needs the build first: CC=gcc ARCH=amd64 sys/src/cmd/build/build.exe)
 #   kernel: only the libraries and the kernel; its bootdir then takes
 #           the guest's gcc-built ELF programs, which 9front's strip
 #           does not know (port/mkroot: "not a recognizeable binary",
 #           harmless: they go in unstripped)
+#   arm64:  the arm64 libraries (7c/7a) and the qemu kernel's u-boot
+#           image, sys/src/9/arm64/9qemu.u in the copy; its bootfs takes
+#           the build's gcc-built arm64/bin (needs ARCH=arm64 built too).
+#           Boot it: objtype=arm64 BOOTKERNEL=.../9qemu.u boot-cli.sh
 #   env: WAITMAX  seconds at most for the build in the guest (10800)
 #        SMP      CPUs of the guest (4; mk builds in parallel, NPROC)
 set -e
@@ -28,6 +32,11 @@ git -C "$ROOT" ls-files -z sys/src sys/include sys/lib acme rc/bin \
 	386/include 386/mkfile amd64/include amd64/mkfile arm64/include arm64/mkfile \
 	| (cd "$ROOT" && tar -cf - --null -T -) | tar -xf - -C "$S"
 mkdir -p "$S/acme/bin/amd64"
+# arm64: the kernel's bootfs takes the build's gcc-built arm64 programs
+if [ "$1" = arm64 ]; then
+	[ -d "$ROOT/arm64/bin" ] || die "no arm64/bin: run CC=gcc ARCH=arm64 sys/src/cmd/build/build.exe"
+	cp -r "$ROOT/arm64/bin" "$S/arm64/bin"
+fi
 
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
@@ -54,10 +63,11 @@ grep -qE '^mkkencc: (done|failed:)' "$LOG.txt" || { tail -30 "$LOG.txt"; die "di
 fails="mk: .*exit status|mk: don't know how to make"
 n=$(grep -cE "$fails" "$LOG.txt" || true)
 # the kernel's mk may fail without such a line
-grep -qE '^mkkencc: status kernel pc64 *$' "$LOG.txt" || n=$((n+1))
+K=pc64; [ "$1" = arm64 ] && K=arm64
+grep -qE "^mkkencc: status kernel $K *\$" "$LOG.txt" || n=$((n+1))
 grep '^mkkencc: status' "$LOG.txt"
-echo "built: $(grep -c '^cp 6\.' "$LOG.txt" || true) programs installed, kernel: $(grep -c '^mkkencc: status kernel pc64 *$' "$LOG.txt" || true) ok"
-ls -l "$S"/sys/src/9/pc64/9pc64 2>/dev/null | awk '{print $5, $9}' || true
+echo "built: $(grep -c '^cp 6\.' "$LOG.txt" || true) programs installed, kernel: $(grep -cE "^mkkencc: status kernel $K *\$" "$LOG.txt" || true) ok"
+ls -l "$S"/sys/src/9/pc64/9pc64 "$S"/sys/src/9/arm64/9qemu.u 2>/dev/null | awk '{print $5, $9}' || true
 if [ "$n" != 0 ]; then
 	grep -B3 -E "$fails" "$LOG.txt" | head -150
 	die "$n failed mk targets (log: $LOG.txt)"
