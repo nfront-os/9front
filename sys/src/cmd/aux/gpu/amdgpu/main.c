@@ -109,7 +109,7 @@ findgpu(void)
 static void
 usage(void)
 {
-	fprint(2, "usage: %s [-nX] [-W secs] [-d drmdebug] [-l loglevel] [-p name=value]... [-g #G/n (default: the first AMD one)] [-s srvname]\n", argv0);
+	fprint(2, "usage: %s [-DnX] [-W secs] [-d drmdebug] [-l loglevel] [-p name=value]... [-g #G/n (default: the first AMD one)] [-s srvname]\n", argv0);
 	threadexitsall("usage");
 }
 
@@ -117,13 +117,14 @@ void
 threadmain(int argc, char **argv)
 {
 	char *gdir, *param[64], *s, *srvname;
-	int r, i, nparam, loglevel, noserve, poweroff;
+	int r, i, nparam, loglevel, noserve, poweroff, nodisplay;
 	ulong drmdebug;
 
 	gdir = nil;
 	srvname = "gpu.0";
 	noserve = 0;
 	poweroff = 0;
+	nodisplay = 0;
 	nparam = 0;
 	drmdebug = 0;
 	loglevel = 6;	/* KERN_INFO */
@@ -144,6 +145,9 @@ threadmain(int argc, char **argv)
 		break;
 	case 'g':
 		gdir = EARGF(usage());
+		break;
+	case 'D':
+		nodisplay = 1;	/* no outputs, no scanout */
 		break;
 	case 'n':
 		noserve = 1;
@@ -185,6 +189,8 @@ threadmain(int argc, char **argv)
 	s = amdgpu_status();
 	fprint(2, "amdgpu: started\n%s", s != nil ? s : "");
 	amdgpu_freestr(s);
+	if(!nodisplay && (r = amdgpu_kms_start()) < 0)
+		fprint(2, "amdgpu: no display: error %d\n", -r);
 	if(poweroff)
 		amdgpu_test_poweroff();
 	if(!noserve)

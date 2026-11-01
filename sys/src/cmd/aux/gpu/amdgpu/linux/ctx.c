@@ -26,6 +26,7 @@
  *				with a syncobj for its fence: fence k
  *	free id			GEM_VA unmap, GEM_CLOSE, after the object's
  *				segment is revoked in every process
+ *	scanout id w h stride	the object (VRAM) on the display (kms.c)
  */
 #include <linux/kernel.h>
 #include <linux/slab.h>
@@ -50,6 +51,7 @@
 #include "../amdgpu.h"
 
 struct pci_dev	*kpi_pci_gpu(const char *gdir);
+int	kms_scanout(struct file *from, u32 handle, u32 w, u32 h, u32 stride);
 
 enum { Nfence = 64 };
 
@@ -219,6 +221,7 @@ amdgpu_ctx_free(void *v)
 	struct gctx *c = v;
 	int i;
 
+	kms_scanout(c->filp, 0, 0, 0, 0);	/* its picture off the display */
 	for (i = 0; i < Nfence; i++)
 		if (c->fence[i]) {
 			dma_fence_wait_timeout(c->fence[i], false, 5 * HZ);
@@ -441,6 +444,27 @@ amdgpu_bo_free(void *v, int id)
 		bofree(c, b);	/* amdgpu keeps it while the GPU uses it */
 	mutex_unlock(&c->lock);
 	return r;
+}
+
+int
+amdgpu_scanout(void *v, int id, unsigned int w, unsigned int h, unsigned int stride)
+{
+	struct gctx *c = v;
+	struct bo *b;
+	u32 handle;
+
+	mutex_lock(&c->lock);
+	if (id == 0)
+		handle = 0;
+	else if ((b = findbo(c, id)) != NULL && b->vram)
+		handle = b->handle;
+	else {
+		mutex_unlock(&c->lock);
+		return b ? -EINVAL : -ENOENT;	/* the display scans out VRAM only */
+	}
+	mutex_unlock(&c->lock);
+	/* returns when the display shows it: a swapchain's FIFO */
+	return kms_scanout(c->filp, handle, w, h, stride);
 }
 
 /* a free entry of the object table */

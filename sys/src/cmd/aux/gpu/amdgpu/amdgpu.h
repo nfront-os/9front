@@ -26,3 +26,13 @@ int	amdgpu_submit(void *c, int id, unsigned int offset, unsigned int ndw, int ip
 int	amdgpu_fence_wait(void *c, u64g k, int query);	/* 1 done, 0 not, <0 none */
 void	amdgpu_fence_count(void *c, u64g *done, u64g *n, int *failed);
 #define amdgpu_iserr(p)	((unsigned long)(p) >= (unsigned long)-4095)
+
+/* the display (linux/kms.c, linux/ctx.c) */
+int	amdgpu_kms_start(void);
+int	amdgpu_outputs(char **names, int max);	/* names: amdgpu_freestr each */
+int	amdgpu_output_edid(char *name, unsigned char *buf, int n);
+char	*amdgpu_output_modes(char *name);	/* amdgpu_freestr */
+char	*amdgpu_output_mode(char *name);
+char	*amdgpu_outputs_status(void);
+char	*amdgpu_plane(void);
+int	amdgpu_scanout(void *c, int id, unsigned int w, unsigned int h, unsigned int stride);	/* id 0: off again */

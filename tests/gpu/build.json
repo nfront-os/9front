@@ -19,6 +19,7 @@
 			"gputest.c",
 			"gpuctxtest.c",
 			"amdctxtest.c",
+			"amdscanout.c",
 			"segrevoke.c"
 		]
 	},

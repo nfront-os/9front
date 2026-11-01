@@ -70,7 +70,8 @@
 		"Library": "libamdgpuaux.a",
 		"SourceFiles": [
 			"linux/amdgpu.c",
-			"linux/ctx.c"
+			"linux/ctx.c",
+			"linux/kms.c"
 		]
 	},
 	{

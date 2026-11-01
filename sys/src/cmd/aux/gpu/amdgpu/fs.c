@@ -2,10 +2,10 @@
  * SPDX-License-Identifier: MIT
  *
  * aux/amdgpu: the file server, gpu(4)'s files as aux/i915 serves them
- * (its fs.c, with amdgpu's requests): status, clone, and the contexts'
- * ctl, submit and fence.  The work is the Linux side's (linux/ctx.c);
- * this side parses the requests and keeps the files.  The display
- * (outputs, scanout) follows.
+ * (its fs.c, with amdgpu's requests): ctl, status, clone, the contexts'
+ * ctl, submit and fence, the outputs and scanout.  The work is the Linux
+ * side's (linux/ctx.c, linux/kms.c); this side parses the requests and
+ * keeps the files.
  */
 #include <u.h>
 #include <libc.h>
@@ -15,12 +15,17 @@
 #include "amdgpu.h"
 
 enum {
-	Xstatus = 1,
+	Xctl = 1,
+	Xstatus,
 	Xclone,
 	Xctxctl,
 	Xctxsubmit,
 	Xctxfence,
+	Xoutedid,
+	Xoutmodes,
+	Xoutmode,
 	Nctx	= 256,
+	Nout	= 16,
 };
 
 typedef struct Ctx Ctx;
@@ -40,6 +45,8 @@ struct Fidaux {
 	int	query;
 };
 
+static char *outname[Nout];
+static int nout;
 static QLock ctxlock;
 static Ctx *ctxs[Nctx];
 static File *ctxdir;
@@ -201,10 +208,38 @@ fsread(Req *r)
 
 	fa = r->fid->aux;
 	switch(KIND(r->fid->file)){
-	case Xstatus:
-		t = amdgpu_status();
+	case Xoutedid:
+		{
+			uchar buf[4096];
+			int m;
+
+			m = amdgpu_output_edid(outname[CTXN(r->fid->file)], buf, sizeof buf);
+			readbuf(r, buf, m < 0 ? 0 : m);
+			respond(r, nil);
+			return;
+		}
+	case Xoutmodes:
+	case Xoutmode:
+		t = KIND(r->fid->file) == Xoutmodes ? amdgpu_output_modes(outname[CTXN(r->fid->file)])
+			: amdgpu_output_mode(outname[CTXN(r->fid->file)]);
 		s = estrdup9p(t != nil ? t : "");
 		amdgpu_freestr(t);
+		break;
+	case Xctl:
+		t = amdgpu_plane();
+		s = estrdup9p(t != nil ? t : "plane none\n");
+		amdgpu_freestr(t);
+		break;
+	case Xstatus:
+		{
+			char *o;
+
+			t = amdgpu_status();
+			o = amdgpu_outputs_status();
+			s = smprint("%s%s", t != nil ? t : "", o != nil ? o : "");
+			amdgpu_freestr(t);
+			amdgpu_freestr(o);
+		}
 		break;
 	case Xctxctl:
 		c = fa->ctx;
@@ -303,6 +338,16 @@ fswrite(Req *r)
 			respond(r, "empty ctl message");
 			return;
 		}
+		if((n == 2 || n == 5) && strcmp(f[0], "scanout") == 0){
+			/* returns when the display shows it: other requests go on */
+			srvrelease(r->srv);
+			x = amdgpu_scanout(fa->ctx->lc, atoi(f[1]), n == 5 ? atoi(f[2]) : 0,
+				n == 5 ? atoi(f[3]) : 0, n == 5 ? atoi(f[4]) : 0);
+			srvacquire(r->srv);
+			if(x < 0)
+				e = errstr9(x);
+			break;
+		}
 		qlock(&ctxlock);
 		e = ctxctl(fa->ctx, f, n);
 		qunlock(&ctxlock);
@@ -351,16 +396,26 @@ fswrite(Req *r)
 static void
 mktree(void)
 {
-	File *gpu, *n;
+	File *gpu, *n, *o, *d;
 	char *user;
+	int i;
 
 	user = getuser();
 	fs.tree = alloctree(user, user, DMDIR|0555, nil);
 	gpu = createfile(fs.tree->root, "gpu", user, DMDIR|0555, nil);
 	n = createfile(gpu, "0", user, DMDIR|0555, nil);
+	createfile(n, "ctl", user, 0664, (void*)Xctl);
 	createfile(n, "status", user, 0444, (void*)Xstatus);
 	createfile(n, "clone", user, 0666, (void*)Xclone);
 	ctxdir = createfile(n, "ctx", user, DMDIR|0555, nil);
+	nout = amdgpu_outputs(outname, Nout);
+	o = createfile(n, "outputs", user, DMDIR|0555, nil);
+	for(i = 0; i < nout; i++){
+		d = createfile(o, outname[i], user, DMDIR|0555, nil);
+		createfile(d, "edid", user, 0444, (void*)(uintptr)(i<<8 | Xoutedid));
+		createfile(d, "modes", user, 0444, (void*)(uintptr)(i<<8 | Xoutmodes));
+		createfile(d, "mode", user, 0444, (void*)(uintptr)(i<<8 | Xoutmode));
+	}
 }
 
 /* serve gpu(4) as srvname, mounted after /dev */
