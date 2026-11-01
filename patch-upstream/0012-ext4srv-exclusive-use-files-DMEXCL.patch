@@ -1,7 +1,7 @@
 From 58442096a5880a759642f37b280077f6f943a4f6 Mon Sep 17 00:00:00 2001
 From: Stefan Hertenberger <erde74@gmail.com>
 Date: Sat, 31 Oct 2026 10:38:32 +0100
-Subject: [PATCH 12/16] ext4srv: exclusive-use files (DMEXCL)
+Subject: [PATCH 12/17] ext4srv: exclusive-use files (DMEXCL)
 
 open(5): a file with DMEXCL can be open by one fid at a time; another
 open (or create) fails. ext4srv ignored the bit: wstat dropped it and

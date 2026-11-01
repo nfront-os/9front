@@ -25,7 +25,7 @@ taken or declined them.
 On Unix: `git am patch-upstream/0*.patch` on a checkout of `front`.
 On 9front: `git/import` takes the files as they are.
 
-All 16 apply as a series. Each applies alone too, except:
+All 17 apply as a series. Each applies alone too, except:
 
 - 0009 needs 0007 (context: `vbump` in `rwstat`),
 - 0010 needs 0007 and 0009,
@@ -46,7 +46,8 @@ made with an AI assistant); drop it if 9front does not want it.
   `ndb/cs.c` and `9/ip/tcp.c` (from `pc64` and `pc`) with `6c` and `8c`
   `-FTVw` (the mkfiles' flags); APE's `arm64/notetramp.c` with
   `7c -FTVw -p` against the patched `ureg.h`; `9/arm64/main.c` (0016)
-  with `7c -FTVw`. No errors, no warnings.
+  with `7c -FTVw`; `9/pc/sd53c8xx.c` (0017) with `8c -FTVw` (pc) and
+  `6c -FTVw` (from pc64). No errors, no warnings.
 - **Not done**: a kernel and ext4srv built with 9front's compilers and run
   with these patches. The kernel conf (0014) and riostart (0015) are not
   compiled code.
@@ -71,6 +72,7 @@ made with an AI assistant); drop it if 9front does not want it.
 | 0014 | pc: xhci controller never registered | bug fix |
 | 0015 | riostart: stats window can take the console's focus | bug fix |
 | 0016 | arm64: the last cpu never comes up (sev lost) | bug fix |
+| 0017 | sd53c8xx: boot hangs 600 s in scsiverify with SMP | bug fix |
 
 ### 0001 ip/tcp: don't hang up a reused conversation through a stale bypass pointer
 
@@ -256,6 +258,22 @@ sends `sev()` until the new cpu has set `active.machs[i]` in `machinit`.
 Found by: the gcc port's NIX branch, booting arm64 (QEMU virt, cortex-a72)
 with 4 to 8 cpus: cpu3 of 4 never came up, also without NIX. Shown by: the
 boot test with 4 cpus and the NIX tests with 6 and 8 (all cpus up).
+
+### 0017 sd53c8xx: clear the SCSI reset interrupt in busreset
+
+`busreset()` pulses SCSI RST, which raises a SCSI reset interrupt (SIST0
+RST). `sd53c8xxenable` enables the interrupt only afterwards; the pending
+interrupt then reaches `sd53c8xxinterrupt` late, with SMP on another
+processor, after the SCRIPTS were started for the first command and wait
+for a reselection. The handler sets `c->running = 0` for the old reset,
+the next start (a write of DSP) is ignored by the running chip, and the
+command times out after 600 seconds. `busreset` now reads ISTAT, SIST0,
+SIST1 and DSTAT after the reset, which clears it.
+
+Found by: the boot test with 4 cpus (QEMU lsi53c895a, KVM), which hung
+in `scsiverify` now and then (kbdfs's open of the disk); traced with
+QEMU's `lsi_*` trace events and gdb on the hung guest. Shown by: 21 boots
+with 4 cpus without a hang, where it hung at the first before.
 
 ## Not included
 

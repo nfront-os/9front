@@ -1,0 +1,49 @@
+From e4c06280a57bcacaddad0ecd1fc98f31f5695e03 Mon Sep 17 00:00:00 2001
+From: Stefan Hertenberger <erde74@gmail.com>
+Date: Sun, 1 Nov 2026 01:32:07 +0100
+Subject: [PATCH 17/17] sd53c8xx: clear the SCSI reset interrupt in busreset
+
+busreset() pulses SCSI RST, which raises a SCSI reset interrupt
+(SIST0 RST). sd53c8xxenable enables the interrupt only afterwards; the
+pending interrupt then reaches sd53c8xxinterrupt late, with SMP on
+another processor, after the SCRIPTS were started for the first
+command and wait for a reselection. The handler sets c->running = 0
+for the old reset, the next start (a write of DSP) is ignored by the
+running chip, and the command times out after 600 seconds: the boot
+hung in scsiverify on a QEMU lsi53c895a with 4 cpus, now and then.
+busreset now reads ISTAT, SIST0, SIST1 and DSTAT after the reset,
+which clears it.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ sys/src/9/pc/sd53c8xx.c | 14 ++++++++++++++
+ 1 file changed, 14 insertions(+)
+
+diff --git a/sys/src/9/pc/sd53c8xx.c b/sys/src/9/pc/sd53c8xx.c
+index cbb90abb3..43a4dd751 100644
+--- a/sys/src/9/pc/sd53c8xx.c
++++ b/sys/src/9/pc/sd53c8xx.c
+@@ -1691,6 +1691,20 @@ busreset(Controller *c)
+ 	c->n->scntl1 |= (1 << 3);
+ 	delay(500);
+ 	c->n->scntl1 &= ~(1 << 3);
++	/*
++	 * clear the SCSI reset interrupt the reset raised. Otherwise it
++	 * may reach the interrupt routine only after the SCRIPTS were
++	 * started for the first command (sd53c8xxenable enables the
++	 * interrupt after the reset, maybe to another processor); it sets
++	 * c->running = 0 while the SCRIPTS wait for a reselection, the
++	 * chip ignores the next start and the command times out after
++	 * 600 seconds. Reading SIST and DSTAT clears them.
++	 */
++	delay(1);
++	USED(((volatile Ncr*)c->n)->istat);
++	USED(((volatile Ncr*)c->n)->sist0);
++	USED(((volatile Ncr*)c->n)->sist1);
++	USED(((volatile Ncr*)c->n)->dstat);
+ 	if(!(c->v->feature & Wide))
+ 		ntarget = 8;
+ 	else
+-- 
+2.56.0
+
