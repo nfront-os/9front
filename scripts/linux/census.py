@@ -98,6 +98,8 @@ def main():
 	verbose = '-v' in sys.argv
 	if '-a' in sys.argv:	# amdgpu too (kconfig.amdgpu, its directories)
 		os.environ['KPI_AMDGPU'] = '1'
+		amdautoconf()	# once, before the threads
+		amdincludes()
 	cfg = kbuild.config()
 	files = [a for a in sys.argv[1:] if a not in ('-v', '-a')]
 	if not files:
