@@ -6,7 +6,9 @@
  * green and blue bars over a grey ramp), on the display for secs
  * seconds, then a second picture (the bars the other way round: a page
  * flip) as long, then the display off again (scanout 0).  What the
- * monitor shows is for the eye; the program checks the replies.
+ * monitor shows is for the eye; the program checks the replies, and
+ * that the GPU sees the picture as the processor wrote it: sdma copies
+ * pixels of it (first, middle, last row) into GTT.
  *
  * usage: amdscanout [-s secs] [dev]
  */
@@ -39,6 +41,21 @@ fail(char *fmt, ...)
 	va_end(arg);
 	print("FAIL %s\n", buf);
 	nfail++;
+}
+
+/* sdma: copy 4 bytes from src to dst (sdma_v6_0: COPY_LINEAR) */
+static int
+sdmacopy(u32int *p, uvlong src, uvlong dst)
+{
+	p[0] = 1;	/* SDMA_OP_COPY, linear */
+	p[1] = 4 - 1;
+	p[2] = 0;
+	p[3] = src;
+	p[4] = src >> 32;
+	p[5] = dst;
+	p[6] = dst >> 32;
+	p[7] = 0;	/* NOP */
+	return 8;
 }
 
 static char*
@@ -132,8 +149,9 @@ void
 main(int argc, char **argv)
 {
 	char out[64], path[128], buf[256], *f[10], *mode;
-	int cfd, w, h, stride, secs, id[2], i, n;
-	uvlong size, off, barsize;
+	int cfd, sfd, ffd, w, h, stride, secs, id[2], i, j, n, ctx, cid, did, nk;
+	uvlong size, off[2], gpu[2], barsize, cgpu, dgpu, at[3];
+	u32int *cmd, *dst, want;
 	uchar *bar0;
 
 	secs = 10;
@@ -145,8 +163,12 @@ main(int argc, char **argv)
 	if(argc > 0)
 		dev = argv[0];
 
-	if(findoutput(out, sizeof out, &w, &h) < 0)
-		sysfatal("no connected output with modes in %s/status", dev);
+	/* a monitor without a signal may sleep and drop its hotplug line: wait for it */
+	for(i = 0; findoutput(out, sizeof out, &w, &h) < 0; i++){
+		if(i == 20)
+			sysfatal("no connected output with modes in %s/status", dev);
+		sleep(1000);
+	}
 	ok("output %s, preferred mode %dx%d", out, w, h);
 	snprint(path, sizeof path, "%s/clone", dev);
 	if((cfd = open(path, ORDWR)) < 0)
@@ -160,13 +182,72 @@ main(int argc, char **argv)
 			exits("bo");
 		}
 		id[i] = atoi(f[1]);
-		off = strtoull(f[6], nil, 0);
+		gpu[i] = strtoull(f[5], nil, 0);
+		off[i] = strtoull(f[6], nil, 0);
 		barsize = strtoull(f[7], nil, 0);
 		if(bar0 == nil && (bar0 = segattach(0, f[2], nil, barsize)) == (void*)-1)
 			sysfatal("segattach %s: %r", f[2]);
-		paint((u32int*)(bar0 + off), w, h, stride, i);
-		ok("picture %d: object %d, %llud bytes at %s+%#llux", i+1, id[i], size, f[2], off);
+		paint((u32int*)(bar0 + off[i]), w, h, stride, i);
+		ok("picture %d: object %d, %llud bytes at %s+%#llux", i+1, id[i], size, f[2], off[i]);
 	}
+
+	/* what the GPU sees of the pictures: sdma copies pixels into GTT */
+	if(ctl(cfd, buf, sizeof buf, "bo 4096") < 0 || tokenize(buf, f, nelem(f)) != 6)
+		sysfatal("bo 4096: %r");
+	cid = atoi(f[1]);
+	cgpu = strtoull(f[5], nil, 0);
+	if((cmd = segattach(0, f[2], nil, 4096)) == (void*)-1)
+		sysfatal("segattach %s: %r", f[2]);
+	if(ctl(cfd, buf, sizeof buf, "bo 4096") < 0 || tokenize(buf, f, nelem(f)) != 6)
+		sysfatal("bo 4096: %r");
+	did = atoi(f[1]);
+	dgpu = strtoull(f[5], nil, 0);
+	if((dst = segattach(0, f[2], nil, 4096)) == (void*)-1)
+		sysfatal("segattach %s: %r", f[2]);
+	snprint(path, sizeof path, "%s/ctx", dev);
+	{
+		Dir *d;
+		int dfd;
+
+		ctx = 0;
+		if((dfd = open(path, OREAD)) >= 0){
+			n = dirreadall(dfd, &d);
+			for(j = 0; j < n; j++)
+				if(atoi(d[j].name) > ctx)
+					ctx = atoi(d[j].name);
+			free(d);
+			close(dfd);
+		}
+	}
+	snprint(path, sizeof path, "%s/ctx/%d/submit", dev, ctx);
+	sfd = open(path, OWRITE);
+	snprint(path, sizeof path, "%s/ctx/%d/fence", dev, ctx);
+	ffd = open(path, ORDWR);
+	if(sfd < 0 || ffd < 0)
+		sysfatal("ctx %d: %r", ctx);
+	at[0] = 0;
+	at[1] = (uvlong)(h/2) * stride + (w/2) * 4;
+	at[2] = (uvlong)(h-1) * stride + (w-1) * 4;
+	nk = 0;
+	for(i = 0; i < 2; i++)
+		for(j = 0; j < 3; j++){
+			memset(dst, 0, 64);
+			n = sdmacopy(cmd, gpu[i] + at[j], dgpu);
+			if(fprint(sfd, "%d 0 %d sdma", cid, n) < 0 || fprint(ffd, "wait %d", ++nk) < 0 ||
+			   pread(ffd, buf, sizeof buf - 1, 0) <= 0){
+				fail("sdma read of picture %d: %r", i+1);
+				continue;
+			}
+			want = *(u32int*)(bar0 + off[i] + at[j]);
+			if(dst[0] != want)
+				fail("picture %d at %#llux: the processor wrote %#ux, the GPU reads %#ux", i+1, at[j], want, dst[0]);
+			else
+				ok("picture %d at %#llux: the GPU reads %#ux as written", i+1, at[j], dst[0]);
+		}
+	close(sfd);
+	close(ffd);
+	ctl(cfd, nil, 0, "free %d", cid);
+	ctl(cfd, nil, 0, "free %d", did);
 	for(i = 0; i < 2; i++){
 		if(ctl(cfd, nil, 0, "scanout %d %d %d %d", id[i], w, h, stride) < 0){
 			fail("scanout %d: %r", id[i]);

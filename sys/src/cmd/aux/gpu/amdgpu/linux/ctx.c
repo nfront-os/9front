@@ -48,6 +48,7 @@
 #include "amdgpu_gem.h"
 #include "amdgpu_vm.h"
 #include "amdgpu_ttm.h"
+#include "amdgpu_res_cursor.h"
 #include "drivers/gpu/drm/drm_internal.h"
 #include <kpi/p9.h>
 #include "../amdgpu.h"
@@ -301,7 +302,25 @@ amdgpu_bo_new(void *v, u64 size, u64 *gpup, int vram, int *id, char *seg, int ns
 		r = -ENOMEM;
 		goto out;
 	}
-	r = ioctl(c, DRM_IOCTL_AMDGPU_GEM_CREATE, &cr);
+	if (vram) {
+		/*
+		 * in VRAM in one piece from the start, so that it is one range
+		 * of BAR 0: VRAM_CONTIGUOUS is the kernel's flag (GEM_CREATE does
+		 * not take it), so as amdgpu makes such objects itself; the
+		 * handle's open puts it in the file's VM as GEM_CREATE does
+		 */
+		struct drm_gem_object *nobj;
+
+		adev = drm_to_adev(c->file->minor->dev);
+		r = amdgpu_gem_object_create(adev, cr.in.bo_size, PAGE_SIZE, AMDGPU_GEM_DOMAIN_VRAM,
+		    AMDGPU_GEM_CREATE_CPU_ACCESS_REQUIRED | AMDGPU_GEM_CREATE_VRAM_CONTIGUOUS,
+		    ttm_bo_type_device, NULL, &nobj, 0);
+		if (r == 0) {
+			r = drm_gem_handle_create(c->file, nobj, &cr.out.handle);
+			drm_gem_object_put(nobj);	/* the handle holds it */
+		}
+	} else
+		r = ioctl(c, DRM_IOCTL_AMDGPU_GEM_CREATE, &cr);
 	if (r) {
 		pr_warn("amdgpu: ctx %d: bo of %llu bytes: GEM_CREATE: error %d\n", c->id, size, r);
 		goto out;
@@ -318,13 +337,6 @@ amdgpu_bo_new(void *v, u64 size, u64 *gpup, int vram, int *id, char *seg, int ns
 	r = amdgpu_bo_reserve(b->abo, false);
 	if (r)
 		goto put;
-	/*
-	 * in VRAM in one piece, so that it is one range of BAR 0: the flag
-	 * is the kernel's (GEM_CREATE does not take it), as amdgpu sets it
-	 * itself for what the display scans out
-	 */
-	if (vram)
-		b->abo->flags |= AMDGPU_GEM_CREATE_VRAM_CONTIGUOUS;
 	r = amdgpu_bo_pin(b->abo, vram ? AMDGPU_GEM_DOMAIN_VRAM : AMDGPU_GEM_DOMAIN_GTT);
 	amdgpu_bo_unreserve(b->abo);
 	if (r) {
@@ -333,10 +345,30 @@ amdgpu_bo_new(void *v, u64 size, u64 *gpup, int vram, int *id, char *seg, int ns
 	}
 	*baroff = *barsize = 0;
 	if (vram) {
-		/* where in VRAM, so where in BAR 0: CPU_ACCESS_REQUIRED keeps it in the visible part */
-		adev = amdgpu_ttm_adev(b->abo->tbo.bdev);
+		struct amdgpu_res_cursor cur;
+
+		/*
+		 * where in VRAM, so where in BAR 0 (CPU_ACCESS_REQUIRED keeps it
+		 * in the visible part): the resource's first range, which must
+		 * be all of it
+		 */
+		u64 next;
+
 		b->vram = true;
-		b->baroff = (u64)b->abo->tbo.resource->start << PAGE_SHIFT;
+		/* its blocks (a contiguous allocation is trimmed into several) one after the other */
+		amdgpu_res_first(b->abo->tbo.resource, 0, b->size, &cur);
+		b->baroff = cur.start;
+		for (next = cur.start; cur.remaining; amdgpu_res_next(&cur, cur.size)) {
+			if (cur.start != next)
+				break;
+			next = cur.start + cur.size;
+		}
+		if (cur.remaining) {
+			pr_warn("amdgpu: ctx %d: bo %u: not in one piece of VRAM (%#llx of %#llx at %#llx)\n",
+			    c->id, b->handle, next - b->baroff, b->size, b->baroff);
+			r = -ENOSPC;
+			goto unpin;
+		}
 		if (b->baroff + b->size > adev->gmc.visible_vram_size ||
 		    p9_barseg(0, 1, b->seg, sizeof(b->seg)) < 0) {
 			pr_warn("amdgpu: ctx %d: bo %u: not in BAR 0 (%#llx)\n", c->id, b->handle, b->baroff);
