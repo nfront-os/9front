@@ -1691,6 +1691,20 @@ busreset(Controller *c)
 	c->n->scntl1 |= (1 << 3);
 	delay(500);
 	c->n->scntl1 &= ~(1 << 3);
+	/*
+	 * clear the SCSI reset interrupt the reset raised. Otherwise it
+	 * may reach the interrupt routine only after the SCRIPTS were
+	 * started for the first command (sd53c8xxenable enables the
+	 * interrupt after the reset, maybe to another processor); it sets
+	 * c->running = 0 while the SCRIPTS wait for a reselection, the
+	 * chip ignores the next start and the command times out after
+	 * 600 seconds. Reading SIST and DSTAT clears them.
+	 */
+	delay(1);
+	USED(((volatile Ncr*)c->n)->istat);
+	USED(((volatile Ncr*)c->n)->sist0);
+	USED(((volatile Ncr*)c->n)->sist1);
+	USED(((volatile Ncr*)c->n)->dstat);
 	if(!(c->v->feature & Wide))
 		ntarget = 8;
 	else
