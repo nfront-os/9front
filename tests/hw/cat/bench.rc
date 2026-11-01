@@ -4,12 +4,15 @@
 # numbers go to the log; ok when it ran)
 fn ok { echo ok $* }
 fn fail { echo FAIL $* }
+# it runs for many minutes: show on the screen that it does
+fn sect { echo '###' $*; echo hwtest: bench: $* `{date} > /dev/cons }
 ac=`{awk '$NF == "AC" {c = $1} END {print c}' /dev/sysstat}
-echo '###' idle
+sect idle, 4K and 2 MB pages
 /tests/nixbench -r 5 && /tests/nixbench -b -r 5 | grep memwalk || fail bench: nixbench on a TC
 if(! ~ $#ac 0){
+	sect on the AC cpu$ac
 	execac -c $ac /tests/nixbench -r 5 && execac -c $ac /tests/nixbench -b -r 5 | grep memwalk || fail bench: nixbench on the AC
-	echo '###' load: the TCs busy
+	sect load: the TCs busy
 	ntc=`{grep -vc ' AC$' /dev/sysstat}
 	l=()
 	for(i in `{seq $ntc}){
