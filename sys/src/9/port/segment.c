@@ -1030,8 +1030,12 @@ segattach(int attr, char *name, uintptr va, uintptr len)
 	/* Copy in defaults */
 	attr |= ps->attr;
 
-	if(attr & SG_BIG)
-		s = fixedseg(va, len/BY2PG, attr, align);	/* NIX */
+	if(attr & SG_BIG){
+		/* NIX: contiguous memory is scarce (DMA): as segment(3)'s fixed and sticky */
+		if(!iseve())
+			error(Eperm);
+		s = fixedseg(va, len/BY2PG, attr, align);
+	}
 	else
 		s = newseg(attr, va, len/BY2PG);
 	s->pseg = ps;

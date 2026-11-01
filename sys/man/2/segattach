@@ -56,6 +56,8 @@ it cannot be executed nor grown or shrunk by
 .IR segbrk (2).
 .I Segattach
 fails if no such run of free memory is left.
+Only the hostowner may attach one: physically contiguous memory is
+also what drivers need for DMA.
 .PP
 Some machines provide a segment class
 .BR lock .

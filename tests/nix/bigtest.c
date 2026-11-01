@@ -176,6 +176,30 @@ main(void)
 	if(q != (void*)-1)
 		segdetach(q);
 
+	/* only the hostowner: contiguous memory is scarce */
+	switch(fork()){
+	case -1:
+		fail("none refused", "fork: %r");
+		break;
+	case 0:
+		{
+			int fd;
+			char err[ERRMAX];
+
+			if((fd = open("/dev/user", OWRITE)) < 0 || write(fd, "none", 4) != 4)
+				exits("can't become none");
+			close(fd);
+			if(segattach(0, "big", 0, Big) != (void*)-1)
+				exits("none attached a big segment");
+			rerrstr(err, sizeof err);
+			exits(strstr(err, "perm") != nil? nil: err);
+		}
+	default:
+		w = wait();
+		check("none refused", w != nil && w->msg[0] == 0, w != nil? w->msg: "no wait");
+		free(w);
+	}
+
 	/* gone with segdetach; 4K pages at the same place work again */
 	if(segdetach(p) < 0)
 		fail("segdetach", "%r");

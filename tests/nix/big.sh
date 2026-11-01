@@ -14,7 +14,7 @@ check "build tests/nix with the port toolchain" buildtests || { done_tests; exit
 
 NCPU=${NCPU:-4} NAC=${NAC:-1}
 ac=$((NCPU-1))
-N=13		# checks of bigtest
+N=14		# checks of bigtest
 boot(){
 	SMP=$NCPU KARGS="${KARGS:+$KARGS }*ncpu=$NCPU *nixac=$NAC" "$ROOT/scripts/guest/boot-cli.sh" \
 		'/tests/bigtest' \
