@@ -3,10 +3,6 @@
 dir	drivers/gpu/drm
 file	drivers/video/hdmi.c
 file	drivers/dma-buf/dma-resv.c
-file	drivers/dma-buf/dma-fence.c
-file	drivers/dma-buf/dma-fence-array.c
-file	drivers/dma-buf/dma-fence-chain.c
-file	drivers/dma-buf/dma-fence-unwrap.c
-file	drivers/dma-buf/dma-buf.c
-file	drivers/dma-buf/sync_file.c
-file	lib/scatterlist.c
+# dma-fence(-array, -chain, -unwrap), dma-buf, sync_file and lib/scatterlist
+# are GPL in Linux: the LinuxKPI has them (kpi/linux/drm_linux.c, from
+# OpenBSD's)
