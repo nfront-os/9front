@@ -8,7 +8,12 @@
 /*
  * Attachable segment types
  */
-static Physseg physseg[10] = {
+/*
+ * gpu branch: room for #G's segments too: per GPU (Maxgpu 4) each memory
+ * BAR (6) uncached, cached and write-combining, its framebuffer and
+ * OpRegion; 10 entries were full with two GPUs
+ */
+static Physseg physseg[96] = {
 	{ SG_SHARED,	"shared",	0,	SEGMAXSIZE	},
 	{ SG_BSS,	"memory",	0,	SEGMAXSIZE	},
 	{ 0,		0,		0,	0		},

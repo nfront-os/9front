@@ -80,10 +80,34 @@ trapnote(void *v, char *note)
 	return 0;
 }
 
+/* the first device of #G that is AMD's (vendor 1002): its "id" line in ctl */
+static char*
+findgpu(void)
+{
+	static char dir[32];
+	char buf[512], *p;
+	int i, fd, n;
+
+	for(i = 0; i < 4; i++){
+		snprint(dir, sizeof dir, "#G/%d", i);
+		snprint(buf, sizeof buf, "%s/ctl", dir);
+		if((fd = open(buf, OREAD)) < 0)
+			break;
+		n = read(fd, buf, sizeof buf - 1);
+		close(fd);
+		if(n <= 0)
+			continue;
+		buf[n] = 0;
+		if((p = strstr(buf, "\nid ")) != nil && strncmp(p + 4, "1002/", 5) == 0)
+			return dir;
+	}
+	return nil;
+}
+
 static void
 usage(void)
 {
-	fprint(2, "usage: %s [-W secs] [-d drmdebug] [-l loglevel] [-p name=value]... [-g #G/n]\n", argv0);
+	fprint(2, "usage: %s [-W secs] [-d drmdebug] [-l loglevel] [-p name=value]... [-g #G/n (default: the first AMD one)]\n", argv0);
 	threadexitsall("usage");
 }
 
@@ -94,7 +118,7 @@ threadmain(int argc, char **argv)
 	int r, i, nparam, loglevel;
 	ulong drmdebug;
 
-	gdir = "#G/0";
+	gdir = nil;
 	nparam = 0;
 	drmdebug = 0;
 	loglevel = 6;	/* KERN_INFO */
@@ -121,6 +145,9 @@ threadmain(int argc, char **argv)
 	}ARGEND
 	if(argc != 0)
 		usage();
+
+	if(gdir == nil && (gdir = findgpu()) == nil)
+		sysfatal("no AMD GPU in #G");
 
 	atnotify(trapnote, 1);
 	threadnotify(trapnote, 1);	/* libthread passes the main proc's other notes (threaddump) only so */

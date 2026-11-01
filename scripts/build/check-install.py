@@ -39,7 +39,7 @@ from arch import OBJTYPE as A
 # beside the programs for boot-cli.sh's multiboot / QEMU -kernel
 KERNELS = {'amd64': ['9pc64'], '386': ['9pc'], 'arm64': ['9qemu', '9qemu.u']}[A]
 
-LINUX = {'amd64': ['sys/src/linux/build.json', 'sys/src/cmd/aux/gpu/i915/build.json']}
+LINUX = {'amd64': ['sys/src/linux/build.json', 'sys/src/cmd/aux/gpu/i915/build.json', 'sys/src/cmd/aux/gpu/amdgpu/build.json']}
 
 def expected():
 	"""{9front path: target name}"""

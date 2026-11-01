@@ -12,8 +12,9 @@
 #
 # usage: scripts/guest/vfio-test.sh [guest commands]
 #   env: FWDIR  the host's amdgpu firmware (/usr/lib/firmware/amdgpu)
-#        FW     its files for this card (Navi 33: GC 11.0.2, PSP and SMU
-#               13.0.10, DCN 3.2.1, SDMA 6.0.3, VCN 4.0.4)
+#        FW     prefixes of its files: the families of the RDNA 3 cards'
+#               IP blocks (GC 11.0, PSP and SMU 13.0, DCN 3.2, SDMA 6.0,
+#               VCN 4.0); amdgpu picks the versions by IP discovery
 set -e
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 GPU=${GPU:-0000:09:00.0}
@@ -32,7 +33,7 @@ lim=$(ulimit -l)
 # the firmware into the root the guest gets (boot-cli.sh: UFS_EXTRA)
 CLI_DIR=${CLI_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/9front-cli}
 FWDIR=${FWDIR:-/usr/lib/firmware/amdgpu}
-FW=${FW:-gc_11_0_2 psp_13_0_10 smu_13_0_10 dcn_3_2_1 sdma_6_0_3 vcn_4_0_4}
+FW=${FW:-gc_11_0_ psp_13_0_ smu_13_0_ dcn_3_2 sdma_6_0_ vcn_4_0_}
 X=$CLI_DIR/vfio-extra
 rm -rf "$X"
 mkdir -p "$X/lib/firmware/amdgpu"
