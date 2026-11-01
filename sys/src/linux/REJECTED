@@ -1,4 +1,11 @@
 # files IMPORT names that import.py left out: their notice is not MIT-like
+drivers/gpu/drm/amd/acp/Kconfig	no notice
+drivers/gpu/drm/amd/amdgpu/Kconfig	no notice
+drivers/gpu/drm/amd/amdgpu/amdgpu_atpx_handler.c	GPL-2.0-only
+drivers/gpu/drm/amd/amdgpu/amdgpu_vkms.c	GPL-2.0+
+drivers/gpu/drm/amd/amdgpu/amdgpu_vkms.h	GPL-2.0+
+drivers/gpu/drm/amd/amdkfd/Kconfig	no notice
+drivers/gpu/drm/amd/display/Kconfig	no notice
 drivers/gpu/drm/display/drm_dp_aux_bus.c	GPL-2.0
 drivers/gpu/drm/display/drm_dp_cec.c	GPL-2.0
 drivers/gpu/drm/display/drm_dp_mst_topology_internal.h	GPL-2.0-only

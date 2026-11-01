@@ -11,6 +11,8 @@ drivers/gpu/drm/i915/Makefile
 drivers/gpu/drm/Makefile
 drivers/gpu/drm/display/Makefile
 drivers/gpu/drm/ttm/Makefile
+drivers/gpu/drm/scheduler/*.[ch]
+drivers/gpu/drm/scheduler/Makefile
 drivers/dma-buf/dma-resv.c
 # the selftests of the fences and reservation objects (MIT): aux/i915 -T
 drivers/dma-buf/selftest.[ch]
@@ -27,3 +29,11 @@ include/linux/vga_switcheroo.h
 include/video/nomodeset.h
 drivers/video/hdmi.c
 include/linux/overflow.h
+# AMD: amdgpu (GCN/RDNA, the RX 7600's Navi 33), its display (DC) and power
+# management, the register headers; amdkfd/amdxcp for amdgpu's references
+drivers/gpu/drm/amd/**/*.[ch]
+drivers/gpu/drm/amd/**/Makefile
+drivers/gpu/drm/amd/**/Kconfig
+drivers/gpu/drm/amd/display/**/*.mk
+include/uapi/linux/kfd_ioctl.h
+include/uapi/linux/kfd_sysfs.h

@@ -40,10 +40,21 @@ def flags(c):
 		f += ['-I', os.path.join(V, 'drivers/gpu/drm/i915'), '-I', os.path.join(D, 'replace/drivers/gpu/drm/i915')]
 		# our headers of i915's selftests, for their .c files #included from elsewhere
 		f += ['-I', os.path.join(D, 'replace/drivers/gpu/drm/i915/selftests')]
+	# amd/: amdgpu's Makefile builds it all, with its include directories
+	if c.startswith('drivers/gpu/drm/amd/'):
+		for x in amdincludes():
+			f += ['-I', x]
 	f += ['-I', os.path.join(V, d)]
 	# quoted includes next to the file, replaced: replace/ mirrors vendor/
 	f += ['-I', os.path.join(D, 'replace', d)]
 	return f
+
+_amdinc = None
+def amdincludes():
+	global _amdinc
+	if _amdinc is None:
+		_amdinc = kbuild.includes(V, 'drivers/gpu/drm/amd/amdgpu', kbuild.config())
+	return _amdinc
 
 def omitted():
 	"""the files OMIT leaves out of the build"""

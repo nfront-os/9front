@@ -6,8 +6,10 @@
 			objects that DIR's Makefiles build, one per line
 
 A small evaluator of Kbuild: VAR := / = / +=, $(CONFIG_X), $(var),
-obj-y += x.o (with x-y / x-objs: its parts) and dir/ (recursion).
-$(call ...), include and ifdef lines are ignored."""
+$(addprefix)/$(addsuffix), ifdef/ifndef/ifeq/ifneq/else/endif, include
+(amdgpu's Makefile brings in display, pm, ... so), obj-y += x.o (with
+x-y / x-objs: its parts) and dir/ (recursion).  $(call ...) and
+$(shell ...) give nothing (they are compiler options)."""
 import os, re, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -26,19 +28,79 @@ def lines(path):
 	t = open(path).read().replace('\\\n', ' ')
 	return [l for l in t.split('\n') if l.strip() and not l.lstrip().startswith('#')]
 
+def func(name, args, v, cfg):
+	"""the make functions amdgpu's Makefiles use"""
+	a = [x for x in re.split(r',', args, maxsplit=1)]
+	if name == 'addprefix' and len(a) == 2:
+		return ' '.join(a[0].strip() + w for w in a[1].split())
+	if name == 'addsuffix' and len(a) == 2:
+		return ' '.join(w + a[0].strip() for w in a[1].split())
+	return ''	# $(call ...), $(shell ...): compiler options, not objects
+
 def expand(s, v, cfg):
-	for _ in range(8):
+	for _ in range(16):
 		s2 = re.sub(r'\$\((CONFIG_\w+)\)', lambda m: cfg.get(m.group(1), 'n') if cfg.get(m.group(1), 'n') in 'ym' else 'n', s)
 		s2 = re.sub(r'\$\((\w[\w-]*)\)', lambda m: v.get(m.group(1), ''), s2)
+		# the innermost function calls (no $ in their arguments any more)
+		s2 = re.sub(r'\$\((addprefix|addsuffix|call|shell|patsubst|filter|subst|wildcard|foreach|strip)\s+([^$()]*)\)',
+			lambda m: func(m.group(1), m.group(2), v, cfg), s2)
 		if s2 == s:
 			break
 		s = s2
 	return s
 
-def evaluate(path, cfg):
-	v = {}
+def truth(l, v, cfg):
+	"""an ifdef/ifndef/ifeq/ifneq line"""
+	m = re.match(r'(ifdef|ifndef)\s+(\S+)', l)
+	if m:
+		name = m.group(2)
+		val = cfg.get(name, 'n') if name.startswith('CONFIG_') else v.get(name, '')
+		on = val not in ('', 'n')
+		return on if m.group(1) == 'ifdef' else not on
+	m = re.match(r'(ifeq|ifneq)\s*\((.*),(.*)\)\s*$', l)
+	if m:
+		x = expand(m.group(2), v, cfg).strip()
+		y = expand(m.group(3), v, cfg).strip()
+		if x == 'n':
+			x = ''
+		if y == 'n':
+			y = ''
+		return (x == y) if m.group(1) == 'ifeq' else (x != y)
+	return False
+
+def evaluate(path, cfg, v=None, tree=None, d=None):
+	"""the variables of a Makefile; include brings in others (the same
+	variables), the conditionals are kept"""
+	if v is None:
+		v = {}
+		if tree is not None:
+			v['srctree'] = tree
+			v['src'] = d
+			v['obj'] = d
+	stack = []	# for each open conditional: is its part active
 	for l in lines(path):
-		if l.startswith(('ifdef', 'ifndef', 'endif', 'else', 'include', 'ifeq', 'ifneq', '\t')) or '$(call' in l or '$(shell' in l or '$(patsubst' in l:
+		s = l.strip()
+		if s.startswith(('ifdef', 'ifndef', 'ifeq', 'ifneq')):
+			stack.append(all(stack) and truth(s, v, cfg))
+			continue
+		if s.startswith('else'):
+			if stack:
+				outer = all(stack[:-1])
+				stack[-1] = outer and not stack[-1]
+			continue
+		if s.startswith('endif'):
+			if stack:
+				stack.pop()
+			continue
+		if not all(stack):
+			continue
+		if l.startswith('\t'):
+			continue
+		if s.startswith(('include ', '-include ', 'sinclude ')):
+			for inc in expand(s.split(None, 1)[1], v, cfg).split():
+				p = os.path.normpath(inc)
+				if os.path.isfile(p):
+					evaluate(p, cfg, v)
 			continue
 		m = re.match(r'\s*([\w$()-]+)\s*(:=|\+=|=)\s*(.*)$', l)
 		if not m:
@@ -56,7 +118,7 @@ def objects(tree, d, cfg):
 	mk = os.path.join(tree, d, 'Makefile')
 	if not os.path.exists(mk):	# a directory not imported: nothing of it is built
 		return []
-	v = evaluate(mk, cfg)
+	v = evaluate(mk, cfg, tree=os.path.abspath(tree), d=d)
 	out = []
 	def parts(o):
 		base = o[:-2]
@@ -75,6 +137,21 @@ def objects(tree, d, cfg):
 				c = os.path.normpath(os.path.join(d, p[:-2] + '.c'))
 				if c not in out:
 					out.append(c)
+	return out
+
+def includes(tree, d, cfg):
+	"""the -I directories of d's Makefile (ccflags-y, subdir-ccflags-y and
+	what it includes): amdgpu's for all of amd/"""
+	mk = os.path.join(tree, d, 'Makefile')
+	if not os.path.exists(mk):
+		return []
+	v = evaluate(mk, cfg, tree=os.path.abspath(tree), d=d)
+	out = []
+	for k in ('ccflags-y', 'subdir-ccflags-y'):
+		for w in re.findall(r'-I\s*(\S+)', v.get(k, '')):
+			p = os.path.normpath(w)
+			if p not in out and os.path.isdir(p):
+				out.append(p)
 	return out
 
 def autoconf(cfg):

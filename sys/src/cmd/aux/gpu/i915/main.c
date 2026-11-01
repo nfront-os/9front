@@ -10,6 +10,7 @@
 #include <libc.h>
 #include <thread.h>
 #include <ureg.h>
+#include "../../../../libthread/threadimpl.h"	/* threaddump: libthread's procs and threads */
 #include <kpi/linux.h>
 #include "i915.h"
 
@@ -20,6 +21,55 @@ void	serve(char *srvname);
  * the call chain by frame pointers to standard error, that is into the
  * log; the addresses are looked up on the build machine (addr2line)
  */
+/*
+ * the note "threaddump" (echo threaddump >/proc/n/note, any proc of
+ * ours): every thread of every proc with its call chain, from libthread's
+ * lists; a thread that does not run has its context in sched (sp, pc, bp
+ * first, libc/amd64/setjmp.S).  For hangs: who waits where.
+ */
+static void
+chain(uvlong *bp)
+{
+	int i;
+
+	for(i = 0; i < 40 && bp != nil && ((uintptr)bp & 7) == 0; i++){
+		fprint(2, " %#llux", bp[1]);
+		if((uvlong*)bp[0] <= bp)
+			break;
+		bp = (uvlong*)bp[0];
+	}
+	fprint(2, "\n");
+}
+
+static void
+threaddump(void)
+{
+	Proc *p;
+	Thread *t;
+	uvlong *jb;
+
+	for(p = _threadpq.head; p != nil; p = p->next)
+		for(t = p->threads.head; t != nil; t = t->nextt){
+			jb = (uvlong*)t->sched;
+			fprint(2, "i915 thread: pid %d id %d %s state %d pc %#llux; chain",
+				p->pid, t->id, t->cmdname ? t->cmdname : "", t->state, jb[1]);
+			chain((uvlong*)jb[2]);
+		}
+}
+
+/* -W s: a thread dump every s seconds, for hangs (a note would wait for a running thread) */
+static void
+watchdog(void *a)
+{
+	long s = (long)(uintptr)a;
+
+	for(;;){
+		sleep(s * 1000);
+		fprint(2, "i915: threaddump after %lds\n", s);
+		threaddump();
+	}
+}
+
 static int
 trapnote(void *v, char *note)
 {
@@ -27,6 +77,10 @@ trapnote(void *v, char *note)
 	uvlong *bp;
 	int i;
 
+	if(strcmp(note, "threaddump") == 0){
+		threaddump();
+		return 1;
+	}
 	if(strncmp(note, "sys:", 4) != 0)
 		return 0;
 	if(p9_fault(note))
@@ -47,7 +101,7 @@ trapnote(void *v, char *note)
 static void
 usage(void)
 {
-	fprint(2, "usage: %s [-DLMTnv] [-d drmdebug] [-f selftest-filter] [-p name=value]... [-g #G/n] [-s srvname]\n", argv0);
+	fprint(2, "usage: %s [-DLMTnv] [-W secs] [-d drmdebug] [-f selftest-filter] [-p name=value]... [-g #G/n] [-s srvname]\n", argv0);
 	threadexitsall("usage");
 }
 
@@ -81,6 +135,9 @@ threadmain(int argc, char **argv)
 		break;
 	case 'T':
 		selftest = 1;
+		break;
+	case 'W':
+		proccreate(watchdog, (void*)(uintptr)strtol(EARGF(usage()), nil, 0), 16384);
 		break;
 	case 'M':
 		mock = 1;
@@ -122,6 +179,7 @@ threadmain(int argc, char **argv)
 			sysfatal("%s exists: another driver serves the GPU (aux/intelgpu?)", path);
 	}
 	atnotify(trapnote, 1);
+	threadnotify(trapnote, 1);	/* libthread passes the main proc's other notes (threaddump) only so */
 	i915_options(nodisplay, drmdebug, loglevel);
 	if((r = kpi_start(gdir)) < 0)
 		sysfatal("kpi: %s: error %d", gdir, -r);
