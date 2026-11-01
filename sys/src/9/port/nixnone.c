@@ -1,6 +1,7 @@
 /*
  * NIX: kernels without application cores (386).
- * See port/nix.c; *nixac is ignored, execac(2) fails.
+ * See port/nix.c; *nixac is ignored, execac(2) fails, and so do
+ * the system calls of NIX semaphores (port/syssem.c, upsem(2)).
  */
 #include	"u.h"
 #include	"../port/lib.h"
@@ -108,4 +109,26 @@ int
 acflushed(Mach*, Proc*, ulong)
 {
 	return 1;
+}
+
+/* NIX semaphores (port/syssem.c): none either */
+uintptr
+syssemsleep(uchar*)
+{
+	error("no NIX semaphores");
+	return 0;
+}
+
+uintptr
+syssemwakeup(uchar*)
+{
+	error("no NIX semaphores");
+	return 0;
+}
+
+uintptr
+syssemalt(uchar*)
+{
+	error("no NIX semaphores");
+	return 0;
 }

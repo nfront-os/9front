@@ -1,0 +1,147 @@
+.TH UPSEM 2
+.SH NAME
+upsem, downsem, altsems, semstats, semsleep, semwakeup, semalt \- optimistic user level semaphores
+.SH SYNOPSIS
+.B #include <u.h>
+.br
+.B #include <libc.h>
+.PP
+.B
+void upsem(int *s);
+.PP
+.B
+int downsem(int *s, int dontblock);
+.PP
+.B
+int altsems(int *ss[], int n);
+.PP
+.B
+void semstats(void)
+.PP
+.B extern int semtrytimes;
+.br
+.B extern int semdebug;
+.PP
+.B
+int semsleep(int *s, int dontblock);
+.PP
+.B
+void semwakeup(int *s);
+.PP
+.B
+int semalt(int *ss[], int n);
+.SH DESCRIPTION
+.IR Upsem ,
+.IR downsem ,
+and
+.I altsems
+provide an interface for optimistic semaphores that work without entering the
+kernel when they can proceed, and call the kernel only when it is really necessary
+(e.g., to block or to unblock another process).
+They come from the NIX kernel.
+.PP
+A semaphore is an integer kept at memory, shared among synchronizing processes
+(see
+.B RFMEM
+in
+.IR fork (2)
+and
+.IR segattach (2)).
+Initialization is done by the user program using either zero or a positive number. After that,
+only these functions should be used to operate on it.
+.PP
+.I Downsem
+tries to acquire one unit from the semaphore. If it can proceed, the call works without
+calling the kernel. When it cannot proceed, the global
+.I semtrytimes
+(100)
+controls for how long (how many times) the function will try to acquire without entering the
+kernel, yielding the processor each time
+.RI ( sleep (2)
+with 0).
+If this fails, the kernel is entered to block the process until it can be acquired.
+If
+.I dontblock
+is set,
+.I downsem
+returns \-1 instead of blocking.
+It returns 0 when it got the unit.
+.PP
+.I Upsem
+releases one unit into the semaphore. If a process is waiting, it will take it and proceed.
+Otherwise, the unit is kept in the semaphore for further
+.I downsem
+calls. The call does not enter the kernel unless a process must be awaken.
+.PP
+.I Altsems
+tries to perform a
+.I downsem
+in any one of the semaphores pointed to by pointers in
+.I ss
+(there are
+.I n
+entries in that array, at most 16). If no semaphore can be acquired, and the operation has been
+attempted for
+.IR semtrytimes ,
+the kernel is entered and the process blocks until it can proceed. Otherwise, the
+operation is performed without calling the kernel.
+It returns the index in
+.I ss
+of the semaphore acquired.
+.PP
+The semaphore's value is negative when there are processes waiting for it,
+and zero or positive otherwise.
+.PP
+.I Semstats
+prints several statistics for debugging, and may be useful to learn if the
+processes using the semaphores (any semaphore) did enter the kernel or not and
+how many times they did.
+With
+.I semdebug
+set, the functions print what they do.
+.PP
+.IR Semsleep ,
+.IR semwakeup ,
+and
+.I semalt
+are the system calls behind them, for their use only.
+.I Semsleep
+waits for a unit after a decrement made the semaphore negative,
+or, with
+.IR dontblock ,
+undoes the decrement and returns \-1;
+.I semwakeup
+gives the units an increment made to the processes waiting;
+.I semalt
+decrements one of the semaphores, waiting if none has a unit,
+and returns its index.
+.PP
+The kernel knows a semaphore by its segment and address;
+processes sharing one must have the segment at the same address.
+The semaphores are independent of those of
+.IR semacquire (2).
+.SH SOURCE
+.B /sys/src/libc/9sys/upsem.c
+and
+.B /sys/src/9/port/syssem.c
+.SH SEE ALSO
+.IR fork (2),
+.IR lock (2),
+.IR rendezvous (2),
+.IR segattach (2),
+.IR semacquire (2),
+.IR thread (2),
+.IR tsend (2),
+.IR tube (3)
+.SH DIAGNOSTICS
+A note interrupts a process waiting in the kernel:
+.I downsem
+and
+.I altsems
+then return \-1 and set
+.IR errstr ;
+the unit the process waited for is not taken.
+A semaphore at an address that is not writable user memory
+is an error, as for other system calls.
+On 386 the system calls fail
+.RB ( "no NIX semaphores" ).

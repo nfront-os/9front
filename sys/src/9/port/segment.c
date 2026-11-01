@@ -216,8 +216,65 @@ putseg(Segment *s)
 
 	if(s->type&SG_ZIO)	/* NIX: zero-copy buffers (port/syszio.c) */
 		freezseg(s);
+	segfreesems(s);	/* NIX */
 
 	free(s);
+}
+
+/*
+ * NIX: the Usem of user semaphore np in segment sg (port/syssem.c),
+ * made at its first use, freed with the segment (after NIX port/segment.c).
+ */
+enum {
+	NSEMHASH	= 101,
+};
+#define SEMHASH(np)	(((uintptr)(np)/sizeof(int))%NSEMHASH)
+
+Usem*
+segmksem(Segment *sg, int *np)
+{
+	Usem *s, **l;
+
+	qlock(&sg->QLock);
+	if(sg->sems == nil){
+		sg->sems = malloc(NSEMHASH * sizeof(Usem*));
+		if(sg->sems == nil){
+			qunlock(&sg->QLock);
+			error(Enomem);
+		}
+	}
+	for(l = &sg->sems[SEMHASH(np)]; (s = *l) != nil; l = &s->next)
+		if(s->np == np){
+			qunlock(&sg->QLock);
+			return s;
+		}
+	s = malloc(sizeof *s);
+	if(s == nil){
+		qunlock(&sg->QLock);
+		error(Enomem);
+	}
+	s->np = np;
+	*l = s;
+	qunlock(&sg->QLock);
+	return s;
+}
+
+void
+segfreesems(Segment *sg)
+{
+	Usem *s, *next;
+	int i;
+
+	if(sg->sems == nil)
+		return;
+	for(i = 0; i < NSEMHASH; i++)
+		for(s = sg->sems[i]; s != nil; s = next){
+			next = s->next;
+			free(s->q);
+			free(s);
+		}
+	free(sg->sems);
+	sg->sems = nil;
 }
 
 static Pte*

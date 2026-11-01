@@ -48,6 +48,7 @@ typedef struct Schedq	Schedq;
 typedef struct Segment	Segment;
 typedef struct Segio	Segio;
 typedef struct Sema	Sema;
+typedef struct Usem	Usem;	/* NIX */
 typedef struct Timer	Timer;
 typedef struct Timers	Timers;
 typedef struct Tos	Tos;
@@ -452,6 +453,16 @@ struct Zseg
 	Rendez	rr;	/* process waiting to read free addresses */
 };
 
+/* NIX: optimistic user semaphores (port/syssem.c) */
+struct Usem
+{
+	QLock;
+	int	*np;		/* the user's semaphore */
+	Proc	**q;		/* waiting for a ticket */
+	int	nq;
+	Usem	*next;		/* in its Segment's hash */
+};
+
 struct Segment
 {
 	Ref;
@@ -480,6 +491,7 @@ struct Segment
 	ulong	swapped;	/* pages swapped */
 
 	Sema	sema;
+	Usem	**sems;		/* NIX: semaphores of port/syssem.c, hashed by address */
 
 	int	firstproc;	/* lowest proc->index having segment attached */
 	int	lastproc;	/* highest proc->index having segment attached */
@@ -904,6 +916,10 @@ struct Proc
 	ulong	nactrap;	/* of them traps and IPIs */
 	int	prepagemem;	/* fault in new segments at once (RFPREPAGE) */
 	Nixpctl	*nixpctl;	/* kernel process of nixcall(2) */
+
+	/* NIX: semaphores (port/syssem.c) */
+	Usem	*waitsem;	/* the one that gave us a ticket */
+	Rendez	semr;		/* sleep here for one */
 };
 
 enum

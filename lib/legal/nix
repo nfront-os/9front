@@ -1,10 +1,13 @@
 The NIX application cores (sys/src/9/port/nix.c and the ac* parts of
 the amd64 and arm64 kernels, execac(1), execac(2)), the zero-copy
 I/O (sys/src/9/port/syszio.c, devzp.c, the zero-copy parts of
-devsegment.c, libseg, zread(2), zp(2), zp(3), newseg(2)), the performance
-counters (sys/src/9/port/devpmc.c, pmc.h, pc64/pmcio.c, arm64/pmcio.c,
-sys/src/libc/9sys/confpmc.c, rdpmc.c, pmc(2), pmc(3)) follow the design
-and code of the NIX kernel (Lsub, Bell Labs, Sandia, Vita Nuova; 2011), as
+devsegment.c, libseg, zread(2), zp(2), zp(3), newseg(2)), semaphores and
+tubes (sys/src/9/port/syssem.c, devtube.c, tube.h,
+sys/src/libc/9sys/upsem.c, sys/src/libtube, sys/include/tube.h,
+upsem(2), tsend(2), tube(3)), the performance counters
+(sys/src/9/port/devpmc.c, pmc.h, pc64/pmcio.c, arm64/pmcio.c,
+confpmc.c, rdpmc.c, pmc(2), pmc(3)) follow the design and code of the NIX
+kernel (Lsub, Bell Labs, Sandia, Vita Nuova; 2011), as
 published at https://github.com/rminnich/nix-os (branch regen), whose
 license, reproduced verbatim below, is the MIT license:
 

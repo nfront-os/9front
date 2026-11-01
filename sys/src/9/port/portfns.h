@@ -504,6 +504,9 @@ long		readzio(Kzio*, int, void*, long);
 uintptr		zgetaddr(Segment*);
 int		zputaddr(Segment*, uintptr);
 void		zrelease(Kzio*);
+/* NIX: optimistic semaphores (port/segment.c, port/syssem.c; tubes: port/tube.h) */
+Usem*		segmksem(Segment*, int*);
+void		segfreesems(Segment*);
 
 #pragma varargck argpos iprint	1
 #pragma	varargck argpos	panic	1

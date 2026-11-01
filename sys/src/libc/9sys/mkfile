@@ -54,6 +54,7 @@ OFILES=\
 	times.$O\
 	tm2sec.$O\
 	truerand.$O\
+	upsem.$O\
 	wait.$O\
 	waitpid.$O\
 	werrstr.$O\

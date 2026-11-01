@@ -51,6 +51,7 @@
 			"/sys/src/libstdio/libstdio.386.json",
 			"/sys/src/libsunrpc/libsunrpc.386.json",
 			"/sys/src/libttf/libttf.386.json",
+			"/sys/src/libtube/libtube.386.json",
 			"/sys/src/libventi/libventi.386.json",
 			"/sys/src/libdtracy/libdtracy.386.json"
 		]

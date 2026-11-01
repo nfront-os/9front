@@ -1,0 +1,83 @@
+.TH TUBE 3
+.SH NAME
+tube \- tubes served by the kernel
+.SH SYNOPSIS
+.nf
+.B bind #= /mnt/tube
+
+.B /mnt/tube/ctl
+.BI /mnt/tube/ n
+.fi
+.SH DESCRIPTION
+The tube device connects the tubes of
+.IR tsend (2)
+with file descriptors and lets kernel processes use tubes and semaphores
+of
+.IR upsem (2)
+shared with a user process.
+It comes from the NIX kernel.
+.PP
+Each open of
+.B ctl
+makes a new file
+.IR n ,
+which the open file descriptor then refers to;
+the directory lists the files in use.
+Writing
+.IP
+.IB "fd inaddr outaddr"
+.PP
+to it, with the addresses of two tubes in the writer's memory
+(either may be 0), starts kernel processes
+.RB ( tin
+and
+.BR tout ,
+with the writer's segments) that send each read of up to the
+message size from the file descriptor
+.I fd
+through the tube at
+.IR inaddr ,
+padded with zeros, and write each message received from the tube at
+.I outaddr
+to
+.IR fd .
+Reading the file gives that line, or
+.B none
+before.
+The processes stop when the last reference to the file is closed.
+.PP
+For tests, writing
+.IP
+.BI up " addr"
+.br
+.BI down " addr"
+.PP
+makes a kernel process do 10
+.IR upsem s
+(each after 300 ms) or
+.IR downsem s
+on the semaphore at
+.IR addr ,
+and
+.IP
+.BI send " addr"
+.br
+.BI recv " addr"
+.PP
+10
+.IR tsend s
+(each after 300 ms, the pointers 0x1000, 0x1001, ...) or
+.IR trecv s
+on the tube of pointers at
+.IR addr .
+.SH SOURCE
+.B /sys/src/9/port/devtube.c
+.br
+.B /sys/src/9/port/syssem.c
+.SH SEE ALSO
+.IR tsend (2),
+.IR upsem (2)
+.SH BUGS
+The device is only in the amd64 and arm64 kernels.
+A tube's messages have a fixed size: a file descriptor's data is cut
+into messages as its reads return it.

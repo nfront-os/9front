@@ -1,0 +1,13 @@
+[
+	{
+		"Name": "Tube",
+		"Include": [
+			"../lib.json"
+		],
+		"Install": "/$ARCH/lib.gcc/",
+		"Library": "libtube.a",
+		"SourceFiles": [
+			"tube.c"
+		]
+	}
+]

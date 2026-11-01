@@ -51,6 +51,7 @@
 			"/sys/src/libstdio/libstdio.arm64.json",
 			"/sys/src/libsunrpc/libsunrpc.arm64.json",
 			"/sys/src/libttf/libttf.arm64.json",
+			"/sys/src/libtube/libtube.arm64.json",
 			"/sys/src/libventi/libventi.arm64.json",
 			"/sys/src/libdtracy/libdtracy.arm64.json"
 		]

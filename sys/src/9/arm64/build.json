@@ -84,7 +84,8 @@
 					"sd",
 					"segment",
 					"zp",
-					"pmc pmcio"
+					"pmc pmcio",
+					"tube"
 				],
 				"Link": [
 					"usbxhcipci pci usbxhci",
@@ -153,6 +154,7 @@
 			"../port/devsrv.c",
 			"../port/devswap.c",
 			"../port/devtls.c",
+			"../port/devtube.c",
 			"../port/devuart.c",
 			"../port/devusb.c",
 			"../port/devzp.c",
@@ -216,6 +218,7 @@
 			"../port/sysfile.c",
 			"../port/sysproc.c",
 			"../port/syszio.c",
+			"../port/syssem.c",
 			"../port/sysexecelf.c",
 			"../port/taslock.c",
 			"../port/tod.c",

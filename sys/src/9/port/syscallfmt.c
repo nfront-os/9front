@@ -273,6 +273,16 @@ syscallfmt(ulong syscallno, uintptr pc, uchar *list)
 		l = ARG(list, ulong);
 		fmtprint(&fmt, "%#p %ld", v, l);
 		break;
+	case SEMSLEEP:	/* NIX */
+	case SEMALT:	/* NIX */
+		v = ARG(list, void*);
+		i[0] = ARG(list, int);
+		fmtprint(&fmt, "%#p %d", v, i[0]);
+		break;
+	case SEMWAKEUP:	/* NIX */
+		v = ARG(list, int*);
+		fmtprint(&fmt, "%#p", v);
+		break;
 	case SEEK:
 		v = ARG(list, vlong*);
 		i[0] = ARG(list, int);

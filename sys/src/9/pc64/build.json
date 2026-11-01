@@ -212,7 +212,8 @@
                     "zp",
                     "vmx",
                     "dtracy",
-                    "pmc pmcio"
+                    "pmc pmcio",
+                    "tube"
                 ],
                 "Link": [
                     "cputemp pci",
@@ -338,6 +339,7 @@
             "../port/devsrv.c",
             "../port/devswap.c",
             "../port/devtls.c",
+            "../port/devtube.c",
             "../port/devuart.c",
             "../port/devusb.c",
             "devvga.c",
@@ -439,6 +441,7 @@
             "../port/sysexecelf.c",
             "../port/sysfile.c",
             "../port/sysproc.c",
+            "../port/syssem.c",
             "../port/syszio.c",
             "../port/taslock.c",
             "../ip/tcp.c",

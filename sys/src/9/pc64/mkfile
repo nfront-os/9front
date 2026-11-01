@@ -42,6 +42,7 @@ PORT=\
 	sysfile.$O\
 	sysproc.$O\
 	syszio.$O\
+	syssem.$O\
 	sysexecelf.$O\
 	taslock.$O\
 	tod.$O\

@@ -201,6 +201,9 @@ WRAP2(dtwrap_systsemacquire, TSEMACQUIRE, systsemacquire, long *, ulong)
 WRAP4(dtwrap_sysseek, SEEK, sysseek, vlong*, int, vlong, int)
 WRAP1(dtwrap_sys_nsec, _NSEC, sys_nsec, vlong*)
 WRAP3(dtwrap_sysexecac, EXECAC, sysexecac, int, char *, char **)	/* NIX */
+WRAP2(dtwrap_syssemsleep, SEMSLEEP, syssemsleep, int *, int)	/* NIX */
+WRAP1(dtwrap_syssemwakeup, SEMWAKEUP, syssemwakeup, int *)	/* NIX */
+WRAP2(dtwrap_syssemalt, SEMALT, syssemalt, int **, int)	/* NIX */
 WRAP5(dtwrap_syszpread, ZPREAD, syszpread, int, Zio *, int, usize, vlong)	/* NIX */
 WRAP4(dtwrap_syszpwrite, ZPWRITE, syszpwrite, int, Zio *, int, vlong)	/* NIX */
 WRAP2(dtwrap_syszfree, ZFREE, syszfree, Zio *, int)	/* NIX */
@@ -260,6 +263,9 @@ static Syscall *wraptab[]={
 	[TSEMACQUIRE]	dtwrap_systsemacquire,
 	[_NSEC]		dtwrap_sys_nsec,
 	[EXECAC]	dtwrap_sysexecac,	/* NIX */
+	[SEMSLEEP]	dtwrap_syssemsleep,	/* NIX */
+	[SEMWAKEUP]	dtwrap_syssemwakeup,	/* NIX */
+	[SEMALT]	dtwrap_syssemalt,	/* NIX */
 	[ZPREAD]	dtwrap_syszpread,	/* NIX */
 	[ZPWRITE]	dtwrap_syszpwrite,	/* NIX */
 	[ZFREE]		dtwrap_syszfree,	/* NIX */

@@ -39,6 +39,7 @@ LIBS=\
 	libsunrpc\
 	libthread\
 	libttf\
+	libtube\
 	libventi\
 	libdtracy\
 

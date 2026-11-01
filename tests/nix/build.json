@@ -11,6 +11,7 @@
 		"Libs": [
 			"--start-group",
 			"/$ARCH/lib.gcc/libseg.a",
+			"/$ARCH/lib.gcc/libtube.a",
 			"/$ARCH/lib.gcc/libdisk.a",
 			"/$ARCH/lib.gcc/lib9p.a",
 			"/$ARCH/lib.gcc/libthread.a",
@@ -31,7 +32,8 @@
 			"nixtest.c",
 			"nixbench.c",
 			"ziotest.c",
-			"pmctest.c"
+			"pmctest.c",
+			"semtest.c"
 		]
 	}
 ]

@@ -51,6 +51,9 @@
 #define	TSEMACQUIRE	52
 #define _NSEC		53
 #define	EXECAC		128
+#define	SEMSLEEP	129
+#define	SEMWAKEUP	130
+#define	SEMALT		131
 #define	ZPREAD		132
 #define	ZPWRITE		133
 #define	ZFREE		134

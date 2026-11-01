@@ -51,6 +51,7 @@
 			"/sys/src/libstdio/libstdio.json",
 			"/sys/src/libsunrpc/libsunrpc.json",
 			"/sys/src/libttf/libttf.json",
+			"/sys/src/libtube/libtube.json",
 			"/sys/src/libventi/libventi.json",
 			"/sys/src/libdtracy/libdtracy.json"
 		]

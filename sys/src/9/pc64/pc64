@@ -44,6 +44,7 @@ dev
 	dtracy
 #	performance counters, pmc(3)
 	pmc		pmcio
+	tube
 
 link
 #	devpccard	pci

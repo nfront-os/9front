@@ -816,6 +816,15 @@ extern	long	semrelease(long*, long);
 extern	int	sleep(long);
 extern	int	stat(char*, uchar*, int);
 extern	int	tsemacquire(long*, ulong);
+extern	void	upsem(int*);			/* NIX: optimistic semaphores, upsem(2) */
+extern	int	downsem(int*, int);		/* NIX */
+extern	int	altsems(int*[], int);		/* NIX */
+extern	void	semstats(void);			/* NIX */
+extern	int	semtrytimes;			/* NIX */
+extern	int	semdebug;			/* NIX */
+extern	int	semsleep(int*, int);		/* NIX: their system calls */
+extern	void	semwakeup(int*);		/* NIX */
+extern	int	semalt(int*[], int);		/* NIX */
 extern	Waitmsg*	wait(void);
 extern	int	waitpid(void);
 extern	long	write(int, void*, long);
