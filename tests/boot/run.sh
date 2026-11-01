@@ -12,6 +12,7 @@ boot(){
 	QEMU_EXTRA="-smp $ncpu" KARGS="${KARGS:+$KARGS }*ncpu=$ncpu" "$ROOT/scripts/guest/boot-cli.sh" \
 		'echo hello' 'cat /dev/sysstat | wc -l' 'ls /bin | wc -l' 'date -i' 'ps | wc -l' 'cat /dev/sysname; echo' \
 		'cat /proc/$pid/segment | wc -l' \
+		'sleep 5 & sleep 1; s=`{cat /proc/$apid/status}; echo state $s(3)' \
 		${pc:+"bind -a '#v' /dev; aux/realemu && aux/vga -m vesa -l 1024x768x16 && grep size /dev/vgactl"} \
 		> "$TMPD/console" 2>&1
 	tr -d '\r' < "$TMPD/console" > "$TMPD/log"
@@ -34,6 +35,8 @@ check "sysname set (cs or cpurc)" test -n "$(out 'cat /dev/sysname; echo')"
 # boot payload segments (userinit.c) must not be inherited across exec
 check "rc has only stack, text, data, bss segments" test "$(out 'cat /proc/$pid/segment | wc -l' | tr -d ' ')" -eq 4
 [ -z "$pc" ] || check "aux/realemu + aux/vga -m vesa: 1024x768x16" bash -c "grep -q '^size 1024x768x16' '$L'"
+# the system call names as 9front's mksystab makes them (ps, ratrace, dtracy's probes)
+check "a sleeping process: state Sleep (sysctab)" test "$(out 'sleep 5 & sleep 1')" = 'state Sleep'
 check "no kernel panic" bash -c "! grep -q '^panic:' '$L'"
 
 [ -n "$pc" ] || { done_tests; exit; }

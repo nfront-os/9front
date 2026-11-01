@@ -36,6 +36,7 @@ mkdir -p "$S/acme/bin/amd64"
 if [ "$1" = arm64 ]; then
 	[ -d "$ROOT/arm64/bin" ] || die "no arm64/bin: run CC=gcc ARCH=arm64 sys/src/cmd/build/build.exe"
 	cp -r "$ROOT/arm64/bin" "$S/arm64/bin"
+	mkdir -p "$S/arm64/lib"	# mk install puts the 7c libraries there
 fi
 
 T=$(mktemp -d)

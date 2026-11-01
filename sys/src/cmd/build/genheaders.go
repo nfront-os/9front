@@ -133,10 +133,7 @@ func systab(b *build) {
 
 	write("char *sysctab[]={\n")
 	for _, n := range names {
-		l := fmt.Sprintf("\t[SYS_%s]\t\"%s\",\n", strings.ToLower(n), n)
-		if strings.Contains(l, `_"`) {
-			continue
-		}
+		l := fmt.Sprintf("\t[SYS_%s]\t\"%s\",\n", strings.ToLower(n), sysctabname(n))
 		write("%s", l)
 	}
 	write("};\n\n")
@@ -146,6 +143,25 @@ func systab(b *build) {
 	dst := filepath.Join(b.path, "../port/systab.h")
 	log.Printf("Writing %s", dst)
 	fail(writefile(dst, out))
+}
+
+// sysctabname is mksystab's name of a system call in sysctab (what
+// ratrace, ps and /proc/n/status show): the first letter as it is, the
+// rest lowercased ("RFORK" is "Rfork", "_ERRSTR" "_errstr"), "Sysr1"
+// is "Running", "Rendezvous" "Rendez", a trailing "_" goes.
+func sysctabname(n string) string {
+	if n[0] >= 'A' && n[0] <= 'Z' {
+		n = n[:1] + strings.ToLower(n[1:])
+	} else {
+		n = strings.ToLower(n)
+	}
+	switch n {
+	case "Sysr1":
+		n = "Running"
+	case "Rendezvous":
+		n = "Rendez"
+	}
+	return strings.TrimSuffix(n, "_")
 }
 
 // sysname is the mksystab transform of a syscall macro name to the
