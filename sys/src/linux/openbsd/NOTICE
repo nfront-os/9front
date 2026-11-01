@@ -3,25 +3,16 @@ under its own notice; they follow, each once, with the files they cover.
 Our LinuxKPI (sys/src/linux/kpi) is derived from them and keeps the
 notices in the derived files.
 
-==== sys/dev/pci/drm/drm_linux.c
-/*	$OpenBSD: drm_linux.c,v 1.120 2025/02/07 03:03:08 jsg Exp $	*/
-/*
- * Copyright (c) 2013 Jonathan Gray <jsg@openbsd.org>
- * Copyright (c) 2015, 2016 Mark Kettenis <kettenis@openbsd.org>
- *
- * Permission to use, copy, modify, and distribute this software for any
- * purpose with or without fee is hereby granted, provided that the above
- * copyright notice and this permission notice appear in all copies.
- *
- * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
- * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
- * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
- * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
- * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
- * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
- */
-
+==== sys/dev/pci/drm/amd/amdgpu/amdgpu_vkms.c
+==== sys/dev/pci/drm/amd/amdgpu/amdgpu_vkms.h
+==== sys/dev/pci/drm/display/drm_hdcp_helper.c
+==== sys/dev/pci/drm/drm_gem_atomic_helper.c
+==== sys/dev/pci/drm/drm_gem_framebuffer_helper.c
+==== sys/dev/pci/drm/drm_gem_ttm_helper.c
+==== sys/dev/pci/drm/drm_managed.c
+==== sys/dev/pci/drm/drm_trace.h
+==== sys/dev/pci/drm/i915/display/intel_display_trace.h
+==== sys/dev/pci/drm/i915/i915_trace.h
 ==== sys/dev/pci/drm/include/acpi/actbl.h
 ==== sys/dev/pci/drm/include/acpi/video.h
 ==== sys/dev/pci/drm/include/asm/bitsperlong.h
@@ -37,6 +28,18 @@ notices in the derived files.
 ==== sys/dev/pci/drm/include/asm/preempt.h
 ==== sys/dev/pci/drm/include/asm/smp.h
 ==== sys/dev/pci/drm/include/asm/thread_info.h
+==== sys/dev/pci/drm/include/drm/drm_accel.h
+==== sys/dev/pci/drm/include/drm/drm_gem_atomic_helper.h
+==== sys/dev/pci/drm/include/drm/drm_gem_ttm_helper.h
+==== sys/dev/pci/drm/include/drm/drm_lease.h
+==== sys/dev/pci/drm/include/drm/drm_managed.h
+==== sys/dev/pci/drm/include/drm/drm_mipi_dsi.h
+==== sys/dev/pci/drm/include/drm/drm_of.h
+==== sys/dev/pci/drm/include/drm/drm_simple_kms_helper.h
+==== sys/dev/pci/drm/include/drm/drm_sysfs.h
+==== sys/dev/pci/drm/include/drm/drm_writeback.h
+==== sys/dev/pci/drm/include/drm/intel/i915_hdcp_interface.h
+==== sys/dev/pci/drm/include/drm/intel/intel-gtt.h
 ==== sys/dev/pci/drm/include/generated/autoconf.h
 ==== sys/dev/pci/drm/include/generated/utsrelease.h
 ==== sys/dev/pci/drm/include/linux/acpi.h
@@ -214,13 +217,34 @@ notices in the derived files.
 ==== sys/dev/pci/drm/include/linux/wordpart.h
 ==== sys/dev/pci/drm/include/linux/xarray.h
 ==== sys/dev/pci/drm/include/media/cec-notifier.h
+==== sys/dev/pci/drm/include/sound/pcm.h
 ==== sys/dev/pci/drm/include/trace/events/dma_fence.h
+==== sys/dev/pci/drm/include/uapi/linux/media-bus-format.h
 ==== sys/dev/pci/drm/include/video/cmdline.h
 ==== sys/dev/pci/drm/include/video/mipi_display.h
 ==== sys/dev/pci/drm/include/video/nomodeset.h
 ==== sys/dev/pci/drm/include/video/vga.h
 ==== sys/dev/pci/drm/include/xen/xen.h
 /* Public domain. */
+
+==== sys/dev/pci/drm/drm_linux.c
+/*	$OpenBSD: drm_linux.c,v 1.120 2025/02/07 03:03:08 jsg Exp $	*/
+/*
+ * Copyright (c) 2013 Jonathan Gray <jsg@openbsd.org>
+ * Copyright (c) 2015, 2016 Mark Kettenis <kettenis@openbsd.org>
+ *
+ * Permission to use, copy, modify, and distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ */
 
 ==== sys/dev/pci/drm/include/asm/set_memory.h
 /*	$OpenBSD: set_memory.h,v 1.5 2023/01/01 01:34:58 jsg Exp $	*/

@@ -27,6 +27,18 @@ WANT = [
 	DRM + 'include/xen/', DRM + 'include/trace/',
 	DRM + 'drm_linux.c', DRM + 'linux_list_sort.c', DRM + 'linux_radix.c',
 	DRM + 'linux_sort.c', DRM + 'linux_sort_r.c', DRM + 'files.drm',
+	# OpenBSD's own versions of Linux files that are GPL (our REJECTED)
+	DRM + 'drm_managed.c', DRM + 'drm_gem_atomic_helper.c', DRM + 'drm_gem_framebuffer_helper.c',
+	DRM + 'drm_gem_ttm_helper.c', DRM + 'drm_trace.h', DRM + 'display/drm_hdcp_helper.c',
+	DRM + 'i915/i915_trace.h', DRM + 'i915/display/intel_display_trace.h',
+	DRM + 'amd/amdgpu/amdgpu_vkms.c', DRM + 'amd/amdgpu/amdgpu_vkms.h',
+	DRM + 'include/drm/drm_accel.h', DRM + 'include/drm/drm_gem_atomic_helper.h',
+	DRM + 'include/drm/drm_gem_ttm_helper.h', DRM + 'include/drm/drm_lease.h',
+	DRM + 'include/drm/drm_managed.h', DRM + 'include/drm/drm_mipi_dsi.h',
+	DRM + 'include/drm/drm_of.h', DRM + 'include/drm/drm_simple_kms_helper.h',
+	DRM + 'include/drm/drm_sysfs.h', DRM + 'include/drm/drm_writeback.h',
+	DRM + 'include/drm/intel/i915_hdcp_interface.h', DRM + 'include/drm/intel/intel-gtt.h',
+	DRM + 'include/sound/pcm.h', DRM + 'include/uapi/linux/media-bus-format.h',
 	'sys/sys/tree.h', 'sys/sys/queue.h', 'sys/kern/subr_tree.c',
 ]
 
