@@ -277,8 +277,7 @@ amdgpu_bo_new(void *v, u64 size, u64 *gpup, int vram, int *id, char *seg, int ns
 		.in.bo_size = PAGE_ALIGN(size),
 		.in.alignment = PAGE_SIZE,
 		.in.domains = vram ? AMDGPU_GEM_DOMAIN_VRAM : AMDGPU_GEM_DOMAIN_GTT,
-		.in.domain_flags = AMDGPU_GEM_CREATE_CPU_ACCESS_REQUIRED | AMDGPU_GEM_CREATE_VM_ALWAYS_VALID |
-		    (vram ? AMDGPU_GEM_CREATE_VRAM_CONTIGUOUS : 0),
+		.in.domain_flags = AMDGPU_GEM_CREATE_CPU_ACCESS_REQUIRED | AMDGPU_GEM_CREATE_VM_ALWAYS_VALID,
 	};
 	struct amdgpu_device *adev;
 	struct drm_gem_object *gobj;
@@ -313,6 +312,13 @@ amdgpu_bo_new(void *v, u64 size, u64 *gpup, int vram, int *id, char *seg, int ns
 	r = amdgpu_bo_reserve(b->abo, false);
 	if (r)
 		goto put;
+	/*
+	 * in VRAM in one piece, so that it is one range of BAR 0: the flag
+	 * is the kernel's (GEM_CREATE does not take it), as amdgpu sets it
+	 * itself for what the display scans out
+	 */
+	if (vram)
+		b->abo->flags |= AMDGPU_GEM_CREATE_VRAM_CONTIGUOUS;
 	r = amdgpu_bo_pin(b->abo, vram ? AMDGPU_GEM_DOMAIN_VRAM : AMDGPU_GEM_DOMAIN_GTT);
 	amdgpu_bo_unreserve(b->abo);
 	if (r) {
