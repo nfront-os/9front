@@ -14,6 +14,13 @@
 #include <kpi/linux.h>
 #include "i915.h"
 
+/*
+ * the Linux code runs on the procs' stacks: more than libthread's 8 KB
+ * (Linux gives its kernel code 16 KB; amdgpu's DC overflowed it into the
+ * heap, where the stack is)
+ */
+int	mainstacksize = 1024*1024;
+
 void	serve(char *srvname);
 
 /*
