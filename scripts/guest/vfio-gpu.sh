@@ -41,30 +41,34 @@ status)
 bind)
 	[ "$(id -u)" = 0 ] || die "bind needs root (sudo)"
 	user=${SUDO_USER:-root}
+	if [ -n "$2" ]; then
+		prlimit --pid "$2" --memlock=unlimited:unlimited || die "prlimit on $2 failed"
+		echo "memlock of $2: $(prlimit --pid "$2" --memlock --noheadings -o SOFT,HARD)"
+	fi
 	modprobe vfio-pci
 	for d in $DEVS; do
 		g=$(group "$d")
 		[ "$(ls /sys/kernel/iommu_groups/$g/devices | wc -l)" = 1 ] || die "$d shares IOMMU group $g with other devices"
 		echo vfio-pci > "$sys/$d/driver_override"
 		if [ "$(driver "$d")" != vfio-pci ]; then
-			[ -e "$sys/$d/driver" ] && echo "$d" > "$sys/$d/driver/unbind"
-			echo "$d" > /sys/bus/pci/drivers_probe
+			if [ -e "$sys/$d/driver" ]; then
+				echo "$d" > "$sys/$d/driver/unbind" || die "$d: unbind from $(driver "$d") failed"
+			fi
+			echo "$d" > /sys/bus/pci/drivers/vfio-pci/bind || die "$d: vfio-pci bind failed (see dmesg)"
 		fi
 		[ "$(driver "$d")" = vfio-pci ] || die "$d: not bound to vfio-pci"
 		chown "$user" "/dev/vfio/$g"
 	done
-	if [ -n "$2" ]; then
-		prlimit --pid "$2" --memlock=unlimited:unlimited
-		echo "memlock of $2: $(prlimit --pid "$2" --memlock --noheadings -o SOFT,HARD)"
-	fi
 	status
 	;;
 release)
 	[ "$(id -u)" = 0 ] || die "release needs root (sudo)"
 	for d in $DEVS; do
 		echo > "$sys/$d/driver_override"
-		[ "$(driver "$d")" = vfio-pci ] && echo "$d" > "$sys/$d/driver/unbind"
-		echo "$d" > /sys/bus/pci/drivers_probe
+		if [ "$(driver "$d")" = vfio-pci ]; then
+			echo "$d" > "$sys/$d/driver/unbind" || die "$d: unbind from vfio-pci failed"
+		fi
+		echo "$d" > /sys/bus/pci/drivers_probe || echo "vfio-gpu: $d: no host driver took it" >&2
 	done
 	status
 	;;
