@@ -44,3 +44,5 @@ extern Tube*	newtube(ulong msz, ulong n);
 extern int	talt(Talt a[], int na);
 extern int	trecv(Tube *t, void *p);
 extern int	tsend(Tube *t, void *p);
+extern Tube*	namedtube(char *name, ulong msz, int n, int mkit);	/* needs libseg, <seg.h> */
+extern int	namedtubedebug;

@@ -13,8 +13,9 @@
  * (a kernel process is eve otherwise: the calls must not get eve's
  * rights). The calls that make sense from another process are
  * allowed (allowed()); they run one after another, so one that
- * blocks holds up the ones behind it, as NIX's TODO says.
- * Segments the process attaches later are not seen.
+ * blocks holds up the ones behind it, as NIX's TODO says. Before
+ * each batch of calls the kernel process takes the process' segments
+ * again (nixsyncseg), so it sees those attached or detached since.
  */
 #include	"u.h"
 #include	"../port/lib.h"
@@ -22,6 +23,7 @@
 #include	"dat.h"
 #include	"fns.h"
 #include	"../port/error.h"
+#include	"ureg.h"
 #include	"tos.h"
 #include	"../../libc/9syscall/sys.h"
 
@@ -32,7 +34,9 @@ struct Nixpctl
 	int	kick;		/* nixsyscall() since the last look */
 	Rendez	kwait;		/* the kernel process waits for calls */
 	Rendez	uwait;		/* the process waits for the kernel process */
+	Ureg	ureg;		/* up->dbgreg of the kernel process: zero */
 	Proc	*p;
+	ulong	pid;		/* p's: p may be gone and its Proc reused */
 	Proc	*kproc;
 	Tos	*tos;
 };
@@ -127,12 +131,46 @@ nixsyscall(Nixcall *nc, Nixret *nr)
 		nr->err[0] = 0;
 }
 
+/*
+ * up (the kernel process) gets p's segments, those p attached or
+ * detached since the last look too. p's seglock first: p (pexit,
+ * segattach, segdetach) takes only its own.
+ */
+static void
+nixsyncseg(Proc *p, ulong pid)
+{
+	Segment *s, *o;
+	int i, changed;
+
+	changed = 0;
+	qlock(&p->seglock);
+	if(p->pid != pid){
+		qunlock(&p->seglock);
+		return;
+	}
+	qlock(&up->seglock);
+	for(i = 0; i < NSEG; i++){
+		if((s = p->seg[i]) == up->seg[i])
+			continue;
+		if(s != nil)
+			incref(&s->Ref);
+		o = up->seg[i];
+		up->seg[i] = s;
+		if(o != nil)
+			putseg(o);
+		changed = 1;
+	}
+	qunlock(&up->seglock);
+	qunlock(&p->seglock);
+	if(changed)
+		flushmmu();
+}
+
 /* take the process' resources: its rights, not eve's */
 static void
 nixshare(Proc *p)
 {
 	Chan *c;
-	int i;
 
 	kstrdup(&up->user, p->user);
 	closepgrp(up->pgrp);
@@ -147,13 +185,7 @@ nixshare(Proc *p)
 	incref(&up->dot->Ref);
 	if(c != nil)
 		cclose(c);
-	qlock(&p->seglock);
-	for(i = 0; i < NSEG; i++)
-		if(p->seg[i] != nil){
-			up->seg[i] = p->seg[i];
-			incref(&up->seg[i]->Ref);
-		}
-	qunlock(&p->seglock);
+	nixsyncseg(p, p->pid);
 }
 
 static void
@@ -164,6 +196,11 @@ nixkproc(void *a)
 	int i;
 
 	pctl = a;
+	/*
+	 * a bad address in a call: validaddr prints the user's pc
+	 * (userpc: up->dbgreg, nil in a kernel process)
+	 */
+	up->dbgreg = &pctl->ureg;
 	nixshare(pctl->p);
 	q = &pctl->tos->callq;
 	pctl->kproc = up;
@@ -187,10 +224,19 @@ nixkproc(void *a)
 		coherence();
 		if(pctl->cmd == NCdie || up->procctl == Proc_exitme)
 			break;
+		nixsyncseg(pctl->p, pctl->pid);
 		while(q->qr != q->qw){
 			coherence();
 			nixsyscall((Nixcall*)&q->q[q->qr], (Nixret*)&q->r[q->rw]);
 			coherence();
+			/*
+			 * validaddr posts "sys: bad address" to the caller,
+			 * here us: the call failed, the next ones go on
+			 */
+			if(pctl->cmd != NCdie){
+				up->nnote = 0;
+				up->notepending = 0;
+			}
 			q->qr = NEXT(q->qr);
 			q->rw = NEXT(q->rw);
 			if(pctl->cmd == NCdie)
@@ -212,9 +258,11 @@ sysnixsyscall(uchar*)
 
 	if((pctl = up->nixpctl) == nil){
 		pctl = smalloc(sizeof(Nixpctl));
+		memset(pctl, 0, sizeof(Nixpctl));
 		pctl->Ref.ref = 2;	/* up and the kernel process */
 		pctl->cmd = NCinit;
 		pctl->p = up;
+		pctl->pid = up->pid;
 		pctl->tos = (Tos*)(USTKTOP-sizeof(Tos));
 		up->nixpctl = pctl;
 		kproc("nixcall", nixkproc, pctl);

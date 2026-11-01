@@ -1,6 +1,6 @@
 .TH TSEND 2
 .SH NAME
-tsend, trecv, newtube, freetube, talt, nbtsend, nbtrecv \- optimistic user level channels
+tsend, trecv, newtube, freetube, talt, nbtsend, nbtrecv, namedtube \- optimistic user level channels
 .SH SYNOPSIS
 .B #include <u.h>
 .br
@@ -28,6 +28,14 @@ int nbtrecv(Tube *t, void *p);
 .PP
 .B
 int talt(Talt a[], int na);
+.PP
+.B #include <seg.h>
+.PP
+.B
+Tube* namedtube(char *name, ulong msz, int n, int mkit);
+.PP
+.B
+int namedtubedebug;
 .SH DESCRIPTION
 These functions provide an abstraction similar to
 .I Channels
@@ -144,12 +152,49 @@ At most 16 entries may block.
 .PP
 The kernel may send and receive on a tube too, see
 .IR tube (3).
+.PP
+.I Namedtube
+returns the tube
+.I name
+for messages of
+.I msz
+bytes, with room for
+.I n
+of them, in a shared memory segment, so processes that do not share
+memory otherwise can use it.
+.I Name
+is
+.IB segname ! tubename
+or just
+.IR tubename ,
+in the segment
+.BR tubes .
+The segment is a global segment of
+.IR segment (3),
+made and attached with
+.IR newseg (2);
+it holds the tubes and their directory, 64 kilobytes in all.
+If
+.I mkit
+is set, the segment and the tube are made when they do not exist yet;
+otherwise
+.I namedtube
+fails for them.
+It fails too if the tube exists with another message size.
+Names are at most 15 bytes.
+A program using it links
+.B libseg
+as well.
+Setting
+.I namedtubedebug
+prints what it does.
 .SH SOURCE
 .B /sys/src/libtube
 .SH SEE ALSO
 .IR fork (2),
 .IR thread (2),
 .IR upsem (2),
+.IR newseg (2),
 .IR tube (3)
 .SH DIAGNOSTICS
 .I Tsend
@@ -159,7 +204,7 @@ return \-1 and set
 .I errstr
 when a note interrupts them while they block.
 .SH BUGS
-NIX's
-.IR namedtube ,
-tubes in a named shared segment, is not here
-(it needs NIX's segment library).
+Tubes in a named segment are never freed; the segment
+goes away with
+.IR segment (3)'s
+file.

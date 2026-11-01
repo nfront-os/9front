@@ -37,7 +37,7 @@ if(test $rt -ge 1){
 	echo ac $rt > /dev/nixctl
 	n=`{execac -c $rt /tests/nixtest $rt | grep -c '^ok'}
 	echo tc $rt > /dev/nixctl
-	if(test $n -ge 15) ok nix: cpu$rt an AC at run time: nixtest $n ok
+	if(test $n -ge 17) ok nix: cpu$rt an AC at run time: nixtest $n ok
 	if not fail nix: cpu$rt an AC at run time: nixtest $n ok
 	if(test `{grep -c ' AC$' /dev/sysstat} -eq $nac) ok nix: cpu$rt back to a TC
 	if not fail nix: cpu$rt still an AC

@@ -424,6 +424,24 @@ procctlcore(Proc *p, int core)
 }
 
 /*
+ * From procstopwait() (devproc: stop, startstop, startsyscall):
+ * p->procctl is set. If p runs in user mode on its AC it would see
+ * it only at its next system call or trap: bring it to its TC now,
+ * which handles procctl (acservice, donotify) and goes on to the
+ * AC after the debugger's start.
+ */
+void
+ackick(Proc *p)
+{
+	Mach *mp;
+
+	if(nixnac == 0 || (mp = p->ac) == nil)
+		return;
+	if(mp->PMach.icc->running == p)
+		acipi(mp);
+}
+
+/*
  * From procflushmmu(): p's page tables change. Bring p off
  * its AC if it runs there; returns the AC to wait for (acflushed).
  */

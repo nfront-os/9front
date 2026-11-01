@@ -10,6 +10,7 @@
 #include <u.h>
 #include <libc.h>
 #include <tube.h>
+#include <seg.h>
 
 static char *tag = "tc";
 static int failed;
@@ -463,6 +464,84 @@ testtube(void)
 	freetube(t1);
 }
 
+/*
+ * named tubes: found by name, also by an unrelated process (a fork
+ * that execs semtest anew: it has none of our memory but the segment)
+ */
+enum { Nnamed = 500 };
+
+static void
+namedpeer(void)
+{
+	Tube *t;
+	int i;
+
+	t = namedtube("ntest!pp", sizeof(int), 4, 0);
+	if(t == nil)
+		exits(smprint("peer: namedtube: %r"));
+	for(i = 0; i < Nnamed; i++)
+		if(tsend(t, &i) < 0)
+			exits("peer: tsend");
+	exits(nil);
+}
+
+static void
+testnamed(void)
+{
+	Tube *t, *t2;
+	Waitmsg *w;
+	int i, v, pid;
+
+	if(namedtube("ntnone!x", sizeof(int), 4, 0) != nil){
+		fail("named", "found a tube in a segment never made");
+		return;
+	}
+	t = namedtube("ntest!pp", sizeof(int), 4, 1);
+	if(t == nil){
+		fail("named", "namedtube: %r");
+		return;
+	}
+	t2 = namedtube("ntest!pp", sizeof(int), 4, 0);
+	if(t2 != t){
+		fail("named", "a second lookup gives %#p, not %#p", t2, t);
+		return;
+	}
+	if(namedtube("ntest!pp", sizeof(vlong), 4, 0) != nil){
+		fail("named", "a wrong message size is taken");
+		return;
+	}
+	if(namedtube("ntest!other", sizeof(int), 4, 0) != nil){
+		fail("named", "found a tube never made");
+		return;
+	}
+	ok("named: lookups");
+	switch(pid = fork()){
+	case -1:
+		fail("named", "fork: %r");
+		return;
+	case 0:
+		execl(argv0, argv0, "namedpeer", nil);
+		exits("exec");
+	}
+	/* a peer that fails sends nothing: no waiting for ever */
+	notify(onalarm);
+	alarm(20000);
+	for(i = 0; i < Nnamed; i++){
+		if(trecv(t, &v) < 0 || v != i){
+			fail("named", "message %d is %d", i, v);
+			break;
+		}
+	}
+	alarm(0);
+	notify(nil);
+	w = wait();
+	if(w == nil || w->pid != pid || w->msg[0] != 0)
+		fail("named", "peer: %s", w != nil? w->msg: "no wait");
+	else if(i == Nnamed)
+		ok("named: an unrelated process sends through it");
+	free(w);
+}
+
 /* non-blocking: empty and full */
 static void
 testnbtube(void)
@@ -733,6 +812,7 @@ static struct {
 	"tube",		testtube,
 	"nbtube",	testnbtube,
 	"talt",		testtalt,
+	"named",	testnamed,
 	"kernel",	testkernel,
 	"tio",		testtio,
 };
@@ -743,6 +823,9 @@ main(int argc, char *argv[])
 {
 	int i, j, role;
 
+	argv0 = argv[0];	/* testnamed execs us */
+	if(argc > 1 && strcmp(argv[1], "namedpeer") == 0)
+		namedpeer();
 	if(argc > 1)
 		tag = argv[1];
 	print("semtest %s on core %d\n", tag, getcore(&role));

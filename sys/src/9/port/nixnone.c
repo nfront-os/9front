@@ -99,6 +99,11 @@ procctlcore(Proc*, int core)
 		error("no application cores");
 }
 
+void
+ackick(Proc*)
+{
+}
+
 Mach*
 acflush(Proc*, ulong*)
 {

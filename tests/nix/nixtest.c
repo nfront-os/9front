@@ -369,6 +369,96 @@ nixcalltest(void)
 		ok("nixcall");
 }
 
+/*
+ * a segment attached after nixsyscall(): the kernel process takes
+ * it before its next calls, a pwrite from it works
+ */
+static void
+nixcallseg(void)
+{
+	Nixcall c;
+	Nixret r;
+	char name[64], buf[32], *p;
+	int fd;
+
+	p = segattach(0, "shared", 0, 4096);
+	if(p == (void*)-1){
+		fail("nixcall new segment", "segattach: %r");
+		return;
+	}
+	strcpy(p, "from a new segment");
+	snprint(name, sizeof name, "/tmp/nixseg.%d", getpid());
+	if((fd = create(name, ORDWR, 0644)) < 0){
+		fail("nixcall new segment", "create %s: %r", name);
+		segdetach(p);
+		return;
+	}
+	memset(&c, 0, sizeof c);
+	c.tag = name;
+	c.scall = PWRITEcall;
+	c.arg[0] = fd;
+	c.arg[1] = (uintptr)p;
+	c.arg[2] = strlen(p);
+	c.arg[3] = 0;
+	memset(&r, 0, sizeof r);
+	if(nixcall(&c, 1) < 0 || waitret(&r) < 0)
+		fail("nixcall new segment", "no reply");
+	else if(r.sret != strlen(p))
+		fail("nixcall new segment", "pwrite: %lld: %s", r.sret, r.err);
+	else {
+		memset(buf, 0, sizeof buf);
+		pread(fd, buf, sizeof buf-1, 0);
+		if(strcmp(buf, p) != 0)
+			fail("nixcall new segment", "file has \"%s\"", buf);
+		else
+			ok("nixcall new segment");
+	}
+	close(fd);
+	remove(name);
+	segdetach(p);
+}
+
+/*
+ * a bad address in a queued call fails that call (no kernel panic:
+ * validaddr wanted the user's pc of the kernel process); the next
+ * call works
+ */
+static void
+nixcallbad(void)
+{
+	Nixcall c;
+	Nixret r;
+	char name[64];
+	int fd;
+
+	snprint(name, sizeof name, "/tmp/nixbad.%d", getpid());
+	if((fd = create(name, ORDWR, 0644)) < 0){
+		fail("nixcall bad address", "create %s: %r", name);
+		return;
+	}
+	memset(&c, 0, sizeof c);
+	c.tag = name;
+	c.scall = PWRITEcall;
+	c.arg[0] = fd;
+	c.arg[1] = 0x10;
+	c.arg[2] = 4;
+	memset(&r, 0, sizeof r);
+	if(nixcall(&c, 1) < 0 || waitret(&r) < 0)
+		fail("nixcall bad address", "no reply");
+	else if(r.sret != -1)
+		fail("nixcall bad address", "pwrite from 0x10: %lld", r.sret);
+	else {
+		c.arg[1] = (uintptr)name;
+		memset(&r, 0, sizeof r);
+		if(nixcall(&c, 1) < 0 || waitret(&r) < 0 || r.sret != 4)
+			fail("nixcall bad address", "the next call: %lld %s", r.sret, r.err);
+		else
+			ok("nixcall bad address");
+	}
+	close(fd);
+	remove(name);
+}
+
 /* open #c/reboot for writing (eve only) through the queue */
 static int
 nixopenreboot(char *err, int nerr)
@@ -509,6 +599,8 @@ main(int argc, char *argv[])
 	else
 		ok("core after");
 	nixcalltest();
+	nixcallseg();
+	nixcallbad();
 	nixcallrights();
 	coretest(want);
 	exits(failed? "failed": nil);

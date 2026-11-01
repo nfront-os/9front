@@ -9,8 +9,7 @@
  * libc's ainc takes a long), coherence() is libc's barrier (NIX had
  * an empty function here), talt returns the index of the entry in a
  * (NIX gave the index among the blocking entries), tsend and trecv
- * return -1 when interrupted by a note. NIX's namedtube is not here:
- * it needs NIX's libseg.
+ * return -1 when interrupted by a note. namedtube: namedtube.c.
  */
 #include <u.h>
 #include <libc.h>

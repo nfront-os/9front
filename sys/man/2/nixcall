@@ -63,8 +63,9 @@ is what the system call returned and, if that is \-1,
 its error string.
 .PP
 The kernel process has the user, name space, file descriptors,
-environment and current directory of the process; the calls have its
-rights.
+environment, current directory and segments of the process (also
+those attached later: it takes them again before each batch of
+calls); the calls have its rights.
 It makes the calls one after another, in their order; a call that
 blocks holds up those behind it.
 Only calls that make sense from another process are allowed:
@@ -92,7 +93,4 @@ The kernel process goes away when the process exits or execs.
 .SH SEE ALSO
 .IR execac (2)
 .SH BUGS
-Segments the process attaches after the first
-.I nixsyscall
-are not seen by the kernel process.
 The queue has 64 entries (NIX's had 512).

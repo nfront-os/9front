@@ -3,8 +3,10 @@
 LIB=/$objtype/lib/libtube.a
 OFILES=\
 	tube.$O\
+	namedtube.$O\
 
-HFILES=/sys/include/tube.h
+HFILES=/sys/include/tube.h\
+	/sys/include/seg.h
 
 UPDATE=\
 	mkfile\

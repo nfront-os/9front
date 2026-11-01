@@ -33,6 +33,8 @@ boot(){
 		"execac -c $ac /bin/sleep 3 & sleep 1; execac -c $ac /bin/echo y; wait" \
 		'execac /bin/echo any' \
 		"${par[@]}" \
+		"execac -c $ac /bin/rc -c 'while(){}' & l=\$apid; sleep 1; echo stop > /proc/\$l/ctl; st=\`{cat /proc/\$l/status}; echo stopped \$st(3); r=\`{cat /proc/\$l/regs | wc -c}; echo regs \$r; echo start > /proc/\$l/ctl; sleep 1; st=\`{cat /proc/\$l/status}; c=\`{cat /proc/\$l/core}; echo started \$st(3) core \$c(1); echo kill > /proc/\$l/note" \
+		"execac -c $ac /bin/rc -c 'while(){ cat /dev/null }' & l=\$apid; sleep 1; ratrace \$l > /tmp/rt >[2=1] & t=\$apid; sleep 2; echo kill > /proc/\$t/note; echo kill > /proc/\$l/ctl; sleep 1; n=\`{grep -c ' RFORK ' /tmp/rt}; echo traced \$n; grep '^$ac ' /dev/nixctl" \
 		'cat /dev/nixctl' \
 		"echo ac $rt > /dev/nixctl; grep -c ' AC\$' /dev/sysstat" \
 		"execac -c $rt /tests/nixtest $rt | grep -c '^ok'" \
@@ -42,6 +44,7 @@ boot(){
 		"echo kc 1 > /dev/nixctl; k=(); for(i in 1 2 3) { rc -c 'while(){}' & k=(\$k \$apid) }; sleep 4; awk '\$1 == 1 {print \"kc\", \$8} \$1 == 0 {print \"tc\", \$8}' /dev/sysstat; for(i in \$k) echo kill > /proc/\$i/note; echo tc 1 > /dev/nixctl" \
 		> "$TMPD/console" 2>&1
 	tr -d '\r' < "$TMPD/console" > "$TMPD/log"
+	[ -z "$KEEPLOG" ] || cp "$TMPD/log" "$KEEPLOG"
 }
 check "boot with *nixac=$NAC on $NCPU processors" boot || { done_tests; exit; }
 L=$TMPD/log
@@ -59,7 +62,7 @@ while read -r st name; do
 	FAIL)	fail "nixtest on the AC: $name" ;;
 	esac
 done < <(grep -E '^(ok|FAIL) ' "$L")
-check "nixtest: all checks ran (15)" test "$(grep -cE '^(ok|FAIL) ' "$L")" -eq 15
+check "nixtest: all checks ran (17)" test "$(grep -cE '^(ok|FAIL) ' "$L")" -eq 17
 check "hoc (floating point) on the AC" test "$(out "execac -c $ac /bin/hoc")" = 4.24264068712
 check "rc forks and waits on the AC" test "$(out "execac -c $ac /bin/rc -c 'for" | tr -d ' ')" = 8
 check "a loop on the AC: core $ac, killed by a note" bash -c "grep -A2 -F \"# execac -c $ac /bin/rc -c 'while\" '$L' | grep -q '^core $ac\$' && grep -A2 -F \"# execac -c $ac /bin/rc -c 'while\" '$L' | grep -q '^killed\$'"
@@ -67,10 +70,14 @@ check "ctl core $ac moves a process to the AC, core 0 back" bash -c "grep -A2 -F
 check "execac on a TC fails" test "$(out 'execac -c 1')" = "execac: execac /bin/echo: not an application core"
 check "a busy AC is refused" test "$(out "execac -c $ac /bin/sleep 3")" = "execac: execac /bin/echo: application core busy"
 check "execac without -c picks a free AC" test "$(out 'execac /bin/echo any')" = any
-[ "$NAC" -lt 2 ] || check "nixtest on cpu$((ac-1)) and cpu$ac at once" bash -c "grep -A1 -F '# execac -c $((ac-1)) /tests/nixtest' '$L' | grep -q '^par 15 15\$'"
+[ "$NAC" -lt 2 ] || check "nixtest on cpu$((ac-1)) and cpu$ac at once" bash -c "grep -A1 -F '# execac -c $((ac-1)) /tests/nixtest' '$L' | grep -q '^par 17 17\$'"
+check "stop on the AC: Stopped, registers readable" bash -c "grep -A2 -F \"# execac -c $ac /bin/rc -c 'while(){}' & l=\" '$L' | tr '\n' ' ' | grep -qE 'stopped Stopped regs [1-9]'"
+check "start: running again on the AC (its TC half waits: Wakeme)" bash -c "grep -A3 -F \"# execac -c $ac /bin/rc -c 'while(){}' & l=\" '$L' | grep -qE '^started (Running|Ready|Wakeme) core $ac\$'"
+check "ratrace sees the system calls of a process on the AC" bash -c "grep -A2 -F '# execac -c $ac /bin/rc -c '\''while(){ cat' '$L' | grep -qE '^traced [1-9]'"
+check "killed through ctl while stopped by ratrace: the AC is free" bash -c "grep -A3 -F '# execac -c $ac /bin/rc -c '\\''while(){ cat' '$L' | grep -qE '^$ac AC 0\$'"
 check "/dev/nixctl: cpu$ac is an AC" bash -c "grep -A$NCPU -F '# cat /dev/nixctl' '$L' | grep -q '^$ac AC '"
 check "cpu$rt becomes an AC at run time" test "$(last "echo ac $rt > /dev/nixctl" | tr -d ' ')" -eq $((NAC+1))
-check "nixtest on the run-time AC cpu$rt" test "$(out "execac -c $rt /tests/nixtest" | tr -d ' ')" -eq 15
+check "nixtest on the run-time AC cpu$rt" test "$(last "execac -c $rt /tests/nixtest" | tr -d ' ')" -eq 17
 check "the root file system still answers (interrupts moved)" test "$(out 'ls /bin | wc -l' | tr -d ' ')" -gt 100
 check "cpu$rt back to a TC" test "$(last "echo tc $rt > /dev/nixctl" | tr -d ' ')" -eq $NAC
 check "execac to the former AC fails" test "$(out "execac -c $rt /bin/echo x")" = "execac: execac /bin/echo: not an application core"

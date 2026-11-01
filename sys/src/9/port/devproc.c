@@ -1380,6 +1380,16 @@ procstopwait(Proc *p, int ctl)
 			p->pdbg = nil;
 		nexterror();
 	}
+	/*
+	 * NIX: a process in user mode on its application core sees
+	 * procctl only when it comes to its TC: an IPI brings it there
+	 * (ackick); one that came just before p went back to its AC
+	 * is repeated
+	 */
+	while(p->ac != nil && !procstopped(p) && p->pid == pid){
+		ackick(p);
+		tsleep(&up->sleep, procstopped, p, 100);
+	}
 	sleep(&up->sleep, procstopped, p);
 	poperror();
 	up->psstate = state;

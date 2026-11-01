@@ -38,9 +38,9 @@ while read -r st where name; do
 	esac
 done < <(grep -E '^(ok|FAIL) (tc|ac) ' "$L")
 n=$(grep -cE '^(ok|FAIL) tc ' "$L")
-check "semtest on the TC: all checks ran (26)" test "$n" -eq 26
+check "semtest on the TC: all checks ran (28)" test "$n" -eq 28
 n=$(grep -cE '^(ok|FAIL) ac ' "$L")
-check "semtest on the AC: all checks ran (26)" test "$n" -eq 26
+check "semtest on the AC: all checks ran (28)" test "$n" -eq 28
 check "semtest on the AC ran on core $ac" grep -q "^semtest ac on core $ac\$" "$L"
 [ "$NAC" -lt 2 ] || check "semtest on cpu$((ac-1)) and cpu$ac at once" bash -c "grep -A12 -F '# execac -c $((ac-1)) /tests/semtest' '$L' | grep -E '^par|FAIL' > '$TMPD/par'; cat '$TMPD/par'; grep -q '^par 26 26 0\$' '$TMPD/par'"
 check "#= lists the clone file" test "$(out "ls '#='")" = "'#=/ctl'"

@@ -464,6 +464,7 @@ long		lcycles(void);
 /* NIX: application cores (port/nix.c; ac* below these from the arch) */
 extern int	nixnac;
 _Noreturn void	acexit(Ureg*, int, uintptr);
+void		ackick(Proc*);
 Mach*		acflush(Proc*, ulong*);
 int		acflushed(Mach*, Proc*, ulong);
 _Noreturn void	acinit(void);

@@ -27,6 +27,11 @@ unless it exists, and attaches it with
 If
 .I va
 is zero, the system picks the address.
+If the process has the segment attached already, also from before an
+.IR exec (2)
+(a global segment stays attached over it),
+.I newseg
+returns its address.
 It returns the address of the segment, or nil on errors.
 .SH SOURCE
 .B /sys/src/libseg/seg.c
