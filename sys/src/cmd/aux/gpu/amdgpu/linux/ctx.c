@@ -8,12 +8,18 @@
  * amdgpu's ioctls, called through drm_ioctl as the kernel does for a
  * process (as libdrm_amdgpu calls them):
  *
- *	bo size [gpuaddr]	GEM_CREATE in GTT (system memory the processor
+ *	bo size [gpuaddr] [vram]
+ *				GEM_CREATE in GTT (system memory the processor
  *				reaches), always valid in the file's VM; its
  *				pages, pinned, become an alias segment
  *				(segment(3)) the client attaches; GEM_VA maps
  *				it at gpuaddr (none given: the driver chooses;
- *				0: not mapped)
+ *				0: not mapped).  vram: in the card's memory,
+ *				contiguous and pinned where the processor sees
+ *				it through BAR 0 (the first 256 MB without a
+ *				resized BAR); the client attaches BAR 0's
+ *				write-combining segment (gpu(3)) and finds the
+ *				object at its offset there
  *	bind id gpuaddr		GEM_VA: unmapped, mapped there instead
  *	submit id offset ndw ip	CS of one IB, ndw dwords at offset in the
  *				object, on ip (0 gfx, 1 compute, 2 sdma),
@@ -38,6 +44,7 @@
 #include "amdgpu_object.h"
 #include "amdgpu_gem.h"
 #include "amdgpu_vm.h"
+#include "amdgpu_ttm.h"
 #include "drivers/gpu/drm/drm_internal.h"
 #include <kpi/p9.h>
 #include "../amdgpu.h"
@@ -57,6 +64,8 @@ struct bo {
 	struct amdgpu_bo	*abo;	/* pinned: a reference of ours */
 	u64	gpu;		/* mapped there, 0: not mapped */
 	u64	size;
+	bool	vram;		/* in VRAM: at baroff in BAR 0 */
+	u64	baroff;
 	char	seg[32];
 	unsigned long	va;
 };
@@ -194,8 +203,8 @@ bofree(struct gctx *c, struct bo *b)
 	 * removing the alias segment revokes it (segment(3)): a client that
 	 * still has it attached loses the pages before amdgpu gets them back
 	 */
-	if (b->seg[0])
-		p9_segfree(b->seg, NULL);
+	if (b->seg[0] && !b->vram)
+		p9_segfree(b->seg, NULL);	/* BAR 0's segment stays: the client may still see the memory */
 	if (b->gpu)
 		vamap(c, b, b->gpu, AMDGPU_VA_OP_UNMAP);
 	if (b->abo)
@@ -261,15 +270,17 @@ chooseaddr(struct gctx *c, u64 size)
 
 /* a new object; its segment's name, address and size for the client */
 int
-amdgpu_bo_new(void *v, u64 size, u64 *gpup, int *id, char *seg, int nseg, u64 *va, u64 *rsize)
+amdgpu_bo_new(void *v, u64 size, u64 *gpup, int vram, int *id, char *seg, int nseg, u64 *va, u64 *rsize, u64 *baroff, u64 *barsize)
 {
 	struct gctx *c = v;
 	union drm_amdgpu_gem_create cr = {
 		.in.bo_size = PAGE_ALIGN(size),
 		.in.alignment = PAGE_SIZE,
-		.in.domains = AMDGPU_GEM_DOMAIN_GTT,
-		.in.domain_flags = AMDGPU_GEM_CREATE_CPU_ACCESS_REQUIRED | AMDGPU_GEM_CREATE_VM_ALWAYS_VALID,
+		.in.domains = vram ? AMDGPU_GEM_DOMAIN_VRAM : AMDGPU_GEM_DOMAIN_GTT,
+		.in.domain_flags = AMDGPU_GEM_CREATE_CPU_ACCESS_REQUIRED | AMDGPU_GEM_CREATE_VM_ALWAYS_VALID |
+		    (vram ? AMDGPU_GEM_CREATE_VRAM_CONTIGUOUS : 0),
 	};
+	struct amdgpu_device *adev;
 	struct drm_gem_object *gobj;
 	struct ttm_tt *tt;
 	struct bo *b;
@@ -298,15 +309,32 @@ amdgpu_bo_new(void *v, u64 size, u64 *gpup, int *id, char *seg, int nseg, u64 *v
 		goto close;
 	}
 	b->abo = gem_to_amdgpu_bo(gobj);	/* the lookup's reference is ours now */
-	/* its pages, pinned in GTT while the client may have them */
+	/* its memory, pinned while the client may have it */
 	r = amdgpu_bo_reserve(b->abo, false);
 	if (r)
 		goto put;
-	r = amdgpu_bo_pin(b->abo, AMDGPU_GEM_DOMAIN_GTT);
+	r = amdgpu_bo_pin(b->abo, vram ? AMDGPU_GEM_DOMAIN_VRAM : AMDGPU_GEM_DOMAIN_GTT);
 	amdgpu_bo_unreserve(b->abo);
 	if (r) {
-		pr_warn("amdgpu: ctx %d: bo %u: pin in GTT: error %d\n", c->id, b->handle, r);
+		pr_warn("amdgpu: ctx %d: bo %u: pin in %s: error %d\n", c->id, b->handle, vram ? "VRAM" : "GTT", r);
 		goto put;
+	}
+	*baroff = *barsize = 0;
+	if (vram) {
+		/* where in VRAM, so where in BAR 0: CPU_ACCESS_REQUIRED keeps it in the visible part */
+		adev = amdgpu_ttm_adev(b->abo->tbo.bdev);
+		b->vram = true;
+		b->baroff = (u64)b->abo->tbo.resource->start << PAGE_SHIFT;
+		if (b->baroff + b->size > adev->gmc.visible_vram_size ||
+		    p9_barseg(0, 1, b->seg, sizeof(b->seg)) < 0) {
+			pr_warn("amdgpu: ctx %d: bo %u: not in BAR 0 (%#llx)\n", c->id, b->handle, b->baroff);
+			r = -ENOSPC;
+			goto unpin;
+		}
+		*baroff = b->baroff;
+		*barsize = adev->gmc.visible_vram_size;
+		b->va = 0;
+		goto mapped;
 	}
 	tt = b->abo->tbo.ttm;
 	n = b->size >> PAGE_SHIFT;
@@ -323,6 +351,7 @@ amdgpu_bo_new(void *v, u64 size, u64 *gpup, int *id, char *seg, int nseg, u64 *v
 		r = -ENOMEM;
 		goto unpin;
 	}
+mapped:
 	b->used = true;
 	if (gpu == ~0ULL)	/* the driver's choice: one after the other */
 		gpu = chooseaddr(c, b->size);
@@ -345,7 +374,8 @@ amdgpu_bo_new(void *v, u64 size, u64 *gpup, int *id, char *seg, int nseg, u64 *v
 	return 0;
 unseg:
 	b->used = false;
-	p9_segfree(b->seg, NULL);
+	if (!b->vram)
+		p9_segfree(b->seg, NULL);
 unpin:
 	unpin(b->abo);
 	b->abo = NULL;

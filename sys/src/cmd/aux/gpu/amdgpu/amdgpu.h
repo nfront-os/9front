@@ -17,7 +17,8 @@ void	amdgpu_freestr(char *s);
 typedef unsigned long long	u64g;
 void	*amdgpu_ctx_new(int *id);	/* or an error pointer: amdgpu_iserr */
 void	amdgpu_ctx_free(void *c);
-int	amdgpu_bo_new(void *c, u64g size, u64g *gpu, int *id, char *seg, int nseg, u64g *va, u64g *size1);	/* *gpu ~0: the driver chooses */
+/* *gpu ~0: the driver chooses; vram: seg is BAR 0's, the object at baroff in its barsize bytes */
+int	amdgpu_bo_new(void *c, u64g size, u64g *gpu, int vram, int *id, char *seg, int nseg, u64g *va, u64g *size1, u64g *baroff, u64g *barsize);
 int	amdgpu_bo_bind(void *c, int id, u64g gpu);
 int	amdgpu_bo_free(void *c, int id);
 int	amdgpu_submit(void *c, int id, unsigned int offset, unsigned int ndw, int ip, u64g *k);	/* ip: 0 gfx, 1 compute, 2 sdma */

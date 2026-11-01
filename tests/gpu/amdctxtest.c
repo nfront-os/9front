@@ -6,7 +6,9 @@
  * on each engine (gfx, compute, sdma) one IB that writes a value there
  * (as amdgpu's own IB tests do: PM4 WRITE_DATA, SDMA's linear write),
  * its fence, the value as the processor reads it through the object's
- * segment; the fence file; the objects and the context freed.
+ * segment; the same into an object in VRAM, read through BAR 0's
+ * segment; a value the processor writes into VRAM through BAR 0, copied
+ * by sdma into GTT; the fence file; the objects and the context freed.
  * Prints "ok ..." / "FAIL ..." lines and a summary.
  */
 #include <u.h>
@@ -18,6 +20,7 @@
 #define WRITE_DATA_DST_SEL(x)	((x) << 8)	/* 5: memory */
 #define WR_CONFIRM	(1U << 20)
 /* SDMA 6 (sdma_v6_0_0_pkt_open.h) */
+#define SDMA_OP_COPY	1	/* sub op 0: linear */
 #define SDMA_OP_WRITE	2
 #define SDMA_OP_NOP	0
 
@@ -54,8 +57,11 @@ struct Bo {
 	int	id;
 	char	seg[64];
 	uvlong	va, size, gpu;
-	u32int	*p;	/* attached */
+	uvlong	off, barsize;	/* vram: at off in BAR 0's barsize bytes */
+	u32int	*p;	/* attached (vram: at its offset in BAR 0) */
 };
+
+static uchar *bar0;	/* BAR 0's segment, attached once */
 
 static int
 ctl(int fd, char *reply, int nreply, char *fmt, ...)
@@ -78,17 +84,22 @@ ctl(int fd, char *reply, int nreply, char *fmt, ...)
 	return 0;
 }
 
-/* bo size: "bo id seg va size gpuaddr" */
+/*
+ * bo size [vram]: "bo id seg va size gpuaddr", vram: "... off barsize"
+ * with seg BAR 0's segment
+ */
 static int
-newbo(int fd, Bo *b, uvlong size)
+newbo(int fd, Bo *b, uvlong size, int vram)
 {
-	char buf[256], *f[8];
+	char buf[256], *f[10];
+	int n;
 
-	if(ctl(fd, buf, sizeof buf, "bo %llud", size) < 0){
-		fail("bo %llud: %r", size);
+	if(ctl(fd, buf, sizeof buf, vram ? "bo %llud vram" : "bo %llud", size) < 0){
+		fail("bo %llud%s: %r", size, vram ? " vram" : "");
 		return -1;
 	}
-	if(tokenize(buf, f, nelem(f)) != 6 || strcmp(f[0], "bo") != 0){
+	n = tokenize(buf, f, nelem(f));
+	if(n != (vram ? 8 : 6) || strcmp(f[0], "bo") != 0){
 		fail("bo reply: %s", buf);
 		return -1;
 	}
@@ -97,6 +108,18 @@ newbo(int fd, Bo *b, uvlong size)
 	b->va = strtoull(f[3], nil, 0);
 	b->size = strtoull(f[4], nil, 0);
 	b->gpu = strtoull(f[5], nil, 0);
+	if(vram){
+		b->off = strtoull(f[6], nil, 0);
+		b->barsize = strtoull(f[7], nil, 0);
+		if(bar0 == nil && (bar0 = segattach(0, b->seg, nil, b->barsize)) == (void*)-1){
+			bar0 = nil;
+			fail("segattach %s: %r", b->seg);
+			return -1;
+		}
+		b->p = (u32int*)(bar0 + b->off);
+		ok("bo %d: vram %#llux bytes at gpu %#llux, %s+%#llux", b->id, b->size, b->gpu, b->seg, b->off);
+		return 0;
+	}
 	b->p = segattach(0, b->seg, nil, b->size);
 	if(b->p == (void*)-1){
 		fail("segattach %s: %r", b->seg);
@@ -129,13 +152,43 @@ ib(int ip, u32int *cmd, uvlong dst, u32int v)
 
 static char *ipname[] = { "gfx", "compute", "sdma" };
 
+/* on each engine one IB that writes its value into d; fences from k0+1 */
+static void
+writes(int sfd, int ffd, Bo *cmd, Bo *d, char *what, int k0)
+{
+	char buf[128];
+	u32int v;
+	int ip, ndw, n;
+
+	for(ip = 0; ip < 3; ip++){
+		v = 0xC0DE0000 | k0 << 8 | ip;
+		ndw = ib(ip, cmd->p + ip*64, d->gpu + ip*4, v);
+		if(fprint(sfd, "%d %d %d %s", cmd->id, ip*64*4, ndw, ipname[ip]) < 0){
+			fail("%s %s: submit: %r", what, ipname[ip]);
+			continue;
+		}
+		if(fprint(ffd, "wait %d", k0+ip+1) < 0 || (n = pread(ffd, buf, sizeof buf - 1, 0)) <= 0){
+			fail("%s %s: fence %d: %r", what, ipname[ip], k0+ip+1);
+			continue;
+		}
+		buf[n] = 0;
+		if(strstr(buf, "done") == nil || strstr(buf, "failed") != nil){
+			fail("%s %s: fence %d: %s", what, ipname[ip], k0+ip+1, buf);
+			continue;
+		}
+		if(d->p[ip] != v)
+			fail("%s %s: wrote %#ux, memory has %#ux", what, ipname[ip], v, d->p[ip]);
+		else
+			ok("%s %s: IB wrote %#ux, fence %d done", what, ipname[ip], v, k0+ip+1);
+	}
+}
+
 void
 main(int argc, char **argv)
 {
 	char path[128], buf[256], *f[4];
-	int cfd, sfd, ffd, n, ip, ndw, ctx;
-	u32int v;
-	Bo cmd, dst;
+	int cfd, sfd, ffd, n, ctx;
+	Bo cmd, dst, vdst;
 
 	ARGBEGIN{
 	}ARGEND
@@ -167,36 +220,45 @@ main(int argc, char **argv)
 	if((ffd = open(path, ORDWR)) < 0)
 		sysfatal("open %s: %r", path);
 
-	if(newbo(cfd, &cmd, 65536) < 0 || newbo(cfd, &dst, 4096) < 0)
+	memset(&vdst, 0, sizeof vdst);
+	if(newbo(cfd, &cmd, 65536, 0) < 0 || newbo(cfd, &dst, 4096, 0) < 0)
 		sysfatal("no objects");
 	memset(dst.p, 0, dst.size);
 
-	for(ip = 0; ip < 3; ip++){
-		v = 0xC0DE0000 | ip;
-		ndw = ib(ip, cmd.p + ip*64, dst.gpu + ip*4, v);
-		if(fprint(sfd, "%d %d %d %s", cmd.id, ip*64*4, ndw, ipname[ip]) < 0){
-			fail("%s: submit: %r", ipname[ip]);
-			continue;
+	writes(sfd, ffd, &cmd, &dst, "gtt", 0);
+	if(newbo(cfd, &vdst, 4096, 1) == 0){
+		memset(vdst.p, 0, 64);
+		writes(sfd, ffd, &cmd, &vdst, "vram", 3);
+		/* the processor into VRAM through BAR 0, sdma from there into GTT */
+		vdst.p[8] = 0x7ee12345;
+		cmd.p[3*64] = SDMA_OP_COPY;
+		cmd.p[3*64+1] = 4 - 1;
+		cmd.p[3*64+2] = 0;
+		cmd.p[3*64+3] = vdst.gpu + 8*4;
+		cmd.p[3*64+4] = (vdst.gpu + 8*4) >> 32;
+		cmd.p[3*64+5] = dst.gpu + 8*4;
+		cmd.p[3*64+6] = (dst.gpu + 8*4) >> 32;
+		cmd.p[3*64+7] = SDMA_OP_NOP;
+		dst.p[8] = 0;
+		if(fprint(sfd, "%d %d %d sdma", cmd.id, 3*64*4, 8) < 0)
+			fail("copy: submit: %r");
+		else if(fprint(ffd, "wait 7") < 0 || (n = pread(ffd, buf, sizeof buf - 1, 0)) <= 0)
+			fail("copy: fence 7: %r");
+		else{
+			buf[n] = 0;
+			if(strstr(buf, "done") == nil || strstr(buf, "failed") != nil)
+				fail("copy: fence 7: %s", buf);
+			else if(dst.p[8] != 0x7ee12345)
+				fail("copy: processor wrote 0x7ee12345 into vram, sdma copied %#ux", dst.p[8]);
+			else
+				ok("processor -> vram (BAR 0) -> sdma -> gtt: %#ux", dst.p[8]);
 		}
-		if(fprint(ffd, "wait %d", ip+1) < 0 || (n = pread(ffd, buf, sizeof buf - 1, 0)) <= 0){
-			fail("%s: fence %d: %r", ipname[ip], ip+1);
-			continue;
-		}
-		buf[n] = 0;
-		if(strstr(buf, "done") == nil || strstr(buf, "failed") != nil){
-			fail("%s: fence %d: %s", ipname[ip], ip+1, buf);
-			continue;
-		}
-		if(dst.p[ip] != v)
-			fail("%s: wrote %#ux, memory has %#ux", ipname[ip], v, dst.p[ip]);
-		else
-			ok("%s: IB wrote %#ux, fence %d done", ipname[ip], v, ip+1);
 	}
 
 	fprint(ffd, "0");	/* plain reads again: "done submitted" */
 	if((n = pread(ffd, buf, sizeof buf - 1, 0)) > 0){
 		buf[n] = 0;
-		if(strncmp(buf, "3 3", 3) == 0 && strstr(buf, "failed") == nil)
+		if(strncmp(buf, "7 7", 3) == 0 && strstr(buf, "failed") == nil)
 			ok("fence: %s", buf);
 		else
 			fail("fence: %s", buf);
@@ -204,7 +266,10 @@ main(int argc, char **argv)
 
 	segdetach(cmd.p);
 	segdetach(dst.p);
-	if(ctl(cfd, nil, 0, "free %d", cmd.id) < 0 || ctl(cfd, nil, 0, "free %d", dst.id) < 0)
+	if(bar0 != nil)
+		segdetach(bar0);
+	if(ctl(cfd, nil, 0, "free %d", cmd.id) < 0 || ctl(cfd, nil, 0, "free %d", dst.id) < 0 ||
+	   (vdst.id && ctl(cfd, nil, 0, "free %d", vdst.id) < 0))
 		fail("free: %r");
 	else
 		ok("objects freed");

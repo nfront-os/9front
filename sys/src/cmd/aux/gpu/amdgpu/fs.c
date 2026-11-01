@@ -60,6 +60,7 @@ errstr9(int e)
 	case 16:	return "too many fences outstanding";
 	case 19:	return "no device";
 	case 22:	return "bad request";
+	case 28:	return "no room in visible VRAM";
 	case 98:	return "GPU address in use or out of range";
 	}
 	snprint(buf, sizeof buf, "error %d", -e);
@@ -246,12 +247,27 @@ ctxctl(Ctx *c, char **f, int n)
 	u64g va, size, gpu;
 	int e, id;
 
-	if((n == 2 || n == 3) && strcmp(f[0], "bo") == 0){
-		gpu = n == 3 ? strtoull(f[2], nil, 0) : ~0ULL;
-		e = amdgpu_bo_new(c->lc, strtoull(f[1], nil, 0), &gpu, &id, seg, sizeof seg, &va, &size);
+	if(n >= 2 && n <= 4 && strcmp(f[0], "bo") == 0){
+		u64g off, barsize;
+		int vram, i;
+
+		/* bo size [gpuaddr] [vram|gtt] */
+		gpu = ~0ULL;
+		vram = 0;
+		for(i = 2; i < n; i++)
+			if(strcmp(f[i], "vram") == 0)
+				vram = 1;
+			else if(strcmp(f[i], "gtt") == 0)
+				vram = 0;
+			else
+				gpu = strtoull(f[i], nil, 0);
+		e = amdgpu_bo_new(c->lc, strtoull(f[1], nil, 0), &gpu, vram, &id, seg, sizeof seg, &va, &size, &off, &barsize);
 		if(e < 0)
 			return errstr9(e);
-		setreply(c, "bo %d %s %#llux %#llux %#llux\n", id, seg, va, size, gpu);
+		if(vram)
+			setreply(c, "bo %d %s %#llux %#llux %#llux %#llux %#llux\n", id, seg, va, size, gpu, off, barsize);
+		else
+			setreply(c, "bo %d %s %#llux %#llux %#llux\n", id, seg, va, size, gpu);
 		return nil;
 	}
 	if(n == 3 && strcmp(f[0], "bind") == 0){
