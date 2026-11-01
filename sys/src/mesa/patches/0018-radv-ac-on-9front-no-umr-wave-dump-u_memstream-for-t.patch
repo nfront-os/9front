@@ -1,0 +1,80 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Stefan Hertenberger <erde74@gmail.com>
+Date: Sun, 1 Nov 2026 23:07:48 +0100
+Subject: [PATCH] radv, ac: on 9front no umr wave dump, u_memstream for the
+ hang report (no open_memstream there), util/libsync.h by its path
+
+---
+ src/amd/common/ac_debug.c                     |  3 ++-
+ src/amd/vulkan/tools/radv_debug_hang.c        | 10 ++++++++--
+ src/amd/vulkan/winsys/amdgpu/radv_amdgpu_cs.c |  2 +-
+ 3 files changed, 11 insertions(+), 4 deletions(-)
+
+diff --git a/src/amd/common/ac_debug.c b/src/amd/common/ac_debug.c
+index 835cc9c..3a84676 100644
+--- a/src/amd/common/ac_debug.c
++++ b/src/amd/common/ac_debug.c
+@@ -210,7 +210,8 @@ ac_get_umr_waves(const struct radeon_info *info, enum amd_ip_type ring)
+    if (ring != AMD_IP_GFX)
+       return NULL;
+ 
+-#ifndef _WIN32
++   /* no umr on Windows or 9front (and no open_memstream on either) */
++#if !defined(_WIN32) && !defined(__plan9__)
+    char *data;
+    size_t size;
+    FILE *f = open_memstream(&data, &size);
+diff --git a/src/amd/vulkan/tools/radv_debug_hang.c b/src/amd/vulkan/tools/radv_debug_hang.c
+index 307a996..4aab4da 100644
+--- a/src/amd/vulkan/tools/radv_debug_hang.c
++++ b/src/amd/vulkan/tools/radv_debug_hang.c
+@@ -18,6 +18,7 @@
+ #include "spirv/nir_spirv.h"
+ #include "util/mesa-blake3.h"
+ #include "util/os_time.h"
++#include "util/memstream.h"
+ #include "ac_debug.h"
+ #include "ac_descriptors.h"
+ #include "git_sha1.h"
+@@ -1041,13 +1042,15 @@ radv_check_gpu_hangs(struct radv_queue *queue, const struct radv_winsys_submit_i
+       wave_dump = ac_get_umr_waves(&pdev->info, radv_queue_ring(queue));
+ 
+    for (uint32_t i = 0; i < RADV_DEVICE_FAULT_CHUNK_COUNT; i++) {
++      struct u_memstream mem;
+ 
+       if (save_hang_report) {
+          snprintf(dump_path, sizeof(dump_path), "%s/%s.log", dump_dir, chunks[i].name);
+ 
+          f = fopen(dump_path, "w+");
+       } else {
+-         f = open_memstream(&chunks[i].ptr, &chunks[i].size);
++         /* u_memstream: open_memstream where there is one (not on 9front) */
++         f = u_memstream_open(&mem, &chunks[i].ptr, &chunks[i].size) ? u_memstream_get(&mem) : NULL;
+       }
+ 
+       if (!f)
+@@ -1098,7 +1101,10 @@ radv_check_gpu_hangs(struct radv_queue *queue, const struct radv_winsys_submit_i
+          break;
+       }
+ 
+-      fclose(f);
++      if (save_hang_report)
++         fclose(f);
++      else
++         u_memstream_close(&mem);
+    }
+ 
+    free(dump_dir);
+diff --git a/src/amd/vulkan/winsys/amdgpu/radv_amdgpu_cs.c b/src/amd/vulkan/winsys/amdgpu/radv_amdgpu_cs.c
+index 3abb1ee..4c83b8d 100644
+--- a/src/amd/vulkan/winsys/amdgpu/radv_amdgpu_cs.c
++++ b/src/amd/vulkan/winsys/amdgpu/radv_amdgpu_cs.c
+@@ -6,7 +6,7 @@
+  */
+ 
+ #include <assert.h>
+-#include <libsync.h>
++#include "util/libsync.h"	/* not on the include path by itself on 9front */
+ #include <pthread.h>
+ #include <stdlib.h>
+ #include "drm-uapi/amdgpu_drm.h"

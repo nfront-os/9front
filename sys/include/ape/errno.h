@@ -108,6 +108,9 @@ extern int *_errnoloc;
 #ifndef EOVERFLOW
 #define EOVERFLOW	1105
 #endif
+#ifndef ENODATA
+#define ENODATA		1106	/* 9front next generation: Mesa's RADV (amdgpu's lost contexts) */
+#endif
 #endif
 #endif
 #endif /* __ERRNO */

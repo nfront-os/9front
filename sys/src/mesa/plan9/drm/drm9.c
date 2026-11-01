@@ -1301,6 +1301,14 @@ drmGetDevices2(uint32_t flags, drmDevicePtr devs[], int max)
 	return devs != NULL && n > max ? max : n;
 }
 
+/* the names of modifiers (for debug output): none known here */
+char*
+drmGetFormatModifierName(uint64_t modifier)
+{
+	(void)modifier;
+	return NULL;
+}
+
 int
 drmGetDevices(drmDevicePtr devs[], int max)
 {

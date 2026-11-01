@@ -18,6 +18,14 @@
 extern "C" {
 #endif
 
+/* libdrm's ioctl numbers in BSD's encoding (sys/ioccom.h), as Mesa's drm-uapi has them here */
+#define DRM_IOCTL_NR(n)		((n) & 0xff)
+#define DRM_IOC_VOID		IOC_VOID
+#define DRM_IOC_READ		IOC_OUT
+#define DRM_IOC_WRITE		IOC_IN
+#define DRM_IOC_READWRITE	IOC_INOUT
+#define DRM_IOC(dir, group, nr, size)	_IOC(dir, group, nr, size)
+
 #define DRM_NODE_PRIMARY	0
 #define DRM_NODE_CONTROL	1
 #define DRM_NODE_RENDER		2
@@ -108,6 +116,7 @@ typedef struct _drmVersion {
 
 extern int	drmIoctl(int, unsigned long, void*);
 extern drmVersionPtr	drmGetVersion(int);
+extern char	*drmGetFormatModifierName(uint64_t modifier);	/* malloc'd, or NULL: not known */
 extern void	drmFreeVersion(drmVersionPtr);
 extern int	drmGetCap(int, uint64_t, uint64_t*);
 extern int	drmSetClientCap(int, uint64_t, uint64_t);
