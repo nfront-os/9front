@@ -1,0 +1,58 @@
+#!/bin/rc
+# nix: NIX on this machine (a configuration with *nixac): tests/nix's
+# programs on a TC and on the last application core, execac, ctl core,
+# roles at run time (/dev/nixctl), semaphores, zero-copy I/O, counters
+fn ok { echo ok $* }
+fn fail { echo FAIL $* }
+fn skip { echo SKIP $* }
+cat /dev/sysstat
+cat /dev/nixctl
+nac=`{grep -c ' AC$' /dev/sysstat}
+if(~ $nac 0){
+	skip nix: no application cores '(*nixac not set)'
+	exit
+}
+ok nix: $nac application cores
+ac=`{awk '$NF == "AC" {c = $1} END {print c}' /dev/sysstat}
+ncpu=`{cat /dev/sysstat | wc -l}
+echo '###' nixtest on the AC cpu$ac
+execac -c $ac /tests/nixtest $ac
+r=`{execac -c $ac /bin/hoc -e 'sqrt(2)*3'}
+if(~ $r 4.24264068712) ok nix: hoc on the AC
+if not fail nix: hoc on the AC: $r
+r=`{execac -c $ac /bin/rc -c 'for(i in 1 2 3 4 5 6 7 8) echo $i | wc -c' | wc -l}
+if(~ $r 8) ok nix: rc forks on the AC
+if not fail nix: rc forks on the AC: $r
+execac -c $ac /bin/rc -c 'while(){}' &
+p=$apid
+sleep 2
+c=`{cat /proc/$p/core}
+echo kill > /proc/$p/note
+sleep 1
+if(~ $c(1) $ac && ! test -d /proc/$p) ok nix: a loop on the AC, killed by a note
+if not fail nix: loop on the AC: core $c
+# a TC that becomes an AC at run time and back
+rt=`{echo $ncpu - $nac - 1 | hoc}
+if(test $rt -ge 1){
+	echo ac $rt > /dev/nixctl
+	n=`{execac -c $rt /tests/nixtest $rt | grep -c '^ok'}
+	echo tc $rt > /dev/nixctl
+	if(test $n -ge 15) ok nix: cpu$rt an AC at run time: nixtest $n ok
+	if not fail nix: cpu$rt an AC at run time: nixtest $n ok
+	if(test `{grep -c ' AC$' /dev/sysstat} -eq $nac) ok nix: cpu$rt back to a TC
+	if not fail nix: cpu$rt still an AC
+}
+if not
+	skip nix: no TC to make an AC at run time
+echo '###' semaphores
+/tests/semtest tc
+execac -c $ac /tests/semtest ac
+echo '###' zero-copy I/O
+/tests/ziotest
+execac -c $ac /tests/ziotest ac
+echo '###' performance counters
+cat '#ε/ctrdesc' >[2=1]
+/tests/pmctest tc $ac
+execac -c $ac /tests/pmctest ac 0
+if(! grep -s '^panic' /dev/kmesg) ok nix: no panic in kmesg
+if not fail nix: panic in kmesg

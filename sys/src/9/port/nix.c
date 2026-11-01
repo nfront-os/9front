@@ -55,9 +55,15 @@ nixboot(int ncpu)
 	char *s;
 	int i, n, k;
 
-	if((s = getconf("*nixac")) == nil)
+	/*
+	 * hwskip=1, typed at 9boot after this configuration hung while
+	 * booting (tests/hw): boot without NIX's options
+	 */
+	if(getconf("hwskip") != nil)
 		return 0;
-	n = strtol(s, nil, 0);
+	n = 0;
+	if((s = getconf("*nixac")) != nil)
+		n = strtol(s, nil, 0);
 	if(n > ncpu-1)
 		n = ncpu-1;
 	if(n < 0)
@@ -65,7 +71,7 @@ nixboot(int ncpu)
 	for(i = ncpu-n; i < ncpu; i++)
 		nixrole[i] = NIXAC;
 	nixnac = n;
-	if((s = getconf("*nixkc")) != nil){
+	if((s = getconf("*nixkc")) != nil){	/* also without *nixac */
 		k = strtol(s, nil, 0);
 		for(i = ncpu-n-1; i >= 1 && k > 0; i--, k--)
 			nixkcboot[i] = 1;

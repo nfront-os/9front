@@ -1,0 +1,23 @@
+#!/bin/rc
+# bench: tests/nix/nixbench on a TC and on the last application core,
+# with 4K and 2 MB pages, idle and with the TCs busy (not a test: the
+# numbers go to the log; ok when it ran)
+fn ok { echo ok $* }
+fn fail { echo FAIL $* }
+ac=`{awk '$NF == "AC" {c = $1} END {print c}' /dev/sysstat}
+echo '###' idle
+/tests/nixbench -r 5 && /tests/nixbench -b -r 5 | grep memwalk || fail bench: nixbench on a TC
+if(! ~ $#ac 0){
+	execac -c $ac /tests/nixbench -r 5 && execac -c $ac /tests/nixbench -b -r 5 | grep memwalk || fail bench: nixbench on the AC
+	echo '###' load: the TCs busy
+	ntc=`{grep -vc ' AC$' /dev/sysstat}
+	l=()
+	for(i in `{seq $ntc}){
+		rc -c 'while(){}' &
+		l=($l $apid)
+	}
+	/tests/nixbench -r 5
+	execac -c $ac /tests/nixbench -r 5
+	for(p in $l) echo kill > /proc/$p/note
+}
+ok bench: ran

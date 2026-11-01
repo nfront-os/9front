@@ -1,0 +1,7 @@
+#!/bin/rc
+# big: segments of 2 MB pages (segattach "big") on a TC and on the
+# last application core, if there is one
+/tests/bigtest
+ac=`{awk '$NF == "AC" {c = $1} END {print c}' /dev/sysstat}
+if(! ~ $#ac 0)
+	execac -c $ac /tests/bigtest

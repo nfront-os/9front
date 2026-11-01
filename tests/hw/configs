@@ -1,3 +1,5 @@
 default	sysinfo,boot,guest,disk,usb,net,stress,gcc	
 ncpu1	boot,guest,stress	*ncpu=1
 again	boot	hwtestcfg=again
+nixac1	sysinfo,boot,nix,big,bench	*nixac=1
+nixac2kc1	boot,nix,big	*nixac=2;*nixkc=1
