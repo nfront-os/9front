@@ -3,7 +3,8 @@
 
   genbuild.py [-n]
 	writes sys/src/linux/build.json (amd64): libkpi9.a (the Plan 9
-	side, kpi/plan9), libkpi.a (the Linux side, kpi/linux) and
+	side, kpi/plan9), libkpi.a (the Linux side, kpi/linux and the
+	OpenBSD kernel API under it, kpi/obsd) and
 	liblinux.a (what BUILD names, from vendor/ or our replace/), one
 	build object per directory (its own include path and KBUILD_MODNAME,
 	as Kbuild has them); and sys/src/cmd/aux/gpu/i915/build.json.
@@ -80,7 +81,7 @@ def libs():
 		'Library': 'libkpi9.a',
 		'SourceFiles': sorted(rel(f, D) for f in glob.glob(os.path.join(D, 'kpi/plan9/*.c'))),
 	})
-	kpi = sorted(rel(f, D) for f in glob.glob(os.path.join(D, 'kpi/linux/*.c')))
+	kpi = sorted(rel(f, D) for f in glob.glob(os.path.join(D, 'kpi/linux/*.c')) + glob.glob(os.path.join(D, 'kpi/obsd/*.c')))
 	out.append({
 		'Name': 'linux-kpi',
 		'Noinc': True,
