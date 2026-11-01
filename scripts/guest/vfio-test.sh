@@ -41,8 +41,8 @@ for f in $FW; do
 		[ -e "$z" ] || { echo "vfio-test: no firmware $FWDIR/$f*" >&2; exit 1; }
 		b=$(basename "$z")
 		case $b in
-		*.zst)	zstd -q -d -c "$z" > "$X/lib/firmware/amdgpu/${b%.zst}" ;;
-		*.xz)	xz -d -c "$z" > "$X/lib/firmware/amdgpu/${b%.xz}" ;;
+		*.zst)	zstd -q -d -c < "$z" > "$X/lib/firmware/amdgpu/${b%.zst}" ;;
+		*.xz)	xz -d -c < "$z" > "$X/lib/firmware/amdgpu/${b%.xz}" ;;
 		*)	cp "$z" "$X/lib/firmware/amdgpu/$b" ;;
 		esac
 	done
