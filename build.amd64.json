@@ -363,7 +363,8 @@
 		"Name": "linux",
 		"Projects": [
 			"/sys/src/linux/build.json",
-			"/sys/src/cmd/aux/gpu/i915/build.json"
+			"/sys/src/cmd/aux/gpu/i915/build.json",
+			"/sys/src/cmd/aux/gpu/amdgpu/build.json"
 		]
 	},
 	{

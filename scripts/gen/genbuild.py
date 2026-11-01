@@ -80,7 +80,7 @@ def main():
 			{'Name': 'cmds', 'Projects': cmds},
 		] + ([
 			# Linux's DRM drivers on the LinuxKPI (scripts/linux/genbuild.py)
-			{'Name': 'linux', 'Projects': ['/sys/src/linux/build.json', '/sys/src/cmd/aux/gpu/i915/build.json']},
+			{'Name': 'linux', 'Projects': ['/sys/src/linux/build.json', '/sys/src/cmd/aux/gpu/i915/build.json', '/sys/src/cmd/aux/gpu/amdgpu/build.json']},
 		] if objtype == 'amd64' else []) + [
 			{'Name': 'kernelgen', 'Pre': gens, 'Clean': genclean.clean(gens, ROOT)},
 			{'Name': 'kernel', 'Projects': [kern]},

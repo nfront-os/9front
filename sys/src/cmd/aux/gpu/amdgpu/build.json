@@ -1,0 +1,107 @@
+[
+	{
+		"Name": "aux-amdgpu-linux",
+		"Noinc": true,
+		"Cflags": [
+			"-std=gnu11",
+			"-O2",
+			"-g",
+			"-fno-strict-aliasing",
+			"-fno-strict-overflow",
+			"-fno-delete-null-pointer-checks",
+			"-fno-common",
+			"-fno-pie",
+			"-fno-stack-protector",
+			"-fno-omit-frame-pointer",
+			"-mcmodel=small",
+			"-fshort-wchar",
+			"-funsigned-char",
+			"-Wno-unused",
+			"-Wno-pointer-sign",
+			"-Wno-address-of-packed-member",
+			"-Wno-format-truncation",
+			"-nostdinc",
+			"-D__KERNEL__",
+			"-DKBUILD_MODNAME=\"amdgpu\"",
+			"-include",
+			"../../../../linux/kpi/include/linux/kconfig.h",
+			"-include",
+			"../../../../linux/kpi/include/linux/compiler.h",
+			"-I../../../../linux/replace/include",
+			"-I../../../../linux/kpi/include",
+			"-I../../../../linux/kpi/obsd/include",
+			"-I../../../../linux/vendor/include",
+			"-I../../../../linux/vendor/include/uapi",
+			"-I../../../../linux/vendor",
+			"-I../../../../linux/vendor/drivers/gpu/drm/amd/include/asic_reg",
+			"-I../../../../linux/vendor/drivers/gpu/drm/amd/include",
+			"-I../../../../linux/vendor/drivers/gpu/drm/amd/amdgpu",
+			"-I../../../../linux/vendor/drivers/gpu/drm/amd/pm/inc",
+			"-I../../../../linux/vendor/drivers/gpu/drm/amd/acp/include",
+			"-I../../../../linux/vendor/drivers/gpu/drm/amd/display",
+			"-I../../../../linux/vendor/drivers/gpu/drm/amd/display/include",
+			"-I../../../../linux/vendor/drivers/gpu/drm/amd/display/modules/inc",
+			"-I../../../../linux/vendor/drivers/gpu/drm/amd/display/dc",
+			"-I../../../../linux/vendor/drivers/gpu/drm/amd/display/amdgpu_dm",
+			"-I../../../../linux/vendor/drivers/gpu/drm/amd/amdkfd",
+			"-I../../../../linux/vendor/drivers/gpu/drm/amd/pm/swsmu",
+			"-I../../../../linux/vendor/drivers/gpu/drm/amd/pm/swsmu/inc",
+			"-I../../../../linux/vendor/drivers/gpu/drm/amd/pm/swsmu/inc/pmfw_if",
+			"-I../../../../linux/vendor/drivers/gpu/drm/amd/pm/swsmu/smu11",
+			"-I../../../../linux/vendor/drivers/gpu/drm/amd/pm/swsmu/smu12",
+			"-I../../../../linux/vendor/drivers/gpu/drm/amd/pm/swsmu/smu13",
+			"-I../../../../linux/vendor/drivers/gpu/drm/amd/pm/powerplay/inc",
+			"-I../../../../linux/vendor/drivers/gpu/drm/amd/pm/powerplay/smumgr",
+			"-I../../../../linux/vendor/drivers/gpu/drm/amd/pm/powerplay/hwmgr",
+			"-I../../../../linux/vendor/drivers/gpu/drm/amd/pm/legacy-dpm",
+			"-I../../../../linux/vendor/drivers/gpu/drm/amd/display/dc/inc",
+			"-I../../../../linux/vendor/drivers/gpu/drm/amd/display/dc/inc/hw",
+			"-I../../../../linux/vendor/drivers/gpu/drm/amd/display/dc/clk_mgr",
+			"-I../../../../linux/vendor/drivers/gpu/drm/amd/display/modules/freesync",
+			"-I../../../../linux/vendor/drivers/gpu/drm/amd/display/modules/color",
+			"-I../../../../linux/vendor/drivers/gpu/drm/amd/display/modules/info_packet",
+			"-I../../../../linux/vendor/drivers/gpu/drm/amd/display/modules/power",
+			"-I../../../../linux/vendor/drivers/gpu/drm/amd/display/dmub/inc",
+			"-I../../../../linux/vendor/drivers/gpu/drm/amd/display/modules/hdcp",
+			"-I../../../../linux/vendor/drivers/gpu/drm/amd/amdgpu",
+			"-I../../../../linux/replace/drivers/gpu/drm/amd/amdgpu"
+		],
+		"Install": "/$ARCH/lib.gcc/",
+		"Library": "libamdgpuaux.a",
+		"SourceFiles": [
+			"linux/amdgpu.c"
+		]
+	},
+	{
+		"Name": "aux-amdgpu",
+		"Include": [
+			"/$ARCH/cflags.json"
+		],
+		"Cflags": [
+			"-I",
+			"../../../../linux/kpi/include"
+		],
+		"Install": "/$ARCH/bin/aux/",
+		"Oflags": [
+			"--entry=_main"
+		],
+		"Libs": [
+			"--start-group",
+			"/$ARCH/lib.gcc/libamdgpuaux.a",
+			"/$ARCH/lib.gcc/libamdgpu.a",
+			"/$ARCH/lib.gcc/liblinux.a",
+			"/$ARCH/lib.gcc/libkpi.a",
+			"/$ARCH/lib.gcc/libkpi9.a",
+			"/$ARCH/lib.gcc/lib9p.a",
+			"/$ARCH/lib.gcc/libthread.a",
+			"/$ARCH/lib.gcc/libauth.a",
+			"/$ARCH/lib.gcc/libc.a",
+			"/$ARCH/lib.gcc/libgcc.a",
+			"--end-group"
+		],
+		"Program": "amdgpu",
+		"SourceFiles": [
+			"main.c"
+		]
+	}
+]

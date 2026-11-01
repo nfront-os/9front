@@ -4,10 +4,12 @@
   genbuild.py [-n]
 	writes sys/src/linux/build.json (amd64): libkpi9.a (the Plan 9
 	side, kpi/plan9), libkpi.a (the Linux side, kpi/linux and the
-	OpenBSD kernel API under it, kpi/obsd) and
-	liblinux.a (what BUILD names, from vendor/ or our replace/), one
+	OpenBSD kernel API under it, kpi/obsd),
+	liblinux.a (what BUILD names, from vendor/ or our replace/) and
+	libamdgpu.a (of it drivers/gpu/drm/amd), one
 	build object per directory (its own include path and KBUILD_MODNAME,
-	as Kbuild has them); and sys/src/cmd/aux/gpu/i915/build.json.
+	as Kbuild has them); sys/src/cmd/aux/gpu/i915/build.json and
+	sys/src/cmd/aux/gpu/amdgpu/build.json.
 	-n: only compare, exit 1 if a manifest differs (tests/static).
 
 The files and flags are census.py's (kconfig, BUILD, OMIT), compiled
@@ -28,7 +30,7 @@ LINUXFLAGS = ['-std=gnu11', '-O2', '-g', '-fno-strict-aliasing', '-fno-strict-ov
 	'-Wno-unused', '-Wno-pointer-sign', '-Wno-address-of-packed-member', '-Wno-format-truncation']
 
 # Kbuild's module names, by directory
-MODNAME = [('drivers/gpu/drm/i915', 'i915'), ('drivers/gpu/drm/display', 'drm_display_helper'),
+MODNAME = [('drivers/gpu/drm/i915', 'i915'), ('drivers/gpu/drm/amd', 'amdgpu'), ('drivers/gpu/drm/scheduler', 'gpu_sched'), ('drivers/gpu/drm/display', 'drm_display_helper'),
 	('drivers/gpu/drm/ttm', 'ttm'), ('drivers/gpu/drm', 'drm'), ('drivers/dma-buf', 'dma_buf'),
 	('drivers/video', 'hdmi'), ('lib', 'scatterlist')]
 
@@ -102,21 +104,24 @@ def libs():
 		'Library': 'libkpitest.a',
 		'SourceFiles': [rel(g['source'](c), D) for c in SELFTESTS],
 	})
-	first = True
+	# amdgpu (drivers/gpu/drm/amd) in an archive of its own, the rest
+	# (DRM's core and helpers, TTM, the scheduler, i915) in liblinux.a
+	first = {}
 	for d in sorted(bydir):
+		lib = 'libamdgpu.a' if d.startswith('drivers/gpu/drm/amd/') else 'liblinux.a'
 		o = {
 			'Name': 'linux-' + d.replace('/', '-'),
 			'Noinc': True,
 			'Cflags': linuxflags(bydir[d][0], D, modname(d)),
 			'Install': '/$ARCH/lib.gcc/',
-			'Library': 'liblinux.a',
+			'Library': lib,
 			'SourceFiles': [rel(g['source'](c), D) for c in sorted(bydir[d])],
 		}
-		if first:
+		if lib not in first:
 			o['Shared'] = True
+			first[lib] = True
 		else:
 			o['Append'] = True
-		first = False
 		out.append(o)
 	return out
 
@@ -155,6 +160,27 @@ def i915():
 		'SourceFiles': ['stk/i915stk.c'],
 	}]
 
+def amdgpu():
+	base = os.path.join(TREE, 'sys/src/cmd/aux/gpu/amdgpu')
+	return [{
+		'Name': 'aux-amdgpu-linux',
+		'Noinc': True,
+		'Cflags': linuxflags('drivers/gpu/drm/amd/amdgpu/x.c', base, 'amdgpu'),
+		'Install': '/$ARCH/lib.gcc/',
+		'Library': 'libamdgpuaux.a',
+		'SourceFiles': sorted('linux/' + os.path.basename(f) for f in glob.glob(os.path.join(base, 'linux', '*.c'))),
+	}, {
+		'Name': 'aux-amdgpu',
+		'Include': ['/$ARCH/cflags.json'],
+		'Cflags': ['-I', rel(os.path.join(D, 'kpi/include'), base)],
+		'Install': '/$ARCH/bin/aux/',
+		'Oflags': ['--entry=_main'],
+		'Libs': ['--start-group'] + ['/$ARCH/lib.gcc/' + l for l in
+			['libamdgpuaux.a', 'libamdgpu.a', 'liblinux.a', 'libkpi.a', 'libkpi9.a'] + P9LIBS + ['libgcc.a']] + ['--end-group'],
+		'Program': 'amdgpu',
+		'SourceFiles': sorted(os.path.basename(f) for f in glob.glob(os.path.join(base, '*.c'))),
+	}]
+
 def dump(o):
 	return json.dumps(o, indent='\t') + '\n'
 
@@ -162,7 +188,8 @@ def main():
 	check = sys.argv[1:] == ['-n']
 	bad = 0
 	for path, o in ((os.path.join(D, 'build.json'), libs()),
-			(os.path.join(TREE, 'sys/src/cmd/aux/gpu/i915/build.json'), i915())):
+			(os.path.join(TREE, 'sys/src/cmd/aux/gpu/i915/build.json'), i915()),
+			(os.path.join(TREE, 'sys/src/cmd/aux/gpu/amdgpu/build.json'), amdgpu())):
 		s = dump(o)
 		old = open(path).read() if os.path.exists(path) else None
 		if check:

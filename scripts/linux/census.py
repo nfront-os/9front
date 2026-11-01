@@ -4,7 +4,7 @@
 Compiles (syntax only) each file kbuild.py chooses from sys/src/linux/
 vendor with the layer's headers (replace/include, kpi/include) and
 counts: files that compile, and for the others the first missing
-header, or the first error.  -a: with amdgpu (kconfig.amdgpu).  The measure of progress of the LinuxKPI
+header, or the first error.  The measure of progress of the LinuxKPI
 for 9front: when it says 0 failing, everything compiles.  -v prints
 each failing file's first error."""
 import os, re, subprocess, sys
@@ -29,8 +29,6 @@ def build():
 def flags(c):
 	d = os.path.dirname(c)
 	inc = ['replace/include', 'kpi/include', 'kpi/obsd/include', 'vendor/include', 'vendor/include/uapi', 'vendor']
-	if os.environ.get('KPI_AMDGPU'):	# -a: its own generated/autoconf.h first
-		inc.insert(0, amdautoconf())
 	f = ['-std=gnu11', '-nostdinc', '-fsyntax-only', '-D__KERNEL__', '-DKBUILD_MODNAME="%s"' % os.path.basename(c)[:-2],
 		'-include', os.path.join(D, 'kpi/include/linux/kconfig.h'),
 		'-include', os.path.join(D, 'kpi/include/linux/compiler.h'),
@@ -50,17 +48,6 @@ def flags(c):
 	# quoted includes next to the file, replaced: replace/ mirrors vendor/
 	f += ['-I', os.path.join(D, 'replace', d)]
 	return f
-
-_amdconf = None
-def amdautoconf():
-	"""a directory with the generated/autoconf.h of kconfig + kconfig.amdgpu"""
-	global _amdconf
-	if _amdconf is None:
-		import tempfile
-		_amdconf = tempfile.mkdtemp(prefix='census-amdgpu-')
-		os.makedirs(os.path.join(_amdconf, 'generated'))
-		open(os.path.join(_amdconf, 'generated/autoconf.h'), 'w').write(kbuild.autoconf(kbuild.config()))
-	return _amdconf
 
 _amdinc = None
 def amdincludes():
@@ -96,12 +83,9 @@ def compile1(c):
 
 def main():
 	verbose = '-v' in sys.argv
-	if '-a' in sys.argv:	# amdgpu too (kconfig.amdgpu, its directories)
-		os.environ['KPI_AMDGPU'] = '1'
-		amdautoconf()	# once, before the threads
-		amdincludes()
+	amdincludes()	# once, before the threads
 	cfg = kbuild.config()
-	files = [a for a in sys.argv[1:] if a not in ('-v', '-a')]
+	files = [a for a in sys.argv[1:] if a != '-v']
 	if not files:
 		files = []
 		for kind, path in build():
