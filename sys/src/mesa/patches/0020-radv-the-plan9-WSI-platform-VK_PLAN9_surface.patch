@@ -1,0 +1,37 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Stefan Hertenberger <erde74@gmail.com>
+Date: Sun, 1 Nov 2026 23:38:35 +0100
+Subject: [PATCH] radv: the plan9 WSI platform (VK_PLAN9_surface)
+
+---
+ src/amd/vulkan/radv_instance.c | 3 +++
+ src/amd/vulkan/radv_wsi.h      | 2 +-
+ 2 files changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/src/amd/vulkan/radv_instance.c b/src/amd/vulkan/radv_instance.c
+index cc60135..2443d90 100644
+--- a/src/amd/vulkan/radv_instance.c
++++ b/src/amd/vulkan/radv_instance.c
+@@ -249,6 +249,9 @@ static const struct vk_instance_extension_table radv_instance_extensions_support
+ #ifndef VK_USE_PLATFORM_WIN32_KHR
+    .EXT_headless_surface = true,
+ #endif
++#ifdef VK_USE_PLATFORM_PLAN9_9FRONT
++   .PLAN9_surface = true,
++#endif
+ };
+ 
+ static enum radeon_ctx_pstate
+diff --git a/src/amd/vulkan/radv_wsi.h b/src/amd/vulkan/radv_wsi.h
+index 2ab3107..e9d6c98 100644
+--- a/src/amd/vulkan/radv_wsi.h
++++ b/src/amd/vulkan/radv_wsi.h
+@@ -14,7 +14,7 @@
+ #include "radv_physical_device.h"
+ 
+ #if defined(VK_USE_PLATFORM_WAYLAND_KHR) || defined(VK_USE_PLATFORM_XCB_KHR) || defined(VK_USE_PLATFORM_XLIB_KHR) ||   \
+-   defined(VK_USE_PLATFORM_DISPLAY_KHR)
++   defined(VK_USE_PLATFORM_DISPLAY_KHR) || defined(VK_USE_PLATFORM_PLAN9_9FRONT)
+ #define RADV_USE_WSI_PLATFORM
+ #endif
+ 

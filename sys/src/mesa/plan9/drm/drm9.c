@@ -287,6 +287,22 @@ ino(int fd)
 }
 
 /*
+ * the descriptor the context's requests go to: the one it was found by
+ * may be closed (RADV closes its own and keeps libdrm_amdgpu's dup), and
+ * its number used again; then fd, which is the context's, takes over
+ */
+static Dev*
+livefd(Dev *d, int fd)
+{
+	if(d->fd != fd && ino(d->fd) != d->ino){
+		d->fd = fd;
+		if(d->amd != NULL)
+			amd9setfd(d->amd, fd);
+	}
+	return d;
+}
+
+/*
  * the context behind a descriptor, found by its first ioctl: the
  * clone's ctl says ctx n. The descriptor keeps the name it was opened
  * by (/dev/gpu/N/clone, fd2path), the qid is its context's ctl's, which
@@ -309,14 +325,14 @@ getdev(int fd)
 	q = ino(fd);
 	f = &fds[fd];
 	if(f->kind == Kdev && f->dev->ino == q)
-		return f->dev;
+		return livefd(f->dev, fd);
 	f->kind = Knone;
 	/* a descriptor dup'd from a known one (libdrm_amdgpu dups): the same context */
 	for(i = 0; i < Maxfd; i++)
 		if(i != fd && fds[i].kind == Kdev && fds[i].dev->ino == q){
 			f->kind = Kdev;
 			f->dev = fds[i].dev;
-			return f->dev;
+			return livefd(f->dev, fd);
 		}
 	scan();
 	for(i = 0; i < ngpu; i++){

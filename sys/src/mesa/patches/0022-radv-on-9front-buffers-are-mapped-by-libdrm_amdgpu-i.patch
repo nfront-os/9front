@@ -1,0 +1,81 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Stefan Hertenberger <erde74@gmail.com>
+Date: Mon, 2 Nov 2026 00:23:13 +0100
+Subject: [PATCH] radv: on 9front buffers are mapped by libdrm_amdgpu (its
+ segment, or BAR 0 for VRAM: no mmap of the device), where the system places
+ them: no VK_EXT_map_memory_placed
+
+---
+ src/amd/vulkan/radv_physical_device.c         |  4 ++--
+ src/amd/vulkan/winsys/amdgpu/radv_amdgpu_bo.c | 22 +++++++++++++++++++
+ 2 files changed, 24 insertions(+), 2 deletions(-)
+
+diff --git a/src/amd/vulkan/radv_physical_device.c b/src/amd/vulkan/radv_physical_device.c
+index e23d375..f71374a 100644
+--- a/src/amd/vulkan/radv_physical_device.c
++++ b/src/amd/vulkan/radv_physical_device.c
+@@ -894,7 +894,7 @@ radv_physical_device_get_supported_extensions(const struct radv_physical_device
+       .EXT_legacy_vertex_attributes = !pdev->use_llvm,
+       .EXT_line_rasterization = true,
+       .EXT_load_store_op_none = true,
+-      .EXT_map_memory_placed = true,
++      .EXT_map_memory_placed = !DETECT_OS_PLAN9, /* 9front places the maps itself */
+       .EXT_memory_budget = true,
+       .EXT_memory_priority = true,
+       .EXT_mesh_shader = radv_taskmesh_enabled(pdev),
+@@ -1291,7 +1291,7 @@ radv_physical_device_get_features(const struct radv_physical_device *pdev, struc
+       .shaderSubgroupUniformControlFlow = true,
+ 
+       /* VK_EXT_map_memory_placed */
+-      .memoryMapPlaced = true,
++      .memoryMapPlaced = !DETECT_OS_PLAN9,
+       .memoryMapRangePlaced = false,
+       .memoryUnmapReserve = true,
+ 
+diff --git a/src/amd/vulkan/winsys/amdgpu/radv_amdgpu_bo.c b/src/amd/vulkan/winsys/amdgpu/radv_amdgpu_bo.c
+index 8e66ef8..e05aad1 100644
+--- a/src/amd/vulkan/winsys/amdgpu/radv_amdgpu_bo.c
++++ b/src/amd/vulkan/winsys/amdgpu/radv_amdgpu_bo.c
+@@ -22,6 +22,7 @@
+ #include <sys/mman.h>
+ #include "ac_linux_drm.h"
+ 
++#include "util/detect_os.h"
+ #include "util/os_drm.h"
+ #include "util/os_time.h"
+ #include "util/u_atomic.h"
+@@ -733,6 +734,22 @@ radv_amdgpu_winsys_bo_map(struct radeon_winsys *_ws, struct radeon_winsys_bo *_b
+    }
+ #endif
+ 
++#if DETECT_OS_PLAN9
++   /* 9front: no mmap of the device; libdrm_amdgpu attaches the object's
++    * segment (GTT) or shows it through BAR 0 (VRAM), where the system puts
++    * it, so no placed maps */
++   {
++      void *data = NULL;
++
++      if (use_fixed_addr)
++         return NULL;
++      if (ac_drm_bo_cpu_map(radv_amdgpu_winsys(_ws)->dev, bo->bo, &data))
++         return NULL;
++      bo->cpu_map = data;
++      return data;
++   }
++#endif
++
+    union drm_amdgpu_gem_mmap args;
+    memset(&args, 0, sizeof(args));
+    args.in.handle = bo->bo_handle;
+@@ -760,6 +777,11 @@ radv_amdgpu_winsys_bo_unmap(struct radeon_winsys *_ws, struct radeon_winsys_bo *
+       return;
+ 
+    assert(bo->cpu_map);
++#if DETECT_OS_PLAN9
++   ac_drm_bo_cpu_unmap(radv_amdgpu_winsys(_ws)->dev, bo->bo);
++   bo->cpu_map = NULL;
++   return;
++#endif
+    if (replace) {
+       (void)mmap(bo->cpu_map, bo->base.size, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
+    } else {

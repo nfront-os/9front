@@ -1,0 +1,20 @@
+#!/bin/rc
+# aux/amdgpu, then radvtest: where RADV's submissions start to fail
+bind -a '#i' /dev
+bind -a '#v' /dev
+if(~ $#radvdebug 0)
+	radvdebug=startup
+if(~ $#drm9debug 0)
+	drm9debug=1
+if(~ $#perftest 0)
+	perftest=''
+aux/amdgpu $* >/tmp/amd.log >[2=1]
+sleep 2
+DRM9DEBUG=$drm9debug RADV_DEBUG=$radvdebug RADV_PERFTEST=$perftest /tests/radvtest >[2=1]
+echo radvtest status $status
+grep '^(ring|ih|timeouts)' /dev/gpu/0/status
+sleep 12
+echo after 12 s
+grep '^(ring|ih|timeouts)' /dev/gpu/0/status
+grep -i 'fault|warn|error|fallback|reset|hang' /tmp/amd.log | sed 30q
+echo TESTEND

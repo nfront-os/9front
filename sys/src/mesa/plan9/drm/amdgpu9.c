@@ -44,6 +44,7 @@
 #endif
 
 extern void	*_SEGATTACH(int, char*, void*, unsigned long);
+extern int	_ERRSTR(char*, unsigned int);
 extern int	_SEGDETACH(void*);
 
 enum {
@@ -117,6 +118,14 @@ ctlreq(Amd *a, char *reply, int n, const char *fmt, ...)
 	}
 	pthread_mutex_unlock(&a->lk);
 	return 0;
+}
+
+void
+amd9setfd(Amd *a, int fd)
+{
+	pthread_mutex_lock(&a->lk);
+	a->fd = fd;
+	pthread_mutex_unlock(&a->lk);
 }
 
 Amd*
@@ -508,6 +517,55 @@ refused(unsigned nr)
 	return 0;
 }
 
+/* DRM9DEBUG=2: every ioctl, with what CS and syncobj waits carry */
+static void
+trace(unsigned nr, void *arg, int r)
+{
+	static int on = -1;
+	union drm_amdgpu_cs *cs;
+	struct drm_amdgpu_cs_chunk *ch;
+	struct drm_syncobj_wait *w;
+	uint64_t *cp;
+	uint32_t *h, i;
+	int e;
+
+	e = errno;
+	if(on < 0)
+		on = getenv("DRM9DEBUG") != NULL && atoi(getenv("DRM9DEBUG")) >= 2;
+	if(!on)
+		return;
+	switch(nr){
+	case DRM_COMMAND_BASE + DRM_AMDGPU_CS:
+		cs = arg;
+		fprintf(stderr, "amdgpu9: cs ctx %u chunks %u bo_list %u: %d", cs->in.ctx_id, cs->in.num_chunks,
+			cs->in.bo_list_handle, r);
+		cp = (uint64_t*)(uintptr_t)cs->in.chunks;
+		for(i = 0; i < cs->in.num_chunks; i++){
+			ch = (struct drm_amdgpu_cs_chunk*)(uintptr_t)cp[i];
+			fprintf(stderr, " [%u %u]", ch->chunk_id, ch->length_dw);
+			if(ch->chunk_id == AMDGPU_CHUNK_ID_SYNCOBJ_OUT || ch->chunk_id == AMDGPU_CHUNK_ID_SYNCOBJ_IN)
+				fprintf(stderr, "=%u", ((struct drm_amdgpu_cs_chunk_sem*)(uintptr_t)ch->chunk_data)->handle);
+		}
+		if(r == 0)
+			fprintf(stderr, " seq %llu", (unsigned long long)cs->out.handle);
+		break;
+	case 0xc3 /* DRM_IOCTL_SYNCOBJ_WAIT */:
+		w = arg;
+		h = (uint32_t*)(uintptr_t)w->handles;
+		fprintf(stderr, "amdgpu9: syncobj wait flags %#x timeout %lld:", w->flags, (long long)w->timeout_nsec);
+		for(i = 0; i < w->count_handles; i++)
+			fprintf(stderr, " %u", h[i]);
+		fprintf(stderr, ": %d", r);
+		break;
+	default:
+		fprintf(stderr, "amdgpu9: ioctl %#x: %d", nr, r);
+	}
+	if(r < 0)
+		fprintf(stderr, " (%s)", strerror(e));
+	fprintf(stderr, "\n");
+	errno = e;
+}
+
 int
 amd9ioctl(Amd *a, unsigned long req, void *arg)
 {
@@ -550,6 +608,7 @@ amd9ioctl(Amd *a, unsigned long req, void *arg)
 	s = mput(&m, arg, size);
 	nested(&m, nr, s, arg, 0);
 	r = call(a, lcmd, s);
+	trace(nr, s, r);
 	if(r < 0){
 		if(nr == DRM_COMMAND_BASE + DRM_AMDGPU_INFO)
 			dbg("ioctl %#x (INFO query %#x, %u %u): %s", nr, ((struct drm_amdgpu_info*)arg)->query,
@@ -888,6 +947,8 @@ amdgpu_va_range_alloc(amdgpu_device_handle d, enum amdgpu_gpu_va_range type, uin
 		r = vamalloc(d->vam[0], size, align, 0, got), v = d->vam[0];	/* as libdrm: the 32-bit part too */
 	pthread_mutex_unlock(&d->lk);
 	if(r < 0){
+		dbg("va_range_alloc %#llx at %#llx flags %#llx: no room", (unsigned long long)size,
+			(unsigned long long)want, (unsigned long long)flags);
 		free(va);
 		return -ENOMEM;
 	}
@@ -933,8 +994,11 @@ amdgpu_bo_alloc(amdgpu_device_handle d, struct amdgpu_bo_alloc_request *req, amd
 	c.in.alignment = req->phys_alignment;
 	c.in.domains = req->preferred_heap;
 	c.in.domain_flags = req->flags;
-	if((r = devioctl(d, DRM_IOCTL_AMDGPU_GEM_CREATE, &c)) < 0)
+	if((r = devioctl(d, DRM_IOCTL_AMDGPU_GEM_CREATE, &c)) < 0){
+		dbg("bo_alloc %#llx heap %#x flags %#llx: %d", (unsigned long long)req->alloc_size,
+			req->preferred_heap, (unsigned long long)req->flags, r);
 		return r;
+	}
 	b = calloc(1, sizeof *b);
 	if(b == NULL){
 		struct drm_gem_close cl = { .handle = c.out.handle };
@@ -1016,8 +1080,14 @@ amdgpu_bo_cpu_map(amdgpu_bo_handle b, void **cpu)
 	pthread_mutex_unlock(&b->dev->lk);
 	if((a = amd9of(b->dev->fd)) == NULL)
 		return -EBADF;
-	if(ctlreq(a, reply, sizeof reply, "map %u", b->handle) < 0)
-		return -errno;
+	if(ctlreq(a, reply, sizeof reply, "map %u", b->handle) < 0){
+		int e = errno;
+
+		reply[0] = 0;
+		_ERRSTR(reply, sizeof reply);	/* the driver's reason */
+		dbg("map %u: %s", b->handle, reply);
+		return -e;
+	}
 	if(sscanf(reply, "map %*u %63s %lli %lli %lli %lli", seg, &va, &size, &off, &barsize) == 5){
 		/* VRAM: BAR 0, once for the descriptor */
 		pthread_mutex_lock(&a->lk);
@@ -1029,6 +1099,7 @@ amdgpu_bo_cpu_map(amdgpu_bo_handle b, void **cpu)
 		}
 		pthread_mutex_unlock(&a->lk);
 		if(a->bar0 == NULL || off + size > a->bar0size){
+			dbg("map %u: BAR 0 %s: %s", b->handle, seg, strerror(errno));
 			ctlreq(a, NULL, 0, "unmap %u", b->handle);
 			return -ENOMEM;
 		}
@@ -1037,12 +1108,15 @@ amdgpu_bo_cpu_map(amdgpu_bo_handle b, void **cpu)
 	}else if(sscanf(reply, "map %*u %63s %lli %lli", seg, &va, &size) == 3){
 		p = _SEGATTACH(0, seg, NULL, size);
 		if(p == (void*)-1){
+			dbg("map %u: segattach %s %#llx: %s", b->handle, seg, size, strerror(errno));
 			ctlreq(a, NULL, 0, "unmap %u", b->handle);
 			return -ENOMEM;
 		}
 		b->seg = 1;
-	}else
+	}else{
+		dbg("map %u: %s", b->handle, reply);
 		return -EIO;
+	}
 	pthread_mutex_lock(&b->dev->lk);
 	b->cpu = p;
 	b->maps = 1;

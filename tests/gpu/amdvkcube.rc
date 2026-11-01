@@ -1,0 +1,18 @@
+#!/bin/rc
+# aux/amdgpu with its screen, RADV's vkcube on it, the screen's pixels
+# radvdebug, perftest: RADV_DEBUG, RADV_PERFTEST for vkcube
+bind -a '#i' /dev
+bind -a '#v' /dev
+if(~ $#radvdebug 0)
+	radvdebug=startup
+if(~ $#perftest 0)
+	perftest=''
+aux/amdgpu $* >/tmp/amd.log >[2=1]
+sleep 2
+/tests/vulkaninfo-radv --summary >[2=1] | grep 'deviceName|PLAN9'
+DRM9DEBUG=1 MESA_DEBUG=1 RADV_DEBUG=$radvdebug RADV_PERFTEST=$perftest /tests/vkcube-radv --c 300 >/tmp/cube.log >[2=1]
+echo vkcube status $status
+sed 40q /tmp/cube.log
+/tests/screenpx 960,540 900,500 1020,580 100,100
+grep -i 'fault|warn|error|fallback|reset|hang' /tmp/amd.log | sed 30q
+echo TESTEND
