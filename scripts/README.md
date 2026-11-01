@@ -58,6 +58,8 @@ Called by `build.exe` (Pre/Post steps); rarely run by hand.
 | script | what it does |
 |---|---|
 | `boot-cli.sh` | boot the built kernel in QEMU; with arguments, type them and print the output. `scripts/guest/boot-cli.sh 'ls /bin'` |
+| `vfio-gpu.sh` | the host's GPU for a guest (single-GPU VFIO): `sudo scripts/guest/vfio-gpu.sh bind [PID]` (GPU and HDMI audio to vfio-pci, /dev/vfio/N for the user, memlock of PID unlimited), `release` (back to amdgpu), `status`. `scripts/guest/vfio-gpu.sh` |
+| `vfio-test.sh` | boots the build's kernel with the card passed through (KVM, `-cpu host`) and lists what the guest sees of it (`pci -bv`, configuration space). `scripts/guest/vfio-test.sh [cmds]` |
 | `guest-cmd.sh` | one command line into a guest kept running (`HOLD=1 boot-cli.sh`). `scripts/guest/guest-cmd.sh 'ps'` |
 | `build-boot.sh` | build 9front's boot loaders in the guest with its own compilers (mbr, pbs, 9boot*, efi). `scripts/guest/build-boot.sh` |
 | `build-kencc.sh` | check that the tree still builds with 9front's own compilers: in the guest `mk install` of `/sys/src` and the kernel pc64 with 6c/6a/6l (`boot/mkkencc.rc`). `scripts/guest/build-kencc.sh [kernel]` |
