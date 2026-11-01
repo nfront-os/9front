@@ -2,13 +2,12 @@
  * SPDX-License-Identifier: MIT
  *
  * What Mesa uses that has no meaning on 9front (headers in ../include):
- * flock, poll, syslog, mmap, priorities. POSIX's own functions are in
- * APE (libap) and the toolchain's compat library.
+ * flock, syslog, mmap, priorities. POSIX's own functions are in APE
+ * (libap: poll, over select, since the gcc branch).
  */
 #include <stdio.h>
 #include <stdarg.h>
 #include <errno.h>
-#include <poll.h>
 #include <syslog.h>
 #include <sys/types.h>
 #include <sys/mman.h>
@@ -21,16 +20,6 @@ flock(int fd, int op)
 	(void)fd;
 	(void)op;
 	return 0;
-}
-
-int
-poll(struct pollfd *fds, nfds_t n, int timeout)
-{
-	(void)fds;
-	(void)n;
-	(void)timeout;
-	errno = ENOSYS;
-	return -1;
 }
 
 static const char *logident = "mesa";
