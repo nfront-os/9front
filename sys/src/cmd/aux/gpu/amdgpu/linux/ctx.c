@@ -719,7 +719,12 @@ amdgpu_fence_wait(void *v, u64 k, int query)
 		}
 	}
 	done = dma_fence_is_signaled(f);
-	if (done && f->error < 0 && f->error != -ECANCELED)
+	/*
+	 * an error: the job failed, or it was cancelled (a GPU reset: amdgpu
+	 * marks the guilty job -ETIME, drm_sched_start makes that -ECANCELED;
+	 * a cancelled job did not run)
+	 */
+	if (done && f->error < 0)
 		c->failed = true;
 	if (amdgpu_fencetrace && done && !query) {
 		ktime_t now = ktime_get(), t0 = c->tsub[k % Nfence];

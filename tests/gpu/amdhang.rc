@@ -1,0 +1,27 @@
+#!/bin/rc
+# aux/amdgpu with its screen; a GPU hang (amdhang), then whether all
+# works again: the context, ioctl and RADV tests, vkcube; the load
+# before, after the hang and later; the driver's log from the timeout on
+# (repeated lines counted)
+bind -a '#i' /dev
+bind -a '#v' /dev
+aux/amdgpu $* >/tmp/amd.log >[2=1]
+sleep 2
+fn load { echo $1: `{grep '^power' /dev/gpu/0/status} }
+load before
+/tests/amdhang
+load 'after the hang'
+sleep 10
+load '10 s later'
+/tests/amdctxtest | grep 'passed|FAIL'
+/tests/amdioctl | grep 'passed|FAIL'
+/tests/radvtest >[2=1] | grep 'passed|FAIL'
+WSI_PLAN9_STATS=1 /tests/vkcube --c 120 >[2=1] | grep 'scanout:|copy:|rror' | sed 2q
+sleep 5
+load 'at the end'
+grep '^temp' /dev/gpu/0/status
+echo waves >/dev/gpu/0/ctl
+sleep 1
+echo MES errors: `{grep -c 'MES failed' /tmp/amd.log}
+sed -n '/timeout/,$p' /tmp/amd.log | grep -v 'MES failed|reg_write_reg_wait|^ip |^ring .* fence' | uniq -c | sed 120q
+echo TESTEND

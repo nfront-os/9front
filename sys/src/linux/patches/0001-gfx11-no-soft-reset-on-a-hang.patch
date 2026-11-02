@@ -1,0 +1,52 @@
+gfx11: no soft reset on a hang, a full reset (mode1) as later Linux does
+
+Linux 6.6's gfx_v11_0_check_soft_reset finds a hung gfx ring and has it
+soft reset (GRBM_SOFT_RESET of the CP), which resets MES too; the
+resume message post_soft_reset sends to MES then gets no answer ("MES
+failed to response msg=14"), the MES self test after the reset cannot
+add its queues, and the GPU stays in the state of a reset begun (clock
+and power gating off: 110 W at idle).  Later Linux has no
+check_soft_reset in gfx_v11_0 (7.3.1: none), so a hang there takes the
+full reset.  Removed here as there.
+
+--- a/drivers/gpu/drm/amd/amdgpu/gfx_v11_0.c	2026-11-02 09:26:11.769445306 +0100
++++ b/drivers/gpu/drm/amd/amdgpu/gfx_v11_0.c	2026-11-02 09:26:11.770466955 +0100
+@@ -4541,30 +4541,6 @@
+ 	return gfx_v11_0_cp_resume(adev);
+ }
+ 
+-static bool gfx_v11_0_check_soft_reset(void *handle)
+-{
+-	int i, r;
+-	struct amdgpu_device *adev = (struct amdgpu_device *)handle;
+-	struct amdgpu_ring *ring;
+-	long tmo = msecs_to_jiffies(1000);
+-
+-	for (i = 0; i < adev->gfx.num_gfx_rings; i++) {
+-		ring = &adev->gfx.gfx_ring[i];
+-		r = amdgpu_ring_test_ib(ring, tmo);
+-		if (r)
+-			return true;
+-	}
+-
+-	for (i = 0; i < adev->gfx.num_compute_rings; i++) {
+-		ring = &adev->gfx.compute_ring[i];
+-		r = amdgpu_ring_test_ib(ring, tmo);
+-		if (r)
+-			return true;
+-	}
+-
+-	return false;
+-}
+-
+ static int gfx_v11_0_post_soft_reset(void *handle)
+ {
+ 	/**
+@@ -6072,7 +6048,6 @@
+ 	.is_idle = gfx_v11_0_is_idle,
+ 	.wait_for_idle = gfx_v11_0_wait_for_idle,
+ 	.soft_reset = gfx_v11_0_soft_reset,
+-	.check_soft_reset = gfx_v11_0_check_soft_reset,
+ 	.post_soft_reset = gfx_v11_0_post_soft_reset,
+ 	.set_clockgating_state = gfx_v11_0_set_clockgating_state,
+ 	.set_powergating_state = gfx_v11_0_set_powergating_state,

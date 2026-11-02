@@ -1016,8 +1016,12 @@ int amdgpu_mes_add_ring(struct amdgpu_device *adev, int gang_id,
 	amdgpu_mes_unlock(&adev->mes);
 
 	r = amdgpu_mes_add_hw_queue(adev, gang_id, &qprops, &queue_id);
-	if (r)
-		goto clean_up_ring;
+	if (r) {
+		/* unlocked above: not again (clean_up_memory unlocks) */
+		amdgpu_ring_fini(ring);
+		kfree(ring);
+		return r;
+	}
 
 	ring->hw_queue_id = queue_id;
 	ring->doorbell_index = qprops.doorbell_off;
@@ -1036,8 +1040,6 @@ int amdgpu_mes_add_ring(struct amdgpu_device *adev, int gang_id,
 	*out = ring;
 	return 0;
 
-clean_up_ring:
-	amdgpu_ring_fini(ring);
 clean_up_memory:
 	kfree(ring);
 	amdgpu_mes_unlock(&adev->mes);

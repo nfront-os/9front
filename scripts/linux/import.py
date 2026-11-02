@@ -6,7 +6,9 @@ Copies what sys/src/linux/IMPORT names from a Linux tree (default
 file whose notice is not MIT-like (GPL only, or no notice: the kernel's
 GPL then) and lists those in REJECTED; writes VERSION and NOTICE (each
 distinct notice once, with the files it covers).  vendor/ is replaced
-as a whole: the files there are Linux's, ours are elsewhere."""
+as a whole: the files there are Linux's, ours are elsewhere; then the
+backports in sys/src/linux/patches (fixes of later Linux, each with its
+reason) are applied to them, in order."""
 import glob, os, re, shutil, subprocess, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -63,6 +65,10 @@ def main():
 		taken.append(f)
 		if n:
 			notices.setdefault(n, []).append(f)
+	patches = sorted(glob.glob(os.path.join(D, 'patches', '*.patch')))
+	for p in patches:
+		with open(p) as i:
+			subprocess.run(['patch', '-s', '-p1', '-d', vendor], stdin=i, check=True)
 	try:
 		commit = subprocess.run(['git', '-C', LX, 'rev-parse', 'HEAD'], capture_output=True, text=True).stdout.strip()
 	except OSError:
@@ -73,13 +79,14 @@ def main():
 	open(os.path.join(D, 'REJECTED'), 'w').write(
 		'# files IMPORT names that import.py left out: their notice is not MIT-like\n' + '\n'.join(rejected) + '\n')
 	with open(os.path.join(D, 'NOTICE'), 'w') as o:
-		o.write('sys/src/linux/vendor holds files of Linux %s, unchanged, each under its own\n'
-			'notice; they follow, each once, with the files it covers.  Our own files\n'
+		o.write('sys/src/linux/vendor holds files of Linux %s, unchanged but for the\n'
+			'backports in patches/, each under its own notice; they follow, each\n'
+			'once, with the files it covers.  Our own files\n'
 			'(kpi/, replace/, the programs using them) are MIT; the LinuxKPI is derived\n'
 			'from OpenBSD\'s (ISC, BSD, public domain: their notices are in the files,\n'
 			'and all of them in openbsd/NOTICE).\n\n' % ver)
 		for n, fs in sorted(notices.items(), key=lambda x: x[1][0]):
 			o.write('==== ' + '\n==== '.join(fs) + '\n' + n + '\n\n')
-	print('%d files of linux-%s, %d rejected, %d notices' % (len(taken), ver, len(rejected), len(notices)))
+	print('%d files of linux-%s, %d rejected, %d notices, %d patches' % (len(taken), ver, len(rejected), len(notices), len(patches)))
 
 main()

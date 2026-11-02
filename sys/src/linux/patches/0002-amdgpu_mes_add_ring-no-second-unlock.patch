@@ -1,0 +1,35 @@
+amdgpu_mes_add_ring: no second unlock when MES refuses the queue
+
+amdgpu_mes_add_ring releases the MES lock before amdgpu_mes_add_hw_queue;
+if that fails, clean_up_ring falls into clean_up_memory, which releases
+it again.  Linux's mutex_unlock warns at most; on 9front the KPI's mutex
+(libc's wlock) aborts: aux/amdgpu died in the MES self test after a GPU
+reset.  The failure after the unlock now frees the ring and returns.
+(The self test and amdgpu_mes_add_ring are gone in later Linux.)
+
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_mes.c	2026-11-02 09:26:11.771379354 +0100
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_mes.c	2026-11-02 09:26:11.772276264 +0100
+@@ -1016,8 +1016,12 @@
+ 	amdgpu_mes_unlock(&adev->mes);
+ 
+ 	r = amdgpu_mes_add_hw_queue(adev, gang_id, &qprops, &queue_id);
+-	if (r)
+-		goto clean_up_ring;
++	if (r) {
++		/* unlocked above: not again (clean_up_memory unlocks) */
++		amdgpu_ring_fini(ring);
++		kfree(ring);
++		return r;
++	}
+ 
+ 	ring->hw_queue_id = queue_id;
+ 	ring->doorbell_index = qprops.doorbell_off;
+@@ -1036,8 +1040,6 @@
+ 	*out = ring;
+ 	return 0;
+ 
+-clean_up_ring:
+-	amdgpu_ring_fini(ring);
+ clean_up_memory:
+ 	kfree(ring);
+ 	amdgpu_mes_unlock(&adev->mes);

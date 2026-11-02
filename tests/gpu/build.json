@@ -21,6 +21,7 @@
 			"amdctxtest.c",
 			"amdscanout.c",
 			"amdioctl.c",
+			"amdhang.c",
 			"segrevoke.c"
 		]
 	},
