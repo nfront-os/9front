@@ -4753,20 +4753,7 @@ int amdgpu_device_pre_asic_reset(struct amdgpu_device *adev,
 
 	/* Don't suspend on bare metal if we are not going to HW reset the ASIC */
 	if (!amdgpu_sriov_vf(adev)) {
-
-		if (!need_full_reset)
-			need_full_reset = amdgpu_device_ip_need_full_reset(adev);
-
-		if (!need_full_reset && amdgpu_gpu_recovery &&
-		    amdgpu_device_ip_check_soft_reset(adev)) {
-			amdgpu_device_ip_pre_soft_reset(adev);
-			r = amdgpu_device_ip_soft_reset(adev);
-			amdgpu_device_ip_post_soft_reset(adev);
-			if (r || amdgpu_device_ip_check_soft_reset(adev)) {
-				dev_info(adev->dev, "soft reset failed, will fallback to full reset!\n");
-				need_full_reset = true;
-			}
-		}
+		need_full_reset = true;
 
 		if (need_full_reset)
 			r = amdgpu_device_ip_suspend(adev);

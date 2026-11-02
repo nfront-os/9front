@@ -1,0 +1,37 @@
+gpu recovery: on bare metal always a full reset, as later Linux does
+
+Linux 6.6's amdgpu_device_pre_asic_reset first tries the IP blocks'
+soft resets (check_soft_reset), and without a hung block found it
+resumes without resetting the ASIC.  On GFX 11 neither works: gfx's soft
+reset resets MES too, which then answers nothing ("MES failed to
+response msg=14"), and the reset left the GPU half done (clock and
+power gating off: 110 W at idle); without it, the IB tests after the
+attempt fail, amdgpu_ib_ring_tests marks the device dead
+(accel_working = false: every CS -EBUSY) and the full reset that
+follows never revives it.  Later Linux (7.3.1) sets need_full_reset on
+bare metal and has no soft reset path there; so here.
+
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c	2026-11-02 09:33:55.722885524 +0100
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c	2026-11-02 09:33:55.723207820 +0100
+@@ -4753,20 +4753,7 @@
+ 
+ 	/* Don't suspend on bare metal if we are not going to HW reset the ASIC */
+ 	if (!amdgpu_sriov_vf(adev)) {
+-
+-		if (!need_full_reset)
+-			need_full_reset = amdgpu_device_ip_need_full_reset(adev);
+-
+-		if (!need_full_reset && amdgpu_gpu_recovery &&
+-		    amdgpu_device_ip_check_soft_reset(adev)) {
+-			amdgpu_device_ip_pre_soft_reset(adev);
+-			r = amdgpu_device_ip_soft_reset(adev);
+-			amdgpu_device_ip_post_soft_reset(adev);
+-			if (r || amdgpu_device_ip_check_soft_reset(adev)) {
+-				dev_info(adev->dev, "soft reset failed, will fallback to full reset!\n");
+-				need_full_reset = true;
+-			}
+-		}
++		need_full_reset = true;
+ 
+ 		if (need_full_reset)
+ 			r = amdgpu_device_ip_suspend(adev);
