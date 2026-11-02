@@ -9,7 +9,6 @@ drivers/gpu/drm/amd/display/Kconfig	no notice
 drivers/gpu/drm/amd/display/dc/dce/dmub_abm_cacp.c	no notice
 drivers/gpu/drm/amd/display/dc/dce/dmub_abm_cacp.h	no notice
 drivers/gpu/drm/amd/display/modules/inc/mod_power.h	no notice
-drivers/gpu/drm/amd/include/asic_reg/dcn/dcn_4_1_0_sh_mask.h	no notice
 drivers/gpu/drm/display/drm_bridge_connector.c	GPL-2.0+
 drivers/gpu/drm/display/drm_dp_aux_bus.c	GPL-2.0
 drivers/gpu/drm/display/drm_dp_cec.c	GPL-2.0

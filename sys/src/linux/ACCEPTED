@@ -1,0 +1,3 @@
+# files import.py takes although their notice is not MIT-like: path, tab,
+# why (the owner's decision)
+drivers/gpu/drm/amd/include/asic_reg/dcn/dcn_4_1_0_sh_mask.h	register masks of DCN 4.01 (RDNA 4's display); AMD added them in the same commit as dcn_4_1_0_offset.h (Linux a9f36055cd, MIT), the missing notice taken as an oversight; decided 2026-11-02

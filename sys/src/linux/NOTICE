@@ -13661,6 +13661,11 @@ and all of them in openbsd/NOTICE).
 // addressBlock: dcn_dcec_dccg_dccg_dfs_dispdec
 // base address: 0x0
 
+==== drivers/gpu/drm/amd/include/asic_reg/dcn/dcn_4_1_0_sh_mask.h
+// addressBlock: dcn_dcec_dccg_dccg_dfs_dispdec
+//DENTIST_DISPCLK_CNTL
+(no MIT-like notice; taken: register masks of DCN 4.01 (RDNA 4's display); AMD added them in the same commit as dcn_4_1_0_offset.h (Linux a9f36055cd, MIT), the missing notice taken as an oversight; decided 2026-11-02)
+
 ==== drivers/gpu/drm/amd/include/asic_reg/dcn/dcn_4_2_0_offset.h
 /* SPDX-License-Identifier: MIT */
 /* Copyright 2026 Advanced Micro Devices, Inc. */

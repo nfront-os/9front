@@ -8,7 +8,9 @@ GPL then) and lists those in REJECTED; writes VERSION and NOTICE (each
 distinct notice once, with the files it covers).  vendor/ is replaced
 as a whole: the files there are Linux's, ours are elsewhere; then the
 backports in sys/src/linux/patches (fixes of later Linux, each with its
-reason) are applied to them, in order."""
+reason) are applied to them, in order.  A file that ACCEPTED names (with
+the reason) is taken whatever its notice: the owner's decision, listed in
+NOTICE with it."""
 import glob, os, re, shutil, subprocess, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -29,6 +31,17 @@ def notice(text):
 		pos = m.end()
 	return '\n'.join(out)
 
+def accepted():
+	"""ACCEPTED: path, tab, why it is taken despite its notice"""
+	a = {}
+	p = os.path.join(D, 'ACCEPTED')
+	if os.path.exists(p):
+		for l in open(p):
+			if l.strip() and not l.startswith('#'):
+				f, why = l.rstrip('\n').split('\t', 1)
+				a[f] = why
+	return a
+
 def wanted():
 	inc, exc = [], []
 	for l in open(os.path.join(D, 'IMPORT')):
@@ -48,6 +61,7 @@ def main():
 	if os.path.exists(vendor):
 		shutil.rmtree(vendor)
 	taken, rejected, notices = [], [], {}
+	acc = accepted()
 	for f in wanted():
 		t = open(os.path.join(LX, f), errors='replace').read()
 		if os.path.basename(f) == 'Makefile':
@@ -55,6 +69,8 @@ def main():
 		else:
 			n = notice(t)
 			ok = bool(OK.search(n))
+			if not ok and f in acc:
+				ok, n = True, (n + '\n' if n else '') + '(no MIT-like notice; taken: ' + acc[f] + ')'
 		if not ok:
 			spdx = re.search(r'SPDX-License-Identifier:\s*([^\n*]+)', n)
 			rejected.append('%s\t%s' % (f, spdx.group(1).strip() if spdx else 'no notice'))
