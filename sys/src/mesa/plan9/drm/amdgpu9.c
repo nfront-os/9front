@@ -830,7 +830,7 @@ dbgpeek(Amd *a, uint32_t ctx, uint64_t va, uint32_t n)
 	ibp[2] = 0;
 	ibp[3] = va;
 	ibp[4] = va >> 32;
-	ibp[5] = dstva;
+	ibp[5] = (uint32_t)dstva;
 	ibp[6] = dstva >> 32;
 	ibp[7] = 0;
 	memset(dstp, 0xee, n);
@@ -1105,14 +1105,62 @@ devioctl(struct amdgpu_device *d, unsigned long req, void *arg)
 	return drmIoctl(d->fd, req, arg) < 0 ? -errno : 0;
 }
 
+/* the number of the highest bit set, from 1; 0 for none (Mesa's util_last_bit64) */
+static int
+lastbit64(uint64_t v)
+{
+	int n;
+
+	for(n = 0; v != 0; n++)
+		v >>= 1;
+	return n;
+}
+
+/*
+ * as libdrm (amdgpu_needs_smem_prt_wa): GFX 6 to 12 but 9 and 11.5.6
+ * reserve half the address space for RADV's PRT workaround.  The
+ * version as amdgpu_query_gfx_version has it: the IP discovery's, else
+ * (GFX 6-8) major.minor of the HW IP info.
+ */
+static int
+needsprtwa(struct amdgpu_device *d)
+{
+	struct drm_amdgpu_info in;
+	struct drm_amdgpu_info_hw_ip ip;
+	uint32_t n, v, maj;
+
+	n = 0;
+	memset(&in, 0, sizeof in);
+	in.return_pointer = U(&n);
+	in.return_size = sizeof n;
+	in.query = AMDGPU_INFO_HW_IP_COUNT;
+	in.query_hw_ip.type = AMDGPU_HW_IP_GFX;
+	if(devioctl(d, DRM_IOCTL_AMDGPU_INFO, &in) < 0 || n == 0)
+		return 0;
+	memset(&ip, 0, sizeof ip);
+	memset(&in, 0, sizeof in);
+	in.return_pointer = U(&ip);
+	in.return_size = sizeof ip;
+	in.query = AMDGPU_INFO_HW_IP_INFO;
+	in.query_hw_ip.type = AMDGPU_HW_IP_GFX;
+	if(devioctl(d, DRM_IOCTL_AMDGPU_INFO, &in) < 0)
+		return 0;
+	if(d->minor >= 48 && ip.ip_discovery_version)
+		v = ip.ip_discovery_version;
+	else
+		v = ip.hw_ip_version_major << 16 | ip.hw_ip_version_minor << 8;
+	maj = v >> 16 & 0xff;
+	return maj >= 6 && maj <= 12 && maj != 9 && v != (11 << 16 | 5 << 8 | 6);
+}
+
 int
 amdgpu_device_initialize(int fd, uint32_t *major, uint32_t *minor, amdgpu_device_handle *out)
 {
 	struct amdgpu_device *d;
 	struct drm_amdgpu_info in;
 	drmVersionPtr v;
-	uint64_t start, max, hmax, align;
-	int r;
+	uint64_t start, max, lo, hi, align;
+	int r, prt;
 
 	pthread_mutex_lock(&devlk);
 	for(d = devs; d != NULL; d = d->next)
@@ -1156,34 +1204,46 @@ amdgpu_device_initialize(int fd, uint32_t *major, uint32_t *minor, amdgpu_device
 		free(d);
 		return r;
 	}
-	/* as libdrm divides the space: below 4 GB, the rest, and the same high */
+	/*
+	 * as libdrm divides the space (amdgpu_va_manager_init2): below 4 GB,
+	 * the rest, and the same high.  RADV's workaround for scalar loads
+	 * from NULL PRT pages: the high range (or the low one, if there is no
+	 * high) is two halves, told apart by its highest bit that is not the
+	 * same at both ends; objects go in the lower half, a sparse buffer's
+	 * address has the bit set, its twin without it is mapped to zeros
+	 * (radv_amdgpu_bo.c); shaders mask the bit off their scalar loads
+	 * (ac_nir_fixup_smem_loads_null_prt).  ~0: no workaround.
+	 */
+	prt = needsprtwa(d);
+	d->prtbit = ~0U;
 	align = d->info.virtual_address_alignment;
-	start = d->info.virtual_address_offset;
-	max = d->info.virtual_address_max < 0x100000000ULL ? d->info.virtual_address_max : 0x100000000ULL;
+	lo = d->info.virtual_address_offset;
+	hi = d->info.virtual_address_max;
+	start = lo;
+	max = hi < 0x100000000ULL ? hi : 0x100000000ULL;
 	d->vam[0] = vaminit(start, max, align);
 	start = max;
-	max = d->info.virtual_address_max > 0x100000000ULL ? d->info.virtual_address_max : 0x100000000ULL;
+	if(prt && d->info.high_va_max == 0){
+		d->prtbit = lastbit64(lo ^ hi) - 1;
+		max = hi ^ (1ULL << d->prtbit);
+	}else
+		max = hi > 0x100000000ULL ? hi : 0x100000000ULL;
 	d->vam[1] = vaminit(start, max, align);
-	/*
-	 * RADV's workaround for scalar loads from NULL PRT pages: the high
-	 * range is two halves, told apart by one bit; objects go in the lower
-	 * half, a sparse buffer's address has the bit set, its twin without it
-	 * is mapped to zeros (radv_amdgpu_bo.c); shaders mask the bit off
-	 * their scalar loads (ac_nir_fixup_smem_loads_null_prt).  So the bit,
-	 * and the allocator below it.
-	 */
-	d->prtbit = 0;
-	while(d->prtbit < 63 && (d->info.high_va_max - d->info.high_va_offset) >> (d->prtbit + 2) != 0)
-		d->prtbit++;
-	hmax = d->info.high_va_offset + (1ULL << d->prtbit);
-	start = d->info.high_va_offset;
+	lo = d->info.high_va_offset;
+	hi = d->info.high_va_max;
+	start = lo;
 	max = (start & ~0xffffffffULL) + 0x100000000ULL;
-	if(d->info.high_va_max < max)
-		max = d->info.high_va_max;
+	if(hi < max)
+		max = hi;
 	d->vam[2] = vaminit(start, max, align);
 	start = max;
-	max = hmax > (start & ~0xffffffffULL) + 0x100000000ULL ?
-		hmax : (start & ~0xffffffffULL) + 0x100000000ULL;
+	if(prt && hi != 0){
+		d->prtbit = lastbit64(lo ^ hi) - 1;
+		max = hi ^ (1ULL << d->prtbit);
+	}else if(hi > (start & ~0xffffffffULL) + 0x100000000ULL)
+		max = hi;
+	else
+		max = (start & ~0xffffffffULL) + 0x100000000ULL;
 	d->vam[3] = vaminit(start, max, align);
 	pthread_mutex_lock(&devlk);
 	d->next = devs;
@@ -1247,7 +1307,7 @@ amdgpu_query_sw_info(amdgpu_device_handle d, enum amdgpu_sw_info info, void *val
 			*v = (d->vam[0]->end - 1) >> 32;
 		return 0;
 	case amdgpu_sw_info_address_prt_wa_control_bit:
-		*v = d->prtbit;	/* (~0 here made RADV mask bit 63 off every scalar load: 1ull << 255) */
+		*v = d->prtbit;
 		return 0;
 	}
 	return -EINVAL;
