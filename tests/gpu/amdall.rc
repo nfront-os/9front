@@ -8,7 +8,7 @@ sleep 2
 /tests/amdscanout -s 2 | grep 'passed|FAIL'
 /tests/amdioctl | grep 'passed|FAIL'
 /tests/radvtest >[2=1] | grep 'passed|FAIL'
-WSI_PLAN9_STATS=1 /tests/vkcube-radv --c 120 >[2=1] | grep 'scanout:|copy:|rror' | sed 2q
+WSI_PLAN9_STATS=1 /tests/vkcube --c 120 >[2=1] | grep 'scanout:|copy:|rror' | sed 2q
 /tests/gputest -l >/dev/null >[2=1] &
 sleep 5
 grep irq '#G/1/ctl'

@@ -1,6 +1,7 @@
 #!/bin/bash
 # Cross-build Mesa's Vulkan drivers for 9front with ../9front-gcc: venus
-# (virtio-gpu) and hasvk (Intel gen 7-8). libmesaplan9.a (sys/src/mesa/
+# (virtio-gpu), hasvk (Intel gen 7-8) and RADV (AMD, libdrm_amdgpu over
+# gpu(4): plan9/drm/amdgpu9.c). libmesaplan9.a (sys/src/mesa/
 # plan9: what APE lacks), libdrm.a (plan9/drm: libdrm's interface over
 # gpu(4), for hasvk, found by pkg-config), a meson cross file, meson
 # setup (once) and ninja in $BUILD; the Intel shaders need mesa_clc on
@@ -38,7 +39,8 @@ rm -f "$BUILD/plan9/libmesaplan9.a"
 "$CROSS/$TRIPLE-ar" rcs "$BUILD/plan9/libmesaplan9.a" $objs
 
 # libdrm for 9front, with Mesa's uAPI headers, and its pkg-config file
-# (drm9.c: Intel's and the descriptors; amdgpu9.c: libdrm_amdgpu and AMD's ioctls)
+# and libdrm_amdgpu's, for RADV (drm9.c: Intel's and the descriptors;
+# amdgpu9.c: libdrm_amdgpu and AMD's ioctls)
 for c in drm9 amdgpu9; do
 	"$CROSS/$TRIPLE-gcc" -std=c11 -O2 -Wall -I"$P9/drm/include" -I"$P9/include" -I"$SRC/include" \
 		-c -o "$BUILD/plan9/$c.o" "$P9/drm/$c.c"
@@ -50,6 +52,14 @@ cat > "$BUILD/plan9/pkgconfig/libdrm.pc" <<EOC
 Name: libdrm
 Description: libdrm's interface over gpu(4), 9front (sys/src/mesa/plan9/drm)
 Version: 2.4.124
+Cflags: -I$P9/drm/include
+Libs: -L$BUILD/plan9 -ldrm
+EOC
+cat > "$BUILD/plan9/pkgconfig/libdrm_amdgpu.pc" <<EOC
+Name: libdrm_amdgpu
+Description: libdrm_amdgpu's interface over gpu(4), 9front (sys/src/mesa/plan9/drm)
+Version: 2.4.134
+Requires: libdrm
 Cflags: -I$P9/drm/include
 Libs: -L$BUILD/plan9 -ldrm
 EOC
@@ -86,19 +96,23 @@ c_link_args = [${links%, }]
 cpp_link_args = [${links%, }]
 EOC
 
+DRIVERS=virtio,intel_hasvk,amd
 if [ ! -f "$BUILD/mesa/build.ninja" ]; then
 	meson setup "$BUILD/mesa" "$SRC" --cross-file "$BUILD/cross.ini" \
-		-Dplatforms= -Dvulkan-drivers=virtio,intel_hasvk -Dgallium-drivers= -Dopengl=false \
+		-Dplatforms= -Dvulkan-drivers=$DRIVERS -Dgallium-drivers= -Dopengl=false \
 		-Degl=disabled -Dglx=disabled -Dgbm=disabled -Dgles1=disabled -Dgles2=disabled \
 		-Dllvm=disabled -Dmesa-clc=system -Dzstd=disabled -Dexpat=disabled -Dxmlconfig=disabled \
 		-Dvalgrind=disabled -Dlibunwind=disabled -Dbuild-tests=false -Dtools= \
 		-Dvulkan-layers= -Ddefault_library=static -Dshader-cache=disabled
+elif [ "$(python3 -c 'import json, sys; print(",".join(*[o["value"] for o in json.load(open(sys.argv[1])) if o["name"] == "vulkan-drivers"]))' "$BUILD/mesa/meson-info/intro-buildoptions.json")" != $DRIVERS ]; then
+	# a build made before a driver was added (RADV: 2026-11)
+	meson configure "$BUILD/mesa" -Dvulkan-drivers=$DRIVERS
 fi
 # everything the ICDs are made of, without linking them (build.ninja
 # first: meson regenerates it when a meson.build changed): their
 # objects, each once (members.py), in one archive
-# hasvk first: its objects stand for venus' equal ones (members.py)
-SOS="src/intel/vulkan_hasvk/libvulkan_intel_hasvk.so src/virtio/vulkan/libvulkan_virtio.so"
+# hasvk first, then RADV: their objects stand for venus' equal ones (members.py)
+SOS="src/intel/vulkan_hasvk/libvulkan_intel_hasvk.so src/amd/vulkan/libvulkan_radeon.so src/virtio/vulkan/libvulkan_virtio.so"
 ninja -C "$BUILD/mesa" build.ninja
 for so in $SOS; do
 	link=$(ninja -C "$BUILD/mesa" -t commands $so | tail -1)

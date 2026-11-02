@@ -1,7 +1,7 @@
 #!/bin/bash
 # Build the Vulkan tests of tests/gpu (POSIX, APE) into root/tests, against
 # Mesa as the tree has it: build.exe makes /$objtype/lib.gcc/ape/libvulkan.a
-# from sys/src/mesa/build.json (the vendored venus driver, the static loader,
+# from sys/src/mesa/build.json (the vendored drivers: venus, hasvk, RADV; the static loader,
 # libmesaplan9; scripts/mesa/vendor.sh), the headers are in /sys/include/ape.
 # Programs link -lvulkan, and APE's libdraw and lib9 for the plan9 WSI.
 # vktest and vkdraw call the driver's vk_icdGetInstanceProcAddr, the others
@@ -20,7 +20,7 @@ libs="-Wl,--gc-sections -lvulkan -ldraw -l9 -lfmt -lutf"
 for s in tri.vert tri.frag; do
 	glslc -O -mfmt=c -o "$O/$s.inc" "$HERE/shaders/$s"
 done
-for p in vktest vkdraw vktri vkspeed; do
+for p in vktest vkdraw vktri vkspeed radvtest; do
 	extra=
 	case $p in
 	vkdraw|vktri)	extra="$O/btassert.o $O/screenpeek.o" ;;
@@ -33,4 +33,4 @@ done
 "$ROOT/scripts/mesa/vktools.sh" build
 cp "$BUILD/vktools/vkcube" "$BUILD/vktools/vulkaninfo" "$HERE/root/tests/"
 ls -la "$HERE/root/tests/vktest" "$HERE/root/tests/vkdraw" "$HERE/root/tests/vktri" \
-	"$HERE/root/tests/vkspeed" "$HERE/root/tests/vkcube" "$HERE/root/tests/vulkaninfo"
+	"$HERE/root/tests/vkspeed" "$HERE/root/tests/radvtest" "$HERE/root/tests/vkcube" "$HERE/root/tests/vulkaninfo"

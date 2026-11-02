@@ -13,6 +13,7 @@
 			"-I../../../compiler",
 			"-I../../../vulkan/util",
 			"-I../../../vulkan/runtime",
+			"-I../../../vulkan/runtime/bvh",
 			"-I../../../vulkan/wsi",
 			"-I../../../util",
 			"-I../../../util/format",

@@ -205,6 +205,8 @@
 			"-I../../compiler/nir",
 			"-I../../compiler",
 			"-I../util",
+			"-Iradix_sort/shaders",
+			"-Ibvh",
 			"-I../../util",
 			"-I../../util/format",
 			"-I../../compiler/spirv",
@@ -338,6 +340,7 @@
 			"-Werror=sizeof-array-div"
 		],
 		"SourceFiles": [
+			"vk_acceleration_structure.c",
 			"vk_meta.c",
 			"vk_meta_blit_resolve.c",
 			"vk_meta_clear.c",

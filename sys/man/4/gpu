@@ -674,10 +674,13 @@ and its timeline syncs on the fences.
 Mesa's RADV drives
 .IR amdgpu
 through its contexts' ioctls (above), with libdrm_amdgpu's interface
-over them; it is built from the source tree's
-.B scripts/mesa/radvsdk.sh
-(not yet part of
-.BR /sys/src/mesa ).
+over them; it is in
+.B /$objtype/lib.gcc/ape/libvulkan.a
+with venus and hasvk, the loader taking the first driver that finds a
+device (or the one
+.B $VK_DRIVER
+names:
+.BR radeon ).
 .PP
 Vulkan programs present to a window with the instance extension
 .BR VK_PLAN9_surface :

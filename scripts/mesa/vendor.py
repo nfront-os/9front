@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 #
-# vendor.py SRC BUILD ROOT: Mesa's Vulkan drivers (venus, hasvk) as sources in the tree, to
+# vendor.py SRC BUILD ROOT: Mesa's Vulkan drivers (venus, hasvk, radv) as sources in the tree, to
 # be built by build.exe (here with ../9front-gcc's cross gcc, on 9front with
 # its native gcc), without meson, ninja or python (scripts/mesa/vendor.sh).
 #
 # From the meson build in BUILD (scripts/mesa/build.sh) it takes the objects
-# the ICDs are made of (the links of libvulkan_virtio.so and
-# libvulkan_intel_hasvk.so, the archives' members, each once: members.py),
+# the ICDs are made of (the links of libvulkan_virtio.so,
+# libvulkan_intel_hasvk.so and libvulkan_radeon.so, the archives' members, each once: members.py),
 # their sources and every header they read (ninja's dependency log), and the
 # files meson's generators wrote (entry point tables, format tables, ...).
 # It writes:
@@ -42,8 +42,9 @@ SUFFIX = {'amd64': '', '386': '.386'}[OBJTYPE]
 conflicts = []
 PUBLIC = ('include/vulkan/', 'include/vk_video/')	# go to /sys/include/ape
 PLAN9_HEADERS = ('include/drm-uapi/amdgpu_drm.h',)	# plan9/drm's, under vendor/
-# hasvk first: its objects stand for venus' equal ones (members.py)
-SOS = ['src/intel/vulkan_hasvk/libvulkan_intel_hasvk.so', 'src/virtio/vulkan/libvulkan_virtio.so']
+# hasvk first, then radv: their objects stand for venus' equal ones (members.py)
+SOS = ['src/intel/vulkan_hasvk/libvulkan_intel_hasvk.so', 'src/amd/vulkan/libvulkan_radeon.so',
+	'src/virtio/vulkan/libvulkan_virtio.so']
 
 
 def ninja(*args):
@@ -58,9 +59,20 @@ def objects():
 	return members.members(MESA, os.environ['NM'], SOS)
 
 
+def here(t):
+	"""t in this tree: the meson build may have been set up from another
+	checkout of it (its cross.ini names that one's sys/src/mesa/plan9)"""
+	k = t.find('/sys/src/mesa/')
+	if k > 0 and not t.startswith(ROOT + '/'):
+		u = ROOT + t[k:]
+		if os.path.exists(u):
+			return u
+	return t
+
+
 def where(f):
 	"""a file the build read: (its place in the tree, kind) or None (the compiler's)"""
-	a = os.path.realpath(os.path.join(MESA, f))
+	a = here(os.path.realpath(os.path.join(MESA, f)))
 	if a.startswith(SRC + '/'):
 		rel = a[len(SRC) + 1:]
 		for p in PUBLIC:
@@ -117,7 +129,7 @@ def flags(cmd, srcdir):
 			continue
 		if w.startswith('-I'):
 			d = w[2:]
-			t = os.path.realpath(os.path.join(MESA, d))
+			t = here(os.path.realpath(os.path.join(MESA, d)))
 			if t.startswith(SRC + '/include') or t == SRC + '/include':
 				t = os.path.join(VENDOR, 'include')
 			elif t.startswith(SRC + '/'):

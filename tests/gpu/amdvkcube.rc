@@ -9,8 +9,8 @@ if(~ $#perftest 0)
 	perftest=''
 aux/amdgpu $* >/tmp/amd.log >[2=1]
 sleep 2
-/tests/vulkaninfo-radv --summary >[2=1] | grep 'deviceName|PLAN9'
-DRM9DEBUG=1 MESA_DEBUG=1 RADV_DEBUG=$radvdebug RADV_PERFTEST=$perftest /tests/vkcube-radv --c 900 >/tmp/cube.log >[2=1] &
+/tests/vulkaninfo --summary >[2=1] | grep 'deviceName|PLAN9'
+DRM9DEBUG=1 MESA_DEBUG=1 RADV_DEBUG=$radvdebug RADV_PERFTEST=$perftest /tests/vkcube --c 900 >/tmp/cube.log >[2=1] &
 t0=`{date -n}
 sleep 4
 /tests/screenpx 960,540 900,500 1020,580 100,100

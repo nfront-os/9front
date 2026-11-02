@@ -4,7 +4,7 @@ bind -a '#i' /dev
 bind -a '#v' /dev
 aux/amdgpu $* >/tmp/amd.log >[2=1]
 sleep 2
-WSI_PLAN9_STATS=1 DRM9DEBUG=1 /tests/vkcube-radv --c 20 >/tmp/cube.log >[2=1] &
+WSI_PLAN9_STATS=1 DRM9DEBUG=1 /tests/vkcube --c 20 >/tmp/cube.log >[2=1] &
 sleep 10
 echo waves >/dev/gpu/0/ctl
 grep '^ring gfx|^ring sdma' /dev/gpu/0/status

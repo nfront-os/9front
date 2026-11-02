@@ -7,8 +7,11 @@
  * (CP DMA) and of 1 MB (a compute shader of the driver's) into host
  * visible memory of each kind (GTT, VRAM through the BAR); a fill of
  * device local memory copied into host memory; vkCmdClearColorImage of
- * an image copied into host memory.  Prints "ok ..." / "FAIL ..." and a
- * summary; after a hang it stops.
+ * an image copied into host memory; a sparse buffer with one of four
+ * blocks bound (vkQueueBindSparse: PRT mappings, RADV's addresses with the
+ * PRT workaround's control bit), filled and copied into host memory whole:
+ * the bound block holds the fill, the others read zero.  Prints "ok ..." /
+ * "FAIL ..." and a summary; after a hang it stops.
  *
  * usage: radvtest [-c]	(-c: the image clear alone, after the empty submit)
  */
@@ -22,6 +25,8 @@ static VkDevice dev;
 static VkQueue queue;
 static VkCommandPool pool;
 static VkPhysicalDeviceMemoryProperties mp;
+static VkPhysicalDeviceFeatures feat;
+static VkPhysicalDeviceProperties props;
 
 #define FAIL(...) do { printf("FAIL "); printf(__VA_ARGS__); printf("\n"); fflush(stdout); nfail++; } while(0)
 #define OK(...) do { printf("ok "); printf(__VA_ARGS__); printf("\n"); fflush(stdout); } while(0)
@@ -328,6 +333,145 @@ clearimage(int w, int h)
 	return r;
 }
 
+/* a sparse buffer of four blocks, the second bound; filled, copied whole */
+static int
+sparse(void)
+{
+	char what[128];
+	VkBufferCreateInfo bi;
+	VkMemoryRequirements mr;
+	VkMemoryAllocateInfo ai;
+	VkSparseMemoryBind mb;
+	VkSparseBufferMemoryBindInfo sb;
+	VkBindSparseInfo bs;
+	VkFenceCreateInfo fi;
+	VkCommandBuffer cb;
+	VkMemoryBarrier bar;
+	VkBufferCopy bc;
+	VkBuffer b;
+	VkDeviceMemory m;
+	VkDeviceSize blk, i;
+	VkFence f;
+	VkResult vr;
+	Buf h;
+	int t, r;
+
+	snprintf(what, sizeof what, "sparse buffer, block 1 of 4 bound, filled, copied to host");
+	if(!feat.sparseBinding || !feat.sparseResidencyBuffer){
+		OK("%s: no sparse residency, skipped", what);
+		return 0;
+	}
+	r = -1;
+	b = VK_NULL_HANDLE;
+	m = VK_NULL_HANDLE;
+	f = VK_NULL_HANDLE;
+	memset(&h, 0, sizeof h);
+	memset(&bi, 0, sizeof bi);
+	bi.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	bi.flags = VK_BUFFER_CREATE_SPARSE_BINDING_BIT | VK_BUFFER_CREATE_SPARSE_RESIDENCY_BIT;
+	bi.size = 4 << 16;
+	bi.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+	bi.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	if(vkCreateBuffer(dev, &bi, NULL, &b) != VK_SUCCESS){
+		FAIL("%s: vkCreateBuffer", what);
+		goto out;
+	}
+	vkGetBufferMemoryRequirements(dev, b, &mr);
+	blk = mr.alignment;
+	if(mr.size < 4*blk){
+		vkDestroyBuffer(dev, b, NULL);
+		bi.size = 4*blk;
+		if(vkCreateBuffer(dev, &bi, NULL, &b) != VK_SUCCESS){
+			b = VK_NULL_HANDLE;
+			FAIL("%s: vkCreateBuffer", what);
+			goto out;
+		}
+		vkGetBufferMemoryRequirements(dev, b, &mr);
+	}
+	if((t = memtype(mr.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 0)) < 0){
+		FAIL("%s: no memory type", what);
+		goto out;
+	}
+	memset(&ai, 0, sizeof ai);
+	ai.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	ai.allocationSize = blk;
+	ai.memoryTypeIndex = t;
+	if(vkAllocateMemory(dev, &ai, NULL, &m) != VK_SUCCESS){
+		FAIL("%s: vkAllocateMemory", what);
+		goto out;
+	}
+	memset(&mb, 0, sizeof mb);
+	mb.resourceOffset = blk;
+	mb.size = blk;
+	mb.memory = m;
+	sb.buffer = b;
+	sb.bindCount = 1;
+	sb.pBinds = &mb;
+	memset(&bs, 0, sizeof bs);
+	bs.sType = VK_STRUCTURE_TYPE_BIND_SPARSE_INFO;
+	bs.bufferBindCount = 1;
+	bs.pBufferBinds = &sb;
+	memset(&fi, 0, sizeof fi);
+	fi.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+	if(vkCreateFence(dev, &fi, NULL, &f) != VK_SUCCESS){
+		f = VK_NULL_HANDLE;
+		FAIL("%s: vkCreateFence", what);
+		goto out;
+	}
+	if((vr = vkQueueBindSparse(queue, 1, &bs, f)) != VK_SUCCESS){
+		FAIL("%s: vkQueueBindSparse: %d", what, vr);
+		goto out;
+	}
+	if((vr = vkWaitForFences(dev, 1, &f, VK_TRUE, 3000000000ull)) != VK_SUCCESS){
+		FAIL("%s: bind not done: %d", what, vr);
+		r = vr == VK_TIMEOUT ? -2 : -1;
+		goto out;
+	}
+	if(mkbuf(&h, 4*blk, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT|VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 0) < 0){
+		FAIL("%s: host buffer", what);
+		goto out;
+	}
+	memset(h.p, 0xee, 4*blk);
+	cb = begin();
+	vkCmdFillBuffer(cb, b, blk, blk, 0x5ba45e00);
+	memset(&bar, 0, sizeof bar);
+	bar.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+	bar.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+	bar.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+	vkCmdPipelineBarrier(cb, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 1, &bar, 0, NULL, 0, NULL);
+	bc.srcOffset = bc.dstOffset = 0;
+	bc.size = 4*blk;
+	vkCmdCopyBuffer(cb, b, h.b, 1, &bc);
+	if((r = run(cb, what)) != 0)
+		goto out;
+	r = -1;
+	for(i = 0; i < 4; i++){
+		uint32_t *p = h.p + i*blk/4;
+		VkDeviceSize j;
+
+		if(i != 1 && !props.sparseProperties.residencyNonResidentStrict)
+			continue;
+		for(j = 0; j < blk/4; j++)
+			if(p[j] != (i == 1 ? 0x5ba45e00 : 0)){
+				FAIL("%s: block %llu word %llu is %#x", what,
+					(unsigned long long)i, (unsigned long long)j, p[j]);
+				goto out;
+			}
+	}
+	OK("%s (%llu-byte blocks%s)", what, (unsigned long long)blk,
+		props.sparseProperties.residencyNonResidentStrict ? ", unbound ones read zero" : "");
+	r = 0;
+out:
+	freebuf(&h);
+	if(f != VK_NULL_HANDLE)
+		vkDestroyFence(dev, f, NULL);
+	if(b != VK_NULL_HANDLE)
+		vkDestroyBuffer(dev, b, NULL);
+	if(m != VK_NULL_HANDLE)
+		vkFreeMemory(dev, m, NULL);
+	return r;
+}
+
 int
 main(int argc, char **argv)
 {
@@ -338,6 +482,7 @@ main(int argc, char **argv)
 	VkCommandPoolCreateInfo pci;
 	VkPhysicalDevice pd[4];
 	VkPhysicalDeviceProperties pp;
+	VkPhysicalDeviceFeatures dfeat;
 	VkQueueFamilyProperties qf[8];
 	VkInstance inst;
 	VkCommandBuffer cb;
@@ -372,12 +517,16 @@ main(int argc, char **argv)
 		goto out;
 	}
 	OK("device %s", pp.deviceName);
+	props = pp;
 	vkGetPhysicalDeviceMemoryProperties(pd[i], &mp);
+	vkGetPhysicalDeviceFeatures(pd[i], &feat);
 	nq = 8;
 	vkGetPhysicalDeviceQueueFamilyProperties(pd[i], &nq, qf);
 	for(q = 0; q < nq; q++)
 		if(qf[q].queueFlags & VK_QUEUE_GRAPHICS_BIT)
 			break;
+	if(q < nq && (qf[q].queueFlags & VK_QUEUE_SPARSE_BINDING_BIT) == 0)
+		feat.sparseBinding = VK_FALSE;	/* the test binds on the graphics queue */
 	if(q == nq){
 		FAIL("no graphics queue");
 		goto out;
@@ -391,6 +540,10 @@ main(int argc, char **argv)
 	dci.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
 	dci.queueCreateInfoCount = 1;
 	dci.pQueueCreateInfos = &qci;
+	memset(&dfeat, 0, sizeof dfeat);
+	dfeat.sparseBinding = feat.sparseBinding;
+	dfeat.sparseResidencyBuffer = feat.sparseResidencyBuffer;
+	dci.pEnabledFeatures = &dfeat;
 	if(vkCreateDevice(pd[i], &dci, NULL, &dev) != VK_SUCCESS){
 		FAIL("vkCreateDevice");
 		goto out;
@@ -418,7 +571,8 @@ main(int argc, char **argv)
 	   fillhost(1<<20, hv, dl, "GTT") == -2 ||
 	   fillhost(1<<20, hv|dl, 0, "VRAM (BAR)") == -2 ||
 	   filldev(1<<20) == -2 ||
-	   clearimage(256, 256) == -2)
+	   clearimage(256, 256) == -2 ||
+	   sparse() == -2)
 		goto out;
 out:
 	printf(nfail ? "radvtest: %d failed\n" : "radvtest: all passed\n", nfail);
