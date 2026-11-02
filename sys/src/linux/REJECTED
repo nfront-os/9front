@@ -6,11 +6,16 @@ drivers/gpu/drm/amd/amdgpu/amdgpu_vkms.c	GPL-2.0+
 drivers/gpu/drm/amd/amdgpu/amdgpu_vkms.h	GPL-2.0+
 drivers/gpu/drm/amd/amdkfd/Kconfig	no notice
 drivers/gpu/drm/amd/display/Kconfig	no notice
+drivers/gpu/drm/amd/display/dc/dce/dmub_abm_cacp.c	no notice
+drivers/gpu/drm/amd/display/dc/dce/dmub_abm_cacp.h	no notice
+drivers/gpu/drm/amd/display/modules/inc/mod_power.h	no notice
+drivers/gpu/drm/amd/include/asic_reg/dcn/dcn_4_1_0_sh_mask.h	no notice
+drivers/gpu/drm/display/drm_bridge_connector.c	GPL-2.0+
 drivers/gpu/drm/display/drm_dp_aux_bus.c	GPL-2.0
 drivers/gpu/drm/display/drm_dp_cec.c	GPL-2.0
 drivers/gpu/drm/display/drm_dp_mst_topology_internal.h	GPL-2.0-only
 drivers/gpu/drm/display/drm_hdcp_helper.c	GPL-2.0
-drivers/gpu/drm/drm_bridge_connector.c	GPL-2.0+
+drivers/gpu/drm/drm_bridge_helper.c	GPL-2.0-or-later
 drivers/gpu/drm/drm_edid_load.c	GPL-2.0-or-later
 drivers/gpu/drm/drm_fb_dma_helper.c	GPL-2.0-or-later
 drivers/gpu/drm/drm_gem_atomic_helper.c	GPL-2.0-or-later
@@ -23,6 +28,7 @@ drivers/gpu/drm/drm_lease.c	GPL-2.0-or-later
 drivers/gpu/drm/drm_managed.c	GPL-2.0
 drivers/gpu/drm/drm_mipi_dbi.c	GPL-2.0-or-later
 drivers/gpu/drm/drm_of.c	GPL-2.0-only
+drivers/gpu/drm/drm_panel_backlight_quirks.c	GPL-2.0
 drivers/gpu/drm/drm_simple_kms_helper.c	GPL-2.0-or-later
 drivers/gpu/drm/drm_sysfs.c	GPL-2.0-only
 drivers/gpu/drm/drm_trace.h	GPL-2.0
@@ -39,19 +45,28 @@ drivers/gpu/drm/i915/gt/selftest_engine_pm.c	GPL-2.0
 drivers/gpu/drm/i915/gt/selftest_ring.c	GPL-2.0
 drivers/gpu/drm/i915/i915_trace.h	GPL-2.0
 drivers/gpu/drm/i915/i915_trace_points.c	GPL-2.0
+drivers/gpu/drm/i915/intel_uncore_trace.c	GPL-2.0
+drivers/gpu/drm/i915/intel_uncore_trace.h	GPL-2.0
 drivers/gpu/drm/i915/selftests/i915_live_selftests.h	GPL-2.0
 drivers/gpu/drm/i915/selftests/i915_mock_selftests.h	GPL-2.0
 drivers/gpu/drm/i915/selftests/i915_perf_selftests.h	GPL-2.0
 drivers/gpu/drm/i915/selftests/lib_sw_fence.h	GPL-2.0-only
 drivers/gpu/drm/i915/selftests/mock_gem_device.h	GPL-2.0
 include/drm/bridge/analogix_dp.h	GPL-2.0-or-later
+include/drm/bridge/aux-bridge.h	GPL-2.0+
+include/drm/bridge/dw_dp.h	GPL-2.0-or-later
 include/drm/bridge/dw_hdmi.h	GPL-2.0-or-later
+include/drm/bridge/dw_hdmi_qp.h	GPL-2.0-or-later
 include/drm/bridge/dw_mipi_dsi.h	GPL-2.0-only
+include/drm/bridge/dw_mipi_dsi2.h	GPL-2.0-only
+include/drm/bridge/inno_hdmi.h	GPL-2.0-or-later
 include/drm/bridge/mhl.h	GPL-2.0-only
+include/drm/bridge/of-display-mode-bridge.h	GPL-2.0+
 include/drm/bridge/samsung-dsim.h	GPL-2.0+
 include/drm/display/drm_dp_aux_bus.h	GPL-2.0
 include/drm/drm_accel.h	GPL-2.0
 include/drm/drm_bridge_connector.h	GPL-2.0+
+include/drm/drm_bridge_helper.h	GPL-2.0-or-later
 include/drm/drm_device.h	no notice
 include/drm/drm_fb_dma_helper.h	GPL-2.0
 include/drm/drm_format_helper.h	GPL-2.0-or-later
@@ -69,11 +84,11 @@ include/drm/drm_mipi_dsi.h	GPL-2.0-only
 include/drm/drm_of.h	GPL-2.0
 include/drm/drm_simple_kms_helper.h	GPL-2.0-or-later
 include/drm/drm_sysfs.h	GPL-2.0
+include/drm/drm_vblank_helper.h	GPL-2.0+
 include/drm/drm_writeback.h	GPL-2.0
-include/drm/gma_drm.h	GPL-2.0-only
-include/drm/i2c/tda998x.h	GPL-2.0
-include/drm/i915_hdcp_interface.h	(GPL-2.0+)
-include/drm/intel-gtt.h	GPL-2.0
+include/drm/intel/i915_hdcp_interface.h	(GPL-2.0+)
+include/drm/intel/intel-gtt.h	GPL-2.0
+include/uapi/drm/amdxdna_accel.h	GPL-2.0 WITH Linux-syscall-note
 include/uapi/drm/armada_drm.h	GPL-2.0 WITH Linux-syscall-note
 include/uapi/drm/etnaviv_drm.h	GPL-2.0 WITH Linux-syscall-note
 include/uapi/drm/exynos_drm.h	GPL-2.0+ WITH Linux-syscall-note
