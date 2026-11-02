@@ -63,6 +63,7 @@ typedef struct Kreq Kreq;
 struct Kreq {
 	void	*lc;
 	int	free;	/* amdgpu_ctx_free: its picture off the display */
+	int	gem;	/* id is a GEM handle of the client's (scanoutgem) */
 	int	id, w, h, stride;
 	int	r;
 	Channel	*done;
@@ -78,6 +79,8 @@ kmsproc(void*)
 		k = recvp(kmsc);
 		if(k->free)
 			amdgpu_ctx_free(k->lc);
+		else if(k->gem)
+			k->r = amdgpu_scanout_gem(k->lc, k->id, k->w, k->h, k->stride);
 		else
 			k->r = amdgpu_scanout(k->lc, k->id, k->w, k->h, k->stride);
 		sendul(k->done, 1);
@@ -141,12 +144,13 @@ doioctl(void *lc, uint cmd, u64g addr)
 }
 
 static int
-scanout(void *lc, int id, int w, int h, int stride)
+scanout(void *lc, int gem, int id, int w, int h, int stride)
 {
 	Kreq k;
 
 	k.lc = lc;
 	k.free = 0;
+	k.gem = gem;
 	k.id = id;
 	k.w = w;
 	k.h = h;
@@ -493,10 +497,10 @@ fswrite(Req *r)
 			respond(r, "empty ctl message");
 			return;
 		}
-		if((n == 2 || n == 5) && strcmp(f[0], "scanout") == 0){
+		if((n == 2 || n == 5) && strcmp(f[0], "scanout") == 0 || n == 5 && strcmp(f[0], "scanoutgem") == 0){
 			/* returns when the display shows it: other requests go on */
 			srvrelease(r->srv);
-			x = scanout(fa->ctx->lc, atoi(f[1]), n == 5 ? atoi(f[2]) : 0,
+			x = scanout(fa->ctx->lc, f[0][7] == 'g', strtoul(f[1], nil, 0), n == 5 ? atoi(f[2]) : 0,
 				n == 5 ? atoi(f[3]) : 0, n == 5 ? atoi(f[4]) : 0);
 			srvacquire(r->srv);
 			if(x < 0)

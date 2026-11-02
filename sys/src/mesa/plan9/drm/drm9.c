@@ -419,7 +419,9 @@ ctl(Dev *d, char *reply, int n, char *fmt, ...)
 	vsnprintf(req, sizeof req, fmt, arg);
 	va_end(arg);
 	if(write(d->fd, req, strlen(req)) < 0){
-		dbg("ctl %s: %s", req, syserr());
+		int e = errno;
+
+		dbg("ctl %s: %s (%s)", req, syserr(), strerror(e));
 		return seterr(EINVAL);
 	}
 	if(reply != NULL){
@@ -1971,6 +1973,8 @@ drm9Scanout(int fd, uint32_t handle, uint32_t w, uint32_t h, uint32_t stride)
 	}
 	if(handle == 0)
 		r = ctl(d, NULL, 0, "scanout 0");
+	else if(d->amd != NULL)	/* amdgpu: the client's own GEM handle (aux/amdgpu's scanoutgem) */
+		r = ctl(d, NULL, 0, "scanoutgem %u %u %u %u", handle, w, h, stride);
 	else if((g = getgem(d, handle)) == NULL){
 		dbg("scanout: no GEM object %u", handle);
 		r = seterr(ENOENT);

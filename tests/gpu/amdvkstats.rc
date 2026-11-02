@@ -1,0 +1,13 @@
+#!/bin/rc
+# vkcube on RADV with WSI_PLAN9_STATS=1: where a present's time goes
+bind -a '#i' /dev
+bind -a '#v' /dev
+aux/amdgpu $* >/tmp/amd.log >[2=1]
+sleep 2
+t0=`{date -n}
+WSI_PLAN9_STATS=1 /tests/vkcube-radv --c 300 >/tmp/cube.log >[2=1]
+echo vkcube 300 frames in `{echo `{date -n} - $t0 | hoc} s, status $status
+grep -i 'wsi|fps|error' /tmp/cube.log | sed 20q
+grep -i 'overflow|error|fault' /tmp/amd.log | sed 10q
+grep '^irq' '#G/1/ctl'
+echo TESTEND

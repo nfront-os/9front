@@ -35,6 +35,10 @@ struct wsi_plan9 {
    struct wsi_interface base;
 };
 
+static uint32_t wsi_plan9_select_scanout_memory_type(const struct wsi_device *wsi, uint32_t type_bits);
+static VkResult wsi_plan9_create_scanout_mem(const struct wsi_swapchain *chain, const struct wsi_image_info *info,
+                                             struct wsi_image *image);
+
 static VkResult
 wsi_plan9_surface_get_support(VkIcdSurfaceBase *surface,
                               struct wsi_device *wsi_device,
@@ -483,6 +487,13 @@ wsi_plan9_surface_create_swapchain(VkIcdSurfaceBase *icd_surface,
    if (result != VK_SUCCESS)
       goto fail_free_chain;
 
+   /* the display reads VRAM only: the copy the display shows there, an
+    * object the display may take (exportable, not one of the VM's own) */
+   if (scanout && wsi_device->plan9_scanout_device_local) {
+      chain->base.image_info.select_blit_dst_memory_type = wsi_plan9_select_scanout_memory_type;
+      chain->base.image_info.create_mem = wsi_plan9_create_scanout_mem;
+   }
+
    chain->base.destroy = wsi_plan9_swapchain_destroy;
    chain->base.get_wsi_image = wsi_plan9_swapchain_get_wsi_image;
    chain->base.acquire_next_image = wsi_plan9_swapchain_acquire_next_image;
@@ -535,6 +546,41 @@ fail_destroy_images:
 fail_free_chain:
    vk_free(pAllocator, chain);
    return result;
+}
+
+/* as wsi_create_cpu_buffer_image_mem, the copy exportable (a dma-buf:
+ * the display driver imports it) */
+static VkResult
+wsi_plan9_create_scanout_mem(const struct wsi_swapchain *chain, const struct wsi_image_info *info,
+                             struct wsi_image *image)
+{
+   VkResult result;
+
+   result = wsi_create_buffer_blit_context(chain, info, image, VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT);
+   if (result != VK_SUCCESS)
+      return result;
+   return chain->wsi->MapMemory(chain->device, image->blit.memory, 0, VK_WHOLE_SIZE, 0, &image->cpu_map);
+}
+
+/* device local and host visible (VRAM the processor sees: it copies from
+ * there if the display refuses), else what any type of type_bits is
+ */
+static uint32_t
+wsi_plan9_select_scanout_memory_type(const struct wsi_device *wsi, uint32_t type_bits)
+{
+   const VkMemoryPropertyFlags want = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT |
+                                      VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                                      VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+
+   u_foreach_bit(t, type_bits) {
+      if ((wsi->memory_props.memoryTypes[t].propertyFlags & want) == want)
+         return t;
+   }
+   u_foreach_bit(t, type_bits) {
+      if (wsi->memory_props.memoryTypes[t].propertyFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)
+         return t;
+   }
+   return ffs(type_bits) - 1;
 }
 
 VkResult

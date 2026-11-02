@@ -29,6 +29,7 @@
  *	free id			GEM_VA unmap, GEM_CLOSE, after the object's
  *				segment is revoked in every process
  *	scanout id w h stride	the object (VRAM) on the display (kms.c)
+ *	scanoutgem handle w h stride	a GEM object of the client's (VRAM) there
  *
  * And amdgpu's ioctls themselves, as a process makes them on Linux
  * (libdrm_amdgpu, Mesa's RADV): the context's arena is memory at one
@@ -543,6 +544,30 @@ amdgpu_scanout(void *v, int id, unsigned int w, unsigned int h, unsigned int str
 	}
 	mutex_unlock(&c->lock);
 	/* returns when the display shows it: a swapchain's FIFO */
+	return kms_scanout(c->filp, handle, w, h, stride);
+}
+
+/*
+ * ctl "scanoutgem handle w h stride": an object the client made with its
+ * own ioctls (RADV's swapchain images) on the display; kms.c exports it
+ * (PRIME, so not one always valid in the client's VM), amdgpu pins it in
+ * VRAM for the display.  0: off, as scanout 0.
+ */
+int
+amdgpu_scanout_gem(void *v, u32 handle, unsigned int w, unsigned int h, unsigned int stride)
+{
+	struct gctx *c = v;
+	struct drm_gem_object *gobj;
+	int vram;
+
+	if (handle != 0) {
+		if ((gobj = drm_gem_object_lookup(c->file, handle)) == NULL)
+			return -ENOENT;
+		vram = gem_to_amdgpu_bo(gobj)->preferred_domains & AMDGPU_GEM_DOMAIN_VRAM;
+		drm_gem_object_put(gobj);
+		if (!vram)
+			return -EINVAL;	/* the display scans out VRAM only */
+	}
 	return kms_scanout(c->filp, handle, w, h, stride);
 }
 

@@ -1,0 +1,18 @@
+#!/bin/rc
+# vkcube on RADV with scanout (no rio: its frames go to the display), in the background; what it does after 10 s
+bind -a '#i' /dev
+bind -a '#v' /dev
+aux/amdgpu $* >/tmp/amd.log >[2=1]
+sleep 2
+WSI_PLAN9_STATS=1 DRM9DEBUG=1 /tests/vkcube-radv --c 20 >/tmp/cube.log >[2=1] &
+sleep 10
+echo waves >/dev/gpu/0/ctl
+grep '^ring gfx|^ring sdma' /dev/gpu/0/status
+echo '--' cube.log
+cat /tmp/cube.log
+echo '--' amd.log
+grep -v 'pin moved|ring .* uses VM inv|wave se' /tmp/amd.log | sed -n '/screen 1920/,$p' | tail -20
+echo '--' ps
+ps | grep vkcube
+for(p in `{ps | grep vkcube | awk '{print $2}'}) cat /proc/$p/note >[2]/dev/null
+echo TESTEND

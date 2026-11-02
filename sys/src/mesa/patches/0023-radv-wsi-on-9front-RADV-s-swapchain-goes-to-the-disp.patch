@@ -1,0 +1,147 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Stefan Hertenberger <erde74@gmail.com>
+Date: Mon, 2 Nov 2026 02:00:33 +0100
+Subject: [PATCH] radv, wsi: on 9front RADV's swapchain goes to the display
+ (plan9_scanout: drm9Scanout with the memory's GEM handle); the copy the
+ display shows is exportable VRAM (plan9_scanout_device_local: a discrete
+ GPU's display reads VRAM only, and amdgpu exports no VM-local object)
+
+---
+ src/amd/vulkan/radv_wsi.c         | 28 +++++++++++++++++++
+ src/vulkan/wsi/wsi_common.h       |  5 ++++
+ src/vulkan/wsi/wsi_common_plan9.c | 46 +++++++++++++++++++++++++++++++
+ 3 files changed, 79 insertions(+)
+
+diff --git a/src/amd/vulkan/radv_wsi.c b/src/amd/vulkan/radv_wsi.c
+index 5c8dfb1..3e6c92b 100644
+--- a/src/amd/vulkan/radv_wsi.c
++++ b/src/amd/vulkan/radv_wsi.c
+@@ -90,6 +90,30 @@ radv_wsi_get_prime_blit_queue(VkDevice _device)
+    return NULL;
+ }
+ 
++#include "util/detect_os.h"
++#if DETECT_OS_PLAN9
++#include <xf86drm.h>
++#include "winsys/amdgpu/radv_amdgpu_bo.h"
++#include "winsys/amdgpu/radv_amdgpu_winsys.h"
++
++/*
++ * 9front: the memory's object on the display, no copy (libdrm's
++ * drm9Scanout: aux/amdgpu's scanoutgem, the client's GEM handle);
++ * VK_NULL_HANDLE: the screen again
++ */
++static VkResult
++radv_plan9_scanout(VkDevice _device, VkDeviceMemory _memory, uint32_t width, uint32_t height, uint32_t stride)
++{
++   VK_FROM_HANDLE(radv_device, device, _device);
++   VK_FROM_HANDLE(radv_device_memory, mem, _memory);
++   uint32_t handle = mem != NULL ? radv_amdgpu_winsys_bo(mem->bo)->bo_handle : 0;
++
++   if (drm9Scanout(radv_amdgpu_winsys(device->ws)->fd, handle, width, height, stride) < 0)
++      return VK_ERROR_FEATURE_NOT_PRESENT;
++   return VK_SUCCESS;
++}
++#endif
++
+ VkResult
+ radv_init_wsi(struct radv_physical_device *pdev)
+ {
+@@ -104,6 +128,10 @@ radv_init_wsi(struct radv_physical_device *pdev)
+    pdev->wsi_device.supports_modifiers = pdev->info.gfx_level >= GFX9;
+    pdev->wsi_device.set_memory_ownership = radv_wsi_set_memory_ownership;
+    pdev->wsi_device.get_blit_queue = radv_wsi_get_prime_blit_queue;
++#if DETECT_OS_PLAN9
++   pdev->wsi_device.plan9_scanout = radv_plan9_scanout;
++   pdev->wsi_device.plan9_scanout_device_local = true;	/* DCN scans out VRAM */
++#endif
+ 
+    for (uint32_t i = 0; i < ARRAY_SIZE(pdev->wsi_device.supports_protected); i++) {
+       pdev->wsi_device.supports_protected[i] = radv_tmz_enabled(pdev);
+diff --git a/src/vulkan/wsi/wsi_common.h b/src/vulkan/wsi/wsi_common.h
+index 77adc64..a4ff249 100644
+--- a/src/vulkan/wsi/wsi_common.h
++++ b/src/vulkan/wsi/wsi_common.h
+@@ -207,6 +207,11 @@ struct wsi_device {
+     */
+    VkResult (*plan9_scanout)(VkDevice device, VkDeviceMemory memory,
+                              uint32_t width, uint32_t height, uint32_t stride);
++   /* 9front: the display scans out device local memory only (a
++    * discrete GPU's VRAM): with scanout, the host visible copy is made
++    * there (device local and host visible) instead of in cached memory
++    */
++   bool plan9_scanout_device_local;
+ 
+ #define WSI_CB(cb) PFN_vk##cb cb
+    WSI_CB(AllocateMemory);
+diff --git a/src/vulkan/wsi/wsi_common_plan9.c b/src/vulkan/wsi/wsi_common_plan9.c
+index 66ddc44..3040b3e 100644
+--- a/src/vulkan/wsi/wsi_common_plan9.c
++++ b/src/vulkan/wsi/wsi_common_plan9.c
+@@ -35,6 +35,10 @@ struct wsi_plan9 {
+    struct wsi_interface base;
+ };
+ 
++static uint32_t wsi_plan9_select_scanout_memory_type(const struct wsi_device *wsi, uint32_t type_bits);
++static VkResult wsi_plan9_create_scanout_mem(const struct wsi_swapchain *chain, const struct wsi_image_info *info,
++                                             struct wsi_image *image);
++
+ static VkResult
+ wsi_plan9_surface_get_support(VkIcdSurfaceBase *surface,
+                               struct wsi_device *wsi_device,
+@@ -483,6 +487,13 @@ wsi_plan9_surface_create_swapchain(VkIcdSurfaceBase *icd_surface,
+    if (result != VK_SUCCESS)
+       goto fail_free_chain;
+ 
++   /* the display reads VRAM only: the copy the display shows there, an
++    * object the display may take (exportable, not one of the VM's own) */
++   if (scanout && wsi_device->plan9_scanout_device_local) {
++      chain->base.image_info.select_blit_dst_memory_type = wsi_plan9_select_scanout_memory_type;
++      chain->base.image_info.create_mem = wsi_plan9_create_scanout_mem;
++   }
++
+    chain->base.destroy = wsi_plan9_swapchain_destroy;
+    chain->base.get_wsi_image = wsi_plan9_swapchain_get_wsi_image;
+    chain->base.acquire_next_image = wsi_plan9_swapchain_acquire_next_image;
+@@ -537,6 +548,41 @@ fail_free_chain:
+    return result;
+ }
+ 
++/* as wsi_create_cpu_buffer_image_mem, the copy exportable (a dma-buf:
++ * the display driver imports it) */
++static VkResult
++wsi_plan9_create_scanout_mem(const struct wsi_swapchain *chain, const struct wsi_image_info *info,
++                             struct wsi_image *image)
++{
++   VkResult result;
++
++   result = wsi_create_buffer_blit_context(chain, info, image, VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT);
++   if (result != VK_SUCCESS)
++      return result;
++   return chain->wsi->MapMemory(chain->device, image->blit.memory, 0, VK_WHOLE_SIZE, 0, &image->cpu_map);
++}
++
++/* device local and host visible (VRAM the processor sees: it copies from
++ * there if the display refuses), else what any type of type_bits is
++ */
++static uint32_t
++wsi_plan9_select_scanout_memory_type(const struct wsi_device *wsi, uint32_t type_bits)
++{
++   const VkMemoryPropertyFlags want = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT |
++                                      VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
++                                      VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
++
++   u_foreach_bit(t, type_bits) {
++      if ((wsi->memory_props.memoryTypes[t].propertyFlags & want) == want)
++         return t;
++   }
++   u_foreach_bit(t, type_bits) {
++      if (wsi->memory_props.memoryTypes[t].propertyFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)
++         return t;
++   }
++   return ffs(type_bits) - 1;
++}
++
+ VkResult
+ wsi_plan9_init_wsi(struct wsi_device *wsi_device,
+                    const VkAllocationCallbacks *alloc,

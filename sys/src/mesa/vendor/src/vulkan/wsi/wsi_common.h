@@ -207,6 +207,11 @@ struct wsi_device {
     */
    VkResult (*plan9_scanout)(VkDevice device, VkDeviceMemory memory,
                              uint32_t width, uint32_t height, uint32_t stride);
+   /* 9front: the display scans out device local memory only (a
+    * discrete GPU's VRAM): with scanout, the host visible copy is made
+    * there (device local and host visible) instead of in cached memory
+    */
+   bool plan9_scanout_device_local;
 
 #define WSI_CB(cb) PFN_vk##cb cb
    WSI_CB(AllocateMemory);
