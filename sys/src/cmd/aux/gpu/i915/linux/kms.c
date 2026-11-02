@@ -84,7 +84,21 @@ findplane(void)
 			orig_bpp = fb.pixel_format == DRM_FORMAT_RGB565 ? 16 : 32;
 			if (fb.handles[0]) {
 				struct drm_gem_close cl = { .handle = fb.handles[0] };
+				struct drm_mode_fb_cmd2 own = fb;
 
+				/*
+				 * a framebuffer of ours on the firmware's object: the
+				 * firmware's goes when another takes the plane (after the
+				 * modeset of a client's full-screen picture), its id is
+				 * reused and its memory, where devdraw draws the screen,
+				 * freed; scanout 0 came back to no such object, the
+				 * display stayed black
+				 */
+				own.fb_id = 0;
+				if (kioctl(kms, DRM_IOCTL_MODE_ADDFB2, &own) == 0)
+					orig_fb = own.fb_id;
+				else
+					pr_warn("i915: no framebuffer of our own on the firmware's plane\n");
 				kioctl(kms, DRM_IOCTL_GEM_CLOSE, &cl);
 			}
 		}
