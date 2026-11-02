@@ -41,7 +41,8 @@
 		],
 		"SourceFilesCmd": [
 			"drawspeed.c",
-			"screenpx.c"
+			"screenpx.c",
+			"screenshot.c"
 		]
 	}
 ]
