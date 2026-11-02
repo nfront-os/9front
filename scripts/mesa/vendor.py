@@ -210,7 +210,7 @@ def main():
 	allobjs = [os.path.relpath(o, top) for k in order for o in blocks[k]['objects']]
 	allobjs += ['plan9/loader/vkloader.o', 'plan9/loader/vkcmds.o',
 		'plan9/lib/dl.o', 'plan9/lib/plan9compat.o', 'plan9/lib/plan9win.o',
-		'plan9/drm/drm9.o']
+		'plan9/drm/drm9.o', 'plan9/drm/amdgpu9.o']
 	projects = ['/' + os.path.relpath(os.path.join(d, 'mesa%s.json' % SUFFIX), ROOT) for d in manifests]
 	projects += ['/sys/src/mesa/plan9/loader/build.json', '/sys/src/mesa/plan9/lib/build.json',
 		'/sys/src/mesa/plan9/drm/build.json']
