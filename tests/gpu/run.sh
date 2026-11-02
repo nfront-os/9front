@@ -51,11 +51,13 @@ check "alias and phys segments revoked (segment(3)): freed objects stay visible 
 
 # the LinuxKPI on 9front: aux/i915 -T (segments in procs forked before,
 # vmap through alias segments, Linux's dma-buf selftests on our fences)
+# with 4 processors: races show (dma_fence_get_rcu revived a freed fence:
+# 2 of 10 runs failed so, 1 in many with one)
 kpitest(){
-	MEM=2048 WAITMAX=500 QEMU_EXTRA="-vga none -device virtio-gpu-pci" \
+	SMP=4 MEM=2048 WAITMAX=500 QEMU_EXTRA="-vga none -device virtio-gpu-pci" \
 		"$ROOT/scripts/guest/boot-cli.sh" 'aux/i915 -T' > "$TMPD/kpitest" 2>&1
 	grep -q "dma-buf selftests: ok" "$CLI_DIR/console.log" && return
-	# rare (dma_fence's race_signal_callback, under load): keep the console
+	# keep the console of a failure
 	cp "$CLI_DIR/console.log" "$CLI_DIR/kpitest-fail.$(date +%s).log"
 	grep -E 'selftest|failed|not seen' "$CLI_DIR/console.log"
 	return 1
