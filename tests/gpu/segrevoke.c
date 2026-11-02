@@ -5,7 +5,10 @@
  * has one attached loses its pages when it is removed (or "revoke" is
  * written), and reading there faults; the memory stays in the segment
  * it came from.  Also: a page of an alias that was never put there
- * faults instead of crashing the kernel.  Prints ok or FAIL lines.
+ * faults instead of crashing the kernel.  And phys segments: a part of
+ * a physical segment (#G's bar 0 of QEMU's VGA, a GPU object's view in
+ * a BAR) shows that part, nothing beyond it, and is revoked the same
+ * way.  Prints ok or FAIL lines.
  */
 #include <u.h>
 #include <libc.h>
@@ -107,6 +110,116 @@ child(int fd, char *what)
 	free(w);
 }
 
+/*
+ * phys: the pages at 0x3000 of bar 0 of the first #G device with one
+ * (QEMU's VGA: its framebuffer), a child reading there until revoked
+ */
+static void
+physparts(void)
+{
+	char bar[32], ph[32], path[64], buf[128], *e;
+	ulong *b, *a;
+	uvlong va;
+	int fd, n;
+
+	if((fd = open("#G", OREAD)) < 0){
+		print("ok phys: no #G, skipped\n");
+		return;
+	}
+	close(fd);
+	snprint(bar, sizeof bar, "gpu0bar0");
+	if((b = segattach(0, bar, nil, 0x10000)) == (void*)-1){
+		print("ok phys: no %s (%r), skipped\n", bar);
+		return;
+	}
+	b[0x3000/4] = 0x5e6e0001;
+	b[0x2000/4] = 0xbad;
+	b[0x5000/4] = 0xbad;
+	va = 0x5000800000ULL;
+	snprint(ph, sizeof ph, "rvph.%d", getpid());
+	if(mkseg(ph) < 0 || ctl(ph, "va %#llux 0x2000 phys %s 0x3000", va, bar) < 0){
+		fail("phys segment of %s: %r", bar);
+		goto out;
+	}
+	snprint(path, sizeof path, "#g/%s/ctl", ph);
+	if((fd = open(path, OREAD)) >= 0){
+		n = read(fd, buf, sizeof buf - 1);
+		close(fd);
+		buf[n > 0 ? n : 0] = 0;
+		print("ok phys ctl: %s", buf);
+	}
+	/* its first word is bar 0's at 0x3000; it ends after 0x2000 bytes */
+	if((a = segattach(0, ph, nil, 0x2000)) == (void*)-1)
+		fail("attach %s: %r", ph);
+	else{
+		if(a[0] != 0x5e6e0001)
+			fail("phys: %#lux at its start, want bar 0's %#ux at 0x3000", a[0], 0x5e6e0001);
+		else
+			print("ok phys: shows bar 0 from 0x3000\n");
+		a[1] = 0x5e6e0003;
+		if(b[0x3004/4] != 0x5e6e0003)
+			fail("phys: a write did not reach bar 0");
+		else
+			print("ok phys: writes reach bar 0\n");
+		segdetach(a);
+	}
+	switch(rfork(RFPROC|RFFDG)){
+	case 0:
+		a = segattach(0, ph, nil, 0x2000);
+		if(a == (void*)-1)
+			exits("attach");
+		if(a[0x2000/4] == 0xbad)
+			exits("read past its end: bar 0 at 0x5000");
+		exits("past its end");
+	default:
+		{
+			Waitmsg *w = wait();
+
+			if(w == nil || strstr(w->msg, "fault") == nil)
+				fail("phys: past its end: '%s', want a fault", w ? w->msg : "no wait message");
+			else
+				print("ok phys: nothing past its end (%s)\n", w->msg);
+			free(w);
+		}
+	}
+	/* removing it revokes it */
+	if((e = reader(ph, va, 0x2000, &fd)) != nil){
+		fail("phys reader: %s", e);
+		goto out;
+	}
+	snprint(path, sizeof path, "#g/%s", ph);
+	if(remove(path) < 0)
+		fail("remove %s: %r", ph);
+	child(fd, "phys remove");
+	/* revoke, the segment still there */
+	snprint(ph, sizeof ph, "rvph2.%d", getpid());
+	if(mkseg(ph) < 0 || ctl(ph, "va %#llux 0x2000 phys %s 0x3000", va + 0x200000, bar) < 0){
+		fail("phys segment 2: %r");
+		goto out;
+	}
+	if((e = reader(ph, va + 0x200000, 0x2000, &fd)) != nil){
+		fail("phys reader 2: %s", e);
+		goto out;
+	}
+	if(ctl(ph, "revoke") < 0)
+		fail("phys revoke: %r");
+	child(fd, "phys revoke");
+	snprint(path, sizeof path, "#g/%s", ph);
+	remove(path);
+	/* a part beyond the physical segment: refused */
+	snprint(ph, sizeof ph, "rvph3.%d", getpid());
+	if(mkseg(ph) == 0){
+		if(ctl(ph, "va %#llux 0x2000 phys %s 0x7fffffff000", va + 0x400000, bar) == 0)
+			fail("phys: a part beyond %s was made", bar);
+		else
+			print("ok phys: a part beyond the segment is refused (%r)\n");
+		snprint(path, sizeof path, "#g/%s", ph);
+		remove(path);
+	}
+out:
+	segdetach(b);
+}
+
 void
 main(void)
 {
@@ -180,6 +293,7 @@ main(void)
 	snprint(path, sizeof path, "#g/%s", src);
 	segdetach(s);
 	remove(path);
+	physparts();
 	if(fails)
 		exits("fail");
 	print("segrevoke: ok\n");

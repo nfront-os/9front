@@ -50,9 +50,13 @@ newseg(int type, uintptr base, ulong size)
 	if(size > (SEGMAPSIZE*PTEPERTAB))
 		error(Enovmem);
 
+	/*
+	 * 9front-ng: a physical segment has room for a Physseg of its own
+	 * (segment(3)'s phys: a part of another one, freed with it)
+	 */
 	s = malloc(((type & SG_TYPE) != SG_PHYSICAL)?
 		sizeof(Segment)+sizeof(Pte):
-		sizeof(Segment));
+		sizeof(Segment)+sizeof(Physseg));
 
 	if(s == nil)
 		error(Enomem);
@@ -745,6 +749,20 @@ segrevoke(Segment *s)
 {
 	int flush;
 
+	/*
+	 * a physical segment (segment(3)'s phys) has no pages to take:
+	 * it faults from now on, its mappings flushed everywhere; a
+	 * fault that mapped it meanwhile goes around (fault's tlbflush)
+	 */
+	if((s->type & SG_TYPE) == SG_PHYSICAL){
+		qlock(&s->QLock);
+		s->type |= SG_FAULT;
+		qunlock(&s->QLock);
+		if(s->Ref.ref > 1)
+			procflushseg(s);
+		flushmmu();
+		return;
+	}
 	qlock(&s->QLock);
 	flush = segfreemap(s, s->base, s->top);
 	qunlock(&s->QLock);

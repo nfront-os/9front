@@ -27,7 +27,7 @@ struct Globalseg
 	char	*uid;
 	vlong	length;
 	long	perm;
-	int	alias;	/* 9front-ng: made by "va ... alias": takes page and revoke */
+	int	alias;	/* 9front-ng: made by "va ... alias" (takes page) or "va ... phys": revoke */
 
 	Segio;
 };
@@ -469,6 +469,9 @@ segmentread(Chan *c, void *a, long n, vlong voff)
 				g->Segio.s->map[0]->pages[0]->pa);
 		else if((g->Segio.s->type&SG_TYPE) == SG_STICKY)
 			snprint(buf, sizeof(buf), "va %#p %#p sticky\n", g->Segio.s->base, g->Segio.s->top-g->Segio.s->base);
+		else if((g->Segio.s->type&SG_TYPE) == SG_PHYSICAL)
+			snprint(buf, sizeof(buf), "va %#p %#p phys %s %#p%s\n", g->Segio.s->base, g->Segio.s->top-g->Segio.s->base,
+				g->Segio.s->pseg->name, g->Segio.s->pseg->pa, (g->Segio.s->type&SG_FAULT) ? " revoked" : "");
 		else
 			snprint(buf, sizeof(buf), "va %#p %#p\n", g->Segio.s->base, g->Segio.s->top-g->Segio.s->base);
 		return readstr(voff, a, n, buf);
@@ -545,6 +548,31 @@ segmentwrite(Chan *c, void *a, long n, vlong voff)
 					segpage(s, fillpage(newpage(va, nil), 0));
 				poperror();
 				g->Segio.s = s;
+			} else if(cb->nf >= 6 && strcmp(cb->f[3], "phys") == 0){
+				Physseg *ps, *pp;
+				uvlong off;
+				Segment *s;
+
+				/*
+				 * 9front-ng: a part of a physical segment (a GPU
+				 * object in a BAR) for a client, revoked as an
+				 * alias segment is
+				 */
+				if(!iseve())
+					error(Eperm);
+				if((ps = findphysseg(cb->f[4])) == nil)
+					error("no such physical segment");
+				off = strtoull(cb->f[5], 0, 0);
+				if((off & (BY2PG-1)) != 0 || off > ps->size || len > ps->size - off)
+					error(Ebadarg);
+				s = newseg(ps->attr, va, len/BY2PG);
+				pp = (Physseg*)(s+1);
+				*pp = *ps;
+				pp->pa = ps->pa + off;
+				pp->size = len;
+				s->pseg = pp;
+				g->Segio.s = s;
+				g->alias = 1;
 			} else if(cb->nf >= 4 && strcmp(cb->f[3], "alias") == 0){
 				if(!iseve())
 					error(Eperm);
@@ -560,7 +588,7 @@ segmentwrite(Chan *c, void *a, long n, vlong voff)
 				error(Eperm);
 			segrevoke(g->Segio.s);
 		} else if(cb->nf >= 4 && strcmp(cb->f[0], "page") == 0){
-			if(g->Segio.s == nil || !g->alias)
+			if(g->Segio.s == nil || !g->alias || (g->Segio.s->type&SG_TYPE) != SG_STICKY)
 				error("not an alias segment");
 			if(!iseve())
 				error(Eperm);

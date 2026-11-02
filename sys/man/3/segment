@@ -138,6 +138,32 @@ a fault.
 A driver revokes an object's segment before it uses the memory
 otherwise, so that nobody keeps seeing it.
 .PP
+A segment of type
+.B phys
+shows a part of a physical segment
+.RI ( segattach (2)'s
+names: a device's memory, such as a GPU's bar), only that part:
+.IP
+.EX
+	va \fIaddr len\fP phys \fIphysseg offset\fP
+.EE
+.PP
+makes it, for the hostowner, from the page aligned
+.I offset
+of the physical segment
+.IR physseg ,
+with that segment's attributes (cached, write-combining, device).
+Reading its control file appends
+.BI phys " physseg pa" ,
+and
+.B revoked
+once it is.
+Writing
+.B revoke
+or removing it makes every access of every process that has it
+attached fault, as for an alias segment: a driver gives a client the
+view of one object and takes it back when the object is freed.
+.PP
 Opening
 .B data
 or reading
