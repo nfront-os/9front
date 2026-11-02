@@ -71,6 +71,12 @@ The memory bars are attachable segments named
 .BI gpu n bar i\f1,
 uncached; the framebuffer is
 .BI gpu n fb\f1.
+Only the hostowner may attach them: a GPU reaches all of the
+machine's memory (DMA); its driver gives clients views of their own
+objects
+.RB ( phys
+in
+.IR segment (3)).
 .PP
 Writing
 .B wbinvd

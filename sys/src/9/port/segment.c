@@ -983,6 +983,14 @@ segattach(int attr, char *name, uintptr va, uintptr len)
 	if(ps == nil)
 		error(Ebadarg);
 
+	/*
+	 * 9front-ng: a device whose memory and registers reach all of the
+	 * machine's (a GPU's bars: it does DMA) is for the hostowner; its
+	 * driver gives clients segment(3) phys views of their objects
+	 */
+	if(ps->eveonly && !iseve())
+		error(Eperm);
+
 	if(len > ps->size)
 		error(Enovmem);
 

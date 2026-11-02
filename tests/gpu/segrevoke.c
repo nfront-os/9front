@@ -8,7 +8,7 @@
  * faults instead of crashing the kernel.  And phys segments: a part of
  * a physical segment (#G's bar 0 of QEMU's VGA, a GPU object's view in
  * a BAR) shows that part, nothing beyond it, and is revoked the same
- * way.  Prints ok or FAIL lines.
+ * way; the bar itself is the hostowner's only (none may not attach it).  Prints ok or FAIL lines.
  */
 #include <u.h>
 #include <libc.h>
@@ -206,6 +206,26 @@ physparts(void)
 	child(fd, "phys revoke");
 	snprint(path, sizeof path, "#g/%s", ph);
 	remove(path);
+	/* the bar itself: the hostowner's only, not none's */
+	switch(rfork(RFPROC|RFFDG|RFNAMEG)){
+	case 0:
+		if((fd = open("/dev/user", OWRITE)) < 0 || write(fd, "none", 4) != 4)
+			exits("cannot become none");
+		close(fd);
+		if(segattach(0, bar, nil, 0x10000) != (void*)-1)
+			exits("none attached the bar");
+		exits(nil);
+	default:
+		{
+			Waitmsg *w = wait();
+
+			if(w == nil || w->msg[0] != 0)
+				fail("phys: as none: %s", w ? w->msg : "no wait message");
+			else
+				print("ok phys: none may not attach %s\n", bar);
+			free(w);
+		}
+	}
 	/* a part beyond the physical segment: refused */
 	snprint(ph, sizeof ph, "rvph3.%d", getpid());
 	if(mkseg(ph) == 0){

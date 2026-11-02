@@ -101,6 +101,7 @@ addseg(char *name, uvlong pa, uvlong size, ulong attr)
 	seg.name = name;
 	seg.pa = pa;
 	seg.size = size;
+	seg.eveonly = 1;	/* the bars reach all memory (DMA): the driver hands out views (segment(3) phys) */
 	if(addphysseg(&seg) == nil)
 		print("#G: no room for segment %s\n", name);
 }

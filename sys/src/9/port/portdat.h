@@ -422,6 +422,7 @@ struct Physseg
 	char	*name;			/* Attach name */
 	uintptr	pa;			/* Physical address */
 	uintptr	size;			/* Maximum segment size in bytes */
+	int	eveonly;		/* 9front-ng: only the hostowner attaches it (a GPU's bars: #G) */
 };
 
 struct Sema
