@@ -581,8 +581,47 @@ in object
 .I bo
 as one IB (PM4 packets on gfx and compute, SDMA packets on sdma); the
 fences are as above.
+.PP
+A context also takes amdgpu's own ioctls, as a process makes them on
+Linux (libdrm_amdgpu; Mesa's RADV through
+.BR /sys/src/mesa/plan9/drm/amdgpu9.c ).
+.B arena
+in its
+.B ctl
+replies
+.BI arena " seg va size" :
+memory the client attaches at
+.I va
+and the driver sees at the same address.
+The client puts an ioctl's structure, and all it points to, in the
+arena and writes
+.BI ioctl " cmd addr
+(Linux's encoding of the command) to the context's
+.B ioctl
+file; reading the file gives the result (0 or a negative Linux error).
+The ioctl reaches nothing outside the arena.
+.BI map " handle
+replies the processor's view of an object the client made:
+.BI map " handle seg va size
+(GTT, an alias segment) or
+.BI map " handle seg L0P size off barsize
+(VRAM, in BAR 0's segment at
+.IR off );
+.BI unmap " handle
+ends it.
+.PP
 .B Status
-names the chip, its memory and the state of each IP block.
+names the chip, its memory, temperatures, power and clocks, the
+interrupt ring, each ring's fences (emitted, signalled, as the ring
+wrote them) and the state of each IP block.
+Writing
+.B "ih process"
+to the driver's
+.B ctl
+processes the interrupt ring once;
+.B waves
+writes the shader waves the GPU has (where they are, their state and
+trap status) and the GPU's last page fault to the log: for hangs.
 .PP
 The processor's view of the GPU is not isolated: BAR 0's segment shows
 all the visible VRAM, the driver's own data there too (the GART
@@ -631,6 +670,14 @@ set 4, its command streams through
 .BR submit ,
 Vulkan memory as host blobs mapped through the host visible bar,
 and its timeline syncs on the fences.
+.PP
+Mesa's RADV drives
+.IR amdgpu
+through its contexts' ioctls (above), with libdrm_amdgpu's interface
+over them; it is built from the source tree's
+.B scripts/mesa/radvsdk.sh
+(not yet part of
+.BR /sys/src/mesa ).
 .PP
 Vulkan programs present to a window with the instance extension
 .BR VK_PLAN9_surface :
