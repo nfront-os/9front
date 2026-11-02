@@ -1,15 +1,18 @@
 #!/bin/rc
-# aux/amdgpu with its screen; the context, scanout and draw tests; the log's warnings
+# aux/amdgpu with its screen; the context, scanout, ioctl, RADV (radvtest, vkcube) and draw tests; the log's warnings
 bind -a '#i' /dev
 bind -a '#v' /dev
 aux/amdgpu -t $* >/tmp/amd.log >[2=1]
 sleep 2
 /tests/amdctxtest | grep 'passed|FAIL|done in'
 /tests/amdscanout -s 2 | grep 'passed|FAIL'
+/tests/amdioctl | grep 'passed|FAIL'
+/tests/radvtest >[2=1] | grep 'passed|FAIL'
+WSI_PLAN9_STATS=1 /tests/vkcube-radv --c 120 >[2=1] | grep 'scanout:|copy:|rror' | sed 2q
 /tests/gputest -l >/dev/null >[2=1] &
 sleep 5
 grep irq '#G/1/ctl'
 grep '^ih |^temp|^power' /dev/gpu/0/status
 echo fallbacks `{grep -c fallback /tmp/amd.log}
-grep 'WARN|error|fault' /tmp/amd.log
+grep 'WARN|error|fault|overflow' /tmp/amd.log
 echo TESTEND
