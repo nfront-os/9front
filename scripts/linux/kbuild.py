@@ -68,6 +68,14 @@ def truth(l, v, cfg):
 		return (x == y) if m.group(1) == 'ifeq' else (x != y)
 	return False
 
+def linuxversion(tree):
+	"""the version of the Linux tree tree is (sys/src/linux/VERSION next to vendor/)"""
+	try:
+		w = open(os.path.join(os.path.dirname(os.path.abspath(tree)), 'VERSION')).read().split()[0]
+		return tuple(int(x) for x in w.split('-')[1].split('.')[:2])
+	except (OSError, IndexError, ValueError):
+		return (6, 6)
+
 def evaluate(path, cfg, v=None, tree=None, d=None):
 	"""the variables of a Makefile; include brings in others (the same
 	variables), the conditionals are kept"""
@@ -75,7 +83,9 @@ def evaluate(path, cfg, v=None, tree=None, d=None):
 		v = {}
 		if tree is not None:
 			v['srctree'] = tree
-			v['src'] = d
+			# Linux 6.10 on: $(src) is the source directory's full path
+			# (FULL_AMD_PATH=$(src)/..), before relative ($(srctree)/$(src))
+			v['src'] = os.path.join(tree, d) if linuxversion(tree) >= (6, 10) else d
 			v['obj'] = d
 	stack = []	# for each open conditional: is its part active
 	for l in lines(path):
