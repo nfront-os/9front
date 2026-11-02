@@ -43,6 +43,10 @@ def flags(c):
 	# amd/: amdgpu's Makefile builds it all, with its include directories
 	if c.startswith('drivers/gpu/drm/amd/'):
 		for x in amdincludes():
+			# our replacements first (replace/ mirrors vendor/: mod_power.h)
+			r = os.path.join(D, 'replace', os.path.relpath(x, V))
+			if os.path.isdir(r):
+				f += ['-I', r]
 			f += ['-I', x]
 	f += ['-I', os.path.join(V, d)]
 	# quoted includes next to the file, replaced: replace/ mirrors vendor/

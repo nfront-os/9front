@@ -2,3 +2,12 @@
 # helpers nothing we build calls; GPL, so we would have to write them
 drivers/gpu/drm/drm_simple_kms_helper.c	simple display pipes: for small drivers, not i915
 drivers/gpu/drm/drm_bridge_connector.c	bridge connectors: for SoC display bridges
+# Linux 7.3: DCN 4.01 (RDNA 4's display) needs dcn_4_1_0_sh_mask.h, which has
+# no notice (not imported); the RX 7600 has DCN 3.2.  Their entry points get
+# stubs that create nothing (link step)
+drivers/gpu/drm/amd/display/dc/clk_mgr/dcn401/dcn401_clk_mgr.c	DCN 4.01, register header without a notice
+drivers/gpu/drm/amd/display/dc/gpio/dcn401/hw_translate_dcn401.c	DCN 4.01, register header without a notice
+drivers/gpu/drm/amd/display/dc/gpio/dcn401/hw_factory_dcn401.c	DCN 4.01, register header without a notice
+drivers/gpu/drm/amd/display/dc/irq/dcn401/irq_service_dcn401.c	DCN 4.01, register header without a notice
+drivers/gpu/drm/amd/display/dc/resource/dcn401/dcn401_resource.c	DCN 4.01, register header without a notice
+drivers/gpu/drm/amd/display/dmub/src/dmub_dcn401.c	DCN 4.01, register header without a notice
