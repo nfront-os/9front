@@ -127,9 +127,10 @@ cat "${PROTOS[@]}" > "$OUT/gccproto"
 # not in /$objtype/go: its programs are a.out, its ELF files are test data of Go's std
 # (debug/elf, runtime/pprof), which strip would change
 find "$OUT" -path "$OUT/$A/go" -prune -o -type f -perm -u+x -exec sh -c 'file -b "$1" | grep -q ^ELF && strip "$1"' _ {} \;
-# Mesa's libvulkan.a without its debug information: with it (300 MB)
-# disk/mk9660 fails
-for f in "$OUT"/$A/lib.gcc/ape/libvulkan.a; do
+# Mesa's libvulkan.a and the Linux code's archives (sys/src/linux:
+# libamdgpu.a 340 MB, liblinux.a) without their debug information: with
+# it disk/mk9660 fails, and the CD outgrows mkiso.sh's scratch disk
+for f in "$OUT"/$A/lib.gcc/ape/libvulkan.a "$OUT"/$A/lib.gcc/libamdgpu.a "$OUT"/$A/lib.gcc/liblinux.a "$OUT"/$A/lib.gcc/libkpi*.a; do
 	[ -f "$f" ] && strip -g "$f"
 done
 echo "$(grep -c . "$OUT.warnings") proto warnings ($OUT.warnings)"
