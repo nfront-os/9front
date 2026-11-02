@@ -374,14 +374,24 @@ kms_scanout(struct file *from, u32 handle, u32 w, u32 h, u32 stride)
 		shown_by = NULL;
 		goto rm;
 	}
+	{
+		static int nsc;
+
+		if (++nsc <= 10)
+			pr_info("i915: scanout of %u (%ux%u, stride %u)\n", handle, w, h, stride);
+	}
 	r = kms_prime(from, handle, kms, &fb.handles[0]);
-	if (r)
+	if (r) {
+		pr_info("i915: scanout of %u: prime: %d\n", handle, r);
 		goto out;
+	}
 	fb.width = w;
 	fb.height = h;
 	fb.pixel_format = DRM_FORMAT_XRGB8888;
 	fb.pitches[0] = stride;
 	r = kioctl(kms, DRM_IOCTL_MODE_ADDFB2, &fb);
+	if (r)
+		pr_info("i915: scanout of %u: addfb: %d\n", handle, r);
 	cl.handle = fb.handles[0];
 	kioctl(kms, DRM_IOCTL_GEM_CLOSE, &cl);	/* the framebuffer keeps the object */
 	if (r)
