@@ -12,6 +12,7 @@
 #include <linux/file.h>
 #include <linux/mutex.h>
 #include <linux/pci.h>
+#include <linux/wait.h>
 #include <drm/drm_drv.h>
 #include <drm/drm_file.h>
 #include <drm/drm_ioctl.h>
@@ -311,11 +312,24 @@ flip(u32 fb)
 	loff_t pos = 0;
 	int r;
 
+	struct drm_file *fp = kms->private_data;
+	long t;
+
 	r = kioctl(kms, DRM_IOCTL_MODE_PAGE_FLIP, &f);
 	if (r == -EINVAL && !relit)
 		return relight(fb);
 	if (r)
 		return r;
+	/*
+	 * the flip's event at the next vblank: a second at most (kmslock is
+	 * held), else the client is told and copies (on the laptop the
+	 * display hung in the first flip after the modeset)
+	 */
+	t = wait_event_interruptible_timeout(fp->event_wait, !list_empty(&fp->event_list), HZ);
+	if (t <= 0) {
+		pr_err("i915: scanout: no flip event for fb %u within a second (%ld)\n", fb, t);
+		return t < 0 ? t : -ETIMEDOUT;
+	}
 	r = drm_read(kms, (char __user *)ev, sizeof(ev), &pos);
 	return r < 0 ? r : 0;
 }

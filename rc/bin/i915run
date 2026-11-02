@@ -68,7 +68,22 @@ if(test -e /dev/gpu/0/clone){
 		for(c in 'vulkaninfo --summary' 'vktri 3' 'WSI_PLAN9_STATS=1 vkcube --c 300' \
 			'@{rfork en; bind -b ''#i'' /dev; WSI_PLAN9_STATS=1 vkcube --c 300}'){
 			echo '##' $c >>$out
-			@{DRM9DEBUG=1; eval $c} >>$out >[2=1]
+			# at most 60 s: a hang (full-screen vkcube on the laptop) leaves
+			# the call chains of the driver's and the program's procs in the log
+			@{rfork ns; DRM9DEBUG=1; eval $c} >>$out >[2=1] &
+			vk=$apid
+			for(t in `{seq 60})
+				if(test -e /proc/$vk/status)
+					sleep 1
+			if(test -e /proc/$vk/status){
+				echo '## hung after 60 s: call chains' >>$out
+				aux/i915stk -a i915 >>$out >[2=1]
+				for(n in vkcube vktri vulkaninfo)
+					aux/i915stk -a $n >>$out >[2=1]
+				for(p in `{ps | awk '$7 ~ /^(vkcube|vktri|vulkaninfo)$/ {print $2}'})
+					echo kill >/proc/$p/ctl >[2]/dev/null
+				sleep 2
+			}
 			echo '## status' $status >>$out
 		}
 	}
