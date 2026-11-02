@@ -623,14 +623,16 @@ trap status) and the GPU's last page fault to the log: for hangs.
 .PP
 A client sees its own objects only, each through a segment the
 driver revokes when the object goes.
-The bars themselves are not isolated yet: BAR 0's segment shows
-all the visible VRAM, the driver's own data there too (the GART
-table), and as with every physical segment
-.RI ( segment (3),
-.IR vga (3))
-any process may attach it, as it may the register BAR; the GPU's own
-address spaces are per context.
-The driver is for the host owner.
+The bars themselves (BAR 0 with all the visible VRAM and the driver's
+own data, the register bar) only the hostowner may attach
+.RI ( gpu (3));
+the GPU's own address spaces are per context.
+A client's ioctls have a superuser's rights (Linux's
+.BR CAP_SYS_ADMIN ,
+.B DRM_ROOT_ONLY
+ioctls) only if it is the hostowner.
+The context's files belong to the driver's user: other users do not
+use the GPU yet.
 .PP
 At a critical temperature amdgpu powers the machine off, as on Linux
 (orderly_poweroff): the layer runs

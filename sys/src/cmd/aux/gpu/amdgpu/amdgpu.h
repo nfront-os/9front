@@ -30,7 +30,7 @@ void	amdgpu_fence_count(void *c, u64g *done, u64g *n, int *failed);
 extern int amdgpu_fencetrace;	/* -t */
 /* amdgpu's ioctls of the client (linux/ctx.c): the arena, the ioctl, the client's objects mapped */
 int	amdgpu_arena(void *c, char *seg, int nseg, u64g *va, u64g *size);
-long	amdgpu_ioctl(void *c, unsigned int cmd, u64g addr);	/* its result: 0, >0, or -errno */
+long	amdgpu_ioctl(void *c, unsigned int cmd, u64g addr, int priv);	/* its result: 0, >0, or -errno; priv: the hostowner's */
 int	amdgpu_map(void *c, unsigned int handle, char *seg, int nseg, u64g *va, u64g *size);
 int	amdgpu_unmap(void *c, unsigned int handle);
 #define amdgpu_iserr(p)	((unsigned long)(p) >= (unsigned long)-4095)

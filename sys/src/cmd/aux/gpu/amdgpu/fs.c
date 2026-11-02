@@ -111,6 +111,7 @@ struct Ireq {
 	void	*lc;
 	uint	cmd;
 	u64g	addr;
+	int	priv;	/* the client is the hostowner */
 	long	r;
 	Channel	*done;
 };
@@ -123,19 +124,35 @@ ioctlproc(void*)
 
 	for(;;){
 		q = recvp(ioctlc);
-		q->r = amdgpu_ioctl(q->lc, q->cmd, q->addr);
+		q->r = amdgpu_ioctl(q->lc, q->cmd, q->addr, q->priv);
 		sendul(q->done, 1);
 	}
 }
 
+/* is uid the hostowner? (as the kernel's iseve) */
+static int
+iseve9p(char *uid)
+{
+	static char eve[64];
+	int fd, n;
+
+	if(eve[0] == 0 && (fd = open("/dev/hostowner", OREAD)) >= 0){
+		n = read(fd, eve, sizeof eve - 1);
+		close(fd);
+		eve[n > 0 ? n : 0] = 0;
+	}
+	return uid != nil && eve[0] != 0 && strcmp(uid, eve) == 0;
+}
+
 static long
-doioctl(void *lc, uint cmd, u64g addr)
+doioctl(void *lc, uint cmd, u64g addr, int priv)
 {
 	Ireq q;
 
 	q.lc = lc;
 	q.cmd = cmd;
 	q.addr = addr;
+	q.priv = priv;
 	q.done = chancreate(sizeof(ulong), 0);
 	sendp(ioctlc, &q);
 	recvul(q.done);
@@ -529,7 +546,7 @@ fswrite(Req *r)
 			return;
 		}
 		srvrelease(r->srv);
-		fa->ioctlr = doioctl(fa->ctx->lc, strtoul(f[0], nil, 0), strtoull(f[1], nil, 0));
+		fa->ioctlr = doioctl(fa->ctx->lc, strtoul(f[0], nil, 0), strtoull(f[1], nil, 0), iseve9p(r->fid->uid));
 		srvacquire(r->srv);
 		fa->ioctlset = 1;
 		break;

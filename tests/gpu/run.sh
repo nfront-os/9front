@@ -54,7 +54,11 @@ check "alias and phys segments revoked (segment(3)): freed objects stay visible 
 kpitest(){
 	MEM=2048 WAITMAX=500 QEMU_EXTRA="-vga none -device virtio-gpu-pci" \
 		"$ROOT/scripts/guest/boot-cli.sh" 'aux/i915 -T' > "$TMPD/kpitest" 2>&1
-	grep -q "dma-buf selftests: ok" "$CLI_DIR/console.log" || { grep -E 'selftest|failed' "$CLI_DIR/console.log"; return 1; }
+	grep -q "dma-buf selftests: ok" "$CLI_DIR/console.log" && return
+	# rare (dma_fence's race_signal_callback, under load): keep the console
+	cp "$CLI_DIR/console.log" "$CLI_DIR/kpitest-fail.$(date +%s).log"
+	grep -E 'selftest|failed|not seen' "$CLI_DIR/console.log"
+	return 1
 }
 check "LinuxKPI selftests (aux/i915 -T: segments, vmap, Linux's dma-buf selftests)" kpitest
 

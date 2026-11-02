@@ -790,9 +790,13 @@ out:
 	return r;
 }
 
-/* the client's ioctl: its arguments at addr in the arena, and all they point to */
+/*
+ * the client's ioctl: its arguments at addr in the arena, and all they
+ * point to; priv: the client is the hostowner (capable(CAP_SYS_ADMIN)
+ * for it, as for root on Linux)
+ */
 long
-amdgpu_ioctl(void *v, unsigned int cmd, u64 addr)
+amdgpu_ioctl(void *v, unsigned int cmd, u64 addr, int priv)
 {
 	struct gctx *c = v;
 	unsigned long a = addr, size = (unsigned long)Arenapages << PAGE_SHIFT;
@@ -803,7 +807,9 @@ amdgpu_ioctl(void *v, unsigned int cmd, u64 addr)
 	if (a < (unsigned long)c->arena || a + _IOC_SIZE(cmd) > (unsigned long)c->arena + size)
 		return -EFAULT;
 	kpi_user_window(c->arena, size);
+	kpi_user_privileged(priv);
 	r = drm_ioctl(c->filp, cmd, a);
+	kpi_user_privileged(1);
 	kpi_user_window(NULL, 0);
 	return r;
 }
