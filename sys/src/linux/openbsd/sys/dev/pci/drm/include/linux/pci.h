@@ -1,4 +1,4 @@
-/*	$OpenBSD: pci.h,v 1.19 2025/02/07 03:03:31 jsg Exp $	*/
+/*	$OpenBSD: pci.h,v 1.26 2026/08/24 03:14:01 jsg Exp $	*/
 /*
  * Copyright (c) 2015 Mark Kettenis
  *
@@ -93,6 +93,7 @@ struct pci_dev {
 #define PCI_MEM64_END	0xffffffffffffffff
 #endif
 
+#define PCI_VENDOR_ID_AMD	PCI_VENDOR_AMD
 #define PCI_VENDOR_ID_APPLE	PCI_VENDOR_APPLE
 #define PCI_VENDOR_ID_ASUSTEK	PCI_VENDOR_ASUSTEK
 #define PCI_VENDOR_ID_ATI	PCI_VENDOR_ATI
@@ -115,6 +116,8 @@ struct pci_dev {
 
 #define pci_dev_put(x)
 
+#define PCI_EXP_TYPE_UPSTREAM	0x5
+#define PCI_EXP_TYPE_DOWNSTREAM	0x6
 #define PCI_EXP_DEVSTA		0x0a
 #define PCI_EXP_DEVSTA_TRPND	(1 << 5)
 #define PCI_EXP_LNKCAP		0x0c
@@ -136,6 +139,8 @@ struct pci_dev {
 #define PCI_COMMAND_MEMORY	PCI_COMMAND_MEM_ENABLE
 
 #define PCI_PRIMARY_BUS		PCI_PRIBUS_1
+
+#define PCI_POSSIBLE_ERROR(r)	((r) == 0xffffffff)
 
 static inline int
 pci_read_config_dword(struct pci_dev *pdev, int reg, u32 *val)
@@ -244,6 +249,16 @@ pci_pcie_cap(struct pci_dev *pdev)
 	    &pos, NULL))
 		return -EINVAL;
 	return pos;
+}
+
+static inline int
+pci_pcie_type(struct pci_dev *pdev)
+{
+	pcireg_t cap = 0;
+
+	pci_get_capability(pdev->pc, pdev->tag, PCI_CAP_PCIEXPRESS,
+	    NULL, &cap);
+	return PCI_PCIE_XCAP_TYPE(cap);
 }
 
 bool pcie_aspm_enabled(struct pci_dev *);
@@ -395,6 +410,12 @@ pci_disable_msi(struct pci_dev *pdev)
 {
 }
 
+static inline bool
+pci_dev_msi_enabled(struct pci_dev *pdev)
+{
+	return pdev->msi_enabled;
+}
+
 typedef enum {
 	PCI_D0,
 	PCI_D1,
@@ -432,7 +453,7 @@ typedef unsigned int pci_channel_state_t;
 
 enum pci_bus_speed pcie_get_speed_cap(struct pci_dev *);
 enum pcie_link_width pcie_get_width_cap(struct pci_dev *);
-int pci_resize_resource(struct pci_dev *, int, int);
+int pci_resize_resource(struct pci_dev *, int, int, int);
 
 static inline void
 pcie_bandwidth_available(struct pci_dev *pdev, struct pci_dev **ldev,
@@ -541,6 +562,8 @@ pci_match_id(const struct pci_device_id *ids, struct pci_dev *pdev)
 	return NULL;
 }
 
+#define PCI_BASE_CLASS_DISPLAY PCI_CLASS_DISPLAY
+
 #define PCI_CLASS_DISPLAY_VGA \
     ((PCI_CLASS_DISPLAY << 8) | PCI_SUBCLASS_DISPLAY_VGA)
 #define PCI_CLASS_DISPLAY_OTHER \
@@ -548,15 +571,75 @@ pci_match_id(const struct pci_device_id *ids, struct pci_dev *pdev)
 #define PCI_CLASS_ACCELERATOR_PROCESSING \
     (PCI_CLASS_ACCELERATOR << 8)
 
-static inline int
+static inline bool
 pci_device_is_present(struct pci_dev *pdev)
 {
-	return 1;
+	return true;
+}
+
+static inline bool
+pci_dev_is_disconnected(struct pci_dev *pdev)
+{
+	return false;
+}
+
+static inline bool 
+dev_is_pci(struct device *dev)
+{
+	return true;
+}
+
+static inline bus_addr_t
+pci_resource_start(struct pci_dev *pdev, int bn)
+{
+	pcireg_t mtype;
+	bus_addr_t start;
+	bus_size_t size;
+	int bar = 0x10 + (bn * 4);
+
+	mtype = pci_mapreg_type(pdev->pc, pdev->tag, bar);
+	if (pci_mapreg_info(pdev->pc, pdev->tag, bar,
+	    mtype, &start, &size, NULL))
+		return 0;
+	return start;
+}
+
+static inline bus_size_t
+pci_resource_len(struct pci_dev *pdev, int bn)
+{
+	pcireg_t mtype;
+	bus_addr_t start;
+	bus_size_t size;
+	int bar = 0x10 + (bn * 4);
+
+	mtype = pci_mapreg_type(pdev->pc, pdev->tag, bar);
+	if (pci_mapreg_info(pdev->pc, pdev->tag, bar,
+	    mtype, &start, &size, NULL))
+		return 0;
+	return size;
 }
 
 static inline int
-dev_is_pci(struct device *dev)
+pci_sriov_get_totalvfs(struct pci_dev *pdev)
 {
-	return 1;
+	return 0;
+}
+
+static inline int
+pci_sriov_set_totalvfs(struct pci_dev *pdev, uint16_t n)
+{
+	return -ENOSYS;
+}
+
+static inline int
+pcim_enable_device(struct pci_dev *pdev)
+{
+	return 0;
+}
+
+static inline const char *
+pci_name(const struct pci_dev *pdev)
+{
+	return pdev->_dev->dv_xname;
 }
 #endif /* _LINUX_PCI_H_ */

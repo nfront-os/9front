@@ -1,4 +1,4 @@
-/*	$OpenBSD: bitmap.h,v 1.8 2024/03/20 22:52:44 bluhm Exp $	*/
+/*	$OpenBSD: bitmap.h,v 1.12 2026/10/20 11:59:12 jsg Exp $	*/
 /*
  * Copyright (c) 2013, 2014, 2015 Mark Kettenis
  *
@@ -63,11 +63,11 @@ bitmap_fill(void *p, u_int n)
 }
 
 static inline void
-bitmap_or(void *d, void *s1, void *s2, u_int n)
+bitmap_or(void *d, const void *s1, const void *s2, u_int n)
 {
 	u_int *dst = d;
-	u_int *src1 = s1;
-	u_int *src2 = s2;
+	const u_int *src1 = s1;
+	const u_int *src2 = s2;
 	u_int b;
 
 	for (b = 0; b < n; b += 32)
@@ -129,9 +129,9 @@ static inline void
 bitmap_to_arr32(void *d, const unsigned long *src, u_int n)
 {
 	u_int *dst = d;
+#ifdef __LP64__
 	u_int b;
 
-#ifdef __LP64__
 	for (b = 0; b < n; b += 32) {
 		dst[b >> 5] = src[b >> 6] & 0xffffffff;
 		b += 32;
@@ -148,10 +148,10 @@ bitmap_to_arr32(void *d, const unsigned long *src, u_int n)
 static inline void
 bitmap_from_arr32(unsigned long *dst, const void *s, u_int n)
 {
+#ifdef __LP64__
 	const u_int *src = s;
 	u_int b;
 
-#ifdef __LP64__
 	for (b = 0; b < n; b += 32) {
 		dst[b >> 6] = src[b >> 5];
 		b += 32;
@@ -199,7 +199,25 @@ bitmap_release_region(void *p, u_int b, int o)
 	__clear_bit(b, p);
 }
 
-void *bitmap_zalloc(u_int, gfp_t);
-void bitmap_free(void *);
+static inline void
+bitmap_shift_right(void *dst, const void *src, unsigned int shift,
+    unsigned int n)
+{
+	u_int *d = dst;
+	const u_int *s = src;
+	u_int b, rem = 0, v;
+
+	for (b = 0; b < n; b += 32) {
+		v = rem << (32 - shift);
+		v |= s[b >> 5] >> shift;
+		rem = s[b >> 5] & ((1 << shift) - 1);
+		d[b >> 5] = v;
+	}
+}
+
+void		*bitmap_zalloc(u_int, gfp_t);
+void		 bitmap_free(void *);
+unsigned long	 bitmap_find_next_zero_area(unsigned long *, unsigned long,
+		     unsigned long, unsigned int, unsigned long);
 
 #endif

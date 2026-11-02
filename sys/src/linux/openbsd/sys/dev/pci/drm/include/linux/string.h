@@ -10,6 +10,8 @@
 #include <sys/errno.h>
 
 #include <linux/compiler.h>
+#include <linux/err.h>
+#include <linux/overflow.h>
 
 void *memchr_inv(const void *, int, size_t);
 
@@ -47,6 +49,11 @@ memset_p(void **p, void *v, size_t n)
 #endif
 }
 
+#define memset_after(type, c, member) ({ \
+	memset(((uint8_t *)(type)) + offsetofend(typeof(*(type)), member), c, \
+	    sizeof(*(type)) - offsetofend(typeof(*(type)), member)); \
+})
+
 static inline void *
 kmemdup(const void *src, size_t len, int flags)
 {
@@ -62,6 +69,49 @@ kmemdup_array(const void *src, size_t nemb, size_t size, int flags)
 	void *p = mallocarray(nemb, size, M_DRM, flags);
 	if (p)
 		memcpy(p, src, nemb * size);
+	return (p);
+}
+
+static inline void *
+memdup_array_user(const void *src, size_t nemb, size_t size)
+{
+	void *p = mallocarray(nemb, size, M_DRM, M_WAITOK | M_CANFAIL);
+	if (p == NULL)
+		return ERR_PTR(-ENOMEM);
+
+	if (copyin(src, p, nemb * size) != 0) {
+		free(p, M_DRM, nemb * size);
+		return ERR_PTR(-EFAULT);
+	}
+	return (p);
+}
+
+static inline void *
+memdup_user(void *src, size_t size)
+{
+	char *p = malloc(size, M_DRM, M_WAITOK | M_CANFAIL);
+	if (p == NULL)
+		return ERR_PTR(-ENOMEM);
+
+	if (copyin(src, p, size) != 0) {
+		free(p, M_DRM, size);
+		return ERR_PTR(-EFAULT);
+	}
+	return (p);
+}
+
+static inline void *
+memdup_user_nul(const void *src, size_t size)
+{
+	char *p = malloc(size + 1, M_DRM, M_WAITOK | M_CANFAIL);
+	if (p == NULL)
+		return ERR_PTR(-ENOMEM);
+
+	if (copyin(src, p, size) != 0) {
+		free(p, M_DRM, size + 1);
+		return ERR_PTR(-EFAULT);
+	}
+	p[size] = '\0';
 	return (p);
 }
 
@@ -120,5 +170,7 @@ strscpy_pad(char *dst, const char *src, size_t dstsize)
 	memset(dst, 0, dstsize);
 	return strscpy(dst, src, dstsize);
 }
+
+void *vmemdup_array_user(const void *, size_t, size_t);
 
 #endif

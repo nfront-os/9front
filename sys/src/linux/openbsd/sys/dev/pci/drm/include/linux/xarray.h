@@ -4,6 +4,7 @@
 #define _LINUX_XARRAY_H
 
 #include <linux/gfp.h>
+#include <linux/sched/mm.h>
 
 #include <sys/tree.h>
 
@@ -29,12 +30,16 @@ struct xarray {
 	SPLAY_HEAD(xarray_tree, xarray_entry) xa_tree;
 };
 
-#define DEFINE_XARRAY_ALLOC(name)				\
+#define DEFINE_XARRAY_FLAGS(name, flags)			\
 	struct xarray name = {					\
-		.xa_flags = XA_FLAGS_ALLOC,			\
-		.xa_lock = MUTEX_INITIALIZER(IPL_NONE),		\
+		.xa_flags = flags,				\
+		.xa_lock = MUTEX_INITIALIZER(((flags) & XA_FLAGS_LOCK_IRQ) ? \
+		    IPL_TTY : IPL_NONE),			\
 		.xa_tree = SPLAY_INITIALIZER(&name.xa_tree)	\
 	}
+
+#define DEFINE_XARRAY_ALLOC(name)				\
+	DEFINE_XARRAY_FLAGS(name, XA_FLAGS_ALLOC)
 
 struct xarray_range {
 	uint32_t start;
@@ -198,7 +203,7 @@ xa_init(struct xarray *xa)
 }
 
 static inline int
-xa_alloc_cyclic_irq(struct xarray *xa, u32 *id, void *entry,
+xa_alloc_cyclic(struct xarray *xa, u32 *id, void *entry,
     struct xarray_range xr, u32 *next, gfp_t gfp)    
 {
 	int r;
@@ -206,5 +211,12 @@ xa_alloc_cyclic_irq(struct xarray *xa, u32 *id, void *entry,
 	r = __xa_alloc_cyclic(xa, id, entry, xr, next, gfp);
 	mtx_leave(&xa->xa_lock);
 	return r;
+}
+
+static inline int
+xa_alloc_cyclic_irq(struct xarray *xa, u32 *id, void *entry,
+    struct xarray_range xr, u32 *next, gfp_t gfp)    
+{
+	return xa_alloc_cyclic(xa, id, entry, xr, next, gfp);
 }
 #endif

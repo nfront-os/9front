@@ -24,6 +24,13 @@ usleep_range(unsigned long min, unsigned long max)
 	DELAY((min + max) / 2);
 }
 
+/* XXX assumes state is TASK_UNINTERRUPTIBLE */
+static inline void
+usleep_range_state(unsigned long min, unsigned long max, unsigned int state)
+{
+	usleep_range(min, max);
+}
+
 static inline void
 mdelay(unsigned long msecs)
 {
@@ -49,5 +56,8 @@ msleep_interruptible(unsigned int msecs)
 		return 1;
 	return 0;
 }
+
+/* INT_MAX / 1000, delay() has an int microseconds arg */
+#define MAX_UDELAY_MS 2147483
 
 #endif

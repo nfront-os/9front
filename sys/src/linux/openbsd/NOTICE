@@ -1,4 +1,4 @@
-sys/src/linux/openbsd holds files of OpenBSD (git 618e88196c54f99b9a025c6eee0cd0422dd31d0d), unchanged, each
+sys/src/linux/openbsd holds files of OpenBSD (git a9becb03c6c0505769770dcb5fd65cf05d4f68f2), unchanged, each
 under its own notice; they follow, each once, with the files they cover.
 Our LinuxKPI (sys/src/linux/kpi) is derived from them and keeps the
 notices in the derived files.
@@ -24,8 +24,10 @@ notices in the derived files.
 ==== sys/dev/pci/drm/include/asm/fpu/api.h
 ==== sys/dev/pci/drm/include/asm/hypervisor.h
 ==== sys/dev/pci/drm/include/asm/iosf_mbi.h
+==== sys/dev/pci/drm/include/asm/page.h
 ==== sys/dev/pci/drm/include/asm/pgtable.h
 ==== sys/dev/pci/drm/include/asm/preempt.h
+==== sys/dev/pci/drm/include/asm/rwonce.h
 ==== sys/dev/pci/drm/include/asm/smp.h
 ==== sys/dev/pci/drm/include/asm/thread_info.h
 ==== sys/dev/pci/drm/include/drm/drm_accel.h
@@ -49,17 +51,23 @@ notices in the derived files.
 ==== sys/dev/pci/drm/include/linux/align.h
 ==== sys/dev/pci/drm/include/linux/apple-gmux.h
 ==== sys/dev/pci/drm/include/linux/args.h
+==== sys/dev/pci/drm/include/linux/array_size.h
 ==== sys/dev/pci/drm/include/linux/async.h
+==== sys/dev/pci/drm/include/linux/auxiliary_bus.h
 ==== sys/dev/pci/drm/include/linux/average.h
 ==== sys/dev/pci/drm/include/linux/backlight.h
 ==== sys/dev/pci/drm/include/linux/bitfield.h
 ==== sys/dev/pci/drm/include/linux/bottom_half.h
 ==== sys/dev/pci/drm/include/linux/build_bug.h
+==== sys/dev/pci/drm/include/linux/cache.h
 ==== sys/dev/pci/drm/include/linux/capability.h
 ==== sys/dev/pci/drm/include/linux/cc_platform.h
+==== sys/dev/pci/drm/include/linux/cgroup_dmem.h
 ==== sys/dev/pci/drm/include/linux/circ_buf.h
+==== sys/dev/pci/drm/include/linux/cleanup.h
 ==== sys/dev/pci/drm/include/linux/clk.h
 ==== sys/dev/pci/drm/include/linux/compiler.h
+==== sys/dev/pci/drm/include/linux/compiler_types.h
 ==== sys/dev/pci/drm/include/linux/component.h
 ==== sys/dev/pci/drm/include/linux/console.h
 ==== sys/dev/pci/drm/include/linux/container_of.h
@@ -67,20 +75,26 @@ notices in the derived files.
 ==== sys/dev/pci/drm/include/linux/cpufreq.h
 ==== sys/dev/pci/drm/include/linux/cpumask.h
 ==== sys/dev/pci/drm/include/linux/debugfs.h
+==== sys/dev/pci/drm/include/linux/debugobjects.h
 ==== sys/dev/pci/drm/include/linux/delay.h
+==== sys/dev/pci/drm/include/linux/designware_i2c.h
 ==== sys/dev/pci/drm/include/linux/device.h
 ==== sys/dev/pci/drm/include/linux/device/bus.h
+==== sys/dev/pci/drm/include/linux/device/driver.h
 ==== sys/dev/pci/drm/include/linux/dma-direction.h
 ==== sys/dev/pci/drm/include/linux/dma-fence-array.h
 ==== sys/dev/pci/drm/include/linux/dma-fence-chain.h
+==== sys/dev/pci/drm/include/linux/dma-fence-unwrap.h
 ==== sys/dev/pci/drm/include/linux/dma-fence.h
 ==== sys/dev/pci/drm/include/linux/dma-mapping.h
 ==== sys/dev/pci/drm/include/linux/dmi.h
 ==== sys/dev/pci/drm/include/linux/dynamic_debug.h
 ==== sys/dev/pci/drm/include/linux/err.h
 ==== sys/dev/pci/drm/include/linux/errno.h
+==== sys/dev/pci/drm/include/linux/error-injection.h
 ==== sys/dev/pci/drm/include/linux/eventfd.h
 ==== sys/dev/pci/drm/include/linux/export.h
+==== sys/dev/pci/drm/include/linux/fault-inject.h
 ==== sys/dev/pci/drm/include/linux/fb.h
 ==== sys/dev/pci/drm/include/linux/file.h
 ==== sys/dev/pci/drm/include/linux/firmware.h
@@ -92,6 +106,7 @@ notices in the derived files.
 ==== sys/dev/pci/drm/include/linux/gpio/consumer.h
 ==== sys/dev/pci/drm/include/linux/hardirq.h
 ==== sys/dev/pci/drm/include/linux/hash.h
+==== sys/dev/pci/drm/include/linux/hmm.h
 ==== sys/dev/pci/drm/include/linux/hrtimer.h
 ==== sys/dev/pci/drm/include/linux/init.h
 ==== sys/dev/pci/drm/include/linux/interrupt.h
@@ -126,7 +141,9 @@ notices in the derived files.
 ==== sys/dev/pci/drm/include/linux/math.h
 ==== sys/dev/pci/drm/include/linux/math64.h
 ==== sys/dev/pci/drm/include/linux/mempolicy.h
+==== sys/dev/pci/drm/include/linux/mempool.h
 ==== sys/dev/pci/drm/include/linux/memremap.h
+==== sys/dev/pci/drm/include/linux/minmax.h
 ==== sys/dev/pci/drm/include/linux/mm.h
 ==== sys/dev/pci/drm/include/linux/mm_types.h
 ==== sys/dev/pci/drm/include/linux/mmu_notifier.h
@@ -147,6 +164,7 @@ notices in the derived files.
 ==== sys/dev/pci/drm/include/linux/overflow.h
 ==== sys/dev/pci/drm/include/linux/pagemap.h
 ==== sys/dev/pci/drm/include/linux/pagevec.h
+==== sys/dev/pci/drm/include/linux/panic.h
 ==== sys/dev/pci/drm/include/linux/perf_event.h
 ==== sys/dev/pci/drm/include/linux/pgtable.h
 ==== sys/dev/pci/drm/include/linux/phy/phy.h
@@ -171,11 +189,13 @@ notices in the derived files.
 ==== sys/dev/pci/drm/include/linux/reboot.h
 ==== sys/dev/pci/drm/include/linux/ref_tracker.h
 ==== sys/dev/pci/drm/include/linux/refcount.h
+==== sys/dev/pci/drm/include/linux/regmap.h
 ==== sys/dev/pci/drm/include/linux/rwlock_types.h
 ==== sys/dev/pci/drm/include/linux/rwsem.h
 ==== sys/dev/pci/drm/include/linux/sched/clock.h
 ==== sys/dev/pci/drm/include/linux/sched/mm.h
 ==== sys/dev/pci/drm/include/linux/sched/signal.h
+==== sys/dev/pci/drm/include/linux/sched/task.h
 ==== sys/dev/pci/drm/include/linux/sem.h
 ==== sys/dev/pci/drm/include/linux/semaphore.h
 ==== sys/dev/pci/drm/include/linux/seq_buf.h
@@ -190,17 +210,21 @@ notices in the derived files.
 ==== sys/dev/pci/drm/include/linux/sort.h
 ==== sys/dev/pci/drm/include/linux/spinlock.h
 ==== sys/dev/pci/drm/include/linux/spinlock_types.h
+==== sys/dev/pci/drm/include/linux/sprintf.h
 ==== sys/dev/pci/drm/include/linux/srcu.h
 ==== sys/dev/pci/drm/include/linux/stackdepot.h
+==== sys/dev/pci/drm/include/linux/stat.h
 ==== sys/dev/pci/drm/include/linux/stdarg.h
 ==== sys/dev/pci/drm/include/linux/stddef.h
 ==== sys/dev/pci/drm/include/linux/stop_machine.h
 ==== sys/dev/pci/drm/include/linux/string.h
+==== sys/dev/pci/drm/include/linux/string_choices.h
 ==== sys/dev/pci/drm/include/linux/string_helpers.h
 ==== sys/dev/pci/drm/include/linux/stringify.h
 ==== sys/dev/pci/drm/include/linux/suspend.h
 ==== sys/dev/pci/drm/include/linux/swap.h
 ==== sys/dev/pci/drm/include/linux/sync_file.h
+==== sys/dev/pci/drm/include/linux/sysctl.h
 ==== sys/dev/pci/drm/include/linux/sysfs.h
 ==== sys/dev/pci/drm/include/linux/sysrq.h
 ==== sys/dev/pci/drm/include/linux/thread_info.h
@@ -219,6 +243,7 @@ notices in the derived files.
 ==== sys/dev/pci/drm/include/media/cec-notifier.h
 ==== sys/dev/pci/drm/include/sound/pcm.h
 ==== sys/dev/pci/drm/include/trace/events/dma_fence.h
+==== sys/dev/pci/drm/include/trace/events/gpu_mem.h
 ==== sys/dev/pci/drm/include/uapi/linux/media-bus-format.h
 ==== sys/dev/pci/drm/include/video/cmdline.h
 ==== sys/dev/pci/drm/include/video/mipi_display.h
@@ -228,7 +253,7 @@ notices in the derived files.
 /* Public domain. */
 
 ==== sys/dev/pci/drm/drm_linux.c
-/*	$OpenBSD: drm_linux.c,v 1.120 2025/02/07 03:03:08 jsg Exp $	*/
+/*	$OpenBSD: drm_linux.c,v 1.149 2026/10/20 11:59:12 jsg Exp $	*/
 /*
  * Copyright (c) 2013 Jonathan Gray <jsg@openbsd.org>
  * Copyright (c) 2015, 2016 Mark Kettenis <kettenis@openbsd.org>
@@ -268,7 +293,7 @@ notices in the derived files.
 /* SPDX-License-Identifier: MIT */
 
 ==== sys/dev/pci/drm/include/linux/atomic.h
-/* $OpenBSD: atomic.h,v 1.25 2025/02/07 03:03:31 jsg Exp $ */
+/* $OpenBSD: atomic.h,v 1.34 2026/08/19 01:34:10 jsg Exp $ */
 /**
  * \file drm_atomic.h
  * Atomic operations used in the DRM which may or may not be provided by the OS.
@@ -300,7 +325,7 @@ notices in the derived files.
  */
 
 ==== sys/dev/pci/drm/include/linux/bitmap.h
-/*	$OpenBSD: bitmap.h,v 1.8 2024/03/20 22:52:44 bluhm Exp $	*/
+/*	$OpenBSD: bitmap.h,v 1.12 2026/10/20 11:59:12 jsg Exp $	*/
 /*
  * Copyright (c) 2013, 2014, 2015 Mark Kettenis
  *
@@ -318,7 +343,7 @@ notices in the derived files.
  */
 
 ==== sys/dev/pci/drm/include/linux/bitops.h
-/*	$OpenBSD: bitops.h,v 1.6 2025/02/07 03:03:31 jsg Exp $	*/
+/*	$OpenBSD: bitops.h,v 1.7 2025/03/06 02:50:20 jsg Exp $	*/
 /*
  * Copyright (c) 2013, 2014, 2015 Mark Kettenis
  *
@@ -333,6 +358,13 @@ notices in the derived files.
  * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ */
+
+==== sys/dev/pci/drm/include/linux/bits.h
+/* from i915_reg_defs.h */
+/* SPDX-License-Identifier: MIT */
+/*
+ * Copyright © 2022 Intel Corporation
  */
 
 ==== sys/dev/pci/drm/include/linux/bsearch.h
@@ -385,7 +417,7 @@ notices in the derived files.
  */
 
 ==== sys/dev/pci/drm/include/linux/completion.h
-/*	$OpenBSD: completion.h,v 1.10 2024/01/06 09:33:08 kettenis Exp $	*/
+/*	$OpenBSD: completion.h,v 1.11 2026/08/19 01:34:10 jsg Exp $	*/
 /*
  * Copyright (c) 2015, 2018 Mark Kettenis
  *
@@ -403,7 +435,7 @@ notices in the derived files.
  */
 
 ==== sys/dev/pci/drm/include/linux/ctype.h
-/*	$OpenBSD: ctype.h,v 1.2 2025/02/07 03:03:31 jsg Exp $	*/
+/*	$OpenBSD: ctype.h,v 1.3 2026/03/09 23:58:03 jsg Exp $	*/
 /*
  * Copyright (c) 2015 Mark Kettenis
  *
@@ -421,7 +453,7 @@ notices in the derived files.
  */
 
 ==== sys/dev/pci/drm/include/linux/dma-buf.h
-/*	$OpenBSD: dma-buf.h,v 1.5 2025/02/07 03:03:31 jsg Exp $	*/
+/*	$OpenBSD: dma-buf.h,v 1.6 2026/08/19 01:34:10 jsg Exp $	*/
 /*
  * Copyright (c) 2018 Mark Kettenis
  *
@@ -508,8 +540,14 @@ notices in the derived files.
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+==== sys/dev/pci/drm/include/linux/gpu_buddy.h
+/* SPDX-License-Identifier: MIT */
+/*
+ * Copyright © 2021 Intel Corporation
+ */
+
 ==== sys/dev/pci/drm/include/linux/hashtable.h
-/*	$OpenBSD: hashtable.h,v 1.2 2020/06/08 04:48:14 jsg Exp $	*/
+/*	$OpenBSD: hashtable.h,v 1.3 2026/03/09 23:58:03 jsg Exp $	*/
 /*
  * Copyright (c) 2017 Mark Kettenis
  *
@@ -551,7 +589,7 @@ notices in the derived files.
  */
 
 ==== sys/dev/pci/drm/include/linux/highmem.h
-/*	$OpenBSD: highmem.h,v 1.5 2025/02/07 03:03:31 jsg Exp $	*/
+/*	$OpenBSD: highmem.h,v 1.6 2026/03/09 23:58:03 jsg Exp $	*/
 /*
  * Copyright (c) 2013, 2014, 2015 Mark Kettenis
  *
@@ -569,7 +607,7 @@ notices in the derived files.
  */
 
 ==== sys/dev/pci/drm/include/linux/i2c.h
-/*	$OpenBSD: i2c.h,v 1.8 2023/03/21 09:44:35 jsg Exp $	*/
+/*	$OpenBSD: i2c.h,v 1.9 2026/03/09 23:58:03 jsg Exp $	*/
 /*
  * Copyright (c) 2017 Mark Kettenis
  *
@@ -587,7 +625,7 @@ notices in the derived files.
  */
 
 ==== sys/dev/pci/drm/include/linux/idr.h
-/*	$OpenBSD: idr.h,v 1.7 2025/02/07 03:03:31 jsg Exp $	*/
+/*	$OpenBSD: idr.h,v 1.10 2026/04/07 09:11:15 jsg Exp $	*/
 /*
  * Copyright (c) 2016 Mark Kettenis
  *
@@ -641,7 +679,7 @@ notices in the derived files.
  */
 
 ==== sys/dev/pci/drm/include/linux/ktime.h
-/*	$OpenBSD: ktime.h,v 1.8 2024/03/28 02:36:38 jsg Exp $	*/
+/*	$OpenBSD: ktime.h,v 1.10 2026/06/02 03:11:32 jsg Exp $	*/
 /*
  * Copyright (c) 2013, 2014, 2015 Mark Kettenis
  *
@@ -659,7 +697,7 @@ notices in the derived files.
  */
 
 ==== sys/dev/pci/drm/include/linux/list.h
-/*	$OpenBSD: list.h,v 1.8 2024/01/16 23:38:13 jsg Exp $	*/
+/*	$OpenBSD: list.h,v 1.9 2026/03/09 23:58:03 jsg Exp $	*/
 /* drm_linux_list.h -- linux list functions for the BSDs.
  * Created: Mon Apr 7 14:30:16 1999 by anholt@FreeBSD.org
  */
@@ -692,7 +730,7 @@ notices in the derived files.
  */
 
 ==== sys/dev/pci/drm/include/linux/pci.h
-/*	$OpenBSD: pci.h,v 1.19 2025/02/07 03:03:31 jsg Exp $	*/
+/*	$OpenBSD: pci.h,v 1.26 2026/08/24 03:14:01 jsg Exp $	*/
 /*
  * Copyright (c) 2015 Mark Kettenis
  *
@@ -772,7 +810,7 @@ notices in the derived files.
  */
 
 ==== sys/dev/pci/drm/include/linux/scatterlist.h
-/*	$OpenBSD: scatterlist.h,v 1.7 2024/01/06 09:33:08 kettenis Exp $	*/
+/*	$OpenBSD: scatterlist.h,v 1.13 2026/09/15 01:24:06 jsg Exp $	*/
 /*
  * Copyright (c) 2013, 2014, 2015 Mark Kettenis
  *
@@ -790,7 +828,7 @@ notices in the derived files.
  */
 
 ==== sys/dev/pci/drm/include/linux/sched.h
-/*	$OpenBSD: sched.h,v 1.5 2023/03/21 09:44:35 jsg Exp $	*/
+/*	$OpenBSD: sched.h,v 1.6 2026/08/06 10:25:10 jsg Exp $	*/
 /*
  * Copyright (c) 2013, 2014, 2015 Mark Kettenis
  *
@@ -808,7 +846,7 @@ notices in the derived files.
  */
 
 ==== sys/dev/pci/drm/include/linux/time.h
-/*	$OpenBSD: time.h,v 1.5 2024/01/06 09:33:08 kettenis Exp $	*/
+/*	$OpenBSD: time.h,v 1.6 2026/08/06 10:25:10 jsg Exp $	*/
 /*
  * Copyright (c) 2013, 2014, 2015 Mark Kettenis
  *
@@ -826,7 +864,7 @@ notices in the derived files.
  */
 
 ==== sys/dev/pci/drm/include/linux/timer.h
-/*	$OpenBSD: timer.h,v 1.9 2024/01/16 23:38:13 jsg Exp $	*/
+/*	$OpenBSD: timer.h,v 1.11 2026/08/18 00:53:37 jsg Exp $	*/
 /*
  * Copyright (c) 2013, 2014, 2015 Mark Kettenis
  *
@@ -844,7 +882,7 @@ notices in the derived files.
  */
 
 ==== sys/dev/pci/drm/include/linux/uaccess.h
-/*	$OpenBSD: uaccess.h,v 1.7 2022/02/01 04:09:14 jsg Exp $	*/
+/*	$OpenBSD: uaccess.h,v 1.9 2026/08/18 00:53:37 jsg Exp $	*/
 /*
  * Copyright (c) 2015 Mark Kettenis
  *
@@ -861,8 +899,34 @@ notices in the derived files.
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+==== sys/dev/pci/drm/include/linux/util_macros.h
+/*
+ * Internal Header for the Direct Rendering Manager
+ *
+ * Copyright 2018 Intel Corporation
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice (including the next
+ * paragraph) shall be included in all copies or substantial portions of the
+ * Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
+ * VA LINUX SYSTEMS AND/OR ITS SUPPLIERS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+ * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ */
+
 ==== sys/dev/pci/drm/include/linux/vmalloc.h
-/*	$OpenBSD: vmalloc.h,v 1.7 2024/03/20 02:42:17 jsg Exp $	*/
+/*	$OpenBSD: vmalloc.h,v 1.8 2026/03/09 23:58:03 jsg Exp $	*/
 /*
  * Copyright (c) 2013, 2014, 2015 Mark Kettenis
  *
@@ -880,7 +944,7 @@ notices in the derived files.
  */
 
 ==== sys/dev/pci/drm/include/linux/wait.h
-/*	$OpenBSD: wait.h,v 1.12 2025/02/07 03:03:31 jsg Exp $	*/
+/*	$OpenBSD: wait.h,v 1.15 2025/12/01 09:25:03 jsg Exp $	*/
 /*
  * Copyright (c) 2013, 2014, 2015 Mark Kettenis
  * Copyright (c) 2017 Martin Pieuchot
@@ -899,7 +963,25 @@ notices in the derived files.
  */
 
 ==== sys/dev/pci/drm/include/linux/workqueue.h
-/*	$OpenBSD: workqueue.h,v 1.12 2025/02/07 03:03:31 jsg Exp $	*/
+/*	$OpenBSD: workqueue.h,v 1.13 2026/08/06 05:31:03 jsg Exp $	*/
+/*
+ * Copyright (c) 2015 Mark Kettenis
+ *
+ * Permission to use, copy, modify, and distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ */
+
+==== sys/dev/pci/drm/include/linux/workqueue_types.h
+/*	$OpenBSD: workqueue_types.h,v 1.1 2026/08/06 05:31:03 jsg Exp $	*/
 /*
  * Copyright (c) 2015 Mark Kettenis
  *
@@ -1080,7 +1162,7 @@ notices in the derived files.
  */
 
 ==== sys/sys/queue.h
-/*	$OpenBSD: queue.h,v 1.46 2020/12/30 13:33:12 millert Exp $	*/
+/*	$OpenBSD: queue.h,v 1.47 2026/06/12 01:04:42 millert Exp $	*/
 /*	$NetBSD: queue.h,v 1.11 1996/05/16 05:17:14 mycroft Exp $	*/
 /*
  * Copyright (c) 1991, 1993

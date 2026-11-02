@@ -1,1 +1,1 @@
-618e88196c54f99b9a025c6eee0cd0422dd31d0d  OpenBSD src, 2025-02-07: last state before "update drm to linux 6.12.12" (drm = Linux 6.6.x)
+a9becb03c6c0505769770dcb5fd65cf05d4f68f2  OpenBSD src, 2026-10-29: drm = Linux 6.18.40 (the template for the LinuxKPI of Linux 7.3; until 2026-11-02 618e88196c54f99b9a025c6eee0cd0422dd31d0d, the state before "update drm to linux 6.12.12", for Linux 6.6)

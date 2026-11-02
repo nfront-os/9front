@@ -4,11 +4,6 @@
 #define _LINUX_FB_H
 
 #include <sys/types.h>
-#include <linux/slab.h>
-#include <linux/notifier.h>
-#include <linux/backlight.h>
-#include <linux/kgdb.h>
-#include <linux/fs.h>
 #include <linux/i2c.h> /* via uapi/linux/fb.h */
 
 struct fb_cmap;
@@ -18,6 +13,7 @@ struct fb_image;
 struct fb_info;
 
 struct apertures_struct;
+struct backlight_device;
 
 struct fb_var_screeninfo {
 	int pixclock;
@@ -29,6 +25,7 @@ struct fb_var_screeninfo {
 
 struct fb_ops {
 	int (*fb_set_par)(struct fb_info *);
+	int (*fb_blank)(int, struct fb_info *);
 };
 
 struct fb_fix_screeninfo {
@@ -95,6 +92,15 @@ static inline int
 fb_get_options(const char *name, char **opt)
 {
 	return 0;
+}
+
+static inline int
+fb_blank(struct fb_info *fbi, int b)
+{
+	int r = 0;
+	if (fbi->fbops && fbi->fbops->fb_blank)
+		r = fbi->fbops->fb_blank(b, fbi);
+	return r;
 }
 
 static inline int
