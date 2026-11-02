@@ -32,7 +32,12 @@ i915_error_read(char *buf, long n, long long off)
 
 	if (!i)
 		return -ENODEV;
-	gpu = i915_first_error_state(i);
+	/* the first captured state, with a reference (i915_first_error_state, static in Linux 7.3) */
+	spin_lock_irq(&i->gpu_error.lock);
+	gpu = i->gpu_error.first_error;
+	if (!IS_ERR_OR_NULL(gpu))
+		i915_gpu_coredump_get(gpu);
+	spin_unlock_irq(&i->gpu_error.lock);
 	if (IS_ERR(gpu))
 		return PTR_ERR(gpu);
 	if (gpu) {

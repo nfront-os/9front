@@ -295,8 +295,9 @@ placeok(struct gctx *c, struct bo *self, u64 gpu, u64 size)
 {
 	int i;
 
-	if (gpu & (AMDGPU_GPU_PAGE_SIZE - 1) || gpu < AMDGPU_VA_RESERVED_SIZE ||
-	    gpu + size > VAEND || gpu + size < gpu)
+	/* Linux 7.3: reserved at the bottom and, for CSA, seq64 and the trap handler, at the top */
+	if (gpu & (AMDGPU_GPU_PAGE_SIZE - 1) || gpu < AMDGPU_VA_RESERVED_BOTTOM ||
+	    gpu + size > VAEND - AMDGPU_VA_RESERVED_TOP || gpu + size < gpu)
 		return false;
 	for (i = 0; i < c->nbo; i++) {
 		struct bo *b = &c->bo[i];

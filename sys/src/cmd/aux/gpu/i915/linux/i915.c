@@ -17,11 +17,16 @@
 int	kpi_init_i915_init(void);
 int	kpi_init_st_init(void);	/* drivers/dma-buf/selftest.c */
 extern int kpi_loglevel;
+void	kpi_constructors(void);
+int	kpi_param_set(const char *);
 
 void
 i915_options(int nodisplay, unsigned long drmdebug, int loglevel)
 {
-	i915_modparams.disable_display = nodisplay;
+	/* Linux 7.3: a parameter of the display code (intel_display_params.c), copied at probe */
+	kpi_constructors();
+	if (nodisplay && kpi_param_set("disable_display=1") < 0)
+		pr_err("i915: no parameter disable_display\n");
 	__drm_debug = drmdebug;
 	kpi_loglevel = loglevel;
 }
