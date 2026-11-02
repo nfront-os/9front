@@ -245,7 +245,64 @@ kms_prime(struct file *from, u32 handle, struct file *to, u32 *out)
 	return 0;
 }
 
-/* flip to fb and wait until the display shows it (the event) */
+/*
+ * fb on the CRTC in its present mode, on the connectors it drives, as a
+ * full modeset (SETCRTC, returns when the display shows it): the state
+ * i915 read from the firmware's mode does not always allow a page flip
+ * ("requires full modeset", the flip's atomic check then -EINVAL); on
+ * Linux the display server or fbdev sets the mode once at the start
+ */
+static bool relit;
+
+static int
+relight(u32 fb)
+{
+	struct drm_mode_card_res res = { };
+	struct drm_mode_get_connector gc;
+	struct drm_mode_get_encoder enc;
+	struct drm_mode_crtc c = { .crtc_id = crtc_id };
+	u32 conns[16], use[16];
+	unsigned int i, n;
+	int r;
+
+	r = kioctl(kms, DRM_IOCTL_MODE_GETCRTC, &c);
+	if (r)
+		return r;
+	if (!c.mode_valid)
+		return -EINVAL;
+	res.connector_id_ptr = (u64)(uintptr_t)conns;
+	res.count_connectors = ARRAY_SIZE(conns);
+	r = kioctl(kms, DRM_IOCTL_MODE_GETRESOURCES, &res);
+	if (r)
+		return r;
+	n = 0;
+	for (i = 0; i < res.count_connectors && i < ARRAY_SIZE(conns); i++) {
+		memset(&gc, 0, sizeof(gc));
+		gc.connector_id = conns[i];
+		if (kioctl(kms, DRM_IOCTL_MODE_GETCONNECTOR, &gc) || !gc.encoder_id)
+			continue;
+		memset(&enc, 0, sizeof(enc));
+		enc.encoder_id = gc.encoder_id;
+		if (kioctl(kms, DRM_IOCTL_MODE_GETENCODER, &enc) || enc.crtc_id != crtc_id)
+			continue;
+		use[n++] = conns[i];
+	}
+	if (n == 0)
+		return -ENODEV;
+	c.fb_id = fb;
+	c.x = c.y = 0;
+	c.set_connectors_ptr = (u64)(uintptr_t)use;
+	c.count_connectors = n;
+	r = kioctl(kms, DRM_IOCTL_MODE_SETCRTC, &c);
+	if (r == 0)
+		relit = true;
+	return r;
+}
+
+/*
+ * flip to fb and wait until the display shows it (the event); once, if
+ * the CRTC needs a full modeset first, set the mode with fb instead
+ */
 static int
 flip(u32 fb)
 {
@@ -255,6 +312,8 @@ flip(u32 fb)
 	int r;
 
 	r = kioctl(kms, DRM_IOCTL_MODE_PAGE_FLIP, &f);
+	if (r == -EINVAL && !relit)
+		return relight(fb);
 	if (r)
 		return r;
 	r = drm_read(kms, (char __user *)ev, sizeof(ev), &pos);
