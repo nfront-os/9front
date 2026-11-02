@@ -209,6 +209,38 @@ and all of them in openbsd/NOTICE).
 * Copyright © 2021 Advanced Micro Devices, Inc.
 */
 
+==== drivers/gpu/buddy.c
+==== drivers/gpu/drm/drm_buddy.c
+==== drivers/gpu/drm/drm_displayid.c
+==== drivers/gpu/drm/i915/display/intel_backlight.c
+==== drivers/gpu/drm/i915/display/intel_drrs.c
+==== drivers/gpu/drm/i915/display/intel_fb.c
+==== drivers/gpu/drm/i915/display/intel_pch_display.c
+==== drivers/gpu/drm/i915/display/intel_pch_refclk.c
+==== drivers/gpu/drm/i915/display/intel_qp_tables.c
+==== drivers/gpu/drm/i915/gem/i915_gem_ttm.c
+==== drivers/gpu/drm/i915/gem/i915_gem_ttm_move.c
+==== drivers/gpu/drm/i915/gem/i915_gem_ttm_pm.c
+==== drivers/gpu/drm/i915/gt/intel_sa_media.c
+==== drivers/gpu/drm/i915/gt/selftest_slpc.c
+==== drivers/gpu/drm/i915/gt/uc/intel_guc_rc.c
+==== drivers/gpu/drm/i915/gt/uc/intel_guc_slpc.c
+==== drivers/gpu/drm/i915/gt/uc/selftest_guc.c
+==== drivers/gpu/drm/i915/i915_deps.c
+==== drivers/gpu/drm/i915/i915_dpt.c
+==== drivers/gpu/drm/i915/i915_fb_pin.c
+==== drivers/gpu/drm/i915/i915_initial_plane.c
+==== drivers/gpu/drm/i915/i915_mitigations.c
+==== drivers/gpu/drm/i915/i915_ttm_buddy_manager.c
+==== drivers/gpu/drm/i915/i915_vma_resource.c
+==== drivers/gpu/drm/i915/intel_region_ttm.c
+==== drivers/gpu/drm/i915/pxp/intel_pxp_debugfs.c
+==== drivers/gpu/drm/i915/selftests/intel_scheduler_helpers.c
+// SPDX-License-Identifier: MIT
+/*
+ * Copyright © 2021 Intel Corporation
+ */
+
 ==== drivers/gpu/drm/amd/acp/acp_hw.c
 ==== drivers/gpu/drm/amd/acp/include/acp_gfx_if.h
 ==== drivers/gpu/drm/amd/amdgpu/dce_v6_0.c
@@ -22353,37 +22385,6 @@ and all of them in openbsd/NOTICE).
  * DEALINGS IN THE SOFTWARE.
  */
 
-==== drivers/gpu/drm/drm_buddy.c
-==== drivers/gpu/drm/drm_displayid.c
-==== drivers/gpu/drm/i915/display/intel_backlight.c
-==== drivers/gpu/drm/i915/display/intel_drrs.c
-==== drivers/gpu/drm/i915/display/intel_fb.c
-==== drivers/gpu/drm/i915/display/intel_pch_display.c
-==== drivers/gpu/drm/i915/display/intel_pch_refclk.c
-==== drivers/gpu/drm/i915/display/intel_qp_tables.c
-==== drivers/gpu/drm/i915/gem/i915_gem_ttm.c
-==== drivers/gpu/drm/i915/gem/i915_gem_ttm_move.c
-==== drivers/gpu/drm/i915/gem/i915_gem_ttm_pm.c
-==== drivers/gpu/drm/i915/gt/intel_sa_media.c
-==== drivers/gpu/drm/i915/gt/selftest_slpc.c
-==== drivers/gpu/drm/i915/gt/uc/intel_guc_rc.c
-==== drivers/gpu/drm/i915/gt/uc/intel_guc_slpc.c
-==== drivers/gpu/drm/i915/gt/uc/selftest_guc.c
-==== drivers/gpu/drm/i915/i915_deps.c
-==== drivers/gpu/drm/i915/i915_dpt.c
-==== drivers/gpu/drm/i915/i915_fb_pin.c
-==== drivers/gpu/drm/i915/i915_initial_plane.c
-==== drivers/gpu/drm/i915/i915_mitigations.c
-==== drivers/gpu/drm/i915/i915_ttm_buddy_manager.c
-==== drivers/gpu/drm/i915/i915_vma_resource.c
-==== drivers/gpu/drm/i915/intel_region_ttm.c
-==== drivers/gpu/drm/i915/pxp/intel_pxp_debugfs.c
-==== drivers/gpu/drm/i915/selftests/intel_scheduler_helpers.c
-// SPDX-License-Identifier: MIT
-/*
- * Copyright © 2021 Intel Corporation
- */
-
 ==== drivers/gpu/drm/drm_cache.c
 /**************************************************************************
  *
@@ -24267,6 +24268,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ==== drivers/gpu/drm/i915/selftests/intel_scheduler_helpers.h
 ==== include/drm/drm_buddy.h
 ==== include/drm/ttm/ttm_kmap_iter.h
+==== include/linux/gpu_buddy.h
 /* SPDX-License-Identifier: MIT */
 /*
  * Copyright © 2021 Intel Corporation
