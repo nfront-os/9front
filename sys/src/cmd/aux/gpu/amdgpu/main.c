@@ -1,7 +1,7 @@
 /*
  * SPDX-License-Identifier: MIT
  *
- * aux/amdgpu: Linux 6.6's amdgpu driver on the LinuxKPI (sys/src/linux),
+ * aux/amdgpu: Linux 7.3's amdgpu driver on the LinuxKPI (sys/src/linux),
  * for gpu(4).  This first part starts the KPI, DRM's core, the DRM
  * scheduler and amdgpu, which probes the device of #G (the video BIOS,
  * the firmware from /lib/firmware/amdgpu, the IP blocks), prints what

@@ -433,7 +433,7 @@ and
 check the hardware and the driver.
 .SS i915
 .I I915
-is Linux 6.6's i915 driver, nearly unchanged, on a layer of Linux's
+is Linux 7.3's i915 driver, nearly unchanged, on a layer of Linux's
 kernel interfaces over 9front's
 .RB ( /sys/src/linux ),
 as a library of this file server: every Intel generation i915 drives.
@@ -520,7 +520,7 @@ killed.  Its log is on the boot stick
 groups whose tests are not ported fail.
 .SS amdgpu
 .I Amdgpu
-is Linux 6.6's amdgpu driver on the same layer as
+is Linux 7.3's amdgpu driver on the same layer as
 .IR i915 :
 the Radeons of the GCN 1.2 and later families amdgpu drives (tried on
 a Navi 33, RX 7600 XT, GFX 11).

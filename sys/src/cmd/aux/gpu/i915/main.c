@@ -1,7 +1,7 @@
 /*
  * SPDX-License-Identifier: MIT
  *
- * aux/i915: Linux 6.6's i915 driver on the LinuxKPI (sys/src/linux),
+ * aux/i915: Linux 7.3's i915 driver on the LinuxKPI (sys/src/linux),
  * as a file server of gpu(4).  This first part starts the KPI, DRM's
  * core and i915, which probes the device of #G; the file server over
  * the driver's ioctls follows.

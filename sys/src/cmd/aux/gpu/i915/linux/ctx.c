@@ -71,7 +71,8 @@ struct gctx {
 	bool	failed;
 };
 
-static const struct file_operations ctx_fops = { };
+/* Linux 7.3: drm_open_helper wants the flag DRM's own GEM fops have */
+static const struct file_operations ctx_fops = { .fop_flags = FOP_UNSIGNED_OFFSET };
 static struct bo	*newbo(struct gctx *c);
 static u64	chooseaddr(struct gctx *c, u64 size);
 static bool	placeok(struct gctx *c, struct bo *self, u64 gpu, u64 size);
@@ -590,7 +591,7 @@ i915_status(void)
 	}
 	/* the lines as aux/intelgpu has them (inteltest reads them) */
 	return kasprintf(GFP_KERNEL,
-		"device intel %04x/%04x, gen %d (%s, Linux 6.6's i915 on the LinuxKPI)\n"
+		"device intel %04x/%04x, gen %d (%s, Linux 7.3's i915 on the LinuxKPI)\n"
 		"rcs workarounds %d/%d\n"
 		"sseu slices %#x subslices %#x eus %d\n"
 		"power rc6 %s %llu ms, %u MHz (asked %d, min %d, rp1 %d, max %d)\n",

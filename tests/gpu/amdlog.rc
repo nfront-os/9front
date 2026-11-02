@@ -1,0 +1,9 @@
+#!/bin/rc
+# aux/amdgpu alone: its log after the start (without the per-ring and per-IP lines), whether it serves /dev/gpu
+bind -a '#i' /dev
+bind -a '#v' /dev
+aux/amdgpu -t $* >/tmp/amd.log >[2=1] &
+sleep 60
+grep -v '^(ring|ip) ' /tmp/amd.log | tail -60
+ls /dev/gpu/0
+echo TESTEND

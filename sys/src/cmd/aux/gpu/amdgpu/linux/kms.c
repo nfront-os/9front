@@ -52,7 +52,8 @@ static u32 lit_w, lit_h;
 static u32 shown_fb;			/* a client's, on the display */
 static struct file *shown_by;		/* the client's file */
 
-static const struct file_operations kms_fops = { };
+/* Linux 7.3: drm_open_helper wants the flag DRM's own GEM fops have */
+static const struct file_operations kms_fops = { .fop_flags = FOP_UNSIGNED_OFFSET };
 
 static struct drm_device *
 drmdev(void)

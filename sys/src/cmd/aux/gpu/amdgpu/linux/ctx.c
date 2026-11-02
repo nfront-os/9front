@@ -124,7 +124,8 @@ struct map {
 
 enum { Arenapages = 1024 };	/* 4 MB */
 
-static const struct file_operations ctx_fops = { };
+/* Linux 7.3: drm_open_helper wants the flag DRM's own GEM fops have */
+static const struct file_operations ctx_fops = { .fop_flags = FOP_UNSIGNED_OFFSET };
 static struct bo	*newbo(struct gctx *c);
 static atomic_t nctx;
 int	amdgpu_fencetrace;	/* -t: where a fence's time goes */
