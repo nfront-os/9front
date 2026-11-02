@@ -43,6 +43,9 @@ if(~ $1 -a)	# the default now
 {echo '# i915run' `{date}; cat /dev/osversion; echo} >$out
 echo '## #G/0/ctl' >>$out
 cat '#G/0/ctl' >>$out
+# who shares the GPU's interrupt (the USB stick's controller: the logs)
+echo '## /dev/irqalloc' >>$out
+cat /dev/irqalloc >>$out >[2=1]
 echo '## aux/i915 -T (the KPI on this machine)' >>$out
 aux/i915 -T >>$out >[2=1]
 aux/i915 $flags $* >>$log >[2=1] &
