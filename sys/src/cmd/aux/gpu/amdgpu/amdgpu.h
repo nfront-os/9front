@@ -20,8 +20,8 @@ void	amdgpu_test_poweroff(void);	/* -X: orderly_poweroff, as at a critical tempe
 typedef unsigned long long	u64g;
 void	*amdgpu_ctx_new(int *id);	/* or an error pointer: amdgpu_iserr */
 void	amdgpu_ctx_free(void *c);
-/* *gpu ~0: the driver chooses; vram: seg is BAR 0's, the object at baroff in its barsize bytes */
-int	amdgpu_bo_new(void *c, u64g size, u64g *gpu, int vram, int *id, char *seg, int nseg, u64g *va, u64g *size1, u64g *baroff, u64g *barsize);
+/* *gpu ~0: the driver chooses; seg at va: the object only (GTT: its pages; vram: its part of BAR 0) */
+int	amdgpu_bo_new(void *c, u64g size, u64g *gpu, int vram, int *id, char *seg, int nseg, u64g *va, u64g *size1);
 int	amdgpu_bo_bind(void *c, int id, u64g gpu);
 int	amdgpu_bo_free(void *c, int id);
 int	amdgpu_submit(void *c, int id, unsigned int offset, unsigned int ndw, int ip, u64g *k);	/* ip: 0 gfx, 1 compute, 2 sdma */
@@ -31,7 +31,7 @@ extern int amdgpu_fencetrace;	/* -t */
 /* amdgpu's ioctls of the client (linux/ctx.c): the arena, the ioctl, the client's objects mapped */
 int	amdgpu_arena(void *c, char *seg, int nseg, u64g *va, u64g *size);
 long	amdgpu_ioctl(void *c, unsigned int cmd, u64g addr);	/* its result: 0, >0, or -errno */
-int	amdgpu_map(void *c, unsigned int handle, char *seg, int nseg, u64g *va, u64g *size, u64g *off, u64g *barsize);
+int	amdgpu_map(void *c, unsigned int handle, char *seg, int nseg, u64g *va, u64g *size);
 int	amdgpu_unmap(void *c, unsigned int handle);
 #define amdgpu_iserr(p)	((unsigned long)(p) >= (unsigned long)-4095)
 

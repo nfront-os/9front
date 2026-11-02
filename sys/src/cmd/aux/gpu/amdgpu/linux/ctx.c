@@ -17,9 +17,9 @@
  *				0: not mapped).  vram: in the card's memory,
  *				contiguous and pinned where the processor sees
  *				it through BAR 0 (the first 256 MB without a
- *				resized BAR); the client attaches BAR 0's
- *				write-combining segment (gpu(3)) and finds the
- *				object at its offset there.  Not always valid in
+ *				resized BAR); the client attaches a segment of
+ *				that part of BAR 0's write-combining one
+ *				(segment(3)'s phys), not all of it.  Not always valid in
  *				the VM, so that it can go to the display (amdgpu
  *				exports no such object): each CS lists it
  *	bind id gpuaddr		GEM_VA: unmapped, mapped there instead
@@ -43,7 +43,8 @@
  *	ioctl cmd addr		(the ioctl file) drm_ioctl, its result
  *	map handle		the processor's view of an object the client
  *				made: GTT pinned, an alias segment; VRAM in one
- *				piece where BAR 0 shows it
+ *				piece where BAR 0 shows it, a segment of that
+ *				part
  *	unmap handle
  */
 #include <linux/kernel.h>
@@ -85,7 +86,7 @@ struct bo {
 	struct amdgpu_bo	*abo;	/* pinned: a reference of ours */
 	u64	gpu;		/* mapped there, 0: not mapped */
 	u64	size;
-	bool	vram;		/* in VRAM: at baroff in BAR 0 */
+	bool	vram;		/* in VRAM: at baroff in BAR 0, seg shows that part */
 	u64	baroff;
 	char	seg[32];
 	unsigned long	va;
@@ -240,11 +241,12 @@ bofree(struct gctx *c, struct bo *b)
 	struct drm_gem_close cl = { .handle = b->handle };
 
 	/*
-	 * removing the alias segment revokes it (segment(3)): a client that
-	 * still has it attached loses the pages before amdgpu gets them back
+	 * removing the object's segment revokes it (segment(3)): a client
+	 * that still has it attached loses it before amdgpu gets the memory
+	 * back (GTT: the alias of its pages; VRAM: its part of BAR 0)
 	 */
-	if (b->seg[0] && !b->vram)
-		p9_segfree(b->seg, NULL);	/* BAR 0's segment stays: the client may still see the memory */
+	if (b->seg[0])
+		p9_segfree(b->seg, NULL);
 	if (b->gpu)
 		vamap(c, b, b->gpu, AMDGPU_VA_OP_UNMAP);
 	if (b->abo)
@@ -321,7 +323,7 @@ chooseaddr(struct gctx *c, u64 size)
 
 /* a new object; its segment's name, address and size for the client */
 int
-amdgpu_bo_new(void *v, u64 size, u64 *gpup, int vram, int *id, char *seg, int nseg, u64 *va, u64 *rsize, u64 *baroff, u64 *barsize)
+amdgpu_bo_new(void *v, u64 size, u64 *gpup, int vram, int *id, char *seg, int nseg, u64 *va, u64 *rsize)
 {
 	struct gctx *c = v;
 	union drm_amdgpu_gem_create cr = {
@@ -388,8 +390,9 @@ amdgpu_bo_new(void *v, u64 size, u64 *gpup, int vram, int *id, char *seg, int ns
 		pr_warn("amdgpu: ctx %d: bo %u: pin in %s: error %d\n", c->id, b->handle, vram ? "VRAM" : "GTT", r);
 		goto put;
 	}
-	*baroff = *barsize = 0;
 	if (vram) {
+		char bar[32];
+
 		struct amdgpu_res_cursor cur;
 
 		/*
@@ -415,14 +418,19 @@ amdgpu_bo_new(void *v, u64 size, u64 *gpup, int vram, int *id, char *seg, int ns
 			goto unpin;
 		}
 		if (b->baroff + b->size > adev->gmc.visible_vram_size ||
-		    p9_barseg(0, 1, b->seg, sizeof(b->seg)) < 0) {
+		    p9_barseg(0, 1, bar, sizeof(bar)) < 0) {
 			pr_warn("amdgpu: ctx %d: bo %u: not in BAR 0 (%#llx)\n", c->id, b->handle, b->baroff);
 			r = -ENOSPC;
 			goto unpin;
 		}
-		*baroff = b->baroff;
-		*barsize = adev->gmc.visible_vram_size;
-		b->va = 0;
+		/* the client sees this object only, not all of BAR 0 */
+		snprintf(b->seg, sizeof(b->seg), "amdgpu.%d.%d.%u", p9_getpid(), c->id, b->handle);
+		b->va = (unsigned long)p9_segphys(b->seg, bar, b->baroff, b->size);
+		if (!b->va) {
+			b->seg[0] = 0;
+			r = -ENOMEM;
+			goto unpin;
+		}
 		goto mapped;
 	}
 	tt = b->abo->tbo.ttm;
@@ -463,8 +471,7 @@ mapped:
 	return 0;
 unseg:
 	b->used = false;
-	if (!b->vram)
-		p9_segfree(b->seg, NULL);
+	p9_segfree(b->seg, NULL);
 unpin:
 	unpin(b->abo);
 	b->abo = NULL;
@@ -805,18 +812,18 @@ static void
 unmap(struct gctx *c, struct map *m)
 {
 	list_del(&m->node);
-	if (!m->vram)
-		p9_segfree(m->seg, NULL);	/* revoked in every process */
+	p9_segfree(m->seg, NULL);	/* revoked in every process (GTT's alias, VRAM's part of BAR 0) */
 	unpin(m->abo);
 	kfree(m);
 }
 
 /*
- * the processor's view of the client's object handle: GTT, an alias
- * segment of its pages (va); VRAM, BAR 0's segment and where in it (off)
+ * the processor's view of the client's object handle, a segment at va:
+ * GTT, an alias of its pages; VRAM, its part of BAR 0 (segment(3)'s
+ * phys); revoked by unmap and when the context goes
  */
 int
-amdgpu_map(void *v, u32 handle, char *seg, int nseg, u64 *va, u64 *size, u64 *off, u64 *barsize)
+amdgpu_map(void *v, u32 handle, char *seg, int nseg, u64 *va, u64 *size)
 {
 	struct gctx *c = v;
 	struct drm_gem_object *gobj;
@@ -877,22 +884,30 @@ amdgpu_map(void *v, u32 handle, char *seg, int nseg, u64 *va, u64 *size, u64 *of
 	if (r < 0)
 		goto unpin;
 	r = 0;
-	*off = *barsize = *va = 0;
+	*va = 0;
 	if (m->vram) {
+		char bar[32];
+		u64 off;
+
 		/* in one piece, in the part BAR 0 shows */
 		amdgpu_res_first(m->abo->tbo.resource, 0, *size, &cur);
-		*off = cur.start;
+		off = cur.start;
 		for (next = cur.start; cur.remaining; amdgpu_res_next(&cur, cur.size)) {
 			if (cur.start != next)
 				break;
 			next = cur.start + cur.size;
 		}
-		if (cur.remaining || *off + *size > adev->gmc.visible_vram_size ||
-		    p9_barseg(0, 1, m->seg, sizeof(m->seg)) < 0) {
+		if (cur.remaining || off + *size > adev->gmc.visible_vram_size ||
+		    p9_barseg(0, 1, bar, sizeof(bar)) < 0) {
 			r = -ENOSPC;
 			goto unpin;
 		}
-		*barsize = adev->gmc.visible_vram_size;
+		snprintf(m->seg, sizeof(m->seg), "amdgpu.%d.%d.m%u", p9_getpid(), c->id, handle);
+		*va = (unsigned long)p9_segphys(m->seg, bar, off, *size);
+		if (!*va) {
+			r = -ENOMEM;
+			goto unpin;
+		}
 	} else {
 		tt = m->abo->tbo.ttm;
 		if (!tt || !tt->pages || tt->num_pages < (*size >> PAGE_SHIFT)) {

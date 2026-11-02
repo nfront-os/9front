@@ -549,15 +549,16 @@ revoked in every process when the object is freed.
 With
 .B vram
 in the card's memory, in one piece in the part the processor sees
-through BAR 0 (the first 256 MB without a resized BAR); reply
-.BI bo " id seg va size gpuaddr off barsize" :
+through BAR 0 (the first 256 MB without a resized BAR), the reply the
+same:
 .I seg
-is BAR 0's write-combining segment
+then shows that part of BAR 0's write-combining segment
 .RI ( gpu (3)),
-which the client attaches once
-.RI ( barsize
-bytes), the object at
-.IR off .
+the object only
+.RB ( phys
+in
+.IR segment (3)),
+revoked as well when it is freed.
 As for
 .IR intelgpu ,
 the driver chooses the GPU address, or the client does (page aligned,
@@ -601,14 +602,11 @@ arena and writes
 file; reading the file gives the result (0 or a negative Linux error).
 The ioctl reaches nothing outside the arena.
 .BI map " handle
-replies the processor's view of an object the client made:
-.BI map " handle seg va size
-(GTT, an alias segment) or
-.BI map " handle seg L0P size off barsize
-(VRAM, in BAR 0's segment at
-.IR off );
+replies the processor's view of an object the client made,
+.BI map " handle seg va size" :
+an alias segment of its pages (GTT) or its part of BAR 0 (VRAM);
 .BI unmap " handle
-ends it.
+ends it, revoking the segment in every process.
 .PP
 .B Status
 names the chip, its memory, temperatures, power and clocks, the
@@ -623,7 +621,9 @@ processes the interrupt ring once;
 writes the shader waves the GPU has (where they are, their state and
 trap status) and the GPU's last page fault to the log: for hangs.
 .PP
-The processor's view of the GPU is not isolated: BAR 0's segment shows
+A client sees its own objects only, each through a segment the
+driver revokes when the object goes.
+The bars themselves are not isolated yet: BAR 0's segment shows
 all the visible VRAM, the driver's own data there too (the GART
 table), and as with every physical segment
 .RI ( segment (3),

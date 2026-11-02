@@ -26,6 +26,32 @@
 
 static char *dev = "/dev/gpu/0";
 static int nfail;
+static jmp_buf faultjb;
+
+static void
+onfault(void *u, char *msg)
+{
+	if(strstr(msg, "sys: trap: fault") != nil)
+		notejmp(u, faultjb, 1);
+	noted(NDFLT);
+}
+
+/* does reading p fault (a revoked segment)? */
+static int
+revoked(void *p)
+{
+	volatile u32int v;
+
+	notify(onfault);
+	if(setjmp(faultjb)){
+		notify(nil);
+		return 1;
+	}
+	v = *(volatile u32int*)p;
+	USED(v);
+	notify(nil);
+	return 0;
+}
 
 static void
 ok(char *fmt, ...)
@@ -57,11 +83,9 @@ struct Bo {
 	int	id;
 	char	seg[64];
 	uvlong	va, size, gpu;
-	uvlong	off, barsize;	/* vram: at off in BAR 0's barsize bytes */
 	u32int	*p;	/* attached (vram: at its offset in BAR 0) */
 };
 
-static uchar *bar0;	/* BAR 0's segment, attached once */
 
 static int
 ctl(int fd, char *reply, int nreply, char *fmt, ...)
@@ -85,7 +109,7 @@ ctl(int fd, char *reply, int nreply, char *fmt, ...)
 }
 
 /*
- * bo size [vram]: "bo id seg va size gpuaddr", vram: "... off barsize"
+ * bo size [vram]: "bo id seg va size gpuaddr" (vram: seg is the object's part of BAR 0)
  * with seg BAR 0's segment
  */
 static int
@@ -99,7 +123,7 @@ newbo(int fd, Bo *b, uvlong size, int vram)
 		return -1;
 	}
 	n = tokenize(buf, f, nelem(f));
-	if(n != (vram ? 8 : 6) || strcmp(f[0], "bo") != 0){
+	if(n != 6 || strcmp(f[0], "bo") != 0){
 		fail("bo reply: %s", buf);
 		return -1;
 	}
@@ -108,24 +132,12 @@ newbo(int fd, Bo *b, uvlong size, int vram)
 	b->va = strtoull(f[3], nil, 0);
 	b->size = strtoull(f[4], nil, 0);
 	b->gpu = strtoull(f[5], nil, 0);
-	if(vram){
-		b->off = strtoull(f[6], nil, 0);
-		b->barsize = strtoull(f[7], nil, 0);
-		if(bar0 == nil && (bar0 = segattach(0, b->seg, nil, b->barsize)) == (void*)-1){
-			bar0 = nil;
-			fail("segattach %s: %r", b->seg);
-			return -1;
-		}
-		b->p = (u32int*)(bar0 + b->off);
-		ok("bo %d: vram %#llux bytes at gpu %#llux, %s+%#llux", b->id, b->size, b->gpu, b->seg, b->off);
-		return 0;
-	}
 	b->p = segattach(0, b->seg, nil, b->size);
 	if(b->p == (void*)-1){
 		fail("segattach %s: %r", b->seg);
 		return -1;
 	}
-	ok("bo %d: %s %#llux bytes at gpu %#llux", b->id, b->seg, b->size, b->gpu);
+	ok("bo %d: %s%s %#llux bytes at gpu %#llux", b->id, vram ? "vram " : "", b->seg, b->size, b->gpu);
 	return 0;
 }
 
@@ -268,13 +280,19 @@ main(int argc, char **argv)
 
 	segdetach(cmd.p);
 	segdetach(dst.p);
-	if(bar0 != nil)
-		segdetach(bar0);
 	if(ctl(cfd, nil, 0, "free %d", cmd.id) < 0 || ctl(cfd, nil, 0, "free %d", dst.id) < 0 ||
 	   (vdst.id && ctl(cfd, nil, 0, "free %d", vdst.id) < 0))
 		fail("free: %r");
 	else
 		ok("objects freed");
+	/* the VRAM object's segment, still attached: revoked by the free */
+	if(vdst.id){
+		if(revoked(vdst.p))
+			ok("freed VRAM object: its segment faults");
+		else
+			fail("freed VRAM object still readable");
+		segdetach(vdst.p);
+	}
 	close(ffd);
 	close(sfd);
 	close(cfd);

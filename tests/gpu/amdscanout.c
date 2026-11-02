@@ -150,9 +150,9 @@ main(int argc, char **argv)
 {
 	char out[64], path[128], buf[256], *f[10], *mode;
 	int cfd, sfd, ffd, w, h, stride, secs, id[2], i, j, n, ctx, cid, did, nk;
-	uvlong size, off[2], gpu[2], barsize, cgpu, dgpu, at[3];
+	uvlong size, gpu[2], cgpu, dgpu, at[3];
 	u32int *cmd, *dst, want;
-	uchar *bar0;
+	uchar *pic[2];
 
 	secs = 10;
 	ARGBEGIN{
@@ -175,20 +175,18 @@ main(int argc, char **argv)
 		sysfatal("open %s: %r", path);
 	stride = (w * 4 + 255) & ~255;	/* DCN: pitches of 256 bytes */
 	size = (uvlong)stride * h;
-	bar0 = nil;
 	for(i = 0; i < 2; i++){
-		if(ctl(cfd, buf, sizeof buf, "bo %llud vram", size) < 0 || (n = tokenize(buf, f, nelem(f))) != 8){
+		if(ctl(cfd, buf, sizeof buf, "bo %llud vram", size) < 0 || (n = tokenize(buf, f, nelem(f))) != 6){
 			fail("bo %llud vram: %r %s", size, buf);
 			exits("bo");
 		}
 		id[i] = atoi(f[1]);
 		gpu[i] = strtoull(f[5], nil, 0);
-		off[i] = strtoull(f[6], nil, 0);
-		barsize = strtoull(f[7], nil, 0);
-		if(bar0 == nil && (bar0 = segattach(0, f[2], nil, barsize)) == (void*)-1)
+		/* the object's own segment: its part of BAR 0 */
+		if((pic[i] = segattach(0, f[2], nil, size)) == (void*)-1)
 			sysfatal("segattach %s: %r", f[2]);
-		paint((u32int*)(bar0 + off[i]), w, h, stride, i);
-		ok("picture %d: object %d, %llud bytes at %s+%#llux", i+1, id[i], size, f[2], off[i]);
+		paint((u32int*)pic[i], w, h, stride, i);
+		ok("picture %d: object %d, %llud bytes, segment %s", i+1, id[i], size, f[2]);
 	}
 
 	/* what the GPU sees of the pictures: sdma copies pixels into GTT */
@@ -238,7 +236,7 @@ main(int argc, char **argv)
 				fail("sdma read of picture %d: %r", i+1);
 				continue;
 			}
-			want = *(u32int*)(bar0 + off[i] + at[j]);
+			want = *(u32int*)(pic[i] + at[j]);
 			if(dst[0] != want)
 				fail("picture %d at %#llux: the processor wrote %#ux, the GPU reads %#ux", i+1, at[j], want, dst[0]);
 			else

@@ -66,8 +66,6 @@ struct Amd {
 	unsigned char	*used;	/* per slot */
 	int	fids[Nfid];
 	int	nfids;
-	unsigned char	*bar0;	/* BAR 0, for VRAM objects' views */
-	uint64_t	bar0size;
 };
 
 /*
@@ -972,7 +970,6 @@ struct amdgpu_bo {
 	uint64_t	size;
 	void	*cpu;		/* mapped: the view */
 	int	maps;
-	int	vram;		/* the view is in BAR 0 */
 	int	seg;		/* the view is a segment of its own (detach) */
 };
 
@@ -1458,13 +1455,13 @@ amdgpu_create_bo_from_user_mem(amdgpu_device_handle d, void *cpu, uint64_t size,
 	return -EINVAL;	/* the driver cannot reach the process's memory */
 }
 
-/* the driver's view of the object: GTT a segment of its own, VRAM where BAR 0 shows it */
+/* the driver's view of the object: a segment of its own (GTT: its pages; VRAM: its part of BAR 0) */
 int
 amdgpu_bo_cpu_map(amdgpu_bo_handle b, void **cpu)
 {
 	Amd *a;
 	char reply[256], seg[64];
-	unsigned long long va, size, off, barsize;
+	unsigned long long va, size;
 	void *p;
 
 	pthread_mutex_lock(&b->dev->lk);
@@ -1485,24 +1482,7 @@ amdgpu_bo_cpu_map(amdgpu_bo_handle b, void **cpu)
 		dbg("map %u: %s", b->handle, reply);
 		return -e;
 	}
-	if(sscanf(reply, "map %*u %63s %lli %lli %lli %lli", seg, &va, &size, &off, &barsize) == 5){
-		/* VRAM: BAR 0, once for the descriptor */
-		pthread_mutex_lock(&a->lk);
-		if(a->bar0 == NULL){
-			a->bar0 = _SEGATTACH(0, seg, NULL, barsize);
-			if(a->bar0 == (void*)-1)
-				a->bar0 = NULL;
-			a->bar0size = barsize;
-		}
-		pthread_mutex_unlock(&a->lk);
-		if(a->bar0 == NULL || off + size > a->bar0size){
-			dbg("map %u: BAR 0 %s: %s", b->handle, seg, strerror(errno));
-			ctlreq(a, NULL, 0, "unmap %u", b->handle);
-			return -ENOMEM;
-		}
-		p = a->bar0 + off;
-		b->vram = 1;
-	}else if(sscanf(reply, "map %*u %63s %lli %lli", seg, &va, &size) == 3){
+	if(sscanf(reply, "map %*u %63s %lli %lli", seg, &va, &size) == 3){
 		p = _SEGATTACH(0, seg, NULL, size);
 		if(p == (void*)-1){
 			dbg("map %u: segattach %s %#llx: %s", b->handle, seg, size, strerror(errno));
@@ -1540,7 +1520,7 @@ amdgpu_bo_cpu_unmap(amdgpu_bo_handle b)
 	pthread_mutex_unlock(&b->dev->lk);
 	if(b->seg)
 		_SEGDETACH(p);
-	b->seg = b->vram = 0;
+	b->seg = 0;
 	if((a = amd9of(b->dev->fd)) != NULL)
 		ctlreq(a, NULL, 0, "unmap %u", b->handle);
 	return 0;

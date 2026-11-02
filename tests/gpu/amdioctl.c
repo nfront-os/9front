@@ -180,28 +180,20 @@ ioctl(u32int cmd, void *a)
 	return strtol(buf, nil, 10);
 }
 
-/* the processor's view of an object: its segment (GTT), or BAR 0 at its offset (VRAM) */
+/* the processor's view of an object: its segment (GTT: its pages; VRAM: its part of BAR 0) */
 static u32int*
-map(u32int h, uchar **bar0)
+map(u32int h)
 {
 	char buf[256], *f[8];
 	void *p;
-	int n;
 
 	if(ctl(buf, sizeof buf, "map %ud", h) < 0)
 		sysfatal("map %ud: %r", h);
-	n = tokenize(buf, f, nelem(f));
-	if(n == 7){	/* "map h seg 0 size off barsize" */
-		if(*bar0 == nil && (*bar0 = segattach(0, f[2], nil, strtoull(f[6], nil, 0))) == (void*)-1)
-			sysfatal("segattach %s: %r", f[2]);
-		ok("map %ud: VRAM at %s+%s", h, f[2], f[5]);
-		return (u32int*)(*bar0 + strtoull(f[5], nil, 0));
-	}
-	if(n != 5)
+	if(tokenize(buf, f, nelem(f)) != 5)
 		sysfatal("map %ud: %s", h, buf);
-	if((p = segattach(0, f[2], nil, 4096)) == (void*)-1)
+	if((p = segattach(0, f[2], nil, strtoull(f[4], nil, 0))) == (void*)-1)
 		sysfatal("segattach %s: %r", f[2]);
-	ok("map %ud: GTT, %s", h, f[2]);
+	ok("map %ud: %s", h, f[2]);
 	return p;
 }
 
@@ -227,12 +219,10 @@ main(int argc, char **argv)
 	uvlong gpu[2], base;
 	long r;
 	int ctx, i, radv, unmapped;
-	uchar *bar0;
 
 	base = 0x200000000ULL;
 	radv = 0;
 	unmapped = 0;
-	bar0 = nil;
 	ARGBEGIN{
 	case 'u':	/* the IB writes where nothing is mapped: a page fault, which amdgpu should report */
 		unmapped = 1;
@@ -335,8 +325,8 @@ main(int argc, char **argv)
 			sysfatal("GEM_VA: %ld", r);
 		ok("GEM_CREATE handle %ud, GEM_VA at %#llux", h[i], gpu[i]);
 	}
-	cmd = map(h[0], &bar0);
-	dst = map(h[1], &bar0);
+	cmd = map(h[0]);
+	dst = map(h[1]);
 	ok("map: the processor sees both");
 
 	/* one IB: WRITE_DATA (PM4) into the second object */

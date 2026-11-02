@@ -407,7 +407,6 @@ ctxctl(Ctx *c, char **f, int n)
 	int e, id;
 
 	if(n >= 2 && n <= 4 && strcmp(f[0], "bo") == 0){
-		u64g off, barsize;
 		int vram, i;
 
 		/* bo size [gpuaddr] [vram|gtt] */
@@ -420,13 +419,10 @@ ctxctl(Ctx *c, char **f, int n)
 				vram = 0;
 			else
 				gpu = strtoull(f[i], nil, 0);
-		e = amdgpu_bo_new(c->lc, strtoull(f[1], nil, 0), &gpu, vram, &id, seg, sizeof seg, &va, &size, &off, &barsize);
+		e = amdgpu_bo_new(c->lc, strtoull(f[1], nil, 0), &gpu, vram, &id, seg, sizeof seg, &va, &size);
 		if(e < 0)
 			return errstr9(e);
-		if(vram)
-			setreply(c, "bo %d %s %#llux %#llux %#llux %#llux %#llux\n", id, seg, va, size, gpu, off, barsize);
-		else
-			setreply(c, "bo %d %s %#llux %#llux %#llux\n", id, seg, va, size, gpu);
+		setreply(c, "bo %d %s %#llux %#llux %#llux\n", id, seg, va, size, gpu);
 		return nil;
 	}
 	if(n == 3 && strcmp(f[0], "bind") == 0){
@@ -445,15 +441,10 @@ ctxctl(Ctx *c, char **f, int n)
 		return nil;
 	}
 	if(n == 2 && strcmp(f[0], "map") == 0){
-		u64g off, barsize;
-
-		e = amdgpu_map(c->lc, strtoul(f[1], nil, 0), seg, sizeof seg, &va, &size, &off, &barsize);
+		e = amdgpu_map(c->lc, strtoul(f[1], nil, 0), seg, sizeof seg, &va, &size);
 		if(e < 0)
 			return errstr9(e);
-		if(barsize)
-			setreply(c, "map %s %s 0 %#llux %#llux %#llux\n", f[1], seg, size, off, barsize);
-		else
-			setreply(c, "map %s %s %#llux %#llux\n", f[1], seg, va, size);
+		setreply(c, "map %s %s %#llux %#llux\n", f[1], seg, va, size);
 		return nil;
 	}
 	if(n == 2 && strcmp(f[0], "unmap") == 0){
