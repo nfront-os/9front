@@ -597,7 +597,7 @@ suite(void)
 	step("11. RC6 when idle, RPS under load");
 	{
 		uvlong r0, r1;
-		int f0, fbusy, fmin;
+		int f0, fbusy, fmin, ks[300];
 
 		if(power(&r0, &f0, &fmin) < 0)
 			fail("status: no power line (or -P)");
@@ -608,9 +608,13 @@ suite(void)
 				ok("rc6: %llud ms of 1500 ms idle", r1 - r0);
 			else
 				fail("rc6: only %llud ms of 1500 ms idle", r1 - r0);
-			for(i = 0; i < 300; i++)
-				if((k = submit(&a, &bigbatch, 0, "bcs")) == 0)
+			/* the load: at most 48 outstanding (gpu(4): 64 a context) */
+			for(i = 0; i < 300; i++){
+				if(i >= 48 && fencewait(&a, ks[i-48], nil) < 0)
 					break;
+				if((k = ks[i] = submit(&a, &bigbatch, 0, "bcs")) == 0)
+					break;
+			}
 			sleep(300);
 			power(&r1, &fbusy, &fmin);
 			if(k != 0 && fencewait(&a, k, nil) < 0)
