@@ -29,6 +29,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <time.h>
 #include <sys/stat.h>
 
 #include <stdarg.h>
@@ -528,6 +529,7 @@ static struct {
 	void	*cpu;
 } dbgmap[Ndbgmap];
 static pthread_mutex_t dbglk = PTHREAD_MUTEX_INITIALIZER;
+static uint32_t dbguserdata;	/* the last CS's COMPUTE_USER_DATA_0 (DRM9DEBUG=4) */
 
 static int
 dbglevel(void)
@@ -577,6 +579,30 @@ dbgcpu(uint32_t handle, void *cpu)
 	pthread_mutex_unlock(&dbglk);
 }
 
+/* n bytes at GPU address va, as the processor sees them */
+static void
+dbgwords(uint64_t va, uint32_t n)
+{
+	uint32_t *p, i;
+	int k;
+
+	p = NULL;
+	pthread_mutex_lock(&dbglk);
+	for(k = 0; k < Ndbgmap; k++)
+		if(dbgmap[k].size != 0 && dbgmap[k].cpu != NULL && va >= dbgmap[k].va && va + n <= dbgmap[k].va + dbgmap[k].size){
+			p = (uint32_t*)((char*)dbgmap[k].cpu + (va - dbgmap[k].va));
+			break;
+		}
+	pthread_mutex_unlock(&dbglk);
+	if(p == NULL){
+		fprintf(stderr, " not mapped for the processor\n");
+		return;
+	}
+	for(i = 0; i < n/4; i++)
+		fprintf(stderr, " %08x", p[i]);
+	fprintf(stderr, "\n");
+}
+
 /* the dwords at GPU address va, if the processor has them; then the IBs it calls (INDIRECT_BUFFER) */
 static void
 dbgdump(uint64_t va, uint32_t bytes)
@@ -610,6 +636,12 @@ dbgdump(uint64_t va, uint32_t bytes)
 		n = h >> 16 & 0x3fff;
 		if((h >> 8 & 0xff) == 0x3f && n == 2 && i + 3 < bytes/4)
 			dbgdump((uint64_t)p[i+1] | (uint64_t)p[i+2] << 32, (p[i+3] & 0xfffff) * 4);
+		/* SET_SH_REG COMPUTE_USER_DATA_0 (0x2e40: 0x240 in the SH space): a 32-bit pointer, its 48 bytes */
+		if((h >> 8 & 0xff) == 0x76 && i + 2 < bytes/4 && (p[i+1] & 0xffff) == 0x240){
+			dbguserdata = p[i+2];
+			fprintf(stderr, "amdgpu9: COMPUTE_USER_DATA_0 %#x:", p[i+2]);
+			dbgwords(0xffff800000000000ULL | p[i+2], 48);
+		}
 	}
 }
 
@@ -720,6 +752,136 @@ trace(unsigned nr, void *arg, int r)
 	errno = e;
 }
 
+/*
+ * DRM9DEBUG=4: the GPU's view of memory: after a gfx CS, sdma copies n
+ * bytes at va (in the CS's address space) into a GTT object of ours;
+ * printed beside the processor's view (dbgwords).  Two objects of our
+ * own, GTT, at the top of the 32-bit range.
+ */
+static int inpeek;
+
+static void
+dbgpeek(Amd *a, uint32_t ctx, uint64_t va, uint32_t n)
+{
+	static uint32_t hib, hdst, *ibp, *dstp;
+	static int ready;
+	const uint64_t ibva = 0xffff8000fff00000ULL, dstva = ibva + 0x10000;
+	union drm_amdgpu_gem_create gc;
+	struct drm_amdgpu_gem_va gv;
+	struct drm_amdgpu_bo_list_entry be[3];
+	struct drm_amdgpu_bo_list_in bl;
+	struct drm_amdgpu_cs_chunk ch[2];
+	struct drm_amdgpu_cs_chunk_ib ib;
+	uint64_t chp[2];
+	union drm_amdgpu_cs cs;
+	union drm_amdgpu_wait_cs w;
+	struct timespec ts;
+	char reply[256], seg[64];
+	unsigned long long sva, ssize;
+	uint32_t src, i, *hp[2];
+	uint64_t vas[2];
+	int k;
+
+	src = 0;
+	pthread_mutex_lock(&dbglk);
+	for(k = 0; k < Ndbgmap; k++)
+		if(dbgmap[k].size != 0 && va >= dbgmap[k].va && va + n <= dbgmap[k].va + dbgmap[k].size)
+			src = dbgmap[k].handle;
+	pthread_mutex_unlock(&dbglk);
+	if(src == 0 || n > 4096)
+		return;
+	inpeek = 1;
+	if(!ready){
+		hp[0] = &hib;
+		hp[1] = &hdst;
+		vas[0] = ibva;
+		vas[1] = dstva;
+		for(k = 0; k < 2; k++){
+			memset(&gc, 0, sizeof gc);
+			gc.in.bo_size = 4096;
+			gc.in.alignment = 4096;
+			gc.in.domains = AMDGPU_GEM_DOMAIN_GTT;
+			if(amd9ioctl(a, DRM_IOCTL_AMDGPU_GEM_CREATE, &gc) < 0)
+				goto out;
+			*hp[k] = gc.out.handle;
+			memset(&gv, 0, sizeof gv);
+			gv.handle = *hp[k];
+			gv.operation = AMDGPU_VA_OP_MAP;
+			gv.flags = AMDGPU_VM_PAGE_READABLE | AMDGPU_VM_PAGE_WRITEABLE | AMDGPU_VM_PAGE_EXECUTABLE;
+			gv.va_address = vas[k];
+			gv.map_size = 4096;
+			if(amd9ioctl(a, DRM_IOCTL_AMDGPU_GEM_VA, &gv) < 0)
+				goto out;
+			if(ctlreq(a, reply, sizeof reply, "map %u", *hp[k]) < 0 ||
+			   sscanf(reply, "map %*u %63s %lli %lli", seg, &sva, &ssize) != 3)
+				goto out;
+			if(k == 0)
+				ibp = _SEGATTACH(0, seg, NULL, ssize);
+			else
+				dstp = _SEGATTACH(0, seg, NULL, ssize);
+		}
+		if(ibp == (void*)-1 || dstp == (void*)-1)
+			goto out;
+		ready = 1;
+	}
+	/* sdma_v6_0: COPY_LINEAR, then a NOP: 8 dwords */
+	ibp[0] = 1;
+	ibp[1] = n - 1;
+	ibp[2] = 0;
+	ibp[3] = va;
+	ibp[4] = va >> 32;
+	ibp[5] = dstva;
+	ibp[6] = dstva >> 32;
+	ibp[7] = 0;
+	memset(dstp, 0xee, n);
+	memset(be, 0, sizeof be);
+	be[0].bo_handle = hib;
+	be[1].bo_handle = hdst;
+	be[2].bo_handle = src;
+	memset(&bl, 0, sizeof bl);
+	bl.bo_number = 3;
+	bl.bo_info_size = sizeof be[0];
+	bl.bo_info_ptr = (uintptr_t)be;
+	memset(&ib, 0, sizeof ib);
+	ib.va_start = ibva;
+	ib.ib_bytes = 32;
+	ib.ip_type = AMDGPU_HW_IP_DMA;
+	memset(ch, 0, sizeof ch);
+	ch[0].chunk_id = AMDGPU_CHUNK_ID_IB;
+	ch[0].length_dw = sizeof ib / 4;
+	ch[0].chunk_data = (uintptr_t)&ib;
+	ch[1].chunk_id = AMDGPU_CHUNK_ID_BO_HANDLES;
+	ch[1].length_dw = sizeof bl / 4;
+	ch[1].chunk_data = (uintptr_t)&bl;
+	chp[0] = (uintptr_t)&ch[0];
+	chp[1] = (uintptr_t)&ch[1];
+	memset(&cs, 0, sizeof cs);
+	cs.in.ctx_id = ctx;
+	cs.in.num_chunks = 2;
+	cs.in.chunks = (uintptr_t)chp;
+	if(amd9ioctl(a, DRM_IOCTL_AMDGPU_CS, &cs) < 0){
+		fprintf(stderr, "amdgpu9: peek %#llx: CS: %s\n", (unsigned long long)va, strerror(errno));
+		goto out;
+	}
+	memset(&w, 0, sizeof w);
+	w.in.handle = cs.out.handle;
+	w.in.ip_type = AMDGPU_HW_IP_DMA;
+	w.in.ctx_id = ctx;
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	w.in.timeout = (uint64_t)ts.tv_sec * 1000000000ULL + ts.tv_nsec + 1000000000ULL;
+	if(amd9ioctl(a, DRM_IOCTL_AMDGPU_WAIT_CS, &w) < 0 || w.out.status != 0){
+		fprintf(stderr, "amdgpu9: peek %#llx: not done\n", (unsigned long long)va);
+		goto out;
+	}
+	fprintf(stderr, "amdgpu9: peek %#llx gpu:", (unsigned long long)va);
+	for(i = 0; i < n/4; i++)
+		fprintf(stderr, " %08x", dstp[i]);
+	fprintf(stderr, "\namdgpu9: peek %#llx cpu:", (unsigned long long)va);
+	dbgwords(va, n);
+out:
+	inpeek = 0;
+}
+
 int
 amd9ioctl(Amd *a, unsigned long req, void *arg)
 {
@@ -765,6 +927,12 @@ amd9ioctl(Amd *a, unsigned long req, void *arg)
 		tracecreate(s);
 	r = call(a, lcmd, s);
 	trace(nr, s, r);
+	if(r == 0 && !inpeek && dbglevel() >= 4 && nr == DRM_COMMAND_BASE + DRM_AMDGPU_CS && dbguserdata != 0){
+		uint32_t ctx = ((union drm_amdgpu_cs*)arg)->in.ctx_id;
+
+		dbgpeek(a, ctx, 0xffff800000000000ULL | dbguserdata, 48);
+		dbguserdata = 0;
+	}
 	if(r < 0){
 		if(nr == DRM_COMMAND_BASE + DRM_AMDGPU_INFO)
 			dbg("ioctl %#x (INFO query %#x, %u %u): %s", nr, ((struct drm_amdgpu_info*)arg)->query,
@@ -795,6 +963,7 @@ struct amdgpu_device {
 	struct amdgpu_device	*next;
 	pthread_mutex_t	lk;
 	struct Vam	*vam[4];	/* 32-bit, general, high 32-bit, high */
+	uint32_t	prtbit;	/* the bit that halves the high range (amdgpu_sw_info_address_prt_wa_control_bit) */
 };
 
 struct amdgpu_bo {
@@ -942,7 +1111,7 @@ amdgpu_device_initialize(int fd, uint32_t *major, uint32_t *minor, amdgpu_device
 	struct amdgpu_device *d;
 	struct drm_amdgpu_info in;
 	drmVersionPtr v;
-	uint64_t start, max, align;
+	uint64_t start, max, hmax, align;
 	int r;
 
 	pthread_mutex_lock(&devlk);
@@ -995,14 +1164,26 @@ amdgpu_device_initialize(int fd, uint32_t *major, uint32_t *minor, amdgpu_device
 	start = max;
 	max = d->info.virtual_address_max > 0x100000000ULL ? d->info.virtual_address_max : 0x100000000ULL;
 	d->vam[1] = vaminit(start, max, align);
+	/*
+	 * RADV's workaround for scalar loads from NULL PRT pages: the high
+	 * range is two halves, told apart by one bit; objects go in the lower
+	 * half, a sparse buffer's address has the bit set, its twin without it
+	 * is mapped to zeros (radv_amdgpu_bo.c); shaders mask the bit off
+	 * their scalar loads (ac_nir_fixup_smem_loads_null_prt).  So the bit,
+	 * and the allocator below it.
+	 */
+	d->prtbit = 0;
+	while(d->prtbit < 63 && (d->info.high_va_max - d->info.high_va_offset) >> (d->prtbit + 2) != 0)
+		d->prtbit++;
+	hmax = d->info.high_va_offset + (1ULL << d->prtbit);
 	start = d->info.high_va_offset;
 	max = (start & ~0xffffffffULL) + 0x100000000ULL;
 	if(d->info.high_va_max < max)
 		max = d->info.high_va_max;
 	d->vam[2] = vaminit(start, max, align);
 	start = max;
-	max = d->info.high_va_max > (start & ~0xffffffffULL) + 0x100000000ULL ?
-		d->info.high_va_max : (start & ~0xffffffffULL) + 0x100000000ULL;
+	max = hmax > (start & ~0xffffffffULL) + 0x100000000ULL ?
+		hmax : (start & ~0xffffffffULL) + 0x100000000ULL;
 	d->vam[3] = vaminit(start, max, align);
 	pthread_mutex_lock(&devlk);
 	d->next = devs;
@@ -1066,7 +1247,7 @@ amdgpu_query_sw_info(amdgpu_device_handle d, enum amdgpu_sw_info info, void *val
 			*v = (d->vam[0]->end - 1) >> 32;
 		return 0;
 	case amdgpu_sw_info_address_prt_wa_control_bit:
-		*v = ~0U;	/* no PRT half of the range reserved */
+		*v = d->prtbit;	/* (~0 here made RADV mask bit 63 off every scalar load: 1ull << 255) */
 		return 0;
 	}
 	return -EINVAL;

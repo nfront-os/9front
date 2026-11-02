@@ -1,0 +1,17 @@
+#!/bin/rc
+# aux/amdgpu, radvtest in the background; while its image copy hangs,
+# the shader waves the SQ has (ctl waves: pc, status, trap status, counters)
+bind -a '#i' /dev
+bind -a '#v' /dev
+aux/amdgpu $* >/tmp/amd.log >[2=1]
+sleep 2
+RADV_DEBUG=shaders /tests/radvtest >/tmp/radv.log >[2=1] &
+sleep 4
+echo waves >/dev/gpu/0/ctl
+sleep 1
+echo waves >/dev/gpu/0/ctl
+grep 'waves$|fault|GCVM|MORE|WALKER|PERMISSION|MAPPING|RW|CID' /tmp/amd.log | sed 40q
+grep 'wave (se|sgpr)' /tmp/amd.log | sed 5q
+sleep 6
+grep '^(ok|FAIL)' /tmp/radv.log
+echo TESTEND

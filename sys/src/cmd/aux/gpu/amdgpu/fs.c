@@ -481,6 +481,10 @@ fswrite(Req *r)
 			x = amdgpu_ih_kick();
 			if(x < 0)
 				e = errstr9(x);
+		}else if(n == 1 && strcmp(f[0], "waves") == 0){
+			x = amdgpu_waves();
+			if(x < 0)
+				e = errstr9(x);
 		}else
 			e = "unknown ctl message";
 		break;

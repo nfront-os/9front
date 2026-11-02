@@ -828,7 +828,13 @@ amdgpu_map(void *v, u32 handle, char *seg, int nseg, u64 *va, u64 *size, u64 *of
 	*size = amdgpu_bo_size(m->abo);
 	r = amdgpu_bo_reserve(m->abo, false);
 	if (r == 0) {
+		u32 was = m->abo->tbo.resource->mem_type;
+		u64 wasat = m->abo->tbo.resource->start;
+
 		r = amdgpu_bo_pin(m->abo, domain);
+		if (r == 0 && (m->abo->tbo.resource->mem_type != was || m->abo->tbo.resource->start != wasat))
+			pr_info("amdgpu: map %u: the pin moved it: type %u page %#llx -> type %u page %#llx\n",
+			    handle, was, wasat, m->abo->tbo.resource->mem_type, (u64)m->abo->tbo.resource->start);
 		amdgpu_bo_unreserve(m->abo);
 	}
 	if (r) {

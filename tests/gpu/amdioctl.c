@@ -226,18 +226,22 @@ main(int argc, char **argv)
 	u32int h[2], ctxid, *cmd, *dst;
 	uvlong gpu[2], base;
 	long r;
-	int ctx, i, radv;
+	int ctx, i, radv, unmapped;
 	uchar *bar0;
 
 	base = 0x200000000ULL;
 	radv = 0;
+	unmapped = 0;
 	bar0 = nil;
 	ARGBEGIN{
+	case 'u':	/* the IB writes where nothing is mapped: a page fault, which amdgpu should report */
+		unmapped = 1;
+		break;
 	case 'r':	/* objects as RADV makes its command buffers: VRAM or GTT, explicit sync, the IB uncached */
 		radv = 1;
 		break;
 	case 'b':	/* the objects' GPU addresses (RADV takes them from the top: 0xffff800000000000) */
-		base = strtoull(EARGF(sysfatal("usage: amdioctl [-r] [-b gpuaddr] [dev]")), nil, 0);
+		base = strtoull(EARGF(sysfatal("usage: amdioctl [-ru] [-b gpuaddr] [dev]")), nil, 0);
 		break;
 	}ARGEND
 	if(argc > 0)
@@ -339,8 +343,8 @@ main(int argc, char **argv)
 	dst[0] = 0;
 	cmd[0] = 3U << 30 | 0x37 << 8 | 3 << 16;	/* PACKET3(WRITE_DATA, 3) */
 	cmd[1] = 5 << 8 | 1 << 20;		/* memory, confirm */
-	cmd[2] = gpu[1];
-	cmd[3] = gpu[1] >> 32;
+	cmd[2] = gpu[1] + (unmapped ? 64<<20 : 0);
+	cmd[3] = (gpu[1] + (unmapped ? 64<<20 : 0)) >> 32;
 	cmd[4] = 0x10c71000;
 	ib = amalloc(sizeof *ib);
 	ib->va_start = gpu[0];

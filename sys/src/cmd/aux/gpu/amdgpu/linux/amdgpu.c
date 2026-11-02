@@ -139,6 +139,72 @@ amdgpu_ih_kick(void)
 	return amdgpu_ih_process(a, &a->irq.ih) == IRQ_HANDLED ? 0 : -EIO;
 }
 
+/*
+ * ctl "waves": the shader waves the SQ has, as amdgpu's debugfs reads
+ * them (read_wave_data; umr's view): where each one is (pc), its state
+ * and trap status, to the log.  gfx11 selects the SIMD with the
+ * instance (gfx_v11_0_read_wave_data); all instances and wave slots are
+ * read, those with STATUS.VALID (bit 16) printed.  Diagnosis of hangs.
+ */
+int
+amdgpu_waves(void)
+{
+	struct amdgpu_device *a = adev();
+	u32 d[32], se, sh, inst, w;
+	int n, nw;
+
+	if (!a || !a->gfx.funcs || !a->gfx.funcs->read_wave_data)
+		return -ENODEV;
+	nw = 0;
+	mutex_lock(&a->grbm_idx_mutex);
+	for (se = 0; se < a->gfx.config.max_shader_engines; se++)
+		for (sh = 0; sh < a->gfx.config.max_sh_per_se; sh++)
+			for (inst = 0; inst < 64; inst++)
+				for (w = 0; w < 16; w++) {
+					amdgpu_gfx_select_se_sh(a, se, sh, inst, 0);
+					n = 0;
+					a->gfx.funcs->read_wave_data(a, 0, 0, w, d, &n);
+					if (n < 16 || !(d[1] & (1 << 16)))
+						continue;
+					if (nw == 0 && a->gfx.funcs->read_wave_sgprs) {
+						/* the first wave's SGPRs 0-23: its user data, the descriptors it loaded */
+						u32 sg[24];
+						int k;
+
+						memset(sg, 0, sizeof(sg));
+						a->gfx.funcs->read_wave_sgprs(a, 0, 0, w, 0, 24, sg);
+						for (k = 0; k < 24; k += 8)
+							pr_info("amdgpu: wave sgpr %d-%d: %08x %08x %08x %08x %08x %08x %08x %08x\n",
+							    k, k + 7, sg[k], sg[k+1], sg[k+2], sg[k+3], sg[k+4], sg[k+5], sg[k+6], sg[k+7]);
+					}
+					nw++;
+					pr_info("amdgpu: wave se %u sh %u inst %u w %u: status %#x pc %#llx exec %#x%08x hw_id1 %#x hw_id2 %#x gpr %#x lds %#x trapsts %#x ib_sts %#x ib_sts2 %#x ib_dbg1 %#x m0 %#x mode %#x\n",
+					    se, sh, inst, w, d[1], (u64)d[3] << 32 | d[2], d[5], d[4], d[6], d[7], d[8], d[9],
+					    d[10], d[11], d[12], d[13], d[14], d[15]);
+				}
+	amdgpu_gfx_select_se_sh(a, 0xffffffff, 0xffffffff, 0xffffffff, 0);
+	mutex_unlock(&a->grbm_idx_mutex);
+	pr_info("amdgpu: %d waves\n", nw);
+	/*
+	 * the GFX hub's last protection fault (a wave with MEM_VIOL made one):
+	 * status, and the page (ADDR_LO32/HI32 follow the status register,
+	 * gc_11_0_0_offset.h), as gmc_v11_0_process_interrupt prints it
+	 */
+	{
+		struct amdgpu_device *adev = a;	/* RREG32's */
+		struct amdgpu_vmhub *hub = &a->vmhub[AMDGPU_GFXHUB(0)];
+		u32 st, lo, hi;
+
+		st = RREG32(hub->vm_l2_pro_fault_status);
+		lo = RREG32(hub->vm_l2_pro_fault_status + 1);
+		hi = RREG32(hub->vm_l2_pro_fault_status + 2);
+		pr_info("amdgpu: gfxhub fault status %#x page %#llx\n", st, ((u64)(hi & 0xf) << 32 | lo) << 12);
+		if (st && hub->vmhub_funcs && hub->vmhub_funcs->print_l2_protection_fault_status)
+			hub->vmhub_funcs->print_l2_protection_fault_status(a, st);
+	}
+	return 0;
+}
+
 /* the chip, its memory and the blocks that came up */
 char *
 amdgpu_status(void)

@@ -10,7 +10,7 @@
  * an image copied into host memory.  Prints "ok ..." / "FAIL ..." and a
  * summary; after a hang it stops.
  *
- * usage: radvtest
+ * usage: radvtest [-c]	(-c: the image clear alone, after the empty submit)
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -329,7 +329,7 @@ clearimage(int w, int h)
 }
 
 int
-main(void)
+main(int argc, char **argv)
 {
 	VkInstanceCreateInfo ci;
 	VkApplicationInfo app;
@@ -409,6 +409,10 @@ main(void)
 	if(run(cb, "empty command buffer") == -2)
 		goto out;
 	OK("empty command buffer");
+	if(argc > 1 && strcmp(argv[1], "-c") == 0){
+		clearimage(256, 256);
+		goto out;
+	}
 	if(fillhost(1024, hv, dl, "GTT") == -2 ||
 	   fillhost(1024, hv|dl, 0, "VRAM (BAR)") == -2 ||
 	   fillhost(1<<20, hv, dl, "GTT") == -2 ||

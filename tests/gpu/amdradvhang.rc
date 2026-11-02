@@ -1,14 +1,21 @@
 #!/bin/rc
 # aux/amdgpu, radvtest with RADV_DEBUG=hang: RADV's hang report (the
-# command streams, where the CP stopped) from /tmp/radv_dumps_*
+# command streams, where the CP stopped) from /tmp/radv_dumps_*: the
+# packets (not their registers) and which trace points the CP reached;
+# the registers' busy bits
 bind -a '#i' /dev
 bind -a '#v' /dev
 aux/amdgpu $* >/tmp/amd.log >[2=1]
 sleep 2
 HOME=/tmp RADV_DEBUG=hang /tests/radvtest >[2=1]
-ls -l /tmp/radv_dumps_*
-for(f in /tmp/radv_dumps_*/*){
-	echo '==' $f
-	sed 120q $f
+for(d in /tmp/radv_dumps_*){
+	echo '==' $d/trace.log
+	grep '^[0-9a-f]+ [^ ]*[A-Z_]+[^ ]*:|Trace point|trace point|IB (begin|end)' $d/trace.log | grep -v 'SET_(CONTEXT|SH|UCONFIG)_REG' | sed 's/.\[[0-9;]*m//g'
+	echo '==' COMPUTE_PGM
+	grep 'COMPUTE_PGM_(LO|HI)|SPI_SHADER_PGM_(LO|HI)' $d/trace.log | sed 's/.\[[0-9;]*m//g'
+	echo '==' $d/pipeline.log ISA
+	sed -n '/^Disassembly|ISA|disasm/,$p' $d/pipeline.log | sed 's/.\[[0-9;]*m//g' | sed 400q
+	echo '==' $d/registers.log
+	grep '<-|BUSY = 1|PENDING = 1' $d/registers.log | sed 's/.\[[0-9;]*m//g'
 }
 echo TESTEND

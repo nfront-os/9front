@@ -1,0 +1,10 @@
+#!/bin/rc
+# radvtest -c: the image clear alone (no buffers before it at the same addresses)
+bind -a '#i' /dev
+bind -a '#v' /dev
+aux/amdgpu $* >/tmp/amd.log >[2=1]
+sleep 2
+if(~ $#drm9debug 0)
+	drm9debug=1
+DRM9DEBUG=$drm9debug /tests/radvtest -c >[2=1]
+echo TESTEND
