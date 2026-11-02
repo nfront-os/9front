@@ -41,6 +41,7 @@ OBJTYPE = os.environ.get('objtype', 'amd64')
 SUFFIX = {'amd64': '', '386': '.386'}[OBJTYPE]
 conflicts = []
 PUBLIC = ('include/vulkan/', 'include/vk_video/')	# go to /sys/include/ape
+PLAN9_HEADERS = ('include/drm-uapi/amdgpu_drm.h',)	# plan9/drm's, under vendor/
 # hasvk first: its objects stand for venus' equal ones (members.py)
 SOS = ['src/intel/vulkan_hasvk/libvulkan_intel_hasvk.so', 'src/virtio/vulkan/libvulkan_virtio.so']
 
@@ -152,6 +153,9 @@ def main():
 			continue
 		placed[f] = t
 		copy(os.path.join(MESA, f), t)
+	# what plan9/drm (built here, not by meson) reads besides: amdgpu9.c's uapi
+	for rel in PLAN9_HEADERS:
+		copy(os.path.join(SRC, rel), os.path.join(VENDOR, rel))
 
 	# one block per (directory, meson library, language)
 	blocks = {}
