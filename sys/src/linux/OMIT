@@ -11,3 +11,4 @@ drivers/gpu/drm/amd/display/dc/gpio/dcn401/hw_factory_dcn401.c	DCN 4.01, registe
 drivers/gpu/drm/amd/display/dc/irq/dcn401/irq_service_dcn401.c	DCN 4.01, register header without a notice
 drivers/gpu/drm/amd/display/dc/resource/dcn401/dcn401_resource.c	DCN 4.01, register header without a notice
 drivers/gpu/drm/amd/display/dmub/src/dmub_dcn401.c	DCN 4.01, register header without a notice
+drivers/gpu/drm/drm_format_helper.c	format conversions for small drivers and the panic screen: nothing we build calls them
