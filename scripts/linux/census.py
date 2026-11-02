@@ -38,10 +38,12 @@ def flags(c):
 	# subdir-ccflags: i915's own directory, as Kbuild has it
 	if '/i915' in c:
 		f += ['-I', os.path.join(V, 'drivers/gpu/drm/i915'), '-I', os.path.join(D, 'replace/drivers/gpu/drm/i915')]
+		f += mkdefines('drivers/gpu/drm/i915')
 		# our headers of i915's selftests, for their .c files #included from elsewhere
 		f += ['-I', os.path.join(D, 'replace/drivers/gpu/drm/i915/selftests')]
 	# amd/: amdgpu's Makefile builds it all, with its include directories
 	if c.startswith('drivers/gpu/drm/amd/'):
+		f += mkdefines('drivers/gpu/drm/amd/amdgpu')
 		for x in amdincludes():
 			# our replacements first (replace/ mirrors vendor/: mod_power.h)
 			r = os.path.join(D, 'replace', os.path.relpath(x, V))
@@ -52,6 +54,13 @@ def flags(c):
 	# quoted includes next to the file, replaced: replace/ mirrors vendor/
 	f += ['-I', os.path.join(D, 'replace', d)]
 	return f
+
+_defs = {}
+def mkdefines(d):
+	"""the -D of d's Makefile (subdir-ccflags: for all below it), once"""
+	if d not in _defs:
+		_defs[d] = kbuild.defines(V, d, kbuild.config())
+	return _defs[d]
 
 _amdinc = None
 def amdincludes():

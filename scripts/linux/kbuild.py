@@ -164,6 +164,20 @@ def includes(tree, d, cfg):
 				out.append(p)
 	return out
 
+def defines(tree, d, cfg):
+	"""the -D definitions of d's Makefile (ccflags-y, subdir-ccflags-y):
+	i915's -DI915, which its display code (shared with xe) tests"""
+	mk = os.path.join(tree, d, 'Makefile')
+	if not os.path.exists(mk):
+		return []
+	v = evaluate(mk, cfg, tree=os.path.abspath(tree), d=d)
+	out = []
+	for k in ('ccflags-y', 'subdir-ccflags-y'):
+		for w in re.findall(r'(-D\S+)', v.get(k, '')):
+			if w not in out:
+				out.append(w)
+	return out
+
 def autoconf(cfg):
 	"""include/generated/autoconf.h: a #define for each option"""
 	out = ['/* made by scripts/linux/kbuild.py from sys/src/linux/kconfig */']
