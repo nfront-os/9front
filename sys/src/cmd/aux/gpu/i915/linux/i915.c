@@ -16,6 +16,7 @@
 
 int	kpi_init_i915_init(void);
 int	kpi_init_st_init(void);	/* drivers/dma-buf/selftest.c */
+extern int kpi_slabdebug;	/* linux/kpi/linux/slab.c */
 extern int kpi_loglevel;
 void	kpi_constructors(void);
 int	kpi_param_set(const char *);
@@ -120,7 +121,8 @@ i915_kpitest(void)
 	r = vmap_selftest();
 	if (r)
 		return r;
-	/* Linux's selftests of fences, chains, arrays, reservation objects */
+	/* Linux's selftests of fences, chains, arrays, reservation objects; with the slab's checks */
+	kpi_slabdebug = 1;
 	r = kpi_init_st_init();
 	pr_info("selftest: Linux's dma-buf selftests: %s (%d)\n", r ? "FAIL" : "ok", r);
 	return r;
