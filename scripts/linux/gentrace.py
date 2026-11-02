@@ -17,8 +17,9 @@ HEADERS = {
 	'intel_display_trace.h': 'drivers/gpu/drm/i915/display/intel_display_trace.h',
 	'display/intel_display_trace.h': 'drivers/gpu/drm/i915/display/intel_display_trace.h',
 	'drm_trace.h': 'drivers/gpu/drm/drm_trace.h',
+	'intel_uncore_trace.h': 'drivers/gpu/drm/i915/intel_uncore_trace.h',	# Linux 6.10 on
 }
-LX = os.path.expanduser(sys.argv[1] if len(sys.argv) > 1 else '~/Devel/linux-6.6')
+LX = os.path.expanduser(sys.argv[1] if len(sys.argv) > 1 else '~/Devel/linux-7.3.1')
 
 names, funcs = set(), set()
 for f in glob.glob(os.path.join(D, 'vendor/**/*.[ch]'), recursive=True):
