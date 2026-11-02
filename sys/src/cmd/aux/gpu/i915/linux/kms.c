@@ -313,13 +313,25 @@ flip(u32 fb)
 	int r;
 
 	struct drm_file *fp = kms->private_data;
+	static int nflip;
+	int k = ++nflip;
 	long t;
 
+	/* the first ones in the log (written through): where a hang began (the laptop froze after two) */
+	if (k <= 30)
+		pr_info("i915: scanout %d: flip to fb %u\n", k, fb);
 	r = kioctl(kms, DRM_IOCTL_MODE_PAGE_FLIP, &f);
-	if (r == -EINVAL && !relit)
-		return relight(fb);
-	if (r)
+	if (r == -EINVAL && !relit) {
+		r = relight(fb);
+		if (k <= 30)
+			pr_info("i915: scanout %d: modeset with fb %u: %d\n", k, fb, r);
 		return r;
+	}
+	if (r) {
+		if (k <= 30)
+			pr_info("i915: scanout %d: flip: %d\n", k, r);
+		return r;
+	}
 	/*
 	 * the flip's event at the next vblank: a second at most (kmslock is
 	 * held), else the client is told and copies (on the laptop the
@@ -331,6 +343,8 @@ flip(u32 fb)
 		return t < 0 ? t : -ETIMEDOUT;
 	}
 	r = drm_read(kms, (char __user *)ev, sizeof(ev), &pos);
+	if (k <= 30)
+		pr_info("i915: scanout %d: shown (%d)\n", k, r);
 	return r < 0 ? r : 0;
 }
 
