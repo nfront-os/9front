@@ -88,8 +88,11 @@ def evaluate(path, cfg, v=None, tree=None, d=None):
 			v['src'] = os.path.join(tree, d) if linuxversion(tree) >= (6, 10) else d
 			v['obj'] = d
 	stack = []	# for each open conditional: is its part active
+	recipe = False	# tab lines after a rule are its commands
 	for l in lines(path):
 		s = l.strip()
+		if s and not l.startswith('\t'):
+			recipe = re.match(r'[^=]*[^:=]:([^=]|$)', s) is not None
 		if s.startswith(('ifdef', 'ifndef', 'ifeq', 'ifneq')):
 			stack.append(all(stack) and truth(s, v, cfg))
 			continue
@@ -104,7 +107,7 @@ def evaluate(path, cfg, v=None, tree=None, d=None):
 			continue
 		if not all(stack):
 			continue
-		if l.startswith('\t'):
+		if l.startswith('\t') and recipe:
 			continue
 		if s.startswith(('include ', '-include ', 'sinclude ')):
 			for inc in expand(s.split(None, 1)[1], v, cfg).split():

@@ -35,6 +35,7 @@
 			"-I../../../../linux/vendor",
 			"-I../../../../linux/vendor/drivers/gpu/drm/i915",
 			"-I../../../../linux/replace/drivers/gpu/drm/i915",
+			"-DI915",
 			"-I../../../../linux/replace/drivers/gpu/drm/i915/selftests",
 			"-I../../../../linux/vendor/drivers/gpu/drm/i915",
 			"-I../../../../linux/replace/drivers/gpu/drm/i915"
