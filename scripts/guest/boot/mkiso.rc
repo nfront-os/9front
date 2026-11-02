@@ -46,7 +46,14 @@ disk/mk9660 -c9j -B 386/9bootiso -E 386/efiboot.fat \
 	-p <{cat $proto $bootproto $gccproto} \
 	-s /n/src9 -v 'Plan 9 Front ('^$objtype^')' $target || fail mk9660
 if(test -r /n/src9/386/9boothyb){
-	dd -if /dev/zero -bs 2048 -count 1024 >> $target
+	# the ESP goes into the image's last whole cylinder ('$-1' '$'):
+	# 9front's mkfile appends 2 MB, less than a cylinder of the geometry
+	# fdisk picks (4 MB here, at most 255*63*512 = 7.8 MB), so that
+	# cylinder could begin inside the ISO, and disk/format wrote the FAT
+	# over its end (the Joliet tree, mk9660 puts it last: a 1.5 GB CD,
+	# xorriso: 'recorded in interleaved mode'); 16 MB keep two whole
+	# cylinders of any geometry past the ISO
+	dd -if /dev/zero -bs 2048 -count 8192 >> $target
 	disk/partfs -m /n/partfs $target || fail partfs
 	disk=/n/partfs/sdXX
 	disk/mbr -m /n/src9/386/mbr $disk/data || fail mbr
