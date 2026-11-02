@@ -1,5 +1,5 @@
 #!/bin/rc
-# i915run: Linux 6.6's i915 on the LinuxKPI (aux/i915), its output into
+# i915run: Linux 7.3's i915 on the LinuxKPI (aux/i915), its output into
 # logs on the ESP (FAT) of the USB stick the system booted from (written
 # through: they survive a hang), as intelrun does:
 #	i915.log	the driver

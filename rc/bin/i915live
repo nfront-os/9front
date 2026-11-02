@@ -1,5 +1,5 @@
 #!/bin/rc
-# i915live: i915's live selftests (Linux 6.6's, on the GPU), as Linux
+# i915live: i915's live selftests (Linux 7.3's, on the GPU), as Linux
 # runs them with i915.live_selftests=-1: aux/i915 -L with the groups
 # still to run (i915.live_<group>=1 each), in the order of
 # i915_live_selftests.h.  As in Linux a run stops at the first group that
