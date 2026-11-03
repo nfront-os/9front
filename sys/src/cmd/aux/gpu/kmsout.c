@@ -18,7 +18,8 @@
  * outputs the screen again.  A monitor connected later (DRM's hotplug
  * event, to an in-kernel client of ours) goes on right of the others,
  * one no longer connected off (not the last one); one turned off by
- * hand stays off while it is connected.
+ * hand stays off while it is connected.  The mouse cursor (vga hwgc
+ * gpu) is on every output's cursor plane, a 64 x 64 ARGB object.
  */
 #include <linux/kernel.h>
 #include <linux/slab.h>
@@ -38,6 +39,8 @@
 #include <drm/drm_fourcc.h>
 #include <drm/drm_mode.h>
 #include <drm/drm_client.h>
+#include <drm/drm_gem.h>
+#include <linux/iosys-map.h>
 #include "kmsout.h"
 
 enum {
@@ -72,6 +75,13 @@ static struct file *shown_by;		/* the client's file */
 static int shown_out;			/* the output that shows it, -1: every one */
 static struct drm_mode_modeinfo shown_mode;	/* its mode there */
 static struct drm_client_dev client;	/* for DRM's hotplug events */
+
+enum { Curw = 64 };			/* the cursor object's side: every display has 64 */
+static DEFINE_MUTEX(curlock);		/* the cursor; never with kmslock after it */
+static u32 cur_handle;			/* a dumb buffer, ARGB8888 */
+static bool cur_on, cur_loaded;
+static int cur_x, cur_y, cur_ox, cur_oy;
+static void	curset(void);
 static DECLARE_WAIT_QUEUE_HEAD(hotplugq);
 static atomic_t hotplugs;
 
@@ -603,6 +613,10 @@ apply(unsigned long long maxbytes)
 		outs[i].crtc = want[i];
 	}
 	screenfree(ofb, ohandle);
+	/* the cursor on the outputs as they are now */
+	mutex_lock(&curlock);
+	curset();
+	mutex_unlock(&curlock);
 	return 0;
 }
 
@@ -748,6 +762,133 @@ kmsout_set(char *name, char *spec, unsigned long long maxbytes, unsigned int *w,
 	geom(w, h, pitch, baroff);
 	mutex_unlock(&kmslock);
 	return r ? errstr(r) : NULL;
+}
+
+/* the cursor where it is on every output that is on (relative to its part); curlock held */
+static void
+curmove(void)
+{
+	struct drm_mode_cursor c;
+	int i;
+
+	for (i = 0; i < nout; i++) {
+		struct out *o = &outs[i];
+
+		if (!o->on || !o->crtc)
+			continue;
+		memset(&c, 0, sizeof(c));
+		c.flags = DRM_MODE_CURSOR_MOVE;
+		c.crtc_id = o->crtc;
+		c.x = cur_x + cur_ox - o->x;
+		c.y = cur_y + cur_oy - o->y;
+		kioctl(kms, DRM_IOCTL_MODE_CURSOR, &c);
+	}
+}
+
+/* the cursor's object on every output that is on (or off), then where it is; curlock held */
+static void
+curset(void)
+{
+	struct drm_mode_cursor c;
+	int i, r;
+
+	for (i = 0; i < nout; i++) {
+		struct out *o = &outs[i];
+
+		if (!o->on || !o->crtc)
+			continue;
+		memset(&c, 0, sizeof(c));
+		c.flags = DRM_MODE_CURSOR_BO;
+		c.crtc_id = o->crtc;
+		if (cur_on && cur_loaded) {
+			c.handle = cur_handle;
+			c.width = Curw;
+			c.height = Curw;
+		}
+		r = kioctl(kms, DRM_IOCTL_MODE_CURSOR, &c);
+		if (r)
+			pr_warn("kmsout: %s: cursor: %d\n", o->name, r);
+	}
+	if (cur_on && cur_loaded)
+		curmove();
+}
+
+/*
+ * the cursor's image: Plan 9's (cursor.h: 16 x 16, a bit each of clr,
+ * white, and set, black, over it), offset (ox oy) from the mouse's
+ * point; 0 or the error
+ */
+int
+kmsout_cursor_image(unsigned char *clr, unsigned char *set, int ox, int oy)
+{
+	struct drm_mode_create_dumb cd = { .width = Curw, .height = Curw, .bpp = 32 };
+	struct drm_gem_object *obj;
+	struct iosys_map map;
+	u32 *px;
+	int x, y, r, b;
+
+	if (!kms)
+		return -ENODEV;
+	mutex_lock(&curlock);
+	if (!cur_handle) {
+		r = kioctl(kms, DRM_IOCTL_MODE_CREATE_DUMB, &cd);
+		if (r)
+			goto out;
+		if (cd.pitch != Curw * 4) {
+			pr_warn("kmsout: the cursor's pitch is %u\n", cd.pitch);
+			r = -EINVAL;
+			goto out;
+		}
+		cur_handle = cd.handle;
+	}
+	px = kcalloc(Curw * Curw, sizeof(*px), GFP_KERNEL);
+	if (!px) {
+		r = -ENOMEM;
+		goto out;
+	}
+	for (y = 0; y < 16; y++)
+		for (x = 0; x < 16; x++) {
+			b = 0x80 >> (x & 7);
+			if (set[y * 2 + x / 8] & b)
+				px[y * Curw + x] = 0xff000000;
+			else if (clr[y * 2 + x / 8] & b)
+				px[y * Curw + x] = 0xffffffff;
+		}
+	obj = drm_gem_object_lookup(kms->private_data, cur_handle);
+	r = obj ? drm_gem_vmap(obj, &map) : -ENOENT;
+	if (r == 0) {
+		iosys_map_memcpy_to(&map, 0, px, Curw * Curw * sizeof(*px));
+		drm_gem_vunmap(obj, &map);
+	}
+	if (obj)
+		drm_gem_object_put(obj);
+	kfree(px);
+	if (r)
+		goto out;
+	cur_ox = ox;
+	cur_oy = oy;
+	cur_loaded = true;
+	curset();	/* the display reads it again */
+out:
+	mutex_unlock(&curlock);
+	return r;
+}
+
+/* the cursor at x y on the screen, shown or not */
+void
+kmsout_cursor_move(int x, int y, int on)
+{
+	if (!kms)
+		return;
+	mutex_lock(&curlock);
+	cur_x = x;
+	cur_y = y;
+	if (!!on != cur_on) {
+		cur_on = on;
+		curset();
+	} else if (cur_on && cur_loaded)
+		curmove();
+	mutex_unlock(&curlock);
 }
 
 /* until a hotplug event after the one *seen; 0, or -EINTR (a note) */

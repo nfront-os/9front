@@ -9,6 +9,7 @@
  *	echo type gpu >/dev/vgactl
  *	echo size 1280x800x32 x8r8g8b8 >/dev/vgactl
  *	echo drawinit >/dev/vgactl
+ *	echo hwgc gpu >/dev/vgactl	(the cursor: the driver's, #G/0/cursor)
  */
 #include "u.h"
 #include "../port/lib.h"
@@ -26,6 +27,9 @@
 
 extern int gpufb(uvlong*, void**, ulong*);
 extern void gpudirty(int, int, int, int);
+extern void gpucurload(uchar*, uchar*, int, int);
+extern void gpucurmove(int, int);
+extern void gpucuron(int);
 
 /*
  * for devgpu.c (bar N cached): the firmware's MTRRs make the PCI hole
@@ -87,4 +91,42 @@ VGAdev vgagpudev = {
 	nil,
 	nil,
 	gpuflush,
+};
+
+/*
+ * hwgc gpu: the cursor goes to the driver (#G/0/cursor), which puts it
+ * on the display's cursor planes; devdraw draws none
+ */
+static void
+gpucurenable(VGAscr*)
+{
+	gpucurload(cursor.clr, cursor.set, cursor.offset.x, cursor.offset.y);
+	gpucuron(1);
+}
+
+static void
+gpucurdisable(VGAscr*)
+{
+	gpucuron(0);
+}
+
+static void
+gpucurload1(VGAscr*, Cursor *c)
+{
+	gpucurload(c->clr, c->set, c->offset.x, c->offset.y);
+}
+
+static int
+gpucurmove1(VGAscr*, Point p)
+{
+	gpucurmove(p.x, p.y);
+	return 0;
+}
+
+VGAcur vgagpucur = {
+	"gpu",
+	gpucurenable,
+	gpucurdisable,
+	gpucurload1,
+	gpucurmove1,
 };

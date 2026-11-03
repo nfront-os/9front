@@ -1,0 +1,18 @@
+#!/bin/rc
+# aux/amdgpu's mouse cursor on the display (vga hwgc gpu): the pointer
+# moved over the screen through /dev/mousein (absolute), 8 steps 1.2 s
+# each; look at the monitor.  The cursor's state and the log's warnings.
+bind -a '#i' /dev
+bind -a '#v' /dev
+bind -a '#m' /dev
+aux/amdgpu $* >/tmp/amd.log >[2=1]
+sleep 2
+grep hwgc /dev/vgactl
+for(p in '100 100' '960 540' '1800 100' '1800 1000' '100 1000' '1919 1079' '0 0' '960 540'){
+	echo A $p 0 >/dev/mousein
+	echo moved to $p
+	sleep 1.2
+}
+grep hwgc /dev/vgactl
+grep 'cursor|WARN|error|fault' /tmp/amd.log
+echo TESTEND

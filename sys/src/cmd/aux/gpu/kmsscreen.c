@@ -16,7 +16,10 @@
  * as many monitors side by side as the display has pipes, each as big
  * as the biggest mode of those connected (1920x1080 at least), else
  * smaller (below).  A monitor connected later goes on right of the
- * others (hotplugproc), if the framebuffer is big enough.
+ * others (hotplugproc), if the framebuffer is big enough.  The mouse
+ * cursor is the display's (vga hwgc gpu: the kernel passes it on in
+ * #G/n/cursor, cursorproc puts it on the outputs' cursor planes); soft,
+ * drawn by devdraw, if the kernel or the display cannot.
  */
 #include <u.h>
 #include <libc.h>
@@ -34,6 +37,7 @@ static int w, h;
 static uint pitch;
 
 static void	hotplugproc(void*);
+static void	cursorproc(void*);
 
 static int
 vgactl(char *fmt, ...)
@@ -259,9 +263,12 @@ screenstart(char *dir, int barno, char *name)
 	vram = bar + off;
 	if(vgactl("type gpu") < 0 || setsize() < 0)
 		return -1;
-	vgactl("hwgc soft");
 	copyrect(0, 0, w, h);
 	proccreate(dirtyproc, nil, 16384);
+	if(vgactl("hwgc gpu") < 0)
+		vgactl("hwgc soft");
+	else
+		proccreate(cursorproc, nil, 1024*1024);	/* amdgpu: DC's cursor update */
 	proccreate(hotplugproc, nil, 1024*1024);	/* amdgpu: DC's modeset */
 	fprint(2, "%s: screen %dx%d (framebuffer %lud bytes)\n", drv, w, h, fbsize);
 	return 0;
@@ -391,4 +398,67 @@ outrequest(char *out, char *spec, int bl, char **s)
 	if(s != nil)
 		*s = q.s;
 	return q.e;
+}
+
+static int
+hexbytes(char *s, uchar *b, int n)
+{
+	int i, x;
+	char t[3];
+
+	for(i = 0; i < n; i++){
+		if(s[0] == 0 || s[1] == 0)
+			return -1;
+		t[0] = s[0];
+		t[1] = s[1];
+		t[2] = 0;
+		x = strtol(t, nil, 16);
+		b[i] = x;
+		s += 2;
+	}
+	return 0;
+}
+
+/*
+ * the cursor from the kernel (#G/n/cursor: x y on gen ox oy clrset) onto
+ * the display; if the display cannot show it, devdraw draws it again
+ */
+static void
+cursorproc(void*)
+{
+	char path[64], buf[256], *f[8];
+	uchar clr[32], set[32];
+	int fd, n, gen, lastgen, r;
+
+	snprint(path, sizeof path, "%s/cursor", gdir);
+	if((fd = open(path, OREAD)) < 0){
+		fprint(2, "%s: cursor: %s: %r\n", drv, path);
+		vgactl("hwgc soft");
+		return;
+	}
+	lastgen = -1;
+	for(;;){
+		n = read(fd, buf, sizeof buf - 1);
+		if(n <= 0){
+			fprint(2, "%s: cursor: %s: %r\n", drv, path);
+			break;
+		}
+		buf[n] = 0;
+		if(tokenize(buf, f, nelem(f)) != 7)
+			continue;
+		gen = atoi(f[3]);
+		if(gen != lastgen){
+			if(hexbytes(f[6], clr, 32) < 0 || hexbytes(f[6]+64, set, 32) < 0)
+				continue;
+			if((r = kmsout_cursor_image(clr, set, atoi(f[4]), atoi(f[5]))) < 0){
+				fprint(2, "%s: cursor: the display's: error %d: soft\n", drv, -r);
+				break;
+			}
+			lastgen = gen;
+		}
+		kmsout_cursor_move(atoi(f[0]), atoi(f[1]), atoi(f[2]));
+	}
+	close(fd);
+	kmsout_cursor_move(0, 0, 0);
+	vgactl("hwgc soft");
 }

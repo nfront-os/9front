@@ -8,6 +8,11 @@
  *	#G/N/irq	read blocks until the device interrupts
  *	#G/N/dirty	read blocks until /dev/draw changed the
  *			framebuffer; returns "x0 y0 x1 y1"
+ *	#G/N/cursor	read blocks until the cursor (vga hwgc gpu)
+ *			changed; returns "x y on gen ox oy clrset":
+ *			the point it is at, shown or not, its image's
+ *			generation, offset and 64 bytes clr and set
+ *			(cursor.h), hex
  *
  * The memory BARs are physical segments gpuNbarM, the
  * framebuffer is gpuNfb (see segattach(2)).  Interrupts are MSI
@@ -33,6 +38,7 @@ enum {
 	Qctl,
 	Qirq,
 	Qdirty,
+	Qcursor,
 
 	Maxgpu	= 4,
 
@@ -67,6 +73,15 @@ struct Gpu
 	int	isdirty;
 	int	dirty[4];
 
+	Lock	curlock;	/* ilock: the mouse's interrupt moves it */
+	Rendez	curr;
+	int	curchanged;
+	int	curgen;		/* one more each image */
+	int	curon;
+	int	curx, cury;
+	int	curox, curoy;	/* the image's offset from the point */
+	uchar	curclr[32], curset[32];	/* cursor.h's */
+
 	uchar	*fb;
 	ulong	fbsize;
 	char	fbseg[KNAMELEN];
@@ -89,6 +104,7 @@ static Dirtab gpudir[] = {
 	"ctl",		{Qctl},		0,	0660,
 	"irq",		{Qirq},		0,	0440,
 	"dirty",	{Qdirty},	0,	0440,
+	"cursor",	{Qcursor},	0,	0440,
 };
 
 static void
@@ -268,6 +284,12 @@ isdirty(void *a)
 	return ((Gpu*)a)->isdirty;
 }
 
+static int
+curchanged(void *a)
+{
+	return ((Gpu*)a)->curchanged;
+}
+
 static long
 ctlread(Gpu *g, void *a, long n, vlong off)
 {
@@ -339,6 +361,33 @@ gpuread(Chan *c, void *a, long n, vlong off)
 		unlock(&g->dirtylock);
 		snprint(buf, sizeof buf, "%d %d %d %d\n", r[0], r[1], r[2], r[3]);
 		return readstr(0, a, n, buf);
+	case Qcursor:
+		{
+			char cbuf[256], *p, *e;
+			uchar clr[32], set[32];
+			int x, y, ox, oy, on, gen, i;
+
+			sleep(&g->curr, curchanged, g);
+			ilock(&g->curlock);
+			x = g->curx;
+			y = g->cury;
+			ox = g->curox;
+			oy = g->curoy;
+			on = g->curon;
+			gen = g->curgen;
+			memmove(clr, g->curclr, sizeof clr);
+			memmove(set, g->curset, sizeof set);
+			g->curchanged = 0;
+			iunlock(&g->curlock);
+			e = cbuf + sizeof cbuf;
+			p = seprint(cbuf, e, "%d %d %d %d %d %d ", x, y, on, gen, ox, oy);
+			for(i = 0; i < sizeof clr; i++)
+				p = seprint(p, e, "%.2ux", clr[i]);
+			for(i = 0; i < sizeof set; i++)
+				p = seprint(p, e, "%.2ux", set[i]);
+			seprint(p, e, "\n");
+			return readstr(0, a, n, cbuf);
+		}
 	}
 	error(Egreg);
 	return 0;
@@ -492,6 +541,68 @@ gpudirty(int x0, int y0, int x1, int y1)
 	}
 	unlock(&g->dirtylock);
 	wakeup(&g->dirtyr);
+}
+
+/*
+ * the cursor for vgagpu.c (hwgc gpu): its image, where it is, shown or
+ * not, for the driver (#G/N/cursor); from the mouse's interrupt too
+ */
+static Gpu*
+curlock(void)
+{
+	Gpu *g;
+
+	if((g = screengpu) == nil)
+		return nil;
+	ilock(&g->curlock);
+	return g;
+}
+
+static void
+curunlock(Gpu *g)
+{
+	g->curchanged = 1;
+	iunlock(&g->curlock);
+	wakeup(&g->curr);
+}
+
+/* the image: cursor.h's clr and set (32 bytes each), its offset */
+void
+gpucurload(uchar *clr, uchar *set, int ox, int oy)
+{
+	Gpu *g;
+
+	if((g = curlock()) == nil)
+		return;
+	memmove(g->curclr, clr, sizeof g->curclr);
+	memmove(g->curset, set, sizeof g->curset);
+	g->curox = ox;
+	g->curoy = oy;
+	g->curgen++;
+	curunlock(g);
+}
+
+void
+gpucurmove(int x, int y)
+{
+	Gpu *g;
+
+	if((g = curlock()) == nil)
+		return;
+	g->curx = x;
+	g->cury = y;
+	curunlock(g);
+}
+
+void
+gpucuron(int on)
+{
+	Gpu *g;
+
+	if((g = curlock()) == nil)
+		return;
+	g->curon = on;
+	curunlock(g);
 }
 
 Dev gpudevtab = {

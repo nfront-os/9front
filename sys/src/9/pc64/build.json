@@ -276,7 +276,7 @@
                     "uartisa",
                     "uartpci pci",
                     "vgasoft =cur swcursor",
-                    "vgagpu",
+                    "vgagpu +cur",
                     "vgaigfx +cur",
                     "vgaradeon +cur",
                     "vgavesa",
