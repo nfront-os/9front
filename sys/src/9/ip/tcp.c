@@ -1605,8 +1605,9 @@ tcpbypass(void *arg, Block *b)
 	Conv *o = tcb->bypass;
 
 	if(o == nil || ((Tcpctl*)o->ptcl)->bypass != c){
+		/* the other end is closed: tell the writer, as a closed queue does */
 		freeblist(b);
-		return;
+		error(Ehungup);
 	}
 	qbwrite(o->rq, b);
 }
