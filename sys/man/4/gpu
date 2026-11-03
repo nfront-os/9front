@@ -634,8 +634,6 @@ A client's ioctls have a superuser's rights (Linux's
 .BR CAP_SYS_ADMIN ,
 .B DRM_ROOT_ONLY
 ioctls) only if it is the hostowner.
-The context's files belong to the driver's user: other users do not
-use the GPU yet.
 .PP
 At a critical temperature amdgpu powers the machine off, as on Linux
 (orderly_poweroff): the layer runs
@@ -709,6 +707,38 @@ other sizes are refused (the client copies).
 .B -S
 leaves draw(3)'s screen where it was; then there is no layout and no
 scanout.
+.SS "Users (i915, amdgpu)"
+A request is the user's whose srv file it came through, whatever
+name its attach carries (anyone who opens a srv file may send any;
+nothing proves one here).
+.BI /srv/ srvname
+is the hostowner's (mode 0600).
+The hostowner writes
+.BI user " name
+to the driver's
+.B ctl
+to post
+.BI /srv/ srvname . name ,
+the user's (0600); every fid of an attach through it is that user's.
+The user mounts it after
+.BR /dev :
+.IP
+.EX
+mount -a /srv/gpu.0.\fIname\fP /dev
+.EE
+.PP
+A context is its creator's: its files are the creator's alone (0600),
+and so are the segments the driver makes for it (the arena, objects,
+maps: their owner the creator, mode 0600).
+The display is the hostowner's: only it may write the driver's
+.BR ctl ,
+an output's
+.B mode
+and
+.BR backlight ,
+and show a picture
+.RB ( scanout ,
+.BR "map plane" ).
 .SH EXAMPLES
 Switch the screen to 1024x768:
 .EX

@@ -39,6 +39,7 @@ struct Ctx {
 	int	ref;		/* open files */
 	File	*dir, *ctl, *submit, *fence;
 	char	*reply;
+	char	*uid;		/* its creator's: its files, its segments */
 };
 
 struct Fidaux {
@@ -53,6 +54,9 @@ static QLock ctxlock;
 static Ctx *ctxs[Nctx];
 static File *ctxdir;
 static Srv fs;
+static char *srvname9;	/* serve's: /srv/srvname, /srv/srvname.user */
+
+#include "../usersrv.c"
 
 /* a file's kind and context: aux holds the kind, ctx files the context too */
 #define KIND(f)		((uintptr)(f)->aux & 0xFF)
@@ -99,10 +103,9 @@ setreply(Ctx *c, char *fmt, ...)
 }
 
 static Ctx*
-newctx(void)
+newctx(char *uid)
 {
 	char name[16];
-	char *user;
 	void *lc;
 	Ctx *c;
 	int id;
@@ -121,12 +124,13 @@ newctx(void)
 	memset(c, 0, sizeof *c);
 	c->id = id;
 	c->lc = lc;
-	user = getuser();
+	c->uid = estrdup9p(uid);
+	/* its creator's alone */
 	snprint(name, sizeof name, "%d", id);
-	c->dir = createfile(ctxdir, name, user, DMDIR|0555, nil);
-	c->ctl = createfile(c->dir, "ctl", user, 0664, (void*)(uintptr)(id<<8 | Xctxctl));
-	c->submit = createfile(c->dir, "submit", user, 0222, (void*)(uintptr)(id<<8 | Xctxsubmit));
-	c->fence = createfile(c->dir, "fence", user, 0664, (void*)(uintptr)(id<<8 | Xctxfence));
+	c->dir = createfile(ctxdir, name, uid, DMDIR|0500, nil);
+	c->ctl = createfile(c->dir, "ctl", uid, 0600, (void*)(uintptr)(id<<8 | Xctxctl));
+	c->submit = createfile(c->dir, "submit", uid, 0200, (void*)(uintptr)(id<<8 | Xctxsubmit));
+	c->fence = createfile(c->dir, "fence", uid, 0600, (void*)(uintptr)(id<<8 | Xctxfence));
 	ctxs[id] = c;
 	setreply(c, "ctx %d\n", id);
 	return c;
@@ -146,6 +150,7 @@ freectx(Ctx *c)
 	closefile(c->ctl);
 	closefile(c->dir);
 	free(c->reply);
+	free(c->uid);
 	free(c);
 }
 
@@ -158,7 +163,7 @@ fsopen(Req *r)
 	switch(KIND(r->fid->file)){
 	case Xclone:
 		qlock(&ctxlock);
-		if((c = newctx()) == nil){
+		if((c = newctx(r->fid->uid)) == nil){
 			qunlock(&ctxlock);
 			responderror(r);
 			return;
@@ -320,6 +325,7 @@ ctxctl(Ctx *c, char **f, int n)
 		e = i915_bo_new(c->lc, strtoull(f[1], nil, 0), &gpu, &id, seg, sizeof seg, &va, &size);
 		if(e < 0)
 			return errstr9(e);
+		segown(seg, c->uid);
 		setreply(c, "bo %d %s %#llux %#llux %#llux\n", id, seg, va, size, gpu);
 		return nil;
 	}
@@ -377,12 +383,28 @@ fswrite(Req *r)
 	}
 	n = tokenize(buf, f, nelem(f));
 	switch(KIND(r->fid->file)){
+	case Xctl:
+		if(n == 2 && strcmp(f[0], "user") == 0){
+			/* /srv/srvname.user: gpu(4) for that user */
+			if(!iseve9p(r->fid->uid))
+				e = "permission denied: the hostowner's";
+			else
+				e = postuser(&fs, srvname9, f[1]);
+		}else
+			e = "unknown ctl message";
+		break;
 	case Xerror:
 		i915_error_clear();
 		break;
 	case Xctxctl:
 		if(n < 1){
 			respond(r, "empty ctl message");
+			return;
+		}
+		if(((n == 2 || n == 5) && strcmp(f[0], "scanout") == 0 || n == 2 && strcmp(f[0], "map") == 0 && strcmp(f[1], "plane") == 0)
+		&& !iseve9p(r->fid->uid)){
+			/* the display and the screen are the hostowner's (the console's) */
+			respond(r, "permission denied: the display is the hostowner's");
 			return;
 		}
 		if((n == 2 || n == 5) && strcmp(f[0], "scanout") == 0){
@@ -467,6 +489,9 @@ serve(char *srvname)
 	fs.read = fsread;
 	fs.write = fswrite;
 	fs.destroyfid = fsdestroyfid;
+	fs.attach = srvattach;
+	fs.aux = estrdup9p(getuser());	/* /srv/srvname is the hostowner's */
+	srvname9 = estrdup9p(srvname);
 	mktree();
 	threadpostmountsrv(&fs, srvname, "/dev", MAFTER);
 }

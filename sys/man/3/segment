@@ -175,7 +175,9 @@ The permissions check when
 .IR segattach ing
 is equivalent to the one performed when opening
 .B data
-with mode ORDWR.
+with mode ORDWR; the hostowner may attach every segment (it may give
+any to itself anyway): a driver keeps the segments it made for its
+clients and gave to their users.
 .SH EXAMPLE
 .PP
 Create a one megabyte segment at address 0x10000000:

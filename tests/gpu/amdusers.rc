@@ -1,0 +1,25 @@
+#!/bin/rc
+# gpu(4) for several users (aux/amdgpu): the hostowner posts
+# /srv/gpu.0.none; none uses the GPU through it (amdctxtest: contexts,
+# objects, their segments attached, submissions; radvtest: RADV), and
+# may not: open the hostowner's srv, the hostowner's context, the
+# driver's ctl, show a picture (scanout).
+bind -a '#i' /dev
+bind -a '#v' /dev
+aux/amdgpu $* >/tmp/amd.log >[2=1]
+sleep 2
+ls -l /srv/gpu.0
+if(echo user none >/dev/gpu/0/ctl)
+	echo passed user none posted
+if not
+	echo FAIL user none
+ls -l /srv/gpu.0.none
+# a context of the hostowner's, held open meanwhile
+{sleep 60} <>/dev/gpu/0/clone &
+sleep 1
+ctx=`{ls /dev/gpu/0/ctx | sed 's,.*/,,'}
+echo hostowner context: $ctx
+ls -l /dev/gpu/0/ctx/$ctx
+auth/none rc /tests/amdusersnone.rc $ctx
+grep 'WARN|error|fault|segment' /tmp/amd.log
+echo TESTEND

@@ -665,7 +665,13 @@ globalsegattach(char *name)
 	poperror();
 	return nil;
 Found:
-	devpermcheck(g->uid, g->perm, ORDWR);
+	/*
+	 * 9front-ng: the hostowner may attach any (it may wstat any to
+	 * itself anyway): a GPU driver keeps the segments it gave to its
+	 * clients' users, its other procs attach them when they touch them
+	 */
+	if(!iseve())
+		devpermcheck(g->uid, g->perm, ORDWR);
 	s = g->Segio.s;
 	if(s == nil)
 		error("global segment not assigned a virtual address");

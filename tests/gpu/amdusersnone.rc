@@ -1,0 +1,47 @@
+#!/bin/rc
+# amdusers.rc's part as none: amdusersnone.rc ctx (the hostowner's context)
+ctx=$1
+if(mount -a /srv/gpu.0 /dev >[2]/dev/null)
+	echo FAIL none mounted the hostowner srv
+if not
+	echo passed none may not mount /srv/gpu.0
+if(! mount -a /srv/gpu.0.none /dev){
+	echo FAIL none cannot mount /srv/gpu.0.none
+	exit
+}
+echo passed none mounted /srv/gpu.0.none
+if(cat /dev/gpu/0/ctx/$ctx/ctl >/dev/null >[2]/dev/null)
+	echo FAIL none read the hostowner context
+if not
+	echo passed none may not read the hostowner context
+if(@{echo 0 0 >/dev/gpu/0/ctx/$ctx/submit} >[2]/dev/null)
+	echo FAIL none submitted to the hostowner context
+if not
+	echo passed none may not submit to the hostowner context
+if(@{echo user none >/dev/gpu/0/ctl} >[2]/dev/null)
+	echo FAIL none wrote the driver ctl
+if not
+	echo passed none may not write the driver ctl
+if(@{echo 1280x720 >/dev/gpu/0/outputs/HDMI-A-1/mode} >[2]/dev/null)
+	echo FAIL none set a mode
+if not
+	echo passed none may not set a mode
+x=`{@{read; echo scanout 0 >[1=0]} <>/dev/gpu/0/clone >[2=1]}
+if(~ $"x *permission*)
+	echo passed none may not scan out: $x
+if not
+	echo FAIL none scanout: $x
+/tests/amdctxtest /dev/gpu/0 | grep 'passed|FAIL|done in'
+# RADV, 40 s at most; libdrm9's trace of the last steps if it hangs
+DRM9DEBUG=1 /tests/radvtest >/tmp/radv.none >[2=1] &
+r=$apid
+for(t in `{seq 40})
+	if(test -e /proc/$r/status)
+		sleep 1
+if(test -e /proc/$r/status){
+	echo FAIL radvtest as none hung: its last lines
+	tail -25 /tmp/radv.none
+	echo kill >/proc/$r/ctl
+}
+if not
+	grep 'passed|FAIL' /tmp/radv.none

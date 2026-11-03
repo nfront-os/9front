@@ -40,6 +40,7 @@ struct Ctx {
 	int	ref;		/* open files */
 	File	*dir, *ctl, *submit, *fence, *ioctl;
 	char	*reply;
+	char	*uid;		/* its creator's: its files, its segments */
 };
 
 struct Fidaux {
@@ -56,6 +57,9 @@ static QLock ctxlock;
 static Ctx *ctxs[Nctx];
 static File *ctxdir;
 static Srv fs;
+static char *srvname9;	/* serve's: /srv/srvname, /srv/srvname.user */
+
+#include "../usersrv.c"
 
 /*
  * the display's requests go to DC, whose bandwidth calculation needs more
@@ -143,21 +147,6 @@ ioctlproc(void*)
 	}
 }
 
-/* is uid the hostowner? (as the kernel's iseve) */
-static int
-iseve9p(char *uid)
-{
-	static char eve[64];
-	int fd, n;
-
-	if(eve[0] == 0 && (fd = open("/dev/hostowner", OREAD)) >= 0){
-		n = read(fd, eve, sizeof eve - 1);
-		close(fd);
-		eve[n > 0 ? n : 0] = 0;
-	}
-	return uid != nil && eve[0] != 0 && strcmp(uid, eve) == 0;
-}
-
 static long
 doioctl(void *lc, uint cmd, u64g addr, int priv)
 {
@@ -228,10 +217,9 @@ setreply(Ctx *c, char *fmt, ...)
 }
 
 static Ctx*
-newctx(void)
+newctx(char *uid)
 {
 	char name[16];
-	char *user;
 	void *lc;
 	Ctx *c;
 	int id;
@@ -250,13 +238,14 @@ newctx(void)
 	memset(c, 0, sizeof *c);
 	c->id = id;
 	c->lc = lc;
-	user = getuser();
+	c->uid = estrdup9p(uid);
+	/* its creator's alone */
 	snprint(name, sizeof name, "%d", id);
-	c->dir = createfile(ctxdir, name, user, DMDIR|0555, nil);
-	c->ctl = createfile(c->dir, "ctl", user, 0664, (void*)(uintptr)(id<<8 | Xctxctl));
-	c->submit = createfile(c->dir, "submit", user, 0222, (void*)(uintptr)(id<<8 | Xctxsubmit));
-	c->fence = createfile(c->dir, "fence", user, 0664, (void*)(uintptr)(id<<8 | Xctxfence));
-	c->ioctl = createfile(c->dir, "ioctl", user, 0664, (void*)(uintptr)(id<<8 | Xctxioctl));
+	c->dir = createfile(ctxdir, name, uid, DMDIR|0500, nil);
+	c->ctl = createfile(c->dir, "ctl", uid, 0600, (void*)(uintptr)(id<<8 | Xctxctl));
+	c->submit = createfile(c->dir, "submit", uid, 0200, (void*)(uintptr)(id<<8 | Xctxsubmit));
+	c->fence = createfile(c->dir, "fence", uid, 0600, (void*)(uintptr)(id<<8 | Xctxfence));
+	c->ioctl = createfile(c->dir, "ioctl", uid, 0600, (void*)(uintptr)(id<<8 | Xctxioctl));
 	ctxs[id] = c;
 	setreply(c, "ctx %d\n", id);
 	return c;
@@ -278,6 +267,7 @@ freectx(Ctx *c)
 	closefile(c->ctl);
 	closefile(c->dir);
 	free(c->reply);
+	free(c->uid);
 	free(c);
 }
 
@@ -290,7 +280,7 @@ fsopen(Req *r)
 	switch(KIND(r->fid->file)){
 	case Xclone:
 		qlock(&ctxlock);
-		if((c = newctx()) == nil){
+		if((c = newctx(r->fid->uid)) == nil){
 			qunlock(&ctxlock);
 			responderror(r);
 			return;
@@ -459,6 +449,7 @@ ctxctl(Ctx *c, char **f, int n)
 		e = amdgpu_bo_new(c->lc, strtoull(f[1], nil, 0), &gpu, vram, &id, seg, sizeof seg, &va, &size);
 		if(e < 0)
 			return errstr9(e);
+		segown(seg, c->uid);
 		setreply(c, "bo %d %s %#llux %#llux %#llux\n", id, seg, va, size, gpu);
 		return nil;
 	}
@@ -474,6 +465,7 @@ ctxctl(Ctx *c, char **f, int n)
 		e = amdgpu_arena(c->lc, seg, sizeof seg, &va, &size);
 		if(e < 0)
 			return errstr9(e);
+		segown(seg, c->uid);
 		setreply(c, "arena %s %#llux %#llux\n", seg, va, size);
 		return nil;
 	}
@@ -481,6 +473,7 @@ ctxctl(Ctx *c, char **f, int n)
 		e = amdgpu_map(c->lc, strtoul(f[1], nil, 0), seg, sizeof seg, &va, &size);
 		if(e < 0)
 			return errstr9(e);
+		segown(seg, c->uid);
 		setreply(c, "map %s %s %#llux %#llux\n", f[1], seg, va, size);
 		return nil;
 	}
@@ -525,6 +518,12 @@ fswrite(Req *r)
 			x = amdgpu_waves();
 			if(x < 0)
 				e = errstr9(x);
+		}else if(n == 2 && strcmp(f[0], "user") == 0){
+			/* /srv/srvname.user: gpu(4) for that user */
+			if(!iseve9p(r->fid->uid))
+				e = "permission denied: the hostowner's";
+			else
+				e = postuser(&fs, srvname9, f[1]);
 		}else
 			e = "unknown ctl message";
 		break;
@@ -534,6 +533,11 @@ fswrite(Req *r)
 			return;
 		}
 		if((n == 2 || n == 5) && strcmp(f[0], "scanout") == 0 || n == 5 && strcmp(f[0], "scanoutgem") == 0){
+			/* the display is the hostowner's (the console's) */
+			if(!iseve9p(r->fid->uid)){
+				respond(r, "permission denied: the display is the hostowner's");
+				return;
+			}
 			/* returns when the display shows it: other requests go on */
 			srvrelease(r->srv);
 			x = scanout(fa->ctx->lc, f[0][7] == 'g', strtoul(f[1], nil, 0), n == 5 ? atoi(f[2]) : 0,
@@ -637,6 +641,9 @@ serve(char *srvname)
 	fs.read = fsread;
 	fs.write = fswrite;
 	fs.destroyfid = fsdestroyfid;
+	fs.attach = srvattach;
+	fs.aux = estrdup9p(getuser());	/* /srv/srvname is the hostowner's */
+	srvname9 = estrdup9p(srvname);
 	kmsc = chancreate(sizeof(void*), 0);
 	proccreate(kmsproc, nil, 1024*1024);
 	ioctlc = chancreate(sizeof(void*), 0);
