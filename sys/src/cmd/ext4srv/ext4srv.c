@@ -196,6 +196,28 @@ haveperm(Aux *a, int p, struct ext4_inode *inodeout)
 	return 0;
 }
 
+/*
+ * write permission in the file's directory, which remove(5) and a
+ * rename in wstat(5) need
+ */
+static int
+haveparentperm(Aux *a)
+{
+	Aux o;
+	char *s;
+	int r;
+
+	o = *a;
+	o.path = estrdup9p(a->path);
+	if((s = strrchr(o.path, '/')) != nil)
+		*s = 0;
+	else
+		*o.path = 0;
+	r = haveperm(&o, OWRITE, nil);
+	free(o.path);
+	return r == 1;
+}
+
 static void
 rattach(Req *r)
 {
@@ -651,6 +673,11 @@ rremove(Req *r)
 	if(ext4_raw_inode_fill(mp, a->path, &ino, &inode) < 0)
 		goto error;
 
+	if(!haveparentperm(a)){
+		werrstr(Eperm);
+		goto error;
+	}
+
 	if(a->uid == Root || ((g = findgroupid(&a->p->groups, ext4_inode_get_uid(&inode))) != nil && g->id == a->uid)){
 		t = ext4_inode_type(a->p->sb, &inode);
 		if(t == EXT4_INODE_MODE_DIRECTORY && ext4_dir_open(mp, &dir, a->path) == 0){
@@ -701,7 +728,7 @@ rwstat(Req *r)
 	struct ext4_inode inode;
 	u32int uid, gid, iflags;
 	ext4_file f;
-	Aux *a, o;
+	Aux *a;
 	Group *g;
 	char *s;
 
@@ -752,9 +779,7 @@ rwstat(Req *r)
 	/* check for permission to rename and do the rename */
 	if(r->d.name != nil && r->d.name[0] != 0){
 		/* check parent write permission */
-		o = *a;
-		o.path = a->path;
-		if(!haveperm(&o, OWRITE, nil)){
+		if(!haveparentperm(a)){
 			werrstr(Eperm);
 			goto error;
 		}
