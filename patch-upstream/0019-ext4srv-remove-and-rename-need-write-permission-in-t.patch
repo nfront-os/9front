@@ -1,7 +1,7 @@
 From cd4dfa902ef3da81273610ba92d14b78d9b786b1 Mon Sep 17 00:00:00 2001
 From: Stefan Hertenberger <erde74@gmail.com>
 Date: Tue, 3 Nov 2026 19:03:08 +0100
-Subject: [PATCH 19/20] ext4srv: remove and rename need write permission in the
+Subject: [PATCH 19/21] ext4srv: remove and rename need write permission in the
  parent directory
 
 remove(5) needs write permission in the file's directory; rremove

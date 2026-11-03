@@ -980,12 +980,13 @@ Nutzer: „go als Programmiersprache für alle Plattformen 386, amd64 usw. mit i
 - **Bug in 9front behoben: ext4srv starb bei einem Lesen von 0 Byte** (`go test` im arm64-Gast): `ext4_fread` kehrte bei size 0 vor `*rcnt = 0` zurück, `rread`s n blieb uninitialisiert, Rread mit count 724576 > msize, lib9p `respond` brach ab („msize = 32792 n = 0 Rread …“), die Platte hing. Go liest 0 Byte. Patch 0018.
 - **Bug in 9front behoben: ext4srv remove/rename ohne Recht im Elternverzeichnis** (Gos `TestRemoveAllButReadOnlyAndPathError`): rremove prüfte nur den Besitzer (remove(5): Schreibrecht im Verzeichnis), der Rename in rwstat prüfte die Datei selbst statt des Verzeichnisses. Jetzt `haveparentperm`. Patch 0019.
 - **Bug in 9front behoben: Schreiben an eine geschlossene Loopback-Gegenseite verschwand still** (Gos `TestWritevError`, 1 GB ohne Fehler): nach dem Schließen der Gegenseite warf `tcpbypass` die Daten weg (der bypass-Zeiger der Gegenseite ist nil), der Schreiber erfuhr nie davon. Jetzt `error(Ehungup)` wie bei einer geschlossenen Queue; `tests/prog/tcpclosed.go` in 9front-go. Patch 0020.
+- **Bug in 9front behoben: ext4srv starb beim Weiterlesen eines gelöschten Verzeichnisses** (Gos os-Tests im arm64-Gast, „fault read addr=0x6“ in `ext4_dir_en_get_name_len`): `ext4_dir_entry_next` springt an die Stelle des letzten Lesens; hinter dem Ende (Verzeichnis inzwischen geleert/gelöscht, wie RemoveAll bei offenem Verzeichnis) hat der Iterator keinen Eintrag, `it.curr` (nil) wurde trotzdem gelesen. Jetzt Ende des Verzeichnisses. 9front-go `tests/prog/dirremove.go` (stürzte sofort ab, auch auf amd64). Patch 0021.
 - **Kein Fehler, nur andere Form**: 9fronts Kernel (`namec`, `"%s: %#q"`, auch in front) setzt den Namen hinter den Fehler („file does not exist: '/x'“), Plan 9 davor; Gos `TestOpenError` erwartete die Plan-9-Form. Kernel bleibt; der Go-Test im Port nimmt beide Formen.
 - **Stand Gos Tests im Gast** (amd64, `go test -short`): errors, strings, strconv, sort, fmt, os, time, sync bestehen; net nach dem Überspringen von `TestIPv6WriteMsgUDPAddrPortTargetAddrIPVersion` (WriteMsgUDP gibt es auf Plan 9 nicht; der Test lief nur, weil `::1` eingerichtet war).
 
 ## Patch-Kandidaten für 9front
 
-Gesammelt und auf Englisch dokumentiert in `patch-upstream/` (README.md, 20 Patches im
+Gesammelt und auf Englisch dokumentiert in `patch-upstream/` (README.md, 21 Patches im
 `git format-patch`-Format auf `origin/front` 350266104); Quelle ist der Branch `upstream`
 (Worktree `../9front-upstream`), ein Commit pro Patch, ohne `GCC port`-Kommentare. Im
 gcc-Branch bleiben die Änderungen, bis 9front sie hat oder ablehnt. Neue Kandidaten: als

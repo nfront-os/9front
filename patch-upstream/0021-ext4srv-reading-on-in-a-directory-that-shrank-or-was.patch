@@ -1,0 +1,39 @@
+From 6d33bded404f610d3e51ebea939d62fd137aff96 Mon Sep 17 00:00:00 2001
+From: Stefan Hertenberger <erde74@gmail.com>
+Date: Tue, 3 Nov 2026 20:26:17 +0100
+Subject: [PATCH 21/21] ext4srv: reading on in a directory that shrank or was
+ removed ends instead of crashing
+
+ext4_dir_entry_next seeks to the offset where the last read stopped;
+past the directory's size (it was emptied or removed since, as by a
+recursive remove while it is open) the iterator has no entry, and
+it.curr was dereferenced anyway: ext4srv died (fault read addr=0x6)
+and the mount hung. Now that is the end of the directory.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ sys/src/cmd/ext4srv/ext4.c | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/sys/src/cmd/ext4srv/ext4.c b/sys/src/cmd/ext4srv/ext4.c
+index 20067fe87..334a5a67f 100644
+--- a/sys/src/cmd/ext4srv/ext4.c
++++ b/sys/src/cmd/ext4srv/ext4.c
+@@ -2608,6 +2608,14 @@ const ext4_direntry *ext4_dir_entry_next(ext4_dir *dir)
+ 		goto Finish;
+ 	}
+ 
++	/* no entry at next_off (the directory shrank or was removed since): the end */
++	if (it.curr == nil) {
++		dir->next_off = EXT4_DIR_ENTRY_OFFSET_TERM;
++		ext4_dir_iterator_fini(&it);
++		ext4_fs_put_inode_ref(&dir_inode);
++		goto Finish;
++	}
++
+ 	memset(dir->de.name, 0, sizeof(dir->de.name));
+ 	name_length = ext4_dir_en_get_name_len(&dir->f.mp->fs.sb,
+ 					       it.curr);
+-- 
+2.56.0
+

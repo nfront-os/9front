@@ -76,6 +76,7 @@ made with an AI assistant); drop it if 9front does not want it.
 | 0018 | ext4srv: a read of 0 bytes answers with a garbage count, ext4srv dies | bug fix |
 | 0019 | ext4srv: remove and rename ignore the directory's permission | bug fix (permissions) |
 | 0020 | ip/tcp: writes to a closed loopback peer vanish without an error | bug fix |
+| 0021 | ext4srv: reading on in a removed directory kills ext4srv | bug fix |
 
 ### 0001 ip/tcp: don't hang up a reused conversation through a stale bypass pointer
 
@@ -311,6 +312,19 @@ a write to a closed queue does. The flush through `qsetbypass()` in
 Found by: Go's net tests (`TestWritevError`: 1 GB written to a closed
 connection without an error). Shown by: the same write fails at once
 ("i/o on hungup channel"), the test passes.
+
+### 0021 ext4srv: reading on in a directory that shrank or was removed ends instead of crashing
+
+`ext4_dir_entry_next()` seeks to the offset where the last read stopped.
+Past the directory's size (it was emptied or removed since, as by a
+recursive remove while it is open) the iterator has no entry, and
+`it.curr` was dereferenced anyway: ext4srv died ("fault read addr=0x6")
+and the mount hung. Now that is the end of the directory.
+
+Found by: Go's os tests (RemoveAll) on an ext4 disk in the arm64 guest.
+Shown by: a program that opens a directory of 500 files, reads one
+entry, removes it all and reads on: ext4srv died at once, now the read
+ends and the server keeps answering (9front-go `tests/prog/dirremove.go`).
 
 ## Not included
 

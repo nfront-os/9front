@@ -1,7 +1,7 @@
 From 06d42135a76e064a2c0b456d66ae76a5c91f9ada Mon Sep 17 00:00:00 2001
 From: Stefan Hertenberger <erde74@gmail.com>
 Date: Sat, 31 Oct 2026 10:36:56 +0100
-Subject: [PATCH 09/20] ext4srv: a wstat to a longer length extends the file
+Subject: [PATCH 09/21] ext4srv: a wstat to a longer length extends the file
  with zeros
 
 stat(5): a wstat of length changes the file's length, and a longer one
