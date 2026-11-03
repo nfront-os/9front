@@ -53,9 +53,10 @@
 #define ETIME	ETIMEDOUT
 #endif
 
-extern void	*_SEGATTACH(int, char*, void*, unsigned long);
+/* libmesaplan9 (lib/segfault.c): attached here and in the program's other procs when they touch it */
+extern void	*mesa9_segattach(const char*, void*, unsigned long long);
+extern int	mesa9_segdetach(void*);
 extern int	_ERRSTR(char*, unsigned int);
-extern int	_SEGDETACH(void*);
 extern int	_FD2PATH(int, char*, int);
 
 enum {
@@ -565,7 +566,7 @@ gemmap(Gem *g)
 	void *p;
 
 	if(g->p == NULL){
-		p = _SEGATTACH(0, g->seg, (void*)(uintptr_t)g->va, g->size);
+		p = mesa9_segattach(g->seg, (void*)(uintptr_t)g->va, g->size);
 		if(p == (void*)-1)
 			return NULL;
 		g->p = p;
@@ -581,7 +582,7 @@ gemclose(Dev *d, uint32_t h)
 	if((g = getgem(d, h)) == NULL)
 		return seterr(ENOENT);
 	if(g->p != NULL)
-		_SEGDETACH(g->p);
+		mesa9_segdetach(g->p);
 	ctl(d, NULL, 0, "free %d", g->id);
 	memset(g, 0, sizeof *g);
 	return 0;

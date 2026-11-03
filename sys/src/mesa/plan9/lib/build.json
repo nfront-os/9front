@@ -9,7 +9,8 @@
 		],
 		"SourceFiles": [
 			"dl.c",
-			"plan9compat.c"
+			"plan9compat.c",
+			"segfault.c"
 		]
 	},
 	{

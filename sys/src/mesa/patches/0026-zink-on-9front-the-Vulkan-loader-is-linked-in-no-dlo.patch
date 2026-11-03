@@ -1,0 +1,35 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Stefan Hertenberger <erde74@gmail.com>
+Date: Tue, 3 Nov 2026 11:37:25 +0100
+Subject: [PATCH] zink: on 9front the Vulkan loader is linked in (no dlopen of
+ libvulkan)
+
+---
+ src/gallium/drivers/zink/zink_screen.c | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/src/gallium/drivers/zink/zink_screen.c b/src/gallium/drivers/zink/zink_screen.c
+index 6982927..4c0ae99 100644
+--- a/src/gallium/drivers/zink/zink_screen.c
++++ b/src/gallium/drivers/zink/zink_screen.c
+@@ -3422,6 +3422,12 @@ zink_internal_create_screen(const struct pipe_screen_config *config, int64_t dev
+ 
+    u_trace_state_init();
+ 
++#ifdef __plan9__
++   /* 9front: no shared libraries, the Vulkan loader is linked in (libvulkan.a) */
++   screen->loader_lib = NULL;
++   screen->vk_GetInstanceProcAddr = vkGetInstanceProcAddr;
++   screen->vk_GetDeviceProcAddr = vkGetDeviceProcAddr;
++#else
+    screen->loader_lib = util_dl_open(VK_LIBNAME);
+    if (!screen->loader_lib) {
+       if (!screen->driver_name_is_inferred)
+@@ -3431,6 +3437,7 @@ zink_internal_create_screen(const struct pipe_screen_config *config, int64_t dev
+ 
+    screen->vk_GetInstanceProcAddr = (PFN_vkGetInstanceProcAddr)util_dl_get_proc_address(screen->loader_lib, "vkGetInstanceProcAddr");
+    screen->vk_GetDeviceProcAddr = (PFN_vkGetDeviceProcAddr)util_dl_get_proc_address(screen->loader_lib, "vkGetDeviceProcAddr");
++#endif
+    if (!screen->vk_GetInstanceProcAddr ||
+        !screen->vk_GetDeviceProcAddr) {
+       if (!screen->driver_name_is_inferred)

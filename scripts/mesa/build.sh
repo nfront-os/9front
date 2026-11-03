@@ -1,7 +1,9 @@
 #!/bin/bash
 # Cross-build Mesa's Vulkan drivers for 9front with ../9front-gcc: venus
 # (virtio-gpu), hasvk (Intel gen 7-8) and RADV (AMD, libdrm_amdgpu over
-# gpu(4): plan9/drm/amdgpu9.c). libmesaplan9.a (sys/src/mesa/
+# gpu(4): plan9/drm/amdgpu9.c); and OpenGL (ES) on them: zink, EGL (the
+# surfaceless platform), libGLESv2's entry points, in the same objects
+# (one copy of Mesa's common code for both). libmesaplan9.a (sys/src/mesa/
 # plan9: what APE lacks), libdrm.a (plan9/drm: libdrm's interface over
 # gpu(4), for hasvk, found by pkg-config), a meson cross file, meson
 # setup (once) and ninja in $BUILD; the Intel shaders need mesa_clc on
@@ -97,10 +99,11 @@ cpp_link_args = [${links%, }]
 EOC
 
 DRIVERS=virtio,intel_hasvk,amd
+GL="-Dgallium-drivers=zink -Dopengl=true -Degl=enabled -Dgles2=enabled"
 if [ ! -f "$BUILD/mesa/build.ninja" ]; then
 	meson setup "$BUILD/mesa" "$SRC" --cross-file "$BUILD/cross.ini" \
-		-Dplatforms= -Dvulkan-drivers=$DRIVERS -Dgallium-drivers= -Dopengl=false \
-		-Degl=disabled -Dglx=disabled -Dgbm=disabled -Dgles1=disabled -Dgles2=disabled \
+		-Dplatforms= -Dvulkan-drivers=$DRIVERS $GL \
+		-Dglx=disabled -Dgbm=disabled -Dgles1=disabled \
 		-Dllvm=disabled -Dmesa-clc=system -Dzstd=disabled -Dexpat=disabled -Dxmlconfig=disabled \
 		-Dvalgrind=disabled -Dlibunwind=disabled -Dbuild-tests=false -Dtools= \
 		-Dvulkan-layers= -Ddefault_library=static -Dshader-cache=disabled
@@ -108,11 +111,17 @@ elif [ "$(python3 -c 'import json, sys; print(",".join(*[o["value"] for o in jso
 	# a build made before a driver was added (RADV: 2026-11)
 	meson configure "$BUILD/mesa" -Dvulkan-drivers=$DRIVERS
 fi
+if [ "$(python3 -c 'import json, sys; print(",".join(*[o["value"] for o in json.load(open(sys.argv[1])) if o["name"] == "gallium-drivers"]))' "$BUILD/mesa/meson-info/intro-buildoptions.json")" != zink ]; then
+	# a build made before zink (2026-11)
+	meson configure "$BUILD/mesa" $GL
+fi
 # everything the ICDs are made of, without linking them (build.ninja
 # first: meson regenerates it when a meson.build changed): their
 # objects, each once (members.py), in one archive
 # hasvk first, then RADV: their objects stand for venus' equal ones (members.py)
 SOS="src/intel/vulkan_hasvk/libvulkan_intel_hasvk.so src/amd/vulkan/libvulkan_radeon.so src/virtio/vulkan/libvulkan_virtio.so"
+# OpenGL: EGL, the GLES 2 entry points, gallium with zink and the GL core
+SOS="$SOS src/egl/libEGL.so.1.0.0 src/mesa/glapi/es2api/libGLESv2.so.2.0.0 src/gallium/targets/dri/libgallium-$MESA_VERSION.so"
 ninja -C "$BUILD/mesa" build.ninja
 for so in $SOS; do
 	link=$(ninja -C "$BUILD/mesa" -t commands $so | tail -1)
@@ -143,5 +152,5 @@ rm -f "$SDK/lib/libvulkan.a"
 "$CROSS/$TRIPLE-ar" rcs "$SDK/lib/libvulkan.a" "$L/vkloader.o" "$L/vkcmds.o" "$L/mesa.o" \
 	"$BUILD"/plan9/*.o
 rm -rf "$SDK/include"/*
-cp -r "$SRC/include/vulkan" "$SRC/include/vk_video" "$SDK/include/"
+cp -r "$SRC/include/vulkan" "$SRC/include/vk_video" "$SRC/include/EGL" "$SRC/include/GLES2" "$SRC/include/GLES3" "$SRC/include/KHR" "$SDK/include/"
 echo "build: $BUILD/libvulkan_mesa.a $BUILD/plan9/libmesaplan9.a $SDK"

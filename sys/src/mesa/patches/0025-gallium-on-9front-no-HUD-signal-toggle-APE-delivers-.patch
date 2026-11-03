@@ -1,0 +1,40 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Stefan Hertenberger <erde74@gmail.com>
+Date: Tue, 3 Nov 2026 11:35:32 +0100
+Subject: [PATCH] gallium: on 9front no HUD signal toggle (APE delivers no
+ siginfo) and no sync() in ddebug
+
+---
+ src/gallium/auxiliary/driver_ddebug/dd_draw.c | 3 ++-
+ src/gallium/auxiliary/hud/hud_context.c       | 4 ++--
+ 2 files changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/src/gallium/auxiliary/driver_ddebug/dd_draw.c b/src/gallium/auxiliary/driver_ddebug/dd_draw.c
+index 36bf5b0..e1d0c35 100644
+--- a/src/gallium/auxiliary/driver_ddebug/dd_draw.c
++++ b/src/gallium/auxiliary/driver_ddebug/dd_draw.c
+@@ -737,7 +737,8 @@ dd_dump_call(FILE *f, struct dd_draw_state *state, struct dd_call *call)
+ static void
+ dd_kill_process(void)
+ {
+-#if DETECT_OS_POSIX
++   /* 9front: no sync(), its file servers keep no buffers of the processes' */
++#if DETECT_OS_POSIX && !defined(__plan9__)
+    sync();
+ #endif
+    fprintf(stderr, "dd: Aborting the process...\n");
+diff --git a/src/gallium/auxiliary/hud/hud_context.c b/src/gallium/auxiliary/hud/hud_context.c
+index cc43d3b..925dd6c 100644
+--- a/src/gallium/auxiliary/hud/hud_context.c
++++ b/src/gallium/auxiliary/hud/hud_context.c
+@@ -2077,8 +2077,8 @@ hud_create(struct cso_context *cso, struct hud_context *share,
+ 
+    list_inithead(&hud->pane_list);
+ 
+-   /* setup sig handler once for all hud contexts */
+-#if DETECT_OS_POSIX
++   /* setup sig handler once for all hud contexts (9front's APE delivers no siginfo: no sa_sigaction) */
++#if DETECT_OS_POSIX && !defined(__plan9__)
+    if (!sig_handled && signo != 0) {
+       action.sa_sigaction = &signal_visible_handler;
+       action.sa_flags = SA_SIGINFO;
