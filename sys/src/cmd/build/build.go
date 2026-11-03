@@ -520,7 +520,8 @@ func outofdate(b *build) (link, archive bool) {
 	if b.Library != "" {
 		lib := path.Join(b.Install, b.Library)
 		if b.Whole {
-			archive = len(srcs) > 0 || stale(lib, b.ObjectFiles) || !members(lib, []string{wholeObject(b)}, true)
+			archive = len(srcs) > 0 || stale(lib, b.ObjectFiles) || !members(lib, []string{wholeObject(b)}, true) ||
+				!sameList(wholeObject(b)+".objs", b.ObjectFiles)
 		} else {
 			archive = len(srcs) > 0 || stale(lib, b.ObjectFiles) || !members(lib, b.ObjectFiles, !b.Append && !b.Shared)
 		}
@@ -1051,12 +1052,24 @@ func install(b *build, dolink, doarchive bool) {
 		if b.Whole {
 			r := wholeObject(b)
 			run(b, *shellhack, exec.Command(tools["ld"], append(append(emulation(b), "-r", "-o", r), objs...)...))
+			fail(writefile(r+".objs", []byte(strings.Join(objs, "\n")+"\n")))
 			objs = []string{r}
 		}
 		args := append([]string{"-rs", libpath}, objs...)
 		run(b, *shellhack, exec.Command(tools["ar"], args...))
 		run(b, *shellhack, exec.Command(tools["ranlib"], libpath))
 	}
+}
+
+// sameList: the file f lists exactly os, one a line (a Whole library's
+// objects when it was made: -D makes it again when the manifest's list
+// changed, a new object older than the archive among them)
+func sameList(f string, objs []string) bool {
+	b, err := os.ReadFile(f)
+	if err != nil {
+		return false
+	}
+	return string(b) == strings.Join(objs, "\n")+"\n"
 }
 
 // wholeObject: the one member of a Whole library, libx.a's libx.o, in
