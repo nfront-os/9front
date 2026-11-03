@@ -417,6 +417,13 @@ killproc(int pid)
 	}
 }
 
+/*
+ * GCC port branch: set before the pids are read; a thread that starts
+ * meanwhile (its pid still 0 in the list) stores its pid, then reads this
+ * (threadstarted): one of the two sees the other
+ */
+static int exiting;
+
 /* exit: the other threads go too */
 static void
 killothers(void)
@@ -424,13 +431,25 @@ killothers(void)
 	pthread_t self, t;
 
 	self = pthread_self();
+	__atomic_store_n(&exiting, 1, __ATOMIC_SEQ_CST);
 	spinlock(&listlock);
 	for(t = threads; t != NULL; t = t->next)
-		if(t != self && t->pid != 0)
+		if(t != self && __atomic_load_n(&t->pid, __ATOMIC_SEQ_CST) != 0)
 			killproc(t->pid);
 	if(self != &mainthread && mainthread.pid != 0)
 		killproc(mainthread.pid);
 	spinunlock(&listlock);
+}
+
+/*
+ * GCC port branch: the same for a program that does not end with APE's exit:
+ * Go's runtime in a cgo program of ../9front-go (its exit ends with exits;
+ * runtime/cgo's gcc_plan9.c calls this first, for threads of C's own)
+ */
+void
+__pthread_killothers(void)
+{
+	killothers();
 }
 
 static void
@@ -575,6 +594,16 @@ privinit(pthread_t t)
 	_privates[0] = t;
 }
 
+/* GCC port branch: the pid, then exiting (killothers): an exit that began
+ * while this thread was made has passed it in the list */
+static void
+threadstarted(pthread_t t)
+{
+	__atomic_store_n(&t->pid, getpid(), __ATOMIC_SEQ_CST);
+	if(__atomic_load_n(&exiting, __ATOMIC_SEQ_CST))
+		_EXITS(NULL);
+}
+
 /* the new proc: on its own copy of the stack segment */
 void
 __apecompat_threadstart(pthread_t t)
@@ -590,7 +619,7 @@ __apecompat_threadstart(pthread_t t)
 		_EXITS(NULL);
 	}
 	privinit(t);
-	t->pid = getpid();
+	threadstarted(t);
 	if(setjmp(t->exitjmp) == 0)
 		__apecompat_runon((void *)((uintptr_t)(t->stack + t->stacksize) & ~(uintptr_t)15),
 			threadrun, t);
@@ -607,7 +636,7 @@ stdthreadstart(void *v)
 	pthread_t t = v;
 
 	privinit(t);
-	t->pid = getpid();
+	threadstarted(t);
 	if(setjmp(t->exitjmp) == 0)
 		threadrun(t);
 	threadend(t);
