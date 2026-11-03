@@ -206,6 +206,9 @@ if [ -r /dev/dri/renderD128 ] && [ -w /dev/dri/renderD128 ] &&
 			"test ! -x /tests/vulkaninfo || /tests/vulkaninfo | grep -c 'Surface type *= VK_PLAN9_surface'" \
 			"test ! -x /tests/vkcube || {WSI_PLAN9_COPY=1 /tests/vkcube --c 60 >/dev/null >[2=1]; /tests/screenpx 1270,790 640,400}" \
 			"test ! -x /tests/vkdraw || {/tests/vkdraw 3 >/tmp/zc >[2=1]; grep frames /tmp/zc | sed 's/^ok/ok zero-copy:/'}" \
+			"test ! -x /tests/gltest || /tests/gltest >[2=1]" \
+			"test ! -x /tests/gldesk || /tests/gldesk >[2=1]" \
+			"test ! -x /tests/glwin || /tests/glwin 60 >[2=1]" \
 			"test ! -x /tests/vkdraw || /tests/vkdraw 30 >/dev/null >[2=1] &" \
 			"sleep 8" \
 			"grep '^scanout' /dev/gpu/0/status" > "$TMPD/console3d" 2>&1
@@ -237,6 +240,11 @@ if [ -r /dev/dri/renderD128 ] && [ -w /dev/dri/renderD128 ] &&
 		check "display (host side, VNC): vkdraw's red square" grep -q '^200,450 ff0000' "$TMPD/shot3d.txt"
 		check "display (host side, VNC): vkdraw's green square" grep -q '^500,450 00ff00' "$TMPD/shot3d.txt"
 		check "display (host side, VNC): blue background" bash -c "grep -q '^900,100 000066' '$TMPD/shot3d.txt' && grep -q '^50,700 000066' '$TMPD/shot3d.txt'"
+	fi
+	if [ -x "$HERE/root/tests/gltest" ]; then
+		check "gltest (GLES through zink on venus, a pbuffer): all passed" grep -q '^gltest: all passed' "$TMPD/log3d"
+		check "gldesk (desktop GL 4.6: compatibility and core profile): all passed" grep -q '^gldesk: all passed' "$TMPD/log3d"
+		check "glwin (EGL's plan9 platform, the frames on the display): all passed" grep -q '^glwin: all passed' "$TMPD/log3d"
 	fi
 	check "contexts gone after the test" bash -c "! sed -n '/gpuctxtest: /,\$p' '$TMPD/log3d' | grep -q '^ctx '"
 
