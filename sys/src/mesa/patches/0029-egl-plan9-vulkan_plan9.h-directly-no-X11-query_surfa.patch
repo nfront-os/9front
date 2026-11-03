@@ -1,0 +1,31 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Stefan Hertenberger <erde74@gmail.com>
+Date: Tue, 3 Nov 2026 13:06:52 +0100
+Subject: [PATCH] egl: plan9: vulkan_plan9.h directly, no X11 query_surface
+
+---
+ src/egl/drivers/dri2/platform_plan9.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/src/egl/drivers/dri2/platform_plan9.c b/src/egl/drivers/dri2/platform_plan9.c
+index 00bf82a..4b2d98b 100644
+--- a/src/egl/drivers/dri2/platform_plan9.c
++++ b/src/egl/drivers/dri2/platform_plan9.c
+@@ -19,7 +19,8 @@
+ #include "plan9win.h"
+ #include "util/format/u_formats.h"
+ 
+-#include <vulkan/vulkan.h>
++#include <vulkan/vulkan_core.h>
++#include <vulkan/vulkan_plan9.h>
+ 
+ static_assert(sizeof(struct kopper_vk_surface_create_storage) >=
+                  sizeof(VkPlan9SurfaceCreateInfoPLAN9),
+@@ -198,7 +199,6 @@ static const struct dri2_egl_display_vtbl plan9_display_vtbl = {
+    .swap_buffers = plan9_swap_buffers,
+    .swap_buffers_with_damage = plan9_swap_buffers_with_damage,
+    .query_buffer_age = plan9_query_buffer_age,
+-   .query_surface = dri2_query_surface,
+    .get_dri_drawable = dri2_surface_get_dri_drawable,
+ };
+ 

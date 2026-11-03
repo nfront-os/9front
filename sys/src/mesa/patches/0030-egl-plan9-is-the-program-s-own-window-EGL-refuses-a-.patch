@@ -1,0 +1,35 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Stefan Hertenberger <erde74@gmail.com>
+Date: Tue, 3 Nov 2026 13:09:53 +0100
+Subject: [PATCH] egl: plan9: "" is the program's own window (EGL refuses a
+ NULL native window)
+
+---
+ src/egl/drivers/dri2/platform_plan9.c | 7 ++++---
+ 1 file changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/src/egl/drivers/dri2/platform_plan9.c b/src/egl/drivers/dri2/platform_plan9.c
+index 4b2d98b..efbfc9d 100644
+--- a/src/egl/drivers/dri2/platform_plan9.c
++++ b/src/egl/drivers/dri2/platform_plan9.c
+@@ -5,8 +5,9 @@
+  * a window surface's frames by Vulkan's VK_PLAN9_surface (Mesa's plan9
+  * WSI: copied into a draw(3) window, or to the display directly when
+  * the window is the screen).  The native window is a window image's
+- * name (a char *), or 0: the program's own window (/dev/winname, read
+- * again at each frame: rio gives a resized window a new name).  The
++ * name (a char *), or "": the program's own window (/dev/winname, read
++ * again at each frame: rio gives a resized window a new name; EGL takes
++ * no NULL window).  The
+  * native display is EGL_DEFAULT_DISPLAY.  Pbuffers as on surfaceless.
+  */
+ 
+@@ -86,7 +87,7 @@ plan9_create_surface(_EGLDisplay *disp, EGLint type, _EGLConfig *conf,
+       goto fail;
+ 
+    if (type == EGL_WINDOW_BIT) {
+-      if (native_window != NULL)
++      if (native_window != NULL && *(const char *)native_window != '\0')
+          dri2_surf->plan9_name = strdup(native_window);
+       if (plan9win_size(dri2_surf->plan9_name, &w, &h) < 0) {
+          _eglError(EGL_BAD_NATIVE_WINDOW, "no such window (draw(3))");

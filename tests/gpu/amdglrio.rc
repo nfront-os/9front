@@ -1,0 +1,32 @@
+#!/bin/rc
+# OpenGL ES in a rio window (aux/amdgpu's screen, zink, EGL's plan9
+# platform; the frames copied into the window), as run.sh's riovk: rio
+# with a window running glwin, the log in $home/glrio.log
+bind -a '#i' /dev
+bind -a '#v' /dev
+bind -a '#m' /dev
+aux/amdgpu $* >/tmp/amd.log >[2=1]
+sleep 2
+rm -f $home/glrio.log
+{
+	echo '#!/bin/rc'
+	echo 'echo glrio: start >>$home/glrio.log'
+	echo 'window -r 100 100 900 700 /tmp/rioglwin'
+} >/tmp/rioinit
+{
+	echo '#!/bin/rc'
+	echo 'echo glrio: window `{cat /dev/winname} >>$home/glrio.log'
+	echo 'WSI_PLAN9_STATS=1 /tests/glwin 300 >>$home/glrio.log >[2=1]'
+	echo 'echo glrio: glwin exit $status >>$home/glrio.log'
+} >/tmp/rioglwin
+chmod +x /tmp/rioinit /tmp/rioglwin
+aux/mouse ps2 >[2]/dev/null
+rio -i /tmp/rioinit </dev/null >/tmp/rio.out >[2=1] &
+for(t in `{seq 240})
+	if(! grep -s 'glrio: glwin exit' $home/glrio.log >[2]/dev/null)
+		sleep 1
+cat $home/glrio.log
+for(p in `{ps | awk '$7 == "rio" {print $2}'})
+	echo kill >/proc/$p/ctl
+grep 'WARN|error|fault' /tmp/amd.log
+echo TESTEND

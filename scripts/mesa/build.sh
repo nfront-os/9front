@@ -2,7 +2,7 @@
 # Cross-build Mesa's Vulkan drivers for 9front with ../9front-gcc: venus
 # (virtio-gpu), hasvk (Intel gen 7-8) and RADV (AMD, libdrm_amdgpu over
 # gpu(4): plan9/drm/amdgpu9.c); and OpenGL (ES) on them: zink, EGL (the
-# surfaceless platform), libGLESv2's entry points, in the same objects
+# plan9 platform: draw(3) windows; and surfaceless), libGLESv2's entry points, in the same objects
 # (one copy of Mesa's common code for both). libmesaplan9.a (sys/src/mesa/
 # plan9: what APE lacks), libdrm.a (plan9/drm: libdrm's interface over
 # gpu(4), for hasvk, found by pkg-config), a meson cross file, meson
@@ -102,7 +102,7 @@ DRIVERS=virtio,intel_hasvk,amd
 GL="-Dgallium-drivers=zink -Dopengl=true -Degl=enabled -Dgles2=enabled"
 if [ ! -f "$BUILD/mesa/build.ninja" ]; then
 	meson setup "$BUILD/mesa" "$SRC" --cross-file "$BUILD/cross.ini" \
-		-Dplatforms= -Dvulkan-drivers=$DRIVERS $GL \
+		-Dplatforms=plan9 -Dvulkan-drivers=$DRIVERS $GL \
 		-Dglx=disabled -Dgbm=disabled -Dgles1=disabled \
 		-Dllvm=disabled -Dmesa-clc=system -Dzstd=disabled -Dexpat=disabled -Dxmlconfig=disabled \
 		-Dvalgrind=disabled -Dlibunwind=disabled -Dbuild-tests=false -Dtools= \
@@ -114,6 +114,10 @@ fi
 if [ "$(python3 -c 'import json, sys; print(",".join(*[o["value"] for o in json.load(open(sys.argv[1])) if o["name"] == "gallium-drivers"]))' "$BUILD/mesa/meson-info/intro-buildoptions.json")" != zink ]; then
 	# a build made before zink (2026-11)
 	meson configure "$BUILD/mesa" $GL
+fi
+if [ "$(python3 -c 'import json, sys; print(",".join(*[o["value"] for o in json.load(open(sys.argv[1])) if o["name"] == "platforms"]))' "$BUILD/mesa/meson-info/intro-buildoptions.json")" != plan9 ]; then
+	# a build made before EGL's plan9 platform (2026-11)
+	meson configure "$BUILD/mesa" -Dplatforms=plan9
 fi
 # everything the ICDs are made of, without linking them (build.ninja
 # first: meson regenerates it when a meson.build changed): their

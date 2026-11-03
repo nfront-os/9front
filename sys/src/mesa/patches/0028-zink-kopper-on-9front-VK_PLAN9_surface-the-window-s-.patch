@@ -1,0 +1,119 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Stefan Hertenberger <erde74@gmail.com>
+Date: Tue, 3 Nov 2026 13:04:25 +0100
+Subject: [PATCH] zink: kopper on 9front: VK_PLAN9_surface (the window's
+ identity from the loader, kopper_loader_info.native), its extent the window's
+ as with X11
+
+---
+ src/gallium/drivers/zink/zink_instance.py |  1 +
+ src/gallium/drivers/zink/zink_kopper.c    | 27 ++++++++++++++++++++++-
+ src/gallium/drivers/zink/zink_kopper.h    |  3 ++-
+ 3 files changed, 29 insertions(+), 2 deletions(-)
+
+diff --git a/src/gallium/drivers/zink/zink_instance.py b/src/gallium/drivers/zink/zink_instance.py
+index 234d0ec..e661c5a 100755
+--- a/src/gallium/drivers/zink/zink_instance.py
++++ b/src/gallium/drivers/zink/zink_instance.py
+@@ -48,6 +48,7 @@ EXTENSIONS = [
+     Extension("VK_KHR_wayland_surface"),
+     Extension("VK_KHR_xcb_surface"),
+     Extension("VK_KHR_win32_surface"),
++    Extension("VK_PLAN9_surface"),
+     Extension("VK_EXT_swapchain_colorspace"),
+ ]
+ 
+diff --git a/src/gallium/drivers/zink/zink_kopper.c b/src/gallium/drivers/zink/zink_kopper.c
+index 60eb9ef..cadabf6 100644
+--- a/src/gallium/drivers/zink/zink_kopper.c
++++ b/src/gallium/drivers/zink/zink_kopper.c
+@@ -79,6 +79,11 @@ init_dt_type(struct kopper_displaytarget *cdt)
+    case VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR:
+       cdt->type = KOPPER_WIN32;
+       break;
++#endif
++#ifdef VK_USE_PLATFORM_PLAN9_9FRONT
++   case VK_STRUCTURE_TYPE_PLAN9_SURFACE_CREATE_INFO_PLAN9:
++      cdt->type = KOPPER_PLAN9;
++      break;
+ #endif
+    default:
+       UNREACHABLE("unsupported!");
+@@ -118,6 +123,13 @@ kopper_CreateSurface(struct zink_screen *screen, struct kopper_displaytarget *cd
+       error = VKSCR(CreateWin32SurfaceKHR)(screen->instance, win32, NULL, &surface);
+       break;
+    }
++#endif
++#ifdef VK_USE_PLATFORM_PLAN9_9FRONT
++   case VK_STRUCTURE_TYPE_PLAN9_SURFACE_CREATE_INFO_PLAN9: {
++      VkPlan9SurfaceCreateInfoPLAN9 *p9 = (VkPlan9SurfaceCreateInfoPLAN9 *)&cdt->info.bos;
++      error = VKSCR(CreatePlan9SurfacePLAN9)(screen->instance, p9, NULL, &surface);
++      break;
++   }
+ #endif
+    default:
+       UNREACHABLE("unsupported!");
+@@ -242,6 +254,11 @@ find_dt_entry(struct zink_screen *screen, const struct kopper_displaytarget *cdt
+       he = _mesa_hash_table_search(&screen->dts, win32->hwnd);
+       break;
+    }
++#endif
++#ifdef VK_USE_PLATFORM_PLAN9_9FRONT
++   case KOPPER_PLAN9:
++      he = _mesa_hash_table_search(&screen->dts, cdt->info.native);
++      break;
+ #endif
+    default:
+       UNREACHABLE("unsupported!");
+@@ -321,6 +338,7 @@ kopper_CreateSwapchain(struct zink_screen *screen, struct kopper_displaytarget *
+    switch (cdt->type) {
+    case KOPPER_X11:
+    case KOPPER_WIN32:
++   case KOPPER_PLAN9:	/* 9front's WSI: the extent is the window's */
+       /* With Xcb, minImageExtent, maxImageExtent, and currentExtent must always equal the window size.
+        * ...
+        * Due to above restrictions, it is only possible to create a new swapchain on this
+@@ -456,6 +474,7 @@ zink_kopper_displaytarget_create(struct zink_screen *screen, unsigned tex_usage,
+             break;
+          case KOPPER_WAYLAND:
+          case KOPPER_WIN32:
++         case KOPPER_PLAN9:
+             _mesa_hash_table_init(&screen->dts, screen, _mesa_hash_pointer, _mesa_key_pointer_equal);
+             break;
+          default:
+@@ -527,6 +546,11 @@ zink_kopper_displaytarget_create(struct zink_screen *screen, unsigned tex_usage,
+       _mesa_hash_table_insert(&screen->dts, win32->hwnd, cdt);
+       break;
+    }
++#endif
++#ifdef VK_USE_PLATFORM_PLAN9_9FRONT
++   case KOPPER_PLAN9:
++      _mesa_hash_table_insert(&screen->dts, cdt->info.native, cdt);
++      break;
+ #endif
+    default:
+       UNREACHABLE("unsupported!");
+@@ -1131,7 +1155,8 @@ zink_kopper_update(struct pipe_screen *pscreen, struct pipe_resource *pres, int
+    if (!res->obj->dt)
+       return false;
+    struct kopper_displaytarget *cdt = res->obj->dt;
+-   if (cdt->type != KOPPER_X11) {
++   /* 9front: rio resizes the window as X does (the WSI reports the window's extent) */
++   if (cdt->type != KOPPER_X11 && cdt->type != KOPPER_PLAN9) {
+       *w = res->base.b.width0;
+       *h = res->base.b.height0;
+       return true;
+diff --git a/src/gallium/drivers/zink/zink_kopper.h b/src/gallium/drivers/zink/zink_kopper.h
+index d1971ec..9e0c8a1 100644
+--- a/src/gallium/drivers/zink/zink_kopper.h
++++ b/src/gallium/drivers/zink/zink_kopper.h
+@@ -74,7 +74,8 @@ struct kopper_swapchain {
+ enum kopper_type {
+    KOPPER_X11,
+    KOPPER_WAYLAND,
+-   KOPPER_WIN32
++   KOPPER_WIN32,
++   KOPPER_PLAN9,
+ };
+ 
+ struct kopper_displaytarget

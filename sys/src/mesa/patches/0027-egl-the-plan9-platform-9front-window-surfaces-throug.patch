@@ -1,0 +1,425 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Stefan Hertenberger <erde74@gmail.com>
+Date: Tue, 3 Nov 2026 13:04:25 +0100
+Subject: [PATCH] egl: the plan9 platform (9front): window surfaces through
+ zink's kopper and VK_PLAN9_surface, a native window is a draw(3) window's
+ name or 0 (the program's)
+
+---
+ include/kopper_interface.h            |   2 +
+ meson.build                           |   3 +-
+ meson.options                         |   2 +-
+ src/egl/drivers/dri2/egl_dri2.c       |   5 +
+ src/egl/drivers/dri2/egl_dri2.h       |  15 ++
+ src/egl/drivers/dri2/platform_plan9.c | 258 ++++++++++++++++++++++++++
+ src/egl/main/egldisplay.c             |   1 +
+ src/egl/main/egldisplay.h             |   1 +
+ src/egl/meson.build                   |   3 +
+ 9 files changed, 288 insertions(+), 2 deletions(-)
+ create mode 100644 src/egl/drivers/dri2/platform_plan9.c
+
+diff --git a/include/kopper_interface.h b/include/kopper_interface.h
+index 7e30277..4303257 100644
+--- a/include/kopper_interface.h
++++ b/include/kopper_interface.h
+@@ -99,6 +99,8 @@ struct kopper_loader_info {
+    int initial_swap_interval;
+    bool present_opaque;
+    uint32_t compression;
++   /* the native window's identity where the create info has none (9front: a NULL name is the program's window) */
++   const void *native;
+ };
+ 
+ #define __DRI_KOPPER_LOADER "DRI_KopperLoader"
+diff --git a/meson.build b/meson.build
+index 1d096d0..95b17f7 100644
+--- a/meson.build
++++ b/meson.build
+@@ -488,6 +488,7 @@ with_platform_wayland = _platforms.contains('wayland')
+ with_platform_haiku = _platforms.contains('haiku')
+ with_platform_windows = _platforms.contains('windows')
+ with_platform_macos = _platforms.contains('macos')
++with_platform_plan9 = _platforms.contains('plan9')
+ 
+ with_gfxstream_emulated_android = with_gfxstream_vk and with_platform_android and host_machine.system() == 'linux'
+ if with_gfxstream_emulated_android
+@@ -576,7 +577,7 @@ if with_egl
+   endif
+ 
+   # All the other platforms can be detected and cannot reach the native platform code
+-  _undetectable_platforms = ['x11', 'haiku', 'android', 'surfaceless']
++  _undetectable_platforms = ['x11', 'haiku', 'android', 'surfaceless', 'plan9']
+ 
+   # Don't enforce the native platform if none of the undetectable platforms are enabled
+   _undetectable_platforms_enabled = []
+diff --git a/meson.options b/meson.options
+index 93a60e3..d989ffe 100644
+--- a/meson.options
++++ b/meson.options
+@@ -12,7 +12,7 @@ option(
+   type : 'array',
+   value : ['auto'],
+   choices : [
+-    'auto', 'x11', 'wayland', 'haiku', 'android', 'windows', 'macos',
++    'auto', 'x11', 'wayland', 'haiku', 'android', 'windows', 'macos', 'plan9',
+   ],
+   description : 'window systems to support. If this is set to `auto`, all ' +
+                 'platforms applicable will be enabled.'
+diff --git a/src/egl/drivers/dri2/egl_dri2.c b/src/egl/drivers/dri2/egl_dri2.c
+index edee4ff..8935a60 100644
+--- a/src/egl/drivers/dri2/egl_dri2.c
++++ b/src/egl/drivers/dri2/egl_dri2.c
+@@ -897,6 +897,9 @@ dri2_initialize(_EGLDisplay *disp)
+    case _EGL_PLATFORM_SURFACELESS:
+       ret = dri2_initialize_surfaceless(disp);
+       break;
++   case _EGL_PLATFORM_PLAN9:
++      ret = dri2_initialize_plan9(disp);
++      break;
+    case _EGL_PLATFORM_DEVICE:
+       ret = dri2_initialize_device(disp);
+       break;
+@@ -1006,6 +1009,8 @@ dri2_display_destroy(_EGLDisplay *disp)
+       break;
+    case _EGL_PLATFORM_DEVICE:
+       break;
++   case _EGL_PLATFORM_PLAN9:
++      break;
+    default:
+       UNREACHABLE("Platform teardown is not properly hooked.");
+       break;
+diff --git a/src/egl/drivers/dri2/egl_dri2.h b/src/egl/drivers/dri2/egl_dri2.h
+index aa5692a..ba76658 100644
+--- a/src/egl/drivers/dri2/egl_dri2.h
++++ b/src/egl/drivers/dri2/egl_dri2.h
+@@ -320,6 +320,10 @@ struct dri2_egl_surface {
+    xcb_gcontext_t swapgc;
+ #endif
+ 
++#ifdef HAVE_PLAN9_PLATFORM
++   char *plan9_name;	/* the window's image name; NULL: the program's window (/dev/winname) */
++#endif
++
+ #ifdef HAVE_WAYLAND_PLATFORM
+    struct wl_egl_window *wl_win;
+    int dx;
+@@ -573,6 +577,17 @@ dri2_initialize_android(_EGLDisplay *disp)
+ EGLBoolean
+ dri2_initialize_surfaceless(_EGLDisplay *disp);
+ 
++#ifdef HAVE_PLAN9_PLATFORM
++EGLBoolean
++dri2_initialize_plan9(_EGLDisplay *disp);
++#else
++static inline EGLBoolean
++dri2_initialize_plan9(_EGLDisplay *disp)
++{
++   return _eglError(EGL_NOT_INITIALIZED, "plan9 platform not built");
++}
++#endif
++
+ EGLBoolean
+ dri2_initialize_device(_EGLDisplay *disp);
+ static inline void
+diff --git a/src/egl/drivers/dri2/platform_plan9.c b/src/egl/drivers/dri2/platform_plan9.c
+new file mode 100644
+index 0000000..00bf82a
+--- /dev/null
++++ b/src/egl/drivers/dri2/platform_plan9.c
+@@ -0,0 +1,258 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * EGL's plan9 platform (9front): GL through zink, whose kopper presents
++ * a window surface's frames by Vulkan's VK_PLAN9_surface (Mesa's plan9
++ * WSI: copied into a draw(3) window, or to the display directly when
++ * the window is the screen).  The native window is a window image's
++ * name (a char *), or 0: the program's own window (/dev/winname, read
++ * again at each frame: rio gives a resized window a new name).  The
++ * native display is EGL_DEFAULT_DISPLAY.  Pbuffers as on surfaceless.
++ */
++
++#include <stdlib.h>
++#include <string.h>
++
++#include "egl_dri2.h"
++#include "kopper_interface.h"
++#include "dri_util.h"
++#include "plan9win.h"
++#include "util/format/u_formats.h"
++
++#include <vulkan/vulkan.h>
++
++static_assert(sizeof(struct kopper_vk_surface_create_storage) >=
++                 sizeof(VkPlan9SurfaceCreateInfoPLAN9),
++              "");
++
++static void
++plan9_set_surface_create_info(void *draw, struct kopper_loader_info *ci)
++{
++   struct dri2_egl_surface *dri2_surf = draw;
++   VkPlan9SurfaceCreateInfoPLAN9 *p9 = (VkPlan9SurfaceCreateInfoPLAN9 *)&ci->bos;
++
++   p9->sType = VK_STRUCTURE_TYPE_PLAN9_SURFACE_CREATE_INFO_PLAN9;
++   p9->pNext = NULL;
++   p9->flags = 0;
++   p9->pWindowName = dri2_surf->plan9_name;
++   ci->has_alpha = 0;		/* draw(3) windows are opaque */
++   ci->present_opaque = true;
++   ci->native = dri2_surf;	/* a NULL name is no identity */
++}
++
++static void
++plan9_get_drawable_info(struct dri_drawable *draw, int *w, int *h, void *loaderPrivate)
++{
++   struct dri2_egl_surface *dri2_surf = loaderPrivate;
++
++   if (dri2_surf->base.Type != EGL_WINDOW_BIT) {
++      kopper_pbuffer_loader_extension.GetDrawableInfo(draw, w, h, loaderPrivate);
++      return;
++   }
++   if (plan9win_size(dri2_surf->plan9_name, w, h) < 0)
++      *w = *h = 0;
++}
++
++static const __DRIkopperLoaderExtension plan9_kopper_loader_extension = {
++   .base = {__DRI_KOPPER_LOADER, 1},
++   .SetSurfaceCreateInfo = plan9_set_surface_create_info,
++   .GetDrawableInfo = plan9_get_drawable_info,
++};
++
++static const __DRIextension *plan9_loader_extensions[] = {
++   &plan9_kopper_loader_extension.base,
++   &image_lookup_extension.base,
++   NULL,
++};
++
++static _EGLSurface *
++plan9_create_surface(_EGLDisplay *disp, EGLint type, _EGLConfig *conf,
++                     void *native_window, const EGLint *attrib_list)
++{
++   struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
++   struct dri2_egl_config *dri2_conf = dri2_egl_config(conf);
++   struct dri2_egl_surface *dri2_surf;
++   const struct dri_config *config;
++   int w, h;
++
++   dri2_surf = calloc(1, sizeof *dri2_surf);
++   if (!dri2_surf) {
++      _eglError(EGL_BAD_ALLOC, "plan9_create_surface");
++      return NULL;
++   }
++   if (!dri2_init_surface(&dri2_surf->base, disp, type, conf, attrib_list,
++                          false, native_window))
++      goto fail;
++
++   if (type == EGL_WINDOW_BIT) {
++      if (native_window != NULL)
++         dri2_surf->plan9_name = strdup(native_window);
++      if (plan9win_size(dri2_surf->plan9_name, &w, &h) < 0) {
++         _eglError(EGL_BAD_NATIVE_WINDOW, "no such window (draw(3))");
++         goto fail;
++      }
++      dri2_surf->base.Width = w;
++      dri2_surf->base.Height = h;
++   }
++
++   config = dri2_get_dri_config(dri2_conf, type, dri2_surf->base.GLColorspace);
++   if (!config) {
++      _eglError(EGL_BAD_MATCH, "Unsupported surfacetype/colorspace configuration");
++      goto fail;
++   }
++   if (type != EGL_WINDOW_BIT) {
++      dri2_surf->visual = dri2_image_format_for_pbuffer_config(dri2_dpy, config);
++      if (dri2_surf->visual == PIPE_FORMAT_NONE)
++         goto fail;
++   }
++   if (!dri2_create_drawable(dri2_dpy, config, dri2_surf, dri2_surf))
++      goto fail;
++   if (type == EGL_WINDOW_BIT) {
++      dri2_surf->base.SwapInterval = 1;
++      kopperSetSwapInterval(dri2_surf->dri_drawable, dri2_dpy->default_swap_interval);
++   }
++   return &dri2_surf->base;
++
++fail:
++   free(dri2_surf->plan9_name);
++   free(dri2_surf);
++   return NULL;
++}
++
++static _EGLSurface *
++plan9_create_window_surface(_EGLDisplay *disp, _EGLConfig *conf,
++                            void *native_window, const EGLint *attrib_list)
++{
++   return plan9_create_surface(disp, EGL_WINDOW_BIT, conf, native_window, attrib_list);
++}
++
++static _EGLSurface *
++plan9_create_pbuffer_surface(_EGLDisplay *disp, _EGLConfig *conf,
++                             const EGLint *attrib_list)
++{
++   return plan9_create_surface(disp, EGL_PBUFFER_BIT, conf, NULL, attrib_list);
++}
++
++static EGLBoolean
++plan9_destroy_surface(_EGLDisplay *disp, _EGLSurface *surf)
++{
++   struct dri2_egl_surface *dri2_surf = dri2_egl_surface(surf);
++
++   driDestroyDrawable(dri2_surf->dri_drawable);
++   free(dri2_surf->plan9_name);
++   dri2_fini_surface(surf);
++   free(dri2_surf);
++   return EGL_TRUE;
++}
++
++static EGLBoolean
++plan9_swap_buffers_with_damage(_EGLDisplay *disp, _EGLSurface *draw,
++                               const EGLint *rects, EGLint nrects)
++{
++   struct dri2_egl_surface *dri2_surf = dri2_egl_surface(draw);
++
++   if (draw->Type != EGL_WINDOW_BIT)
++      return EGL_TRUE;
++   if (nrects)
++      kopperSwapBuffersWithDamage(dri2_surf->dri_drawable,
++                                  __DRI2_FLUSH_CONTEXT | __DRI2_FLUSH_INVALIDATE_ANCILLARY,
++                                  nrects, rects);
++   else
++      kopperSwapBuffers(dri2_surf->dri_drawable,
++                        __DRI2_FLUSH_CONTEXT | __DRI2_FLUSH_INVALIDATE_ANCILLARY);
++   /* a resized window: kopper made a swapchain of the new size */
++   kopperQuerySurfaceSize(dri2_surf->dri_drawable, &dri2_surf->base.Width,
++                          &dri2_surf->base.Height);
++   return EGL_TRUE;
++}
++
++static EGLBoolean
++plan9_swap_buffers(_EGLDisplay *disp, _EGLSurface *draw)
++{
++   return plan9_swap_buffers_with_damage(disp, draw, NULL, 0);
++}
++
++static EGLBoolean
++plan9_swap_interval(_EGLDisplay *disp, _EGLSurface *surf, EGLint interval)
++{
++   struct dri2_egl_surface *dri2_surf = dri2_egl_surface(surf);
++
++   kopperSetSwapInterval(dri2_surf->dri_drawable, interval);
++   return EGL_TRUE;
++}
++
++static EGLint
++plan9_query_buffer_age(_EGLDisplay *disp, _EGLSurface *surf)
++{
++   struct dri2_egl_surface *dri2_surf = dri2_egl_surface(surf);
++
++   return kopperQueryBufferAge(dri2_surf->dri_drawable);
++}
++
++static const struct dri2_egl_display_vtbl plan9_display_vtbl = {
++   .create_window_surface = plan9_create_window_surface,
++   .create_pbuffer_surface = plan9_create_pbuffer_surface,
++   .destroy_surface = plan9_destroy_surface,
++   .create_image = dri2_create_image_khr,
++   .swap_interval = plan9_swap_interval,
++   .swap_buffers = plan9_swap_buffers,
++   .swap_buffers_with_damage = plan9_swap_buffers_with_damage,
++   .query_buffer_age = plan9_query_buffer_age,
++   .query_surface = dri2_query_surface,
++   .get_dri_drawable = dri2_surface_get_dri_drawable,
++};
++
++/*
++ * the configs: every pbuffer one; a window takes those the WSI's
++ * swapchains have (B8G8R8A8, unorm or sRGB: plan9 WSI)
++ */
++static void
++plan9_add_configs(_EGLDisplay *disp)
++{
++   struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
++
++   for (unsigned i = 0; dri2_dpy->driver_configs[i] != NULL; i++) {
++      const struct gl_config *gl_config = (const struct gl_config *)dri2_dpy->driver_configs[i];
++      EGLint types = EGL_PBUFFER_BIT;
++
++      switch (gl_config->color_format) {
++      case PIPE_FORMAT_BGRA8888_UNORM:
++      case PIPE_FORMAT_BGRX8888_UNORM:
++      case PIPE_FORMAT_BGRA8888_SRGB:
++      case PIPE_FORMAT_BGRX8888_SRGB:
++         types |= EGL_WINDOW_BIT;
++         break;
++      default:
++         break;
++      }
++      dri2_add_config(disp, dri2_dpy->driver_configs[i], types, NULL);
++   }
++}
++
++EGLBoolean
++dri2_initialize_plan9(_EGLDisplay *disp)
++{
++   struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
++
++   /* zink, on the Vulkan devices it finds itself (no DRM node to open) */
++   dri2_dpy->fd_render_gpu = -1;
++   dri2_dpy->fd_display_gpu = -1;
++   disp->Device = _eglFindDevice(-1, true);
++   dri2_dpy->driver_name = strdup("zink");
++   if (!dri2_dpy->driver_name)
++      return _eglError(EGL_BAD_ALLOC, "eglInitialize");
++   dri2_detect_swrast_kopper(disp);
++   dri2_dpy->loader_extensions = plan9_loader_extensions;
++   if (!dri2_create_screen(disp)) {
++      free(dri2_dpy->driver_name);
++      dri2_dpy->driver_name = NULL;
++      return _eglError(EGL_NOT_INITIALIZED, "plan9: zink did not start");
++   }
++   dri2_setup_screen(disp);
++   plan9_add_configs(disp);
++   dri2_dpy->min_swap_interval = 0;
++   dri2_dpy->max_swap_interval = 1;
++   dri2_dpy->default_swap_interval = 1;
++   dri2_dpy->vtbl = &plan9_display_vtbl;
++   return EGL_TRUE;
++}
+diff --git a/src/egl/main/egldisplay.c b/src/egl/main/egldisplay.c
+index ef653aa..163e359 100644
+--- a/src/egl/main/egldisplay.c
++++ b/src/egl/main/egldisplay.c
+@@ -84,6 +84,7 @@ static const struct {
+    {_EGL_PLATFORM_SURFACELESS, "surfaceless"},
+    {_EGL_PLATFORM_DEVICE, "device"},
+    {_EGL_PLATFORM_WINDOWS, "windows"},
++   {_EGL_PLATFORM_PLAN9, "plan9"},
+ };
+ 
+ /**
+diff --git a/src/egl/main/egldisplay.h b/src/egl/main/egldisplay.h
+index 6178140..5e971b0 100644
+--- a/src/egl/main/egldisplay.h
++++ b/src/egl/main/egldisplay.h
+@@ -55,6 +55,7 @@ enum _egl_platform_type {
+    _EGL_PLATFORM_SURFACELESS,
+    _EGL_PLATFORM_DEVICE,
+    _EGL_PLATFORM_WINDOWS,
++   _EGL_PLATFORM_PLAN9,
+ 
+    _EGL_NUM_PLATFORMS,
+    _EGL_INVALID_PLATFORM = -1
+diff --git a/src/egl/meson.build b/src/egl/meson.build
+index 4e62ee4..854cc2a 100644
+--- a/src/egl/meson.build
++++ b/src/egl/meson.build
+@@ -118,6 +118,9 @@ if with_dri
+     incs_for_egl += [include_directories('../gbm/backends/dri')]
+     deps_for_egl += [dep_libdrm, dep_gbm]
+   endif
++  if with_platform_plan9
++    files_egl += files('drivers/dri2/platform_plan9.c')
++  endif
+   if with_platform_wayland
+     deps_for_egl += [dep_wayland_client, dep_wayland_server, dep_wayland_egl_headers]
+     link_for_egl += libloader_wayland_helper
