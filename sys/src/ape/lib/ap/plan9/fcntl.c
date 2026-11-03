@@ -72,6 +72,10 @@ fcntl(int fd, int cmd, ...)
 		case F_SETLKW:
 			err = EINVAL;
 			break;
+		default:
+			/* 9front-ng: an unknown command is an error (POSIX); it returned 0 (Mesa's F_DUPFD_CLOEXEC: stdin as the new descriptor) */
+			err = EINVAL;
+			break;
 		}
 	if(err){
 		errno = err;

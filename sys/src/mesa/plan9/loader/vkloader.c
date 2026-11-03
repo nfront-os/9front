@@ -142,6 +142,15 @@ vkl_GetInstanceProcAddr(VkInstance inst, const char *name)
 		i = lookup(name);
 		if(i < 0 || vkl_level[i] != 0)
 			return NULL;
+		/*
+		 * the loader's own, whatever the drivers have (no driver has
+		 * vkEnumerateInstanceLayerProperties: layers are the loader's;
+		 * zink asks for it and gave up)
+		 */
+		if(strcmp(name, "vkCreateInstance") == 0 ||
+		   strcmp(name, "vkEnumerateInstanceLayerProperties") == 0 ||
+		   strcmp(name, "vkEnumerateInstanceExtensionProperties") == 0)
+			return firsticd() != NULL ? vkl_tramp[i] : NULL;
 		d = firsticd();
 		if(d == NULL || icd(d, NULL, name) == NULL)
 			return NULL;
