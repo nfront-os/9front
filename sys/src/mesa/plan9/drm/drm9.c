@@ -1310,6 +1310,34 @@ drmIoctl(int fd, unsigned long req, void *arg)
 }
 
 /*
+ * a driver's own ioctl (libdrm's drmCommand*: DRM_COMMAND_BASE + idx,
+ * size bytes at data); 0 or -errno
+ */
+static int
+command(int fd, unsigned long inout, unsigned long idx, void *data, unsigned long size)
+{
+	return drmIoctl(fd, _IOC(inout, DRM_IOCTL_BASE, DRM_COMMAND_BASE + idx, size), data) < 0 ? -errno : 0;
+}
+
+int
+drmCommandWriteRead(int fd, unsigned long idx, void *data, unsigned long size)
+{
+	return command(fd, IOC_INOUT, idx, data, size);
+}
+
+int
+drmCommandWrite(int fd, unsigned long idx, void *data, unsigned long size)
+{
+	return command(fd, IOC_IN, idx, data, size);
+}
+
+int
+drmCommandRead(int fd, unsigned long idx, void *data, unsigned long size)
+{
+	return command(fd, IOC_OUT, idx, data, size);
+}
+
+/*
  * devices
  */
 static drmDevicePtr
