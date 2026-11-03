@@ -6,6 +6,8 @@
 #	i915test.log	the checks: selftests, gpu(4), inteltest, Vulkan,
 #			then the driver's procs and their call chains
 # Two files: two writers of one FAT file overwrite each other.
+# With aux/i915 started at boot (plan9.ini monitor=i915: screenrc's
+# gpustart) the checks use that driver; its log is i915boot.log.
 #	i915run [-n] [aux/i915 flags]
 # i915 takes the outputs too (the screen may go dark: read the logs);
 # with -n the display stays 9front's (i915.disable_display), and the
@@ -14,24 +16,34 @@
 # A trap in the driver puts its call chain in its log.  DRM's debug
 # output without DRM_UT_CORE (a line each ioctl).
 rfork e
-if(ps | grep -s ' (i915|intelgpu)$'){
-	echo i915run: a GPU driver runs already (aux/i915 or aux/intelgpu): reboot first
+if(ps | grep -s ' intelgpu$'){
+	echo i915run: aux/intelgpu runs already: reboot first
 	exit running
 }
+# aux/i915 started at boot (screenrc: monitor=i915, gpustart): that one,
+# its log i915boot.log
+booted=()
+if(ps | grep -s ' i915$')
+	booted=1
+# the stick's FAT served once (/srv/gpu.esp, gpustart's if there)
 dir=/tmp
-for(d in '#σ/usb'/sdU*/esp)
-	if(~ $dir /tmp && test -r $d){
-		dossrv -f $d i915run.esp >/dev/null >[2=1]
-		if(mount -c /srv/i915run.esp /n/esp){
-			dir=/n/esp
-			echo i915run: logs on $d: i915.log, i915test.log
-		}
-		rm -f /srv/i915run.esp
-	}
+if(! test -e /srv/gpu.esp){
+	for(d in '#σ/usb'/sdU*/esp)
+		if(! test -e /srv/gpu.esp && test -r $d)
+			dossrv -f $d gpu.esp >/dev/null >[2=1]
+}
+if(test -e /srv/gpu.esp && mount -c /srv/gpu.esp /n/esp){
+	dir=/n/esp
+	echo i915run: logs on the stick: i915.log or i915boot.log, i915test.log
+}
 if(~ $dir /tmp)
 	echo i915run: no USB stick with an ESP: the logs are in /tmp
 log=$dir/i915.log
 out=$dir/i915test.log
+if(~ $booted 1){
+	echo i915run: aux/i915 runs since boot: its log is i915boot.log
+	log=$out	# the driver writes i915boot.log; two writers of one FAT file overwrite each other
+}
 flags=(-v -d 0x1fe)
 if(~ $1 -n){
 	flags=(-D -v -d 0x1fe)
@@ -39,24 +51,34 @@ if(~ $1 -n){
 }
 if(~ $1 -a)	# the default now
 	shift
-{echo '# i915run' `{date}; cat /dev/osversion; echo; echo '## aux/i915' $flags $*} >$log
 {echo '# i915run' `{date}; cat /dev/osversion; echo} >$out
+if(! ~ $booted 1)
+	{echo '# i915run' `{date}; cat /dev/osversion; echo; echo '## aux/i915' $flags $*} >$log
 echo '## #G/0/ctl' >>$out
 cat '#G/0/ctl' >>$out
 # who shares the GPU's interrupt (the USB stick's controller: the logs)
 echo '## /dev/irqalloc' >>$out
 cat /dev/irqalloc >>$out >[2=1]
-echo '## aux/i915 -T (the KPI on this machine)' >>$out
-aux/i915 -T >>$out >[2=1]
-aux/i915 $flags $* >>$log >[2=1] &
-# until it has started (or is gone), at most 60 s; then 5 s more
-for(i in `{seq 60}){
-	if(grep -s '^i915: started' $log || ! ps | grep -s ' i915$')
-		i=done
-	if(! ~ $i done)
-		sleep 1
+if(~ $booted 1){
+	echo '## aux/i915 since boot (gpustart): no -T beside it' >>$out
+	grep '^(type|size|hwgc)' /dev/vgactl >>$out >[2=1]
 }
-sleep 5
+if not{
+	echo '## aux/i915 -T (the KPI on this machine)' >>$out
+	aux/i915 -T >>$out >[2=1]
+	aux/i915 $flags $* >>$log >[2=1] &
+	# until it has started (or is gone), at most 60 s; then 5 s more
+	for(i in `{seq 60}){
+		if(grep -s '^i915: started' $log || ! ps | grep -s ' i915$')
+			i=done
+		if(! ~ $i done)
+			sleep 1
+	}
+	sleep 5
+}
+# its files in this namespace too (a driver started at boot mounted them in termrc's)
+if(! test -e /dev/gpu/0/clone && test -e /srv/gpu.0)
+	mount -a /srv/gpu.0 /dev
 echo '## started' >>$out
 # the driver through gpu(4): contexts, objects, batches, fences
 if(test -e /dev/gpu/0/clone){

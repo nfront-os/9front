@@ -1,0 +1,47 @@
+#!/bin/rc
+# gpustart driver: aux/$driver (i915, amdgpu: gpu(4)) as the screen at
+# boot (screenrc, monitor=i915 or monitor=amdgpu): it makes draw(3)'s
+# screen itself (vga type gpu, the outputs' preferred modes; vgasize does
+# not matter).  Its log goes to the boot stick's ESP ($driver^boot.log,
+# written through: it survives a hang), else nowhere; the stick's FAT is
+# served once, as /srv/gpu.esp (i915run writes its logs there too: two
+# servers of one FAT would break it).  If the driver has no screen after
+# 60 s, the screen is VESA's, as with monitor=vesa.  plan9.ini's gpuflags
+# are the driver's flags (gpuflags=-v: more in the log).
+#	gpustart i915|amdgpu [driver flags]
+rfork e
+if(~ $#* 0){
+	echo usage: gpustart i915^'|'^amdgpu '[flags]' >[1=2]
+	exit usage
+}
+d=$1
+shift
+log=/dev/null
+if(! test -e /srv/gpu.esp){
+	for(e in '#σ/usb'/sdU*/esp)
+		if(! test -e /srv/gpu.esp && test -r $e)
+			dossrv -f $e gpu.esp >/dev/null >[2=1]
+}
+if(test -e /srv/gpu.esp && mount -c /srv/gpu.esp /n/esp >[2]/dev/null)
+	log=/n/esp/$d^boot.log
+{echo '# gpustart' `{date}; cat /dev/osversion; echo; echo '## aux/'^$d $gpuflags $*} >$log >[2]/dev/null
+aux/$d $gpuflags $* >>$log >[2=1] &
+for(i in `{seq 60}){
+	if(grep -s '^type gpu' /dev/vgactl || ! ps | grep -s ' '^$d^'$')
+		i=done
+	if(! ~ $i done)
+		sleep 1
+}
+if(grep -s '^type gpu' /dev/vgactl){
+	echo gpustart: the screen is aux/^$d^'''s' >[1=2]
+	exit
+}
+echo gpustart: aux/^$d made no screen: VESA^'''s' instead >[1=2]
+echo '## no screen after 60 s: VESA' >>$log >[2]/dev/null
+if(~ $"vgasize '' ask)
+	vgasize=1024x768x16
+@{
+	rfork n
+	aux/realemu
+	aux/vga -l $vgasize
+}

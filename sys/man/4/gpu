@@ -707,6 +707,19 @@ other sizes are refused (the client copies).
 .B -S
 leaves draw(3)'s screen where it was; then there is no layout and no
 scanout.
+At boot
+.B monitor=i915
+or
+.B monitor=amdgpu
+in
+.IR plan9.ini (8)
+(or the answer to its question) starts the driver as the screen
+.RI ( screenrc ,
+.BR /rc/bin/gpustart ;
+.B gpuflags
+are its flags), its log on the boot stick's ESP as
+.IB driver boot.log ;
+VESA's if it makes none within 60 seconds.
 .SS "Users (i915, amdgpu)"
 A request is the user's whose srv file it came through, whatever
 name its attach carries (anyone who opens a srv file may send any;

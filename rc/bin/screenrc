@@ -23,8 +23,11 @@ fn ask {
 if(test -f /dev/vgactl || bind -a '#v' /dev >[2] /dev/null){
 	ask vgasize ' is (text, 640x480x8, 1024x768x16, ...)' 1024x768x16
 	if(! ~ $"vgasize '' text none){
-		ask monitor ' is (vesa, xga, lcd, ...)' vesa
-		if(! ~ $"monitor ''){
+		ask monitor ' is (vesa, xga, lcd, i915, amdgpu, ...)' vesa
+		# 9front-ng: a GPU driver of gpu(4) makes the screen itself (gpustart)
+		if(~ $monitor i915 amdgpu)
+			gpustart $monitor
+		if not if(! ~ $"monitor ''){
 			@{
 				rfork n
 				if(~ $monitor vesa)
