@@ -55,7 +55,8 @@ if not if(! ~ $#on 0){
 	show
 }
 if(! ~ $#on 0){
-	if(echo 1x1 >$o/$on(1)/mode >[2]/dev/null)
+	f=$on(1)
+	if(echo 1x1 >$o/$f/mode >[2]/dev/null)
 		echo FAIL a mode it has not
 	if not
 		echo passed no mode 1x1
