@@ -40,6 +40,9 @@
 #include <drm/drm_mode.h>
 #include <drm/drm_client.h>
 #include <drm/drm_gem.h>
+#include <drm/drm_plane.h>
+#include <drm/drm_framebuffer.h>
+#include <drm/drm_modeset_lock.h>
 #include <linux/iosys-map.h>
 #include "kmsout.h"
 
@@ -385,12 +388,37 @@ kmsout_mode(char *name)
 	return s;
 }
 
-/* "output conn connected|disconnected|unknown" a line; kmalloc'd */
+/*
+ * what the display's cursor plane of the output's CRTC holds (DRM's
+ * state, what the driver programmed): " cursor fb N at x y", " cursor
+ * off"; kmalloc'd
+ */
+static char *
+curstate(struct out *o)
+{
+	struct drm_device *dev = kmsdev();
+	struct drm_crtc *crtc;
+	struct drm_plane_state *ps;
+	char *s = NULL;
+
+	if (!o->on || !o->crtc || !(crtc = drm_crtc_find(dev, NULL, o->crtc)) || !crtc->cursor)
+		return kstrdup("", GFP_KERNEL);
+	drm_modeset_lock(&crtc->cursor->mutex, NULL);
+	ps = crtc->cursor->state;
+	if (ps && ps->fb && ps->crtc == crtc)
+		s = kasprintf(GFP_KERNEL, " cursor fb %u %ux%u at %d %d", ps->fb->base.id, ps->crtc_w, ps->crtc_h, ps->crtc_x, ps->crtc_y);
+	else
+		s = kstrdup(" cursor off", GFP_KERNEL);
+	drm_modeset_unlock(&crtc->cursor->mutex);
+	return s;
+}
+
+/* "output conn connected|disconnected|unknown [cursor ...]" a line; kmalloc'd */
 char *
 kmsout_status(void)
 {
 	struct drm_mode_get_connector gc;
-	char *s, *t;
+	char *s, *t, *c;
 	int i;
 
 	s = kstrdup("", GFP_KERNEL);
@@ -399,9 +427,11 @@ kmsout_status(void)
 		gc.connector_id = outs[i].conn;
 		if (kioctl(kms, DRM_IOCTL_MODE_GETCONNECTOR, &gc))	/* probes */
 			continue;
-		t = kasprintf(GFP_KERNEL, "%soutput %s %s\n", s, outs[i].name,
+		c = curstate(&outs[i]);
+		t = kasprintf(GFP_KERNEL, "%soutput %s %s%s\n", s, outs[i].name,
 		    gc.connection == connector_status_connected ? "connected" :
-		    gc.connection == connector_status_disconnected ? "disconnected" : "unknown");
+		    gc.connection == connector_status_disconnected ? "disconnected" : "unknown", c ? c : "");
+		kfree(c);
 		kfree(s);
 		s = t;
 	}

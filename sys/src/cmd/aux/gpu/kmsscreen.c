@@ -106,7 +106,7 @@ fbsizes(uvlong *sz)
 		e = strchr(l, '\n');
 		if(e != nil)
 			*e++ = 0;
-		if(tokenize(l, f, nelem(f)) != 3 || strcmp(f[0], "output") != 0 || strcmp(f[2], "connected") != 0)
+		if(tokenize(l, f, nelem(f)) < 3 || strcmp(f[0], "output") != 0 || strcmp(f[2], "connected") != 0)
 			continue;
 		outmodes(f[1], &bw, &bh, &pw, &ph);
 		if(pw == 0)
