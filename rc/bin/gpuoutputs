@@ -2,7 +2,8 @@
 # gpuoutputs [dev]: gpu(4)'s outputs and draw(3)'s screen over them
 # (aux/i915, aux/amdgpu), step by step, 3 s each: the layout; with two
 # outputs on the last one off and on again, at the first's place (a
-# mirror), back; a mode none has; a panel's backlight dimmed and back.
+# mirror), back; with one another mode and back, and it cannot go off;
+# a mode none has; a panel's backlight dimmed and back.
 # A line "passed" or "FAIL" each step: look at the monitors too.
 rfork e
 dev=/dev/gpu/0
@@ -23,8 +24,31 @@ for(d in $o/*)
 echo on: $on
 if(~ $#on 0)
 	echo FAIL no output on
-if(~ $#on 1)
-	echo 'one output on: no layout steps'
+if(~ $#on 1){
+	# one output: another mode (the screen follows), back; the last one stays on
+	f=$on(1)
+	m=`{cat $o/$f/mode}
+	c=$m(1)
+	n=`{grep -v '^'$c' ' $o/$f/modes | sed 1q}
+	if(! ~ $#n 0){
+		n=$n(1)
+		if(echo $n >$o/$f/mode)
+			echo passed $f in $n
+		if not
+			echo FAIL $f in $n
+		show
+		sleep 3
+		if(echo $m(1) $m(2) >$o/$f/mode)
+			echo passed $f back in $m(1)
+		if not
+			echo FAIL $f back in $m(1)
+		show
+	}
+	if(echo off >$o/$f/mode >[2]/dev/null)
+		echo FAIL the last output off
+	if not
+		echo passed the last output stays on
+}
 if not if(! ~ $#on 0){
 	last=$on($#on)
 	first=$on(1)
