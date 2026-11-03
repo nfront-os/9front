@@ -1,20 +1,23 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 #
-# vendor.py SRC BUILD ROOT: Mesa's Vulkan drivers (venus, hasvk, radv) as sources in the tree, to
+# vendor.py SRC BUILD ROOT: Mesa's Vulkan drivers (venus, hasvk, radv) and OpenGL
+# on them (zink, EGL, gl9api's entry points) as sources in the tree, to
 # be built by build.exe (here with ../9front-gcc's cross gcc, on 9front with
 # its native gcc), without meson, ninja or python (scripts/mesa/vendor.sh).
 #
 # From the meson build in BUILD (scripts/mesa/build.sh) it takes the objects
 # the ICDs are made of (the links of libvulkan_virtio.so,
-# libvulkan_intel_hasvk.so and libvulkan_radeon.so, the archives' members, each once: members.py),
+# libvulkan_intel_hasvk.so and libvulkan_radeon.so, libEGL.so, libGL9.so and
+# libgallium.so, the archives' members, each once: members.py),
 # their sources and every header they read (ninja's dependency log), and the
 # files meson's generators wrote (entry point tables, format tables, ...).
 # It writes:
 #   sys/src/mesa/vendor/...         the sources, headers and generated files,
 #                                   under their paths in Mesa (a generated
 #                                   file where meson's build directory has it)
-#   sys/include/ape/vulkan,vk_video the Vulkan headers, for every APE program
+#   sys/include/ape/vulkan,vk_video,EGL,GL,GLES2,GLES3,KHR the Vulkan and
+#                                   GL headers, for every APE program
 #   .../mesa$SUFFIX.json            per directory, one block per meson library
 #                                   and language: its flags, as meson's
 #                                   compile commands have them, paths relative
@@ -40,11 +43,15 @@ P9 = os.path.join(ROOT, 'sys/src/mesa/plan9')
 OBJTYPE = os.environ.get('objtype', 'amd64')
 SUFFIX = {'amd64': '', '386': '.386'}[OBJTYPE]
 conflicts = []
-PUBLIC = ('include/vulkan/', 'include/vk_video/')	# go to /sys/include/ape
+PUBLIC = ('include/vulkan/', 'include/vk_video/', 'include/EGL/', 'include/GL/',
+	'include/GLES2/', 'include/GLES3/', 'include/KHR/')	# go to /sys/include/ape
 PLAN9_HEADERS = ('include/drm-uapi/amdgpu_drm.h',)	# plan9/drm's, under vendor/
 # hasvk first, then radv: their objects stand for venus' equal ones (members.py)
 SOS = ['src/intel/vulkan_hasvk/libvulkan_intel_hasvk.so', 'src/amd/vulkan/libvulkan_radeon.so',
-	'src/virtio/vulkan/libvulkan_virtio.so']
+	'src/virtio/vulkan/libvulkan_virtio.so',
+	# OpenGL, as scripts/mesa/build.sh has it
+	'src/egl/libEGL.so.1.0.0', 'src/mesa/glapi/gl9api/libGL9.so.1.0.0',
+	'src/gallium/targets/dri/libgallium-%s.so' % open(os.path.join(SRC, 'VERSION')).read().split()[0]]
 
 
 def ninja(*args):

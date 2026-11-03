@@ -6,6 +6,7 @@
 # Programs link -lvulkan, and APE's libdraw and lib9 for the plan9 WSI.
 # vktest and vkdraw call the driver's vk_icdGetInstanceProcAddr, the others
 # are ordinary Vulkan programs; vktri's shaders are compiled with glslc.
+# The OpenGL tests (gltest, gldesk, glwin: zink, EGL) link the same library.
 set -e
 . "$(dirname "$0")/../../scripts/mesa/common.sh"
 HERE=$(cd "$(dirname "$0")" && pwd)
@@ -20,7 +21,7 @@ libs="-Wl,--gc-sections -lvulkan -ldraw -l9 -lfmt -lutf"
 for s in tri.vert tri.frag; do
 	glslc -O -mfmt=c -o "$O/$s.inc" "$HERE/shaders/$s"
 done
-for p in vktest vkdraw vktri vkspeed radvtest; do
+for p in vktest vkdraw vktri vkspeed radvtest gltest gldesk glwin; do
 	extra=
 	case $p in
 	vkdraw|vktri)	extra="$O/btassert.o $O/screenpeek.o" ;;
@@ -33,4 +34,5 @@ done
 "$ROOT/scripts/mesa/vktools.sh" build
 cp "$BUILD/vktools/vkcube" "$BUILD/vktools/vulkaninfo" "$HERE/root/tests/"
 ls -la "$HERE/root/tests/vktest" "$HERE/root/tests/vkdraw" "$HERE/root/tests/vktri" \
-	"$HERE/root/tests/vkspeed" "$HERE/root/tests/radvtest" "$HERE/root/tests/vkcube" "$HERE/root/tests/vulkaninfo"
+	"$HERE/root/tests/vkspeed" "$HERE/root/tests/radvtest" "$HERE/root/tests/vkcube" "$HERE/root/tests/vulkaninfo" \
+	"$HERE/root/tests/gltest" "$HERE/root/tests/gldesk" "$HERE/root/tests/glwin"

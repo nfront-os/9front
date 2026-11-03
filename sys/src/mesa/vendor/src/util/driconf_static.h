@@ -2554,9 +2554,92 @@ static const struct driconf_device device_561 = {
     .num_applications = 0,
 };
 
+
+    
+static const struct driconf_option application_563_options[] = {
+    { .name = "mesa_glthread_app_profile", .value = "0" },
+};
+
+    
+static const struct driconf_option application_565_options[] = {
+    { .name = "glsl_correct_derivatives_after_discard", .value = "true" },
+};
+
+    
+static const struct driconf_option application_567_options[] = {
+    { .name = "mesa_extension_override", .value = "+GL_EXT_shader_image_load_store" },
+};
+
+    
+static const struct driconf_option application_569_options[] = {
+    { .name = "zink_emulate_point_smooth", .value = "true" },
+};
+
+    
+static const struct driconf_option application_571_options[] = {
+    { .name = "zink_emulate_point_smooth", .value = "true" },
+};
+
+    
+static const struct driconf_option application_573_options[] = {
+    { .name = "zink_emulate_point_smooth", .value = "true" },
+};
+
+    
+static const struct driconf_option application_575_options[] = {
+    { .name = "zink_shader_object_enable", .value = "true" },
+};
+
+
+static const struct driconf_application device_562_applications[] = {
+    { .name = "Hyperdimension Neptunia Re;Birth1",
+      .executable = "NeptuniaReBirth1.exe",
+      .num_options = 1,
+      .options = application_563_options,
+    },
+    { .name = "Borderlands 2 (Native, OpenGL, 32bit)",
+      .executable = "Borderlands2",
+      .num_options = 1,
+      .options = application_565_options,
+    },
+    { .name = "SPECviewperf13",
+      .executable = "viewperf",
+      .num_options = 1,
+      .options = application_567_options,
+    },
+    { .name = "Quake II",
+      .executable = "quake2-engine",
+      .num_options = 1,
+      .options = application_569_options,
+    },
+    { .name = "Quake II (yamagi)",
+      .executable = "yamagi-quake2",
+      .num_options = 1,
+      .options = application_571_options,
+    },
+    { .name = "Quake II (wine)",
+      .executable = "quake2.exe",
+      .num_options = 1,
+      .options = application_573_options,
+    },
+    { .name = "Tomb Raider 2013",
+      .executable = "TombRaider",
+      .num_options = 1,
+      .options = application_575_options,
+    },
+};
+
+static const struct driconf_device device_562 = {
+    .driver = "zink",
+    .num_engines = 0,
+    .num_applications = 7,
+    .applications = device_562_applications,
+};
+
 static const struct driconf_device *driconf[] = {
     &device_1,
     &device_384,
     &device_528,
     &device_561,
+    &device_562,
 };
