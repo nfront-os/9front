@@ -1,0 +1,69 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Stefan Hertenberger <erde74@gmail.com>
+Date: Tue, 3 Nov 2026 13:29:12 +0100
+Subject: [PATCH] glapi: gl9api takes desktop GL's entry points (opengl) and
+ GLES 2's (glesv2), the generator a union of targets
+
+---
+ src/mesa/glapi/gl9api/libgl9_public.c | 6 +++---
+ src/mesa/glapi/gl9api/meson.build     | 7 ++++---
+ src/mesa/glapi/new/genCommon.py       | 6 ++++++
+ 3 files changed, 13 insertions(+), 6 deletions(-)
+
+diff --git a/src/mesa/glapi/gl9api/libgl9_public.c b/src/mesa/glapi/gl9api/libgl9_public.c
+index 3f83a31..f5c699d 100644
+--- a/src/mesa/glapi/gl9api/libgl9_public.c
++++ b/src/mesa/glapi/gl9api/libgl9_public.c
+@@ -4,9 +4,9 @@
+  * Authors:
+  *    Chia-I Wu <olv@lunarg.com>
+  *
+- * 9front: es2api's libgles2_public.c for every entry point (gl.xml's:
+- * desktop GL and GLES), the gl* symbols of a program linked with Mesa;
+- * there is no GLX or glvnd (libGL, libOpenGL) to give them.
++ * 9front: es2api's libgles2_public.c for desktop GL's entry points (1.0
++ * to 4.6, as glvnd's libOpenGL) and GLES 2's to 3.2, the gl* symbols of a
++ * program linked with Mesa; there is no GLX or glvnd to give them.
+  */
+ 
+ #include "glapi/glapi_priv.h"
+diff --git a/src/mesa/glapi/gl9api/meson.build b/src/mesa/glapi/gl9api/meson.build
+index e6e0e55..4b1715b 100644
+--- a/src/mesa/glapi/gl9api/meson.build
++++ b/src/mesa/glapi/gl9api/meson.build
+@@ -1,14 +1,15 @@
+ # Copyright © 2017 Intel Corporation
+ # SPDX-License-Identifier: MIT
+ #
+-# 9front: the entry points of desktop GL and GLES in one library (as
+-# es2api's libGLESv2 for GLES 2), what a program calls; no GLX, no glvnd
++# 9front: the entry points of desktop GL (1.0 to 4.6, as glvnd's libOpenGL)
++# and GLES 2 to 3.2 in one library (es2api's libGLESv2 a part of it), what
++# a program calls; extensions by eglGetProcAddress; no GLX, no glvnd
+ 
+ gl9_glapi_mapi_tmp_h = custom_target(
+   'gl9_glapi_mapi_tmp.h',
+   input : ['../new/gen_gldispatch_mapi.py', '../glapi/registry/gl.xml'],
+   output : 'gl9_glapi_mapi_tmp.h',
+-  command : [prog_python, '@INPUT0@', 'gl', '@INPUT1@'],
++  command : [prog_python, '@INPUT0@', 'opengl,glesv2', '@INPUT1@'],
+   depend_files : glapi_xml_py_deps,
+   capture : true,
+ )
+diff --git a/src/mesa/glapi/new/genCommon.py b/src/mesa/glapi/new/genCommon.py
+index 14a63be..ebb6c61 100644
+--- a/src/mesa/glapi/new/genCommon.py
++++ b/src/mesa/glapi/new/genCommon.py
+@@ -100,6 +100,12 @@ def getExportNamesFromRoots(target, roots):
+     target should be one of "gl", "gldispatch", "opengl", "glesv1", or
+     "glesv2".
+     """
++    if "," in target:
++        # several libraries' functions in one (9front's gl9api: opengl,glesv2)
++        names = set()
++        for t in target.split(","):
++            names |= getExportNamesFromRoots(t, roots)
++        return names
+     featureNames = _LIBRARY_FEATURE_NAMES[target]
+     if featureNames is None:
+         return set(func.name for func in getFunctionsFromRoots(roots))

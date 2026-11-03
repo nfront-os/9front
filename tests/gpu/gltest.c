@@ -2,7 +2,7 @@
  * SPDX-License-Identifier: MIT
  *
  * gltest: OpenGL ES 2 through Mesa's zink (GL on the Vulkan drivers) and
- * EGL's surfaceless platform, without a window: a 64 x 64 pbuffer
+ * EGL (its native platform, plan9), without a window: a 64 x 64 pbuffer
  * cleared red, a green triangle drawn over its middle, read back with
  * glReadPixels and checked.  The renderer's name says which Vulkan
  * device zink took.
@@ -68,7 +68,6 @@ main(void)
 	static const EGLint sattr[] = { EGL_WIDTH, W, EGL_HEIGHT, H, EGL_NONE };
 	static const EGLint xattr[] = { EGL_CONTEXT_CLIENT_VERSION, 2, EGL_NONE };
 	static const GLfloat tri[] = { -0.5f, -0.5f, 0.5f, -0.5f, 0.0f, 0.5f };
-	PFNEGLGETPLATFORMDISPLAYEXTPROC getdpy;
 	EGLDisplay d;
 	EGLConfig c;
 	EGLSurface s;
@@ -77,12 +76,7 @@ main(void)
 	GLuint p;
 	unsigned v;
 
-	getdpy = (PFNEGLGETPLATFORMDISPLAYEXTPROC)eglGetProcAddress("eglGetPlatformDisplayEXT");
-	if(getdpy == NULL){
-		printf("FAIL no eglGetPlatformDisplayEXT\n");
-		return 1;
-	}
-	d = getdpy(EGL_PLATFORM_SURFACELESS_MESA, EGL_DEFAULT_DISPLAY, NULL);
+	d = eglGetDisplay(EGL_DEFAULT_DISPLAY);
 	if(d == EGL_NO_DISPLAY || !eglInitialize(d, &maj, &min)){
 		printf("FAIL eglInitialize: %#x\n", eglGetError());
 		return 1;

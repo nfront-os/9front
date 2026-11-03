@@ -1,0 +1,91 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Stefan Hertenberger <erde74@gmail.com>
+Date: Tue, 3 Nov 2026 13:27:44 +0100
+Subject: [PATCH] glapi: on 9front a library of every entry point (desktop GL
+ and GLES: gl.xml's, as libGL has them), there being no GLX or glvnd
+
+---
+ src/mesa/glapi/gl9api/libgl9_public.c | 23 +++++++++++++++++++++++
+ src/mesa/glapi/gl9api/meson.build     | 27 +++++++++++++++++++++++++++
+ src/meson.build                       |  4 ++++
+ 3 files changed, 54 insertions(+)
+ create mode 100644 src/mesa/glapi/gl9api/libgl9_public.c
+ create mode 100644 src/mesa/glapi/gl9api/meson.build
+
+diff --git a/src/mesa/glapi/gl9api/libgl9_public.c b/src/mesa/glapi/gl9api/libgl9_public.c
+new file mode 100644
+index 0000000..3f83a31
+--- /dev/null
++++ b/src/mesa/glapi/gl9api/libgl9_public.c
+@@ -0,0 +1,23 @@
++/* Copyright (C) 2010 LunarG Inc.
++ * SPDX-License-Identifier: MIT
++ *
++ * Authors:
++ *    Chia-I Wu <olv@lunarg.com>
++ *
++ * 9front: es2api's libgles2_public.c for every entry point (gl.xml's:
++ * desktop GL and GLES), the gl* symbols of a program linked with Mesa;
++ * there is no GLX or glvnd (libGL, libOpenGL) to give them.
++ */
++
++#include "glapi/glapi_priv.h"
++
++#if defined(_GLAPI_ENTRY_ARCH_TLS_H)
++#include _GLAPI_ENTRY_ARCH_TLS_H
++#define MAPI_TMP_STUB_ASM_GCC_NO_HIDDEN
++#else
++/* C version of the public entries */
++#define MAPI_TMP_DEFINES
++#define MAPI_TMP_PUBLIC_ENTRIES_NO_HIDDEN
++#endif /* defined(_GLAPI_ENTRY_ARCH_TLS_H) */
++
++#include "gl9_glapi_mapi_tmp.h"
+diff --git a/src/mesa/glapi/gl9api/meson.build b/src/mesa/glapi/gl9api/meson.build
+new file mode 100644
+index 0000000..e6e0e55
+--- /dev/null
++++ b/src/mesa/glapi/gl9api/meson.build
+@@ -0,0 +1,27 @@
++# Copyright © 2017 Intel Corporation
++# SPDX-License-Identifier: MIT
++#
++# 9front: the entry points of desktop GL and GLES in one library (as
++# es2api's libGLESv2 for GLES 2), what a program calls; no GLX, no glvnd
++
++gl9_glapi_mapi_tmp_h = custom_target(
++  'gl9_glapi_mapi_tmp.h',
++  input : ['../new/gen_gldispatch_mapi.py', '../glapi/registry/gl.xml'],
++  output : 'gl9_glapi_mapi_tmp.h',
++  command : [prog_python, '@INPUT0@', 'gl', '@INPUT1@'],
++  depend_files : glapi_xml_py_deps,
++  capture : true,
++)
++
++libgl9 = shared_library(
++  'GL9',
++  ['libgl9_public.c', gl9_glapi_mapi_tmp_h],
++  c_args : [c_msvc_compat_args, gcc_lto_quirk],
++  gnu_symbol_visibility : 'hidden',
++  link_args : [ld_args_gc_sections],
++  include_directories : [inc_mesa, inc_src, inc_include],
++  link_with : shared_glapi_lib,
++  dependencies : [dep_thread, dep_libdrm, dep_m, dep_dl, idep_mesautilc11],
++  version : '1.0.0',
++  install : true,
++)
+diff --git a/src/meson.build b/src/meson.build
+index c36f44b..e4b290a 100644
+--- a/src/meson.build
++++ b/src/meson.build
+@@ -138,6 +138,10 @@ if with_gallium and (with_glx != 'disabled' or with_egl)
+   if with_gles2 and not with_glvnd
+     subdir('mesa/glapi/es2api')
+   endif
++  # 9front: gl*'s entry points of desktop GL and GLES alike (no GLX, no glvnd)
++  if with_opengl and host_machine.system() == 'plan9'
++    subdir('mesa/glapi/gl9api')
++  endif
+   if with_tests
+     subdir('mesa/main/tests')
+     subdir('mesa/state_tracker/tests')

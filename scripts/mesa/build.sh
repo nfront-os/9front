@@ -124,8 +124,10 @@ fi
 # objects, each once (members.py), in one archive
 # hasvk first, then RADV: their objects stand for venus' equal ones (members.py)
 SOS="src/intel/vulkan_hasvk/libvulkan_intel_hasvk.so src/amd/vulkan/libvulkan_radeon.so src/virtio/vulkan/libvulkan_virtio.so"
-# OpenGL: EGL, the GLES 2 entry points, gallium with zink and the GL core
-SOS="$SOS src/egl/libEGL.so.1.0.0 src/mesa/glapi/es2api/libGLESv2.so.2.0.0 src/gallium/targets/dri/libgallium-$MESA_VERSION.so"
+# OpenGL: EGL, every gl* entry point (desktop GL and GLES: gl9api, Mesa's
+# patch for 9front; libGLESv2's would be a part of it), gallium with zink
+# and the GL core
+SOS="$SOS src/egl/libEGL.so.1.0.0 src/mesa/glapi/gl9api/libGL9.so.1.0.0 src/gallium/targets/dri/libgallium-$MESA_VERSION.so"
 ninja -C "$BUILD/mesa" build.ninja
 for so in $SOS; do
 	link=$(ninja -C "$BUILD/mesa" -t commands $so | tail -1)
@@ -156,5 +158,5 @@ rm -f "$SDK/lib/libvulkan.a"
 "$CROSS/$TRIPLE-ar" rcs "$SDK/lib/libvulkan.a" "$L/vkloader.o" "$L/vkcmds.o" "$L/mesa.o" \
 	"$BUILD"/plan9/*.o
 rm -rf "$SDK/include"/*
-cp -r "$SRC/include/vulkan" "$SRC/include/vk_video" "$SRC/include/EGL" "$SRC/include/GLES2" "$SRC/include/GLES3" "$SRC/include/KHR" "$SDK/include/"
+cp -r "$SRC/include/vulkan" "$SRC/include/vk_video" "$SRC/include/EGL" "$SRC/include/GL" "$SRC/include/GLES2" "$SRC/include/GLES3" "$SRC/include/KHR" "$SDK/include/"
 echo "build: $BUILD/libvulkan_mesa.a $BUILD/plan9/libmesaplan9.a $SDK"
