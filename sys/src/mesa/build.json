@@ -1588,6 +1588,7 @@
 			"plan9/loader/vkcmds.o",
 			"plan9/lib/dl.o",
 			"plan9/lib/plan9compat.o",
+			"plan9/lib/segfault.o",
 			"plan9/lib/plan9win.o",
 			"plan9/drm/drm9.o",
 			"plan9/drm/amdgpu9.o"
