@@ -52,7 +52,9 @@ def strong(obj):
 	syms = set()
 	for line in out.split('\n'):
 		f = line.split()
-		if len(f) == 3 and f[1] not in ('W', 'V', 'w', 'v', 'U', 'i'):
+		# 386: gcc's __x86.get_pc_thunk.* are in every PIC object, each in
+		# a COMDAT group of its own: the link keeps one, no overlap
+		if len(f) == 3 and f[1] not in ('W', 'V', 'w', 'v', 'U', 'i') and not f[2].startswith('__x86.get_pc_thunk.'):
 			syms.add(f[2])
 	return syms
 

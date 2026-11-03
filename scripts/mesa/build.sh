@@ -119,6 +119,10 @@ if [ "$(python3 -c 'import json, sys; print(",".join(*[o["value"] for o in json.
 	# a build made before EGL's plan9 platform (2026-11)
 	meson configure "$BUILD/mesa" -Dplatforms=plan9
 fi
+if [ "$(python3 -c 'import json, sys; print(*[o["value"] for o in json.load(open(sys.argv[1])) if o["name"] == "mesa-clc"])' "$BUILD/mesa/meson-info/intro-buildoptions.json")" != system ]; then
+	# a build set up before mesa_clc came from the build machine (386's)
+	meson configure "$BUILD/mesa" -Dmesa-clc=system
+fi
 # everything the ICDs are made of, without linking them (build.ninja
 # first: meson regenerates it when a meson.build changed): their
 # objects, each once (members.py), in one archive

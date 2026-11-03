@@ -25,7 +25,10 @@
 #   sys/src/mesa/build$SUFFIX.json  all of it, the loader and libmesaplan9 as
 #                                   one Whole libvulkan.a in /$ARCH/lib.gcc/ape
 # Per objtype (amd64, 386: build-386, SUFFIX .386, as the tree's manifests);
-# the sources are the same for all, a file that differs is an error.
+# the sources are the same for all, a file that differs is an error, but
+# for those meson generates per pointer size (ARCHDEP: GL's marshalling),
+# which go to sys/src/mesa/vendor/$objtype/..., their directory's -I there
+# first.
 # Files that come out the same keep their time (build.exe -D).
 
 import json
@@ -46,6 +49,9 @@ conflicts = []
 PUBLIC = ('include/vulkan/', 'include/vk_video/', 'include/EGL/', 'include/GL/',
 	'include/GLES2/', 'include/GLES3/', 'include/KHR/')	# go to /sys/include/ape
 PLAN9_HEADERS = ('include/drm-uapi/amdgpu_drm.h',)	# plan9/drm's, under vendor/
+# generated with the pointer's size (meson's sizeof_pointer): one copy per objtype
+ARCHDEP = ('src/mesa/glapi/glapi/gen/marshal_generated', 'src/mesa/glapi/glapi/gen/unmarshal_table.c')
+ARCHDIR = os.path.join(VENDOR, OBJTYPE)
 # hasvk first, then radv: their objects stand for venus' equal ones (members.py)
 SOS = ['src/intel/vulkan_hasvk/libvulkan_intel_hasvk.so', 'src/amd/vulkan/libvulkan_radeon.so',
 	'src/virtio/vulkan/libvulkan_virtio.so',
@@ -87,7 +93,10 @@ def where(f):
 				return os.path.join(APEINC, rel[len('include/'):])
 		return os.path.join(VENDOR, rel)
 	if a.startswith(MESA + '/'):
-		return os.path.join(VENDOR, a[len(MESA) + 1:])
+		rel = a[len(MESA) + 1:]
+		if rel.startswith(ARCHDEP):
+			return os.path.join(ARCHDIR, rel)
+		return os.path.join(VENDOR, rel)
 	if a.startswith(P9 + '/'):
 		return a
 	return None
@@ -142,7 +151,13 @@ def flags(cmd, srcdir):
 			elif t.startswith(SRC + '/'):
 				t = os.path.join(VENDOR, t[len(SRC) + 1:])
 			elif t.startswith(MESA + '/'):
-				t = os.path.join(VENDOR, t[len(MESA) + 1:])
+				rel = t[len(MESA) + 1:]
+				if any(os.path.dirname(x) == rel for x in ARCHDEP):
+					# this objtype's generated files there first
+					a = '-I' + os.path.relpath(os.path.join(ARCHDIR, rel), srcdir)
+					if a not in out:
+						out.append(a)
+				t = os.path.join(VENDOR, rel)
 			elif not t.startswith(ROOT + '/'):
 				continue	# the cross compiler's own
 			if not os.path.isdir(t):
