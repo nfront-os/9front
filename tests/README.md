@@ -43,6 +43,7 @@ file system of the guest: in `PATH` or `~/go/bin/ufs`).
 | `rio` | mouse and keyboard in rio on the CD: select text, type, New + sweep a window, type into it | a CD | ~1 min |
 | `usb` | a USB stick on xHCI, EHCI and UHCI: root hub in `#u`, the stick as `/dev/sdU*`, sector 0 read back (`USB_CTLRS=ohci`: fails in QEMU with 9front's own release too) | a CD | ~1 min per controller |
 | `gcc` | the native gcc and binutils on the CD (`/$objtype/gnu`, built in `../9front-gcc`): `gcc --version`, a POSIX program over APE and a native Plan 9 program (`/sys/src/cmd/echo.c`, libc from `/$objtype/lib.gcc`) compiled, linked and run, and `gccmk` builds hoc from its mkfile | a CD with the toolchain | ~2 min |
+| `go` | Go on the CD (`/$objtype/go`, built in `../9front-go`, `GO_OUT` for `mkiso.sh`): `go version`, GOROOT found without `$GOROOT`, `go run` (std compiled on the CD) and `go build` of a program with goroutines, Go's ELF test data not stripped by `stage-dist.sh`; skipped for a CD without Go | a CD with Go | ~3 min |
 
 Options (environment):
 

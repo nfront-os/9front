@@ -96,7 +96,7 @@ if [ -n "$RUST_OUT" ]; then
 fi
 # Go only if asked (GO_OUT=../9front-go/out/$objtype, its scripts/install.sh): an optional
 # install, else from its archive (go-plan9-$objtype.tgz) on the installed system; as
-# /$objtype/go. Its programs are a.out (the strip below leaves them alone)
+# /$objtype/go. Its programs are a.out; the strip below leaves the tree alone
 if [ -n "$GO_OUT" ]; then
 	[ -d "$GO_OUT/$A/go" ] || { echo "stage-dist: no $GO_OUT/$A/go" >&2; exit 1; }
 	ln -s "$GO_OUT/$A/go" "$VIEW/$A/go"
@@ -114,7 +114,9 @@ python3 "$ROOT/scripts/guest/proto.py" -s "$VIEW" -d "$OUT" \
 # for the guest's disk/mkfs (scripts/guest/boot/mkdisk.rc); no proto lists it,
 # so it stays off the disk
 cat "${PROTOS[@]}" > "$OUT/gccproto"
-find "$OUT" -type f -perm -u+x -exec sh -c 'file -b "$1" | grep -q ^ELF && strip "$1"' _ {} \;
+# not in /$objtype/go: its programs are a.out, its ELF files are test data of Go's std
+# (debug/elf, runtime/pprof), which strip would change
+find "$OUT" -path "$OUT/$A/go" -prune -o -type f -perm -u+x -exec sh -c 'file -b "$1" | grep -q ^ELF && strip "$1"' _ {} \;
 echo "$(grep -c . "$OUT.warnings") proto warnings ($OUT.warnings)"
 # everything mk install installs made it into the distribution
 python3 "$ROOT/scripts/build/check-install.py" -d "$OUT" | grep -v '^broken' | tail -20

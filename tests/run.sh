@@ -21,13 +21,15 @@
 #            sector 0 (same CD; USB_CTLRS="xhci ehci" for fewer)
 #   gcc      the native gcc on the CD (/$objtype/gnu, ../9front-gcc): a POSIX
 #            and a native Plan 9 program compiled, linked and run (same CD)
+#   go       Go on the CD (/$objtype/go, ../9front-go, GO_OUT for mkiso.sh): go
+#            version, GOROOT, go run, go build (same CD; skipped without Go)
 #   hw       the hardware test stick (tests/hw) in QEMU: boots from USB,
 #            runs the configurations with resets, HANG after a power-off
 #            (makes the stick image, minutes)
 #
 # usage: tests/run.sh [category...]     (default: all, in the order above)
 cd "$(dirname "$0")"
-cats=${*:-static asm syscall build guest boot gui disk iso rio usb gcc hw}
+cats=${*:-static asm syscall build guest boot gui disk iso rio usb gcc go hw}
 failed=()
 for c in $cats; do
 	[ -x "$c/run.sh" ] || { echo "unknown category $c"; exit 2; }
