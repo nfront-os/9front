@@ -53,8 +53,12 @@ SECTIONS
 		PROVIDE(__init_array_end = .);
 	} :data
 	PROVIDE(edata = .);
+	/* Go's .noptrbss too (cgo programs of ../9front-go, linked by gcc):
+	 * before end, where APE's malloc begins; as an orphan after .bss it
+	 * came after end, and malloc's memory was Go's variables */
 	.bss : {
 		*(.bss .bss.* COMMON)
+		*(.noptrbss .noptrbss.*)
 	} :data
 	PROVIDE(end = .);
 	PROVIDE(_end = .);

@@ -55,6 +55,7 @@ extern int _TSEMACQUIRE(int *, unsigned long);
 extern int _SEMRELEASE(int *, int);
 extern void _EXITS(char *);
 extern void **_privates;
+extern int _nprivates;
 
 enum {
 	RFPROC = 1<<4,
@@ -561,6 +562,19 @@ threadend(pthread_t t)
 		freethread(t);	/* detached */
 }
 
+/*
+ * a new thread's slots: slot 0 its struct __pthread, the others empty, as
+ * thread-local storage starts; its copy of the stack segment has its
+ * parent's (Go's g in slot 1 of a cgo program of ../9front-go: a C thread
+ * calling Go took its parent's g for its own)
+ */
+static void
+privinit(pthread_t t)
+{
+	memset(_privates, 0, _nprivates * sizeof _privates[0]);
+	_privates[0] = t;
+}
+
 /* the new proc: on its own copy of the stack segment */
 void
 __apecompat_threadstart(pthread_t t)
@@ -575,7 +589,7 @@ __apecompat_threadstart(pthread_t t)
 		fn(arg);
 		_EXITS(NULL);
 	}
-	_privates[0] = t;
+	privinit(t);
 	t->pid = getpid();
 	if(setjmp(t->exitjmp) == 0)
 		__apecompat_runon((void *)((uintptr_t)(t->stack + t->stacksize) & ~(uintptr_t)15),
@@ -592,7 +606,7 @@ stdthreadstart(void *v)
 {
 	pthread_t t = v;
 
-	_privates[0] = t;
+	privinit(t);
 	t->pid = getpid();
 	if(setjmp(t->exitjmp) == 0)
 		threadrun(t);
