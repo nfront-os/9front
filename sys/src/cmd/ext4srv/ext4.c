@@ -1358,6 +1358,9 @@ int ext4_fread(ext4_file *file, void *buf, usize size, usize *rcnt)
 		return -1;
 	}
 
+	if (rcnt)
+		*rcnt = 0;
+
 	if (!size)
 		return 0;
 
@@ -1365,9 +1368,6 @@ int ext4_fread(ext4_file *file, void *buf, usize size, usize *rcnt)
 
 	struct ext4_fs *const fs = &file->mp->fs;
 	struct ext4_sblock *const sb = &file->mp->fs.sb;
-
-	if (rcnt)
-		*rcnt = 0;
 
 	r = ext4_fs_get_inode_ref(fs, file->inode, &ref);
 	if (r != 0) {
