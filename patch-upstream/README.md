@@ -73,6 +73,9 @@ made with an AI assistant); drop it if 9front does not want it.
 | 0015 | riostart: stats window can take the console's focus | bug fix |
 | 0016 | arm64: the last cpu never comes up (sev lost) | bug fix |
 | 0017 | sd53c8xx: boot hangs 600 s in scsiverify with SMP | bug fix |
+| 0018 | ext4srv: a read of 0 bytes answers with a garbage count, ext4srv dies | bug fix |
+| 0019 | ext4srv: remove and rename ignore the directory's permission | bug fix (permissions) |
+| 0020 | ip/tcp: writes to a closed loopback peer vanish without an error | bug fix |
 
 ### 0001 ip/tcp: don't hang up a reused conversation through a stale bypass pointer
 
@@ -274,6 +277,40 @@ Found by: the boot test with 4 cpus (QEMU lsi53c895a, KVM), which hung
 in `scsiverify` now and then (kbdfs's open of the disk); traced with
 QEMU's `lsi_*` trace events and gdb on the hung guest. Shown by: 21 boots
 with 4 cpus without a hang, where it hung at the first before.
+
+### 0018 ext4srv: set the read count before returning on a read of 0 bytes
+
+`ext4_fread()` returned early for a size of 0 before setting `*rcnt`, so
+`rread()`'s count stayed uninitialized and went out as the Rread count,
+larger than msize: lib9p's `respond()` printed "msize = ... n = 0 Rread ...
+count 724576" and aborted, ext4srv died and the mount hung. Go's os package
+does reads of 0 bytes. Found by: `go test` of Go's std on an ext4 disk
+(arm64 guest). Shown by: the same `go test` runs through.
+
+### 0019 ext4srv: remove and rename need write permission in the parent directory
+
+remove(5) needs write permission in the file's directory. `rremove()`
+checked only that the user owned the file: a file in a directory of mode
+0555 could be removed. The rename in `rwstat()` said it checked the
+parent's permission but checked the file's own. Both check the
+directory's now (`haveparentperm()`).
+
+Found by: Go's os tests (`TestRemoveAllButReadOnlyAndPathError`) on an
+ext4 disk. Shown by: in a 0555 directory rm and a rename are refused, in
+0775 both work.
+
+### 0020 ip/tcp: a write to a spliced loopback connection whose other end is closed fails
+
+When one end of a spliced (bypass) loopback connection closes, it clears
+only its own link; `tcpbypass()` then dropped everything the other end
+wrote, without an error: a writer never learnt that the peer was gone
+(over the network a reset tells it). Now the write fails with Ehungup, as
+a write to a closed queue does. The flush through `qsetbypass()` in
+`tcpsplice()` does not get there: both links are set just before.
+
+Found by: Go's net tests (`TestWritevError`: 1 GB written to a closed
+connection without an error). Shown by: the same write fails at once
+("i/o on hungup channel"), the test passes.
 
 ## Not included
 

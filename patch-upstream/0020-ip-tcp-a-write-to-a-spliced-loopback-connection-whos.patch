@@ -1,0 +1,36 @@
+From 4bc63f02af4a80ad6ee51e2a4d9e19e7510c9e5e Mon Sep 17 00:00:00 2001
+From: Stefan Hertenberger <erde74@gmail.com>
+Date: Tue, 3 Nov 2026 19:03:08 +0100
+Subject: [PATCH 20/20] ip/tcp: a write to a spliced loopback connection whose
+ other end is closed fails
+
+When one end of a spliced (bypass) loopback connection closed, it
+cleared only its own link; tcpbypass then dropped everything the other
+end wrote, without an error. A writer never learnt that the peer was
+gone (over the network a reset tells it). Now the write fails with
+Ehungup, as a write to a closed queue does. tcpsplice's flush through
+qsetbypass does not get there: both links are set just before.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ sys/src/9/ip/tcp.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/sys/src/9/ip/tcp.c b/sys/src/9/ip/tcp.c
+index 6627c6078..1d3afa230 100644
+--- a/sys/src/9/ip/tcp.c
++++ b/sys/src/9/ip/tcp.c
+@@ -1605,8 +1605,9 @@ tcpbypass(void *arg, Block *b)
+ 	Conv *o = tcb->bypass;
+ 
+ 	if(o == nil || ((Tcpctl*)o->ptcl)->bypass != c){
++		/* the other end is closed: tell the writer, as a closed queue does */
+ 		freeblist(b);
+-		return;
++		error(Ehungup);
+ 	}
+ 	qbwrite(o->rq, b);
+ }
+-- 
+2.56.0
+

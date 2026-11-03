@@ -24,6 +24,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Guest, CD, tests
 - `scripts/guest/boot-cli.sh` boots the built kernel in QEMU (serial console, Harvey's ufs as root); `scripts/guest/mkiso.sh` / `scripts/guest/mkdisk.sh` make the install CD / disk image in the guest, as 9front's `sys/lib/dist/mkfile` does. Work dir `$CLI_DIR` (`~/.cache/9front-cli`).
 - Self-hosting: `scripts/guest/build-self.sh` builds the whole tree in the guest with `build.exe` (GOOS=plan9) and the native gcc of `../9front-gcc`, on an ext4 disk made from a copy (`$CLI_DIR/self.$objtype`, `ext4srv`; `objtype=386`: a 9pc guest with `/386/gnu`); the steps run as `scripts/build/rc/*.rc` (`build.go`: `plan9step`). It compares every object with the Linux build; `KEEP=1` reuses the copy. On 9front, `gccmk` (from `../9front-gcc/plan9`, in `/$objtype/gnu/bin`) runs 9front's own mkfiles with gcc (userland only).
+- Go: `../9front-go` (go1.27.3, plan9/arm64 ported there; `scripts/install.sh` makes `/$objtype/go`); `GO_OUT=../9front-go/out/$objtype` puts it on the CD (`stage-dist.sh`, `scripts/guest/boot/goproto`), as `RUST_OUT` does for `../9front-rust`.
 - `tests/run.sh` categories: static, asm, syscall, build, guest, boot, gui, disk, iso, rio, usb (`tests/README.md`). `tests/iso/drive.py` boots the CD to rio and types into it; `tests/vm.py` is the module for guest tests on the CD (rio, usb): boot to rio, QMP keys/mouse, an rc on the serial line.
 
 ## Debugging a hung guest

@@ -1,7 +1,7 @@
 From 5cbe8b79d23588dacead311bf9e93f00db8ab4a9 Mon Sep 17 00:00:00 2001
 From: Stefan Hertenberger <erde74@gmail.com>
 Date: Sat, 31 Oct 2026 10:35:28 +0100
-Subject: [PATCH 06/17] ext4srv: truncating a file to the length it has is no
+Subject: [PATCH 06/20] ext4srv: truncating a file to the length it has is no
  error
 
 ext4_ftruncate() refused any length not below the file's with "space

@@ -1,0 +1,43 @@
+From e768de6f062d2ad28d6ffb859ca752eb5c557f3b Mon Sep 17 00:00:00 2001
+From: Stefan Hertenberger <erde74@gmail.com>
+Date: Tue, 3 Nov 2026 18:04:57 +0100
+Subject: [PATCH 18/20] ext4srv: set the read count before returning on a read
+ of 0 bytes
+
+ext4_fread returned early for size 0 without setting *rcnt; rread's n
+stayed uninitialized and went out as the Rread count, larger than
+msize: lib9p's respond aborted ("msize = ... n = 0 Rread ... count
+724576") and ext4srv died. Go's os package does reads of 0 bytes.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ sys/src/cmd/ext4srv/ext4.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/sys/src/cmd/ext4srv/ext4.c b/sys/src/cmd/ext4srv/ext4.c
+index bef22a23d..20067fe87 100644
+--- a/sys/src/cmd/ext4srv/ext4.c
++++ b/sys/src/cmd/ext4srv/ext4.c
+@@ -1358,6 +1358,9 @@ int ext4_fread(ext4_file *file, void *buf, usize size, usize *rcnt)
+ 		return -1;
+ 	}
+ 
++	if (rcnt)
++		*rcnt = 0;
++
+ 	if (!size)
+ 		return 0;
+ 
+@@ -1366,9 +1369,6 @@ int ext4_fread(ext4_file *file, void *buf, usize size, usize *rcnt)
+ 	struct ext4_fs *const fs = &file->mp->fs;
+ 	struct ext4_sblock *const sb = &file->mp->fs.sb;
+ 
+-	if (rcnt)
+-		*rcnt = 0;
+-
+ 	r = ext4_fs_get_inode_ref(fs, file->inode, &ref);
+ 	if (r != 0) {
+ 		EXT4_MP_UNLOCK(file->mp);
+-- 
+2.56.0
+

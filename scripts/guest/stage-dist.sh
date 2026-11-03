@@ -21,7 +21,9 @@
 # ../9front-gcc (its out/$objtype; GCC_OUT, if it exists), and
 # scripts/guest/boot/rustproto /amd64/rust, Rust of ../9front-rust (its
 # out/$objtype from scripts/install.sh; only if RUST_OUT is set: an optional
-# install, otherwise from its archives on the installed system);
+# install, otherwise from its archives on the installed system) and
+# scripts/guest/boot/goproto /amd64/go, Go of ../9front-go (likewise: its
+# out/$objtype from scripts/install.sh, only if GO_OUT is set);
 # scripts/guest/proto.py expands the protos. Our
 # binaries carry DWARF (8l writes none) and are stripped. The guest's install script
 # (scripts/guest/boot/mkdisk.rc) reads the result as /n/src9.
@@ -91,6 +93,14 @@ if [ -n "$RUST_OUT" ]; then
 	[ -d "$RUST_OUT/$A/rust" ] || { echo "stage-dist: no $RUST_OUT/$A/rust" >&2; exit 1; }
 	ln -s "$RUST_OUT/$A/rust" "$VIEW/$A/rust"
 	PROTOS+=("$ROOT/scripts/guest/boot/rustproto")
+fi
+# Go only if asked (GO_OUT=../9front-go/out/$objtype, its scripts/install.sh): an optional
+# install, else from its archive (go-plan9-$objtype.tgz) on the installed system; as
+# /$objtype/go. Its programs are a.out (the strip below leaves them alone)
+if [ -n "$GO_OUT" ]; then
+	[ -d "$GO_OUT/$A/go" ] || { echo "stage-dist: no $GO_OUT/$A/go" >&2; exit 1; }
+	ln -s "$GO_OUT/$A/go" "$VIEW/$A/go"
+	PROTOS+=("$ROOT/scripts/guest/boot/goproto")
 fi
 
 rm -rf "$OUT"
