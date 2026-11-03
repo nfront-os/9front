@@ -1607,7 +1607,13 @@ tcpbypass(void *arg, Block *b)
 
 	if(o == nil || ((Tcpctl*)o->ptcl)->bypass != c){
 		freeblist(b);
-		return;
+		/*
+		 * GCC port branch: the other end is closed; say so as a closed queue does
+		 * (qbwrite's caller, the writer) instead of dropping the data silently (a
+		 * writer never saw an error; over the network a reset comes). tcpsplice's
+		 * qsetbypass flush does not get here: both links were just set.
+		 */
+		error(Ehungup);
 	}
 	qbwrite(o->rq, b);
 }
