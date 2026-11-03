@@ -247,6 +247,12 @@ kmsout_init(struct file *f, const struct kmsout_ops *o)
 	return 0;
 }
 
+void
+kmsout_free(char *s)
+{
+	kfree(s);
+}
+
 int
 kmsout_names(char **names, int max)
 {

@@ -14,6 +14,7 @@
 #include "../../../../libthread/threadimpl.h"	/* threaddump: libthread's procs and threads */
 #include <kpi/linux.h>
 #include "amdgpu.h"
+#include "../kmsout.h"
 
 /*
  * the Linux code runs on the procs' stacks: DC's bandwidth calculation
@@ -23,7 +24,6 @@
 int	mainstacksize = 1024*1024;
 
 void	serve(char *srvname);
-int	screenstart(char *gdir);	/* screen.c */
 
 /* the call chain by frame pointers, for addr2line on the build machine; bp between lo and hi */
 static void
@@ -233,7 +233,7 @@ threadmain(int argc, char **argv)
 		fprint(2, "amdgpu: no display: error %d\n", -r);
 		nodisplay = 1;
 	}
-	if(!nodisplay && !noscreen && screenstart(gdir) < 0)
+	if(!nodisplay && !noscreen && screenstart(gdir, 0, "amdgpu") < 0)
 		fprint(2, "amdgpu: no screen: %r\n");
 	if(poweroff)
 		amdgpu_test_poweroff();

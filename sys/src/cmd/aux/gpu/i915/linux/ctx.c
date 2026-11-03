@@ -41,9 +41,9 @@
 #include "drivers/gpu/drm/drm_internal.h"
 #include <kpi/p9.h>
 #include "../i915.h"
+#include "../../kmsout.h"
 
 struct pci_dev	*kpi_pci_gpu(const char *gdir);
-int	kms_scanout(struct file *from, u32 handle, u32 w, u32 h, u32 stride);
 int	kms_plane(struct file *to, u32 *handle, u32 *w, u32 *h, u32 *stride, u32 *bpp);
 
 enum { Nfence = 64 };
@@ -156,7 +156,7 @@ i915_ctx_free(void *v)
 	struct drm_device *dev = c->file->minor->dev;
 	int i;
 
-	kms_scanout(c->filp, 0, 0, 0, 0);	/* its picture off the display */
+	kmsout_scanout(c->filp, 0, 0, 0, 0);	/* its picture off the display */
 	for (i = 0; i < Nfence; i++)
 		if (c->fence[i]) {
 			dma_fence_wait_timeout(c->fence[i], false, 5 * HZ);
@@ -376,7 +376,7 @@ i915_scanout(void *v, int id, unsigned int w, unsigned int h, unsigned int strid
 	}
 	mutex_unlock(&c->lock);
 	/* returns when the display shows it: a swapchain's FIFO */
-	return kms_scanout(c->filp, handle, w, h, stride);
+	return kmsout_scanout(c->filp, handle, w, h, stride);
 }
 
 /* the firmware's plane in the context: its object, address, geometry */

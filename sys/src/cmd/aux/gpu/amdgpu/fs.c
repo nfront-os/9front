@@ -15,8 +15,6 @@
 #include "amdgpu.h"
 #include "../kmsout.h"
 
-char	*screenset(char *name, char *spec);	/* screen.c */
-
 enum {
 	Xctl = 1,
 	Xstatus,
@@ -70,9 +68,6 @@ struct Kreq {
 	int	gem;	/* id is a GEM handle of the client's (scanoutgem) */
 	int	id, w, h, stride;
 	int	r;
-	char	*out, *spec;	/* set: an output's mode, its backlight (bl), nil: read the backlight */
-	int	set, bl;
-	char	*e, *s;	/* set's error; the backlight read */
 	Channel	*done;
 };
 static Channel *kmsc;
@@ -84,13 +79,7 @@ kmsproc(void*)
 
 	for(;;){
 		k = recvp(kmsc);
-		if(k->set)
-			k->e = screenset(k->out, k->spec);
-		else if(k->bl && k->spec != nil)
-			k->e = (char*)kmsout_setbacklight(k->out, k->spec);
-		else if(k->bl)
-			k->s = kmsout_backlight(k->out);
-		else if(k->free)
+		if(k->free)
 			amdgpu_ctx_free(k->lc);
 		else if(k->gem)
 			k->r = amdgpu_scanout_gem(k->lc, k->id, k->w, k->h, k->stride);
@@ -114,16 +103,16 @@ ctxfree(void *lc)
 	chanfree(k.done);
 }
 
-/* an output's mode or backlight on kmsproc; the server's other requests go on */
-static void
-outreq(Req *r, Kreq *k)
+/* an output's mode or backlight (kmsscreen.c); the server's other requests go on */
+static char*
+outreq(Req *r, char *out, char *spec, int bl, char **s)
 {
-	k->done = chancreate(sizeof(ulong), 0);
+	char *e;
+
 	srvrelease(r->srv);
-	sendp(kmsc, k);
-	recvul(k->done);
+	e = outrequest(out, spec, bl, s);
 	srvacquire(r->srv);
-	chanfree(k->done);
+	return e;
 }
 
 /*
@@ -380,24 +369,18 @@ fsread(Req *r)
 		t = KIND(r->fid->file) == Xoutmodes ? kmsout_modes(outname[CTXN(r->fid->file)])
 			: kmsout_mode(outname[CTXN(r->fid->file)]);
 		s = estrdup9p(t != nil ? t : "");
-		amdgpu_freestr(t);
+		kmsout_free(t);
 		break;
 	case Xoutbacklight:
-		{
-			Kreq k;
-
-			memset(&k, 0, sizeof k);
-			k.bl = 1;
-			k.out = outname[CTXN(r->fid->file)];
-			outreq(r, &k);
-			s = estrdup9p(k.s != nil ? k.s : "");
-			amdgpu_freestr(k.s);
-		}
+		t = nil;
+		outreq(r, outname[CTXN(r->fid->file)], nil, 1, &t);
+		s = estrdup9p(t != nil ? t : "");
+		kmsout_free(t);
 		break;
 	case Xctl:
 		t = kmsout_plane();
 		s = estrdup9p(t != nil ? t : "plane none\n");
-		amdgpu_freestr(t);
+		kmsout_free(t);
 		break;
 	case Xstatus:
 		{
@@ -526,19 +509,9 @@ fswrite(Req *r)
 	switch(KIND(r->fid->file)){
 	case Xoutmode:
 	case Xoutbacklight:
-		{
-			Kreq k;
-
-			if((t = strchr(buf, '\n')) != nil)
-				*t = 0;
-			memset(&k, 0, sizeof k);
-			k.out = outname[CTXN(r->fid->file)];
-			k.spec = buf;
-			k.set = KIND(r->fid->file) == Xoutmode;
-			k.bl = !k.set;
-			outreq(r, &k);
-			e = k.e;
-		}
+		if((t = strchr(buf, '\n')) != nil)
+			*t = 0;
+		e = outreq(r, outname[CTXN(r->fid->file)], buf, KIND(r->fid->file) == Xoutbacklight, nil);
 		goto done;
 	}
 	n = tokenize(buf, f, nelem(f));

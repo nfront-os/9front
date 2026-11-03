@@ -1,65 +1,15 @@
 #!/bin/rc
 # aux/amdgpu's screen over the connected outputs (an extended desktop):
-# the layout, the last output off and on again, then at the first's
-# place (a mirror), back; vkcube on the screen (scanout to every output);
-# the log's warnings.  Look at the monitors: 3 s each step.
+# gpuoutputs' steps (the layout, the last output off, on, as a mirror,
+# back; a panel's backlight), then vkcube on the screen (scanout to
+# every output); the log's warnings.  Look at the monitors.
 bind -a '#i' /dev
 bind -a '#v' /dev
 aux/amdgpu $* >/tmp/amd.log >[2=1]
 sleep 2
-o=/dev/gpu/0/outputs
-fn show {
-	for(d in $o/*)
-		echo '	'`{basename $d} `{cat $d/mode}
-	grep size /dev/vgactl
-}
-grep '^output' /dev/gpu/0/status
-show
-on=()
-for(d in $o/*)
-	if(! ~ `{cat $d/mode} off)
-		on=($on `{basename $d})
-echo on: $on
-if(~ $#on 0 1)
-	echo FAIL fewer than two outputs on
-if not{
-	last=$on($#on)
-	first=$on(1)
-	m=`{cat $o/$last/mode}
-	fm=`{cat $o/$first/mode}
-	if(echo off >$o/$last/mode)
-		echo passed $last off
-	if not
-		echo FAIL $last off
-	show
-	sleep 3
-	if(echo $m(1) $m(2) >$o/$last/mode)
-		echo passed $last on again
-	if not
-		echo FAIL $last on again
-	show
-	sleep 3
-	if(echo $fm(1) $fm(2) at 0 0 >$o/$last/mode)
-		echo passed $last mirrors $first
-	if not
-		echo 'no mirror ('$last' has no '$fm(1)' mode?)'
-	show
-	sleep 3
-	if(echo $m(1) $m(2) at $m(4) $m(5) >$o/$last/mode)
-		echo passed $last back at $m(4) $m(5)
-	if not
-		echo FAIL $last back
-	show
-	if(echo 1x1 >$o/$last/mode >[2]/dev/null)
-		echo FAIL a mode it has not
-	if not
-		echo passed no mode 1x1
-}
-for(d in $o/*)
-	if(test -e $d/backlight)
-		echo backlight `{basename $d}: `{cat $d/backlight}
+gpuoutputs
 WSI_PLAN9_STATS=1 /tests/vkcube --c 120 >[2=1] | grep 'scanout:|copy:|rror' | sed 2q
-show
+grep size /dev/vgactl
 cat /dev/gpu/0/ctl
 grep 'WARN|error|fault|overflow|kmsout' /tmp/amd.log
 echo TESTEND

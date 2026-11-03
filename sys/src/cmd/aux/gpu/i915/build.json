@@ -46,7 +46,8 @@
 			"linux/ctx.c",
 			"linux/error.c",
 			"linux/i915.c",
-			"linux/kms.c"
+			"linux/kms.c",
+			"linux/kmsout.c"
 		]
 	},
 	{
@@ -79,7 +80,8 @@
 		"Program": "i915",
 		"SourceFiles": [
 			"fs.c",
-			"main.c"
+			"main.c",
+			"screen.c"
 		]
 	},
 	{

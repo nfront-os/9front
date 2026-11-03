@@ -43,6 +43,9 @@ CONFIG_DRM_I915_STOP_TIMEOUT=100
 CONFIG_DRM_I915_TIMESLICE_DURATION=1
 CONFIG_DRM_I915_REQUEST_TIMEOUT=20000
 CONFIG_DRM_PANEL_ORIENTATION_QUIRKS=y
+# the panels' backlight (intel_backlight; kpi/linux/device.c registers it,
+# gpu(4) outputs/conn/backlight sets it)
+CONFIG_BACKLIGHT_CLASS_DEVICE=y
 # amdgpu: the RX 7600 (Navi 33: GFX 11, DCN 3.2); DC with the DCN floating
 # point code (a proc of the file server has its own FPU state); the DRM
 # scheduler, drm_exec, the suballocator and the GEM TTM helpers it builds on

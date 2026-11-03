@@ -26,7 +26,7 @@ gpu, virtiogpu, intelgpu, i915, amdgpu \- graphics device file system
 .PP
 .B aux/i915
 [
-.B -DLMTnv
+.B -DLMSTnv
 ] [
 .B -d
 .I drmdebug
@@ -73,6 +73,7 @@ gpu, virtiogpu, intelgpu, i915, amdgpu \- graphics device file system
 .BI /dev/gpu/0/outputs/ conn /modes
 .BI /dev/gpu/0/outputs/ conn /mode
 .BI /dev/gpu/0/outputs/ conn /edid
+.BI /dev/gpu/0/outputs/ conn /backlight
 .BI /dev/gpu/0/caps/ id
 .B /dev/gpu/0/clone
 .BI /dev/gpu/0/ctx/ n /ctl
@@ -455,7 +456,7 @@ with EDID, the probed modes and the mode shown;
 shows an object (PRIME, a framebuffer, a page flip at the next
 vertical blank);
 .B map plane
-gives the firmware's plane to a context.
+gives the screen's object to a context.
 .B error
 is i915's error state (as Linux's
 .BR /sys/class/drm/card0/error ):
@@ -478,6 +479,8 @@ i915 verifies them) and
 .PP
 .B -D
 leaves the display to 9front (i915.disable_display),
+.B -S
+leaves draw(3)'s screen where it was (the firmware's plane),
 .B -d
 sets DRM's debug categories,
 .B -v
@@ -643,10 +646,79 @@ and the driver keeps running the card, its fans and clocks, until the
 power is off.
 .B -X
 does that once the driver has started, to try it.
+.SS "Outputs and the screen (i915, amdgpu)"
+.I I915
+and
+.I amdgpu
+make draw(3)'s screen as
+.I virtiogpu
+does
+.RI ( vga (3)
+type
+.BR gpu ,
+the changes copied into an object the display shows: amdgpu's in
+VRAM through BAR 0, i915's in the GTT through the aperture), over
+every output that is on, as one desktop: each output shows its part
+of the screen, the screen is as big as they are together.
+At the start every connected output is on, in its preferred mode,
+side by side in the order of
+.BR outputs .
+Writing
+.IP
+.IB w x h " \fR[\fPhz\fR] [\fPat \fIx y\fR]\fP"
+.PP
+to an output's
+.B mode
+gives it one of its
+.B modes
+(the preferred one of that size, or the fastest, without
+.IR hz )
+and its place on the screen (without one where it was, or right of
+the others);
+.B off
+turns it off.
+Two outputs at the same place in the same mode show the same.
+The screen changes size with them, and
+.IR rio (1)
+with it; it can be no bigger than the framebuffer of
+.IR gpu (3)
+the driver made at the start, for the biggest layout of the outputs
+connected then (their biggest modes side by side, or one above the
+other).
+Reading
+.B mode
+gives
+.IB w x h " hz " at " x y" ,
+or
+.BR off .
+A panel (eDP, LVDS) has a
+.BR backlight :
+reading it gives the brightness and its maximum, writing
+.I n
+or
+.IB n %
+sets it.
+A context's picture
+.RB ( scanout )
+as big as the screen goes to every output (a page flip each), one as
+big as a mode of an output to the first such output (in that mode),
+other sizes are refused (the client copies).
+.B -S
+leaves draw(3)'s screen where it was; then there is no layout and no
+scanout.
 .SH EXAMPLES
 Switch the screen to 1024x768:
 .EX
 	echo 1024x768 >/dev/gpu/0/outputs/Virtual-1/mode
+.EE
+.PP
+An external monitor right of the laptop's panel, then above it, the
+panel at half brightness:
+.EX
+	echo 1920x1080 at 1920 0 >/dev/gpu/0/outputs/HDMI-A-1/mode
+	echo 1920x1080 at 0 0 >/dev/gpu/0/outputs/HDMI-A-1/mode
+	echo 1920x1080 at 0 1080 >/dev/gpu/0/outputs/eDP-1/mode
+	echo 50% >/dev/gpu/0/outputs/eDP-1/backlight
 .EE
 .PP
 A context, one submission, wait for it, in C (the source tree's

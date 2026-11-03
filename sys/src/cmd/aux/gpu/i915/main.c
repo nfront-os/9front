@@ -13,6 +13,7 @@
 #include "../../../../libthread/threadimpl.h"	/* threaddump: libthread's procs and threads */
 #include <kpi/linux.h>
 #include "i915.h"
+#include "../kmsout.h"
 
 /*
  * the Linux code runs on the procs' stacks: more than libthread's 8 KB
@@ -108,7 +109,7 @@ trapnote(void *v, char *note)
 static void
 usage(void)
 {
-	fprint(2, "usage: %s [-DLMTnv] [-W secs] [-d drmdebug] [-f selftest-filter] [-p name=value]... [-g #G/n] [-s srvname]\n", argv0);
+	fprint(2, "usage: %s [-DLMSTnv] [-W secs] [-d drmdebug] [-f selftest-filter] [-p name=value]... [-g #G/n] [-s srvname]\n", argv0);
 	threadexitsall("usage");
 }
 
@@ -116,7 +117,7 @@ void
 threadmain(int argc, char **argv)
 {
 	char *gdir;
-	int r, nodisplay, loglevel, selftest, noserve, mock, live, nparam, i;
+	int r, nodisplay, noscreen, loglevel, selftest, noserve, mock, live, nparam, i;
 	char *param[64];
 	char *filter;
 	char *srvname;
@@ -124,6 +125,7 @@ threadmain(int argc, char **argv)
 
 	gdir = "#G/0";
 	nodisplay = 0;
+	noscreen = 0;
 	selftest = 0;
 	mock = 0;
 	live = 0;
@@ -136,6 +138,9 @@ threadmain(int argc, char **argv)
 	ARGBEGIN{
 	case 'D':
 		nodisplay = 1;
+		break;
+	case 'S':
+		noscreen = 1;	/* draw(3)'s screen stays where it is (the firmware's plane, vesa) */
 		break;
 	case 'd':
 		drmdebug = strtoul(EARGF(usage()), nil, 0);
@@ -215,8 +220,13 @@ threadmain(int argc, char **argv)
 	}
 	if(r < 0)
 		sysfatal("i915: error %d", -r);
-	if(!nodisplay && (r = i915_kms_start()) < 0)
+	if(!nodisplay && (r = i915_kms_start()) < 0){
 		fprint(2, "i915: no display: error %d\n", -r);
+		nodisplay = 1;
+	}
+	/* the screen over the outputs, through the aperture (BAR 2) */
+	if(!nodisplay && !noscreen && screenstart(gdir, 2, "i915") < 0)
+		fprint(2, "i915: no screen: %r\n");
 	fprint(2, "i915: started\n");
 	if(!noserve)
 		serve(srvname);

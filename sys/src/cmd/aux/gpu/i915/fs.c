@@ -12,6 +12,7 @@
 #include <thread.h>
 #include <9p.h>
 #include "i915.h"
+#include "../kmsout.h"
 
 enum {
 	Xctl = 1,
@@ -24,6 +25,7 @@ enum {
 	Xoutedid,
 	Xoutmodes,
 	Xoutmode,
+	Xoutbacklight,
 	Nctx	= 256,
 	Nout	= 16,
 };
@@ -55,6 +57,18 @@ static Srv fs;
 /* a file's kind and context: aux holds the kind, ctx files the context too */
 #define KIND(f)		((uintptr)(f)->aux & 0xFF)
 #define CTXN(f)		((uintptr)(f)->aux >> 8)
+
+/* an output's mode or backlight (kmsscreen.c); the server's other requests go on */
+static char*
+outreq(Req *r, char *out, char *spec, int bl, char **s)
+{
+	char *e;
+
+	srvrelease(r->srv);
+	e = outrequest(out, spec, bl, s);
+	srvacquire(r->srv);
+	return e;
+}
 
 static char*
 errstr9(int e)
@@ -226,27 +240,39 @@ fsread(Req *r)
 			uchar buf[4096];
 			int m;
 
-			m = i915_output_edid(outname[CTXN(r->fid->file)], buf, sizeof buf);
+			m = kmsout_edid(outname[CTXN(r->fid->file)], buf, sizeof buf);
 			readbuf(r, buf, m < 0 ? 0 : m);
 			respond(r, nil);
 			return;
 		}
 	case Xoutmodes:
 	case Xoutmode:
-		t = KIND(r->fid->file) == Xoutmodes ? i915_output_modes(outname[CTXN(r->fid->file)])
-			: i915_output_mode(outname[CTXN(r->fid->file)]);
+		t = KIND(r->fid->file) == Xoutmodes ? kmsout_modes(outname[CTXN(r->fid->file)])
+			: kmsout_mode(outname[CTXN(r->fid->file)]);
 		s = estrdup9p(t != nil ? t : "");
-		i915_freestr(t);
+		kmsout_free(t);
+		break;
+	case Xoutbacklight:
+		t = nil;
+		outreq(r, outname[CTXN(r->fid->file)], nil, 1, &t);
+		s = estrdup9p(t != nil ? t : "");
+		kmsout_free(t);
 		break;
 	case Xctl:
-		t = i915_plane();
+		t = kmsout_plane();
 		s = estrdup9p(t != nil ? t : "plane none\n");
-		i915_freestr(t);
+		kmsout_free(t);
 		break;
 	case Xstatus:
-		t = i915_status();
-		s = estrdup9p(t != nil ? t : "");
-		i915_freestr(t);
+		{
+			char *o;
+
+			t = i915_status();
+			o = kmsout_status();
+			s = smprint("%s%s", t != nil ? t : "", o != nil ? o : "");
+			i915_freestr(t);
+			kmsout_free(o);
+		}
 		break;
 	case Xctxctl:
 		c = fa->ctx;
@@ -329,7 +355,7 @@ ctxctl(Ctx *c, char **f, int n)
 static void
 fswrite(Req *r)
 {
-	char buf[256], *f[8], *e;
+	char buf[256], *f[8], *e, *t;
 	Fidaux *fa;
 	u64g k;
 	int n, x;
@@ -340,8 +366,16 @@ fswrite(Req *r)
 	memmove(buf, r->ifcall.data, n);
 	buf[n] = 0;
 	fa = r->fid->aux;
-	n = tokenize(buf, f, nelem(f));
 	e = nil;
+	switch(KIND(r->fid->file)){
+	case Xoutmode:
+	case Xoutbacklight:
+		if((t = strchr(buf, '\n')) != nil)
+			*t = 0;
+		e = outreq(r, outname[CTXN(r->fid->file)], buf, KIND(r->fid->file) == Xoutbacklight, nil);
+		goto done;
+	}
+	n = tokenize(buf, f, nelem(f));
 	switch(KIND(r->fid->file)){
 	case Xerror:
 		i915_error_clear();
@@ -388,6 +422,7 @@ fswrite(Req *r)
 	default:
 		e = "permission denied";
 	}
+done:
 	if(e != nil){
 		respond(r, e);
 		return;
@@ -412,13 +447,15 @@ mktree(void)
 	createfile(n, "clone", user, 0666, (void*)Xclone);
 	createfile(n, "error", user, 0664, (void*)Xerror);
 	ctxdir = createfile(n, "ctx", user, DMDIR|0555, nil);
-	nout = i915_outputs(outname, Nout);
+	nout = kmsout_names(outname, Nout);
 	o = createfile(n, "outputs", user, DMDIR|0555, nil);
 	for(i = 0; i < nout; i++){
 		d = createfile(o, outname[i], user, DMDIR|0555, nil);
 		createfile(d, "edid", user, 0444, (void*)(uintptr)(i<<8 | Xoutedid));
 		createfile(d, "modes", user, 0444, (void*)(uintptr)(i<<8 | Xoutmodes));
-		createfile(d, "mode", user, 0444, (void*)(uintptr)(i<<8 | Xoutmode));
+		createfile(d, "mode", user, 0664, (void*)(uintptr)(i<<8 | Xoutmode));
+		if(kmsout_hasbacklight(outname[i]))
+			createfile(d, "backlight", user, 0664, (void*)(uintptr)(i<<8 | Xoutbacklight));
 	}
 }
 

@@ -65,6 +65,10 @@ if(test -e /dev/gpu/0/clone){
 	echo '## aux/inteltest' >>$out
 	aux/inteltest >>$out >[2=1]
 	echo '## status' $status >>$out
+	# the screen over the outputs (several monitors), the panel's backlight
+	echo i915run: gpuoutputs >>$log
+	echo '## gpuoutputs' >>$out
+	gpuoutputs >>$out >[2=1]
 	# Vulkan through Mesa's hasvk (libdrm9 over gpu(4)), in this window
 	if(test -d /$objtype/vk){
 		bind -a /$objtype/vk /bin

@@ -36,6 +36,15 @@ int	kmsout_screen(unsigned long long maxbytes, unsigned int *w, unsigned int *h,
  * the error; the screen as it is after
  */
 const char	*kmsout_set(char *name, char *spec, unsigned long long maxbytes, unsigned int *w, unsigned int *h, unsigned int *pitch, unsigned long long *baroff);
+void	kmsout_free(char *s);	/* a string of kmsout's */
+
+#ifndef __KERNEL__
+/* the Plan 9 side's (kmsscreen.c): the screen through BAR barno; an output's mode set */
+int	screenstart(char *gdir, int barno, char *drv);
+char	*screenset(char *name, char *spec);
+/* outputs/conn/mode written (bl 0), backlight written or read (spec nil, *s the text): on a proc with a big stack */
+char	*outrequest(char *out, char *spec, int bl, char **s);
+#endif
 
 #ifdef __KERNEL__
 struct file;
