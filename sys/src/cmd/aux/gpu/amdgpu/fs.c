@@ -13,6 +13,9 @@
 #include <thread.h>
 #include <9p.h>
 #include "amdgpu.h"
+#include "../kmsout.h"
+
+char	*screenset(char *name, char *spec);	/* screen.c */
 
 enum {
 	Xctl = 1,
@@ -25,6 +28,7 @@ enum {
 	Xoutedid,
 	Xoutmodes,
 	Xoutmode,
+	Xoutbacklight,
 	Nctx	= 256,
 	Nout	= 16,
 };
@@ -66,6 +70,9 @@ struct Kreq {
 	int	gem;	/* id is a GEM handle of the client's (scanoutgem) */
 	int	id, w, h, stride;
 	int	r;
+	char	*out, *spec;	/* set: an output's mode, its backlight (bl), nil: read the backlight */
+	int	set, bl;
+	char	*e, *s;	/* set's error; the backlight read */
 	Channel	*done;
 };
 static Channel *kmsc;
@@ -77,7 +84,13 @@ kmsproc(void*)
 
 	for(;;){
 		k = recvp(kmsc);
-		if(k->free)
+		if(k->set)
+			k->e = screenset(k->out, k->spec);
+		else if(k->bl && k->spec != nil)
+			k->e = (char*)kmsout_setbacklight(k->out, k->spec);
+		else if(k->bl)
+			k->s = kmsout_backlight(k->out);
+		else if(k->free)
 			amdgpu_ctx_free(k->lc);
 		else if(k->gem)
 			k->r = amdgpu_scanout_gem(k->lc, k->id, k->w, k->h, k->stride);
@@ -99,6 +112,18 @@ ctxfree(void *lc)
 	sendp(kmsc, &k);
 	recvul(k.done);
 	chanfree(k.done);
+}
+
+/* an output's mode or backlight on kmsproc; the server's other requests go on */
+static void
+outreq(Req *r, Kreq *k)
+{
+	k->done = chancreate(sizeof(ulong), 0);
+	srvrelease(r->srv);
+	sendp(kmsc, k);
+	recvul(k->done);
+	srvacquire(r->srv);
+	chanfree(k->done);
 }
 
 /*
@@ -345,20 +370,32 @@ fsread(Req *r)
 			uchar buf[4096];
 			int m;
 
-			m = amdgpu_output_edid(outname[CTXN(r->fid->file)], buf, sizeof buf);
+			m = kmsout_edid(outname[CTXN(r->fid->file)], buf, sizeof buf);
 			readbuf(r, buf, m < 0 ? 0 : m);
 			respond(r, nil);
 			return;
 		}
 	case Xoutmodes:
 	case Xoutmode:
-		t = KIND(r->fid->file) == Xoutmodes ? amdgpu_output_modes(outname[CTXN(r->fid->file)])
-			: amdgpu_output_mode(outname[CTXN(r->fid->file)]);
+		t = KIND(r->fid->file) == Xoutmodes ? kmsout_modes(outname[CTXN(r->fid->file)])
+			: kmsout_mode(outname[CTXN(r->fid->file)]);
 		s = estrdup9p(t != nil ? t : "");
 		amdgpu_freestr(t);
 		break;
+	case Xoutbacklight:
+		{
+			Kreq k;
+
+			memset(&k, 0, sizeof k);
+			k.bl = 1;
+			k.out = outname[CTXN(r->fid->file)];
+			outreq(r, &k);
+			s = estrdup9p(k.s != nil ? k.s : "");
+			amdgpu_freestr(k.s);
+		}
+		break;
 	case Xctl:
-		t = amdgpu_plane();
+		t = kmsout_plane();
 		s = estrdup9p(t != nil ? t : "plane none\n");
 		amdgpu_freestr(t);
 		break;
@@ -367,7 +404,7 @@ fsread(Req *r)
 			char *o;
 
 			t = amdgpu_status();
-			o = amdgpu_outputs_status();
+			o = kmsout_status();
 			s = smprint("%s%s", t != nil ? t : "", o != nil ? o : "");
 			amdgpu_freestr(t);
 			amdgpu_freestr(o);
@@ -474,7 +511,7 @@ ctxctl(Ctx *c, char **f, int n)
 static void
 fswrite(Req *r)
 {
-	char buf[256], *f[8], *e;
+	char buf[256], *f[8], *e, *t;
 	Fidaux *fa;
 	u64g k;
 	int n, x;
@@ -485,8 +522,26 @@ fswrite(Req *r)
 	memmove(buf, r->ifcall.data, n);
 	buf[n] = 0;
 	fa = r->fid->aux;
-	n = tokenize(buf, f, nelem(f));
 	e = nil;
+	switch(KIND(r->fid->file)){
+	case Xoutmode:
+	case Xoutbacklight:
+		{
+			Kreq k;
+
+			if((t = strchr(buf, '\n')) != nil)
+				*t = 0;
+			memset(&k, 0, sizeof k);
+			k.out = outname[CTXN(r->fid->file)];
+			k.spec = buf;
+			k.set = KIND(r->fid->file) == Xoutmode;
+			k.bl = !k.set;
+			outreq(r, &k);
+			e = k.e;
+		}
+		goto done;
+	}
+	n = tokenize(buf, f, nelem(f));
 	switch(KIND(r->fid->file)){
 	case Xctl:
 		if(n == 2 && strcmp(f[0], "ih") == 0 && strcmp(f[1], "process") == 0){
@@ -563,6 +618,7 @@ fswrite(Req *r)
 	default:
 		e = "permission denied";
 	}
+done:
 	if(e != nil){
 		respond(r, e);
 		return;
@@ -586,13 +642,15 @@ mktree(void)
 	createfile(n, "status", user, 0444, (void*)Xstatus);
 	createfile(n, "clone", user, 0666, (void*)Xclone);
 	ctxdir = createfile(n, "ctx", user, DMDIR|0555, nil);
-	nout = amdgpu_outputs(outname, Nout);
+	nout = kmsout_names(outname, Nout);
 	o = createfile(n, "outputs", user, DMDIR|0555, nil);
 	for(i = 0; i < nout; i++){
 		d = createfile(o, outname[i], user, DMDIR|0555, nil);
 		createfile(d, "edid", user, 0444, (void*)(uintptr)(i<<8 | Xoutedid));
 		createfile(d, "modes", user, 0444, (void*)(uintptr)(i<<8 | Xoutmodes));
-		createfile(d, "mode", user, 0444, (void*)(uintptr)(i<<8 | Xoutmode));
+		createfile(d, "mode", user, 0664, (void*)(uintptr)(i<<8 | Xoutmode));
+		if(kmsout_hasbacklight(outname[i]))
+			createfile(d, "backlight", user, 0664, (void*)(uintptr)(i<<8 | Xoutbacklight));
 	}
 }
 

@@ -4,18 +4,27 @@
  * aux/amdgpu: the screen of draw(3) on the card, as aux/virtiogpu
  * makes it: #G's framebuffer (gpu(3)) is what devdraw draws into (vga(3)
  * type gpu), and what changes there (#G/n/dirty) is copied into the
- * screen's object in VRAM (linux/kms.c: amdgpu_screen_start), which the
- * display shows; through BAR 0, write-combining.  The mode is the
- * preferred one of the first connected output.
+ * screen's object in VRAM (kmsout.c, linux/kms.c), which the outputs
+ * show; through BAR 0, write-combining.  The screen spans the outputs
+ * that are on (kmsout.c: at the start every connected one, side by
+ * side); writing an output's mode changes it, and devdraw's screen
+ * changes size with it (vgactl size, as aux/vga -m does: rio follows).
+ * #G's framebuffer is made once, for the biggest layout of the outputs
+ * connected at the start (their biggest modes side by side or one above
+ * the other).
  */
 #include <u.h>
 #include <libc.h>
 #include <thread.h>
 #include <kpi/p9.h>
 #include "amdgpu.h"
+#include "../kmsout.h"
 
 static char *gdir;
+static QLock scrlock;		/* the geometry, the copies */
 static uchar *fb;		/* #G's framebuffer: w x h x 4, stride w*4 */
+static ulong fbsize;
+static uchar *bar;		/* BAR 0 */
 static uchar *vram;		/* the screen's object, through BAR 0 */
 static int w, h;
 static uint pitch;
@@ -37,38 +46,78 @@ vgactl(char *fmt, ...)
 	return r < 0 ? -1 : 0;
 }
 
-/* the first connected output's preferred mode */
-static int
-findmode(int *pw, int *ph)
+/* the output's biggest mode, and its preferred one (the first line) */
+static void
+outmodes(char *name, int *bw, int *bh, int *pw, int *ph)
 {
-	char *st, *s, *l, *e, *f[4], *m;
-	int r;
+	char *m, *s, *l, *e;
+	int x, y;
 
-	r = -1;
-	if((st = amdgpu_outputs_status()) == nil)
-		return -1;
+	*bw = *bh = *pw = *ph = 0;
+	if((m = kmsout_modes(name)) == nil)
+		return;
+	for(l = m; l != nil && *l; l = e){
+		e = strchr(l, '\n');
+		if(e != nil)
+			*e++ = 0;
+		x = strtol(l, &s, 10);
+		if(*s++ != 'x')
+			continue;
+		y = strtol(s, nil, 10);
+		if(*pw == 0){
+			*pw = x;
+			*ph = y;
+		}
+		if((vlong)x*y > (vlong)*bw * *bh){
+			*bw = x;
+			*bh = y;
+		}
+	}
+	amdgpu_freestr(m);
+}
+
+/*
+ * the framebuffer's sizes to try, biggest first: the biggest layout of
+ * the connected outputs, theirs side by side in the preferred modes
+ * (kmsout_screen's), the first one's preferred mode; 0 if none is
+ * connected
+ */
+static int
+fbsizes(uvlong *sz)
+{
+	char *st, *l, *e, *f[4];
+	int bw, bh, pw, ph, sw, mh, mw, sh, qw, qh;
+
+	sw = mh = mw = sh = qw = qh = 0;
+	sz[2] = 0;
+	if((st = kmsout_status()) == nil)
+		return 0;
 	for(l = st; l != nil && *l; l = e){
 		e = strchr(l, '\n');
 		if(e != nil)
 			*e++ = 0;
 		if(tokenize(l, f, nelem(f)) != 3 || strcmp(f[0], "output") != 0 || strcmp(f[2], "connected") != 0)
 			continue;
-		if((m = amdgpu_output_modes(f[1])) == nil)
+		outmodes(f[1], &bw, &bh, &pw, &ph);
+		if(pw == 0)
 			continue;
-		s = m;
-		*pw = strtol(s, &s, 10);
-		if(*s++ == 'x')
-			*ph = strtol(s, nil, 10);
-		else
-			*ph = 0;
-		amdgpu_freestr(m);
-		if(*pw > 0 && *ph > 0){
-			r = 0;
-			break;
-		}
+		if(sz[2] == 0)
+			sz[2] = (uvlong)pw*ph*4;
+		sw += bw;
+		mh = bh > mh ? bh : mh;
+		sh += bh;
+		mw = bw > mw ? bw : mw;
+		qw += pw;
+		qh = ph > qh ? ph : qh;
 	}
 	amdgpu_freestr(st);
-	return r;
+	if(sz[2] == 0)
+		return 0;
+	sz[0] = (uvlong)sw*mh*4;
+	if((uvlong)mw*sh*4 > sz[0])
+		sz[0] = (uvlong)mw*sh*4;
+	sz[1] = (uvlong)qw*qh*4;
+	return 3;
 }
 
 /* #G's framebuffer, size bytes at least: its segment, attached */
@@ -98,14 +147,17 @@ fbattach(ulong size)
 		/* "fb pa size seg" */
 		if(tokenize(l, f, nelem(f)) == 4 && strcmp(f[0], "fb") == 0){
 			p = segattach(0, f[3], nil, strtoul(f[2], nil, 0));
-			return p == (void*)-1 ? nil : p;
+			if(p == (void*)-1)
+				return nil;
+			fbsize = strtoul(f[2], nil, 0);
+			return p;
 		}
 	}
 	werrstr("no framebuffer in %s", path);
 	return nil;
 }
 
-/* what devdraw changed, into VRAM */
+/* what devdraw changed, into VRAM; scrlock held */
 static void
 copyrect(int x0, int y0, int x1, int y1)
 {
@@ -140,9 +192,23 @@ dirtyproc(void*)
 			return;
 		}
 		buf[n] = 0;
-		if(tokenize(buf, f, nelem(f)) == 4)
+		if(tokenize(buf, f, nelem(f)) == 4){
+			qlock(&scrlock);
 			copyrect(atoi(f[0]), atoi(f[1]), atoi(f[2]), atoi(f[3]));
+			qunlock(&scrlock);
+		}
 	}
+}
+
+/* devdraw's screen w x h */
+static int
+setsize(void)
+{
+	if(vgactl("size %dx%dx32 x8r8g8b8", w, h) < 0 || vgactl("drawinit") < 0){
+		werrstr("vgactl: %r");
+		return -1;
+	}
+	return 0;
 }
 
 /* the screen on the card; 0, or -1 (and the screen stays where it was) */
@@ -150,32 +216,68 @@ int
 screenstart(char *dir)
 {
 	unsigned long long off;
-	uchar *bar;
-	int r;
+	uvlong sz[3];
+	uint uw, uh;
+	int r, i, n;
 
 	gdir = dir;
-	if(findmode(&w, &h) < 0){
+	if((n = fbsizes(sz)) == 0){
 		werrstr("no connected output");
 		return -1;
 	}
-	if((fb = fbattach((ulong)w*h*4)) == nil)
+	for(i = 0; i < n && fb == nil; i++)
+		if(sz[i] > 0 && sz[i] < 1ULL<<31)
+			fb = fbattach(sz[i]);
+	if(fb == nil)
 		return -1;
-	if((r = amdgpu_screen_start(w, h, &off, &pitch)) < 0){
-		werrstr("screen object: error %d", -r);
-		return -1;
-	}
 	if((bar = p9_barwc(0)) == nil){
 		werrstr("BAR 0 write-combining: %r");
 		return -1;
 	}
-	vram = bar + off;
-	if(vgactl("type gpu") < 0 || vgactl("size %dx%dx32 x8r8g8b8", w, h) < 0 || vgactl("drawinit") < 0){
-		werrstr("vgactl: %r");
+	if((r = kmsout_screen(fbsize, &uw, &uh, &pitch, &off)) < 0){
+		bar = nil;
+		werrstr("screen object: error %d", -r);
 		return -1;
 	}
+	w = uw;
+	h = uh;
+	vram = bar + off;
+	if(vgactl("type gpu") < 0 || setsize() < 0)
+		return -1;
 	vgactl("hwgc soft");
 	copyrect(0, 0, w, h);
 	proccreate(dirtyproc, nil, 16384);
-	fprint(2, "amdgpu: screen %dx%d\n", w, h);
+	fprint(2, "amdgpu: screen %dx%d (framebuffer %lud bytes)\n", w, h, fbsize);
 	return 0;
+}
+
+/*
+ * an output's mode written (outputs/conn/mode): the layout, then
+ * devdraw's screen of its size; nil or the error.  On a proc with a big
+ * stack (DC's modeset).
+ */
+char*
+screenset(char *name, char *spec)
+{
+	unsigned long long off;
+	const char *e;
+	uint uw, uh, up;
+
+	if(bar == nil)
+		return "no screen of the driver's (aux/amdgpu -S)";
+	qlock(&scrlock);
+	e = kmsout_set(name, spec, fbsize, &uw, &uh, &up, &off);
+	vram = bar + off;
+	pitch = up;
+	if(uw != w || uh != h){
+		w = uw;
+		h = uh;
+		if(setsize() < 0)
+			fprint(2, "amdgpu: screen %dx%d: %r\n", w, h);
+		else
+			fprint(2, "amdgpu: screen %dx%d\n", w, h);
+	}
+	copyrect(0, 0, w, h);
+	qunlock(&scrlock);
+	return (char*)e;
 }

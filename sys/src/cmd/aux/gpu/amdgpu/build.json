@@ -108,7 +108,8 @@
 		"SourceFiles": [
 			"linux/amdgpu.c",
 			"linux/ctx.c",
-			"linux/kms.c"
+			"linux/kms.c",
+			"linux/kmsout.c"
 		]
 	},
 	{

@@ -69,9 +69,9 @@
 #include "drivers/gpu/drm/drm_internal.h"
 #include <kpi/p9.h>
 #include "../amdgpu.h"
+#include "../../kmsout.h"
 
 struct pci_dev	*kpi_pci_gpu(const char *gdir);
-int	kms_scanout(struct file *from, u32 handle, u32 w, u32 h, u32 stride);
 
 enum { Nfence = 64 };
 
@@ -264,7 +264,7 @@ amdgpu_ctx_free(void *v)
 	struct gctx *c = v;
 	int i;
 
-	kms_scanout(c->filp, 0, 0, 0, 0);	/* its picture off the display */
+	kmsout_scanout(c->filp, 0, 0, 0, 0);	/* its picture off the display */
 	for (i = 0; i < Nfence; i++)
 		if (c->fence[i]) {
 			dma_fence_wait_timeout(c->fence[i], false, 5 * HZ);
@@ -553,7 +553,7 @@ amdgpu_scanout(void *v, int id, unsigned int w, unsigned int h, unsigned int str
 	}
 	mutex_unlock(&c->lock);
 	/* returns when the display shows it: a swapchain's FIFO */
-	return kms_scanout(c->filp, handle, w, h, stride);
+	return kmsout_scanout(c->filp, handle, w, h, stride);
 }
 
 /*
@@ -577,7 +577,7 @@ amdgpu_scanout_gem(void *v, u32 handle, unsigned int w, unsigned int h, unsigned
 		if (!vram)
 			return -EINVAL;	/* the display scans out VRAM only */
 	}
-	return kms_scanout(c->filp, handle, w, h, stride);
+	return kmsout_scanout(c->filp, handle, w, h, stride);
 }
 
 /* a free entry of the object table */

@@ -37,13 +37,6 @@ int	amdgpu_unmap(void *c, unsigned int handle);
 
 /* the display (linux/kms.c, linux/ctx.c) */
 int	amdgpu_kms_start(void);
-int	amdgpu_outputs(char **names, int max);	/* names: amdgpu_freestr each */
-int	amdgpu_output_edid(char *name, unsigned char *buf, int n);
-char	*amdgpu_output_modes(char *name);	/* amdgpu_freestr */
-char	*amdgpu_output_mode(char *name);
-char	*amdgpu_outputs_status(void);
-char	*amdgpu_plane(void);
+/* the outputs and the screen: kmsout.h (their strings: amdgpu_freestr) */
 int	amdgpu_scanout(void *c, int id, unsigned int w, unsigned int h, unsigned int stride);	/* id 0: off again */
 int	amdgpu_scanout_gem(void *c, unsigned int handle, unsigned int w, unsigned int h, unsigned int stride);	/* a client's GEM object */
-/* the screen of draw(3) (screen.c): a VRAM object w x h on a connected output, at baroff in BAR 0 */
-int	amdgpu_screen_start(unsigned int w, unsigned int h, unsigned long long *baroff, unsigned int *pitch);
