@@ -15,7 +15,10 @@
  * screen's size goes to every output (a page flip each, the CRTCs keep
  * their x y); one of an output's size to the first output with a mode
  * of that size (SETCRTC at 0 0, then flips); scanout 0 gives the
- * outputs the screen again.
+ * outputs the screen again.  A monitor connected later (DRM's hotplug
+ * event, to an in-kernel client of ours) goes on right of the others,
+ * one no longer connected off (not the last one); one turned off by
+ * hand stays off while it is connected.
  */
 #include <linux/kernel.h>
 #include <linux/slab.h>
@@ -34,6 +37,7 @@
 #include <drm/drm_probe_helper.h>
 #include <drm/drm_fourcc.h>
 #include <drm/drm_mode.h>
+#include <drm/drm_client.h>
 #include "kmsout.h"
 
 enum {
@@ -50,6 +54,8 @@ struct out {
 	struct drm_mode_modeinfo	mode;
 	int	x, y;		/* its part of the screen */
 	u32	crtc;		/* the CRTC it is lit on, 0 */
+	bool	byhand;		/* turned off by hand: hotplug leaves it off while connected */
+	bool	connected;	/* when the layout was made */
 };
 
 static struct file *kms;
@@ -65,6 +71,33 @@ static u32 shown_fb;			/* a client's picture on the display */
 static struct file *shown_by;		/* the client's file */
 static int shown_out;			/* the output that shows it, -1: every one */
 static struct drm_mode_modeinfo shown_mode;	/* its mode there */
+static struct drm_client_dev client;	/* for DRM's hotplug events */
+static DECLARE_WAIT_QUEUE_HEAD(hotplugq);
+static atomic_t hotplugs;
+
+/* a connector's state may have changed (DRM's hotplug event): wake kmsout_hotplug_wait */
+static int
+clienthotplug(struct drm_client_dev *c)
+{
+	atomic_inc(&hotplugs);
+	wake_up_all(&hotplugq);
+	return 0;
+}
+
+static const struct drm_client_funcs clientfuncs = {
+	.owner = THIS_MODULE,
+	.hotplug = clienthotplug,
+};
+
+/* the screen as it is (also after a request refused) */
+static void
+geom(unsigned int *w, unsigned int *h, unsigned int *pitch, unsigned long long *baroff)
+{
+	*w = scr_w;
+	*h = scr_h;
+	*pitch = scr_pitch;
+	*baroff = scr_off;
+}
 
 static int
 kioctl(struct file *f, unsigned int cmd, void *arg)
@@ -244,7 +277,19 @@ kmsout_init(struct file *f, const struct kmsout_ops *o)
 			nout++;
 		}
 	drm_connector_list_iter_end(&it);
+	r = drm_client_init(dev, &client, "kmsout", &clientfuncs);
+	if (r == 0)
+		drm_client_register(&client);
+	else
+		pr_warn("kmsout: no hotplug events: %d\n", r);
 	return 0;
+}
+
+/* how many outputs can be on at once: the CRTCs, at most the outputs */
+int
+kmsout_npipes(void)
+{
+	return min(ncrtc, nout);
 }
 
 void
@@ -572,7 +617,9 @@ kmsout_screen(unsigned long long maxbytes, unsigned int *w, unsigned int *h, uns
 	mutex_lock(&kmslock);
 	for (i = 0; i < nout; i++) {
 		outs[i].on = false;
-		if (findmode(&outs[i], 0, 0, 0, &outs[i].mode, &conn, true) == 0 && conn) {
+		outs[i].byhand = false;
+		outs[i].connected = findmode(&outs[i], 0, 0, 0, &outs[i].mode, &conn, true) == 0 && conn;
+		if (outs[i].connected) {
 			outs[i].on = true;
 			outs[i].x = x;
 			outs[i].y = 0;
@@ -590,10 +637,7 @@ kmsout_screen(unsigned long long maxbytes, unsigned int *w, unsigned int *h, uns
 			}
 		r = apply(maxbytes);
 	}
-	*w = scr_w;
-	*h = scr_h;
-	*pitch = scr_pitch;
-	*baroff = scr_off;
+	geom(w, h, pitch, baroff);
 	mutex_unlock(&kmslock);
 	return r;
 }
@@ -626,6 +670,7 @@ kmsout_set(char *name, char *spec, unsigned long long maxbytes, unsigned int *w,
 	long x = -1, y = -1;
 	int i, r;
 
+	geom(w, h, pitch, baroff);
 	if (!o)
 		return "no such output";
 	while (*s == ' ' || *s == '\t')
@@ -665,7 +710,9 @@ kmsout_set(char *name, char *spec, unsigned long long maxbytes, unsigned int *w,
 	memcpy(save, outs, sizeof(save));
 	if (mw == 0) {
 		o->on = false;
+		o->byhand = true;
 	} else {
+		o->byhand = false;
 		r = findmode(o, mw, mh, hz, &m, NULL, true);
 		if (r) {
 			mutex_unlock(&kmslock);
@@ -698,10 +745,97 @@ kmsout_set(char *name, char *spec, unsigned long long maxbytes, unsigned int *w,
 		memcpy(outs, save, sizeof(save));
 		apply(maxbytes);
 	}
-	*w = scr_w;
-	*h = scr_h;
-	*pitch = scr_pitch;
-	*baroff = scr_off;
+	geom(w, h, pitch, baroff);
+	mutex_unlock(&kmslock);
+	return r ? errstr(r) : NULL;
+}
+
+/* until a hotplug event after the one *seen; 0, or -EINTR (a note) */
+int
+kmsout_hotplug_wait(unsigned int *seen)
+{
+	int r;
+
+	r = wait_event_interruptible(hotplugq, (unsigned int)atomic_read(&hotplugs) != *seen);
+	*seen = atomic_read(&hotplugs);
+	return r;
+}
+
+/*
+ * after a hotplug event: an output newly connected on (its preferred
+ * mode, right of the others) unless it was turned off by hand, one no
+ * longer connected off (not the last one on); nil, or the error (busy:
+ * a client's picture is on the display, try again later); *changed if
+ * the layout did
+ */
+const char *
+kmsout_relayout(unsigned long long maxbytes, int *changed, unsigned int *w, unsigned int *h, unsigned int *pitch, unsigned long long *baroff)
+{
+	struct out save[Nout];
+	struct drm_mode_modeinfo m;
+	bool conn, any;
+	int i, j, x, r = 0;
+
+	*changed = 0;
+	geom(w, h, pitch, baroff);
+	if (!kms || !scr_fb)
+		return "no screen";
+	mutex_lock(&kmslock);
+	if (shown_fb) {
+		mutex_unlock(&kmslock);
+		return errstr(-EBUSY);
+	}
+	memcpy(save, outs, sizeof(save));
+	for (i = 0; i < nout; i++) {
+		struct out *o = &outs[i];
+
+		if (findmode(o, 0, 0, 0, &m, &conn, true) != 0)
+			conn = false;
+		if (conn == o->connected)
+			continue;
+		o->connected = conn;
+		if (!conn) {
+			o->byhand = false;
+			if (!o->on)
+				continue;
+			any = false;
+			for (j = 0; j < nout; j++)
+				if (j != i && outs[j].on)
+					any = true;
+			if (!any)
+				continue;	/* the last one stays */
+			o->on = false;
+			pr_info("kmsout: %s disconnected: off\n", o->name);
+			*changed = 1;
+		} else if (!o->on && !o->byhand) {
+			x = 0;
+			for (j = 0; j < nout; j++)
+				if (outs[j].on)
+					x = max(x, outs[j].x + outs[j].mode.hdisplay);
+			o->mode = m;
+			o->x = x;
+			o->y = 0;
+			o->on = true;
+			pr_info("kmsout: %s connected: %dx%d at %d 0\n", o->name, m.hdisplay, m.vdisplay, x);
+			*changed = 1;
+		}
+	}
+	if (*changed) {
+		r = apply(maxbytes);
+		if (r) {
+			/* as it was, but knowing what is connected now */
+			for (i = 0; i < nout; i++) {
+				bool c = outs[i].connected;
+
+				save[i].crtc = outs[i].on ? outs[i].crtc : 0;
+				outs[i] = save[i];
+				outs[i].connected = c;
+			}
+			apply(maxbytes);
+			*changed = 0;
+		}
+	}
+	geom(w, h, pitch, baroff);
 	mutex_unlock(&kmslock);
 	return r ? errstr(r) : NULL;
 }

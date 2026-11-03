@@ -14,6 +14,7 @@
 #define _KMSOUT_H
 
 int	kmsout_names(char **names, int max);
+int	kmsout_npipes(void);	/* outputs that can be on at once */
 int	kmsout_edid(char *name, unsigned char *buf, int n);
 char	*kmsout_modes(char *name);	/* "w x h hz" a line, the preferred first */
 char	*kmsout_mode(char *name);	/* "w x h hz at x y", or "off" */
@@ -37,6 +38,10 @@ int	kmsout_screen(unsigned long long maxbytes, unsigned int *w, unsigned int *h,
  */
 const char	*kmsout_set(char *name, char *spec, unsigned long long maxbytes, unsigned int *w, unsigned int *h, unsigned int *pitch, unsigned long long *baroff);
 void	kmsout_free(char *s);	/* a string of kmsout's */
+/* until a monitor may have come or gone (DRM's hotplug event after the one *seen): 0 or -EINTR */
+int	kmsout_hotplug_wait(unsigned int *seen);
+/* the layout after it: the newly connected on (right of the others), the gone off; nil or the error */
+const char	*kmsout_relayout(unsigned long long maxbytes, int *changed, unsigned int *w, unsigned int *h, unsigned int *pitch, unsigned long long *baroff);
 
 #ifndef __KERNEL__
 /* the Plan 9 side's (kmsscreen.c): the screen through BAR barno; an output's mode set */

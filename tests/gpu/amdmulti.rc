@@ -11,5 +11,6 @@ gpuoutputs
 WSI_PLAN9_STATS=1 /tests/vkcube --c 120 >[2=1] | grep 'scanout:|copy:|rror' | sed 2q
 grep size /dev/vgactl
 cat /dev/gpu/0/ctl
-grep 'WARN|error|fault|overflow|kmsout' /tmp/amd.log
+grep screen /tmp/amd.log
+grep 'WARN|error|fault|overflow|kmsout|hotplug' /tmp/amd.log
 echo TESTEND

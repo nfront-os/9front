@@ -12,9 +12,11 @@
  * that are on (kmsout.c: at the start every connected one, side by
  * side); writing an output's mode changes it, and devdraw's screen
  * changes size with it (vgactl size, as aux/vga -m does: rio follows).
- * #G's framebuffer is made once, for the biggest layout of the outputs
- * connected at the start (their biggest modes side by side or one above
- * the other).
+ * #G's framebuffer is made once (the kernel's memory, never freed): for
+ * as many monitors side by side as the display has pipes, each as big
+ * as the biggest mode of those connected (1920x1080 at least), else
+ * smaller (below).  A monitor connected later goes on right of the
+ * others (hotplugproc), if the framebuffer is big enough.
  */
 #include <u.h>
 #include <libc.h>
@@ -30,6 +32,8 @@ static uchar *bar;		/* the BAR the processor writes the screen through */
 static uchar *vram;		/* the screen's object, through it */
 static int w, h;
 static uint pitch;
+
+static void	hotplugproc(void*);
 
 static int
 vgactl(char *fmt, ...)
@@ -79,10 +83,10 @@ outmodes(char *name, int *bw, int *bh, int *pw, int *ph)
 }
 
 /*
- * the framebuffer's sizes to try, biggest first: the biggest layout of
- * the connected outputs, theirs side by side in the preferred modes
- * (kmsout_screen's), the first one's preferred mode; 0 if none is
- * connected
+ * the framebuffer's sizes to try, biggest first: every pipe a monitor
+ * of the biggest mode, the biggest layout of the connected outputs,
+ * theirs side by side in the preferred modes (kmsout_screen's), the
+ * first one's preferred mode; 0 if none is connected
  */
 static int
 fbsizes(uvlong *sz)
@@ -91,7 +95,7 @@ fbsizes(uvlong *sz)
 	int bw, bh, pw, ph, sw, mh, mw, sh, qw, qh;
 
 	sw = mh = mw = sh = qw = qh = 0;
-	sz[2] = 0;
+	sz[3] = 0;
 	if((st = kmsout_status()) == nil)
 		return 0;
 	for(l = st; l != nil && *l; l = e){
@@ -103,8 +107,8 @@ fbsizes(uvlong *sz)
 		outmodes(f[1], &bw, &bh, &pw, &ph);
 		if(pw == 0)
 			continue;
-		if(sz[2] == 0)
-			sz[2] = (uvlong)pw*ph*4;
+		if(sz[3] == 0)
+			sz[3] = (uvlong)pw*ph*4;
 		sw += bw;
 		mh = bh > mh ? bh : mh;
 		sh += bh;
@@ -113,13 +117,18 @@ fbsizes(uvlong *sz)
 		qh = ph > qh ? ph : qh;
 	}
 	kmsout_free(st);
-	if(sz[2] == 0)
+	if(sz[3] == 0)
 		return 0;
-	sz[0] = (uvlong)sw*mh*4;
-	if((uvlong)mw*sh*4 > sz[0])
-		sz[0] = (uvlong)mw*sh*4;
-	sz[1] = (uvlong)qw*qh*4;
-	return 3;
+	sz[1] = (uvlong)sw*mh*4;
+	if((uvlong)mw*sh*4 > sz[1])
+		sz[1] = (uvlong)mw*sh*4;
+	sz[2] = (uvlong)qw*qh*4;
+	bw = mw > 1920 ? mw : 1920;
+	bh = mh > 1080 ? mh : 1080;
+	sz[0] = (uvlong)kmsout_npipes()*bw*bh*4;
+	if(sz[0] < sz[1])
+		sz[0] = sz[1];
+	return 4;
 }
 
 /* #G's framebuffer, size bytes at least: its segment, attached */
@@ -221,7 +230,7 @@ int
 screenstart(char *dir, int barno, char *name)
 {
 	unsigned long long off;
-	uvlong sz[3];
+	uvlong sz[4];
 	uint uw, uh;
 	int r, i, n;
 
@@ -253,6 +262,7 @@ screenstart(char *dir, int barno, char *name)
 	vgactl("hwgc soft");
 	copyrect(0, 0, w, h);
 	proccreate(dirtyproc, nil, 16384);
+	proccreate(hotplugproc, nil, 1024*1024);	/* amdgpu: DC's modeset */
 	fprint(2, "%s: screen %dx%d (framebuffer %lud bytes)\n", drv, w, h, fbsize);
 	return 0;
 }
@@ -262,17 +272,10 @@ screenstart(char *dir, int barno, char *name)
  * devdraw's screen of its size; nil or the error.  On a proc with a big
  * stack (amdgpu: DC's modeset).
  */
-char*
-screenset(char *name, char *spec)
+/* the screen's object as kmsout made it, devdraw's screen of its size; scrlock held */
+static void
+newscreen(uint uw, uint uh, uint up, unsigned long long off)
 {
-	unsigned long long off;
-	const char *e;
-	uint uw, uh, up;
-
-	if(bar == nil)
-		return "no screen of the driver's (-S)";
-	qlock(&scrlock);
-	e = kmsout_set(name, spec, fbsize, &uw, &uh, &up, &off);
 	vram = bar + off;
 	pitch = up;
 	if(uw != w || uh != h){
@@ -284,8 +287,53 @@ screenset(char *name, char *spec)
 			fprint(2, "%s: screen %dx%d\n", drv, w, h);
 	}
 	copyrect(0, 0, w, h);
+}
+
+char*
+screenset(char *name, char *spec)
+{
+	unsigned long long off;
+	const char *e;
+	uint uw, uh, up;
+
+	if(bar == nil)
+		return "no screen of the driver's (-S)";
+	qlock(&scrlock);
+	e = kmsout_set(name, spec, fbsize, &uw, &uh, &up, &off);
+	newscreen(uw, uh, up, off);
 	qunlock(&scrlock);
 	return (char*)e;
+}
+
+/*
+ * a monitor connected or gone (DRM's hotplug event): the layout after
+ * it; while a client's picture is on the display, again each second
+ */
+static void
+hotplugproc(void*)
+{
+	unsigned long long off;
+	const char *e;
+	uint seen, uw, uh, up;
+	int changed;
+
+	seen = 0;
+	for(;;){
+		if(kmsout_hotplug_wait(&seen) < 0)
+			continue;
+		for(;;){
+			qlock(&scrlock);
+			e = kmsout_relayout(fbsize, &changed, &uw, &uh, &up, &off);
+			if(changed)
+				newscreen(uw, uh, up, off);
+			qunlock(&scrlock);
+			if(e == nil || strstr((char*)e, "picture") == nil)
+				break;
+			sleep(1000);
+		}
+		if(e != nil)
+			fprint(2, "%s: hotplug: %s\n", drv, e);
+	}
 }
 
 /*

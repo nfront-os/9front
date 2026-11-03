@@ -682,9 +682,12 @@ The screen changes size with them, and
 .IR rio (1)
 with it; it can be no bigger than the framebuffer of
 .IR gpu (3)
-the driver made at the start, for the biggest layout of the outputs
-connected then (their biggest modes side by side, or one above the
-other).
+the driver made at the start: as many monitors side by side as the
+display has pipes, each of the biggest mode of those connected then
+(1920x1080 at least), or less if the memory is not there.
+A monitor connected later goes on in its preferred mode right of the
+others, one disconnected goes off (not the last one); one turned off
+by hand stays off until it is disconnected.
 Reading
 .B mode
 gives
