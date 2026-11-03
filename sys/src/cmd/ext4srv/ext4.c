@@ -2608,6 +2608,14 @@ const ext4_direntry *ext4_dir_entry_next(ext4_dir *dir)
 		goto Finish;
 	}
 
+	/* no entry at next_off (the directory shrank or was removed since): the end */
+	if (it.curr == nil) {
+		dir->next_off = EXT4_DIR_ENTRY_OFFSET_TERM;
+		ext4_dir_iterator_fini(&it);
+		ext4_fs_put_inode_ref(&dir_inode);
+		goto Finish;
+	}
+
 	memset(dir->de.name, 0, sizeof(dir->de.name));
 	name_length = ext4_dir_en_get_name_len(&dir->f.mp->fs.sb,
 					       it.curr);
