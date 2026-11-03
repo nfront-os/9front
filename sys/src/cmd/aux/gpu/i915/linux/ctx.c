@@ -592,10 +592,13 @@ i915_status(void)
 	/* the lines as aux/intelgpu has them (inteltest reads them) */
 	return kasprintf(GFP_KERNEL,
 		"device intel %04x/%04x, gen %d (%s, Linux 7.3's i915 on the LinuxKPI)\n"
+		"pci %u.%u.%u rev %#x subsys %04x/%04x aperture %llu\n"	/* for every client (libdrm9): #G's ctl and #$/pci are the hostowner's */
 		"rcs workarounds %d/%d\n"
 		"sseu slices %#x subslices %#x eus %d\n"
 		"power rc6 %s %llu ms, %u MHz (asked %d, min %d, rp1 %d, max %d)\n",
 		p->vendor, p->device, GRAPHICS_VER(i915), intel_platform_name(INTEL_INFO(i915)->platform),
+		p->bus->number, PCI_SLOT(p->devfn), PCI_FUNC(p->devfn), p->revision,
+		p->subsystem_vendor, p->subsystem_device, (unsigned long long)pci_resource_len(p, 2),
 		waok, nwa,
 		s->slice_mask, s->subslice_mask.hsw[0], s->eu_total,
 		gt->rc6.enabled ? "on" : "off", (unsigned long long)(rc6 / NSEC_PER_MSEC), act,

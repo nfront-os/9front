@@ -45,3 +45,5 @@ if(test -e /proc/$r/status){
 }
 if not
 	grep 'passed|FAIL' /tmp/radv.none
+grep '^pci' /dev/gpu/0/status
+/tests/vulkaninfo --summary >[2=1] | grep 'deviceName|driverInfo'

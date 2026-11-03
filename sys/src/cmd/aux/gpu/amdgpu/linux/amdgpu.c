@@ -224,6 +224,10 @@ amdgpu_status(void)
 	}
 	p += scnprintf(p, e - p, "device amd %04x/%04x (Linux 7.3's amdgpu on the LinuxKPI)\n",
 	    a->pdev->vendor, a->pdev->device);
+	/* for every client (libdrm9): #G's ctl and #$/pci are the hostowner's */
+	p += scnprintf(p, e - p, "pci %u.%u.%u rev %#x subsys %04x/%04x\n",
+	    a->pdev->bus->number, PCI_SLOT(a->pdev->devfn), PCI_FUNC(a->pdev->devfn),
+	    a->pdev->revision, a->pdev->subsystem_vendor, a->pdev->subsystem_device);
 	p += scnprintf(p, e - p, "asic %s family %u rev %u external rev %u\n",
 	    amdgpu_asic_name[a->asic_type], a->family, a->rev_id, a->external_rev_id);
 	p += scnprintf(p, e - p, "vram %llu MB visible %llu MB gtt %llu MB\n",

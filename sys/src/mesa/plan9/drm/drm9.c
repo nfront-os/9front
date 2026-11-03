@@ -249,7 +249,28 @@ scan(void)
 		if((s = keyline(buf, "sseu")) != NULL)
 			sscanf(s, "slices %i subslices %i eus %i", &g->slicemask, &g->subslicemask, &g->eutotal);
 		g->aperture = 256ULL<<20;
-		/* the PCI address and revision: #G/N/ctl, #$/pci */
+		/*
+		 * the PCI address and revision: the driver's status (every
+		 * user may read it), else #G/N/ctl and #$/pci (the hostowner's)
+		 */
+		if((s = keyline(buf, "pci")) != NULL){
+			unsigned rev, sv, sd;
+			unsigned long long ap;
+			char *t;
+
+			if(sscanf(s, "%u.%u.%u rev %x subsys %x/%x", &b, &dv, &fn, &rev, &sv, &sd) == 6){
+				g->bus = b;
+				g->dev = dv;
+				g->func = fn;
+				g->revision = rev;
+				g->subvendor = sv;
+				g->subdevice = sd;
+				if((t = strstr(s, "aperture ")) != NULL && sscanf(t + 9, "%llu", &ap) == 1 && ap != 0)
+					g->aperture = ap;
+				ngpu++;
+				continue;
+			}
+		}
 		snprintf(path, sizeof path, "#G/%d/ctl", i);
 		if(readfile(path, buf, sizeof buf) >= 0){
 			if((s = keyline(buf, "pci")) != NULL && sscanf(s, "%u.%u.%u", &b, &dv, &fn) == 3){
