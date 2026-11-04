@@ -19,6 +19,7 @@
 
 enum {
 	Mistoredwimm	= 0x20<<23 | 2,	/* gen 8: 4 dwords */
+	Mistorereg	= 0x24<<23 | 2,	/* MI_STORE_REGISTER_MEM, gen 8: 4 dwords */
 	Usegtt		= 1<<22,
 	Mibbend		= 0x0A<<23,
 	Minoop		= 0,
@@ -376,6 +377,60 @@ power(uvlong *rc6, int *asked, int *min)
 	return 0;
 }
 
+/*
+ * aux/i915: the render engine's context workarounds as i915 lists them
+ * (status: "rcs wa reg mask value"), read in this context by
+ * MI_STORE_REGISTER_MEM: the registers belong to the context, so they
+ * are only what i915 wrote into it while the context runs (read
+ * through MMIO, an idle engine shows another's).  -1: no such list
+ */
+static int
+rcsworkarounds(Ctx *c, Bo *batch, Bo *data)
+{
+	char *s, *p;
+	u32int reg[64], mask[64], val[64], *b, got;
+	int n, i, k, bad;
+	uvlong f;
+
+	if((s = readall("status")) == nil)
+		return -1;
+	n = 0;
+	for(p = s; n < nelem(reg) && (p = strstr(p, "\nrcs wa ")) != nil; p++){
+		reg[n] = strtoul(p+8, &p, 16);
+		mask[n] = strtoul(p, &p, 16);
+		val[n] = strtoul(p, &p, 16);
+		n++;
+	}
+	if(n == 0)
+		return -1;
+	/* the batch at 4 KB, the values at 8 KB of the data object */
+	b = batch->p + 1024;
+	k = 0;
+	for(i = 0; i < n; i++){
+		data->p[2048+i] = 0xDEADBEEF;
+		b[k++] = Mistorereg | (global ? Usegtt : 0);
+		b[k++] = reg[i];
+		b[k++] = data->gpu + (2048+i)*4;
+		b[k++] = (data->gpu + (2048+i)*4) >> 32;
+	}
+	bbend(b, k);
+	if((f = submit(c, batch, 1024*4, "rcs")) == 0 || fencewait(c, f, nil) < 0){
+		fail("rcs workarounds: the batch: %r");
+		return 0;
+	}
+	bad = 0;
+	for(i = 0; i < n; i++){
+		got = data->p[2048+i];
+		if((got & mask[i]) != val[i]){
+			fail("rcs workaround %#ux: %#ux, want %#ux under mask %#ux", reg[i], got, val[i], mask[i]);
+			bad++;
+		}
+	}
+	if(bad == 0)
+		ok("rcs workarounds: all %d hold in the context", n);
+	return 0;
+}
+
 /* one store on an engine, checked by the CPU */
 static void
 store(Ctx *c, Bo *batch, int bdw, Bo *data, int ddw, u32int v, char *eng)
@@ -532,7 +587,9 @@ suite(void)
 
 	/* 8. the render engine's workarounds, written into each new context, read back */
 	step("8. the render engine's workarounds, written into each new context, read back");
-	if((s = readall("status")) == nil || (s = strstr(s, "rcs workarounds ")) == nil)
+	if(rcsworkarounds(&a, &batch, &data) == 0)
+		;	/* aux/i915: read in the context */
+	else if((s = readall("status")) == nil || (s = strstr(s, "rcs workarounds ")) == nil)
 		fail("status: no rcs workarounds line");
 	else{
 		i = atoi(s+16);

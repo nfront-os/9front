@@ -534,30 +534,31 @@ i915_fence_count(void *v, u64 *done, u64 *n, int *failed)
 
 /*
  * the render engine's context workarounds (i915's ctx_wa_list, written
- * into every context image) as the registers read now, the loaded
- * context's: how many hold, checked as i915's wa_verify does
+ * into every context): a line each, "rcs wa reg mask value", for a
+ * client to read them in its own context (inteltest: the registers are
+ * the context's, read through MMIO an idle engine shows another's);
+ * kmalloc'd
  */
-static void
-rcs_workarounds(struct intel_gt *gt, int *ok, int *n)
+static char *
+rcs_workarounds(struct intel_gt *gt)
 {
 	struct intel_engine_cs *e = gt->engine[RCS0];
 	const struct i915_wa *wa;
-	intel_wakeref_t wf;
+	char *s, *t;
 	unsigned int i;
-	u32 cur;
 
-	*ok = *n = 0;
-	if (!e)
-		return;
-	*n = e->ctx_wa_list.count;
-	with_intel_runtime_pm(gt->uncore->rpm, wf)
-		for (i = 0; i < e->ctx_wa_list.count; i++) {
-			wa = &e->ctx_wa_list.list[i];
-			cur = wa->is_mcr ? intel_gt_mcr_read_any(gt, wa->mcr_reg) :
-				intel_uncore_read(gt->uncore, wa->reg);
-			if (!((cur ^ wa->set) & wa->read))
-				(*ok)++;
-		}
+	s = kstrdup("", GFP_KERNEL);
+	if (!e || !s)
+		return s;
+	for (i = 0; i < e->ctx_wa_list.count; i++) {
+		wa = &e->ctx_wa_list.list[i];
+		t = kasprintf(GFP_KERNEL, "%srcs wa %x %x %x\n", s, i915_mmio_reg_offset(wa->reg),
+			wa->read, wa->set & wa->read);
+		kfree(s);
+		if (!(s = t))
+			break;
+	}
+	return s;
 }
 
 /* /dev/gpu/0/status, kmalloc'd (i915_freestr) */
@@ -571,7 +572,7 @@ i915_status(void)
 	struct intel_gt *gt;
 	struct intel_rps *rps;
 	intel_wakeref_t wf;
-	int waok, nwa;
+	char *wa, *r;
 	u64 rc6;
 	u32 act;
 
@@ -582,7 +583,7 @@ i915_status(void)
 	gt = to_gt(i915);
 	rps = &gt->rps;
 	s = &gt->info.sseu;
-	rcs_workarounds(gt, &waok, &nwa);
+	wa = rcs_workarounds(gt);
 	rc6 = 0;
 	act = 0;
 	with_intel_runtime_pm(gt->uncore->rpm, wf) {
@@ -590,20 +591,22 @@ i915_status(void)
 		act = intel_rps_read_actual_frequency(rps);
 	}
 	/* the lines as aux/intelgpu has them (inteltest reads them) */
-	return kasprintf(GFP_KERNEL,
+	r = kasprintf(GFP_KERNEL,
 		"device intel %04x/%04x, gen %d (%s, Linux 7.3's i915 on the LinuxKPI)\n"
 		"pci %u.%u.%u rev %#x subsys %04x/%04x aperture %llu\n"	/* for every client (libdrm9): #G's ctl and #$/pci are the hostowner's */
-		"rcs workarounds %d/%d\n"
+		"%s"
 		"sseu slices %#x subslices %#x eus %d\n"
 		"power rc6 %s %llu ms, %u MHz (asked %d, min %d, rp1 %d, max %d)\n",
 		p->vendor, p->device, GRAPHICS_VER(i915), intel_platform_name(INTEL_INFO(i915)->platform),
 		p->bus->number, PCI_SLOT(p->devfn), PCI_FUNC(p->devfn), p->revision,
 		p->subsystem_vendor, p->subsystem_device, (unsigned long long)pci_resource_len(p, 2),
-		waok, nwa,
+		wa ? wa : "",
 		s->slice_mask, s->subslice_mask.hsw[0], s->eu_total,
 		gt->rc6.enabled ? "on" : "off", (unsigned long long)(rc6 / NSEC_PER_MSEC), act,
 		intel_gpu_freq(rps, rps->cur_freq), intel_gpu_freq(rps, rps->min_freq_softlimit),
 		intel_gpu_freq(rps, rps->rp1_freq), intel_gpu_freq(rps, rps->max_freq_softlimit));
+	kfree(wa);
+	return r;
 }
 
 void i915_freestr(char *s) { kfree(s); }

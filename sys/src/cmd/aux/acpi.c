@@ -1107,16 +1107,23 @@ threadmain(int argc, char **argv)
 
 	/*
 	 * 9front-ng: one interpreter on the machine (aml: the GPU drivers
-	 * use this one), posted as /srv/acpi unless -s names it
+	 * use this one), posted as /srv/acpi unless -s names it.  If it
+	 * runs already (a GPU driver may have started it), its files are
+	 * mounted here instead, as this one would have mounted its own.
 	 */
 	if(srv == nil)
 		srv = "acpi";
 	if(!halt){
 		char path[64];
+		int sfd;
 
 		snprint(path, sizeof path, "/srv/%s", srv);
-		if(access(path, AEXIST) == 0)
-			sysfatal("%s exists: aux/acpi runs already", path);
+		if((sfd = open(path, ORDWR)) >= 0){
+			if(mount(sfd, -1, mtpt, MAFTER, "") < 0)
+				sysfatal("%s runs already; mount on %s: %r", path, mtpt);
+			fprint(2, "aux/acpi: runs already: %s mounted on %s\n", path, mtpt);
+			threadexitsall(nil);
+		}
 	}
 
 	if((ec = open("/dev/ec", ORDWR)) < 0)

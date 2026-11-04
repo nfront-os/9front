@@ -770,7 +770,9 @@ file
 .RB ( /srv/acpi ;
 the driver starts
 .I aux/acpi
-at the first use if it does not run).  ACPI notifications do not
+at the first use if it does not run; a later
+.I aux/acpi
+mounts that one).  ACPI notifications do not
 reach them.
 .SH EXAMPLES
 Switch the screen to 1024x768:

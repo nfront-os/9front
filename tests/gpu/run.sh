@@ -55,10 +55,10 @@ check "alias and phys segments revoked (segment(3)): freed objects stay visible 
 # 2 of 10 runs failed so, 1 in many with one)
 # with SMBIOS strings of our own (QEMU -smbios): DMI, and the GPU's ACPI
 # node by _ADR through aux/acpi (the one interpreter: the driver starts
-# it, a second aux/acpi refuses)
+# it, a second aux/acpi mounts it instead of starting another)
 kpitest(){
 	SMP=4 MEM=2048 WAITMAX=500 QEMU_EXTRA="-vga none -device virtio-gpu-pci -smbios type=1,manufacturer=9front,product=gputest -smbios type=0,vendor=testbios,version=1.2" \
-		"$ROOT/scripts/guest/boot-cli.sh" 'aux/i915 -T' 'aux/acpi' > "$TMPD/kpitest" 2>&1
+		"$ROOT/scripts/guest/boot-cli.sh" 'aux/i915 -T' 'aux/acpi' 'ls /dev/aml /dev/pmctl' > "$TMPD/kpitest" 2>&1
 	tr -d '\r' < "$CLI_DIR/console.log" > "$TMPD/kpitest.log"
 	grep -q "dma-buf selftests: ok" "$CLI_DIR/console.log" && return
 	# keep the console of a failure
@@ -69,7 +69,7 @@ kpitest(){
 check "LinuxKPI selftests (aux/i915 -T: segments, vmap, Linux's dma-buf selftests)" kpitest
 check "DMI from SMBIOS (#P/smbios): QEMU's strings" grep -q 'selftest: dmi: sys vendor "9front", product "gputest", bios "testbios" "1.2"' "$TMPD/kpitest.log"
 check "ACPI: the GPU's node by _ADR (aux/acpi's aml)" grep -qE 'selftest: acpi: GPU 0000:00:0[0-9a-f]\.0 is .*, _ADR 0x[0-9a-f]+: ok' "$TMPD/kpitest.log"
-check "one AML interpreter: a second aux/acpi refuses" grep -q 'aux/acpi: /srv/acpi exists: aux/acpi runs already' "$TMPD/kpitest.log"
+check "one AML interpreter: a second aux/acpi mounts the first" bash -c "grep -q 'aux/acpi: runs already: /srv/acpi mounted on /dev' '$TMPD/kpitest.log' && grep -q '^/dev/pmctl' '$TMPD/kpitest.log'"
 
 # i915's mock selftests (no GPU: a mock device): GEM, GTT, vma, requests, ...
 mocktest(){

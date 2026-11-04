@@ -28,9 +28,12 @@ an interface to the ACPI, and posts it at
 (default
 .BR acpi ).
 The machine has one AML interpreter: if the service is posted
-already,
+already (a GPU driver may have started it,
+.IR gpu (4)),
 .I aux/acpi
-refuses to start.
+mounts it at
+.I mountpoint
+instead and exits.
 .PP
 With the
 .B -H
