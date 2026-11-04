@@ -93,6 +93,9 @@ static struct errmap {
 	{EBUSY,		"open/create -- file is locked"},
 	{EBUSY,		"close/read/write -- lock is broken"},
 
+	/* GCC port branch: from lib9p (srv.c): a walk to a missing file in ramfs and other lib9p servers */
+	{ENOENT,	"file not found"},
+
 	/* from sockets */
 	{ENOTSOCK,	"not a socket"},
 	{EPROTONOSUPPORT,	"protocol not supported"},

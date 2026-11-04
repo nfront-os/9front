@@ -1,7 +1,7 @@
 From 9a4a01e07c396ec8c90fa554e492508bfdbbd890 Mon Sep 17 00:00:00 2001
 From: Stefan Hertenberger <erde74@gmail.com>
 Date: Sat, 31 Oct 2026 10:38:59 +0100
-Subject: [PATCH 15/21] glenda's riostart: make the stats window first, not in
+Subject: [PATCH 15/22] glenda's riostart: make the stats window first, not in
  the background
 
 "window 0,0,161,117 ..." is the old syntax: window(1) makes such a

@@ -25,7 +25,7 @@ taken or declined them.
 On Unix: `git am patch-upstream/0*.patch` on a checkout of `front`.
 On 9front: `git/import` takes the files as they are.
 
-All 17 apply as a series. Each applies alone too, except:
+All 22 apply as a series. Each applies alone too, except:
 
 - 0009 needs 0007 (context: `vbump` in `rwstat`),
 - 0010 needs 0007 and 0009,
@@ -325,6 +325,17 @@ Found by: Go's os tests (RemoveAll) on an ext4 disk in the arm64 guest.
 Shown by: a program that opens a directory of 500 files, reads one
 entry, removes it all and reads on: ext4srv died at once, now the read
 ends and the server keeps answering (9front-go `tests/prog/dirremove.go`).
+
+### 0022 ape: lib9p's "file not found" is ENOENT
+
+lib9p answers a walk to a missing file with "file not found" (`srv.c`),
+which APE's errno map (`_errno.c`) did not know: errno was EPLAN9 for a
+missing file in ramfs and every other lib9p server. Programs that only
+probe for a file and go on at ENOENT stopped instead.
+
+Found by: cgo on the live CD (9front-go): gcc in `/tmp` (ramfs) gave up
+on the first include directory without the header ("./stddef.h: file not
+found"). Shown by: the same build goes through, errno is ENOENT.
 
 ## Not included
 

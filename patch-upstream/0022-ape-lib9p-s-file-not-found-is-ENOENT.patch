@@ -1,0 +1,34 @@
+From 0dc813489c55bf2258a78511bcbfe212354d4bd4 Mon Sep 17 00:00:00 2001
+From: Stefan Hertenberger <erde74@gmail.com>
+Date: Wed, 4 Nov 2026 00:58:04 +0100
+Subject: [PATCH 22/22] ape: lib9p's "file not found" is ENOENT
+
+lib9p answers a walk to a missing file with "file not found" (srv.c),
+which APE's errno map did not know: errno was EPLAN9 for a missing file
+in ramfs, the live CD's /tmp, and every other lib9p server. Programs that
+only probe for a file and go on at ENOENT stopped instead: gcc gave up
+on the first include directory that lacks the header ("./stddef.h: file
+not found").
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ sys/src/ape/lib/ap/plan9/_errno.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/sys/src/ape/lib/ap/plan9/_errno.c b/sys/src/ape/lib/ap/plan9/_errno.c
+index a02ec4e4b..0045d1f46 100644
+--- a/sys/src/ape/lib/ap/plan9/_errno.c
++++ b/sys/src/ape/lib/ap/plan9/_errno.c
+@@ -93,6 +93,9 @@ static struct errmap {
+ 	{EBUSY,		"open/create -- file is locked"},
+ 	{EBUSY,		"close/read/write -- lock is broken"},
+ 
++	/* from lib9p (srv.c) */
++	{ENOENT,	"file not found"},
++
+ 	/* from sockets */
+ 	{ENOTSOCK,	"not a socket"},
+ 	{EPROTONOSUPPORT,	"protocol not supported"},
+-- 
+2.56.0
+

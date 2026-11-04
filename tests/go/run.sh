@@ -1,7 +1,7 @@
 #!/bin/bash
 # go: Go on the install CD (/$objtype/go, from ../9front-go via
 # scripts/guest/boot/goproto, GO_OUT=../9front-go/out/$objtype for mkiso.sh):
-# go version, GOROOT, go run and go build, Go's ELF test data not stripped
+# go version, GOROOT, go run and go build, cgo with the CD's gcc, Go's ELF test data not stripped
 # (tests/go/go.py). Skips a CD without Go.
 # Uses ISO, else the last CD scripts/guest/mkiso.sh made.
 . "$(dirname "$0")/../lib.sh"

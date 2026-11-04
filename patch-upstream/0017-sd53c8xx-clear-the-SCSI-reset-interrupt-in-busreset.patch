@@ -1,7 +1,7 @@
 From e4c06280a57bcacaddad0ecd1fc98f31f5695e03 Mon Sep 17 00:00:00 2001
 From: Stefan Hertenberger <erde74@gmail.com>
 Date: Sun, 1 Nov 2026 01:32:07 +0100
-Subject: [PATCH 17/21] sd53c8xx: clear the SCSI reset interrupt in busreset
+Subject: [PATCH 17/22] sd53c8xx: clear the SCSI reset interrupt in busreset
 
 busreset() pulses SCSI RST, which raises a SCSI reset interrupt
 (SIST0 RST). sd53c8xxenable enables the interrupt only afterwards; the

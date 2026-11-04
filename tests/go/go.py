@@ -4,7 +4,7 @@ Go on the install CD (/$objtype/go, from ../9front-go via
 scripts/guest/boot/goproto, GO_OUT for mkiso.sh): boot to rio, then over the
 serial rc: go version, go finds its tree (GOROOT) with no $GOROOT, go run and
 go build of a program that uses goroutines (GOCACHE in /tmp: the live CD's
-$home is read-only), and an ELF file of Go's test data is unchanged (stage-dist.sh strips ELF files, not in /$objtype/go).
+$home is read-only), cgo with the CD's gcc (/$objtype/gnu), and an ELF file of Go's test data is unchanged (stage-dist.sh strips ELF files, not in /$objtype/go).
 
 usage: tests/go/go.py iso workdir objtype [sha1-of-testdata]
    prints one line per check: ok|fail|skip <name>
@@ -50,6 +50,20 @@ try:
 	result(('hello from go 42 %s' % objtype) in out, 'go run (std compiled on the CD)')
 	out = run('go build -o hello hello.go && ./hello', 'build-done', 300)
 	result(('hello from go 42 %s' % objtype) in out.replace('go build', ''), 'go build, the program runs')
+
+	# cgo: C in the program, built with the CD's gcc (/$objtype/gnu)
+	out = run('test -x /%s/gnu/bin/gcc && echo has-gcc' % objtype, 'gcc-done', 10)
+	if 'has-gcc\n' not in out:
+		print('skip cgo: no /%s/gnu on the CD' % objtype, flush=True)
+	else:
+		vm.serial('bind -b /%s/gnu/bin /bin' % objtype, 1)
+		vm.serial("echo 'package main' > cgo.go", 1)
+		vm.serial("echo '// static int add(int a, int b) { return a + b; }' >> cgo.go", 1)
+		vm.serial("echo 'import \"C\"' >> cgo.go", 1)
+		vm.serial("echo 'import \"fmt\"' >> cgo.go", 1)
+		vm.serial("echo 'func main(){ fmt.Println(\"cgo says\", C.add(40, 2)) }' >> cgo.go", 1)
+		out = run('CGO_ENABLED=1 go build -o cgo cgo.go && ./cgo', 'cgo-done', 900)
+		result('cgo says 42' in out, 'cgo: go build with the CD\'s gcc, the program runs')
 
 	if want:
 		out = run('sha1sum %s' % TESTDATA, 'sha-done', 30)

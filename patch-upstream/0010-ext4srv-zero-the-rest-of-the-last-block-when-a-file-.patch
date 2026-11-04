@@ -1,7 +1,7 @@
 From 8d1b1519661559d54ca1dd079aa67ad99360e20c Mon Sep 17 00:00:00 2001
 From: Stefan Hertenberger <erde74@gmail.com>
 Date: Sat, 31 Oct 2026 10:36:56 +0100
-Subject: [PATCH 10/21] ext4srv: zero the rest of the last block when a file is
+Subject: [PATCH 10/22] ext4srv: zero the rest of the last block when a file is
  shortened
 
 ext4_ftruncate() frees the blocks past the new length but leaves the old
