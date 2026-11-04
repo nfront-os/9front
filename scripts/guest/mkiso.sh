@@ -14,6 +14,9 @@
 #      are the ISO
 #
 # usage: [objtype=386] scripts/guest/mkiso.sh [iso]	(default $CLI_DIR/9front.$objtype.iso).
+#        PLAN9INI: lines name=value for the CD's plan9.ini, each in place of
+#        the CD's own line of that name (sys/lib/dist/cfg/plan9.ini), e.g.
+#        PLAN9INI='monitor=i915' boots with i915 as the screen (gpustart).
 #        Needs the build (CC=gcc ARCH=$objtype sys/src/cmd/build/build.exe)
 #        and scripts/build-boot.sh.
 set -e
@@ -37,6 +40,11 @@ rm -f "$DSK"
 truncate -s 2G "$DSK"
 mkdir -p "$TMP/extra/rc/bin"
 cp "$ROOT/scripts/guest/boot/mkiso.rc" "$TMP/extra/rc/bin/mkiso"
+if [ -n "$PLAN9INI" ]; then
+	printf '%s\n' "$PLAN9INI" | grep -v '^[ 	]*$' > "$TMP/extra/mkiso.ini"
+	grep -qv '^[A-Za-z0-9_*.]*=' "$TMP/extra/mkiso.ini" && die "PLAN9INI: lines name=value"
+	echo "plan9.ini:"; sed 's/^/	/' "$TMP/extra/mkiso.ini"
+fi
 SRC9=$CLI_DIR/src9 DISK=$DSK UFS_EXTRA=$TMP/extra MEM=${MEM:-2048} \
 WAITFOR='mkiso: (done|failed)' WAITMAX=${WAITMAX:-7200} CMDWAIT=5 \
 	bash "$ROOT/scripts/guest/boot-cli.sh" "mkiso $objtype" > "$CLI_DIR/mkiso.log" 2>&1 || true

@@ -14,7 +14,8 @@
 # GPL) fail without a run.  -n: the display stays 9front's (aux/i915 -D).
 rfork e
 if(ps | grep -s ' (i915|intelgpu)$'){
-	echo 'i915live: a GPU driver runs already (aux/i915 or aux/intelgpu): reboot first'
+	echo 'i915live: a GPU driver runs already (aux/i915 or aux/intelgpu): the tests need the GPU alone'
+	echo 'i915live: reboot; with monitor=i915 in plan9.ini, press a key in 9boot, then: monitor=vesa, boot'
 	exit running
 }
 flags=(-v)
@@ -36,14 +37,16 @@ if(~ $#quietmax 0)
 groups=$all
 if(! ~ $#* 0)
 	groups=($*)
+# the stick's FAT served once (/srv/gpu.esp, gpustart's if there: two
+# servers of one FAT would break it)
 dir=/tmp
-for(d in '#σ/usb'/sdU*/esp)
-	if(~ $dir /tmp && test -r $d){
-		dossrv -f $d i915live.esp >/dev/null >[2=1]
-		if(mount -c /srv/i915live.esp /n/esp)
-			dir=/n/esp
-		rm -f /srv/i915live.esp
-	}
+if(! test -e /srv/gpu.esp){
+	for(d in '#σ/usb'/sdU*/esp)
+		if(! test -e /srv/gpu.esp && test -r $d)
+			dossrv -f $d gpu.esp >/dev/null >[2=1]
+}
+if(test -e /srv/gpu.esp && mount -c /srv/gpu.esp /n/esp)
+	dir=/n/esp
 log=$dir/i915live.log
 echo i915live: log in $log
 {echo '# i915live' `{date}; cat /dev/osversion; echo; echo '## #G/0/ctl'; cat '#G/0/ctl'} >$log

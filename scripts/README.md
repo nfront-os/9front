@@ -65,7 +65,7 @@ Called by `build.exe` (Pre/Post steps); rarely run by hand.
 | `build-kencc.sh` | check that the tree still builds with 9front's own compilers: in the guest `mk install` of `/sys/src` and the kernel pc64 with 6c/6a/6l (`boot/mkkencc.rc`). `scripts/guest/build-kencc.sh [kernel]` |
 | `build-self.sh` | self-hosting: the guest builds the whole tree with `build.exe` and the native gcc of `../9front-gcc` (`boot/mkself.rc`) on an ext4 disk made from the copy in `$CLI_DIR/self.$objtype` (`mkfs.ext4 -d`, served by `ext4srv`, read back with `debugfs rdump`), then compares every object with the Linux build (`$CLI_DIR/self.diff`). `KEEP=1` reuses the copy. `[objtype=386] scripts/guest/build-self.sh [x.json ...]` |
 | `build-uboot.sh` | u-boot for QEMU arm64 (used by `boot-cli.sh`) |
-| `mkiso.sh` | install/live CD, made in the guest. `objtype=386 scripts/guest/mkiso.sh` |
+| `mkiso.sh` | install/live CD, made in the guest. `objtype=386 scripts/guest/mkiso.sh`; `PLAN9INI='monitor=i915'` sets lines of the CD's plan9.ini (a GPU driver as the screen from the start) |
 | `mkdisk.sh` | installed disk image (hjfs). `scripts/guest/mkdisk.sh` |
 | `stage-dist.sh` | the distribution tree the guest gets for mkiso/mkdisk |
 | `gen-ufs-root.sh`, `proto.py` | root tree for the guest; files of a 9front proto |

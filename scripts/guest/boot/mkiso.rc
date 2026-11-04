@@ -40,8 +40,15 @@ if(! test -d /n/src9/$objtype)
 	srv tcp!10.0.2.101!5641 src9 && mount -nc /srv/src9 /n/src9 || fail mount src9
 
 @{rfork n
-{grep -v '^bootfile=' /n/src9/cfg/plan9.ini
+# /mkiso.ini (mkiso.sh's PLAN9INI): lines name=value in place of the CD's
+names=bootfile
+if(test -r /mkiso.ini)
+	names=($names `{sed -n 's/^([^=]+)=.*/\1/p' /mkiso.ini})
+{grep -v -e '^('^`{echo $names | sed 's/[*.]/\\&/g; s/ /|/g'}^')=' /n/src9/cfg/plan9.ini
+if(test -r /mkiso.ini)
+	cat /mkiso.ini
 echo 'bootfile='^`{echo $kernel | sed 's!^/n/src9!!'}} > /env/plan9.ini
+echo mkiso: plan9.ini; cat /env/plan9.ini
 bind /env/plan9.ini /n/src9/cfg/plan9.ini || fail bind plan9.ini
 disk/mk9660 -c9j -B 386/9bootiso -E 386/efiboot.fat \
 	-p <{cat $proto $bootproto $gccproto} \
