@@ -374,11 +374,13 @@ fsread(Req *r)
 		break;
 	case Xstatus:
 		{
-			char *o;
+			char *o, *sc;
 
 			t = amdgpu_status();
 			o = kmsout_status();
-			s = smprint("%s%s", t != nil ? t : "", o != nil ? o : "");
+			sc = screenstatus();
+			s = smprint("%s%s%s", t != nil ? t : "", o != nil ? o : "", sc != nil ? sc : "");
+			free(sc);
 			amdgpu_freestr(t);
 			amdgpu_freestr(o);
 		}

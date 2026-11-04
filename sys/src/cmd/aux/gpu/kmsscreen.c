@@ -35,6 +35,8 @@ static uchar *bar;		/* the BAR the processor writes the screen through */
 static uchar *vram;		/* the screen's object, through it */
 static int w, h;
 static uint pitch;
+/* the copies of devdraw's changes, for status */
+static uvlong ncopy, copybytes, copyns, copymaxns;
 
 static void	hotplugproc(void*);
 static void	cursorproc(void*);
@@ -208,11 +210,48 @@ dirtyproc(void*)
 		}
 		buf[n] = 0;
 		if(tokenize(buf, f, nelem(f)) == 4){
+			vlong t0, t;
+			int x0, y0, x1, y1;
+
+			x0 = atoi(f[0]);
+			y0 = atoi(f[1]);
+			x1 = atoi(f[2]);
+			y1 = atoi(f[3]);
 			qlock(&scrlock);
-			copyrect(atoi(f[0]), atoi(f[1]), atoi(f[2]), atoi(f[3]));
+			t0 = nsec();
+			copyrect(x0, y0, x1, y1);
+			t = nsec() - t0;
+			if(x1 > x0 && y1 > y0){
+				ncopy++;
+				copybytes += (uvlong)(x1 - x0) * (y1 - y0) * 4;
+				copyns += t;
+				if(t > copymaxns)
+					copymaxns = t;
+			}
 			qunlock(&scrlock);
 		}
 	}
+}
+
+/*
+ * a line for gpu(4)'s status: the copies of devdraw's changes to the
+ * card (how many, MB, the time per MB and the longest); malloc'd
+ */
+char*
+screenstatus(void)
+{
+	uvlong n, b, ns, mx;
+
+	if(fb == nil)
+		return nil;
+	qlock(&scrlock);
+	n = ncopy;
+	b = copybytes;
+	ns = copyns;
+	mx = copymaxns;
+	qunlock(&scrlock);
+	return smprint("screen %dx%d copies %llud, %llud MB, %llud us/MB, longest %llud us\n",
+		w, h, n, b>>20, b >= 1<<20 ? ns/1000/(b>>20) : 0, mx/1000);
 }
 
 /* devdraw's screen w x h */

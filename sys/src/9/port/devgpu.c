@@ -408,7 +408,13 @@ fballoc(Gpu *g, ulong size)
 	memset(g->fb, 0, size);
 	g->fbsize = size;
 	snprint(g->fbseg, KNAMELEN, "gpu%dfb", g->id);
-	addseg(g->fbseg, PADDR(g->fb), size, SG_PHYSICAL | SG_NOEXEC);
+	/*
+	 * cached, as the kernel has it (devdraw draws there): without
+	 * SG_CACHED the driver read it uncached, every copy of a change to
+	 * the card crawled (the screen slower than VESA's, a window's
+	 * frames torn), and one page had two memory types
+	 */
+	addseg(g->fbseg, PADDR(g->fb), size, SG_PHYSICAL | SG_CACHED | SG_NOEXEC);
 	if(screengpu == nil)
 		screengpu = g;
 }

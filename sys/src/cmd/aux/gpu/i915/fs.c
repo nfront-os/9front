@@ -270,11 +270,13 @@ fsread(Req *r)
 		break;
 	case Xstatus:
 		{
-			char *o;
+			char *o, *sc;
 
 			t = i915_status();
 			o = kmsout_status();
-			s = smprint("%s%s", t != nil ? t : "", o != nil ? o : "");
+			sc = screenstatus();
+			s = smprint("%s%s%s", t != nil ? t : "", o != nil ? o : "", sc != nil ? sc : "");
+			free(sc);
 			i915_freestr(t);
 			kmsout_free(o);
 		}
