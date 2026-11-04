@@ -92,9 +92,16 @@ A process on an application core then rarely comes back to a
 time-sharing core for a page fault.
 Is inherited by children and mutually exclusive with
 .BR RFCPREPAGE .
+.B RFCORE
+turns it on unless
+.B RFCPREPAGE
+is given too.
 .TP
 .B RFCPREPAGE
-If set, no more such prepaging.
+If set, no more such prepaging; with
+.BR RFCORE ,
+the process (or child) goes to the application core without it.
+Prepaging stops early when free memory runs low.
 .TP
 .B RFCORE
 Without

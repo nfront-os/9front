@@ -138,7 +138,7 @@ sysrfork(uchar *list)
 		/* NIX: to any free application core, or back */
 		if((flag & RFCORE) != 0 && up->ac == nil){
 			up->ac = getac(up, -1);
-			up->prepagemem = 1;
+			up->prepagemem = (flag & RFCPREPAGE) == 0;	/* with it: no prepaging */
 			up->procctl = Proc_toac;
 		}
 		if((flag & RFCCORE) != 0 && up->ac != nil)
@@ -299,7 +299,7 @@ sysrfork(uchar *list)
 	 */
 	if((flag & RFCORE) != 0 && !waserror()){
 		p->ac = getac(p, -1);
-		p->prepagemem = 1;
+		p->prepagemem = (flag & RFCPREPAGE) == 0;
 		p->procctl = Proc_toac;
 		poperror();
 	}

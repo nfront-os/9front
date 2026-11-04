@@ -213,7 +213,10 @@ acexit(Ureg *ureg, int rc, uintptr addr)
 /*
  * Fault in all pages of s from from up (prepaging). Text and
  * read-only segments by reading, the others by writing, so a
- * copy-on-write page is copied now, not on the AC.
+ * copy-on-write page is copied now, not on the AC. Stops when free
+ * memory runs low (needpages): a sparse segment (Go reserves its heap
+ * arenas with brk, a bss of 1.2G) would take all of it and the kernel
+ * would kill a process for memory nobody uses.
  */
 static void
 prepageseg(Segment *s, uintptr from)
@@ -222,9 +225,13 @@ prepageseg(Segment *s, uintptr from)
 	int read;
 
 	read = (s->type&SG_TYPE) == SG_TEXT || (s->type&SG_RONLY) != 0;
-	for(addr = from; addr < s->top; addr += BY2PG)
+	for(addr = from; addr < s->top; addr += BY2PG){
+		/* only while memory lasts: no process killed for it */
+		if(needpages(nil))
+			break;
 		if(fault(addr, 0, read) < 0)
 			break;
+	}
 }
 
 /*
