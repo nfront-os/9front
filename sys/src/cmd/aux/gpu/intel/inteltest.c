@@ -395,7 +395,8 @@ rcsworkarounds(Ctx *c, Bo *batch, Bo *data)
 	if((s = readall("status")) == nil)
 		return -1;
 	n = 0;
-	for(p = s; n < nelem(reg) && (p = strstr(p, "\nrcs wa ")) != nil; p++){
+	/* p stays at the end of the line read: the next one begins with its newline */
+	for(p = s; n < nelem(reg) && (p = strstr(p, "\nrcs wa ")) != nil; ){
 		reg[n] = strtoul(p+8, &p, 16);
 		mask[n] = strtoul(p, &p, 16);
 		val[n] = strtoul(p, &p, 16);
