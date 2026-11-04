@@ -8,7 +8,9 @@
 		"Library": "libkpi9.a",
 		"SourceFiles": [
 			"kpi/plan9/p9.c",
-			"kpi/plan9/p9dev.c"
+			"kpi/plan9/p9acpi.c",
+			"kpi/plan9/p9dev.c",
+			"kpi/plan9/p9smbios.c"
 		]
 	},
 	{

@@ -19,6 +19,7 @@
             "cp ../pc/bootargs.c bootargs.c",
             "cp ../pc/cga.c cga.c",
             "cp ../pc/cputemp.c cputemp.c",
+            "cp ../pc/smbios.c smbios.c",
             "cp ../pc/devarch.c devarch.c",
             "cp ../pc/devkbd.c devkbd.c",
             "cp ../pc/devrtc.c devrtc.c",
@@ -217,6 +218,7 @@
                 ],
                 "Link": [
                     "cputemp pci",
+                    "smbios",
                     "ether2114x pci",
                     "ether79c970 pci",
                     "ether8139 pci",
@@ -310,6 +312,7 @@
             "../port/chan.c",
             "../ip/chandial.c",
             "cputemp.c",
+            "smbios.c",
             "../port/dev.c",
             "../port/devaoe.c",
             "devarch.c",

@@ -23,12 +23,14 @@ presents at
 .I mountpoint
 (default
 .BR /dev )
-an interface to the ACPI. If a
-.I service
-is specified, the interface will be
-posted at
-.BI /srv/ service 
-as well.
+an interface to the ACPI, and posts it at
+.BI /srv/ service
+(default
+.BR acpi ).
+The machine has one AML interpreter: if the service is posted
+already,
+.I aux/acpi
+refuses to start.
 .PP
 With the
 .B -H
@@ -71,6 +73,73 @@ to
 will set the upper and lower limit for charging a battery. bat is either
 .B "all"
 for all batteries or starts with 0.
+.TP
+.B aml
+The interpreter for other programs (the GPU drivers'
+ACPI methods, see
+.IR gpu (4));
+only the host owner opens it.
+A write is a request, a read on the same file descriptor its answer:
+.RS
+.TP
+.BI eval " path nargs value" ...
+the value of the object at
+.I path
+(of a method: its result, called with the arguments)
+.TP
+.BI walk " path name"
+the path of
+.I name
+right below
+.I path
+.RB ( -
+for the root; not found by the search rules higher up),
+or of an absolute
+.I name
+.TP
+.BI parent " path"
+the scope above
+.TP
+.BI pci " bus dev fn"
+the device of that PCI address, by
+.B _ADR
+.TP
+.BI hid " path"
+a device's
+.B _HID
+as text
+.TP
+.B devices
+.RI ` path " " hid '
+for every device with a
+.B _HID
+.RE
+.IP
+Paths are as
+.IR aml (2)'s
+.B %N
+prints them
+.RB ( \\_SB.PCI0.GFX0 ).
+A value is
+.B -
+(none),
+.BI i hex ;
+(integer),
+.BI s n : bytes
+(string),
+.BI b n : hex
+(buffer of
+.I n
+bytes),
+.BI p n :
+followed by
+.I n
+values (package) or
+.BI r n : path
+(reference).
+Operation regions in a PCI device's configuration space reach the
+device through
+.BR #$/pci .
 .SH SOURCE
 .B /sys/src/cmd/aux/acpi.c
 .SH SEE ALSO

@@ -488,7 +488,8 @@ prints debug messages,
 .B -n
 starts no file server.
 .B -T
-runs the layer's own checks and Linux's dma-buf selftests,
+runs the layer's own checks (among them the machine's DMI strings and
+the GPU's ACPI node) and Linux's dma-buf selftests,
 .B -M
 i915's mock selftests (no hardware; as
 .BR i915.mock_selftests=-1 ,
@@ -752,6 +753,25 @@ and
 and show a picture
 .RB ( scanout ,
 .BR "map plane" ).
+.PP
+The Linux drivers learn about the machine from its firmware as on
+Linux: DMI from the SMBIOS tables
+.RB ( #P/smbios ,
+.IR arch (3)),
+for their per-model quirks, and ACPI methods of their devices
+.RB ( _DSM ,
+AMD's ATIF and ATCS,
+.BR _ATRM ,
+.BR _DDC )
+through the machine's one AML interpreter,
+.IR acpi (8)'s
+.B aml
+file
+.RB ( /srv/acpi ;
+the driver starts
+.I aux/acpi
+at the first use if it does not run).  ACPI notifications do not
+reach them.
 .SH EXAMPLES
 Switch the screen to 1024x768:
 .EX

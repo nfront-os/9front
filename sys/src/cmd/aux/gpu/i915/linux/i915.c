@@ -13,6 +13,11 @@
 #include <linux/mm.h>
 #include <linux/vmalloc.h>
 #include "../i915.h"
+#include <linux/acpi.h>
+#include <linux/dmi.h>
+#include <linux/pci.h>
+
+struct pci_dev	*kpi_pci_gpu(const char *gdir);
 
 int	kpi_init_i915_init(void);
 int	kpi_init_st_init(void);	/* drivers/dma-buf/selftest.c */
@@ -97,6 +102,47 @@ vmap_selftest(void)
 	return ok ? 0 : -EIO;
 }
 
+/*
+ * -T: what the firmware says about the machine: DMI (SMBIOS) strings,
+ * the GPU's ACPI node (by its _ADR); with tables, the node's _ADR must
+ * be the device's PCI address
+ */
+static int
+firmware_selftest(void)
+{
+	struct pci_dev *p = kpi_pci_gpu(NULL);
+	char name[128];
+	struct acpi_buffer b = { sizeof(name), name };
+	unsigned long long adr;
+	acpi_handle h;
+	const char *v;
+
+	v = dmi_get_system_info(DMI_SYS_VENDOR);
+	pr_info("selftest: dmi: sys vendor \"%s\", product \"%s\", bios \"%s\" \"%s\", board \"%s\"\n",
+		v ? v : "(none)",
+		dmi_get_system_info(DMI_PRODUCT_NAME) ?: "(none)",
+		dmi_get_system_info(DMI_BIOS_VENDOR) ?: "(none)",
+		dmi_get_system_info(DMI_BIOS_VERSION) ?: "(none)",
+		dmi_get_system_info(DMI_BOARD_NAME) ?: "(none)");
+	if (acpi_disabled) {
+		pr_info("selftest: acpi: no tables\n");
+		return 0;
+	}
+	if (!p || !(h = ACPI_HANDLE(&p->dev))) {
+		pr_info("selftest: acpi: no node for the GPU %s: FAIL\n", p ? dev_name(&p->dev) : "(none)");
+		return -ENOENT;
+	}
+	if (acpi_get_name(h, ACPI_FULL_PATHNAME, &b) != AE_OK)
+		strscpy(name, "?", sizeof(name));
+	if (acpi_evaluate_integer(h, "_ADR", NULL, &adr) != AE_OK) {
+		pr_info("selftest: acpi: GPU node %s without _ADR: FAIL\n", name);
+		return -EIO;
+	}
+	pr_info("selftest: acpi: GPU %s is %s, _ADR %#llx: %s\n", dev_name(&p->dev), name, adr,
+		adr == ((unsigned long long)PCI_SLOT(p->devfn) << 16 | PCI_FUNC(p->devfn)) ? "ok" : "FAIL");
+	return adr == ((unsigned long long)PCI_SLOT(p->devfn) << 16 | PCI_FUNC(p->devfn)) ? 0 : -EIO;
+}
+
 int
 i915_kpitest(void)
 {
@@ -119,6 +165,9 @@ i915_kpitest(void)
 	if (t.seen != 0x915915)
 		return -EIO;
 	r = vmap_selftest();
+	if (r)
+		return r;
+	r = firmware_selftest();
 	if (r)
 		return r;
 	/* Linux's selftests of fences, chains, arrays, reservation objects; with the slab's checks */

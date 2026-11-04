@@ -153,6 +153,51 @@ acpiconf(char **cfg)
 	}
 }
 
+/*
+ * 9front-ng: the SMBIOS entry point (DMI: the machine's vendor, model,
+ * BIOS) as *smbios=, for the kernel's #P/smbios; outside the BIOS area
+ * on EFI machines, only the configuration table knows it.  SMBIOS 3
+ * (64 bit) before 2.
+ */
+static void
+smbiosconf(char **cfg)
+{
+	static EFI_GUID SMBIOS_TABLE_GUID = {
+		0xeb9d2d31, 0x2d88, 0x11d3,
+		0x9a, 0x16, 0x00, 0x90,
+		0x27, 0x3f, 0xc1, 0x4d,
+	};
+	static EFI_GUID SMBIOS3_TABLE_GUID = {
+		0xf2fd1544, 0x9794, 0x4a2c,
+		0x99, 0x2e, 0xe5, 0xbb,
+		0xcf, 0x20, 0xe3, 0x94,
+	};
+	EFI_CONFIGURATION_TABLE *t;
+	uintptr pa;
+	char *s;
+	int n;
+
+	pa = 0;
+	t = ST->ConfigurationTable;
+	n = ST->NumberOfTableEntries;
+	while(--n >= 0){
+		if(memcmp(&t->VendorGuid, &SMBIOS_TABLE_GUID, sizeof(EFI_GUID)) == 0){
+			if(pa == 0)
+				pa = (uintptr)t->VendorTable;
+		} else if(memcmp(&t->VendorGuid, &SMBIOS3_TABLE_GUID, sizeof(EFI_GUID)) == 0)
+			pa = (uintptr)t->VendorTable;
+		t++;
+	}
+
+	if(pa){
+		s = *cfg;
+		memmove(s, "*smbios=0x", 10), s += 10;
+		s = hexfmt(s, 0, pa), *s++ = '\n';
+		*s = '\0';
+		print(*cfg);
+		*cfg = s;
+	}
+}
 
 static int
 topbit(ulong mask)
@@ -293,6 +338,7 @@ eficonfig(char **cfg)
 {
 	/* memconf(cfg); -- must be called right before unload() */
 	acpiconf(cfg);
+	smbiosconf(cfg);
 	screenconf(cfg);
 }
 

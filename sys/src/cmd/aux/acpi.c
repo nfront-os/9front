@@ -79,6 +79,7 @@ enum {
 	Temp = 1,
 	Battery,
 	Pmctl,
+	Aml,
 
 	SLP_EN = 0x2000,
 	SLP_TM = 0x1c00,
@@ -90,6 +91,7 @@ static Therm therms[16];
 static Bat bats[4];
 static void *bccs, *bcss;
 static FACP facp;
+static char *amlrequest(char*, int, char**);	/* 9front-ng: the aml file */
 
 static int
 enumec(void *dot, void *)
@@ -501,6 +503,11 @@ fsread(Req *r)
 	e = s + sizeof(msg);
 	*s = 0;
 	aux = r->fid->file->aux;
+	if(aux == (void*)Aml){
+		readstr(r, r->fid->aux != nil ? r->fid->aux : "");
+		respond(r, nil);
+		return;
+	}
 	if(r->ifcall.offset == 0){
 		if(aux == (void*)Temp)
 			tmpread(s, e);
@@ -521,10 +528,24 @@ fswrite(Req *r)
 	void *aux;
 	int nf;
 
+	aux = r->fid->file->aux;
+	if(aux == (void*)Aml){
+		char *err, *reply;
+
+		err = amlrequest(r->ifcall.data, r->ifcall.count, &reply);
+		free(r->fid->aux);
+		r->fid->aux = reply;
+		if(err != nil){
+			respond(r, err);
+			return;
+		}
+		r->ofcall.count = r->ifcall.count;
+		respond(r, nil);
+		return;
+	}
 	snprint(msg, sizeof(msg), "%.*s",
 		utfnlen((char*)r->ifcall.data, r->ifcall.count), (char*)r->ifcall.data);
 	nf = tokenize(msg, f, nelem(f));
-	aux = r->fid->file->aux;
 	if(aux == (void*)Pmctl){
 		if(nf == 2 && strcmp(f[0], "power") == 0 && strcmp(f[1], "off") == 0){
 			if(poweroff() < 0){
@@ -546,6 +567,498 @@ fswrite(Req *r)
 	respond(r, nil);
 }
 
+/*
+ * 9front-ng: aml, the interpreter for other programs, so that the
+ * machine has one (the GPU drivers' methods: _DSM, ATIF, ATCS, _ATRM,
+ * _DDC; two interpreters would not know each other's mutexes and
+ * embedded controller transactions).  Only the host owner opens it.
+ * A write is a request, a read its answer:
+ *	eval path nargs value...	the object's value (a method: its result)
+ *	walk path|- name	the path of name below path (not found by the
+ *				search rules higher up), or of an absolute name
+ *	parent path		the scope above
+ *	pci bus dev fn		the device of that PCI address (by _ADR)
+ *	hid path		a device's _HID as text
+ *	devices			"path hid" per device with a _HID
+ * Paths are as %N prints them (\_SB.PCI0.GFX0).  A value is
+ *	-		none
+ *	ihex;		integer
+ *	sN:bytes	string of N bytes
+ *	bN:hex		buffer of N bytes, 2N hex digits
+ *	pN:value...	package of N elements
+ *	rN:path		reference to the name path (N bytes)
+ */
+typedef struct Amlreq Amlreq;
+struct Amlreq {
+	char	*reply;
+	int	nreply;
+};
+
+/* name below dot, as ACPICA's handle walks (no search rules upward) */
+static void*
+amlbelow(void *dot, char *name)
+{
+	void *x;
+
+	if(dot == nil)
+		dot = amlroot;
+	if((x = amlwalk(dot, name)) == nil)
+		return nil;
+	if(name[0] != '\\' && name[0] != '^' && strchr(name, '.') == nil)
+		if(amlwalk(x, "^") != dot)
+			return nil;
+	return x;
+}
+
+static void
+encval(Fmt *f, void *x, int depth)
+{
+	void **e;
+	uchar *b;
+	char *t;
+	int i, n;
+
+	if(depth > 8){
+		fmtprint(f, "-");
+		return;
+	}
+	x = amlval(x);
+	switch(amltag(x)){
+	case 'i':
+	case 'f':
+	case 'u':
+		fmtprint(f, "i%llux;", amlint(x));
+		return;
+	case 's':
+	case 'n':
+		n = amllen(x);
+		fmtprint(f, "s%d:", n);
+		fmtprint(f, "%.*s", n, (char*)x);
+		return;
+	case 'b':
+		n = amllen(x);
+		b = x;
+		fmtprint(f, "b%d:", n);
+		for(i = 0; i < n; i++)
+			fmtprint(f, "%.2ux", b[i]);
+		return;
+	case 'p':
+		n = amllen(x);
+		e = x;
+		fmtprint(f, "p%d:", n);
+		for(i = 0; i < n; i++)
+			encval(f, e[i], depth+1);
+		return;
+	case 'N':
+		t = smprint("%N", x);
+		fmtprint(f, "r%d:%s", strlen(t), t);
+		free(t);
+		return;
+	}
+	fmtprint(f, "-");
+}
+
+static int
+hexval(int c)
+{
+	if(c >= '0' && c <= '9')
+		return c - '0';
+	if(c >= 'a' && c <= 'f')
+		return c - 'a' + 10;
+	if(c >= 'A' && c <= 'F')
+		return c - 'A' + 10;
+	return -1;
+}
+
+/* a value as libaml's; nil (and werrstr) if malformed */
+static void*
+decval(char **pp, char *e, int depth)
+{
+	char *p, *t;
+	void *v, **el;
+	uchar *b;
+	int i, n, h, l;
+
+	p = *pp;
+	if(p >= e || depth > 8){
+		werrstr("bad value");
+		return nil;
+	}
+	if(*p == 'i'){
+		v = amlnew('i', 0);
+		*(uvlong*)v = strtoull(p+1, &t, 16) & amlintmask;
+		if(*t != ';'){
+			werrstr("bad integer");
+			return nil;
+		}
+		*pp = t+1;
+		return v;
+	}
+	n = strtol(p+1, &t, 10);
+	if(*t != ':' || n < 0 || n > e - t){
+		werrstr("bad length");
+		return nil;
+	}
+	t++;
+	switch(*p){
+	case 's':
+		v = amlnew('s', n);
+		memmove(v, t, n);
+		((char*)v)[n] = 0;
+		*pp = t + n;
+		return v;
+	case 'b':
+		if(2*n > e - t){
+			werrstr("short buffer");
+			return nil;
+		}
+		v = amlnew('b', n);
+		b = v;
+		for(i = 0; i < n; i++){
+			if((h = hexval(t[2*i])) < 0 || (l = hexval(t[2*i+1])) < 0){
+				werrstr("bad buffer");
+				return nil;
+			}
+			b[i] = h<<4 | l;
+		}
+		*pp = t + 2*n;
+		return v;
+	case 'p':
+		v = amlnew('p', n);
+		el = v;
+		*pp = t;
+		for(i = 0; i < n; i++)
+			if((el[i] = decval(pp, e, depth+1)) == nil)
+				return nil;
+		return v;
+	case 'r':
+		p = smprint("%.*s", n, t);
+		v = amlwalk(amlroot, p);
+		free(p);
+		if(v == nil){
+			werrstr("no such name");
+			return nil;
+		}
+		*pp = t + n;
+		return v;
+	}
+	werrstr("bad value type");
+	return nil;
+}
+
+/* PCI addresses: a root bridge (PNP0A03, PNP0A08) counts _BBN (else 0), a bridge its secondary bus */
+static int
+amlisroot(void *dev)
+{
+	void *x;
+	char *id;
+	int i;
+	static char *segs[] = { "_HID", "_CID" };
+
+	for(i = 0; i < nelem(segs); i++){
+		if((x = amlbelow(dev, segs[i])) == nil)
+			continue;
+		if((id = amleisaid(amlval(x))) == nil)
+			continue;
+		if(strcmp(id, "PNP0A03") == 0 || strcmp(id, "PNP0A08") == 0)
+			return 1;
+	}
+	return 0;
+}
+
+static vlong
+amlintof(void *dev, char *seg)
+{
+	void *x, *r;
+
+	if((x = amlbelow(dev, seg)) == nil)
+		return -1;
+	r = nil;
+	if(amleval(x, "", &r) < 0)
+		return -1;
+	return amlint(r);
+}
+
+static int
+pcicfg(int bus, int dev, int fn, int write, int off, void *buf, int n)
+{
+	char path[64];
+	int fd, r;
+
+	snprint(path, sizeof path, "#$/pci/%d.%d.%draw", bus, dev, fn);
+	if((fd = open(path, write ? ORDWR : OREAD)) < 0)
+		return -1;
+	r = write ? pwrite(fd, buf, n, off) : pread(fd, buf, n, off);
+	close(fd);
+	return r;
+}
+
+/* the bus the devices below dev count on (pc/archacpi.c's pcibusno) */
+static int
+amlbusof(void *dev)
+{
+	void *x;
+	vlong adr;
+	int bno;
+	uchar hdr, sec;
+
+	if(amlisroot(dev)){
+		adr = amlintof(dev, "_BBN");
+		return adr < 0 ? 0 : adr;
+	}
+	if((adr = amlintof(dev, "_ADR")) < 0)
+		return -1;
+	if((x = amlwalk(dev, "^")) == nil || x == dev || (bno = amlbusof(x)) < 0)
+		return -1;
+	if(pcicfg(bno, adr>>16, adr&0xFFFF, 0, 0x0E, &hdr, 1) != 1 || (hdr & 0x7F) != 1)
+		return bno;
+	if(pcicfg(bno, adr>>16, adr&0xFFFF, 0, 0x19, &sec, 1) != 1)
+		return -1;
+	return sec;
+}
+
+typedef struct Adrfind Adrfind;
+struct Adrfind {
+	void	*parent;
+	vlong	adr;
+	void	*found;
+	int	bus;
+	void	*roots[8];
+	int	nroots;
+};
+
+static int
+adrof(void *x, void *a)
+{
+	Adrfind *f;
+	void *dev, *r;
+
+	f = a;
+	if(f->found != nil)
+		return 0;
+	dev = amlwalk(x, "^");
+	if(dev == nil || amlwalk(dev, "^") != f->parent)
+		return 0;
+	r = nil;
+	if(amleval(x, "", &r) >= 0 && amlint(r) == f->adr)
+		f->found = dev;
+	return 0;
+}
+
+static int
+rootof(void *x, void *a)
+{
+	Adrfind *f;
+	void *dev;
+	int i;
+
+	f = a;
+	if((dev = amlwalk(x, "^")) == nil || f->nroots >= nelem(f->roots))
+		return 0;
+	for(i = 0; i < f->nroots; i++)
+		if(f->roots[i] == dev)
+			return 0;
+	if(amlisroot(dev))
+		f->roots[f->nroots++] = dev;
+	return 0;
+}
+
+static void*
+amlchild(void *parent, int dev, int fn)
+{
+	Adrfind f;
+
+	memset(&f, 0, sizeof f);
+	f.parent = parent;
+	f.adr = (vlong)dev<<16 | fn;
+	amlenum(parent, "_ADR", adrof, &f);
+	return f.found;
+}
+
+/* the bridge whose secondary bus is bus: its address in *b *d *f */
+static int
+bridgeto(int bus, int *b, int *d, int *f)
+{
+	Dir *dir;
+	long i, n;
+	int fd, bb, dd, ff;
+	uchar hdr, sec;
+	char *s;
+
+	if((fd = open("#$/pci", OREAD)) < 0)
+		return -1;
+	n = dirreadall(fd, &dir);
+	close(fd);
+	for(i = 0; i < n; i++){
+		s = dir[i].name;
+		bb = strtol(s, &s, 10);
+		if(*s++ != '.')
+			continue;
+		dd = strtol(s, &s, 10);
+		if(*s++ != '.')
+			continue;
+		ff = strtol(s, &s, 10);
+		if(strcmp(s, "ctl") != 0)
+			continue;
+		if(pcicfg(bb, dd, ff, 0, 0x0E, &hdr, 1) != 1 || (hdr & 0x7F) != 1)
+			continue;
+		if(pcicfg(bb, dd, ff, 0, 0x19, &sec, 1) != 1 || sec != bus)
+			continue;
+		*b = bb;
+		*d = dd;
+		*f = ff;
+		free(dir);
+		return 0;
+	}
+	free(dir);
+	return -1;
+}
+
+static void*
+amlpcinode(int bus, int dev, int fn, int depth)
+{
+	Adrfind f;
+	void *x;
+	vlong bbn;
+	int i, b, d, ff;
+
+	if(depth > 16)
+		return nil;
+	memset(&f, 0, sizeof f);
+	amlenum(amlroot, "_HID", rootof, &f);
+	amlenum(amlroot, "_CID", rootof, &f);
+	for(i = 0; i < f.nroots; i++){
+		if((bbn = amlintof(f.roots[i], "_BBN")) < 0)
+			bbn = 0;
+		if(bbn == bus && (x = amlchild(f.roots[i], dev, fn)) != nil)
+			return x;
+	}
+	if(bridgeto(bus, &b, &d, &ff) < 0)
+		return nil;
+	if((x = amlpcinode(b, d, ff, depth+1)) == nil)
+		return nil;
+	return amlchild(x, dev, fn);
+}
+
+static int
+devhid(void *x, void *a)
+{
+	Fmt *f;
+	void *dev;
+	char *id;
+
+	f = a;
+	if((dev = amlwalk(x, "^")) == nil || (id = amleisaid(amlval(x))) == nil)
+		return 0;
+	fmtprint(f, "%N %s\n", dev, id);
+	return 0;
+}
+
+/* the request in buf; the answer in *reply (malloc'd); nil or the error */
+static char*
+amlrequest(char *buf, int n, char **reply)
+{
+	char *f[4], *p, *e, *line;
+	void *x, *a[7], *r;
+	Fmt fmt;
+	int nf, na, i, rv;
+
+	*reply = nil;
+	e = buf + n;
+	/* the command and its first words; values (eval) may hold spaces */
+	if((line = malloc(n + 1)) == nil)
+		return "out of memory";
+	memmove(line, buf, n);
+	line[n] = 0;
+	nf = getfields(line, f, nelem(f), 1, " \t\n");
+	fmtstrinit(&fmt);
+	if(nf >= 3 && strcmp(f[0], "eval") == 0){
+		if((x = amlwalk(amlroot, f[1])) == nil){
+			free(line);
+			free(fmtstrflush(&fmt));
+			return "not found";
+		}
+		na = atoi(f[2]);
+		if(na < 0 || na > nelem(a)){
+			free(line);
+			free(fmtstrflush(&fmt));
+			return "too many arguments";
+		}
+		/* the values begin after the third word */
+		p = buf + (f[2] - line) + strlen(f[2]);
+		while(p < e && (*p == ' ' || *p == '\t'))
+			p++;
+		for(i = 0; i < na; i++)
+			if((a[i] = decval(&p, e, 0)) == nil){
+				free(line);
+				free(fmtstrflush(&fmt));
+				return "bad argument";
+			}
+		r = nil;
+		switch(na){
+		case 0:	rv = amleval(x, "", &r); break;
+		case 1:	rv = amleval(x, "*", a[0], &r); break;
+		case 2:	rv = amleval(x, "**", a[0], a[1], &r); break;
+		case 3:	rv = amleval(x, "***", a[0], a[1], a[2], &r); break;
+		case 4:	rv = amleval(x, "****", a[0], a[1], a[2], a[3], &r); break;
+		case 5:	rv = amleval(x, "*****", a[0], a[1], a[2], a[3], a[4], &r); break;
+		case 6:	rv = amleval(x, "******", a[0], a[1], a[2], a[3], a[4], a[5], &r); break;
+		default:	rv = amleval(x, "*******", a[0], a[1], a[2], a[3], a[4], a[5], a[6], &r); break;
+		}
+		if(rv < 0){
+			free(line);
+			free(fmtstrflush(&fmt));
+			return "evaluation failed";
+		}
+		encval(&fmt, r, 0);
+	}else if(nf == 3 && strcmp(f[0], "walk") == 0){
+		x = strcmp(f[1], "-") == 0 ? amlroot : amlwalk(amlroot, f[1]);
+		if(x == nil || (x = amlbelow(x, f[2])) == nil){
+			free(line);
+			free(fmtstrflush(&fmt));
+			return "not found";
+		}
+		fmtprint(&fmt, "%N", x);
+	}else if(nf == 2 && strcmp(f[0], "parent") == 0){
+		if((x = amlwalk(amlroot, f[1])) == nil || (r = amlwalk(x, "^")) == nil || r == x){
+			free(line);
+			free(fmtstrflush(&fmt));
+			return "not found";
+		}
+		fmtprint(&fmt, "%N", r);
+	}else if(nf == 4 && strcmp(f[0], "pci") == 0){
+		if((x = amlpcinode(atoi(f[1]), atoi(f[2]), atoi(f[3]), 0)) == nil){
+			free(line);
+			free(fmtstrflush(&fmt));
+			return "not found";
+		}
+		fmtprint(&fmt, "%N", x);
+	}else if(nf == 2 && strcmp(f[0], "hid") == 0){
+		if((x = amlwalk(amlroot, f[1])) == nil || (x = amlbelow(x, "_HID")) == nil
+		|| (p = amleisaid(amlval(x))) == nil){
+			free(line);
+			free(fmtstrflush(&fmt));
+			return "not found";
+		}
+		fmtprint(&fmt, "%s", p);
+	}else if(nf == 1 && strcmp(f[0], "devices") == 0){
+		amlenum(amlroot, "_HID", devhid, &fmt);
+	}else{
+		free(line);
+		free(fmtstrflush(&fmt));
+		return "bad request";
+	}
+	free(line);
+	*reply = fmtstrflush(&fmt);
+	return nil;
+}
+
+static void
+fsdestroyfid(Fid *f)
+{
+	free(f->aux);
+}
+
 static void
 usage(void)
 {
@@ -556,6 +1069,7 @@ usage(void)
 static Srv fs = {
 	.read = fsread,
 	.write = fswrite,
+	.destroyfid = fsdestroyfid,
 };
 
 
@@ -590,6 +1104,20 @@ threadmain(int argc, char **argv)
 	default:
 		usage();
 	}ARGEND
+
+	/*
+	 * 9front-ng: one interpreter on the machine (aml: the GPU drivers
+	 * use this one), posted as /srv/acpi unless -s names it
+	 */
+	if(srv == nil)
+		srv = "acpi";
+	if(!halt){
+		char path[64];
+
+		snprint(path, sizeof path, "/srv/%s", srv);
+		if(access(path, AEXIST) == 0)
+			sysfatal("%s exists: aux/acpi runs already", path);
+	}
 
 	if((ec = open("/dev/ec", ORDWR)) < 0)
 		ec = open("#P/ec", ORDWR);
@@ -704,6 +1232,7 @@ threadmain(int argc, char **argv)
 	if(ntherms > 0)
 		createfile(fs.tree->root, "cputemp", uid, 0444, (void*)Temp);
 	createfile(fs.tree->root, "pmctl", uid, 0666, (void*)Pmctl);
+	createfile(fs.tree->root, "aml", getuser(), 0600, (void*)Aml);
 
 	threadpostmountsrv(&fs, srv, mtpt, MAFTER);
 	threadexits(nil);
@@ -756,6 +1285,73 @@ dummy(Amlio *, void *, int len, int)
 	return len;
 }
 
+/*
+ * 9front-ng: PCI configuration space regions (a GPU's methods use them),
+ * at the PCI address of the device the region is in (_ADR, and the
+ * bus as pc/archacpi.c's pciaddr finds it)
+ */
+typedef struct Pciaddr Pciaddr;
+struct Pciaddr {
+	int	bus, dev, fn;
+};
+
+static int amlbusof(void*);
+static vlong amlintof(void*, char*);
+static void *amlbelow(void*, char*);
+static int pcicfg(int, int, int, int, int, void*, int);
+
+static int
+readpci(Amlio *io, void *data, int len, int off)
+{
+	Pciaddr *a;
+
+	a = io->aux;
+	off += io->off;
+	if(off < 0 || off + len > 4096)
+		return -1;
+	return pcicfg(a->bus, a->dev, a->fn, 0, off, data, len);
+}
+
+static int
+writepci(Amlio *io, void *data, int len, int off)
+{
+	Pciaddr *a;
+
+	a = io->aux;
+	off += io->off;
+	if(off < 0 || off + len > 4096)
+		return -1;
+	return pcicfg(a->bus, a->dev, a->fn, 1, off, data, len);
+}
+
+static Pciaddr*
+pciaddrof(void *dot)
+{
+	Pciaddr *a;
+	void *x;
+	vlong adr;
+	int bno;
+
+	for(;;){
+		if(amlbelow(dot, "_ADR") == nil){
+			if((x = amlwalk(dot, "^")) == nil || x == dot)
+				return nil;
+			dot = x;
+			continue;
+		}
+		if((adr = amlintof(dot, "_ADR")) < 0)
+			return nil;
+		if((x = amlwalk(dot, "^")) == nil || (bno = amlbusof(x)) < 0)
+			return nil;
+		if((a = malloc(sizeof(*a))) == nil)
+			return nil;
+		a->bus = bno;
+		a->dev = adr >> 16;
+		a->fn = adr & 0xFFFF;
+		return a;
+	}
+}
+
 int
 amlmapio(Amlio *io)
 {
@@ -772,6 +1368,15 @@ amlmapio(Amlio *io)
 		io->read = mem >= 0 ? memread : dummy;
 		io->write = mem >= 0 ? memwrite : dummy;
 		break;
+	case PcicfgSpace:
+		if((io->aux = pciaddrof(io->name)) == nil){
+			io->read = dummy;
+			io->write = dummy;
+			break;
+		}
+		io->read = readpci;
+		io->write = writepci;
+		break;
 	default:
 		io->read = dummy;
 		io->write = dummy;
@@ -781,8 +1386,12 @@ amlmapio(Amlio *io)
 }
 
 void
-amlunmapio(Amlio *)
+amlunmapio(Amlio *io)
 {
+	if(io->space == PcicfgSpace && io->read == readpci){
+		free(io->aux);
+		io->aux = nil;
+	}
 }
 
 void
