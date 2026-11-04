@@ -102,7 +102,10 @@ if(test -e /dev/gpu/0/clone){
 			echo '##' $c >>$out
 			# at most 60 s: a hang (full-screen vkcube on the laptop) leaves
 			# the call chains of the driver's and the program's procs in the log
-			@{rfork ns; DRM9DEBUG=1; eval $c} >>$out >[2=1] &
+			# its status in a file: rc's wait loses a status that sleep or
+			# test reaped before (the log said "status test N: false")
+			rm -f /tmp/i915run.status
+			@{rfork ns; DRM9DEBUG=1; eval $c; echo $status >/tmp/i915run.status} >>$out >[2=1] &
 			vk=$apid
 			for(t in `{seq 60})
 				if(test -e /proc/$vk/status)
@@ -116,7 +119,10 @@ if(test -e /dev/gpu/0/clone){
 					echo kill >/proc/$p/ctl >[2]/dev/null
 				sleep 2
 			}
-			echo '## status' $status >>$out
+			if(test -e /tmp/i915run.status)
+				echo '## status' `{cat /tmp/i915run.status} >>$out
+			if not
+				echo '## status: none (killed)' >>$out
 		}
 	}
 }
