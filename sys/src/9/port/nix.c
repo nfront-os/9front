@@ -278,6 +278,7 @@ runacore(Ureg *ureg)
 {
 	Mach *ac;
 	Icc *icc;
+	int intr;
 
 	up->procctl = 0;
 	if(up->acrunning)
@@ -306,10 +307,12 @@ runacore(Ureg *ureg)
 		icc->proc = up;
 		coherence();
 		icc->fn = acrun;
+		intr = 0;
 		while(!up->acdone){
 			if(waserror()){
 				/* a note: get the process off the AC */
 				acipi(ac);
+				intr = 1;
 				continue;
 			}
 			sleep(&up->acr, acdonef, up);
@@ -317,6 +320,13 @@ runacore(Ureg *ureg)
 		}
 		while(icc->busy)
 			coherence();
+		/*
+		 * sleep cleared notepending for the note that interrupted it; if
+		 * the AC left for a system call meanwhile, the call must see it
+		 * too (a semacquire would sleep with the note undelivered)
+		 */
+		if(intr && up->nnote > 0)
+			up->notepending = 1;
 		splhi();
 		acservice(ureg, up->acrc);
 		spllo();
