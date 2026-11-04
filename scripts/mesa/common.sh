@@ -20,5 +20,25 @@ amd64)	TRIPLE=x86_64-pc-plan9 CPU=x86_64 ;;
 esac
 # the cross compilers of ../9front-gcc
 GCC_DIR=${GCC_DIR:-$ROOT/../9front-gcc}
-CROSS=$GCC_DIR/build/$objtype/cross/bin
+GCC_CROSS=$GCC_DIR/build/$objtype/cross/bin
 BUILD=$WORK/build-$objtype
+# their sysroot is a view of one tree (../9front-gcc/sysroot.sh, the PLAN9 of its last
+# build: the gcc branch's ../9front-gccwt); against this tree instead, its headers
+# (APE's errno.h with ENODATA) and libraries (libvulkan.a): $CROSS holds the cross
+# tools with gcc and g++ given --sysroot= a view of $ROOT
+SYSROOT=$BUILD/sysroot
+CROSS=$BUILD/cross/bin
+if [ -x "$GCC_CROSS/$TRIPLE-gcc" ] &&
+	{ [ "$(readlink "$SYSROOT/sys/include")" != "$ROOT/sys/include" ] || [ ! -x "$CROSS/$TRIPLE-g++" ]; }; then
+	mkdir -p "$BUILD"
+	PLAN9=$ROOT objtype=$objtype bash "$GCC_DIR/sysroot.sh" "$SYSROOT"
+	rm -rf "$CROSS"; mkdir -p "$CROSS"
+	for t in "$GCC_CROSS"/$TRIPLE-*; do
+		ln -s "$t" "$CROSS/${t##*/}"
+	done
+	for t in gcc g++ c++ cpp; do
+		rm "$CROSS/$TRIPLE-$t"
+		printf '#!/bin/sh\nexec "%s" --sysroot="%s" "$@"\n' "$GCC_CROSS/$TRIPLE-$t" "$SYSROOT" > "$CROSS/$TRIPLE-$t"
+		chmod +x "$CROSS/$TRIPLE-$t"
+	done
+fi
