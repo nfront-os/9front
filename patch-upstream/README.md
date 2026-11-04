@@ -9,8 +9,8 @@ in `git format-patch` form, one change per patch, without the port's
 They stay on the `gcc` branch as well (marked there) until 9front has
 taken or declined them.
 
-- Base: `origin/front` at `350266104` (2026-10-31, "aux/acpi: battery
-  charging control for thinkpads").
+- Base: `origin/front` at `f5df6bc0a` (2026-11-03, "zuke(1): add missing
+  readtags for indexing").
 - Source: branch `upstream` of this repository (worktree
   `../9front-upstream`), one commit per patch on top of `origin/front`.
 - Regenerate after a change or a rebase of `upstream` onto a newer

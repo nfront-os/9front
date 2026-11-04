@@ -990,7 +990,7 @@ Nutzer: „go als Programmiersprache für alle Plattformen 386, amd64 usw. mit i
 ## Patch-Kandidaten für 9front
 
 Gesammelt und auf Englisch dokumentiert in `patch-upstream/` (README.md, 22 Patches im
-`git format-patch`-Format auf `origin/front` 350266104); Quelle ist der Branch `upstream`
+`git format-patch`-Format auf `origin/front` f5df6bc0a); Quelle ist der Branch `upstream`
 (Worktree `../9front-upstream`), ein Commit pro Patch, ohne `GCC port`-Kommentare. Im
 gcc-Branch bleiben die Änderungen, bis 9front sie hat oder ablehnt. Neue Kandidaten: als
 Commit auf `upstream`, dann die Patches neu erzeugen (README.md, „Regenerate“). Geprüft:

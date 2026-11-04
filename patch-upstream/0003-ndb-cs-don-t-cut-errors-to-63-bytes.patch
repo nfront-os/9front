@@ -1,4 +1,4 @@
-From ccae23010861223807c40a879c50437d05c72d59 Mon Sep 17 00:00:00 2001
+From 1e29a5a8616a183b5d0be114796572ce61e4b4f3 Mon Sep 17 00:00:00 2001
 From: Stefan Hertenberger <erde74@gmail.com>
 Date: Sat, 31 Oct 2026 10:34:44 +0100
 Subject: [PATCH 03/22] ndb/cs: don't cut errors to 63 bytes

@@ -1,4 +1,4 @@
-From 30d80bd390f7e7c7ad9b8b4956b384c69bac5d26 Mon Sep 17 00:00:00 2001
+From 682fae16c050ebe9b038c25c986a66d8cbe2cdc8 Mon Sep 17 00:00:00 2001
 From: Stefan Hertenberger <erde74@gmail.com>
 Date: Sat, 31 Oct 2026 10:38:59 +0100
 Subject: [PATCH 14/22] pc: register the xhci controller (usbxhcipci first, as

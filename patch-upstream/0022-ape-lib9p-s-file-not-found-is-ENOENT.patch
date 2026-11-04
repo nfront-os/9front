@@ -1,4 +1,4 @@
-From 0dc813489c55bf2258a78511bcbfe212354d4bd4 Mon Sep 17 00:00:00 2001
+From 2609b421dee47bc9a9d2f0750279d4ddb9c46ca9 Mon Sep 17 00:00:00 2001
 From: Stefan Hertenberger <erde74@gmail.com>
 Date: Wed, 4 Nov 2026 00:58:04 +0100
 Subject: [PATCH 22/22] ape: lib9p's "file not found" is ENOENT
