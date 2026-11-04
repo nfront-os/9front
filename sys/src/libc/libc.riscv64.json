@@ -22,6 +22,9 @@
 			"ucd/runeistypedata",
 			"ucd/runebreakdata"
 		],
+		"Post": [
+			"bash ../../../scripts/build/libp9.sh"
+		],
 		"SourceFiles": [
 			"9sys/abort.c",
 			"9sys/access.c",

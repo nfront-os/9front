@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Generate the gcc build-tool manifests of APE's musl part,
-sys/src/ape/lib/musl/musl[.386|.arm64].json: what musl gives APE (C99's float
+sys/src/ape/lib/musl/musl[.386|.arm64|.riscv64].json: what musl gives APE (C99's float
 and long double math, <fenv.h>, <complex.h>, the wide string functions and
 <wctype.h>; and the engine of C99's printf and scanf, bridged to APE's FILE),
 appended to libap.a. Not built by 9front's own compilers (C99 in musl's
@@ -9,8 +9,8 @@ headers): gcc only, as 9front's gcc port's toolchain had it (its compat).
 The sources per architecture are scripts/gen/musl/<objtype>.list: musl's file
 for each function libap does not have (an object of musl whose functions libap
 has all is not there; amd64 and 386 as the toolchain chose them, comparing the
-objects' symbols with libap's; arm64 the same functions, aarch64's file where
-musl has one). The objects are x.musl.o (Objtag): beside libap's of the same
+objects' symbols with libap's; arm64 and riscv64 the same functions, aarch64's
+or riscv64's file where musl has one). The objects are x.musl.o (Objtag): beside libap's of the same
 name. Entry points that libap or programs have under the same names are renamed
 (-D): the engine's printf & co are reached through APE's (ap/gnu/stdio.c).
 What musl's assembly defines beside its function (i386 floor.s is ceil too) and
@@ -24,7 +24,8 @@ import sys
 
 ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..'))
 DIR = 'sys/src/ape/lib/musl'
-ARCHES = {'amd64': ('x86_64', ''), '386': ('i386', '.386'), 'arm64': ('aarch64', '.arm64')}
+ARCHES = {'amd64': ('x86_64', ''), '386': ('i386', '.386'), 'arm64': ('aarch64', '.arm64'),
+	'riscv64': ('riscv64', '.riscv64')}
 
 # the tree's flags that make its ABI (/$ARCH/cflags.json, gcc.json), not the rest of
 # them (-O0, -std=gnu17, -fno-builtin: they would come after musl's and win)
@@ -34,6 +35,7 @@ ARCHFLAGS = {
 	'amd64': ['-mcmodel=small'],
 	'386': ['-m32', '-march=pentium', '-mfpmath=387', '-mno-sse', '-mincoming-stack-boundary=2'],
 	'arm64': ['-fsigned-char', '-mno-outline-atomics'],
+	'riscv64': ['-march=rv64gc', '-mabi=lp64d', '-mcmodel=medany', '-mno-relax', '-fsigned-char'],
 }
 
 # musl's CFLAGS_C99FSE, CFLAGS_AUTO (but -march), -D_XOPEN_SOURCE=700 (musl's Makefile)

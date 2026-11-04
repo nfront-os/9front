@@ -1,0 +1,41 @@
+[
+	{
+		"Name": "ape-lib-ap-gnu-libap.a",
+		"Include": [
+			"/$ARCH/cflags.json",
+			"/$ARCH/ape.json"
+		],
+		"Install": "/$ARCH/lib.gcc/ape/",
+		"Cflags": [
+			"-D_POSIX_SOURCE=",
+			"-D_LIMITS_EXTENSION=",
+			"-D_APE_GNU"
+		],
+		"Ape": true,
+		"Library": "libap.a",
+		"SourceFiles": [
+			"asprintf.c",
+			"at.c",
+			"buf.c",
+			"c99stdio.c",
+			"c99time.c",
+			"dlfcn.c",
+			"getpagesize.c",
+			"hwcap.c",
+			"inttypes.c",
+			"mman.c",
+			"multibyte.c",
+			"native.c",
+			"posix.c",
+			"pread.c",
+			"pthread.c",
+			"realpath.c",
+			"stdlib.c",
+			"string.c",
+			"truncate.c",
+			"wstdio.c",
+			"xsysconf.c"
+		],
+		"Append": true
+	}
+]

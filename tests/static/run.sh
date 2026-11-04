@@ -4,13 +4,14 @@
 cd "$ROOT"
 
 # 1. manifests are what the generators produce from 9front's mkfiles,
-#    for every arch (objtype=386, arm64: the .386.json/.arm64.json ones),
-#    the kernels' too (genkernel.py pc, arm64; pc64's is hand-made)
+#    for every arch (objtype=386, arm64, riscv64: the .<arch>.json ones),
+#    the kernels' too (genkernel.py pc, arm64, riscv64; pc64's is hand-made)
 manifests(){
 	# every architecture's: a new library or program changes all of them
 	local files="$(ls sys/src/libc/libc*.json sys/src/libc/*/build.json)
 		$(ls sys/src/lib*/lib*.json) $(find sys/src/cmd sys/src/games sys/src/ape -name 'cmds*.json')
-		$(ls build*.json) sys/src/9/pc/build.json sys/src/9/arm64/build.json"
+		$(ls build*.json) sys/src/9/pc/build.json sys/src/9/arm64/build.json
+		sys/src/9/riscv64/build.json"
 	for f in $files; do cp "$f" "$TMPD/$(echo $f | tr / _)"; done
 	local a
 	for a in amd64 386 arm64 riscv64; do
@@ -18,7 +19,8 @@ manifests(){
 			objtype=$a python3 scripts/gen/gencmds.py >/dev/null && objtype=$a python3 scripts/gen/genbuild.py >/dev/null || return 1
 	done
 	objtype=386 python3 scripts/gen/genkernel.py pc >/dev/null &&
-		objtype=arm64 python3 scripts/gen/genkernel.py arm64 >/dev/null || return 1
+		objtype=arm64 python3 scripts/gen/genkernel.py arm64 >/dev/null &&
+		objtype=riscv64 python3 scripts/gen/genkernel.py riscv64 >/dev/null || return 1
 	local bad=0
 	for f in $files; do
 		if ! cmp -s "$f" "$TMPD/$(echo $f | tr / _)"; then
@@ -30,7 +32,7 @@ manifests(){
 	[ -z "$(git status --porcelain -- '*.json' | grep '^??')" ] || { git status --porcelain -- '*.json' | grep '^??'; bad=1; }
 	return $bad
 }
-check "manifests match scripts/gen/gen{libc,libs,cmds,build,kernel}.py (amd64, 386, arm64)" manifests
+check "manifests match scripts/gen/gen{libc,libs,cmds,build,kernel}.py (amd64, 386, arm64, riscv64)" manifests
 
 # 2. no 32-bit ulong compared against the 64-bit ~0UL (scripts/fix/fixulongmax.py)
 ulongmax(){

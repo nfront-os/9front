@@ -5,11 +5,11 @@
 # it (i386's floor.s is ceil too, scalbn.s ldexp; libap keeps its own).
 # Replaced only when it changes (build.exe -D).
 #
-# usage: objtype=386|amd64|arm64 scripts/build/musl-localize.sh   (build.exe sets objtype)
+# usage: objtype=386|amd64|arm64|riscv64 scripts/build/musl-localize.sh   (build.exe sets objtype)
 set -e
 ROOT=${PLAN9:-$(git -C "$(dirname "$0")" rev-parse --show-toplevel)}
 objtype=${objtype:?objtype not set}
-case $objtype in arm64) P=${TOOLPREFIX-aarch64-linux-musl-} ;; *) P= ;; esac
+case $objtype in arm64) P=${TOOLPREFIX-aarch64-linux-musl-} ;; riscv64) P=${TOOLPREFIX-riscv64-linux-gnu-} ;; *) P= ;; esac
 A=$ROOT/$objtype/lib.gcc/ape/libap.a
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT

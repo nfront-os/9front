@@ -5,11 +5,11 @@
 # define open, read, malloc, ...). The libc manifest's Post step, after
 # libc.a is installed; replaced only when it changes (build.exe -D).
 #
-# usage: objtype=386|amd64|arm64 scripts/build/libp9.sh   (build.exe sets objtype)
+# usage: objtype=386|amd64|arm64|riscv64 scripts/build/libp9.sh   (build.exe sets objtype)
 set -e
 ROOT=${PLAN9:-$(git -C "$(dirname "$0")" rev-parse --show-toplevel)}
 objtype=${objtype:?objtype not set}
-case $objtype in arm64) P=${TOOLPREFIX-aarch64-linux-musl-} ;; *) P= ;; esac
+case $objtype in arm64) P=${TOOLPREFIX-aarch64-linux-musl-} ;; riscv64) P=${TOOLPREFIX-riscv64-linux-gnu-} ;; *) P= ;; esac
 L=$ROOT/$objtype/lib.gcc
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
