@@ -1,7 +1,7 @@
 From 84bb9a447fe97039045f728a1fd69ad8f157bf7e Mon Sep 17 00:00:00 2001
 From: Stefan Hertenberger <erde74@gmail.com>
 Date: Sat, 31 Oct 2026 10:35:10 +0100
-Subject: [PATCH 04/22] ext4srv: read holes as zeros, not block 0 of the disk
+Subject: [PATCH 04/24] ext4srv: read holes as zeros, not block 0 of the disk
 
 ext4_fread() handled a hole (a block not allocated, physical block 0)
 only in the partial first block. In the loop over whole blocks and in

@@ -1,0 +1,37 @@
+From 17f1d70d2bac0a4b772c6020220d45105a82c1ea Mon Sep 17 00:00:00 2001
+From: Stefan Hertenberger <erde74@gmail.com>
+Date: Thu, 5 Nov 2026 12:34:07 +0100
+Subject: [PATCH 24/24] dist: room for the ESP past the ISO
+
+%.iso appends 2 MB to the ISO image and puts the ESP into the last
+whole cylinder of fdisk's geometry ('a p1 $-1 $'). A cylinder can be
+larger than 2 MB (heads*sectors*512 bytes, up to 255*63*512 = 7.8 MB;
+4 MB for a 1.5 GB image), so the cylinder could begin inside the ISO
+and disk/format wrote the FAT over the end of it, where mk9660 puts
+the Joliet tree (xorriso: "recorded in interleaved mode"). Append
+16 MB: two whole cylinders of any geometry.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ sys/lib/dist/mkfile | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/sys/lib/dist/mkfile b/sys/lib/dist/mkfile
+index 125435aed..c3133442c 100644
+--- a/sys/lib/dist/mkfile
++++ b/sys/lib/dist/mkfile
+@@ -153,7 +153,10 @@ cd:V:	/tmp/9front.386.iso.gz
+ 		-p <{cat $proto $bootproto} \
+ 		-s /n/src9 -v 'Plan 9 Front ('^$objtype^')' $target
+ 	if(test -r /n/src9/386/9boothyb){
+-		dd -if /dev/zero -bs 2048 -count 1024 >> $target
++		# the ESP is the last whole cylinder ($-1 $); keep two
++		# cylinders of any fdisk geometry (at most 255*63*512 bytes)
++		# past the ISO, so it does not begin inside it
++		dd -if /dev/zero -bs 2048 -count 8192 >> $target
+ 		disk/partfs -m /n/partfs $target
+ 		disk=/n/partfs/sdXX
+ 		disk/mbr -m /n/src9/386/mbr $disk/data
+-- 
+2.56.0
+

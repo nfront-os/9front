@@ -1,7 +1,7 @@
 From 71bc1ebb1c45e3eb8c20fe06f476179959ef02ce Mon Sep 17 00:00:00 2001
 From: Stefan Hertenberger <erde74@gmail.com>
 Date: Sat, 31 Oct 2026 10:35:28 +0100
-Subject: [PATCH 05/22] ext4srv: say "file does not exist" as other file
+Subject: [PATCH 05/24] ext4srv: say "file does not exist" as other file
  servers
 
 A missing file gave "file not found". Plan 9's file servers and the

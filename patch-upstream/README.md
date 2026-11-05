@@ -25,7 +25,7 @@ taken or declined them.
 On Unix: `git am patch-upstream/0*.patch` on a checkout of `front`.
 On 9front: `git/import` takes the files as they are.
 
-All 22 apply as a series. Each applies alone too, except:
+All 24 apply as a series. Each applies alone too, except:
 
 - 0009 needs 0007 (context: `vbump` in `rwstat`),
 - 0010 needs 0007 and 0009,
@@ -47,10 +47,13 @@ made with an AI assistant); drop it if 9front does not want it.
   `-FTVw` (the mkfiles' flags); APE's `arm64/notetramp.c` with
   `7c -FTVw -p` against the patched `ureg.h`; `9/arm64/main.c` (0016)
   with `7c -FTVw`; `9/pc/sd53c8xx.c` (0017) with `8c -FTVw` (pc) and
-  `6c -FTVw` (from pc64). No errors, no warnings.
+  `6c -FTVw` (from pc64); `9/port/fault.c` (0023) with `6c -FTVw`
+  (pc64), `8c -FTVw` (pc) and `7c -FTVw` (arm64). No errors, no warnings.
 - **Not done**: a kernel and ext4srv built with 9front's compilers and run
-  with these patches. The kernel conf (0014) and riostart (0015) are not
-  compiled code.
+  with these patches. The kernel conf (0014), riostart (0015) and the
+  dist mkfile (0024) are not compiled code; the gcc branch makes its CD
+  with the same commands in `scripts/guest/boot/mkiso.rc`, which has
+  the change of 0024.
 
 ## The patches
 
@@ -77,6 +80,9 @@ made with an AI assistant); drop it if 9front does not want it.
 | 0019 | ext4srv: remove and rename ignore the directory's permission | bug fix (permissions) |
 | 0020 | ip/tcp: writes to a closed loopback peer vanish without an error | bug fix |
 | 0021 | ext4srv: reading on in a removed directory kills ext4srv | bug fix |
+| 0022 | ape: lib9p's "file not found" is not ENOENT | bug fix |
+| 0023 | fault: SG_FAULT segments let reads and writes through | bug fix |
+| 0024 | dist: the CD's ESP can overlap the end of the ISO | bug fix (data) |
 
 ### 0001 ip/tcp: don't hang up a reused conversation through a stale bypass pointer
 
@@ -336,6 +342,34 @@ probe for a file and go on at ENOENT stopped instead.
 Found by: cgo on the live CD (9front-go): gcc in `/tmp` (ramfs) gave up
 on the first include directory without the header ("./stddef.h: file not
 found"). Shown by: the same build goes through, errno is ENOENT.
+
+### 0023 fault: SG_FAULT segments fault on every access
+
+The check in `fault()` reads `(attr & SG_FAULT) != 0 || read? (exec
+fault) : (attr & SG_RONLY) != 0`, but `||` binds tighter than `?:`: it is
+`((attr & SG_FAULT) != 0 || read)? ...`, so a segment with SG_FAULT
+faulted only where an exec fault would, and reads and writes went
+through. zynq and cycv set SG_FAULT on their `axi` segment until the
+FPGA is loaded. Now the `?:` is parenthesized as intended; segments
+without SG_FAULT are not affected.
+
+Found by: the gcc port's GPU branch, whose segment(3) revokes a segment
+by setting SG_FAULT: a process could still read a revoked segment.
+Shown by: its test `tests/gpu/segrevoke` (a read of a revoked segment
+faults).
+
+### 0024 dist: room for the ESP past the ISO
+
+`%.iso` appends 2 MB to the ISO and puts the ESP into the last whole
+cylinder of fdisk's geometry (`a p1 $-1 $`). A cylinder can be larger
+than 2 MB (heads*sectors*512 bytes, up to 255*63*512 = 7.8 MB; 4 MB at
+1.5 GB), so that cylinder could begin inside the ISO and disk/format
+wrote the FAT over its end, where mk9660 puts the Joliet tree. Now 16
+MB, two whole cylinders of any geometry.
+
+Found by: the gcc port's GPU branch, whose CD with Mesa grew to 1.5 GB:
+xorriso reported the image as "recorded in interleaved mode", the Joliet
+tree was overwritten. Shown by: the same CD made with 16 MB is clean.
 
 ## Not included
 

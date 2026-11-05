@@ -1,0 +1,43 @@
+From d04f98ab5f1c26d19a849ba3c8c3568db7235f04 Mon Sep 17 00:00:00 2001
+From: Stefan Hertenberger <erde74@gmail.com>
+Date: Thu, 5 Nov 2026 12:33:58 +0100
+Subject: [PATCH 23/24] fault: SG_FAULT segments fault on every access
+
+The check in fault() reads
+
+	(attr & SG_FAULT) != 0
+	|| read? (exec fault) : (attr & SG_RONLY) != 0
+
+but || binds tighter than ?:, so it is
+
+	((attr & SG_FAULT) != 0 || read)? (exec fault) : (attr & SG_RONLY) != 0
+
+and a segment with SG_FAULT faults only where an exec fault would:
+reads and writes go through. SG_FAULT is set for zynq's and cycv's
+axi segments until the FPGA is loaded (devarch.c), so these were
+accessible before. Parenthesize the ?: as intended; for segments
+without SG_FAULT nothing changes.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ sys/src/9/port/fault.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/sys/src/9/port/fault.c b/sys/src/9/port/fault.c
+index 66ba9617d..9c6f5c25f 100644
+--- a/sys/src/9/port/fault.c
++++ b/sys/src/9/port/fault.c
+@@ -339,8 +339,8 @@ fault(uintptr addr, uintptr pc, int read)
+ 			attr |= s->pseg->attr;
+ 
+ 		if((attr & SG_FAULT) != 0
+-		|| read? ((attr & SG_NOEXEC) != 0 || s->flushme == 0) && (addr & -BY2PG) == (pc & -BY2PG):
+-			 (attr & SG_RONLY) != 0) {
++		|| (read? ((attr & SG_NOEXEC) != 0 || s->flushme == 0) && (addr & -BY2PG) == (pc & -BY2PG):
++			 (attr & SG_RONLY) != 0)) {
+ 			qunlock(s);
+ 			up->psstate = sps;
+ 			up->insyscall = ins;
+-- 
+2.56.0
+
