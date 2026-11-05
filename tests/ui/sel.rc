@@ -1,0 +1,77 @@
+#!/bin/rc
+# selecting and snarfing in wsys' text windows, run by wsys -x -i: button 1
+# sweeps a selection (pale), button 2's menu snarfs, pastes, cuts, sends. The
+# font is vga's (8x16); the window's text starts at 108,108. Prints ok/FAIL
+# lines and "sel: all passed".
+fn fail { echo FAIL $*; exit fail }
+fn wait1 {
+	n=0
+	while(! $* >[2]/dev/null && test $n -lt 100){ sleep 0.1; n=`{echo $n+1 | hoc} }
+	$* >[2]/dev/null
+}
+fn key { /tests/uipeek -k $1 }
+fn nl { /tests/uipeek -k '
+' }
+# mousein keeps the buttons per open file: a press and its release go through one
+fn m { echo A $1 $2 $3; sleep 0.1 }
+fn drag { # x0 y0 x1 y1 button
+	dx0=$1; dy0=$2; dx1=$3; dy1=$4; db=$5
+	# hoc divides in floating point: 132.5 would end mousein's message at the dot
+	mid=`{echo 'int(('$dx0+$dx1')/2)' | hoc}
+	{ m $dx0 $dy0 $db; m $mid $dy0 $db; m $dx1 $dy1 $db; m $dx1 $dy1 0 } >/dev/mousein
+}
+fn menu { # item: button 2 at 300,300, let go over item n (16 high, the first under the mouse)
+	my=`{echo 300+16'*'$1 | hoc}
+	{ m 300 300 2; m 300 $my 2; m 300 $my 0 } >/dev/mousein
+	sleep 0.2
+}
+fn x { echo 108+8'*'$1 | hoc }	# column n's x
+fn y { echo 108+16'*'$1+8 | hoc }	# row n's middle
+fn snarf { cat /mnt/wsys/$id/snarf }
+fn count { grep -c $1 /mnt/wsys/$id/text }
+
+window -r 100 100 600 400
+wait1 test -d /mnt/wsys/1 || fail no window
+id=1
+sleep 1
+key 'echo marked'; nl
+wait1 grep -s '^marked$' /mnt/wsys/$id/text || fail no output
+# the prompt's length: the columns before echo on the first row
+p=`{sed 1q /mnt/wsys/$id/text | awk '{print index($0, "echo marked") - 1}'}
+echo ok a shell in window $id, its prompt $p wide
+
+# row 1 is marked: sweep it, snarf it
+x0=`{x 0}; x6=`{x 6}; y1=`{y 1}
+x7=`{echo $x6+1 | hoc}; top=`{echo $y1-8 | hoc}; bot=`{echo $y1+8 | hoc}
+drag $x0 $y1 $x7 $y1 1
+fn pale { test `{/tests/uipeek -n $x0,$top,$x6,$bot ffffaa} -gt 0 }
+wait1 pale || fail no pale selection on the screen
+n=`{/tests/uipeek -n $x0,$top,$x6,$bot ffffaa}
+echo ok selected: $n pale pixels
+menu 2
+~ `{snarf} marked || fail snarf: `{snarf}
+echo ok snarf: `{snarf}
+
+# paste after a typed echo: run, marked again
+key 'echo '; menu 1; nl
+wait1 eval '~ `{count ''^marked$''} 2' || fail paste: `{tail -3 /mnt/wsys/$id/text}
+echo ok paste: echo marked ran
+
+# cut a word out of the line typed: row 4 is the prompt and echo foo bar
+key 'echo foo bar'
+c0=`{echo $p+9 | hoc}; c1=`{echo $p+12 | hoc}
+xa=`{x $c0}; xb=`{x $c1}; xb=`{echo $xb+1 | hoc}; y4=`{y 4}
+drag $xa $y4 $xb $y4 1
+menu 0
+~ `{snarf} bar || fail cut: snarf `{snarf}
+nl
+wait1 grep -s '^foo *$' /mnt/wsys/$id/text || fail cut: `{tail -3 /mnt/wsys/$id/text}
+grep -s '^foo bar' /mnt/wsys/$id/text && fail cut: bar still ran
+echo ok cut: bar snarfed, echo foo ran
+
+# send the snarf buffer as a line
+echo -n 'echo sent' >/mnt/wsys/$id/snarf
+menu 3
+wait1 grep -s '^sent$' /mnt/wsys/$id/text || fail send: `{tail -3 /mnt/wsys/$id/text}
+echo ok send: echo sent ran
+echo sel: all passed

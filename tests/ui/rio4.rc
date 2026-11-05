@@ -41,7 +41,8 @@ color 60,60 777777 background
 echo ok label `{cat /mnt/wsys/$id/label}
 
 # mouse and keyboard through its mouse and cons
-echo A 300 250 1 >/dev/mousein; sleep 0.1; echo A 300 250 0 >/dev/mousein
+# one open of mousein for the press and its release: it keeps the buttons per file
+{ echo A 300 250 1; sleep 0.1; echo A 300 250 0 } >/dev/mousein
 waitfor /tmp/dt.log '^mouse 300 250 1'
 echo ok drawtest: `{grep '^mouse' /tmp/dt.log}
 away

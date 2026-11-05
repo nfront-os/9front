@@ -157,6 +157,22 @@ else
 .BR /lib/font/bit/vga/unicode.font
 .RI ( font (6));
 the wheel scrolls it, output scrolls it back to the end.
+Button 1 selects text (on a pale background); button 2's menu
+.B cut
+(the selection to the snarf buffer, out of the text),
+.BR paste
+(the snarf buffer typed; over a selection in the line typed, in its place),
+.B snarf
+and
+.B send
+(the selection, else the snarf buffer, typed as a line).
+The snarf buffer is the
+.B snarf
+file's; when
+.I wsys
+runs in a window of
+.IR rio ,
+.IR rio 's.
 .PP
 .TP
 .B clone
@@ -295,8 +311,8 @@ A client in C: see
 .IR segment (3)
 .SH BUGS
 A prototype: no labels shown, no hidden windows, no menus, no Vulkan
-backend yet; text windows have no selection, snarf, plumbing, scroll bar or
-hold mode;
+backend yet; text windows have no plumbing, scroll bar, hold mode, double-click
+selection or button 3 menu;
 .B /dev/screen
 and
 .B window

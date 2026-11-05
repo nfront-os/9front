@@ -41,7 +41,9 @@
 // button 3 sweeps it to a new size (an outline until the button comes up).
 // A window made by new is a text window, as rio's: while no program has its
 // mouse open, wsys shows the end of what was written to its cons (and text) and
-// the line being typed, in a font of font(6); the wheel scrolls it.
+// the line being typed, in a font of font(6); the wheel scrolls it. Button 1
+// selects text; button 2's menu cuts, pastes, snarfs (the snarf buffer is
+// /dev/snarf's, rio's when wsys runs in rio) and sends.
 // A window lives while its files are open (or the clone fid that made it).
 // Processes wsys starts (-i, wctl's new) get note groups of their own.
 //
@@ -83,6 +85,8 @@ const MAXTEXT: usize = 1 << 20;
 const TEXTSHOWN: usize = 64 << 10; // of a text window's text, laid out to show its end
 const MARGIN: i32 = 4; // between a text window's border and its text
 const DEFFONT: &str = "/lib/font/bit/vga/unicode.font";
+const PALEYELLOW: u32 = 0xFFFFAA; // a selection, as acme's and rio's
+const PALEBLUEGREEN: u32 = 0x9EEEEE; // a menu's item under the mouse
 
 enum Ev {
     Msg(Vec<u8>),
@@ -172,11 +176,12 @@ struct Win {
     pid: Option<u32>, // the note group for interrupt and hangup
     label: String,
     wdir: String,
-    text: Vec<u8>, // what was written to cons and text
+    text: String,     // what was written to cons and text, and the lines typed
+    partial: Vec<u8>, // the start of a rune whose rest is in the next write
     events: VecDeque<String>,
     // the files of rio(4)
     raw: bool,
-    line: Vec<u8>,       // cons, cooked: the line being typed
+    line: String,        // cons, cooked: the line being typed
     cons: VecDeque<u8>,  // cons: what reads get
     eof: bool,           // cons: ^D on an empty line, a read of 0
     kbd: VecDeque<Vec<u8>>, // kbd: messages, each with its null byte
@@ -188,7 +193,29 @@ struct Win {
     state: u64,      // bumped when wctl's answer changes
     textwin: bool,   // made by new: shows its text while no program has its mouse
     scroll: usize,   // a text window: lines back from the end
+    sel: (usize, usize), // the selection: byte offsets in text, then line
+    rows: Vec<Row>,      // where the runes shown are
 }
+
+/// a line of a text window as drawn: each rune's x, width and offset, and the
+/// offset after the last
+struct Row {
+    y: i32,
+    runes: Vec<(i32, i32, usize)>,
+    end: usize,
+}
+
+/// a menu while its button is held
+struct Menu {
+    win: u32,
+    button: i32,
+    items: &'static [&'static str],
+    r: Rect,
+    layer: u32,
+    cur: Option<usize>,
+}
+
+const MENU2: &[&str] = &["cut", "paste", "snarf", "send"];
 
 #[derive(Clone, Copy)]
 enum DragKind {
@@ -348,6 +375,11 @@ struct Wsys {
     tx: mpsc::Sender<Ev>,
     font: Option<font::Font>, // of the text windows
     black: u32,
+    pale: u32,    // a selection's background
+    menuhi: u32,  // a menu's item under the mouse
+    selecting: Option<(u32, usize)>, // button 1 sweeping a selection: window, where it began
+    menu: Option<Menu>,
+    parentsnarf: bool, // in rio: its /dev/snarf is the snarf buffer
 }
 
 fn qid(k: Kind) -> Qid {
@@ -616,11 +648,16 @@ impl Wsys {
                     Kind::File(n, F::Ctl) => text(self.ctltext(n).as_bytes()),
                     Kind::File(n, F::Label) => text(self.wins[&n].label.as_bytes()),
                     Kind::File(n, F::Wdir) => text(self.wins[&n].wdir.as_bytes()),
-                    Kind::File(n, F::Text) => text(&self.wins[&n].text),
+                    Kind::File(n, F::Text) => text(self.wins[&n].text.as_bytes()),
                     Kind::File(n, F::Cursor) => text(&self.wins[&n].cursor),
                     Kind::File(n, F::Winname) => text(self.wins[&n].name.as_bytes()),
                     Kind::File(n, F::Winid) => text(format!("{n:11} ").as_bytes()),
-                    Kind::File(_, F::Snarf) => text(&self.snarf),
+                    Kind::File(_, F::Snarf) => {
+                        if offset == 0 {
+                            self.getsnarf();
+                        }
+                        text(&self.snarf)
+                    }
                     Kind::File(n, f @ (F::Event | F::Mouse | F::Cons | F::Kbd | F::Wctl)) => {
                         match self.take(fid, n, f, count) {
                             Some(b) => Some(R::new(117, tag).u32(b.len() as u32).bytes(&b).done()),
@@ -663,25 +700,7 @@ impl Wsys {
                         ok
                     }
                     Kind::File(n, F::Cons | F::Text) => {
-                        let w = self.wins.get_mut(&n).unwrap();
-                        let t = &mut w.text;
-                        for &c in &data {
-                            if c == 0x08 {
-                                // backspace: the rune before goes
-                                while let Some(x) = t.pop() {
-                                    if x & 0xC0 != 0x80 {
-                                        break;
-                                    }
-                                }
-                            } else {
-                                t.push(c);
-                            }
-                        }
-                        if t.len() > MAXTEXT {
-                            t.drain(..t.len() - MAXTEXT);
-                        }
-                        w.scroll = 0;
-                        self.drawtext(n);
+                        self.output(n, &data);
                         ok
                     }
                     Kind::File(n, F::Consctl) => {
@@ -730,6 +749,7 @@ impl Wsys {
                             self.snarf.clear();
                         }
                         self.snarf.extend_from_slice(&data);
+                        self.putsnarf();
                         ok
                     }
                     _ => e("permission denied"),
@@ -784,7 +804,7 @@ impl Wsys {
         if on && !w.line.is_empty() {
             // what was typed so far goes as it is
             let l = std::mem::take(&mut w.line);
-            w.cons.extend(l);
+            w.cons.extend(l.as_bytes());
             self.wake(n);
         }
     }
@@ -946,10 +966,10 @@ impl Wsys {
         self.slots[slot] = true;
         self.wins.insert(n, Win {
             r, slot, bufs: HashMap::new(), img, layer, name, refs: 0, pinned: false, pid: o.pid,
-            label: String::new(), wdir: o.cd.clone().unwrap_or_default(), text: vec![],
-            events: VecDeque::new(), raw: false, line: vec![], cons: VecDeque::new(), eof: false,
+            label: String::new(), wdir: o.cd.clone().unwrap_or_default(), text: String::new(), partial: vec![],
+            events: VecDeque::new(), raw: false, line: String::new(), cons: VecDeque::new(), eof: false,
             kbd: VecDeque::new(), kbdopen: 0, mouseopen: 0, mouse: VecDeque::new(), resized: false,
-            cursor: vec![], state: 1, textwin: text, scroll: 0,
+            cursor: vec![], state: 1, textwin: text, scroll: 0, sel: (0, 0), rows: vec![],
         });
         self.z.push(n);
         self.setfocus(Some(n));
@@ -978,6 +998,13 @@ impl Wsys {
         if self.drag.map(|g| g.win) == Some(n) {
             self.drag = None;
             self.outline(None);
+        }
+        if self.selecting.map(|s| s.0) == Some(n) {
+            self.selecting = None;
+        }
+        if self.menu.as_ref().map(|m| m.win) == Some(n) {
+            let m = self.menu.take().unwrap();
+            let _ = self.d.free(m.layer);
         }
         if self.focus == Some(n) {
             self.focus = None;
@@ -1315,49 +1342,51 @@ impl Wsys {
     }
 
     /// a text window shows the end of its text and the line being typed (none
-    /// while a program has its mouse: then the program draws)
+    /// while a program has its mouse: then the program draws), the selection on
+    /// a pale background; where each rune went is kept for the mouse
     fn drawtext(&mut self, n: u32) {
         let Some(w) = self.wins.get(&n) else { return };
         if !w.textwin || w.mouseopen > 0 || !w.bufs.is_empty() || self.font.is_none() {
             return;
         }
-        let (r, l, scroll, raw) = (w.r, w.layer, w.scroll, w.raw);
-        let start = w.text.len().saturating_sub(TEXTSHOWN);
-        let mut s = String::from_utf8_lossy(&w.text[start..]).into_owned();
-        if !raw {
-            s.push_str(&String::from_utf8_lossy(&w.line));
+        let (r, l, scroll, raw, sel) = (w.r, w.layer, w.scroll, w.raw, w.sel);
+        let mut start = w.text.len().saturating_sub(TEXTSHOWN);
+        while !w.text.is_char_boundary(start) {
+            start += 1;
         }
-        let (white, black) = (self.white, self.black);
+        let mut s = w.text[start..].to_string();
+        if !raw {
+            s.push_str(&w.line);
+        }
+        let (white, black, pale) = (self.white, self.black, self.pale);
         let (font, d) = (self.font.as_mut().unwrap(), &mut self.d);
         let inner = r.inset(MARGIN);
         let (maxw, h) = (inner.dx().max(1), font.height.max(1));
         let tab = (4 * font.width(d, '0')).max(1);
-        // lay out: lines of (rune, x)
-        let mut lines: Vec<Vec<(char, i32)>> = vec![vec![]];
+        // lay out: lines of (rune, x, width, offset)
+        let mut lines: Vec<(Vec<(char, i32, i32, usize)>, usize)> = vec![(vec![], start)];
         let mut x = 0;
-        for c in s.chars() {
+        for (i, c) in s.char_indices() {
+            let off = start + i;
+            let next = off + c.len_utf8();
             match c {
                 '\n' => {
-                    lines.push(vec![]);
+                    lines.last_mut().unwrap().1 = off;
+                    lines.push((vec![], next));
                     x = 0;
                 }
                 '\r' => {}
-                '\t' => {
-                    let nx = (x / tab + 1) * tab;
-                    if nx > maxw {
-                        lines.push(vec![]);
-                        x = 0;
-                    } else {
-                        x = nx;
-                    }
-                }
                 _ => {
-                    let cw = font.width(d, c);
+                    let cw = if c == '\t' { ((x / tab + 1) * tab - x).max(1) } else { font.width(d, c) };
                     if x + cw > maxw && x > 0 {
-                        lines.push(vec![]);
+                        lines.last_mut().unwrap().1 = off;
+                        lines.push((vec![], off));
                         x = 0;
                     }
-                    lines.last_mut().unwrap().push((c, x));
+                    let cw = if c == '\t' { ((x / tab + 1) * tab - x).max(1) } else { cw };
+                    let line = lines.last_mut().unwrap();
+                    line.0.push((c, x, cw, off));
+                    line.1 = next;
                     x += cw;
                 }
             }
@@ -1366,16 +1395,29 @@ impl Wsys {
         let scroll = scroll.min(lines.len() - 1);
         let end = lines.len() - scroll;
         let begin = end.saturating_sub(nvis);
+        let mut rows = vec![];
         let res = (|| -> std::io::Result<()> {
             d.draw(l, &r, white, 0, 0)?;
-            for (row, line) in lines[begin..end].iter().enumerate() {
+            for (row, (line, lend)) in lines[begin..end].iter().enumerate() {
                 let y = inner.y0 + row as i32 * h;
-                for &(c, cx) in line {
+                for &(c, cx, cw, off) in line {
+                    if off >= sel.0 && off < sel.1 {
+                        d.draw(l, &Rect::new(inner.x0 + cx, y, inner.x0 + cx + cw, y + h).clip(&inner), pale, 0, 0)?;
+                    }
+                    if c == '\t' {
+                        continue;
+                    }
                     if let Some(g) = font.glyph(d, c) {
                         let dst = Rect::new(0, 0, g.src.dx(), g.src.dy()).add(inner.x0 + cx + g.dx, y + g.dy + g.src.y0);
                         d.drawmask(l, &dst.clip(&inner), black, (0, 0), g.img, (g.src.x0, g.src.y0))?;
                     }
                 }
+                // a selection across the end of the line: the rest of it pale
+                if *lend >= sel.0 && *lend < sel.1 {
+                    let lx = line.last().map(|r| r.1 + r.2).unwrap_or(0);
+                    d.draw(l, &Rect::new(inner.x0 + lx, y, inner.x1, y + h), pale, 0, 0)?;
+                }
+                rows.push(Row { y, runes: line.iter().map(|r| (inner.x0 + r.1, r.2, r.3)).collect(), end: *lend });
             }
             if scroll == 0 && !raw {
                 // the tick where typing goes
@@ -1388,10 +1430,43 @@ impl Wsys {
         if let Err(e) = res {
             eprintln!("wsys: text: {e}");
         }
+        if let Some(w) = self.wins.get_mut(&n) {
+            w.rows = rows;
+        }
     }
 
     fn mouse(&mut self, x: i32, y: i32, b: i32, ms: u32) {
         (self.mx, self.my, self.ms) = (x, y, ms);
+        if let Some(m) = &self.menu {
+            // a menu while its button is held: let go over an item, it is done
+            let (button, win) = (m.button, m.win);
+            self.menumove(x, y);
+            if b & button == 0 {
+                let m = self.menu.take().unwrap();
+                let _ = self.d.free(m.layer);
+                let _ = self.d.flush();
+                if let Some(i) = m.cur {
+                    if self.wins.contains_key(&win) {
+                        self.menu2(win, m.items[i]);
+                    }
+                }
+            }
+            self.buttons = b;
+            return;
+        }
+        if let Some((n, q0)) = self.selecting {
+            // button 1 sweeps a selection in a text window
+            if self.wins.contains_key(&n) {
+                let q = self.hit(n, x, y);
+                self.wins.get_mut(&n).unwrap().sel = (q0.min(q), q0.max(q));
+                self.drawtext(n);
+            }
+            if b & 1 == 0 {
+                self.selecting = None;
+            }
+            self.buttons = b;
+            return;
+        }
         if let Some(g) = self.drag {
             self.dragto(g, x, y, b);
             self.buttons = b;
@@ -1424,6 +1499,23 @@ impl Wsys {
                     self.drag = Some(Drag { win: n, kind, x0: x, y0: y, orig: r, cur: r });
                     self.buttons = b;
                     return;
+                }
+                // in a text window: button 1 selects, button 2 is its menu
+                let w = &self.wins[&n];
+                if r.contains(x, y) && w.textwin && w.mouseopen == 0 && self.font.is_some() {
+                    if b == 1 {
+                        let q = self.hit(n, x, y);
+                        self.wins.get_mut(&n).unwrap().sel = (q, q);
+                        self.selecting = Some((n, q));
+                        self.drawtext(n);
+                        self.buttons = b;
+                        return;
+                    }
+                    if b == 2 {
+                        self.openmenu(n, 2, MENU2, x, y);
+                        self.buttons = b;
+                        return;
+                    }
                 }
             }
         }
@@ -1543,12 +1635,7 @@ impl Wsys {
                 }
             }
             '\u{8}' => {
-                // backspace: the last rune
-                while let Some(x) = w.line.pop() {
-                    if x & 0xC0 != 0x80 {
-                        break;
-                    }
-                }
+                w.line.pop(); // backspace: the last rune
             }
             '\u{15}' => w.line.clear(), // ^U: the line
             '\u{4}' => {
@@ -1557,18 +1644,230 @@ impl Wsys {
                     w.eof = true;
                 }
                 let l = std::mem::take(&mut w.line);
-                w.text.extend_from_slice(&l);
-                w.cons.extend(l);
+                w.cons.extend(l.as_bytes());
+                w.text.push_str(&l);
             }
             '\n' => {
                 // the line goes to the program, and stays in the text as typed
                 let mut l = std::mem::take(&mut w.line);
-                l.push(b'\n');
-                w.text.extend_from_slice(&l);
-                w.cons.extend(l);
+                l.push('\n');
+                w.cons.extend(l.as_bytes());
+                w.text.push_str(&l);
                 w.scroll = 0;
             }
-            _ => w.line.extend_from_slice(bytes),
+            _ => w.line.push(c),
+        }
+        Self::trim(w);
+    }
+
+    /// a window's text no longer than MAXTEXT, its selection moved with it
+    fn trim(w: &mut Win) {
+        let (len, total) = (w.text.len(), w.text.len() + w.line.len());
+        if len > MAXTEXT {
+            let mut k = len - MAXTEXT;
+            while !w.text.is_char_boundary(k) {
+                k += 1;
+            }
+            w.text.drain(..k);
+            w.sel = (w.sel.0.saturating_sub(k), w.sel.1.saturating_sub(k));
+        }
+        let total = total.min(w.text.len() + w.line.len());
+        w.sel = (w.sel.0.min(total), w.sel.1.min(total));
+    }
+
+    /// what a program wrote to window n's cons or text: whole runes (the start
+    /// of one waits for the rest), backspace takes one back
+    fn output(&mut self, n: u32, data: &[u8]) {
+        let w = self.wins.get_mut(&n).unwrap();
+        let mut b = std::mem::take(&mut w.partial);
+        b.extend_from_slice(data);
+        let mut ok = match std::str::from_utf8(&b) {
+            Ok(_) => b.len(),
+            Err(e) if e.error_len().is_none() => e.valid_up_to(), // a rune cut short
+            Err(_) => b.len(),
+        };
+        if b.len() - ok > 3 {
+            ok = b.len();
+        }
+        w.partial = b[ok..].to_vec();
+        let old = w.text.len();
+        for c in String::from_utf8_lossy(&b[..ok]).chars() {
+            if c == '\u{8}' {
+                w.text.pop();
+            } else {
+                w.text.push(c);
+            }
+        }
+        // a selection in the line typed stays on what it was
+        let tl = w.text.len();
+        let shift = |q: usize| if q >= old { q + tl - old.min(tl) } else { q.min(tl) };
+        if tl >= old {
+            w.sel = (shift(w.sel.0), shift(w.sel.1));
+        }
+        Self::trim(w);
+        w.scroll = 0;
+        self.drawtext(n);
+    }
+
+    /// the snarf buffer from rio's, when wsys runs in rio
+    fn getsnarf(&mut self) {
+        if self.parentsnarf {
+            if let Ok(b) = std::fs::read("/dev/snarf") {
+                self.snarf = b;
+            }
+        }
+    }
+
+    fn putsnarf(&mut self) {
+        if self.parentsnarf {
+            let _ = std::fs::write("/dev/snarf", &self.snarf);
+        }
+    }
+
+    /// text and line of window n as one: the bytes from q0 to q1
+    fn seltext(w: &Win) -> String {
+        let all = format!("{}{}", w.text, w.line);
+        let (q0, q1) = (w.sel.0.min(all.len()), w.sel.1.min(all.len()));
+        all.get(q0..q1).unwrap_or("").to_string()
+    }
+
+    /// what is in window n's line, as typed: each newline sends the line
+    fn typeline(&mut self, n: u32, s: &str) {
+        for c in s.chars() {
+            self.typed(n, c);
+        }
+        self.wake(n);
+    }
+
+    /// a command of button 2's menu in text window n
+    fn menu2(&mut self, n: u32, cmd: &str) {
+        let w = &self.wins[&n];
+        let tl = w.text.len();
+        let (q0, q1) = w.sel;
+        match cmd {
+            "snarf" | "cut" => {
+                if q0 < q1 {
+                    self.snarf = Self::seltext(w).into_bytes();
+                    self.putsnarf();
+                }
+                if cmd == "cut" && q0 < q1 {
+                    let w = self.wins.get_mut(&n).unwrap();
+                    // the part in the line, then the part in the text
+                    let (l0, l1) = (q0.max(tl) - tl, q1.max(tl) - tl);
+                    if l0 < l1 && w.line.is_char_boundary(l0) && w.line.is_char_boundary(l1.min(w.line.len())) {
+                        w.line.replace_range(l0..l1.min(w.line.len()), "");
+                    }
+                    let (t0, t1) = (q0.min(tl), q1.min(tl));
+                    if t0 < t1 && w.text.is_char_boundary(t0) && w.text.is_char_boundary(t1) {
+                        w.text.replace_range(t0..t1, "");
+                    }
+                    w.sel = (q0, q0);
+                }
+            }
+            "paste" => {
+                self.getsnarf();
+                let s = String::from_utf8_lossy(&self.snarf).into_owned();
+                let w = self.wins.get_mut(&n).unwrap();
+                if q0 >= tl && q1 - tl <= w.line.len() && w.line.is_char_boundary(q0 - tl) && w.line.is_char_boundary(q1 - tl) {
+                    // over a selection in the line: it is replaced, the rest is typed after it
+                    let tail = w.line.split_off(q1 - tl);
+                    w.line.truncate(q0 - tl);
+                    w.sel = (q0, q0 + s.len());
+                    self.typeline(n, &format!("{s}{tail}"));
+                } else {
+                    self.typeline(n, &s);
+                }
+            }
+            "send" => {
+                let mut s = if q0 < q1 { Self::seltext(w) } else { String::from_utf8_lossy(&self.snarf).into_owned() };
+                if !s.ends_with('\n') {
+                    s.push('\n');
+                }
+                self.snarf = s.clone().into_bytes();
+                self.putsnarf();
+                self.typeline(n, &s);
+            }
+            _ => {}
+        }
+        self.drawtext(n);
+    }
+
+    /// the offset in window n's text of the rune at x, y (as drawn)
+    fn hit(&self, n: u32, x: i32, y: i32) -> usize {
+        let w = &self.wins[&n];
+        let h = self.font.as_ref().map(|f| f.height).unwrap_or(1).max(1);
+        let Some(row) = w.rows.iter().find(|r| y < r.y + h).or(w.rows.last()) else {
+            return w.text.len() + w.line.len();
+        };
+        if y < w.rows.first().map(|r| r.y).unwrap_or(0) {
+            return row.runes.first().map(|r| r.2).unwrap_or(row.end);
+        }
+        for &(rx, rw, off) in &row.runes {
+            if x < rx + rw / 2 {
+                return off;
+            }
+        }
+        row.end
+    }
+
+    /// button 2's menu, its item cur lit
+    fn drawmenu(&mut self) {
+        let Some(m) = &self.menu else { return };
+        let (l, r, items, cur) = (m.layer, m.r, m.items, m.cur);
+        let (white, black, hi, border) = (self.white, self.black, self.menuhi, self.cfocus);
+        let (font, d) = (self.font.as_mut().unwrap(), &mut self.d);
+        let h = font.height;
+        let res = (|| -> std::io::Result<()> {
+            d.draw(l, &r, border, 0, 0)?;
+            let inner = r.inset(2);
+            d.draw(l, &inner, white, 0, 0)?;
+            for (i, it) in items.iter().enumerate() {
+                let y = inner.y0 + i as i32 * h;
+                let row = Rect::new(inner.x0, y, inner.x1, y + h);
+                if cur == Some(i) {
+                    d.draw(l, &row, hi, 0, 0)?;
+                }
+                let tw: i32 = it.chars().map(|c| font.width(d, c)).sum();
+                let mut x = inner.x0 + (inner.dx() - tw) / 2;
+                for c in it.chars() {
+                    if let Some(g) = font.glyph(d, c) {
+                        let dst = Rect::new(0, 0, g.src.dx(), g.src.dy()).add(x + g.dx, y + g.dy + g.src.y0);
+                        d.drawmask(l, &dst, black, (0, 0), g.img, (g.src.x0, g.src.y0))?;
+                        x += g.width;
+                    }
+                }
+            }
+            d.flush()
+        })();
+        if let Err(e) = res {
+            eprintln!("wsys: menu: {e}");
+        }
+    }
+
+    /// button b's menu at x, y for window n: the first item under the mouse
+    fn openmenu(&mut self, n: u32, b: i32, items: &'static [&'static str], x: i32, y: i32) {
+        let Some(font) = self.font.as_mut() else { return };
+        let h = font.height;
+        let d = &mut self.d;
+        let wd = items.iter().map(|it| it.chars().map(|c| font.width(d, c)).sum::<i32>()).max().unwrap_or(0) + 16 + 4;
+        let ht = items.len() as i32 * h + 4;
+        let s = self.d.r;
+        let mut r = Rect::new(x - wd / 2, y - h / 2 - 2, x - wd / 2 + wd, y - h / 2 - 2 + ht);
+        let (dx, dy) = ((s.x0 - r.x0).max(0) + (s.x1 - r.x1).min(0), (s.y0 - r.y0).max(0) + (s.y1 - r.y1).min(0));
+        r = r.add(dx, dy);
+        let Ok(layer) = self.d.allocwindow(self.scr, r, 0xFFFF_FFFF) else { return };
+        self.menu = Some(Menu { win: n, button: b, items, r, layer, cur: None });
+        self.menumove(x, y);
+    }
+
+    fn menumove(&mut self, x: i32, y: i32) {
+        let h = self.font.as_ref().map(|f| f.height).unwrap_or(1).max(1);
+        let Some(m) = &mut self.menu else { return };
+        let inner = m.r.inset(2);
+        let cur = if inner.contains(x, y) { Some(((y - inner.y0) / h) as usize).filter(|&i| i < m.items.len()) } else { None };
+        if cur != m.cur || m.cur.is_none() {
+            m.cur = cur;
+            self.drawmenu();
         }
     }
 }
@@ -1751,6 +2050,12 @@ fn main() {
         tx: tx.clone(),
         font: font::Font::open(&fontname).inspect_err(|e| eprintln!("wsys: font {fontname}: {e}")).ok(),
         black: 0,
+        pale: 0,
+        menuhi: 0,
+        selecting: None,
+        menu: None,
+        // rio's snarf, when wsys runs in a window of rio
+        parentsnarf: std::fs::metadata("/dev/snarf").is_ok() && std::fs::metadata("/dev/wctl").is_ok(),
     };
     let colors = (|| -> std::io::Result<(u32, u32, u32, u32, u32)> {
         Ok((ws.d.color(BG)?, ws.d.color(FOCUSED)?, ws.d.color(UNFOCUSED)?, ws.d.color(WHITE)?, ws.d.color(0)?))
@@ -1770,6 +2075,13 @@ fn main() {
         ws.d.flush()?;
         Ok(scr)
     })();
+    match ws.d.color(PALEYELLOW).and_then(|p| Ok((p, ws.d.color(PALEBLUEGREEN)?))) {
+        Ok((p, h)) => (ws.pale, ws.menuhi) = (p, h),
+        Err(e) => {
+            eprintln!("wsys: colours: {e}");
+            std::process::exit(1);
+        }
+    }
     match made {
         Ok(scr) => ws.scr = scr,
         Err(e) => {
