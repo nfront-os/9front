@@ -510,8 +510,8 @@ main(void)
 	print("ok window %d: b's range %#llux again\n", c->id, c->base);
 	close(c->ctl);
 
-	/* button 1 on a's border moves it, button 3 on its corner sweeps it */
-	drag(P(180, 78), P(280, 128), 1);
+	/* as in rio: button 3 on a's border moves it, button 1 on its corner sweeps it */
+	drag(P(180, 78), P(280, 128), 4);
 	sleep(200);
 	readctl(a);
 	if(!eqrect(a->r, R(180, 130, 380, 250)))
@@ -519,7 +519,7 @@ main(void)
 	print("ok a moved by the mouse: %R\n", a->r);
 	want(P(220, 190), Yellow, "a where it was moved");
 	want(P(120, 140), Bg, "background where a was");
-	drag(P(381, 251), P(481, 301), 4);
+	drag(P(381, 251), P(481, 301), 1);
 	l = event(a, 'r');
 	if(strcmp(l, "r 300 170") != 0)
 		fail("a swept: %s", l);

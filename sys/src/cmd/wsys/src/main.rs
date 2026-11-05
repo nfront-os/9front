@@ -37,8 +37,9 @@
 // held (r first after a change of the window), its kbd file the keyboard's
 // messages when open, else cons the runes (a line at a time unless raw; Del
 // interrupts the window's note group). A button pressed on another window
-// gives it the focus and raises it; on a border, button 1 moves the window,
-// button 3 sweeps it to a new size (an outline until the button comes up).
+// gives it the focus and raises it; on a border, as in rio, button 1 (or 2)
+// sweeps it to a new size (the corner within 20 pixels of it, else the edge; an
+// outline until the button comes up), button 3 moves the window.
 // A window made by new is a text window, as rio's: while no program has its
 // mouse open, wsys shows the end of what was written to its cons (and text) and
 // the line being typed, in a font of font(6); the wheel scrolls it. Button 1
@@ -1596,21 +1597,21 @@ impl Wsys {
                     self.setfocus(Some(n));
                 }
                 self.raise(n);
-                // on the border: button 1 moves the window, button 3 sweeps it
+                // on the border, as rio: button 1 or 2 sweeps the window to a new size
+                // (rio's whichcorner: 20 pixels from an end of an edge take the
+                // corner), button 3 moves it
                 let r = self.wins[&n].r;
-                if !r.contains(x, y) && (b == 1 || b == 4) {
-                    let kind = if b == 1 {
+                if !r.contains(x, y) && b & 7 != 0 {
+                    let kind = if b & 3 == 0 {
                         DragKind::Move
                     } else {
-                        let near = |v: i32, a: i32| (v - a).abs() < CORNER;
-                        let (top, bottom) = (y < r.y0, y >= r.y1);
-                        let (left, right) = (x < r.x0, x >= r.x1);
-                        DragKind::Sweep {
-                            left: left || ((top || bottom) && near(x, r.x0)),
-                            right: right || ((top || bottom) && near(x, r.x1)),
-                            top: top || ((left || right) && near(y, r.y0)),
-                            bottom: bottom || ((left || right) && near(y, r.y1)),
-                        }
+                        let f = r.inset(-BORDER);
+                        let portion = |v: i32, lo: i32, hi: i32| {
+                            let (v, hi) = (v - lo, hi - lo);
+                            if v < hi / 2 { if v < CORNER { 0 } else { 1 } } else if v > hi - CORNER { 2 } else { 1 }
+                        };
+                        let (i, j) = (portion(x, f.x0, f.x1), portion(y, f.y0, f.y1));
+                        DragKind::Sweep { left: i == 0, right: i == 2, top: j == 0, bottom: j == 2 }
                     };
                     self.drag = Some(Drag { win: n, kind, x0: x, y0: y, orig: r, cur: r });
                     self.buttons = b;

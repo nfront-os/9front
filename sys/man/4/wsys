@@ -304,11 +304,13 @@ keys from
 .B /dev/cons
 in raw mode);
 a button pressed over a window gives it the focus and raises it;
-on its border, button 1 moves the window and button 3 sweeps it to a new
-size (the edges or the corner grabbed; an outline until the button comes
-up, then the client gets an
+on its border, as in
+.IR rio ,
+button 1 (or 2) sweeps it to a new size (the corner when within 20 pixels of
+it, else the edge; an outline until the button comes up, then the client gets
+an
 .B r
-event).
+event) and button 3 moves the window.
 Button 3 on the background or in a text window gives
 .IR rio 's
 menu:
