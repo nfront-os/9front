@@ -1,0 +1,6 @@
+#!/bin/rc
+# rsvk (vktri in Rust) in its rio window, 2 seconds; its checks read the
+# window through draw(3)
+log=$home/riovk.log
+/tests/rsvk 2 >>$log >[2=1]
+echo riovk: rsvk exit $status >>$log

@@ -32,7 +32,8 @@ check "build tests/gpu" buildtests || { done_tests; exit; }
 # the Vulkan tests need ../9front-gcc's cross compiler: build.exe builds
 # libvulkan.a from the tree's Mesa (sys/src/mesa/build.json, a minute once)
 rm -f "$HERE/root/tests/vktest" "$HERE/root/tests/vkdraw" "$HERE/root/tests/vktri" \
-	"$HERE/root/tests/vkcube" "$HERE/root/tests/vulkaninfo" "$HERE/root/tests/vkspeed"
+	"$HERE/root/tests/vkcube" "$HERE/root/tests/vulkaninfo" "$HERE/root/tests/vkspeed" \
+	"$HERE/root/tests/rsvk"
 cross=$(. "$ROOT/scripts/mesa/common.sh"; echo "$CROSS/$TRIPLE-gcc")
 if [ -x "$cross" ]; then
 	check "build libvulkan.a (build.exe, sys/src/mesa) and the Vulkan tests" bash "$HERE/build-vktest.sh"
@@ -208,6 +209,7 @@ if [ -r /dev/dri/renderD128 ] && [ -w /dev/dri/renderD128 ] &&
 			"bind -a '#i' /dev" \
 			"test ! -x /tests/vkdraw || WSI_PLAN9_COPY=1 /tests/vkdraw 3" \
 			"test ! -x /tests/vktri || WSI_PLAN9_COPY=1 /tests/vktri 2" \
+			"test ! -x /tests/rsvk || WSI_PLAN9_COPY=1 /tests/rsvk 2" \
 			"test ! -x /tests/vkspeed || /tests/vkspeed" \
 			"test ! -x /tests/vulkaninfo || /tests/vulkaninfo --summary" \
 			"test ! -x /tests/vulkaninfo || /tests/vulkaninfo | grep -c 'Surface type *= VK_PLAN9_surface'" \
@@ -236,6 +238,11 @@ if [ -r /dev/dri/renderD128 ] && [ -w /dev/dri/renderD128 ] &&
 		check "vktest (Vulkan through venus): all passed" grep -q '^vktest: all passed' "$TMPD/log3d"
 		check "vkdraw (VK_PLAN9_surface, swapchain on the screen): all passed" grep -q '^vkdraw: all passed' "$TMPD/log3d"
 		check "vktri (shaders, libvulkan's loader): all passed" grep -q '^vktri: all passed' "$TMPD/log3d"
+		if [ -x "$HERE/root/tests/rsvk" ]; then
+			check "rsvk (vktri in Rust: ash, libvulkan.a): all passed" grep -q '^rsvk: all passed' "$TMPD/log3d"
+		else
+			skip "rsvk" "not built (no stage-1 rustc of ../9front-rust)"
+		fi
 		check "vkspeed: cached host memory read at 1 GB/s or more" \
 			bash -c "grep '^vkspeed: cached streaming read' '$TMPD/log3d' | awk '{ exit !(\$5 >= 1000) }'"
 		check "vulkaninfo --summary: the venus device" grep -q 'deviceName *= Virtio-GPU Venus' "$TMPD/log3d"
@@ -263,7 +270,8 @@ if [ -r /dev/dri/renderD128 ] && [ -w /dev/dri/renderD128 ] &&
 	if [ -x "$HERE/root/tests/vkcube" ]; then
 		cp "$HERE/riovk.rc" "$HERE/root/tests/riovk"
 		cp "$HERE/riocube.rc" "$HERE/root/tests/riocube"
-		chmod +x "$HERE/root/tests/riovk" "$HERE/root/tests/riocube"
+		cp "$HERE/riorsvk.rc" "$HERE/root/tests/riorsvk"
+		chmod +x "$HERE/root/tests/riovk" "$HERE/root/tests/riocube" "$HERE/root/tests/riorsvk"
 		riolog=$CLI_DIR/ufsroot/usr/glenda/riovk.log
 		rm -f "$riolog"
 		CMDWAIT=5 WAITFOR='never shown' WAITMAX=300 VNC=1 CPU=host MEM=1024 UFS_EXTRA="$HERE/root" \
@@ -287,6 +295,9 @@ if [ -r /dev/dri/renderD128 ] && [ -w /dev/dri/renderD128 ] &&
 		kill $riopid 2>/dev/null
 		wait $riopid 2>/dev/null
 		cp "$riolog" "$HERE/riovk.log" 2>/dev/null
+		if [ -x "$HERE/root/tests/rsvk" ]; then
+			check "rio: rsvk (Rust, ash) in a window: all passed" grep -q '^rsvk: all passed' "$riolog"
+		fi
 		check "rio: vkcube in a window" grep -q '^Selected WSI platform: plan9' "$riolog"
 		check "rio: window resized" grep -q '^riovk: resized' "$riolog"
 		check "rio (VNC): the cube in the resized window" bash -c "grep -q '^210,400 333333' '$TMPD/shotrio.txt' && grep '^500,400 ' '$TMPD/shotrio.txt' | grep -vq '333333\$'"

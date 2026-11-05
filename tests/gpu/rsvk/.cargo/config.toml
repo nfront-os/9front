@@ -1,0 +1,6 @@
+# the crates come from vendor/ (cargo vendor), the build needs no network
+[source.crates-io]
+replace-with = "vendored-sources"
+
+[source.vendored-sources]
+directory = "vendor"

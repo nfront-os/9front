@@ -30,6 +30,27 @@ for p in vktest vkdraw vktri vkspeed radvtest gltest gldesk glwin; do
 	"$CROSS/$TRIPLE-gcc" -std=gnu11 -O2 -Wall -I"$O" -c -o "$O/$p.o" "$HERE/$p.c"
 	"$CROSS/$TRIPLE-g++" -o "$HERE/root/tests/$p" "$O/$p.o" $extra $libs
 done
+# rsvk: vktri in Rust (ash, ../9front-ui stage 1b), built by cargo with ../9front-rust's
+# stage-1 rustc for x86_64-unknown-plan9 and linked by the cross gcc above (the view of this
+# tree: libp9, APE, libvulkan.a); the crates are in rsvk/vendor (no network). Skipped
+# without that rustc.
+RUST_DIR=${RUST_DIR:-$ROOT/../9front-rust}
+RUSTC=${RUSTC:-$RUST_DIR/rust/build/host/stage1/bin/rustc}
+if [ "$objtype" = amd64 ] && [ -x "$RUSTC" ] && command -v cargo >/dev/null; then
+	for s in tri.vert tri.frag; do
+		glslc -O -o "$O/$s.spv" "$HERE/shaders/$s"
+	done
+	"$CROSS/$TRIPLE-ar" rcs "$O/libscreenpeek.a" "$O/screenpeek.o"
+	T=x86_64-unknown-plan9
+	(cd "$HERE/rsvk" &&
+	 RUSTC="$RUSTC" RSVK_SPV="$O" CARGO_TARGET_DIR="$O/rsvk" \
+	 CARGO_TARGET_X86_64_UNKNOWN_PLAN9_LINKER="$CROSS/$TRIPLE-gcc" \
+	 RUSTFLAGS="-L $O -l screenpeek -l draw -l 9 -l fmt -l utf -l stdc++ -C link-arg=-Wl,--gc-sections" \
+	 cargo build --offline --release --target $T)
+	cp "$O/rsvk/$T/release/rsvk" "$HERE/root/tests/rsvk"
+else
+	echo "rsvk: not built (objtype=$objtype, or no stage-1 rustc $RUSTC or cargo)" >&2
+fi
 # Khronos' vkcube and vulkaninfo, ported (scripts/mesa/vktools.sh)
 "$ROOT/scripts/mesa/vktools.sh" build
 cp "$BUILD/vktools/vkcube" "$BUILD/vktools/vulkaninfo" "$HERE/root/tests/"

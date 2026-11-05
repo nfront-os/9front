@@ -4,4 +4,13 @@
 # (boot-cli.sh)
 echo riovk: start >$home/riovk.log
 window -r 20 20 420 220 rc
+# rsvk (Rust) first, in a window of its own beside the shell, until it is done
+if(test -x /tests/rsvk){
+	window -r 450 20 850 320 /tests/riorsvk
+	n=0
+	while(! grep -s '^riovk: rsvk exit' $home/riovk.log && test $n -lt 60){
+		sleep 1
+		n=`{echo $n+1 | hoc}
+	}
+}
 window -r 100 100 900 700 /tests/riocube
