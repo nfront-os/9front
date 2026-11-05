@@ -295,6 +295,30 @@ size (the edges or the corner grabbed; an outline until the button comes
 up, then the client gets an
 .B r
 event).
+Button 3 on the background or in a text window gives
+.IR rio 's
+menu:
+.B New
+(sweep a rectangle with button 3: a window with
+.B rc
+in it),
+.B Resize
+(sweep from a point in the window to its new corner),
+.BR Move ,
+.B Delete
+and
+.B Hide
+(button 3 on the window), and the hidden windows by their labels, to bring one
+back; a cross is the cursor while a command waits for its button.
+A hidden window is off the screen, as in
+.IR rio ;
+.B wctl
+says
+.B hidden
+and takes
+.B hide
+and
+.BR unhide .
 Keys go to the focused window.
 .SH EXAMPLES
 A client in C: see
@@ -310,9 +334,8 @@ A client in C: see
 .IR draw (3),
 .IR segment (3)
 .SH BUGS
-A prototype: no labels shown, no hidden windows, no menus, no Vulkan
-backend yet; text windows have no plumbing, scroll bar, hold mode, double-click
-selection or button 3 menu;
+A prototype: no labels shown, no Vulkan backend yet; text windows have no
+plumbing, scroll bar, hold mode or double-click selection;
 .B /dev/screen
 and
 .B window

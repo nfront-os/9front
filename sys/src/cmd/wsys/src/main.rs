@@ -43,7 +43,10 @@
 // mouse open, wsys shows the end of what was written to its cons (and text) and
 // the line being typed, in a font of font(6); the wheel scrolls it. Button 1
 // selects text; button 2's menu cuts, pastes, snarfs (the snarf buffer is
-// /dev/snarf's, rio's when wsys runs in rio) and sends.
+// /dev/snarf's, rio's when wsys runs in rio) and sends. Button 3's menu, on the
+// background or a text window, as rio's: New (sweep, a shell in it), Resize
+// (sweep from the window), Move, Delete, Hide, and the hidden windows to bring
+// back; a cross for the cursor while a command waits.
 // A window lives while its files are open (or the clone fid that made it).
 // Processes wsys starts (-i, wctl's new) get note groups of their own.
 //
@@ -195,6 +198,7 @@ struct Win {
     scroll: usize,   // a text window: lines back from the end
     sel: (usize, usize), // the selection: byte offsets in text, then line
     rows: Vec<Row>,      // where the runes shown are
+    hidden: bool,        // off the screen (button 3's Hide), listed in its menu
 }
 
 /// a line of a text window as drawn: each rune's x, width and offset, and the
@@ -207,20 +211,58 @@ struct Row {
 
 /// a menu while its button is held
 struct Menu {
-    win: u32,
+    win: Option<u32>, // button 2's: the text window
     button: i32,
-    items: &'static [&'static str],
+    items: Vec<String>,
+    hidden: Vec<u32>, // button 3's: the hidden windows after its commands
     r: Rect,
     layer: u32,
     cur: Option<usize>,
 }
 
 const MENU2: &[&str] = &["cut", "paste", "snarf", "send"];
+const MENU3: &[&str] = &["New", "Resize", "Move", "Delete", "Hide"];
+
+/// a command of button 3's menu, waiting for button 3 on the screen
+#[derive(Clone, Copy, PartialEq, Debug)]
+enum Op3 {
+    New,
+    Resize,
+    Move,
+    Delete,
+    Hide,
+}
+
+/// cursor(3) while a command waits: a cross (offset, clr, set: 16x16 bits)
+fn crosscursor() -> Vec<u8> {
+    let mut c = vec![];
+    c.extend_from_slice(&(-7i32).to_le_bytes());
+    c.extend_from_slice(&(-7i32).to_le_bytes());
+    let (mut clr, mut set) = ([0u8; 32], [0u8; 32]);
+    for row in 0..16usize {
+        // a cross two pixels thick through 7 and 8, white around it
+        let (s, w): (u16, u16) = if row == 7 || row == 8 {
+            (0x7FFE, 0xFFFF)
+        } else if row >= 1 && row <= 14 {
+            (0x0180, 0x03C0)
+        } else {
+            (0, 0x03C0)
+        };
+        set[2 * row] = (s >> 8) as u8;
+        set[2 * row + 1] = s as u8;
+        clr[2 * row] = (w >> 8) as u8;
+        clr[2 * row + 1] = w as u8;
+    }
+    c.extend_from_slice(&clr);
+    c.extend_from_slice(&set);
+    c
+}
 
 #[derive(Clone, Copy)]
 enum DragKind {
     Move,
     Sweep { left: bool, right: bool, top: bool, bottom: bool },
+    Box(Option<u32>), // a rectangle swept from the press: a new window's, or a window's new frame
 }
 
 /// a window under the mouse: moved, or swept to a new size
@@ -380,6 +422,7 @@ struct Wsys {
     selecting: Option<(u32, usize)>, // button 1 sweeping a selection: window, where it began
     menu: Option<Menu>,
     parentsnarf: bool, // in rio: its /dev/snarf is the snarf buffer
+    op3: Option<Op3>,  // button 3's command waiting for its click
 }
 
 fn qid(k: Kind) -> Qid {
@@ -882,7 +925,8 @@ impl Wsys {
                 w.state = state;
                 let f = w.r.inset(-BORDER);
                 let cur = if focus == Some(n) { "current" } else { "notcurrent" };
-                let s = format!("{:11} {:11} {:11} {:11} {:>11} {:>11} ", f.x0, f.y0, f.x1, f.y1, cur, "visible");
+                let vis = if w.hidden { "hidden" } else { "visible" };
+                let s = format!("{:11} {:11} {:11} {:11} {:>11} {:>11} ", f.x0, f.y0, f.x1, f.y1, cur, vis);
                 if let Some(fs) = self.fids.get_mut(&fid) {
                     fs.seen = state;
                 }
@@ -969,7 +1013,7 @@ impl Wsys {
             label: String::new(), wdir: o.cd.clone().unwrap_or_default(), text: String::new(), partial: vec![],
             events: VecDeque::new(), raw: false, line: String::new(), cons: VecDeque::new(), eof: false,
             kbd: VecDeque::new(), kbdopen: 0, mouseopen: 0, mouse: VecDeque::new(), resized: false,
-            cursor: vec![], state: 1, textwin: text, scroll: 0, sel: (0, 0), rows: vec![],
+            cursor: vec![], state: 1, textwin: text, scroll: 0, sel: (0, 0), rows: vec![], hidden: false,
         });
         self.z.push(n);
         self.setfocus(Some(n));
@@ -1002,7 +1046,7 @@ impl Wsys {
         if self.selecting.map(|s| s.0) == Some(n) {
             self.selecting = None;
         }
-        if self.menu.as_ref().map(|m| m.win) == Some(n) {
+        if self.menu.as_ref().map(|m| m.win) == Some(Some(n)) {
             let m = self.menu.take().unwrap();
             let _ = self.d.free(m.layer);
         }
@@ -1034,7 +1078,10 @@ impl Wsys {
 
     /// the cursor of the focused window (none: the default)
     fn setcursor(&mut self) {
-        let c = self.focus.and_then(|n| self.wins.get(&n)).map(|w| w.cursor.clone()).unwrap_or_default();
+        let mut c = self.focus.and_then(|n| self.wins.get(&n)).map(|w| w.cursor.clone()).unwrap_or_default();
+        if self.op3.is_some() || matches!(self.drag.map(|g| g.kind), Some(DragKind::Box(_))) {
+            c = crosscursor();
+        }
         if let Some(fd) = &self.cursorfd {
             let _ = fd.write(&c);
         }
@@ -1099,7 +1146,15 @@ impl Wsys {
                 }
                 Ok(())
             }
-            "hide" | "unhide" | "scroll" | "noscroll" => Ok(()),
+            "hide" => {
+                self.hide(n, true);
+                Ok(())
+            }
+            "unhide" => {
+                self.hide(n, false);
+                Ok(())
+            }
+            "scroll" | "noscroll" => Ok(()),
             _ => Err(format!("unknown wctl message: {cmd}")),
         }
     }
@@ -1439,15 +1494,17 @@ impl Wsys {
         (self.mx, self.my, self.ms) = (x, y, ms);
         if let Some(m) = &self.menu {
             // a menu while its button is held: let go over an item, it is done
-            let (button, win) = (m.button, m.win);
+            let button = m.button;
             self.menumove(x, y);
             if b & button == 0 {
                 let m = self.menu.take().unwrap();
                 let _ = self.d.free(m.layer);
                 let _ = self.d.flush();
                 if let Some(i) = m.cur {
-                    if self.wins.contains_key(&win) {
-                        self.menu2(win, m.items[i]);
+                    match m.win {
+                        Some(n) if self.wins.contains_key(&n) => self.menu2(n, &m.items[i]),
+                        Some(_) => {}
+                        None => self.menu3(i, &m.hidden),
                     }
                 }
             }
@@ -1473,8 +1530,39 @@ impl Wsys {
             return;
         }
         let pressed = b != 0 && self.buttons == 0;
+        let hit = self.z.iter().rev().copied().find(|n| !self.wins[n].hidden && self.wins[n].r.inset(-BORDER).contains(x, y));
+        if pressed && self.op3.is_some() {
+            // button 3's command takes this press (another button cancels it)
+            let op = self.op3.take().unwrap();
+            self.buttons = b;
+            if b == 4 {
+                self.do3(op, hit, x, y);
+            }
+            self.setcursor();
+            return;
+        }
+        if pressed && b == 4 && self.font.is_some() {
+            // button 3's menu: on the background, or a text window no program has the mouse of
+            let mine = match hit {
+                None => true,
+                Some(n) => {
+                    let w = &self.wins[&n];
+                    w.r.contains(x, y) && w.textwin && w.mouseopen == 0
+                }
+            };
+            if mine {
+                let hidden: Vec<u32> = self.z.iter().copied().filter(|n| self.wins[n].hidden).collect();
+                let mut items: Vec<String> = MENU3.iter().map(|s| s.to_string()).collect();
+                for n in &hidden {
+                    let w = &self.wins[n];
+                    items.push(if w.label.is_empty() { format!("window {n}") } else { w.label.clone() });
+                }
+                self.openmenu(None, 4, items, hidden, x, y);
+                self.buttons = b;
+                return;
+            }
+        }
         if pressed {
-            let hit = self.z.iter().rev().copied().find(|n| self.wins[n].r.inset(-BORDER).contains(x, y));
             if let Some(n) = hit {
                 if self.focus != Some(n) {
                     self.setfocus(Some(n));
@@ -1512,7 +1600,8 @@ impl Wsys {
                         return;
                     }
                     if b == 2 {
-                        self.openmenu(n, 2, MENU2, x, y);
+                        let items = MENU2.iter().map(|s| s.to_string()).collect();
+                        self.openmenu(Some(n), 2, items, vec![], x, y);
                         self.buttons = b;
                         return;
                     }
@@ -1549,8 +1638,10 @@ impl Wsys {
     /// a window moved or swept with the mouse: no events for the client but the
     /// new size at the end of a sweep
     fn dragto(&mut self, mut g: Drag, x: i32, y: i32, b: i32) {
-        if !self.wins.contains_key(&g.win) {
+        if !matches!(g.kind, DragKind::Box(None)) && !self.wins.contains_key(&g.win) {
             self.drag = None;
+            self.outline(None);
+            self.setcursor();
             return;
         }
         let (dx, dy) = (x - g.x0, y - g.y0);
@@ -1585,7 +1676,94 @@ impl Wsys {
                     self.outline(Some(r));
                 }
             }
+            DragKind::Box(target) => {
+                // the frame from the press to the mouse; its content shown as the outline
+                let f = Rect::new(g.x0.min(x), g.y0.min(y), g.x0.max(x), g.y0.max(y));
+                let big = f.dx() >= MINSIZE + 2 * BORDER && f.dy() >= MINSIZE + 2 * BORDER;
+                if b != 0 {
+                    g.cur = f;
+                    self.drag = Some(g);
+                    self.outline(if big { Some(f.inset(BORDER)) } else { None });
+                    return;
+                }
+                self.drag = None;
+                self.outline(None);
+                self.setcursor();
+                if !big {
+                    return; // too small: nothing
+                }
+                match target {
+                    None => {
+                        let o = Opts { r: Some(f), ..Default::default() };
+                        if let Err(e) = self.spawn(o) {
+                            eprintln!("wsys: new: {e}");
+                        }
+                    }
+                    Some(n) => {
+                        let _ = self.setrect(n, f.inset(BORDER));
+                    }
+                }
+            }
         }
+    }
+
+    /// button 3's command item i, or a hidden window to bring back
+    fn menu3(&mut self, i: usize, hidden: &[u32]) {
+        if i >= MENU3.len() {
+            if let Some(&n) = hidden.get(i - MENU3.len()) {
+                if self.wins.contains_key(&n) {
+                    self.hide(n, false);
+                }
+            }
+            return;
+        }
+        self.op3 = Some([Op3::New, Op3::Resize, Op3::Move, Op3::Delete, Op3::Hide][i]);
+        self.setcursor();
+    }
+
+    /// button 3 pressed for a waiting command: New and Resize sweep from here,
+    /// Move drags the window, Delete and Hide take the window under the mouse
+    fn do3(&mut self, op: Op3, hit: Option<u32>, x: i32, y: i32) {
+        let r = Rect::new(x, y, x, y);
+        match (op, hit) {
+            (Op3::New, _) => self.drag = Some(Drag { win: 0, kind: DragKind::Box(None), x0: x, y0: y, orig: r, cur: r }),
+            (Op3::Resize, Some(n)) => {
+                self.raise(n);
+                self.drag = Some(Drag { win: n, kind: DragKind::Box(Some(n)), x0: x, y0: y, orig: r, cur: r });
+            }
+            (Op3::Move, Some(n)) => {
+                self.raise(n);
+                let orig = self.wins[&n].r;
+                self.drag = Some(Drag { win: n, kind: DragKind::Move, x0: x, y0: y, orig, cur: orig });
+            }
+            (Op3::Delete, Some(n)) => self.delwin(n, true),
+            (Op3::Hide, Some(n)) => self.hide(n, true),
+            _ => {}
+        }
+    }
+
+    /// window n off the screen (rio's Hide: past its far corner) or back on it
+    fn hide(&mut self, n: u32, off: bool) {
+        let Some(w) = self.wins.get_mut(&n) else { return };
+        if w.hidden == off {
+            return;
+        }
+        w.hidden = off;
+        let (l, f) = (w.layer, w.r.inset(-BORDER));
+        let at = if off { (self.d.r.x1, self.d.r.y1) } else { (f.x0, f.y0) };
+        if let Err(e) = self.d.origin(l, (f.x0, f.y0), at).and_then(|_| self.d.flush()) {
+            eprintln!("wsys: draw: {e}");
+        }
+        if off {
+            if self.focus == Some(n) {
+                let next = self.z.iter().rev().copied().find(|i| !self.wins[i].hidden);
+                self.setfocus(next);
+            }
+        } else {
+            self.raise(n);
+            self.setfocus(Some(n));
+        }
+        self.changed(n);
     }
 
     /// kbd(3) messages to the focused window: all of them to its kbd file when
@@ -1813,7 +1991,7 @@ impl Wsys {
     /// button 2's menu, its item cur lit
     fn drawmenu(&mut self) {
         let Some(m) = &self.menu else { return };
-        let (l, r, items, cur) = (m.layer, m.r, m.items, m.cur);
+        let (l, r, items, cur) = (m.layer, m.r, m.items.clone(), m.cur);
         let (white, black, hi, border) = (self.white, self.black, self.menuhi, self.cfocus);
         let (font, d) = (self.font.as_mut().unwrap(), &mut self.d);
         let h = font.height;
@@ -1845,7 +2023,7 @@ impl Wsys {
     }
 
     /// button b's menu at x, y for window n: the first item under the mouse
-    fn openmenu(&mut self, n: u32, b: i32, items: &'static [&'static str], x: i32, y: i32) {
+    fn openmenu(&mut self, n: Option<u32>, b: i32, items: Vec<String>, hidden: Vec<u32>, x: i32, y: i32) {
         let Some(font) = self.font.as_mut() else { return };
         let h = font.height;
         let d = &mut self.d;
@@ -1856,7 +2034,7 @@ impl Wsys {
         let (dx, dy) = ((s.x0 - r.x0).max(0) + (s.x1 - r.x1).min(0), (s.y0 - r.y0).max(0) + (s.y1 - r.y1).min(0));
         r = r.add(dx, dy);
         let Ok(layer) = self.d.allocwindow(self.scr, r, 0xFFFF_FFFF) else { return };
-        self.menu = Some(Menu { win: n, button: b, items, r, layer, cur: None });
+        self.menu = Some(Menu { win: n, button: b, items, hidden, r, layer, cur: None });
         self.menumove(x, y);
     }
 
@@ -2054,6 +2232,7 @@ fn main() {
         menuhi: 0,
         selecting: None,
         menu: None,
+        op3: None,
         // rio's snarf, when wsys runs in a window of rio
         parentsnarf: std::fs::metadata("/dev/snarf").is_ok() && std::fs::metadata("/dev/wctl").is_ok(),
     };

@@ -1,0 +1,83 @@
+#!/bin/rc
+# button 3's menu of wsys, run by wsys -x -i, as rio's: New sweeps a window with a
+# shell in it, Move, Resize, Hide and back through the menu, Delete. The menu is
+# opened on the background at 900,400, its first item there, 16 high each.
+# Prints ok/FAIL lines and "menu3: all passed".
+fn fail { echo FAIL $*; exit fail }
+fn wait1 {
+	n=0
+	while(! $* >[2]/dev/null && test $n -lt 100){ sleep 0.1; n=`{echo $n+1 | hoc} }
+	$* >[2]/dev/null
+}
+# mousein keeps the buttons per open file: a press and its release go through one
+fn m { echo A $1 $2 $3; sleep 0.1 }
+fn menu { # item n of button 3's menu
+	my=`{echo 400+16'*'$1 | hoc}
+	{ m 900 400 4; m 900 $my 4; m 900 $my 0 } >/dev/mousein
+	sleep 0.2
+}
+fn sweep { # x0 y0 x1 y1: with button 3
+	sx0=$1; sy0=$2; sx1=$3; sy1=$4
+	{ m $sx0 $sy0 4; m $sx1 $sy0 4; m $sx1 $sy1 4; m $sx1 $sy1 0 } >/dev/mousein
+	sleep 0.3
+}
+fn rect { # window: its frame, as wctl says
+	dd -if /mnt/wsys/$1/wctl -bs 128 -count 1 -quiet 1 | awk '{print $1, $2, $3, $4, $6}'
+}
+fn color { /tests/uipeek $1 | awk '{print $2}' }
+fn away { echo A 1020 760 0 >/dev/mousein; sleep 0.2 }
+
+# New: sweep 100,100 to 500,350, a shell in it
+menu 0
+sweep 100 100 500 350
+wait1 test -d /mnt/wsys/1 || fail New made no window
+r=`{rect 1}
+~ $"r '100 100 500 350 visible' || fail New: $r
+echo ok New: window 1 at $r
+sleep 1
+/tests/uipeek -k 'echo menu3
+'
+wait1 grep -s '^menu3$' /mnt/wsys/1/text || fail no shell in the new window
+echo ok a shell in it
+away
+
+# Move: drag it from 300,200 by 100,100
+menu 2
+sweep 300 200 400 300
+r=`{rect 1}
+~ $"r '200 200 600 450 visible' || fail Move: $r
+echo ok Move: $r
+
+# Resize: sweep from 250,250 to 650,500
+menu 1
+sweep 250 250 650 500
+r=`{rect 1}
+~ $"r '250 250 650 500 visible' || fail Resize: $r
+echo ok Resize: $r
+away
+~ `{color 640,490} ffffff || fail not on the screen after the resize: `{color 640,490}
+
+# Hide: off the screen, the background there; back through the menu's last item
+menu 4
+{ m 400 400 4; m 400 400 0 } >/dev/mousein
+sleep 0.3
+r=`{rect 1}
+~ $r(5) hidden || fail Hide: $r
+away
+~ `{color 400,400} 777777 || fail the window still on the screen: `{color 400,400}
+echo ok Hide: background where it was
+menu 5
+r=`{rect 1}
+~ $"r '250 250 650 500 visible' || fail back: $r
+away
+~ `{color 640,490} ffffff || fail not back on the screen: `{color 640,490}
+echo ok back from the menu: $r
+
+# Delete: the window goes, its shell with it
+menu 3
+{ m 400 400 4; m 400 400 0 } >/dev/mousein
+wait1 eval '! test -d /mnt/wsys/1' || fail Delete: window 1 still there
+away
+~ `{color 400,400} 777777 || fail Delete: the window still on the screen
+echo ok Delete
+echo menu3: all passed
