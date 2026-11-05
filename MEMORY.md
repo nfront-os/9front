@@ -1143,6 +1143,6 @@ Vorher war eine Bibliothek **ein** gcc-Aufruf mit allen Dateien (gcc übersetzt 
 
 ## 2026-11-05 (Zweig gpu): Rebase auf gcc mit pmc; arm64-Build, static
 
-- **Rebase** (Sicherung `backup/gpu-vor-pmc-rebase`): nur `tests/run.sh` (Kategorien `pmc gpu`). amd64 826 Dateien ok, boot 19/19, pmc 37/37.
+- **Rebase** (Stand davor `76a91f073`): nur `tests/run.sh` (Kategorien `pmc gpu`). amd64 826 Dateien ok, boot 19/19, pmc 37/37.
 - **arm64 baute nicht** (schon vor dem Rebase): `aux/gpu/intel` stand im arm64-Manifest, `clflush`/`mfence` gibt es dort nicht. Intel-GPUs gibt es nur auf PCs: `aux/gpu/mkfile` wie 9fronts `cmd/mkfile` (`PCONLY=intel`, `` DIRS=virtio `{~ $objtype (386 amd64) && echo $PCONLY} ``); `gencmds.py` wertet dieses rc-Idiom jetzt aus (`objtypeif`, auch in DIRS; vorher fiel ein DIRS mit `` ` `` auf alle Unterordner zurück).
 - **static**: der Cast `(Physseg*)(s+1)` in devsegment.c ist geprüft (Platz, den `newseg` hinter einem physischen Segment lässt) → `embedded-casts.allow`; die Prüfung auf nicht eingecheckte `.json` übergeht `.opencode/`. Reste aus dem Harvey-Layout vom 20.9. (`sys/src/libc/aarch64`, `sys/src/libc/riscv`, `sys/src/amd64/cflags.json`, nie in git) nach `../9front-strays-2026-11-05` verschoben.
