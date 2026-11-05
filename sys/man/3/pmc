@@ -30,7 +30,9 @@ for time-sharing and application cores (see
 alike.
 Reading
 .B core
-gives the number of the processor the reader runs on, in decimal.
+gives the number of the processor the reader runs on, in decimal
+(on an application core: that core, though its system calls run on a
+time-sharing core).
 .PP
 Reading a
 .BI ctr NN

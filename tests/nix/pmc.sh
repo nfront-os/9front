@@ -1,6 +1,6 @@
 #!/bin/bash
 # nix pmc: NIX performance counters (port/devpmc.c, pmc(3), pmc(2)): boot
-# with *nixac=1 on 4 processors (cpu3 the AC), run tests/nix/pmctest.c on
+# with *nixac=1 on 4 processors (cpu3 the AC), run tests/nix/nixpmctest.c on
 # TC 1 (wired) and on the AC, each also reading and setting a counter of
 # another core, and two processes reading the AC's counter at once.
 # x86 guests get KVM's virtual counters (boot-cli.sh PMU=1), then a
@@ -22,11 +22,11 @@ boot(){
 	PMU=1 SMP=$NCPU KARGS="${KARGS:+$KARGS }*ncpu=$NCPU *nixac=1" "$ROOT/scripts/guest/boot-cli.sh" \
 		"ls '#ε' | wc -l" \
 		"cat '#ε/ctrdesc' | wc -l" \
-		"/tests/pmctest tc $ac -s" \
-		"execac -c $ac /tests/pmctest ac 0" \
-		"d='#ε/core000$ac'; echo reset > \$d/ctr00ctl; echo user > \$d/ctr00ctl; echo set cycles > \$d/ctr00ctl; echo enable > \$d/ctr00ctl; execac -c $ac /tests/pmctest stress $ac 1000 > /tmp/s1 & /tests/pmctest stress $ac 1000 > /tmp/s2; wait; echo stress \`{cat /tmp/s1 /tmp/s2}" \
-		"execac -c $ac /tests/pmctest quiet 0" \
-		"/tests/pmctest stress $ac 1500 > /tmp/s3 & sleep 0.2; execac -c $ac /tests/pmctest quiet 1000; wait; cat /tmp/s3" \
+		"/tests/nixpmctest tc $ac -s" \
+		"execac -c $ac /tests/nixpmctest ac 0" \
+		"d='#ε/core000$ac'; echo reset > \$d/ctr00ctl; echo user > \$d/ctr00ctl; echo set cycles > \$d/ctr00ctl; echo enable > \$d/ctr00ctl; execac -c $ac /tests/nixpmctest stress $ac 1000 > /tmp/s1 & /tests/nixpmctest stress $ac 1000 > /tmp/s2; wait; echo stress \`{cat /tmp/s1 /tmp/s2}" \
+		"execac -c $ac /tests/nixpmctest quiet 0" \
+		"/tests/nixpmctest stress $ac 1500 > /tmp/s3 & sleep 0.2; execac -c $ac /tests/nixpmctest quiet 1000; wait; cat /tmp/s3" \
 		> "$TMPD/console" 2>&1
 	tr -d '\r' < "$TMPD/console" > "$TMPD/log"
 }
@@ -53,8 +53,8 @@ else
 	done
 	check "two processes read the AC's counter at once" bash -c "grep -qE '^stress ok stress [0-9]+ ok stress [0-9]+\$' '$L'"
 	# the AC serves the requests without a round trip of its process
-	base=$(out "execac -c $ac /tests/pmctest quiet 0" | awk '{print $2}')
-	sect=$(grep -A3 -F "execac -c $ac /tests/pmctest quiet 1000" "$L")
+	base=$(out "execac -c $ac /tests/nixpmctest quiet 0" | awk '{print $2}')
+	sect=$(grep -A3 -F "execac -c $ac /tests/nixpmctest quiet 1000" "$L")
 	rt=$(grep -m1 '^roundtrips' <<< "$sect" | awk '{print $2}')
 	nreq=$(grep -m1 '^ok stress' <<< "$sect" | awk '{print $3}')
 	echo "       roundtrips $base idle, $rt during $nreq requests"
@@ -68,7 +68,7 @@ if [ $objtype = amd64 ]; then
 		SMP=$NCPU KARGS="${KARGS:+$KARGS }*ncpu=$NCPU *nixac=1" "$ROOT/scripts/guest/boot-cli.sh" \
 			"ls '#ε/core0000' | wc -l" \
 			"cat '#ε/ctrdesc' | wc -l" \
-			"/tests/pmctest tc $ac" \
+			"/tests/nixpmctest tc $ac" \
 			> "$TMPD/console0" 2>&1
 		tr -d '\r' < "$TMPD/console0" > "$TMPD/log0"
 	}

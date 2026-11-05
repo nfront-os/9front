@@ -32,7 +32,7 @@
 			"nixtest.c",
 			"nixbench.c",
 			"ziotest.c",
-			"pmctest.c",
+			"nixpmctest.c",
 			"semtest.c",
 			"bigtest.c"
 		]

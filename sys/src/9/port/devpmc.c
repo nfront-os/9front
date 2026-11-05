@@ -361,7 +361,8 @@ pmcread(Chan *c, void *a, long n, vlong offset)
 		pmcdescstr(s, PmcCtlRdStr);
 		break;
 	case Qself:
-		snprint(s, PmcCtlRdStr, "%d", m->machno);
+		/* NIX: a process on an AC makes its system calls on a TC */
+		snprint(s, PmcCtlRdStr, "%d", up->ac != nil? up->ac->machno: m->machno);
 		break;
 	default:
 		error(Egreg);

@@ -81,7 +81,7 @@ existing image.
 | net | ethernet interfaces listed (not configured), ping and TCP over loopback |
 | stress | all processors a minute on the same floating point sum (one result), a ramfs copy compared, temperatures (`#P/cputemp`), the clock idle and under load (`hwfreq`: APERF/MPERF) |
 | gcc | the native gcc: `gccmk` builds a program from a 9front mkfile, it runs (SKIP without `/$objtype/gnu`) |
-| nix | NIX (with `*nixac`): tests/nix's programs on a TC and the last AC (nixtest, hoc, rc, a killed loop), a TC made an AC at run time and back, semtest, ziotest, pmctest |
+| nix | NIX (with `*nixac`): tests/nix's programs on a TC and the last AC (nixtest, hoc, rc, a killed loop), a TC made an AC at run time and back, semtest, ziotest, nixpmctest |
 | big | segments of 2 MB pages: bigtest on a TC and the AC |
 | bench | nixbench on a TC and the AC, 4K and 2 MB pages, idle and with the TCs busy (numbers in the log) |
 | hangme | hangs (dry run only) |

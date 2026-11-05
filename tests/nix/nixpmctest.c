@@ -1,10 +1,10 @@
 /*
  * NIX performance counters, pmc(2), pmc(3) (port/devpmc.c), run by
  * tests/nix/pmc.sh:
- *	pmctest tc other	on a TC (wires itself to core 1)
- *	execac -c n /tests/pmctest ac other	on an AC
- *	pmctest stress core ms	reads of core's ctr00 for ms, non-decreasing
- *	execac -c n /tests/pmctest quiet ms	spin ms on the AC without system
+ *	nixpmctest tc other	on a TC (wires itself to core 1)
+ *	execac -c n /tests/nixpmctest ac other	on an AC
+ *	nixpmctest stress core ms	reads of core's ctr00 for ms, non-decreasing
+ *	execac -c n /tests/nixpmctest quiet ms	spin ms on the AC without system
  *		calls: the round trips to the TC (/proc/n/core) meanwhile
  * other: another core whose counter 1 is set and read; with -s it
  * spins (an idle AC), so its kernel-mode count must grow.
