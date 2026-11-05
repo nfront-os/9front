@@ -38,7 +38,7 @@ file system of the guest: in `PATH` or `~/go/bin/ufs`).
 | `boot` | boot to the console rc (cpu service), run commands | a build, QEMU | ~1 min |
 | `pmc` | performance counters (`#ε`, pmc(3), pmc(2)): `tests/pmc/pmctest.c` wired to cpu1 on 4 CPUs (counts over a loop, user/os filters, RDPMC or `PMEVCNTR0_EL0` in user mode, another core's counter, two readers at once, `#ε/core`); x86 boots with `PMU=1` (KVM's virtual counters), then without (no counters); arm64 (TCG) has PMUv3 (`cycles` only) | a build, QEMU | ~2 min |
 | `hw` | the hardware test stick (`tests/hw/README.md`) in QEMU: boots from a USB stick on xHCI, runs its configurations with resets, logs `HANG` after a power-off, logs read back from its 9fat | a build, boot loaders, QEMU | minutes |
-| `gpu` | user-space GPU driver PoC on QEMU's virtio-gpu (`-vga none`): `#G`, vga type `gpu`, `aux/virtiogpu`, `/dev/gpu/0`, mode switch, drawing checked in the screen dump (amd64 only) | a build, QEMU | ~1 min |
+| `gpu` | user-space GPU driver PoC on QEMU's virtio-gpu (`-vga none`): `#G`, vga type `gpu`, `aux/virtiogpu`, `/dev/gpu/0`, mode switch, drawing checked in the screen dump; with a render node also venus (Vulkan, GL through zink, a buffer between two processes: vkshare) and vktri in a window of wsys through GPU buffers (amd64 only) | a build, QEMU | ~1 min, ~15 with venus |
 | `gui` | terminal boot: VESA via aux/realemu, rio, typing into a window | a build, QEMU | ~1 min |
 | `ui` | wsys, the window system of ../9front-ui, on VESA without a GPU driver: wsystest (C) makes windows, fills their segments, checks the screen, focus, stacking, click, key, resize, move and sweep by the mouse; then the same in a rio window (amd64) | a build, ../9front-rust's stage-1 rustc, QEMU | ~1 min |
 | `disk` | install image with hjfs (`scripts/guest/mkdisk.sh`, amd64 only, as 9front's dist mkfile), booted on its own | a build, boot loaders | minutes |
@@ -73,5 +73,11 @@ Options (environment):
   `screen.ppm` and `final.ppm` end up in `workdir`).
 - A guest that hangs: `scripts/debug/qemu-ctl.py` and
   `scripts/debug/thread-dump.py` (see `scripts/README.md`).
+- The host's AMD card in a guest (VFIO; bound to vfio-pci, `sudo scripts/guest/vfio-gpu.sh bind PID`):
+  `scripts/guest/vfio-test.sh 'rc /tests/amdall.rc'` with `WAITFOR=TESTEND`; the scripts are
+  `tests/gpu/amd*.rc`: `amdall` (contexts, scanout, ioctls, RADV, vkcube), `amdgl` (zink),
+  `amdshare` (an object between two contexts: export, import), `amdvkshare` (RADV's
+  dma-buf and a timeline semaphore between two processes), `amdwsys` (vktri in a window
+  of wsys, its frames as GPU buffers).
 - Real hardware: write the CD to a USB stick (`dd if=9front.amd64.iso of=/dev/sdX bs=1M`)
   or boot it as a CD.
