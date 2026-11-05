@@ -25,8 +25,8 @@ manifests(){
 			cp "$TMPD/$(echo $f | tr / _)" "$f"	# leave the tree as it was
 		fi
 	done
-	# a generator that made a file not checked in
-	[ -z "$(git status --porcelain -- '*.json' | grep '^??')" ] || { git status --porcelain -- '*.json' | grep '^??'; bad=1; }
+	# a generator that made a file not checked in (.opencode/: other tooling)
+	[ -z "$(git status --porcelain -- '*.json' ':!.opencode' | grep '^??')" ] || { git status --porcelain -- '*.json' ':!.opencode' | grep '^??'; bad=1; }
 	return $bad
 }
 check "manifests match scripts/gen/gen{libc,libs,cmds,build,kernel}.py (amd64, 386, arm64)" manifests

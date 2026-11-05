@@ -1,8 +1,8 @@
 </$objtype/mkfile
 
-DIRS=\
-	intel\
-	virtio\
+# intel: Intel GPUs exist on PCs only (and the driver flushes with clflush)
+PCONLY=intel
+DIRS=virtio `{~ $objtype (386 amd64) && echo $PCONLY}
 
 all:V:	$DIRS
 

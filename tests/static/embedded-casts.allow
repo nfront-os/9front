@@ -7,6 +7,9 @@ sys/src/9/pc/etherrt2860.c: (Block*) -- Block not first in: Caa, Cert, Key, Txt
 sys/src/9/pc/ethervirtio.c: (Block*) -- Block not first in: Caa, Cert, Key, Txt
 sys/src/9/pc/etherwpi.c: (Block*) -- Block not first in: Caa, Cert, Key, Txt
 sys/src/9/port/devmouse.c: (Mousestate*) -- Mousestate not first in: Mouseinfo
+# devsegment.c: (Physseg*)(s+1) is the room newseg leaves behind a physical
+# segment for a Physseg of its own (segment.c), not a member conversion.
+sys/src/9/port/devsegment.c: (Physseg*) -- Physseg not first in: Ramdisk
 sys/src/9/port/etheriwl.c: (Block*) -- Block not first in: Caa, Cert, Key, Txt
 sys/src/9/port/ethervirtio10.c: (Block*) -- Block not first in: Caa, Cert, Key, Txt
 sys/src/9/port/netif.c: (Netif*) -- Netif not first in: Ether
