@@ -1074,6 +1074,10 @@ Quelle: Geoff Collyers `dist.9k-rv.tgz` (9p.io/sources/contrib/geoff/riscv, Stan
 - **Rebase** von riscv (21 Commits) auf gcc b14c1477a (front f5df6bc0a): gcc hatte 61 Commits mehr (APE mit compat und musl, Manifeste pro Arch, Go, Teststick, Patches). Konflikte: MEMORY (beide Seiten, riscv-Teile jetzt 57–62), boot-cli.sh (gccs `SMP`, `BOOTKERNEL` als u-boot-Abbild nur für arm64, `9qemu.u`-Altersprüfung nur arm64; riscvs u-boot-Weg mit `scr`/`uimg`/`uname`), sysexecelf.c (gccs `ELFMACHINE`-Form, die riscv selbst eingeführt hatte), stage-dist.sh (Gos Ausnahme beim Strippen mit riscvs `$STRIP`), tests/boot (4 CPUs überall, pf ohne `-smp`), tests/static (alle vier Arches, auch `genkernel.py riscv64`).
 - **musl für riscv64** (APEs musl-Teil, auf gcc nur amd64/386/arm64): `scripts/gen/musl/riscv64.list` wie arm64 (dieselben Funktionen; musls riscv64-Datei, wo es eine gibt: fenv.S, fabsf, fma, fmaf, fmax, fmaxf, fminf, sqrtf, copysign, copysignf; sonst die generische statt aarch64s), `arch/riscv64` und diese Dateien unverändert aus musl-1.2.5.tar.gz; `genmusl.py` mit riscv64 (ABI-Flags aus riscv64/cflags.json), `musl-localize.sh`/`libp9.sh` mit `riscv64-linux-gnu-`. gcc-Bau riscv64: 822 Dateien ok.
 
+## 2026-11-05 (Teil 65): riscv auf gcc mit pmc rebased
+
+- **Rebase** (Sicherung `backup/riscv-vor-pmc-rebase`) auf gcc mit pmc(3) (Teil 57): Konflikt nur in MEMORY (riscv-Teile jetzt 58–64); `libc.riscv64.json` mit confpmc.c, rdpmc.c; `tests/pmc` läuft nur auf amd64 und arm64. gcc-Bau riscv64 822 Dateien ok; static 14/14, build 6/6, boot 12/12, guest 128/128.
+
 ## Patch-Kandidaten für 9front
 
 Gesammelt und auf Englisch dokumentiert in `patch-upstream/` (README.md, 22 Patches im
