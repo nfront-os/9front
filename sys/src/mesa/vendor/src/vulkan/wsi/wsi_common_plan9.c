@@ -579,6 +579,9 @@ wsi_plan9_surface_create_swapchain(VkIcdSurfaceBase *icd_surface,
       chain->base.image_info.select_blit_dst_memory_type = wsi_plan9_select_scanout_memory_type;
       chain->base.image_info.create_mem = wsi_plan9_create_scanout_mem;
    }
+   /* the images as without wsys, if the driver cannot make them exportable */
+   VkResult (*plain_mem)(const struct wsi_swapchain *, const struct wsi_image_info *,
+                         struct wsi_image *) = chain->base.image_info.create_mem;
    if (wsys >= 0)
       chain->base.image_info.create_mem = wsi_plan9_create_scanout_mem;	/* exportable, mapped */
 
@@ -607,6 +610,18 @@ wsi_plan9_surface_create_swapchain(VkIcdSurfaceBase *icd_surface,
    for (; image < chain->base.image_count; image++) {
       result = wsi_create_image(&chain->base, &chain->base.image_info,
                                 &chain->images[image].base);
+      if (result != VK_SUCCESS && chain->wsys >= 0) {
+         /* not exportable here (a driver without dma-bufs): the copy */
+         if (chain->stats)
+            fprintf(stderr, "wsi plan9: no exportable images (%d), copying\n", result);
+         for (uint32_t i = 0; i < image; i++)
+            wsi_destroy_image(&chain->base, &chain->images[i].base);
+         wsys_off(chain);
+         chain->base.image_info.create_mem = plain_mem;
+         image = 0;
+         result = wsi_create_image(&chain->base, &chain->base.image_info,
+                                   &chain->images[image].base);
+      }
       if (result != VK_SUCCESS)
          goto fail_destroy_images;
       if (chain->images[image].base.cpu_map == NULL) {
