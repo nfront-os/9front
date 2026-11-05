@@ -2,10 +2,13 @@
  * SPDX-License-Identifier: MIT
  *
  * wsystest: a client of wsys(4) in plain Plan 9 C, run by wsys -x -i: two
- * windows through /mnt/wsys/clone, their pixels written into the segments
- * ctl names, presented, and read back from the screen through draw(3);
- * focus and stacking by a click (/dev/mousein), a key (/dev/kbdin), a
- * resize (new segment), a window gone when its clone fid is closed.
+ * windows through /mnt/wsys/clone, their pixels in segments of the client's
+ * own (in the range ctl gives each window), announced with buffer, shown with
+ * present and read back from the screen through draw(3): a swap chain of two
+ * buffers released with b events, focus and stacking by a click
+ * (/dev/mousein), a key (/dev/kbdin), a resize that keeps the picture until a
+ * new buffer comes, part of a buffer presented, a buffer outside the range
+ * refused, a window gone when its clone fid is closed, no segment left in #g.
  * Prints ok/FAIL lines and "wsystest: all passed".
  */
 #include <u.h>
@@ -21,18 +24,26 @@ enum {
 	Yellow = 0xffff00,
 };
 
+enum {
+	Nbuf = 2,
+	Bufstep = 0x10000000,	/* buffer i at base + i*Bufstep in the window's range */
+};
+
+typedef struct Buf Buf;
+struct Buf {
+	int	w, h, stride;
+	u32int	*px;
+};
+
 typedef struct Win Win;
 struct Win {
 	int	id;
 	int	ctl;		/* the clone fid: closed, the window goes */
 	int	ev;
 	Rectangle r;
-	int	w, h, stride;
-	char	seg[64];
-	uvlong	va;
-	int	gen;
+	uvlong	base, size;	/* where its buffers go */
 	int	focus;
-	u32int	*px;
+	Buf	buf[Nbuf];
 	char	evbuf[4096];	/* event lines read, not yet taken */
 	char	*evp, *eve;
 };
@@ -40,6 +51,9 @@ struct Win {
 static Display *d;
 static Win *wins[8];
 static int nwins;
+
+static void ctl(Win*, char*, ...);
+static char *event(Win*, int);
 
 static void
 fail(char *fmt, ...)
@@ -66,39 +80,82 @@ fail(char *fmt, ...)
 static void
 readctl(Win *w)
 {
-	char buf[256], *f[12];
+	char buf[256], *f[10];
 	int n;
 
 	if((n = pread(w->ctl, buf, sizeof buf - 1, 0)) <= 0)
 		fail("read ctl: %r");
 	buf[n] = 0;
-	if(tokenize(buf, f, nelem(f)) != 12)
+	if(tokenize(buf, f, nelem(f)) != 10)
 		fail("ctl: %s", buf);
 	w->id = atoi(f[0]);
 	w->r = Rect(atoi(f[1]), atoi(f[2]), atoi(f[3]), atoi(f[4]));
-	w->w = atoi(f[5]);
-	w->h = atoi(f[6]);
-	w->stride = atoi(f[7]);
-	snprint(w->seg, sizeof w->seg, "%s", f[8]);
-	w->va = strtoull(f[9], nil, 0);
-	w->gen = atoi(f[10]);
-	w->focus = atoi(f[11]);
+	w->base = strtoull(f[7], nil, 0);
+	w->size = strtoull(f[8], nil, 0);
+	w->focus = atoi(f[9]);
 }
 
-/* the window's current segment: wsys gives the name and the address */
-static void
-attach(Win *w)
+static char*
+segname(Win *w, int i)
 {
-	void *p;
+	static char name[64];
+	static int gen;
 
-	if(w->px != nil)
-		segdetach(w->px);
-	p = segattach(0, w->seg, nil, w->stride*w->h);
-	if(p == (void*)-1)
-		fail("segattach %s: %r", w->seg);
-	if((uvlong)p != w->va)
-		fail("segment %s at %#p, ctl says %#llux", w->seg, p, w->va);
-	w->px = p;
+	snprint(name, sizeof name, "wsystest.%d.%d.%d.%d", getpid(), w->id, i, ++gen);
+	return name;
+}
+
+/*
+ * buffer i of w x h at va: a segment of ours, announced to wsys; its #g
+ * entry goes at once (the segment lives while wsys or we have it attached)
+ */
+static int
+mkbuf(Win *w, int i, int bw, int bh, uvlong va, int check)
+{
+	char *name, path[128], msg[128];
+	Buf *b;
+	void *p;
+	int fd, len;
+
+	b = &w->buf[i];
+	if(b->px != nil){
+		ctl(w, "unbuffer %d", i);	/* wsys first: the address is taken in it too */
+		segdetach(b->px);
+		b->px = nil;
+	}
+	name = segname(w, i);
+	len = bw*bh*4;
+	snprint(path, sizeof path, "#g/%s", name);
+	if((fd = create(path, OREAD, DMDIR|0600)) < 0)
+		fail("create %s: %r", path);
+	close(fd);
+	snprint(path, sizeof path, "#g/%s/ctl", name);
+	if((fd = open(path, OWRITE)) < 0 || fprint(fd, "va %#llux %#ux", va, len) < 0)
+		fail("%s: %r", path);
+	close(fd);
+	if((p = segattach(0, name, nil, len)) == (void*)-1)
+		fail("segattach %s: %r", name);
+	snprint(msg, sizeof msg, "buffer %d %s %d %d %d", i, name, bw, bh, bw*4);
+	if(write(w->ctl, msg, strlen(msg)) != strlen(msg)){
+		char err[ERRMAX];
+
+		rerrstr(err, sizeof err);	/* wsys' answer, kept through the cleanup */
+		snprint(path, sizeof path, "#g/%s", name);
+		remove(path);
+		segdetach(p);
+		werrstr("%s", err);
+		if(check)
+			fail("%s: %r", msg);
+		return -1;
+	}
+	snprint(path, sizeof path, "#g/%s", name);
+	if(remove(path) < 0)
+		fail("remove %s: %r", path);
+	b->w = bw;
+	b->h = bh;
+	b->stride = bw*4;
+	b->px = p;
+	return 0;
 }
 
 static void
@@ -134,13 +191,29 @@ newwin(void)
 }
 
 static void
-fill(Win *w, Rectangle r, u32int rgb)
+fill(Buf *b, Rectangle r, u32int rgb)
 {
 	int x, y;
 
 	for(y = r.min.y; y < r.max.y; y++)
 		for(x = r.min.x; x < r.max.x; x++)
-			w->px[y*(w->stride/4) + x] = rgb;
+			b->px[y*(b->stride/4) + x] = rgb;
+}
+
+/* present buffer i (all of it, or r) and wait for its release */
+static void
+present(Win *w, int i, Rectangle *r)
+{
+	char want[16], *l;
+
+	if(r == nil)
+		ctl(w, "present %d", i);
+	else
+		ctl(w, "present %d %d %d %d %d", i, r->min.x, r->min.y, r->max.x, r->max.y);
+	snprint(want, sizeof want, "b %d", i);
+	l = event(w, 'b');
+	if(strcmp(l, want) != 0)
+		fail("window %d: %s after present %d", w->id, l, i);
 }
 
 /* the next event line of w that starts with c (others are skipped) */
@@ -243,45 +316,81 @@ onnote(void*, char *msg)
 	return strcmp(msg, "alarm") == 0;
 }
 
+static int
+leftover(void)
+{
+	Dir *d;
+	int fd, n, i, left;
+
+	if((fd = open("#g", OREAD)) < 0)
+		fail("open #g: %r");
+	n = dirreadall(fd, &d);
+	close(fd);
+	left = 0;
+	for(i = 0; i < n; i++)
+		if(strncmp(d[i].name, "wsystest.", 9) == 0){
+			print("left in #g: %s\n", d[i].name);
+			left++;
+		}
+	free(d);
+	return left;
+}
+
 void
 main(void)
 {
-	Win *a, *b;
+	Win *a, *b, *c;
 	char *l, *f[6];
-	Point c;
+	Rectangle r;
 	int fd;
 
 	atnotify(onnote, 1);
 	if((d = initdisplay(nil, nil, nil)) == nil)
 		fail("initdisplay: %r");
 
-	/* window a: 320x240, left half red, right half green */
+	/* window a: 320x240; buffer 0 left half red, right half green */
 	a = newwin();
-	print("ok window %d: %R, %dx%d, segment %s at %#llux\n", a->id, a->r, a->w, a->h, a->seg, a->va);
+	print("ok window %d: %R, range %#llux %#llux\n", a->id, a->r, a->base, a->size);
 	if(!a->focus)
 		fail("a new window has the focus");
 	ctl(a, "rect 100 100 420 340");
 	l = event(a, 'r');
-	if(tokenize(l, f, nelem(f)) != 4 || atoi(f[1]) != 320 || atoi(f[2]) != 240)
+	if(tokenize(l, f, nelem(f)) != 3 || atoi(f[1]) != 320 || atoi(f[2]) != 240)
 		fail("resize event: %s", l);
 	readctl(a);
-	attach(a);
-	fill(a, Rect(0, 0, 160, 240), Red);
-	fill(a, Rect(160, 0, 320, 240), Green);
-	ctl(a, "present");
+	mkbuf(a, 0, 320, 240, a->base, 1);
+	fill(&a->buf[0], Rect(0, 0, 160, 240), Red);
+	fill(&a->buf[0], Rect(160, 0, 320, 240), Green);
+	present(a, 0, nil);
+	print("ok a: buffer 0 presented, released\n");
 	want(Pt(180, 220), Red, "a, left");
 	want(Pt(340, 220), Green, "a, right");
 	want(Pt(98, 200), Focused, "a's border, focused");
 	want(Pt(60, 60), Bg, "background");
 
+	/* a swap chain: buffer 1 blue on top, then buffer 0 again */
+	mkbuf(a, 1, 320, 240, a->base + Bufstep, 1);
+	fill(&a->buf[1], Rect(0, 0, 320, 240), Blue);
+	present(a, 1, nil);
+	want(Pt(180, 220), Blue, "a, buffer 1");
+	present(a, 0, nil);
+	want(Pt(180, 220), Red, "a, buffer 0 again");
+
+	/* a buffer outside the window's range is refused */
+	if(mkbuf(a, 1, 16, 16, a->base + a->size, 0) == 0)
+		fail("a buffer outside the range was taken");
+	print("ok a buffer outside the window's range: %r\n");
+
 	/* window b over a's right part: blue; it takes the focus */
 	b = newwin();
+	if(b->base == a->base)
+		fail("a and b share a range");
 	ctl(b, "rect 300 200 500 400");
 	event(b, 'r');
 	readctl(b);
-	attach(b);
-	fill(b, Rect(0, 0, b->w, b->h), Blue);
-	ctl(b, "present");
+	mkbuf(b, 0, 200, 200, b->base, 1);
+	fill(&b->buf[0], Rect(0, 0, 200, 200), Blue);
+	present(b, 0, nil);
 	want(Pt(400, 300), Blue, "b over a");
 	want(Pt(340, 150), Green, "a beside b");
 	l = event(a, 'f');
@@ -312,31 +421,40 @@ main(void)
 		fail("a's key: %s", l);
 	print("ok a: %s\n", l);
 
-	/* a resized: a new segment (the old one detached), yellow */
+	/* a smaller: it shows what it showed until a buffer of the new size comes */
 	ctl(a, "rect 80 80 280 200");
 	l = event(a, 'r');
 	print("ok a: %s\n", l);
 	readctl(a);
-	if(a->w != 200 || a->h != 120 || a->gen != 2)
-		fail("a after the resize: %dx%d generation %d", a->w, a->h, a->gen);
-	attach(a);
-	fill(a, Rect(0, 0, a->w, a->h), Yellow);
-	ctl(a, "present");
-	want(Pt(180, 140), Yellow, "a resized");
+	if(Dx(a->r) != 200 || Dy(a->r) != 120)
+		fail("a after the resize: %R", a->r);
+	want(Pt(180, 140), Red, "a resized, the old picture");
 	want(Pt(400, 300), Blue, "b where a was");
+	mkbuf(a, 0, 200, 120, a->base, 1);
+	fill(&a->buf[0], Rect(0, 0, 200, 120), Yellow);
+	present(a, 0, nil);
+	want(Pt(180, 140), Yellow, "a's new buffer");
 
-	/* part of a window: a's right half red again */
-	fill(a, Rect(100, 0, 200, 120), Red);
-	ctl(a, "present 100 0 200 120");
+	/* part of a buffer: its right half red */
+	fill(&a->buf[0], Rect(100, 0, 200, 120), Red);
+	r = Rect(100, 0, 200, 120);
+	present(a, 0, &r);
 	want(Pt(230, 140), Red, "a's right half presented");
 	want(Pt(120, 140), Yellow, "a's left half as it was");
 
-	/* b gone with its clone fid */
+	/* b gone with its clone fid; its range is given again */
 	close(b->ctl);
 	want(Pt(400, 300), Bg, "background where b was");
-	c = Pt(120, 140);
-	want(c, Yellow, "a stays");
+	want(Pt(120, 140), Yellow, "a stays");
+	c = newwin();
+	if(c->base != b->base)
+		fail("a new window got range %#llux, b's %#llux was free", c->base, b->base);
+	print("ok window %d: b's range %#llux again\n", c->id, c->base);
+	close(c->ctl);
 
+	if(leftover())
+		fail("segments left in #g");
+	print("ok no segment left in #g\n");
 	print("wsystest: all passed\n");
 	exits(nil);
 }

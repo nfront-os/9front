@@ -4,19 +4,25 @@
 // with the processor backend. A 9P file server (wsys(4)):
 //
 //	/mnt/wsys/clone		open: a new window; the fid is then its ctl
-//	/mnt/wsys/N/ctl		read: id x0 y0 x1 y1 w h stride seg va generation focus
-//				write: rect x0 y0 x1 y1 | present [x0 y0 x1 y1] |
-//				top | label text | delete
+//	/mnt/wsys/N/ctl		read: id x0 y0 x1 y1 w h base size focus
+//				write: rect x0 y0 x1 y1 | buffer n seg w h stride |
+//				unbuffer n | present n [x0 y0 x1 y1] | top |
+//				label text | delete
 //	/mnt/wsys/N/event	read (blocks): lines m x y buttons msec | k hex-rune |
-//				r w h generation | f 0|1
+//				r w h | f 0|1 | b n
 //
-// A window's pixels (XRGB32, stride w*4) are in a global segment of
-// segment(3) that wsys makes at an address of its choosing; the client
-// attaches it by the name ctl gives (same address). present copies the
-// rectangle into the window's image in draw(3) and composes the screen there:
-// background, windows bottom to top with a border, through devdraw on the
-// processor. Input: /dev/mouse and /dev/cons (raw) to the focused window;
-// a button pressed on another window gives it the focus and raises it.
+// The pixels are the client's: global segments of segment(3) it makes, at
+// addresses inside the window's range (base, size: wsys gives each window one
+// of its own, so that its segments cannot collide in wsys, where segment(3)
+// attaches them at the same address). buffer n announces one (x8r8g8b8, w x h,
+// stride bytes a line); present n copies a rectangle of it into the window's
+// image in draw(3), composes the screen there and answers with the event
+// b n: buffer n is free again (a swap chain of the client's). A new size
+// keeps the window's image until the client presents a buffer of it.
+// Composition: background, windows bottom to top with a border, through
+// devdraw on the processor. Input: /dev/mouse and /dev/cons (raw) to the
+// focused window; a button pressed on another window gives it the focus and
+// raises it.
 //
 // usage: wsys [-s srvname] [-i cmd] [-x]
 //	-s	post as /srv/srvname (default wsys.$user)
@@ -39,8 +45,13 @@ const BORDER: i32 = 4;
 const BG: u32 = 0x777777;
 const FOCUSED: u32 = 0x335588;
 const UNFOCUSED: u32 = 0xAAAAAA;
-const SEGBASE: usize = 0x5000_0000_0000; // window N's segment at SEGBASE + N*SEGSTEP
-const SEGSTEP: usize = 0x1_0000_0000;
+// the windows' ranges for their clients' segments: slot i is SEGBASE + i*SEGSIZE
+// (slots are given again when free: 0x2000 of them, 32 TB)
+const SEGBASE: usize = 0x5000_0000_0000;
+const SEGSIZE: usize = 0x1_0000_0000;
+const NSLOT: usize = 0x2000;
+const MAXBUF: u32 = 8;
+const WHITE: u32 = 0xFFFFFF;
 const MAXEVENTS: usize = 512;
 
 enum Ev {
@@ -67,13 +78,18 @@ struct FidState {
     owns: Option<u32>, // the clone fid that made the window: clunked, the window goes
 }
 
-struct Win {
-    r: Rect, // content, in screen coordinates
+struct Buf {
+    seg: Seg,
     w: i32,
     h: i32,
-    seg: Option<Seg>,
-    img: u32,
-    generation: u32,
+    stride: usize,
+}
+
+struct Win {
+    r: Rect, // content, in screen coordinates
+    slot: usize,
+    bufs: HashMap<u32, Buf>,
+    img: u32, // what the window shows, its size
     label: String,
     events: VecDeque<String>,
 }
@@ -100,7 +116,8 @@ struct Wsys {
     cfocus: u32,
     cother: u32,
     buttons: i32,
-    pid: u32,
+    white: u32,
+    slots: Vec<bool>, // in use
 }
 
 fn qid(k: Kind) -> Qid {
@@ -358,14 +375,10 @@ impl Wsys {
 
     fn ctltext(&self, n: u32) -> String {
         let w = &self.wins[&n];
-        let (name, va) = match &w.seg {
-            Some(s) => (s.name.as_str(), s.va),
-            None => ("none", 0),
-        };
         format!(
-            "{} {} {} {} {} {} {} {} {} {:#x} {} {}\n",
-            n, w.r.x0, w.r.y0, w.r.x1, w.r.y1, w.w, w.h, w.w * 4, name, va, w.generation,
-            (self.focus == Some(n)) as i32
+            "{} {} {} {} {} {} {} {:#x} {:#x} {}\n",
+            n, w.r.x0, w.r.y0, w.r.x1, w.r.y1, w.r.dx(), w.r.dy(),
+            SEGBASE + w.slot * SEGSIZE, SEGSIZE, (self.focus == Some(n)) as i32
         )
     }
 
@@ -396,19 +409,14 @@ impl Wsys {
         }
     }
 
-    /// a segment and a draw image of w x h for window n
-    fn buffers(&mut self, n: u32, w: i32, h: i32, generation: u32) -> Result<(Seg, u32), String> {
-        let len = (w as usize * h as usize * 4).max(4096);
-        if len > SEGSTEP {
-            return Err("window too big".into());
-        }
-        let name = format!("wsys.{}.{}.{}", self.pid, n, generation);
-        let seg = Seg::new(&name, SEGBASE + n as usize * SEGSTEP, len).map_err(|e| format!("segment {name}: {e}"))?;
+    /// a white image of w x h for a window
+    fn image(&mut self, w: i32, h: i32) -> Result<u32, String> {
         let img = self.d.alloc(Rect::new(0, 0, w, h), XRGB32, false, 0xFFFF_FFFF).map_err(|e| e.to_string())?;
-        Ok((seg, img))
+        Ok(img)
     }
 
     fn newwin(&mut self) -> Result<u32, String> {
+        let slot = self.slots.iter().skip(1).position(|&u| !u).map(|i| i + 1).ok_or("too many windows")?;
         self.nextwin += 1;
         let n = self.nextwin;
         let s = self.d.r;
@@ -417,11 +425,9 @@ impl Wsys {
         if r.empty() {
             return Err("screen too small".into());
         }
-        let (seg, img) = self.buffers(n, r.dx(), r.dy(), 0)?;
-        // white, as the segment is zero
-        self.wins.insert(n, Win {
-            r, w: r.dx(), h: r.dy(), seg: Some(seg), img, generation: 0, label: String::new(), events: VecDeque::new(),
-        });
+        let img = self.image(r.dx(), r.dy())?;
+        self.slots[slot] = true;
+        self.wins.insert(n, Win { r, slot, bufs: HashMap::new(), img, label: String::new(), events: VecDeque::new() });
         self.z.push(n);
         self.setfocus(Some(n));
         self.redraw(r.inset(-BORDER));
@@ -431,6 +437,7 @@ impl Wsys {
     fn delwin(&mut self, n: u32) {
         let Some(w) = self.wins.remove(&n) else { return };
         let _ = self.d.free(w.img);
+        self.slots[w.slot] = false; // its buffers go with w
         self.z.retain(|&i| i != n);
         for p in self.pending.iter().filter(|p| p.win == n) {
             self.send(ninep::error(p.tag, "window deleted"));
@@ -476,20 +483,46 @@ impl Wsys {
         let nums: Vec<i32> = line.split_whitespace().skip(1).filter_map(|s| s.parse().ok()).collect();
         match cmd {
             "" => Ok(()),
-            "present" => {
-                let w = &self.wins[&n];
-                let full = Rect::new(0, 0, w.w, w.h);
-                let r = if nums.len() == 4 { Rect::new(nums[0], nums[1], nums[2], nums[3]).clip(&full) } else { full };
-                if r.empty() {
-                    return Ok(());
+            "buffer" => {
+                let a: Vec<&str> = line.split_whitespace().collect();
+                let num = |i: usize| a.get(i).and_then(|x| x.parse::<i64>().ok());
+                let (Some(b), Some(name), Some(bw), Some(bh), Some(stride)) = (num(1), a.get(2), num(3), num(4), num(5)) else {
+                    return Err("usage: buffer n seg w h stride".into());
+                };
+                if !(0..MAXBUF as i64).contains(&b) || bw < 1 || bh < 1 || bw > 16384 || bh > 16384 || stride < bw * 4 {
+                    return Err("bad buffer".into());
                 }
+                let seg = Seg::attach(name).map_err(|e| format!("buffer {b}: {e}"))?;
+                let w = self.wins.get_mut(&n).unwrap();
+                let base = SEGBASE + w.slot * SEGSIZE;
+                if seg.va < base || seg.va + seg.len > base + SEGSIZE {
+                    return Err(format!("buffer {b}: segment {name} at {:#x} is outside the window's range", seg.va));
+                }
+                if (stride * (bh - 1) + bw * 4) as usize > seg.len {
+                    return Err(format!("buffer {b}: segment {name} too small"));
+                }
+                w.bufs.insert(b as u32, Buf { seg, w: bw as i32, h: bh as i32, stride: stride as usize });
+                Ok(())
+            }
+            "unbuffer" => {
+                let b = *nums.first().ok_or("usage: unbuffer n")? as u32;
+                self.wins.get_mut(&n).unwrap().bufs.remove(&b).ok_or("no such buffer")?;
+                Ok(())
+            }
+            "present" => {
+                let b = *nums.first().ok_or("usage: present n [x0 y0 x1 y1]")? as u32;
+                let w = &self.wins[&n];
+                let buf = w.bufs.get(&b).ok_or("no such buffer")?;
+                // what of the buffer the window shows: its top left corner
+                let full = Rect::new(0, 0, buf.w.min(w.r.dx()), buf.h.min(w.r.dy()));
+                let r = if nums.len() == 5 { Rect::new(nums[1], nums[2], nums[3], nums[4]).clip(&full) } else { full };
                 let (img, origin) = (w.img, (w.r.x0, w.r.y0));
-                let seg = w.seg.as_ref().ok_or("no buffer")?;
-                let stride = w.w as usize * 4;
-                // the segment outlives the borrow: wsys keeps it attached
-                let px = unsafe { std::slice::from_raw_parts(seg.bytes().as_ptr(), seg.len) };
-                self.d.load(img, &r, px, stride).map_err(|e| e.to_string())?;
-                self.redraw(r.add(origin.0, origin.1));
+                if !r.empty() {
+                    self.d.load(img, &r, buf.seg.bytes(), buf.stride).map_err(|e| e.to_string())?;
+                    self.redraw(r.add(origin.0, origin.1));
+                }
+                // copied: the client may write it again
+                self.event(n, format!("b {b}"));
                 Ok(())
             }
             "rect" => {
@@ -497,22 +530,21 @@ impl Wsys {
                     return Err("usage: rect x0 y0 x1 y1".into());
                 }
                 let r = Rect::new(nums[0], nums[1], nums[2], nums[3]);
-                if r.dx() < 1 || r.dy() < 1 {
+                if r.dx() < 1 || r.dy() < 1 || r.dx() > 16384 || r.dy() > 16384 {
                     return Err("bad rectangle".into());
                 }
                 let old = self.wins[&n].r;
                 if r.dx() != old.dx() || r.dy() != old.dy() {
-                    let generation = self.wins[&n].generation + 1;
-                    // the old segment goes first: the new one takes its address
-                    // (the client detaches the old one at the r event)
-                    self.wins.get_mut(&n).unwrap().seg = None;
-                    let (seg, img) = self.buffers(n, r.dx(), r.dy(), generation)?;
-                    let w = self.wins.get_mut(&n).unwrap();
-                    let oldimg = std::mem::replace(&mut w.img, img);
-                    w.seg = Some(seg);
-                    (w.w, w.h, w.generation) = (r.dx(), r.dy(), generation);
-                    let _ = self.d.free(oldimg);
-                    self.event(n, format!("r {} {} {}", r.dx(), r.dy(), generation));
+                    // the new image keeps what the window showed, white beyond it
+                    let img = self.image(r.dx(), r.dy())?;
+                    let oldimg = self.wins[&n].img;
+                    let all = Rect::new(0, 0, r.dx(), r.dy());
+                    let (white, d) = (self.white, &mut self.d);
+                    let res = d.draw(img, &all, white, 0, 0).and_then(|_| d.draw(img, &all, oldimg, 0, 0));
+                    let _ = d.free(oldimg);
+                    res.map_err(|e| e.to_string())?;
+                    self.wins.get_mut(&n).unwrap().img = img;
+                    self.event(n, format!("r {} {}", r.dx(), r.dy()));
                 }
                 self.wins.get_mut(&n).unwrap().r = r;
                 self.redraw(old.inset(-BORDER).union(&r.inset(-BORDER)));
@@ -723,13 +755,14 @@ fn main() {
         cfocus: 0,
         cother: 0,
         buttons: 0,
-        pid: std::process::id(),
+        white: 0,
+        slots: vec![false; NSLOT],
     };
-    let colors = (|| -> std::io::Result<(u32, u32, u32)> {
-        Ok((ws.d.color(BG)?, ws.d.color(FOCUSED)?, ws.d.color(UNFOCUSED)?))
+    let colors = (|| -> std::io::Result<(u32, u32, u32, u32)> {
+        Ok((ws.d.color(BG)?, ws.d.color(FOCUSED)?, ws.d.color(UNFOCUSED)?, ws.d.color(WHITE)?))
     })();
     match colors {
-        Ok((a, b, c)) => (ws.bg, ws.cfocus, ws.cother) = (a, b, c),
+        Ok((a, b, c, w)) => (ws.bg, ws.cfocus, ws.cother, ws.white) = (a, b, c, w),
         Err(e) => {
             eprintln!("wsys: colours: {e}");
             std::process::exit(1);
@@ -772,7 +805,7 @@ fn main() {
         }
     }
     let _ = p9::remove(&srvpath);
-    // the windows' segments go with them
+    // the windows let go of their clients' segments
     let ids: Vec<u32> = ws.wins.keys().copied().collect();
     for n in ids {
         ws.delwin(n);

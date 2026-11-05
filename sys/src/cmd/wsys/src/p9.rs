@@ -10,7 +10,6 @@ use std::io;
 pub const OREAD: c_int = 0;
 pub const OWRITE: c_int = 1;
 pub const ORDWR: c_int = 2;
-pub const DMDIR: c_uint = 0x8000_0000;
 
 unsafe extern "C" {
     #[link_name = "__p9_create"]
@@ -107,31 +106,39 @@ pub fn remove(name: &str) -> io::Result<()> {
     if unsafe { p9remove(cs(name).as_ptr()) } < 0 { Err(err()) } else { Ok(()) }
 }
 
-/// A global segment of segment(3) (#g), made by wsys at an address it picks,
-/// attached here; the client attaches it by name and gets the same address.
+/// A client's global segment of segment(3) (#g), attached here by its name. It
+/// lies at the address its maker gave it (segment(3): the same in every process);
+/// wsys checks that it is inside the range it gave the window.
 pub struct Seg {
-    pub name: String,
     pub va: usize,
     pub len: usize,
 }
 
 impl Seg {
-    pub fn new(name: &str, va: usize, len: usize) -> io::Result<Seg> {
-        let dir = format!("#g/{name}");
-        Fd::create(&dir, OREAD, DMDIR | 0o600)?;
-        let ctl = Fd::open(&format!("{dir}/ctl"), OWRITE).inspect_err(|_| {
-            let _ = remove(&dir);
-        })?;
-        let s = Seg { name: name.to_string(), va, len };
-        if let Err(e) = ctl.write1(format!("va {va:#x} {len:#x}").as_bytes()) {
-            let _ = remove(&dir);
-            return Err(e);
+    pub fn attach(name: &str) -> io::Result<Seg> {
+        if name.is_empty() || name.contains('/') {
+            return Err(io::Error::other("bad segment name"));
+        }
+        // "va 0xaddr 0xlen", as #g/name/ctl gives it
+        let ctl = Fd::open(&format!("#g/{name}/ctl"), OREAD)?;
+        let mut b = [0u8; 128];
+        let n = ctl.read(&mut b)?;
+        let s = String::from_utf8_lossy(&b[..n]);
+        let f: Vec<&str> = s.split_whitespace().collect();
+        let num = |x: &str| usize::from_str_radix(x.trim_start_matches("0x"), 16).ok();
+        let (Some(va), Some(len)) = (f.get(1).and_then(|x| num(x)), f.get(2).and_then(|x| num(x))) else {
+            return Err(io::Error::other(format!("segment {name}: ctl {s:?}")));
+        };
+        if f.len() > 3 {
+            return Err(io::Error::other(format!("segment {name}: not a plain shared segment")));
         }
         let p = unsafe { p9segattach(0, cs(name).as_ptr(), std::ptr::null_mut(), len as c_uint) };
-        if p as isize == -1 || p as usize != va {
-            let e = err();
-            let _ = remove(&dir);
-            return Err(e);
+        if p as isize == -1 {
+            return Err(err());
+        }
+        let s = Seg { va: p as usize, len };
+        if s.va != va {
+            return Err(io::Error::other(format!("segment {name} at {:#x}, its ctl says {va:#x}", s.va)));
         }
         Ok(s)
     }
@@ -143,8 +150,7 @@ impl Seg {
 
 impl Drop for Seg {
     fn drop(&mut self) {
-        // the segment lives on while a client has it attached
+        // the client's: wsys only lets go of it (gone when nobody has it attached)
         unsafe { p9segdetach(self.va as *mut c_void) };
-        let _ = remove(&format!("#g/{}", self.name));
     }
 }

@@ -48,52 +48,79 @@ makes it exit when
 .I cmd
 does.
 .PP
-A window's pixels are not sent through the files: they are in a global
-segment of
+A window's pixels are not sent through the files: they are in global
+segments of
 .IR segment (3)
-that
+that the client makes and owns, its buffers.
+As
 .I wsys
-makes at an address it picks, one per window size; the client attaches it by
-name with
-.IR segattach (2)
-and gets the same address.
-The layout is
+attaches a segment at the address it has everywhere, each window gets a
+range of addresses of its own
+.RI ( base ,
+.IR size );
+the client puts its buffers there, and they cannot collide in
+.IR wsys .
+A buffer's layout is
 .B x8r8g8b8
 (32 bits a pixel, little-endian: blue, green, red, unused),
 a line every
 .I stride
 bytes.
+Once announced, the client may remove the segment's entry in
+.BR #g :
+the segment lives while either side has it attached.
 .TP
 .B clone
 Opening it makes a window; the open file is then the window's
 .BR ctl ,
 and the window lives until it is closed.
+Ranges of closed windows are given again.
 .TP
 .IB n /ctl
 Reading gives one line of fields:
 .I n
 .I x0 y0 x1 y1
 (the window's content on the screen)
-.I w h stride
-.I segment
-.I address
-.I generation
+.I w h
+.I base size
+(the range for its buffers)
 .I focus
 (1 if it has the focus).
 Messages written:
 .RS
 .TP
 .BI rect " x0 y0 x1 y1
-moves the window; a new size makes a new segment
-.RI ( generation
-counts them); the client detaches the old one at the
-.B r
-event and attaches the one
-.B ctl
-names.
+moves the window; with a new size it keeps showing its picture (white
+beyond it) until a buffer is presented.
 .TP
-.BR present " [\fIx0 y0 x1 y1\fP]"
-the pixels of the rectangle (in the window's coordinates; all of them without one) go to the screen.
+.BI buffer " b seg w h stride
+announces buffer
+.I b
+(0 to 7): segment
+.I seg
+of
+.I w
+by
+.I h
+pixels.
+.I Wsys
+attaches it; it must lie in the window's range.
+To reuse an address, unbuffer first.
+.TP
+.BI unbuffer " b
+.I wsys
+detaches buffer
+.IR b .
+.TP
+.BR present " IbP [Ix0 y0 x1 y1P]"
+the pixels of the rectangle (in the buffer's coordinates, which are the
+window's; all of the buffer that fits without one) go to the screen.
+When
+.I wsys
+is done with the buffer it sends the event
+.BI b " bR:"
+the client may write it again.
+With two or more buffers the client draws the next picture meanwhile.
 .TP
 .B top
 raises the window and gives it the focus.
@@ -109,10 +136,14 @@ Reading blocks until there are events; each is a line:
 (the mouse, in the window's coordinates, while it is over the window or a button is held),
 .BI k " rune
 (a key, the rune in hexadecimal),
-.BI r " w h generation
+.BI r " w h
 (a new size),
 .BI f " focus
-(1: the window got the focus, 0: lost it).
+(1: the window got the focus, 0: lost it),
+.BI b " b
+(buffer
+.I b
+released).
 .PP
 .I Wsys
 composes on the processor through
@@ -140,9 +171,14 @@ A prototype: no window management by mouse (moving, sweeping), no labels
 shown, no Vulkan backend yet, no
 .IR draw (3)
 for old programs in its windows.
-The segments belong to the user
+.I Wsys
+must be allowed to attach the clients' segments: the same user, or the
+host owner.
+With the processor backend a buffer is released as soon as it is
+copied.
+When
 .I wsys
-runs as; clients must be that user (or the host owner).
+exits the windows are gone; clients cannot announce theirs again yet.
 Keys are read from
 .BR /dev/cons :
 another reader of it (an idle shell on the same console) takes some.
