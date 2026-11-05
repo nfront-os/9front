@@ -310,6 +310,24 @@ click(Point p)
 	close(fd);
 }
 
+/* button b held from p to q, then up */
+static void
+drag(Point p, Point q, int b)
+{
+	int fd;
+
+	if((fd = open("/dev/mousein", OWRITE)) < 0)
+		fail("open mousein: %r");
+	fprint(fd, "A %d %d %d", p.x, p.y, b);
+	sleep(50);
+	fprint(fd, "A %d %d %d", (p.x+q.x)/2, (p.y+q.y)/2, b);
+	sleep(50);
+	fprint(fd, "A %d %d %d", q.x, q.y, b);
+	sleep(50);
+	fprint(fd, "A %d %d 0", q.x, q.y);
+	close(fd);
+}
+
 static int
 onnote(void*, char *msg)
 {
@@ -451,6 +469,26 @@ main(void)
 		fail("a new window got range %#llux, b's %#llux was free", c->base, b->base);
 	print("ok window %d: b's range %#llux again\n", c->id, c->base);
 	close(c->ctl);
+
+	/* button 1 on a's border moves it, button 3 on its corner sweeps it */
+	drag(Pt(180, 78), Pt(280, 128), 1);
+	sleep(200);
+	readctl(a);
+	if(!eqrect(a->r, Rect(180, 130, 380, 250)))
+		fail("a moved to %R, want [180 130] [380 250]", a->r);
+	print("ok a moved by the mouse: %R\n", a->r);
+	want(Pt(220, 190), Yellow, "a where it was moved");
+	want(Pt(120, 140), Bg, "background where a was");
+	drag(Pt(381, 251), Pt(481, 301), 4);
+	l = event(a, 'r');
+	if(strcmp(l, "r 300 170") != 0)
+		fail("a swept: %s", l);
+	readctl(a);
+	if(!eqrect(a->r, Rect(180, 130, 480, 300)))
+		fail("a swept to %R, want [180 130] [480 300]", a->r);
+	print("ok a swept by the mouse: %R\n", a->r);
+	want(Pt(220, 190), Yellow, "a swept keeps its picture");
+	want(Pt(450, 280), 0xffffff, "a swept: white beyond it");
 
 	if(leftover())
 		fail("segments left in #g");

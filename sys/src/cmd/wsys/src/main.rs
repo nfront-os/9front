@@ -22,7 +22,8 @@
 // Composition: background, windows bottom to top with a border, through
 // devdraw on the processor. Input: /dev/mouse and /dev/cons (raw) to the
 // focused window; a button pressed on another window gives it the focus and
-// raises it.
+// raises it. On a window's border button 1 moves it, button 3 sweeps it to a
+// new size (an outline until the button comes up).
 //
 // usage: wsys [-s srvname] [-i cmd] [-x]
 //	-s	post as /srv/srvname (default wsys.$user)
@@ -52,6 +53,8 @@ const SEGSIZE: usize = 0x1_0000_0000;
 const NSLOT: usize = 0x2000;
 const MAXBUF: u32 = 8;
 const WHITE: u32 = 0xFFFFFF;
+const MINSIZE: i32 = 16; // a window swept smaller stays this big
+const CORNER: i32 = 20; // on the border this near a corner grabs both its edges
 const MAXEVENTS: usize = 512;
 
 enum Ev {
@@ -94,6 +97,23 @@ struct Win {
     events: VecDeque<String>,
 }
 
+#[derive(Clone, Copy)]
+enum DragKind {
+    Move,
+    Sweep { left: bool, right: bool, top: bool, bottom: bool },
+}
+
+/// a window under the mouse: moved, or swept to a new size
+#[derive(Clone, Copy)]
+struct Drag {
+    win: u32,
+    kind: DragKind,
+    x0: i32, // where the button went down
+    y0: i32,
+    orig: Rect,
+    cur: Rect,
+}
+
 struct Pending {
     tag: u16,
     fid: u32,
@@ -118,6 +138,7 @@ struct Wsys {
     buttons: i32,
     white: u32,
     slots: Vec<bool>, // in use
+    drag: Option<Drag>,
 }
 
 fn qid(k: Kind) -> Qid {
@@ -529,26 +550,7 @@ impl Wsys {
                 if nums.len() != 4 {
                     return Err("usage: rect x0 y0 x1 y1".into());
                 }
-                let r = Rect::new(nums[0], nums[1], nums[2], nums[3]);
-                if r.dx() < 1 || r.dy() < 1 || r.dx() > 16384 || r.dy() > 16384 {
-                    return Err("bad rectangle".into());
-                }
-                let old = self.wins[&n].r;
-                if r.dx() != old.dx() || r.dy() != old.dy() {
-                    // the new image keeps what the window showed, white beyond it
-                    let img = self.image(r.dx(), r.dy())?;
-                    let oldimg = self.wins[&n].img;
-                    let all = Rect::new(0, 0, r.dx(), r.dy());
-                    let (white, d) = (self.white, &mut self.d);
-                    let res = d.draw(img, &all, white, 0, 0).and_then(|_| d.draw(img, &all, oldimg, 0, 0));
-                    let _ = d.free(oldimg);
-                    res.map_err(|e| e.to_string())?;
-                    self.wins.get_mut(&n).unwrap().img = img;
-                    self.event(n, format!("r {} {}", r.dx(), r.dy()));
-                }
-                self.wins.get_mut(&n).unwrap().r = r;
-                self.redraw(old.inset(-BORDER).union(&r.inset(-BORDER)));
-                Ok(())
+                self.setrect(n, Rect::new(nums[0], nums[1], nums[2], nums[3]))
             }
             "top" => {
                 self.raise(n);
@@ -564,6 +566,53 @@ impl Wsys {
                 Ok(())
             }
             _ => Err(format!("unknown ctl message: {cmd}")),
+        }
+    }
+
+    /// move window n to r; a new size gives it a new image that keeps what it
+    /// showed (white beyond it) and the client an r event
+    fn setrect(&mut self, n: u32, r: Rect) -> Result<(), String> {
+        if r.dx() < 1 || r.dy() < 1 || r.dx() > 16384 || r.dy() > 16384 {
+            return Err("bad rectangle".into());
+        }
+        let old = self.wins[&n].r;
+        if r == old {
+            return Ok(());
+        }
+        if r.dx() != old.dx() || r.dy() != old.dy() {
+            let img = self.image(r.dx(), r.dy())?;
+            let oldimg = self.wins[&n].img;
+            let all = Rect::new(0, 0, r.dx(), r.dy());
+            let (white, d) = (self.white, &mut self.d);
+            let res = d.draw(img, &all, white, 0, 0).and_then(|_| d.draw(img, &all, oldimg, 0, 0));
+            let _ = d.free(oldimg);
+            res.map_err(|e| e.to_string())?;
+            self.wins.get_mut(&n).unwrap().img = img;
+            self.event(n, format!("r {} {}", r.dx(), r.dy()));
+        }
+        self.wins.get_mut(&n).unwrap().r = r;
+        self.redraw(old.inset(-BORDER).union(&r.inset(-BORDER)));
+        Ok(())
+    }
+
+    /// the frame of r drawn on the screen (a sweep in progress)
+    fn outline(&mut self, r: Rect) {
+        let f = r.inset(-BORDER);
+        let (scr, col) = (self.d.screen, self.cfocus);
+        let sides = [
+            Rect::new(f.x0, f.y0, f.x1, r.y0),
+            Rect::new(f.x0, r.y1, f.x1, f.y1),
+            Rect::new(f.x0, r.y0, r.x0, r.y1),
+            Rect::new(r.x1, r.y0, f.x1, r.y1),
+        ];
+        let res = (|| -> std::io::Result<()> {
+            for side in sides {
+                self.d.draw(scr, &side.clip(&self.d.r), col, 0, 0)?;
+            }
+            self.d.flush()
+        })();
+        if let Err(e) = res {
+            eprintln!("wsys: draw: {e}");
         }
     }
 
@@ -592,6 +641,11 @@ impl Wsys {
     }
 
     fn mouse(&mut self, x: i32, y: i32, b: i32, ms: u32) {
+        if let Some(g) = self.drag {
+            self.dragto(g, x, y, b);
+            self.buttons = b;
+            return;
+        }
         let pressed = b != 0 && self.buttons == 0;
         if pressed {
             let hit = self.z.iter().rev().copied().find(|n| self.wins[n].r.inset(-BORDER).contains(x, y));
@@ -600,6 +654,26 @@ impl Wsys {
                     self.setfocus(Some(n));
                 }
                 self.raise(n);
+                // on the border: button 1 moves the window, button 3 sweeps it
+                let r = self.wins[&n].r;
+                if !r.contains(x, y) && (b == 1 || b == 4) {
+                    let kind = if b == 1 {
+                        DragKind::Move
+                    } else {
+                        let near = |v: i32, a: i32| (v - a).abs() < CORNER;
+                        let (top, bottom) = (y < r.y0, y >= r.y1);
+                        let (left, right) = (x < r.x0, x >= r.x1);
+                        DragKind::Sweep {
+                            left: left || ((top || bottom) && near(x, r.x0)),
+                            right: right || ((top || bottom) && near(x, r.x1)),
+                            top: top || ((left || right) && near(y, r.y0)),
+                            bottom: bottom || ((left || right) && near(y, r.y1)),
+                        }
+                    };
+                    self.drag = Some(Drag { win: n, kind, x0: x, y0: y, orig: r, cur: r });
+                    self.buttons = b;
+                    return;
+                }
             }
         }
         let held = b != 0 || self.buttons != 0;
@@ -608,6 +682,49 @@ impl Wsys {
             let r = self.wins[&n].r;
             if held || r.contains(x, y) {
                 self.event(n, format!("m {} {} {} {}", x - r.x0, y - r.y0, b, ms));
+            }
+        }
+    }
+
+    /// a window moved or swept with the mouse: no events for the client but the
+    /// new size at the end of a sweep
+    fn dragto(&mut self, mut g: Drag, x: i32, y: i32, b: i32) {
+        if !self.wins.contains_key(&g.win) {
+            self.drag = None;
+            return;
+        }
+        let (dx, dy) = (x - g.x0, y - g.y0);
+        match g.kind {
+            DragKind::Move => {
+                let _ = self.setrect(g.win, g.orig.add(dx, dy));
+                if b == 0 {
+                    self.drag = None;
+                }
+            }
+            DragKind::Sweep { left, right, top, bottom } => {
+                let o = g.orig;
+                let mut r = Rect::new(
+                    if left { o.x0 + dx } else { o.x0 },
+                    if top { o.y0 + dy } else { o.y0 },
+                    if right { o.x1 + dx } else { o.x1 },
+                    if bottom { o.y1 + dy } else { o.y1 },
+                );
+                if r.dx() < MINSIZE {
+                    if left { r.x0 = r.x1 - MINSIZE } else { r.x1 = r.x0 + MINSIZE }
+                }
+                if r.dy() < MINSIZE {
+                    if top { r.y0 = r.y1 - MINSIZE } else { r.y1 = r.y0 + MINSIZE }
+                }
+                let prev = g.cur;
+                g.cur = r;
+                self.redraw(prev.inset(-BORDER));
+                if b == 0 {
+                    self.drag = None;
+                    let _ = self.setrect(g.win, r);
+                } else {
+                    self.drag = Some(g);
+                    self.outline(r);
+                }
             }
         }
     }
@@ -757,6 +874,7 @@ fn main() {
         buttons: 0,
         white: 0,
         slots: vec![false; NSLOT],
+        drag: None,
     };
     let colors = (|| -> std::io::Result<(u32, u32, u32, u32)> {
         Ok((ws.d.color(BG)?, ws.d.color(FOCUSED)?, ws.d.color(UNFOCUSED)?, ws.d.color(WHITE)?))
