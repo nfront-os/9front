@@ -153,7 +153,10 @@ cd:V:	/tmp/9front.386.iso.gz
 		-p <{cat $proto $bootproto} \
 		-s /n/src9 -v 'Plan 9 Front ('^$objtype^')' $target
 	if(test -r /n/src9/386/9boothyb){
-		dd -if /dev/zero -bs 2048 -count 1024 >> $target
+		# the ESP is the last whole cylinder ($-1 $); keep two
+		# cylinders of any fdisk geometry (at most 255*63*512 bytes)
+		# past the ISO, so it does not begin inside it
+		dd -if /dev/zero -bs 2048 -count 8192 >> $target
 		disk/partfs -m /n/partfs $target
 		disk=/n/partfs/sdXX
 		disk/mbr -m /n/src9/386/mbr $disk/data
