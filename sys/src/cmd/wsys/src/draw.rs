@@ -402,38 +402,40 @@ impl Display {
 
     /// 'y': rectangle r of image id from pixels laid out with stride (XRGB32), in
     /// messages of at most MAXMSG bytes: bands of rows, or pieces of a row
-    pub fn load(&mut self, id: u32, r: &Rect, px: &[u8], stride: usize) -> io::Result<()> {
+    /// the pixels for r's top left corner are at (sx, sy) of px. Each message
+    /// is made in the buffer of messages itself (no copy of its own: a frame is
+    /// some hundred of them)
+    pub fn load_at(&mut self, id: u32, r: &Rect, px: &[u8], stride: usize, sx: i32, sy: i32) -> io::Result<()> {
+        let (dx, dy) = (sx - r.x0, sy - r.y0); // from r's coordinates to px's
         let room = MAXMSG - 1 - 4 - 16;
         let bpl = r.dx() as usize * 4;
         let mut y = r.y0;
         while y < r.y1 {
-            if bpl <= room {
+            // a band of rows, or a piece of a row too long for a message
+            let (band, rows) = if bpl <= room {
                 let rows = ((room / bpl) as i32).min(r.y1 - y);
-                let band = Rect::new(r.x0, y, r.x1, y + rows);
-                let mut m = vec![b'y'];
-                m.extend_from_slice(&id.to_le_bytes());
-                Self::rect(&mut m, &band);
-                for yy in y..y + rows {
-                    let o = yy as usize * stride + r.x0 as usize * 4;
-                    m.extend_from_slice(&px[o..o + bpl]);
-                }
-                self.cmd(&m)?;
-                y += rows;
+                (Rect::new(r.x0, y, r.x1, y + rows), rows)
             } else {
-                let w = (room / 4) as i32;
-                let mut x = r.x0;
-                while x < r.x1 {
-                    let x1 = (x + w).min(r.x1);
-                    let mut m = vec![b'y'];
-                    m.extend_from_slice(&id.to_le_bytes());
-                    Self::rect(&mut m, &Rect::new(x, y, x1, y + 1));
-                    let o = y as usize * stride + x as usize * 4;
-                    m.extend_from_slice(&px[o..o + (x1 - x) as usize * 4]);
-                    self.cmd(&m)?;
-                    x = x1;
+                (Rect::new(r.x0, y, r.x1, y + 1), 1)
+            };
+            let mut x = band.x0;
+            while x < band.x1 {
+                let x1 = if bpl <= room { band.x1 } else { (x + (room / 4) as i32).min(band.x1) };
+                let n = (x1 - x) as usize * 4;
+                if self.buf.len() + 1 + 4 + 16 + n * rows as usize > MAXMSG {
+                    self.flushbuf()?;
                 }
-                y += 1;
+                self.buf.push(b'y');
+                self.buf.extend_from_slice(&id.to_le_bytes());
+                let piece = Rect::new(x, band.y0, x1, band.y1);
+                Self::rect(&mut self.buf, &piece);
+                for yy in band.y0..band.y1 {
+                    let o = (yy + dy) as usize * stride + (x + dx) as usize * 4;
+                    self.buf.extend_from_slice(&px[o..o + n]);
+                }
+                x = x1;
             }
+            y += rows;
         }
         Ok(())
     }

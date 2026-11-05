@@ -21,6 +21,7 @@
 # display directly (gpu(4) scanout); the host's display is read
 # through VNC. A third boot: vkcube in a rio window, resized, quit with
 # q (riovk.rc).
+# A fourth: vktri in a window of wsys, its frames as GPU buffers (wsysvk.rc).
 # usage: bash tests/gpu/run.sh   (amd64 only; needs a build)
 . "$(dirname "$0")/../lib.sh"
 HERE=$(cd "$(dirname "$0")" && pwd)
@@ -210,6 +211,7 @@ if [ -r /dev/dri/renderD128 ] && [ -w /dev/dri/renderD128 ] &&
 			"test ! -x /tests/vkdraw || WSI_PLAN9_COPY=1 /tests/vkdraw 3" \
 			"test ! -x /tests/vktri || WSI_PLAN9_COPY=1 /tests/vktri 2" \
 			"test ! -x /tests/rsvk || WSI_PLAN9_COPY=1 /tests/rsvk 2" \
+			"test ! -x /tests/vkshare || {rm -f /tmp/vks /tmp/vks.done; /tests/vkshare export /tmp/vks & /tests/vkshare import /tmp/vks; wait}" \
 			"test ! -x /tests/vkspeed || /tests/vkspeed" \
 			"test ! -x /tests/vulkaninfo || /tests/vulkaninfo --summary" \
 			"test ! -x /tests/vulkaninfo || /tests/vulkaninfo | grep -c 'Surface type *= VK_PLAN9_surface'" \
@@ -243,6 +245,8 @@ if [ -r /dev/dri/renderD128 ] && [ -w /dev/dri/renderD128 ] &&
 		else
 			skip "rsvk" "not built (no stage-1 rustc of ../9front-rust)"
 		fi
+		check "vkshare (a GPU buffer exported by one process, imported by another): all passed" \
+			bash -c "grep -q '^vkshare export: all passed' '$TMPD/log3d' && grep -q '^vkshare import: all passed' '$TMPD/log3d'"
 		check "vkspeed: cached host memory read at 1 GB/s or more" \
 			bash -c "grep '^vkspeed: cached streaming read' '$TMPD/log3d' | awk '{ exit !(\$5 >= 1000) }'"
 		check "vulkaninfo --summary: the venus device" grep -q 'deviceName *= Virtio-GPU Venus' "$TMPD/log3d"
@@ -261,6 +265,31 @@ if [ -r /dev/dri/renderD128 ] && [ -w /dev/dri/renderD128 ] &&
 		check "glwin (EGL's plan9 platform, the frames on the display): all passed" grep -q '^glwin: all passed' "$TMPD/log3d"
 	fi
 	check "contexts gone after the test" bash -c "! sed -n '/gpuctxtest: /,\$p' '$TMPD/log3d' | grep -q '^ctx '"
+
+	# wsys (../9front-ui stage 2): vktri in a window of wsys hands its
+	# frames over as GPU buffers (gpu(4) export, wsys' gpubuffer; Mesa's
+	# plan9 WSI), then again by copy for comparison (wsysvk.rc)
+	if [ -x "$HERE/root/tests/vktri" ] && [ -x "$ROOT/$objtype/bin/wsys" ]; then
+		cp "$ROOT/$objtype/bin/wsys" "$HERE/root/tests/wsys"
+		cp "$HERE/wsysvk.rc" "$HERE/root/tests/wsysvk"
+		cp "$HERE/wsysvktri.rc" "$HERE/root/tests/wsysvktri"
+		chmod +x "$HERE/root/tests/wsysvk" "$HERE/root/tests/wsysvktri"
+		bootwsys(){
+			CMDWAIT=120 CPU=host MEM=1024 UFS_EXTRA="$HERE/root" \
+			QEMU_EXTRA="-vga none -display egl-headless -device virtio-gpu-gl-pci,blob=true,venus=true,hostmem=256M -object memory-backend-memfd,id=mem1,size=1024M,share=on -machine memory-backend=mem1" \
+			"$ROOT/scripts/guest/boot-cli.sh" 'aux/virtiogpu' "bind -a '#i' /dev" \
+				'/tests/wsys -x -i /tests/wsysvk >/tmp/wsys.log >[2=1]; cat /tmp/wsys.log' > "$TMPD/consolewsys" 2>&1
+		}
+		check "boot with virtio-gpu-gl, vktri in a window of wsys" bootwsys
+		tr -d '\r' < "$TMPD/consolewsys" > "$TMPD/logwsys"
+		cp "$TMPD/logwsys" "$HERE/console-wsys.log"
+		check "wsys: the WSI hands vktri's frames to wsys as GPU buffers" grep -q '^gpu: wsi plan9: wsys has the buffers' "$TMPD/logwsys"
+		check "wsys: vktri through GPU buffers, its pixels in the window: all passed" grep -q '^gpu: vktri: all passed' "$TMPD/logwsys"
+		check "wsys: vktri by copy (WSI_PLAN9_COPY=1): all passed" grep -q '^copy: vktri: all passed' "$TMPD/logwsys"
+		grep -E '^(gpu|copy): ok [0-9]+ frames' "$TMPD/logwsys" | sed 's/^/  /'
+	else
+		skip "wsys with GPU buffers" "no vktri or no $objtype/bin/wsys"
+	fi
 
 	# third boot: vkcube in a rio window (riovk.rc, riocube.rc), the window
 	# resized after 5 s; then the host's display through VNC, and q typed

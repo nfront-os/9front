@@ -1,0 +1,15 @@
+#!/bin/rc
+# run by wsys -x -i (tests/gpu/run.sh): vktri in a window of wsys, whose
+# frames go to wsys as GPU buffers (gpu(4) export, wsys' gpubuffer), then
+# again by copy (WSI_PLAN9_COPY=1); the logs at the end
+rm -f /tmp/wvk.log /tmp/wvkcopy.log
+fn waitexit { # log
+	n=0
+	while(! grep -s '^wsysvk: exit' $1 && test $n -lt 600){ sleep 0.1; n=`{echo $n+1 | hoc} }
+}
+window -r 100 100 740 580 /tests/wsysvktri /tmp/wvk.log
+waitexit /tmp/wvk.log
+window -r 100 100 740 580 /tests/wsysvktri /tmp/wvkcopy.log copy
+waitexit /tmp/wvkcopy.log
+sed 's/^/gpu: /' /tmp/wvk.log
+sed 's/^/copy: /' /tmp/wvkcopy.log

@@ -22,6 +22,16 @@ extern int plan9win_isscreen(const char *name);
  * window's drawable area, clipped; -1 on error */
 extern int plan9win_put(const char *name, const void *pixels, int w, int h, int stride);
 
+/*
+ * wsys(4): the window's ctl file when the window is the process's own
+ * window of wsys (/dev/ctl), else -1.  Then the frames can go to wsys
+ * as GPU buffers it reads itself (ctl gpubuffer, present)
+ */
+extern int plan9win_wsys(const char *name);
+
+/* a request to wsys' ctl; -1 if refused */
+extern int plan9win_wsysctl(int fd, const char *msg);
+
 #ifdef __cplusplus
 }
 #endif

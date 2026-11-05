@@ -25,6 +25,8 @@ unsafe extern "C" {
     fn p9read(fd: c_int, buf: *mut c_void, n: c_long) -> c_long;
     #[link_name = "__p9_write"]
     fn p9write(fd: c_int, buf: *const c_void, n: c_long) -> c_long;
+    #[link_name = "__p9_pread"]
+    fn p9pread(fd: c_int, buf: *mut c_void, n: c_long, off: i64) -> c_long;
     #[link_name = "__p9_pipe"]
     fn p9pipe(fd: *mut c_int) -> c_int;
     #[link_name = "__p9_remove"]
@@ -73,6 +75,14 @@ impl Fd {
         let mut none = [0u8; 1];
         let p = if buf.is_empty() { none.as_mut_ptr() } else { buf.as_mut_ptr() };
         let n = unsafe { p9read(self.0, p as *mut c_void, buf.len() as c_long) };
+        if n < 0 { Err(err()) } else { Ok(n as usize) }
+    }
+
+    /// a read at offset off (a ctl file's reply: from its start)
+    pub fn pread(&self, buf: &mut [u8], off: i64) -> io::Result<usize> {
+        let mut none = [0u8; 1];
+        let p = if buf.is_empty() { none.as_mut_ptr() } else { buf.as_mut_ptr() };
+        let n = unsafe { p9pread(self.0, p as *mut c_void, buf.len() as c_long, off) };
         if n < 0 { Err(err()) } else { Ok(n as usize) }
     }
 
@@ -161,6 +171,19 @@ impl Seg {
             return Err(io::Error::other(format!("segment {name} at {:#x}, its ctl says {va:#x}", s.va)));
         }
         Ok(s)
+    }
+
+    /// len bytes of a segment of the kernel's of class (segment(3)'s physical
+    /// segments: a device's memory, gpu(3)), where the kernel puts it
+    pub fn phys(class: &str, len: usize) -> io::Result<Seg> {
+        if class.is_empty() || class.contains('/') {
+            return Err(io::Error::other("bad segment class"));
+        }
+        let p = unsafe { p9segattach(0, cs(class).as_ptr(), std::ptr::null_mut(), len as c_uint) };
+        if p as isize == -1 {
+            return Err(err());
+        }
+        Ok(Seg { va: p as usize, len })
     }
 
     pub fn bytes(&self) -> &[u8] {

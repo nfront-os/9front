@@ -59,6 +59,7 @@
 
 mod draw;
 mod font;
+mod gpu;
 mod ninep;
 mod p9;
 
@@ -171,10 +172,29 @@ struct FidState {
 /// proc's alone. Each is a segment of wsys's: with the 64 stack segments std
 /// makes, some 190 fit (NSEG).
 struct Buf {
-    seg: Seg,
+    mem: Mem,
     w: i32,
     h: i32,
     stride: usize,
+}
+
+/// where a buffer's pixels are: a segment of the client's, or a GPU buffer it
+/// exported (gpu(4)), imported by wsys
+enum Mem {
+    Seg(Seg),
+    Gpu(gpu::GpuMem),
+}
+
+impl Mem {
+    /// rows y0 to y1 of the pixels, stride bytes a row, and the row the slice
+    /// begins with: a GPU buffer's are read once into wsys's memory first (the
+    /// device's memory can be slow to read twice, write-combined)
+    fn rows(&mut self, y0: i32, y1: i32, stride: usize) -> (&[u8], i32) {
+        match self {
+            Mem::Seg(s) => (s.bytes(), 0),
+            Mem::Gpu(g) => (g.read(y0 as usize * stride, (y1 - y0) as usize * stride), y0),
+        }
+    }
 }
 
 struct Win {
@@ -182,6 +202,7 @@ struct Win {
     slot: usize,
     bufs: HashMap<u32, Buf>,
     img: u32,   // what a client of buffers presented, x8r8g8b8, the window's size
+    stale: bool, // presented into the layer since: img is behind it (freshen)
     layer: u32, // its window on wsys's screen in draw(3), border and all
     name: String, // the layer's public name (winname)
     refs: u32,    // fids holding the window
@@ -446,6 +467,7 @@ struct Wsys {
     holdcol: u32,
     paleholdcol: u32,
     plumbfd: Option<Fd>, // /mnt/plumb/send, opened when first plumbed
+    gpu: Option<gpu::Gpu>, // a context for clients' GPU buffers, made for the first
 }
 
 fn qid(k: Kind) -> Qid {
@@ -1059,7 +1081,7 @@ impl Wsys {
             events: VecDeque::new(), raw: false, line: String::new(), cons: VecDeque::new(), eof: false,
             kbd: VecDeque::new(), kbdopen: 0, mouseopen: 0, mouse: VecDeque::new(), resized: false,
             cursor: vec![], state: 1, textwin: text, scroll: 0, sel: (0, 0), rows: vec![], hidden: false,
-            hold: false, want: None,
+            hold: false, want: None, stale: false,
             scrollr: Rect::default(), shown: (1, 0, 1),
         });
         self.z.push(n);
@@ -1265,7 +1287,25 @@ impl Wsys {
                 if (stride * (bh - 1) + bw * 4) as usize > seg.len {
                     return Err(format!("buffer {b}: segment {name} too small"));
                 }
-                w.bufs.insert(b as u32, Buf { seg, w: bw as i32, h: bh as i32, stride: stride as usize });
+                w.bufs.insert(b as u32, Buf { mem: Mem::Seg(seg), w: bw as i32, h: bh as i32, stride: stride as usize });
+                Ok(())
+            }
+            "gpubuffer" => {
+                let a: Vec<&str> = line.split_whitespace().collect();
+                let num = |i: usize| a.get(i).and_then(|x| x.parse::<i64>().ok());
+                let (Some(b), Some(token), Some(bw), Some(bh), Some(stride)) = (num(1), a.get(2), num(3), num(4), num(5)) else {
+                    return Err("usage: gpubuffer n token w h stride".into());
+                };
+                if !(0..MAXBUF as i64).contains(&b) || bw < 1 || bh < 1 || bw > 16384 || bh > 16384 || stride < bw * 4 {
+                    return Err("bad buffer".into());
+                }
+                if self.gpu.is_none() {
+                    self.gpu = Some(gpu::Gpu::open().map_err(|e| format!("gpubuffer {b}: {e}"))?);
+                }
+                let size = (stride * (bh - 1) + bw * 4) as usize;
+                let mem = self.gpu.as_mut().unwrap().import(token, size).map_err(|e| format!("gpubuffer {b}: {e}"))?;
+                let w = self.wins.get_mut(&n).unwrap();
+                w.bufs.insert(b as u32, Buf { mem: Mem::Gpu(mem), w: bw as i32, h: bh as i32, stride: stride as usize });
                 Ok(())
             }
             "unbuffer" => {
@@ -1280,10 +1320,31 @@ impl Wsys {
                 // what of the buffer the window shows: its top left corner
                 let full = Rect::new(0, 0, buf.w.min(w.r.dx()), buf.h.min(w.r.dy()));
                 let r = if nums.len() == 5 { Rect::new(nums[1], nums[2], nums[3], nums[4]).clip(&full) } else { full };
-                let img = w.img;
                 if !r.empty() {
-                    self.d.load(img, &r, buf.seg.bytes(), buf.stride).map_err(|e| e.to_string())?;
-                    self.paint(n, Some(r));
+                    // straight into its window in draw(3) (screen coordinates),
+                    // img follows when it is needed; but through img if the
+                    // screen's pixels are not the buffers'
+                    let direct = self.d.chan == XRGB32;
+                    if !direct {
+                        self.freshen(n);
+                    }
+                    let w = self.wins.get_mut(&n).unwrap();
+                    let (layer, img, o) = (w.layer, w.img, (w.r.x0, w.r.y0));
+                    let buf = w.bufs.get_mut(&b).unwrap();
+                    let stride = buf.stride;
+                    let (px, row) = buf.mem.rows(r.y0, r.y1, stride);
+                    let d = &mut self.d;
+                    let res = if direct {
+                        d.load_at(layer, &r.add(o.0, o.1), px, stride, r.x0, r.y0 - row).and_then(|_| d.flush())
+                    } else {
+                        d.load_at(img, &r, px, stride, r.x0, r.y0 - row)
+                    };
+                    res.map_err(|e| e.to_string())?;
+                    if direct {
+                        self.wins.get_mut(&n).unwrap().stale = true;
+                    } else {
+                        self.paint(n, Some(r));
+                    }
                 }
                 // copied: the client may write it again
                 self.event(n, format!("b {b}"));
@@ -1323,6 +1384,7 @@ impl Wsys {
         if r == old {
             return Ok(());
         }
+        self.freshen(n);
         if r.dx() != old.dx() || r.dy() != old.dy() {
             let img = self.image(r.dx(), r.dy())?;
             let w = &self.wins[&n];
@@ -1433,7 +1495,21 @@ impl Wsys {
 
     /// what window n shows, all of it or rectangle r (window coordinates), from
     /// its image into its window in draw(3); devdraw shows what is not hidden
+    /// img again what window n shows, after presents straight into its layer
+    fn freshen(&mut self, n: u32) {
+        let Some(w) = self.wins.get(&n) else { return };
+        if !w.stale {
+            return;
+        }
+        let (img, l, r) = (w.img, w.layer, w.r);
+        if let Err(e) = self.d.draw(img, &Rect::new(0, 0, r.dx(), r.dy()), l, r.x0, r.y0) {
+            eprintln!("wsys: draw: {e}");
+        }
+        self.wins.get_mut(&n).unwrap().stale = false;
+    }
+
     fn paint(&mut self, n: u32, r: Option<Rect>) {
+        self.freshen(n);
         let w = &self.wins[&n];
         let all = Rect::new(0, 0, w.r.dx(), w.r.dy());
         let whole = r.is_none();
@@ -2523,6 +2599,7 @@ fn main() {
         holdcol: 0,
         paleholdcol: 0,
         plumbfd: None,
+        gpu: None,
         tabstop: std::env::var("tabstop").ok().and_then(|t| t.trim().parse().ok()).filter(|&t: &i32| t > 0).unwrap_or(4),
         // rio's snarf, when wsys runs in a window of rio
         parentsnarf: std::fs::metadata("/dev/snarf").is_ok() && std::fs::metadata("/dev/wctl").is_ok(),

@@ -11,11 +11,18 @@
  * waits for that blit and copies the pixels to the window through its
  * own /dev/draw connection (plan9win.h).  The window is found by name
  * every time: rio gives a window a new image when it is resized.
+ *
+ * In a window of wsys(4) the copy is wsys's: the host visible buffers
+ * are exported (a token each, gpu(4)), wsys imports them (ctl
+ * gpubuffer) and reads a frame when it is presented (ctl present); the
+ * write of present returns once wsys has it, and the buffer is free.
+ * Without the screen to itself or wsys, or if either refuses, the copy.
  */
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "util/u_cpu_detect.h"
 #include "util/streaming-load-memcpy.h"
@@ -30,6 +37,10 @@
 #include "wsi_common_private.h"
 
 #include "plan9win.h"
+
+extern int plan9_dmabuf_token(int fd, char *buf, int n);	/* plan9/lib/dmabuf.c */
+
+enum { Wsysbufs = 8 };	/* wsys' buffers a window */
 
 struct wsi_plan9 {
    struct wsi_interface base;
@@ -246,6 +257,7 @@ struct wsi_plan9_swapchain {
    VkExtent2D extent;
    VkResult status;  /* VK_SUBOPTIMAL_KHR once the window changed size */
    bool scanout;     /* the frames go to the display directly */
+   int wsys;         /* the frames go to wsys(4) as GPU buffers: its ctl; -1 not */
    int shown;        /* the image on the display, kept busy; -1 none */
    uint32_t next;
    /* WSI_PLAN9_STATS=1: where a present's time goes, every 100 frames */
@@ -271,10 +283,10 @@ plan9_stats(struct wsi_plan9_swapchain *chain, const int64_t t[4])
       return;
    fprintf(stderr, "wsi plan9 %ux%u %s: per frame %.2f ms: blit wait %.2f, copy %.2f, %s %.2f\n",
            chain->extent.width, chain->extent.height,
-           chain->scanout ? "scanout" : "copy",
+           chain->scanout ? "scanout" : chain->wsys >= 0 ? "wsys" : "copy",
            chain->tstat[3] / 1e6 / (chain->nstat - 1),
            chain->tstat[0] / 1e6 / chain->nstat, chain->tstat[1] / 1e6 / chain->nstat,
-           chain->scanout ? "scanout" : "draw", chain->tstat[2] / 1e6 / chain->nstat);
+           chain->scanout ? "scanout" : chain->wsys >= 0 ? "wsys" : "draw", chain->tstat[2] / 1e6 / chain->nstat);
    chain->nstat = 0;
    chain->last = 0;
    memset(chain->tstat, 0, sizeof chain->tstat);
@@ -337,6 +349,56 @@ wsi_plan9_swapchain_acquire_next_image(struct wsi_swapchain *wsi_chain,
    }
 }
 
+/* wsys lets go of the buffers; frames by copy from now on */
+static void
+wsys_off(struct wsi_plan9_swapchain *chain)
+{
+   char msg[32];
+
+   if (chain->wsys < 0)
+      return;
+   for (uint32_t i = 0; i < chain->base.image_count; i++) {
+      snprintf(msg, sizeof msg, "unbuffer %u", i);
+      plan9win_wsysctl(chain->wsys, msg);
+   }
+   close(chain->wsys);
+   chain->wsys = -1;
+}
+
+/* each image's host visible buffer to wsys by its token; false: none */
+static bool
+wsys_buffers(struct wsi_plan9_swapchain *chain)
+{
+   const struct wsi_device *wsi = chain->base.wsi;
+   char token[64], msg[160];
+
+   for (uint32_t i = 0; i < chain->base.image_count; i++) {
+      struct wsi_image *image = &chain->images[i].base;
+      VkMemoryGetFdInfoKHR info = {
+         .sType = VK_STRUCTURE_TYPE_MEMORY_GET_FD_INFO_KHR,
+         .memory = image->blit.memory != VK_NULL_HANDLE ? image->blit.memory : image->memory,
+         .handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT,
+      };
+      int fd, r;
+
+      if (wsi->GetMemoryFdKHR == NULL ||
+          wsi->GetMemoryFdKHR(chain->base.device, &info, &fd) != VK_SUCCESS)
+         return false;
+      r = plan9_dmabuf_token(fd, token, sizeof token);
+      close(fd);	/* the token stays while the memory does */
+      if (r < 0)
+         return false;
+      snprintf(msg, sizeof msg, "gpubuffer %u %s %u %u %u", i, token,
+               chain->extent.width, chain->extent.height, image->row_pitches[0]);
+      if (plan9win_wsysctl(chain->wsys, msg) < 0) {
+         if (chain->stats)
+            fprintf(stderr, "wsi plan9: wsys: %s refused\n", msg);
+         return false;
+      }
+   }
+   return true;
+}
+
 static VkResult
 wsi_plan9_swapchain_queue_present(struct wsi_swapchain *wsi_chain,
                                   uint32_t image_index,
@@ -379,6 +441,21 @@ wsi_plan9_swapchain_queue_present(struct wsi_swapchain *wsi_chain,
          fprintf(stderr, "wsi plan9: scanout refused, copying from now on\n");
       chain->scanout = false;
       chain->shown = -1;
+   }
+
+   /* in wsys: it reads the buffer itself */
+   if (chain->wsys >= 0) {
+      char msg[32];
+
+      t[1] = t[2] = os_time_get_nano();
+      snprintf(msg, sizeof msg, "present %u", image_index);
+      if (plan9win_wsysctl(chain->wsys, msg) == 0) {
+         image->busy = false;
+         goto Shown;
+      }
+      if (chain->stats)
+         fprintf(stderr, "wsi plan9: wsys refused present, copying from now on\n");
+      wsys_off(chain);
    }
 
    /*
@@ -436,6 +513,7 @@ wsi_plan9_swapchain_destroy(struct wsi_swapchain *wsi_chain,
    /* the draw(3) screen back on the display before the buffers go */
    if (chain->shown >= 0)
       chain->base.wsi->plan9_scanout(chain->base.device, VK_NULL_HANDLE, 0, 0, 0);
+   wsys_off(chain);
    for (uint32_t i = 0; i < chain->base.image_count; i++) {
       if (chain->images[i].base.image != VK_NULL_HANDLE)
          wsi_destroy_image(&chain->base, &chain->images[i].base);
@@ -472,10 +550,18 @@ wsi_plan9_surface_create_swapchain(VkIcdSurfaceBase *icd_surface,
     * on a thread of its own that excludes acquire while it runs.
     */
    uint32_t num_images = MAX2(pCreateInfo->minImageCount, 2) + (scanout ? 1 : 0);
+   /* in a window of wsys the buffers go there: exportable (dma-buf) */
+   int wsys = -1;
+   if (!scanout && !(copy && atoi(copy)) && !wsi_device->sw && num_images <= Wsysbufs)
+      wsys = plan9win_wsys(surface->windowName);
    size_t size = sizeof(*chain) + num_images * sizeof(chain->images[0]);
    chain = vk_zalloc(pAllocator, size, 8, VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);
-   if (chain == NULL)
+   if (chain == NULL) {
+      if (wsys >= 0)
+         close(wsys);
       return VK_ERROR_OUT_OF_HOST_MEMORY;
+   }
+   chain->wsys = wsys;
 
    /* rendered by the device, blitted into host memory for draw(3) */
    struct wsi_cpu_image_params cpu_params = {
@@ -493,6 +579,8 @@ wsi_plan9_surface_create_swapchain(VkIcdSurfaceBase *icd_surface,
       chain->base.image_info.select_blit_dst_memory_type = wsi_plan9_select_scanout_memory_type;
       chain->base.image_info.create_mem = wsi_plan9_create_scanout_mem;
    }
+   if (wsys >= 0)
+      chain->base.image_info.create_mem = wsi_plan9_create_scanout_mem;	/* exportable, mapped */
 
    chain->base.destroy = wsi_plan9_swapchain_destroy;
    chain->base.get_wsi_image = wsi_plan9_swapchain_get_wsi_image;
@@ -511,7 +599,7 @@ wsi_plan9_surface_create_swapchain(VkIcdSurfaceBase *icd_surface,
    chain->stats = stats != NULL && atoi(stats) != 0;
    if (chain->stats)
       fprintf(stderr, "wsi plan9: %s: %s\n", surface->windowName ? surface->windowName : "(window)",
-              scanout ? "scanout" :
+              scanout ? "scanout" : wsys >= 0 ? "wsys" :
               wsi_device->plan9_scanout == NULL ? "copy: the driver has no scanout" :
               (copy && atoi(copy)) ? "copy: WSI_PLAN9_COPY" : "copy: not the whole screen");
 
@@ -528,6 +616,12 @@ wsi_plan9_surface_create_swapchain(VkIcdSurfaceBase *icd_surface,
       }
    }
 
+   /* wsys takes the buffers, or the copy after all */
+   if (chain->wsys >= 0 && !wsys_buffers(chain))
+      wsys_off(chain);
+   if (chain->stats && wsys >= 0)
+      fprintf(stderr, "wsi plan9: %s\n", chain->wsys >= 0 ? "wsys has the buffers" : "wsys refused, copying");
+
    /* 64-byte aligned for the streaming loads */
    size_t frame = (size_t)chain->images[0].base.row_pitches[0] * chain->extent.height;
    chain->pixels = aligned_alloc(64, (frame + 63) & ~(size_t)63);
@@ -540,10 +634,13 @@ wsi_plan9_surface_create_swapchain(VkIcdSurfaceBase *icd_surface,
    return VK_SUCCESS;
 
 fail_destroy_images:
+   wsys_off(chain);
    for (uint32_t i = 0; i < image; i++)
       wsi_destroy_image(&chain->base, &chain->images[i].base);
    wsi_swapchain_finish(&chain->base);
 fail_free_chain:
+   if (chain->wsys >= 0)
+      close(chain->wsys);
    vk_free(pAllocator, chain);
    return result;
 }

@@ -279,10 +279,28 @@ pixels.
 attaches it; it must lie in the window's range.
 To reuse an address, unbuffer first.
 .TP
+.BI gpubuffer " b token w h stride
+announces buffer
+.I b
+as a GPU buffer the client exported from its context of
+.IR gpu (4)
+.RB ( export ,
+which gives
+.IR token ).
+.I Wsys
+imports it into a context of its own on the first device
+.RB ( /dev/gpu/0 )
+and reads the pixels where the processor sees them (the device's host
+visible memory).
+Mesa's plan9 WSI does this for Vulkan programs in a window of
+.IR wsys :
+their frames are not copied by the program.
+.TP
 .BI unbuffer " b
 .I wsys
 detaches buffer
-.IR b .
+.I b
+(a GPU buffer: lets go of it).
 .TP
 .BR present " IbP [Ix0 y0 x1 y1P]"
 the pixels of the rectangle (in the buffer's coordinates, which are the
@@ -402,6 +420,9 @@ copied.
 When
 .I wsys
 exits the windows are gone; clients cannot announce theirs again yet.
+GPU buffers: only virtio-gpu's (venus) so far, and
+.I wsys
+copies them to the screen with the processor.
 Each buffer is a segment of
 .IR wsys 's
 own as well; a process has room for some 250

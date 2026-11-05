@@ -159,3 +159,52 @@ Err:
 	unlock(&lk);
 	return -1;
 }
+
+/*
+ * wsys(4) gives each window a ctl file (/dev/ctl in the window's name
+ * space); a read of it is the window's number, rectangle, size, the
+ * range for its buffers and its focus, ten numbers.  Only the process's
+ * own window: a surface named after another is not ours to fill.
+ */
+int
+plan9win_wsys(const char *name)
+{
+	char b[256], *f[12];
+	int fd, n;
+
+	if(name != nil){
+		if((fd = open("/dev/winname", OREAD)) < 0)
+			return -1;
+		n = read(fd, b, sizeof b - 1);
+		close(fd);
+		if(n <= 0)
+			return -1;
+		b[n] = 0;
+		if(strcmp(b, name) != 0)
+			return -1;
+	}
+	if((fd = open("/dev/ctl", ORDWR|OCEXEC)) < 0)
+		return -1;
+	n = pread(fd, b, sizeof b - 1, 0);
+	if(n <= 0){
+		close(fd);
+		return -1;
+	}
+	b[n] = 0;
+	if(tokenize(b, f, nelem(f)) != 10){
+		close(fd);
+		return -1;
+	}
+	return fd;
+}
+
+int
+plan9win_wsysctl(int fd, const char *msg)
+{
+	int n;
+
+	n = strlen(msg);
+	if(write(fd, msg, n) != n)
+		return -1;
+	return 0;
+}
