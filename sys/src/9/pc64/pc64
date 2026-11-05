@@ -41,6 +41,8 @@ dev
 	segment
 	vmx
 	dtracy
+#	performance counters, pmc(3)
+	pmc		pmcio
 
 link
 #	devpccard	pci

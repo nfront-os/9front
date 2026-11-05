@@ -20,6 +20,8 @@ dev
 	rtc
 	pci	pci
 	sd
+#	performance counters, pmc(3)
+	pmc	pmcio
 
 link
 	usbxhcipci	pci usbxhci

@@ -33,6 +33,9 @@
 #         KARGS       more kernel parameters (plan9.ini variables), e.g.
 #                     "vgasize=1024x768x16 monitor=vesa mouseport=ps2"
 #         MEM NIC     QEMU memory (256) and NIC model (e1000)
+#         PMU         1: x86 guests get KVM's virtual performance counters
+#                     (pmu=on; +perfctr-core: AMD's 6 core counters); qemu64
+#                     has none by default. arm64 (TCG) always has PMUv3
 #         SMP         QEMU processors (QEMU's default: 1; tests/lib.sh sets 4)
 #         QEMU_EXTRA  extra QEMU flags (e.g. "-s -S" for gdb)
 #         BOOTKERNEL  the kernel to boot (default: the build's
@@ -62,6 +65,7 @@ amd64)	KNAME=9pc64 QEMU=qemu-system-x86_64 CPU=qemu64,+rdrand ;;
 arm64)	KNAME=9qemu QEMU=qemu-system-aarch64 CPU=cortex-a72 ;;
 *)	echo "boot-cli: objtype=$objtype: no kernel" >&2; exit 1 ;;
 esac
+[ "${PMU:-0}" = 0 ] || [ $objtype = arm64 ] || CPU=$CPU,pmu=on,+perfctr-core	# pmc(3) tests (tests/pmc)
 export objtype
 KERNEL=${BOOTKERNEL:-$ROOT/$objtype/bin/$KNAME}
 UFS=${UFS:-$(command -v ufs 2>/dev/null || echo "$HOME/go/bin/ufs")}

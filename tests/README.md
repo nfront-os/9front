@@ -36,6 +36,7 @@ file system of the guest: in `PATH` or `~/go/bin/ufs`).
 | `build` | the build's results: libraries, programs, kernel; kernel without endless busy-waits (`scripts/check/find-spinloops.sh`) | a build | seconds |
 | `guest` | unit tests built with the port and run inside 9front: libc, libthread, libmp, auth, pak, APE (`tests/guest/*.c`) | a build, QEMU | ~1 min |
 | `boot` | boot to the console rc (cpu service), run commands | a build, QEMU | ~1 min |
+| `pmc` | performance counters (`#ε`, pmc(3), pmc(2)): `tests/pmc/pmctest.c` wired to cpu1 on 4 CPUs (counts over a loop, user/os filters, RDPMC or `PMEVCNTR0_EL0` in user mode, another core's counter, two readers at once, `#ε/core`); x86 boots with `PMU=1` (KVM's virtual counters), then without (no counters); arm64 (TCG) has PMUv3 (`cycles` only) | a build, QEMU | ~2 min |
 | `hw` | the hardware test stick (`tests/hw/README.md`) in QEMU: boots from a USB stick on xHCI, runs its configurations with resets, logs `HANG` after a power-off, logs read back from its 9fat | a build, boot loaders, QEMU | minutes |
 | `gui` | terminal boot: VESA via aux/realemu, rio, typing into a window | a build, QEMU | ~1 min |
 | `disk` | install image with hjfs (`scripts/guest/mkdisk.sh`, amd64 only, as 9front's dist mkfile), booted on its own | a build, boot loaders | minutes |

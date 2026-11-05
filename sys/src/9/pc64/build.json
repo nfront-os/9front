@@ -210,7 +210,8 @@
                     "kbd",
                     "segment",
                     "vmx",
-                    "dtracy"
+                    "dtracy",
+                    "pmc pmcio"
                 ],
                 "Link": [
                     "cputemp pci",
@@ -325,6 +326,7 @@
             "../port/devmnt.c",
             "../port/devmouse.c",
             "../port/devpipe.c",
+            "../port/devpmc.c",
             "../port/devpnp.c",
             "../port/devproc.c",
             "../port/devroot.c",
@@ -403,6 +405,7 @@
             "pcipc.c",
             "../port/pgrp.c",
             "../ip/pktmedium.c",
+            "pmcio.c",
             "pmmc.c",
             "../port/portclock.c",
             "../port/print.c",

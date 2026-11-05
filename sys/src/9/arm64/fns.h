@@ -127,6 +127,11 @@ extern void fiq(Ureg*);
 extern uvlong	sysrd(ulong);
 extern void	syswr(ulong, uvlong);
 
+/* trap: pmc(3) */
+extern void	pmcipiinit(void);
+extern void	sendsgi(Mach*, int);
+extern void	(*pmcintrfn)(void);
+
 /* uartimx */
 extern void uartconsinit(void);
 

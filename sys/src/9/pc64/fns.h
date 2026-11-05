@@ -52,6 +52,7 @@ u64int	getdr6(void);
 char*	getconf(char*);
 void	halt(void);
 void	mwait(void*);
+void	lapicipiirq(int, int);	/* pmc(3) */
 int	i8042auxcmd(int);
 void	i8042auxenable(void (*)(int, int));
 void	i8042reset(void);

@@ -94,6 +94,9 @@ main.$O: rebootcode.i
 
 pciqemu.$O: ../port/pci.h
 
+# pmc(3): performance counters
+devpmc.$O pmcio.$O: ../port/pmc.h
+
 initcode.out:		init9.$O initcode.$O /$objtype/lib/libc.a
 	$LD -l -R1 -s -o $target $prereq
 

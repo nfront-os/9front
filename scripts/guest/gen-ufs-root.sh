@@ -43,6 +43,8 @@ cp -r "$ROOT"/sys/lib "$OUT"/sys/
 
 # guest tests (tests/guest), if built: /tests/run [test...]
 [ ! -d "$ROOT"/tests/guest/root ] || cp -r "$ROOT"/tests/guest/root/. "$OUT"/
+# performance counter tests (tests/pmc), if built
+[ ! -d "$ROOT"/tests/pmc/root ] || cp -r "$ROOT"/tests/pmc/root/. "$OUT"/
 
 echo "ufs root in $OUT:"
 ls "$OUT"/$A/bin

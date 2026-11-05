@@ -8,6 +8,8 @@
 #   guest    libc unit tests built with the port toolchain, run in 9front
 #            under QEMU (needs a build; boots once)
 #   boot     CLI boot smoke test via scripts/guest/boot-cli.sh (boots once)
+#   pmc      performance counters, pmc(3): tests/pmc/pmctest.c on 4 cpus
+#            (amd64 with KVM's virtual counters, then without; arm64)
 #   gui      terminal boot: VESA via aux/realemu, rio (boots once;
 #            GUI_SCREENSHOT=file.png keeps the screen dump)
 #   disk     install image with hjfs (scripts/guest/mkdisk.sh, minutes), booted
@@ -29,7 +31,7 @@
 #
 # usage: tests/run.sh [category...]     (default: all, in the order above)
 cd "$(dirname "$0")"
-cats=${*:-static asm syscall build guest boot gui disk iso rio usb gcc go hw}
+cats=${*:-static asm syscall build guest boot pmc gui disk iso rio usb gcc go hw}
 failed=()
 for c in $cats; do
 	[ -x "$c/run.sh" ] || { echo "unknown category $c"; exit 2; }

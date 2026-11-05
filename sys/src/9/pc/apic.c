@@ -363,6 +363,32 @@ lapicstartap(Apic* apic, ulong v)
 	}
 }
 
+/*
+ * pmc(3): interrupt the processor machno with the local interrupt
+ * irq (IrqPMC: port/devpmc.c). At splhi: the two register writes of
+ * the xAPIC's ICR must not be split by an interrupt handler sending
+ * one too.
+ */
+void
+lapicipiirq(int machno, int irq)
+{
+	Apic *apic;
+	uvlong crhi;
+	int s;
+
+	for(apic = mplapic; apic != nil; apic = apic->next)
+		if(apic->online && apic->machno == machno)
+			break;
+	if(apic == nil)
+		return;
+	crhi = (uvlong)apic->apicno << 32;
+	if(lapicbase != nil && apic->apicno <= MaxAPICNO)
+		crhi <<= 24;
+	s = splhi();
+	lapicicr(crhi | ApicFIXED|ApicEDGE|(VectorPIC+irq));
+	splx(s);
+}
+
 void
 lapicerror(Ureg*, void*)
 {

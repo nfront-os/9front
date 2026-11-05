@@ -1,0 +1,133 @@
+.TH PMC 3
+.SH NAME
+pmc \- performance monitoring counters
+.SH SYNOPSIS
+.nf
+.B bind -a '#ε' /dev
+
+.B #ε/ctrdesc
+.B #ε/core
+.B #ε/core0000/ctr00
+.B #ε/core0000/ctr00ctl
+.B #ε/core0000/ctr01
+.B #ε/core0000/ctr01ctl
+ ...
+.B #ε/core0001/ctr00
+.B #ε/core0001/ctr00ctl
+ ...
+.fi
+.SH DESCRIPTION
+The
+.I pmc
+device serves a two-level directory giving access to the hardware
+performance counters of the processors.
+There is a directory per processor,
+.BI core NNNN
+(its number).
+Reading
+.B core
+gives the number of the processor the reader runs on, in decimal.
+.PP
+Reading a
+.BI ctr NN
+file gives the value of the counter, in hexadecimal;
+writing a number sets it.
+The corresponding
+.BI ctr NN ctl
+file configures the counter. Reading it gives
+.L enable
+or
+.LR disable ,
+then
+.L user
+and
+.L os
+if the counter counts in user mode or in the kernel,
+and its configuration.
+It accepts one of these commands per write:
+.TP
+.B reset
+Clears the configuration and the counter: it is disabled and
+counts nothing.
+.TP
+.B user
+The counter counts while the processor is in user mode.
+.TP
+.B os
+The counter counts while the processor is in the kernel.
+.TP
+.BI "set " configuration
+Sets what the counter counts.
+The configuration is either one of the names
+.B ctrdesc
+lists, one per line (they depend on the processor), or numbers:
+.I event
+and
+.I "unit mask"
+on amd64 (for AMD the 12-bit event number of its event select
+registers, for Intel that of its architectural events),
+the event number on arm64.
+.TP
+.B enable
+Starts the counter.
+While a counter of a processor is enabled, user mode may also read
+that processor's counters with the
+.B RDPMC
+instruction (amd64) or from
+.B PMEVCNTR\fIn\fP_EL0
+(arm64).
+.TP
+.B disable
+Stops it.
+.PP
+.B Reset
+followed by
+.B user
+counts in user mode only, and so on; both
+.B user
+and
+.B os
+count everywhere.
+The counters count what the processor does, whatever process runs.
+.PP
+The counters are registers of each processor. A request for the
+counters of another processor is sent there with an interrupt of
+its own; the request is served at once, not at the
+next entry into the kernel. A processor that does not answer within
+a second makes it fail with
+.LR "connection timed out" .
+.PP
+Configure counter 0 of core 1 to count instructions in user mode:
+.IP
+.EX
+% bind -a '#ε' /dev
+% cat /dev/ctrdesc
+cycles
+instructions
+ ...
+% echo reset > /dev/core0001/ctr00ctl
+% echo user > /dev/core0001/ctr00ctl
+% echo set instructions > /dev/core0001/ctr00ctl
+% echo enable > /dev/core0001/ctr00ctl
+% cat /dev/core0001/ctr00
+0x3e5
+.EE
+.SH SOURCE
+.B /sys/src/9/port/devpmc.c
+.br
+.B /sys/src/9/pc64/pmcio.c
+.br
+.B /sys/src/9/arm64/pmcio.c
+.SH "SEE ALSO"
+.IR pmc (2)
+.SH BUGS
+amd64: AMD's counters (6 with the core extension, else 4) and Intel's
+architectural ones; not Intel's fixed counters. A virtual machine may
+have none (QEMU with KVM: only with
+.LR pmu=on ;
+then the directories are empty).
+arm64: the PMUv3's event counters, 32 bits wide; the cycle counter
+stays the kernel's.
+.PP
+From NIX, which counted on AMD K8 only. 386 has no
+.IR pmc .

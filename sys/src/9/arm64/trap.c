@@ -4,6 +4,7 @@
 #include "dat.h"
 #include "fns.h"
 #include "../port/error.h"
+#include "io.h"	/* pmc(3): IRQpmc */
 
 #include <tos.h>
 #include "ureg.h"
@@ -92,6 +93,38 @@ static char *traps[64] = {
 	[0x34]	"sys: watchpoint",
 	[0x3C]	"sys: breakpoint",
 };
+
+/*
+ * pmc(3): performance counter requests (port/devpmc.c) come as
+ * SGI IRQpmc; devpmc (pmcio.c) sets pmcintrfn.
+ */
+void	(*pmcintrfn)(void);
+
+static void
+pmcipiintr(Ureg*, void*)
+{
+	if(pmcintrfn != nil)
+		pmcintrfn();
+}
+
+/* on every processor: SGIs are banked per redistributor */
+void
+pmcipiinit(void)
+{
+	intrenable(IRQpmc, pmcipiintr, nil, BUSUNKNOWN, "pmc");
+}
+
+/* send SGI sgi to mp */
+void
+sendsgi(Mach *mp, int sgi)
+{
+	uvlong mpidr;
+
+	/* QEMU virt: one cluster, Aff0 is the machno (main.c:/mpinit) */
+	mpidr = sysrd(MPIDR_EL1);
+	syswr(ICC_SGI1R_EL1, ((mpidr>>32)&0xFF)<<48 | ((mpidr>>16)&0xFF)<<32 |
+		((mpidr>>8)&0xFF)<<16 | (uvlong)sgi<<24 | 1<<(mp->machno&15));
+}
 
 void
 trap(Ureg *ureg)

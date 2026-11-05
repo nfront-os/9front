@@ -758,6 +758,13 @@ extern	int	create(char*, int, ulong);
 extern	int	dup(int, int);
 extern	int	errstr(char*, uint);
 extern	int	exec(char*, char*[]);
+enum {						/* confpmc's mode, pmc(2) */
+	PmcOs = 1,
+	PmcUser = 2,
+	PmcEnable = 4,
+};
+extern	int	confpmc(int, int, int, char*);	/* pmc(2) */
+extern	uvlong	rdpmc(int);			/* pmc(2) */
 extern	int	execl(char*, ...);
 extern	int	fork(void);
 extern	int	rfork(int);

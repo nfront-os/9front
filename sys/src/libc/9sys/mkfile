@@ -6,6 +6,7 @@ OFILES=\
 	access.$O\
 	announce.$O\
 	callmain.$O\
+	confpmc.$O\
 	convD2M.$O\
 	convM2D.$O\
 	convM2S.$O\
@@ -38,6 +39,7 @@ OFILES=\
 	putenv.$O\
 	qlock.$O\
 	read.$O\
+	rdpmc.$O\
 	read9pmsg.$O\
 	readv.$O\
 	rerrstr.$O\

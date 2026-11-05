@@ -1,0 +1,18 @@
+[
+	{
+		"Name": "pmc-tests",
+		"Include": [
+			"/$ARCH/cflags.json"
+		],
+		"Install": "/tests/pmc/root/tests/",
+		"Oflags": [
+			"--entry=_main"
+		],
+		"Libs": [
+			"/$ARCH/lib.gcc/libc.a"
+		],
+		"SourceFilesCmd": [
+			"pmctest.c"
+		]
+	}
+]

@@ -1,0 +1,50 @@
+The performance counters (sys/src/9/port/devpmc.c, pmc.h,
+pc64/pmcio.c, arm64/pmcio.c, sys/src/libc/9sys/confpmc.c, rdpmc.c,
+pmc(2), pmc(3)) follow the design and code of the NIX
+kernel (Lsub, Bell Labs, Sandia, Vita Nuova; 2011), as
+published at https://github.com/rminnich/nix-os (branch regen), whose
+license, reproduced verbatim below, is the MIT license:
+
+Copyright © 2021 Plan 9 Foundation
+Copyright © 2011 NIX Contributors
+Copyright © 20XX 9front authors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+The NIX contributors, from the CONTRIBUTORS file of that repository:
+
+
+Noah Evans <noah.evans@gmail.com>
+Ron Minnich <rminnich@gmail.com>
+John Floren <john@jfloren.net>
+Francisco J Ballesteros <nemo.mbox@gmail.com>
+Charles Forsyth <charles.forsyth@gmail.com>
+Enrique Soriano <enrique.soriano@gmail.com>
+Gorka Guardiola <paurea@gmail.com>
+James Mckie <jmk@plan9.bell-labs.com>
+Christian Neukirchen <chneukirchen@gmail.com>
+Erik Quanstrom <quanstro@quanstro.net>
+Erik Quanstrom <quanstro@gmail.com>
+Bakul Shah <bakul@bitblocks.com>
+David du Colombier <0intro@gmail.com>
+Akshat Kumar <akumar@mail.nanosouffle.net>
+Akshat Kumar <seed@mail.nanosouffle.net>
+Anthony Martin <ality@pbrane.org>
+Marius Hillenbrand	<marius.hillenbrand@kit.edu>
+Paul Lalonde <plalonde@acm.org>

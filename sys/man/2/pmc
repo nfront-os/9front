@@ -1,0 +1,78 @@
+.TH PMC 2
+.SH NAME
+confpmc, rdpmc \- access to performance counters
+.SH SYNOPSIS
+.B #include <u.h>
+.br
+.B #include <libc.h>
+.PP
+.B
+int confpmc(int core, int index, int mode, char *desc)
+.PP
+.B
+uvlong rdpmc(int index)
+.SH DESCRIPTION
+.I Confpmc
+configures the counter
+.I index
+of processor
+.I core
+(the one the process runs on, if
+.I core
+is negative):
+it resets the counter, then sets what it counts to
+.IR desc ,
+one of the configurations
+.IR pmc (3)
+accepts (names of
+.BR ctrdesc ,
+or numbers depending on the architecture; nil leaves it),
+and the
+.IR mode ,
+an OR of
+.TP
+.B PmcOs
+count while in the kernel,
+.TP
+.B PmcUser
+count while in user mode,
+.TP
+.B PmcEnable
+start the counter.
+.PP
+.I Rdpmc
+reads the counter
+.I index
+of the processor the process runs on.
+.PP
+Both use
+.BR #ε ,
+see
+.IR pmc (3).
+The process may move to another processor between two calls,
+even within one (it finds its processor in
+.BR #ε/core ,
+then opens the counter), unless it is wired (see
+.IR proc (3)).
+.SH SOURCE
+.B /sys/src/libc/9sys/confpmc.c
+.br
+.B /sys/src/libc/9sys/rdpmc.c
+.SH SEE ALSO
+.IR pmc (3)
+.SH DIAGNOSTICS
+.I Confpmc
+returns \-1 and sets the error string on failure;
+.I rdpmc
+returns
+.B ~0
+if it cannot read the counter.
+.SH BUGS
+.I Rdpmc
+reads the file, a system call. NIX's
+.I rdpmc
+on amd64 used the
+.B RDPMC
+instruction, which faults where the kernel did not allow it;
+programs may use the instruction themselves while a counter of their
+processor is enabled.

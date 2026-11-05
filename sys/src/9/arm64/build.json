@@ -81,7 +81,8 @@
 					"usb",
 					"rtc",
 					"pci pci",
-					"sd"
+					"sd",
+					"pmc pmcio"
 				],
 				"Link": [
 					"usbxhcipci pci usbxhci",
@@ -140,6 +141,7 @@
 			"../port/devmnt.c",
 			"../port/devpci.c",
 			"../port/devpipe.c",
+			"../port/devpmc.c",
 			"../port/devproc.c",
 			"../port/devroot.c",
 			"devrtc.c",
@@ -174,6 +176,7 @@
 			"../port/pci.c",
 			"pciqemu.c",
 			"../ip/pktmedium.c",
+			"pmcio.c",
 			"../port/sdscsi.c",
 			"../port/sdvirtio10.c",
 			"../ip/tcp.c",

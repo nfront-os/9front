@@ -171,6 +171,7 @@ main(void)
 		trapinit();
 		fpuinit();
 		intrinit();
+		pmcipiinit();	/* pmc(3) */
 		clockinit();
 		cpuidprint();
 		synccycles();
@@ -190,6 +191,7 @@ main(void)
 	trapinit();
 	fpuinit();
 	intrinit();
+	pmcipiinit();	/* pmc(3) */
 	clockinit();
 	cpuidprint();
 	timersinit();
