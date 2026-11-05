@@ -4,6 +4,10 @@ wsys \- window system, prototype (processor backend), rio(4)'s files
 .SH SYNOPSIS
 .B wsys
 [
+.B -f
+.I font
+]
+[
 .B -s
 .I srvname
 ]
@@ -132,6 +136,27 @@ Del in a window that is not raw
 A window lives while its files are open (or the
 .B clone
 file that made it).
+.PP
+A window made by
+.B new
+is a text window, as
+.IR rio 's:
+while no program has its
+.B mouse
+open,
+.I wsys
+shows the end of what was written to its
+.B cons
+(and
+.BR text )
+and the line being typed, wrapped to the window, in the font given by
+.BR -f ,
+else
+.BR $font ,
+else
+.BR /lib/font/bit/vga/unicode.font
+.RI ( font (6));
+the wheel scrolls it, output scrolls it back to the end.
 .PP
 .TP
 .B clone
@@ -269,9 +294,9 @@ A client in C: see
 .IR draw (3),
 .IR segment (3)
 .SH BUGS
-A prototype: no labels shown, no text windows of its own (a shell needs
-.I rio
-in a window), no hidden windows, no menus, no Vulkan backend yet;
+A prototype: no labels shown, no hidden windows, no menus, no Vulkan
+backend yet; text windows have no selection, snarf, plumbing, scroll bar or
+hold mode;
 .B /dev/screen
 and
 .B window

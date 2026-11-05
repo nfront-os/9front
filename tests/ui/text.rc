@@ -1,0 +1,68 @@
+#!/bin/rc
+# wsys' text windows, run by wsys -x -i: a shell in a window of window(1), what
+# is typed echoed and run, its output shown, backspace, Del, and a draw(3)
+# program started from it that takes the window and gives it back. Prints
+# ok/FAIL lines and "text: all passed".
+fn fail { echo FAIL $*; exit fail }
+fn wait1 { # cmd...: until it succeeds, 10 s at most
+	n=0
+	while(! $* >[2]/dev/null && test $n -lt 100){ sleep 0.1; n=`{echo $n+1 | hoc} }
+	$* >[2]/dev/null
+}
+fn black { /tests/uipeek -n 104,104,596,396 000000 }
+fn key { /tests/uipeek -k $1 }
+fn away { echo A 1020 760 0 >/dev/mousein; sleep 0.2 }
+away
+
+window -r 100 100 600 400
+wait1 test -d /mnt/wsys/1 || fail no window
+id=1
+fn intext { grep -s $1 /mnt/wsys/$id/text }
+sleep 2
+b0=`{black}
+echo ok text window $id, its shell: $b0 black pixels
+key 'echo hello wsys'
+key '
+'
+wait1 intext '^hello wsys' || fail no output of echo in the text: `{cat /mnt/wsys/$id/text}
+grep -s 'echo hello wsys' /mnt/wsys/$id/text || fail the typed line not in the text
+sleep 0.5
+b1=`{black}
+test $b1 -gt $b0 || fail no more text on the screen: $b0 then $b1 black pixels
+echo ok typed and run: hello wsys, $b1 black pixels now
+
+# backspace while typing
+key 'echo abX'
+/tests/uipeek -k `{awk 'BEGIN{printf "%cc", 8}'}
+key '
+'
+wait1 intext '^abc$' || fail backspace: `{tail -3 /mnt/wsys/$id/text}
+echo ok backspace: abc
+
+# Del interrupts what runs in the window
+key 'sleep 100'
+key '
+'
+wait1 eval 'ps | grep -s '' sleep$''' || fail no sleep
+/tests/uipeek -k `{awk 'BEGIN{printf "%c", 127}'}
+wait1 eval '! ps | grep -s '' sleep$''' || fail Del did not interrupt sleep
+echo ok Del interrupted sleep
+
+# a draw(3) program from the shell takes the window, q gives it back
+rm -f /tmp/dt2.log
+key '/tests/drawtest /tmp/dt2.log'
+key '
+'
+wait1 grep -s '^start' /tmp/dt2.log || fail drawtest did not start
+sleep 0.5
+c=`{/tests/uipeek 350,250 | awk '{print $2}'}
+~ $c ff0000 || fail drawtest did not draw: $c
+echo ok drawtest drew in the text window
+key q
+wait1 eval '! ps | grep -s '' drawtest$''' || fail drawtest did not quit
+sleep 0.5
+c=`{/tests/uipeek 590,390 | awk '{print $2}'}
+~ $c ffffff || fail the text window not back: $c at 590,390
+test `{black} -gt 0 || fail no text after drawtest
+echo ok the text window back after drawtest
+echo text: all passed

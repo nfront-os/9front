@@ -9,7 +9,9 @@
 # segment), part of a window presented, a window gone with its clone fid. Then rio4.rc:
 # stage 4, rio(4)'s files: drawtest (event(2)) started with window(1), its click,
 # key, resize (wctl) and delete, and rio in a window of wsys with a shell typed into
-# (uipeek -k: kbd(3) messages). Their output
+# (uipeek -k: kbd(3) messages). text.rc: wsys' own text windows, a shell in one
+# typed into (its output on the screen: uipeek -n counts the text's pixels),
+# backspace, Del, drawtest started from it and quit. Their output
 # goes to files until the end: the kernel's console draws on the screen the test reads.
 # A second boot runs the same in a rio window.
 # Needs ../9front-rust's stage-1 rustc for wsys (scripts/build/cargo.sh).
@@ -25,7 +27,8 @@ check "build tests/ui" buildtests || { done_tests; exit; }
 mkdir -p "$HERE/root/tests"
 cp "$ROOT/amd64/bin/wsys" "$HERE/root/tests/wsys"
 cp "$HERE/rio4.rc" "$HERE/root/tests/rio4"
-chmod +x "$HERE/root/tests/rio4"
+cp "$HERE/text.rc" "$HERE/root/tests/text"
+chmod +x "$HERE/root/tests/rio4" "$HERE/root/tests/text"
 
 boot(){
 	UFS_EXTRA="$HERE/root" MEM=1024 KARGS="vgasize=1024x768x32 monitor=vesa mouseport=ps2" \
@@ -34,6 +37,7 @@ boot(){
 		'aux/realemu' 'aux/vga -m vesa -l 1024x768x32' "bind -a '#i' /dev" "bind -a '#m' /dev" \
 		"/tests/wsys -x -i '/tests/wsystest >/tmp/wsystest.log >[2=1]' >/tmp/wsys.log >[2=1]; cat /tmp/wsys.log /tmp/wsystest.log" \
 		"/tests/wsys -x -i /tests/rio4 >/tmp/rio4.log >[2=1]; cat /tmp/rio4.log" \
+		"/tests/wsys -x -i /tests/text >/tmp/text.log >[2=1]; cat /tmp/text.log" \
 		> "$TMPD/console" 2>&1
 	tr -d '\r' < "$TMPD/console" > "$TMPD/log"
 }
@@ -47,6 +51,7 @@ while read -r st rest; do
 done < <(grep -E '^(ok|FAIL) ' "$TMPD/log")
 check "wsystest: all passed" grep -q '^wsystest: all passed' "$TMPD/log"
 check "rio4 (draw(3) programs, window(1), rio in wsys): all passed" grep -q '^rio4: all passed' "$TMPD/log"
+check "text windows (a shell typed into, backspace, Del, a draw(3) program and back): all passed" grep -q '^text: all passed' "$TMPD/log"
 check "wsys posted /srv/wsys.glenda.pid on the 1024x768 screen" grep -qE '^wsys: /srv/wsys.glenda.[0-9]+ 0 0 1024 768' "$TMPD/log"
 check "no kernel panic" bash -c "! grep -q '^panic:' '$TMPD/log'"
 

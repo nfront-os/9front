@@ -300,6 +300,57 @@ impl Display {
         self.cmd(&m)
     }
 
+    /// 'd' through a mask: src at sp into r of dst, where mask (at mp) lets it
+    pub fn drawmask(&mut self, dst: u32, r: &Rect, src: u32, sp: (i32, i32), mask: u32, mp: (i32, i32)) -> io::Result<()> {
+        if r.empty() {
+            return Ok(());
+        }
+        let mut m = vec![b'd'];
+        for id in [dst, src, mask] {
+            m.extend_from_slice(&id.to_le_bytes());
+        }
+        Self::rect(&mut m, r);
+        for v in [sp.0, sp.1, mp.0, mp.1] {
+            m.extend_from_slice(&v.to_le_bytes());
+        }
+        self.cmd(&m)
+    }
+
+    /// 'y': rows of image id in its own format, bpl bytes a row (image(6)), in
+    /// bands that fit a message (a font's subfont, rows short enough)
+    pub fn loadraw(&mut self, id: u32, r: &Rect, data: &[u8], bpl: usize) -> io::Result<()> {
+        let room = MAXMSG - 1 - 4 - 16;
+        if bpl == 0 || bpl > room {
+            return Err(io::Error::other("rows too long to load"));
+        }
+        let mut y = r.y0;
+        while y < r.y1 {
+            let rows = ((room / bpl) as i32).min(r.y1 - y);
+            let o = (y - r.y0) as usize * bpl;
+            let end = o + rows as usize * bpl;
+            if end > data.len() {
+                return Err(io::Error::other("short image data"));
+            }
+            let mut m = vec![b'y'];
+            m.extend_from_slice(&id.to_le_bytes());
+            Self::rect(&mut m, &Rect::new(r.x0, y, r.x1, y + rows));
+            m.extend_from_slice(&data[o..end]);
+            self.cmd(&m)?;
+            y += rows;
+        }
+        Ok(())
+    }
+
+    /// 'Y': rows of image id from a block of a compressed image (image(6)),
+    /// as it is: devdraw takes the compressed data
+    pub fn loadcompressed(&mut self, id: u32, r: &Rect, block: &[u8]) -> io::Result<()> {
+        let mut m = vec![b'Y'];
+        m.extend_from_slice(&id.to_le_bytes());
+        Self::rect(&mut m, r);
+        m.extend_from_slice(block);
+        self.cmd(&m)
+    }
+
     /// 'y': rectangle r of image id from pixels laid out with stride (XRGB32), in
     /// messages of at most MAXMSG bytes: bands of rows, or pieces of a row
     pub fn load(&mut self, id: u32, r: &Rect, px: &[u8], stride: usize) -> io::Result<()> {

@@ -39,15 +39,20 @@
 // interrupts the window's note group). A button pressed on another window
 // gives it the focus and raises it; on a border, button 1 moves the window,
 // button 3 sweeps it to a new size (an outline until the button comes up).
+// A window made by new is a text window, as rio's: while no program has its
+// mouse open, wsys shows the end of what was written to its cons (and text) and
+// the line being typed, in a font of font(6); the wheel scrolls it.
 // A window lives while its files are open (or the clone fid that made it).
 // Processes wsys starts (-i, wctl's new) get note groups of their own.
 //
-// usage: wsys [-s srvname] [-i cmd] [-x]
+// usage: wsys [-f font] [-s srvname] [-i cmd] [-x]
+//	-f	the font of text windows (default $font, else /lib/font/bit/vga/unicode.font)
 //	-s	post as /srv/srvname (default wsys.$user.$pid)
 //	-i	run cmd (rc) in a name space with /mnt/wsys mounted, $wsys set
 //	-x	exit when cmd exits
 
 mod draw;
+mod font;
 mod ninep;
 mod p9;
 
@@ -75,6 +80,9 @@ const CORNER: i32 = 20; // on the border this near a corner grabs both its edges
 const MAXEVENTS: usize = 512;
 const MAXMOUSE: usize = 32;
 const MAXTEXT: usize = 1 << 20;
+const TEXTSHOWN: usize = 64 << 10; // of a text window's text, laid out to show its end
+const MARGIN: i32 = 4; // between a text window's border and its text
+const DEFFONT: &str = "/lib/font/bit/vga/unicode.font";
 
 enum Ev {
     Msg(Vec<u8>),
@@ -178,6 +186,8 @@ struct Win {
     resized: bool, // the next mouse read is an r message
     cursor: Vec<u8>, // cursor(3)'s 72 bytes, or none: the default arrow
     state: u64,      // bumped when wctl's answer changes
+    textwin: bool,   // made by new: shows its text while no program has its mouse
+    scroll: usize,   // a text window: lines back from the end
 }
 
 #[derive(Clone, Copy)]
@@ -336,6 +346,8 @@ struct Wsys {
     mousefd: Option<Fd>,  // to move the pointer
     cursorfd: Option<Fd>, // to set the cursor of the focused window
     tx: mpsc::Sender<Ev>,
+    font: Option<font::Font>, // of the text windows
+    black: u32,
 }
 
 fn qid(k: Kind) -> Qid {
@@ -461,7 +473,7 @@ impl Wsys {
                 let words: Vec<&str> = aname.split_whitespace().collect();
                 let (kind, win) = match words.first().copied() {
                     None | Some("none") => (Kind::Root, None),
-                    Some("new") => match opts(&words[1..], false).and_then(|o| self.newwin(&o)) {
+                    Some("new") => match opts(&words[1..], false).and_then(|o| self.newwin(&o, true)) {
                         Ok(n) => (Kind::WinDir(n), Some(n)),
                         Err(err) => return e(&err),
                     },
@@ -530,7 +542,7 @@ impl Wsys {
                     Kind::RootWctl if reading => return e("permission denied"),
                     Kind::File(_, F::Event | F::Winid | F::Winname) if writing => return e("permission denied"),
                     Kind::File(_, F::Consctl) if reading => return e("permission denied"),
-                    Kind::Clone => match self.newwin(&Opts::default()) {
+                    Kind::Clone => match self.newwin(&Opts::default(), false) {
                         Ok(n) => {
                             let f = self.fids.get_mut(&fid).unwrap();
                             (f.owns, f.win) = (true, Some(n));
@@ -651,11 +663,25 @@ impl Wsys {
                         ok
                     }
                     Kind::File(n, F::Cons | F::Text) => {
-                        let t = &mut self.wins.get_mut(&n).unwrap().text;
-                        t.extend_from_slice(&data);
+                        let w = self.wins.get_mut(&n).unwrap();
+                        let t = &mut w.text;
+                        for &c in &data {
+                            if c == 0x08 {
+                                // backspace: the rune before goes
+                                while let Some(x) = t.pop() {
+                                    if x & 0xC0 != 0x80 {
+                                        break;
+                                    }
+                                }
+                            } else {
+                                t.push(c);
+                            }
+                        }
                         if t.len() > MAXTEXT {
                             t.drain(..t.len() - MAXTEXT);
                         }
+                        w.scroll = 0;
+                        self.drawtext(n);
                         ok
                     }
                     Kind::File(n, F::Consctl) => {
@@ -730,6 +756,11 @@ impl Wsys {
                 }
                 if f.raw {
                     self.setraw(n, false);
+                }
+                if matches!(f.kind, Kind::File(_, F::Mouse)) {
+                    // the program let go of the window: its text again
+                    self.paint(n, None);
+                    self.drawtext(n);
                 }
             }
         }
@@ -884,8 +915,9 @@ impl Wsys {
         Ok(img)
     }
 
-    /// a new window, where the options put its frame (else by itself)
-    fn newwin(&mut self, o: &Opts) -> Result<u32, String> {
+    /// a new window, where the options put its frame (else by itself); text: a
+    /// text window (made by new, not by clone)
+    fn newwin(&mut self, o: &Opts, text: bool) -> Result<u32, String> {
         let slot = self.slots.iter().skip(1).position(|&u| !u).map(|i| i + 1).ok_or("too many windows")?;
         let n = self.nextwin + 1;
         let s = self.d.r;
@@ -917,11 +949,12 @@ impl Wsys {
             label: String::new(), wdir: o.cd.clone().unwrap_or_default(), text: vec![],
             events: VecDeque::new(), raw: false, line: vec![], cons: VecDeque::new(), eof: false,
             kbd: VecDeque::new(), kbdopen: 0, mouseopen: 0, mouse: VecDeque::new(), resized: false,
-            cursor: vec![], state: 1,
+            cursor: vec![], state: 1, textwin: text, scroll: 0,
         });
         self.z.push(n);
         self.setfocus(Some(n));
         self.paint(n, None);
+        self.drawtext(n);
         Ok(n)
     }
 
@@ -1047,7 +1080,7 @@ impl Wsys {
     /// wctl's new: a window, and cmd (default rc -i) run in it in a name space
     /// of its own with the window's files on /dev and /mnt/wsys
     fn spawn(&mut self, o: Opts) -> Result<(), String> {
-        let n = self.newwin(&o)?;
+        let n = self.newwin(&o, true)?;
         self.wins.get_mut(&n).unwrap().pinned = true;
         let cmd = if o.cmd.is_empty() { "rc -i".to_string() } else { o.cmd.join(" ") };
         let mut script = format!(
@@ -1201,6 +1234,7 @@ impl Wsys {
                 let _ = self.d.top(&above);
             }
             self.paintborder(n);
+            self.drawtext(n);
             self.event(n, format!("r {} {}", r.dx(), r.dy()));
         } else {
             let l = self.wins[&n].layer;
@@ -1280,6 +1314,82 @@ impl Wsys {
         }
     }
 
+    /// a text window shows the end of its text and the line being typed (none
+    /// while a program has its mouse: then the program draws)
+    fn drawtext(&mut self, n: u32) {
+        let Some(w) = self.wins.get(&n) else { return };
+        if !w.textwin || w.mouseopen > 0 || !w.bufs.is_empty() || self.font.is_none() {
+            return;
+        }
+        let (r, l, scroll, raw) = (w.r, w.layer, w.scroll, w.raw);
+        let start = w.text.len().saturating_sub(TEXTSHOWN);
+        let mut s = String::from_utf8_lossy(&w.text[start..]).into_owned();
+        if !raw {
+            s.push_str(&String::from_utf8_lossy(&w.line));
+        }
+        let (white, black) = (self.white, self.black);
+        let (font, d) = (self.font.as_mut().unwrap(), &mut self.d);
+        let inner = r.inset(MARGIN);
+        let (maxw, h) = (inner.dx().max(1), font.height.max(1));
+        let tab = (4 * font.width(d, '0')).max(1);
+        // lay out: lines of (rune, x)
+        let mut lines: Vec<Vec<(char, i32)>> = vec![vec![]];
+        let mut x = 0;
+        for c in s.chars() {
+            match c {
+                '\n' => {
+                    lines.push(vec![]);
+                    x = 0;
+                }
+                '\r' => {}
+                '\t' => {
+                    let nx = (x / tab + 1) * tab;
+                    if nx > maxw {
+                        lines.push(vec![]);
+                        x = 0;
+                    } else {
+                        x = nx;
+                    }
+                }
+                _ => {
+                    let cw = font.width(d, c);
+                    if x + cw > maxw && x > 0 {
+                        lines.push(vec![]);
+                        x = 0;
+                    }
+                    lines.last_mut().unwrap().push((c, x));
+                    x += cw;
+                }
+            }
+        }
+        let nvis = (inner.dy() / h).max(1) as usize;
+        let scroll = scroll.min(lines.len() - 1);
+        let end = lines.len() - scroll;
+        let begin = end.saturating_sub(nvis);
+        let res = (|| -> std::io::Result<()> {
+            d.draw(l, &r, white, 0, 0)?;
+            for (row, line) in lines[begin..end].iter().enumerate() {
+                let y = inner.y0 + row as i32 * h;
+                for &(c, cx) in line {
+                    if let Some(g) = font.glyph(d, c) {
+                        let dst = Rect::new(0, 0, g.src.dx(), g.src.dy()).add(inner.x0 + cx + g.dx, y + g.dy + g.src.y0);
+                        d.drawmask(l, &dst.clip(&inner), black, (0, 0), g.img, (g.src.x0, g.src.y0))?;
+                    }
+                }
+            }
+            if scroll == 0 && !raw {
+                // the tick where typing goes
+                let y = inner.y0 + (end - begin - 1) as i32 * h;
+                let t = Rect::new(inner.x0 + x, y, inner.x0 + x + 1, y + h).clip(&inner);
+                d.draw(l, &t, black, 0, 0)?;
+            }
+            d.flush()
+        })();
+        if let Err(e) = res {
+            eprintln!("wsys: text: {e}");
+        }
+    }
+
     fn mouse(&mut self, x: i32, y: i32, b: i32, ms: u32) {
         (self.mx, self.my, self.ms) = (x, y, ms);
         if let Some(g) = self.drag {
@@ -1318,9 +1428,17 @@ impl Wsys {
             }
         }
         let held = b != 0 || self.buttons != 0;
+        let wheel = b & 24 != 0 && self.buttons & 24 == 0;
         self.buttons = b;
         if let Some(n) = self.focus {
             let r = self.wins[&n].r;
+            let w = &self.wins[&n];
+            if wheel && w.textwin && w.mouseopen == 0 && r.contains(x, y) {
+                // the wheel scrolls a text window: 8 back, 16 on
+                let w = self.wins.get_mut(&n).unwrap();
+                w.scroll = if b & 8 != 0 { w.scroll + 3 } else { w.scroll.saturating_sub(3) };
+                self.drawtext(n);
+            }
             if held || r.contains(x, y) {
                 self.event(n, format!("m {} {} {} {}", x - r.x0, y - r.y0, b, ms));
                 let w = self.wins.get_mut(&n).unwrap();
@@ -1402,6 +1520,9 @@ impl Wsys {
             }
         }
         self.wake(n);
+        if !self.wins[&n].raw {
+            self.drawtext(n); // the echo
+        }
     }
 
     /// a rune typed into window n's cons: raw as it comes, else a line at a time
@@ -1436,12 +1557,16 @@ impl Wsys {
                     w.eof = true;
                 }
                 let l = std::mem::take(&mut w.line);
+                w.text.extend_from_slice(&l);
                 w.cons.extend(l);
             }
             '\n' => {
+                // the line goes to the program, and stays in the text as typed
                 let mut l = std::mem::take(&mut w.line);
                 l.push(b'\n');
+                w.text.extend_from_slice(&l);
                 w.cons.extend(l);
+                w.scroll = 0;
             }
             _ => w.line.extend_from_slice(bytes),
         }
@@ -1532,7 +1657,7 @@ fn kbdreader(tx: mpsc::Sender<Ev>) {
 }
 
 fn usage() -> ! {
-    eprintln!("usage: wsys [-s srvname] [-i cmd] [-x]");
+    eprintln!("usage: wsys [-f font] [-s srvname] [-i cmd] [-x]");
     std::process::exit(1);
 }
 
@@ -1542,11 +1667,13 @@ fn main() {
     // with its pid as rio: a wsys that died leaves its entry, another starts all the same
     let mut srvname = format!("wsys.{user}.{}", std::process::id());
     let (mut init, mut exitwith) = (None, false);
+    let mut fontname = std::env::var("font").ok().filter(|f| !f.is_empty()).unwrap_or(DEFFONT.to_string());
     while let Some(a) = args.next() {
         match a.as_str() {
             "-s" => srvname = args.next().unwrap_or_else(|| usage()),
             "-i" => init = Some(args.next().unwrap_or_else(|| usage())),
             "-x" => exitwith = true,
+            "-f" => fontname = args.next().unwrap_or_else(|| usage()),
             _ => usage(),
         }
     }
@@ -1622,12 +1749,14 @@ fn main() {
         mousefd,
         cursorfd: Fd::open("/dev/cursor", OWRITE).ok(),
         tx: tx.clone(),
+        font: font::Font::open(&fontname).inspect_err(|e| eprintln!("wsys: font {fontname}: {e}")).ok(),
+        black: 0,
     };
-    let colors = (|| -> std::io::Result<(u32, u32, u32, u32)> {
-        Ok((ws.d.color(BG)?, ws.d.color(FOCUSED)?, ws.d.color(UNFOCUSED)?, ws.d.color(WHITE)?))
+    let colors = (|| -> std::io::Result<(u32, u32, u32, u32, u32)> {
+        Ok((ws.d.color(BG)?, ws.d.color(FOCUSED)?, ws.d.color(UNFOCUSED)?, ws.d.color(WHITE)?, ws.d.color(0)?))
     })();
     match colors {
-        Ok((a, b, c, w)) => (ws.bg, ws.cfocus, ws.cother, ws.white) = (a, b, c, w),
+        Ok((a, b, c, w, k)) => (ws.bg, ws.cfocus, ws.cother, ws.white, ws.black) = (a, b, c, w, k),
         Err(e) => {
             eprintln!("wsys: colours: {e}");
             std::process::exit(1);
