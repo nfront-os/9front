@@ -483,6 +483,10 @@ ctxctl(Ctx *c, char **f, int n)
 		e = amdgpu_unmap(c->lc, strtoul(f[1], nil, 0));
 		return e < 0 ? errstr9(e) : nil;
 	}
+	if(n == 2 && strcmp(f[0], "close") == 0){
+		e = amdgpu_gem_close(c->lc, strtoul(f[1], nil, 0));
+		return e < 0 ? errstr9(e) : nil;
+	}
 	if(n == 2 && strcmp(f[0], "export") == 0){
 		char token[64];
 

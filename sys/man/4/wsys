@@ -420,7 +420,11 @@ copied.
 When
 .I wsys
 exits the windows are gone; clients cannot announce theirs again yet.
-GPU buffers: only virtio-gpu's (venus) so far, and
+GPU buffers: those of
+.I virtiogpu
+(venus) and
+.I amdgpu
+(RADV) so far, and
 .I wsys
 copies them to the screen with the processor.
 Each buffer is a segment of

@@ -1017,6 +1017,29 @@ amdgpu_unmap(void *v, u32 handle)
 }
 
 /*
+ * close (ctx ctl): the client lets go of an object by its handle, as
+ * GEM_CLOSE (an import's, say), its view unmapped first; not one of the
+ * context's own (bo), which free releases
+ */
+int
+amdgpu_gem_close(void *v, u32 handle)
+{
+	struct gctx *c = v;
+	struct drm_gem_close cl = { .handle = handle };
+	int i;
+
+	mutex_lock(&c->lock);
+	for (i = 0; i < c->nbo; i++)
+		if (c->bo[i].used && c->bo[i].handle == handle) {
+			mutex_unlock(&c->lock);
+			return -EBUSY;
+		}
+	mutex_unlock(&c->lock);
+	amdgpu_unmap(v, handle);	/* -ENOENT: not mapped */
+	return ioctl(c, DRM_IOCTL_GEM_CLOSE, &cl);
+}
+
+/*
  * export and import (gpu(4)'s ctx ctl): an object between contexts, of
  * any process, as a dma-buf fd goes between processes on Linux.  Export
  * makes the client's object a dma-buf (PRIME) and names it by a token,

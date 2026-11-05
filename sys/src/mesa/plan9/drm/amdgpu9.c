@@ -17,8 +17,13 @@
  *			"map", a segment), the GPU's address space (a
  *			manager of its own over AMDGPU_INFO's ranges, as
  *			libdrm's)
- *	not here	userptr objects, dma-buf and sync file descriptors
- *			(PRIME, syncobj fds), user queues
+ *	dma-buf		amdgpu_bo_export/import of dma-buf descriptors:
+ *			the driver's export and import by a token
+ *			(gpu(4)), the token as a descriptor
+ *			(lib/dmabuf.c); an object shared so is one
+ *			amdgpu_bo with references, as libdrm's
+ *	not here	userptr objects, sync file descriptors and the
+ *			raw PRIME and syncobj fd ioctls, user queues
  */
 #define _GNU_SOURCE
 #include <errno.h>
@@ -44,6 +49,9 @@
 #define ETIME	ETIMEDOUT
 #endif
 
+/* libmesaplan9 (lib/dmabuf.c): a token of gpu(4)'s export as a dma-buf descriptor */
+extern int	plan9_dmabuf_fd(const char *token);
+extern int	plan9_dmabuf_token(int fd, char *buf, int n);
 /* libmesaplan9 (lib/segfault.c): attached here and in the program's other procs when they touch it */
 extern void	*mesa9_segattach(const char*, void*, unsigned long long);
 extern int	mesa9_segdetach(void*);
@@ -961,6 +969,7 @@ struct amdgpu_device {
 	struct drm_amdgpu_info_device	info;
 	struct amdgpu_device	*next;
 	pthread_mutex_t	lk;
+	struct amdgpu_bo	*shared;	/* exported or imported as dma-bufs: by handle, counted */
 	struct Vam	*vam[4];	/* 32-bit, general, high 32-bit, high */
 	uint32_t	prtbit;	/* the bit that halves the high range (amdgpu_sw_info_address_prt_wa_control_bit) */
 };
@@ -972,7 +981,23 @@ struct amdgpu_bo {
 	void	*cpu;		/* mapped: the view */
 	int	maps;
 	int	seg;		/* the view is a segment of its own (detach) */
+	int	refs;		/* on dev->shared: the imports and the maker */
+	struct amdgpu_bo	*snext;
 };
+
+/* b on dev->shared, if it is not; with dev->lk */
+static void
+share(struct amdgpu_bo *b)
+{
+	struct amdgpu_bo *s;
+
+	for(s = b->dev->shared; s != NULL; s = s->snext)
+		if(s == b)
+			return;
+	b->refs = 1;
+	b->snext = b->dev->shared;
+	b->dev->shared = b;
+}
 
 /* the GPU's address space: holes, ascending */
 typedef struct Hole Hole;
@@ -1411,14 +1436,76 @@ amdgpu_bo_alloc(amdgpu_device_handle d, struct amdgpu_bo_alloc_request *req, amd
 int
 amdgpu_bo_export(amdgpu_bo_handle b, enum amdgpu_bo_handle_type type, uint32_t *shared)
 {
+	char reply[128], token[64];
+	Amd *a;
+	int fd;
+
 	switch(type){
 	case amdgpu_bo_handle_type_kms:
 	case amdgpu_bo_handle_type_kms_noimport:
 		*shared = b->handle;
 		return 0;
+	case amdgpu_bo_handle_type_dma_buf_fd:
+		/* the driver's export: a token, as a descriptor here */
+		if((a = amd9of(b->dev->fd)) == NULL)
+			return -EBADF;
+		if(ctlreq(a, reply, sizeof reply, "export %u", b->handle) < 0)
+			return -errno;
+		if(sscanf(reply, "export %63s", token) != 1)
+			return -EIO;
+		if((fd = plan9_dmabuf_fd(token)) < 0)
+			return -EMFILE;
+		pthread_mutex_lock(&b->dev->lk);
+		share(b);
+		pthread_mutex_unlock(&b->dev->lk);
+		*shared = fd;
+		return 0;
 	default:
-		return -EINVAL;	/* no flink names, no dma-buf descriptors */
+		return -EINVAL;	/* no flink names */
 	}
+}
+
+/* a dma-buf descriptor's object: imported by its token */
+static int
+importdmabuf(amdgpu_device_handle d, int fd, struct amdgpu_bo_import_result *out)
+{
+	char token[64], reply[128];
+	struct amdgpu_bo *b;
+	unsigned long long size;
+	unsigned h;
+	Amd *a;
+
+	if(plan9_dmabuf_token(fd, token, sizeof token) < 0)
+		return -EINVAL;
+	if((a = amd9of(d->fd)) == NULL)
+		return -EBADF;
+	if(ctlreq(a, reply, sizeof reply, "import %s", token) < 0)
+		return -errno;
+	if(sscanf(reply, "import %u %llu", &h, &size) != 2)
+		return -EIO;
+	/* the same object again (exported here, or imported before): one more reference */
+	pthread_mutex_lock(&d->lk);
+	for(b = d->shared; b != NULL; b = b->snext)
+		if(b->handle == h){
+			b->refs++;
+			pthread_mutex_unlock(&d->lk);
+			out->buf_handle = b;
+			out->alloc_size = b->size;
+			return 0;
+		}
+	b = calloc(1, sizeof *b);
+	if(b == NULL){
+		pthread_mutex_unlock(&d->lk);
+		return -ENOMEM;
+	}
+	b->dev = d;
+	b->handle = h;
+	b->size = size;
+	share(b);
+	pthread_mutex_unlock(&d->lk);
+	out->buf_handle = b;
+	out->alloc_size = size;
+	return 0;
 }
 
 int
@@ -1430,6 +1517,8 @@ amdgpu_bo_import(amdgpu_device_handle d, enum amdgpu_bo_handle_type type, uint32
 	struct amdgpu_bo *b;
 	int r;
 
+	if(type == amdgpu_bo_handle_type_dma_buf_fd)
+		return importdmabuf(d, shared, out);
 	if(type != amdgpu_bo_handle_type_kms && type != amdgpu_bo_handle_type_kms_noimport)
 		return -EINVAL;
 	memset(&op, 0, sizeof op);
@@ -1531,6 +1620,20 @@ int
 amdgpu_bo_free(amdgpu_bo_handle b)
 {
 	struct drm_gem_close cl;
+	struct amdgpu_bo **l;
+
+	/* shared: the last reference closes it */
+	pthread_mutex_lock(&b->dev->lk);
+	for(l = &b->dev->shared; *l != NULL; l = &(*l)->snext)
+		if(*l == b){
+			if(--b->refs > 0){
+				pthread_mutex_unlock(&b->dev->lk);
+				return 0;
+			}
+			*l = b->snext;
+			break;
+		}
+	pthread_mutex_unlock(&b->dev->lk);
 
 	if(b->cpu != NULL){
 		b->maps = 1;

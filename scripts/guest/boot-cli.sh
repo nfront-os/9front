@@ -230,9 +230,12 @@ pids+=($!)
 qemupid=$!
 # the guest powered itself off (fshalt, scram): nothing more to wait for
 running(){ kill -0 $qemupid 2>/dev/null; }
-for _ in $(seq 50); do
+# up to 30 s: with VFIO, QEMU pins all of the guest's memory first (slow
+# when the host must drop its page cache for it)
+for _ in $(seq 300); do
 	pts=$(grep -oE "/dev/pts/[0-9]+" "$CLI_DIR/qemu.log" | head -1)
 	[ -n "$pts" ] && break
+	running || break
 	sleep 0.1
 done
 [ -n "$pts" ] || die "no QEMU serial pty (log: $CLI_DIR/qemu.log)"

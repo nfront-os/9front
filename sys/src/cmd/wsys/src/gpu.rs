@@ -1,27 +1,37 @@
 // SPDX-License-Identifier: MIT
 //
 // Clients' GPU buffers (gpu(4), ../9front-ui stage 2): a client exports its
-// buffer from its own context (ctx ctl `export r` gives a token) and names it to
+// buffer from its own context (ctx ctl `export` gives a token) and names it to
 // wsys by the token (window ctl `gpubuffer`). wsys imports it into a context of
-// its own and maps it where the processor sees it, the device's host visible
-// memory (a segment of gpu(3)), and reads the pixels there: the client copies
-// nothing. The context is made when the first such buffer comes; the device's
-// segments stay attached while wsys runs (a handful at most).
+// its own and maps it where the processor sees it, and reads the pixels there:
+// the client copies nothing. The context is made when the first such buffer
+// comes, on the first device (/dev/gpu/0): aux/virtiogpu's (venus: a blob,
+// in the device's host visible memory, whose segments stay attached while
+// wsys runs) or aux/amdgpu's (a GEM object, a segment of its own each).
 
 use crate::p9::{Fd, ORDWR, Seg};
 use std::collections::HashMap;
 use std::io;
 use std::rc::Rc;
 
+#[derive(Clone, Copy, PartialEq)]
+enum Drv {
+    Virtio, // aux/virtiogpu: import gives "res r size", unref lets go
+    Amd,    // aux/amdgpu: import gives "import handle size", close lets go
+}
+
 pub struct Gpu {
     ctl: Rc<Fd>,
-    bars: HashMap<String, Seg>, // the host visible memory, by segment class
+    drv: Drv,
+    bars: HashMap<String, Seg>, // virtio: the host visible memory, by segment class
 }
 
 /// a buffer imported into wsys's context: released there when dropped
 pub struct GpuMem {
     ctl: Rc<Fd>,
-    res: u32,
+    drv: Drv,
+    res: u32,         // the resource (virtio) or the object's handle (amd)
+    seg: Option<Seg>, // amd: the object's own segment
     va: usize,
     pub len: usize,
     copy: Vec<u8>, // what read read last
@@ -72,7 +82,13 @@ unsafe fn stream_copy(dst: *mut u8, src: *const u8, n: usize) {
 
 impl Drop for GpuMem {
     fn drop(&mut self) {
-        let _ = self.ctl.write(format!("unref {}", self.res).as_bytes());
+        // the view first, then the object
+        self.seg = None;
+        let msg = match self.drv {
+            Drv::Virtio => format!("unref {}", self.res),
+            Drv::Amd => format!("close {}", self.res),
+        };
+        let _ = self.ctl.write(msg.as_bytes());
     }
 }
 
@@ -81,12 +97,20 @@ fn bad(what: &str, reply: &str) -> io::Error {
 }
 
 impl Gpu {
-    /// a context of the first device's (/dev/gpu/0), for venus' capability set:
-    /// the clients' buffers are venus' (virtio-gpu) for now
+    /// a context of the first device's (/dev/gpu/0); on virtio-gpu for
+    /// venus' capability set (the clients' buffers are venus')
     pub fn open() -> io::Result<Gpu> {
+        let status = std::fs::read_to_string("/dev/gpu/0/status")?;
+        let drv = match status.lines().next().unwrap_or("") {
+            l if l.starts_with("device virtio-gpu") => Drv::Virtio,
+            l if l.starts_with("device amd") => Drv::Amd,
+            l => return Err(io::Error::other(format!("gpu: no buffers of {l:?} yet"))),
+        };
         let ctl = Fd::open("/dev/gpu/0/clone", ORDWR)?;
-        let g = Gpu { ctl: Rc::new(ctl), bars: HashMap::new() };
-        g.req("init 4")?;
+        let g = Gpu { ctl: Rc::new(ctl), drv, bars: HashMap::new() };
+        if drv == Drv::Virtio {
+            g.req("init 4")?;
+        }
         Ok(g)
     }
 
@@ -103,6 +127,9 @@ impl Gpu {
         if token.is_empty() || !token.bytes().all(|c| c.is_ascii_hexdigit()) {
             return Err(io::Error::other("gpu: bad token"));
         }
+        if self.drv == Drv::Amd {
+            return self.importamd(token, size);
+        }
         // res r size [seg name va]
         let rep = self.req(&format!("import {token}"))?;
         let f: Vec<&str> = rep.split_whitespace().collect();
@@ -110,7 +137,7 @@ impl Gpu {
             return Err(bad("import", &rep));
         };
         // from here on dropping m lets go of it again
-        let mut m = GpuMem { ctl: self.ctl.clone(), res, va: 0, len: 0, copy: vec![] };
+        let mut m = GpuMem { ctl: self.ctl.clone(), drv: self.drv, res, seg: None, va: 0, len: 0, copy: vec![] };
         if rsize < size {
             return Err(io::Error::other(format!("gpu: buffer of {rsize} bytes, {size} wanted")));
         }
@@ -130,6 +157,34 @@ impl Gpu {
         }
         m.va = bar.va + off;
         m.len = size;
+        Ok(m)
+    }
+
+    /// aux/amdgpu: import token gives "import handle size", map handle "map
+    /// handle seg va size", a segment of the object's own
+    fn importamd(&mut self, token: &str, size: usize) -> io::Result<GpuMem> {
+        let rep = self.req(&format!("import {token}"))?;
+        let f: Vec<&str> = rep.split_whitespace().collect();
+        let (Some(&"import"), Some(h), Some(osize)) = (f.first(), f.get(1).and_then(|x| x.parse::<u32>().ok()), f.get(2).and_then(|x| x.parse::<usize>().ok())) else {
+            return Err(bad("import", &rep));
+        };
+        let mut m = GpuMem { ctl: self.ctl.clone(), drv: self.drv, res: h, seg: None, va: 0, len: 0, copy: vec![] };
+        if osize < size {
+            return Err(io::Error::other(format!("gpu: buffer of {osize} bytes, {size} wanted")));
+        }
+        let rep = self.req(&format!("map {h}"))?;
+        let f: Vec<&str> = rep.split_whitespace().collect();
+        let hex = |x: &str| usize::from_str_radix(x.trim_start_matches("0x"), 16).ok();
+        let (Some(&"map"), Some(&class), Some(len)) = (f.first(), f.get(2), f.get(4).and_then(|x| hex(x))) else {
+            return Err(bad("map", &rep));
+        };
+        if len < size {
+            return Err(bad("map: smaller than the buffer", &rep));
+        }
+        let seg = Seg::phys(class, len)?;
+        m.va = seg.va;
+        m.len = size;
+        m.seg = Some(seg);
         Ok(m)
     }
 }

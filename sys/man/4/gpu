@@ -650,6 +650,11 @@ the object as one of that context's own (a dma-buf between, as PRIME
 on Linux).
 The token is good while the exporting context lives; an imported object
 stays with the importer.
+.BI close " handle
+lets go of an object the client made through ioctls or imported (GEM_CLOSE,
+its view unmapped first).
+Mesa's RADV exports and imports its dma-bufs so (libdrm9: the token as a
+descriptor, plan9/lib/dmabuf.c).
 .PP
 .B Status
 names the chip, its memory, temperatures, power and clocks, the
@@ -954,9 +959,6 @@ The host visible bar is mapped uncached.
 No sync files.
 .IR I915 :
 no sharing of objects between processes yet.
-Mesa's RADV does not use
-.IR amdgpu 's
-export and import yet (libdrm9's PRIME is the process's own).
 .br
 .IR Amdgpu :
 no display yet (outputs, scanout); a freed VRAM object stays visible
