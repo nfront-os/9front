@@ -99,7 +99,8 @@ struct Win {
     r: Rect, // content, in screen coordinates
     slot: usize,
     bufs: HashMap<u32, Buf>,
-    img: u32, // what the window shows, its size
+    img: u32,   // what the window shows, its size, x8r8g8b8
+    layer: u32, // its window on wsys's screen in draw(3), border and all
     label: String,
     events: VecDeque<String>,
 }
@@ -146,6 +147,8 @@ struct Wsys {
     white: u32,
     slots: Vec<bool>, // in use
     drag: Option<Drag>,
+    scr: u32,          // the screen in draw(3) the windows are on
+    sweep: Vec<u32>,   // the outline of a sweep: four thin windows on top
 }
 
 fn qid(k: Kind) -> Qid {
@@ -462,16 +465,24 @@ impl Wsys {
             return Err("screen too small".into());
         }
         let img = self.image(r.dx(), r.dy())?;
+        let layer = match self.d.allocwindow(self.scr, r.inset(-BORDER), 0xFFFF_FFFF) {
+            Ok(l) => l,
+            Err(e) => {
+                let _ = self.d.free(img);
+                return Err(e.to_string());
+            }
+        };
         self.slots[slot] = true;
-        self.wins.insert(n, Win { r, slot, bufs: HashMap::new(), img, label: String::new(), events: VecDeque::new() });
+        self.wins.insert(n, Win { r, slot, bufs: HashMap::new(), img, layer, label: String::new(), events: VecDeque::new() });
         self.z.push(n);
         self.setfocus(Some(n));
-        self.redraw(r.inset(-BORDER));
+        self.paint(n, None);
         Ok(n)
     }
 
     fn delwin(&mut self, n: u32) {
         let Some(w) = self.wins.remove(&n) else { return };
+        let _ = self.d.free(w.layer);
         let _ = self.d.free(w.img);
         self.slots[w.slot] = false; // its buffers go with w
         self.z.retain(|&i| i != n);
@@ -484,7 +495,7 @@ impl Wsys {
             let top = self.z.last().copied();
             self.setfocus(top);
         }
-        self.redraw(w.r.inset(-BORDER));
+        let _ = self.d.flush();
     }
 
     fn setfocus(&mut self, n: Option<u32>) {
@@ -496,9 +507,8 @@ impl Wsys {
         for (id, v) in [(old, 0), (n, 1)] {
             if let Some(id) = id {
                 self.event(id, format!("f {v}"));
-                if let Some(w) = self.wins.get(&id) {
-                    let r = w.r.inset(-BORDER);
-                    self.redraw(r);
+                if self.wins.contains_key(&id) {
+                    self.paintborder(id);
                 }
             }
         }
@@ -508,8 +518,10 @@ impl Wsys {
         if self.z.last() != Some(&n) {
             self.z.retain(|&i| i != n);
             self.z.push(n);
-            let r = self.wins[&n].r.inset(-BORDER);
-            self.redraw(r);
+            let l = self.wins[&n].layer;
+            if let Err(e) = self.d.top(&[l]).and_then(|_| self.d.flush()) {
+                eprintln!("wsys: draw: {e}");
+            }
         }
     }
 
@@ -552,10 +564,10 @@ impl Wsys {
                 // what of the buffer the window shows: its top left corner
                 let full = Rect::new(0, 0, buf.w.min(w.r.dx()), buf.h.min(w.r.dy()));
                 let r = if nums.len() == 5 { Rect::new(nums[1], nums[2], nums[3], nums[4]).clip(&full) } else { full };
-                let (img, origin) = (w.img, (w.r.x0, w.r.y0));
+                let img = w.img;
                 if !r.empty() {
                     self.d.load(img, &r, buf.seg.bytes(), buf.stride).map_err(|e| e.to_string())?;
-                    self.redraw(r.add(origin.0, origin.1));
+                    self.paint(n, Some(r));
                 }
                 // copied: the client may write it again
                 self.event(n, format!("b {b}"));
@@ -595,34 +607,61 @@ impl Wsys {
             return Ok(());
         }
         if r.dx() != old.dx() || r.dy() != old.dy() {
+            // a new image that keeps what the window showed, white beyond it, and
+            // a new window in draw(3) where the old one was in the stack
             let img = self.image(r.dx(), r.dy())?;
-            let oldimg = self.wins[&n].img;
+            let (oldimg, oldlayer) = (self.wins[&n].img, self.wins[&n].layer);
             let all = Rect::new(0, 0, r.dx(), r.dy());
             let (white, d) = (self.white, &mut self.d);
             let res = d.draw(img, &all, white, 0, 0).and_then(|_| d.draw(img, &all, oldimg, 0, 0));
-            let _ = d.free(oldimg);
-            res.map_err(|e| e.to_string())?;
-            self.wins.get_mut(&n).unwrap().img = img;
+            let layer = res.and_then(|_| d.allocwindow(self.scr, r.inset(-BORDER), 0xFFFF_FFFF));
+            let layer = match layer {
+                Ok(l) => l,
+                Err(e) => {
+                    let _ = self.d.free(img);
+                    return Err(e.to_string());
+                }
+            };
+            let _ = self.d.free(oldimg);
+            let w = self.wins.get_mut(&n).unwrap();
+            (w.img, w.layer, w.r) = (img, layer, r);
+            // the stack as it was: those above go on top again
+            let above: Vec<u32> = self.z.iter().skip_while(|&&i| i != n).skip(1).map(|i| self.wins[i].layer).collect();
+            let _ = self.d.free(oldlayer);
+            if !above.is_empty() {
+                let _ = self.d.top(&above);
+            }
+            self.paint(n, None);
             self.event(n, format!("r {} {}", r.dx(), r.dy()));
+        } else {
+            let l = self.wins[&n].layer;
+            self.wins.get_mut(&n).unwrap().r = r;
+            let f = r.inset(-BORDER);
+            if let Err(e) = self.d.origin(l, (f.x0, f.y0), (f.x0, f.y0)).and_then(|_| self.d.flush()) {
+                eprintln!("wsys: draw: {e}");
+            }
         }
-        self.wins.get_mut(&n).unwrap().r = r;
-        self.redraw(old.inset(-BORDER).union(&r.inset(-BORDER)));
         Ok(())
     }
 
-    /// the frame of r drawn on the screen (a sweep in progress)
-    fn outline(&mut self, r: Rect) {
-        let f = r.inset(-BORDER);
-        let (scr, col) = (self.d.screen, self.cfocus);
-        let sides = [
-            Rect::new(f.x0, f.y0, f.x1, r.y0),
-            Rect::new(f.x0, r.y1, f.x1, f.y1),
-            Rect::new(f.x0, r.y0, r.x0, r.y1),
-            Rect::new(r.x1, r.y0, f.x1, r.y1),
-        ];
+    /// the frame of r on top of all (a sweep in progress): four thin windows
+    fn outline(&mut self, r: Option<Rect>) {
         let res = (|| -> std::io::Result<()> {
-            for side in sides {
-                self.d.draw(scr, &side.clip(&self.d.r), col, 0, 0)?;
+            for l in std::mem::take(&mut self.sweep) {
+                self.d.free(l)?;
+            }
+            if let Some(r) = r {
+                let f = r.inset(-BORDER);
+                let col = FOCUSED << 8 | 0xFF;
+                for side in [
+                    Rect::new(f.x0, f.y0, f.x1, r.y0),
+                    Rect::new(f.x0, r.y1, f.x1, f.y1),
+                    Rect::new(f.x0, r.y0, r.x0, r.y1),
+                    Rect::new(r.x1, r.y0, f.x1, r.y1),
+                ] {
+                    let l = self.d.allocwindow(self.scr, side, col)?;
+                    self.sweep.push(l);
+                }
             }
             self.d.flush()
         })();
@@ -631,25 +670,40 @@ impl Wsys {
         }
     }
 
-    /// compose rectangle r of the screen: background, then the windows bottom to top
-    fn redraw(&mut self, r: Rect) {
-        let r = r.clip(&self.d.r);
-        if r.empty() {
-            return;
-        }
+    /// window n's border, in the colour of its focus
+    fn paintborder(&mut self, n: u32) {
+        let w = &self.wins[&n];
+        let (l, r) = (w.layer, w.r);
+        let f = r.inset(-BORDER);
+        let col = if self.focus == Some(n) { self.cfocus } else { self.cother };
         let res = (|| -> std::io::Result<()> {
-            let scr = self.d.screen;
-            self.d.draw(scr, &r, self.bg, 0, 0)?;
-            for &n in &self.z {
-                let w = &self.wins[&n];
-                let col = if self.focus == Some(n) { self.cfocus } else { self.cother };
-                let frame = w.r.inset(-BORDER).clip(&r);
-                self.d.draw(scr, &frame, col, 0, 0)?;
-                let c = w.r.clip(&r);
-                self.d.draw(scr, &c, w.img, c.x0 - w.r.x0, c.y0 - w.r.y0)?;
+            for side in [
+                Rect::new(f.x0, f.y0, f.x1, r.y0),
+                Rect::new(f.x0, r.y1, f.x1, f.y1),
+                Rect::new(f.x0, r.y0, r.x0, r.y1),
+                Rect::new(r.x1, r.y0, f.x1, r.y1),
+            ] {
+                self.d.draw(l, &side, col, 0, 0)?;
             }
             self.d.flush()
         })();
+        if let Err(e) = res {
+            eprintln!("wsys: draw: {e}");
+        }
+    }
+
+    /// what window n shows, all of it or rectangle r (window coordinates), from
+    /// its image into its window in draw(3); devdraw shows what is not hidden
+    fn paint(&mut self, n: u32, r: Option<Rect>) {
+        let w = &self.wins[&n];
+        let all = Rect::new(0, 0, w.r.dx(), w.r.dy());
+        let whole = r.is_none();
+        let r = r.unwrap_or(all).clip(&all);
+        let (l, img, o) = (w.layer, w.img, (w.r.x0, w.r.y0));
+        if whole {
+            self.paintborder(n);
+        }
+        let res = self.d.draw(l, &r.add(o.0, o.1), img, r.x0, r.y0).and_then(|_| self.d.flush());
         if let Err(e) = res {
             eprintln!("wsys: draw: {e}");
         }
@@ -730,15 +784,14 @@ impl Wsys {
                 if r.dy() < MINSIZE {
                     if top { r.y0 = r.y1 - MINSIZE } else { r.y1 = r.y0 + MINSIZE }
                 }
-                let prev = g.cur;
                 g.cur = r;
-                self.redraw(prev.inset(-BORDER));
                 if b == 0 {
                     self.drag = None;
+                    self.outline(None);
                     let _ = self.setrect(g.win, r);
                 } else {
                     self.drag = Some(g);
-                    self.outline(r);
+                    self.outline(Some(r));
                 }
             }
         }
@@ -891,6 +944,8 @@ fn main() {
         white: 0,
         slots: vec![false; NSLOT],
         drag: None,
+        scr: 0,
+        sweep: vec![],
     };
     let colors = (|| -> std::io::Result<(u32, u32, u32, u32)> {
         Ok((ws.d.color(BG)?, ws.d.color(FOCUSED)?, ws.d.color(UNFOCUSED)?, ws.d.color(WHITE)?))
@@ -903,7 +958,20 @@ fn main() {
         }
     }
     let all = ws.d.r;
-    ws.redraw(all);
+    let made = (|| -> std::io::Result<u32> {
+        let (img, bg) = (ws.d.screen, ws.bg);
+        ws.d.draw(img, &all, bg, 0, 0)?;
+        let scr = ws.d.allocscreen(img, bg)?;
+        ws.d.flush()?;
+        Ok(scr)
+    })();
+    match made {
+        Ok(scr) => ws.scr = scr,
+        Err(e) => {
+            eprintln!("wsys: screen: {e}");
+            std::process::exit(1);
+        }
+    }
     println!("wsys: {srvpath} {} {} {} {}", all.x0, all.y0, all.x1, all.y1);
     let _ = std::io::stdout().flush();
 

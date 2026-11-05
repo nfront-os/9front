@@ -48,22 +48,40 @@ impl Rect {
     pub fn contains(&self, x: i32, y: i32) -> bool {
         x >= self.x0 && x < self.x1 && y >= self.y0 && y < self.y1
     }
-    pub fn union(&self, o: &Rect) -> Rect {
-        if self.empty() {
-            return *o;
-        }
-        if o.empty() {
-            return *self;
-        }
-        Rect::new(self.x0.min(o.x0), self.y0.min(o.y0), self.x1.max(o.x1), self.y1.max(o.y1))
-    }
 }
+
+/// a channel descriptor of draw(3) ("x8r8g8b8") as its number (strtochan(2))
+pub fn strtochan(s: &str) -> Option<u32> {
+    let b = s.as_bytes();
+    if b.is_empty() || b.len() % 2 != 0 {
+        return None;
+    }
+    let mut c = 0u32;
+    for p in b.chunks(2) {
+        let t = match p[0] {
+            b'r' => 0,
+            b'g' => 1,
+            b'b' => 2,
+            b'k' => 3,
+            b'a' => 4,
+            b'm' => 5,
+            b'x' => 6,
+            _ => return None,
+        };
+        let n = (p[1] as char).to_digit(10)?;
+        c = c << 8 | (t << 4 | n);
+    }
+    Some(c)
+}
+
+pub const REFBACKUP: u8 = 0;
 
 pub struct Display {
     _ctl: Fd, // the connection lives while /dev/draw/new is open
     data: Fd,
     buf: Vec<u8>,
     pub screen: u32,  // image id drawn on: 0, or the rio window's
+    pub chan: u32,    // its channels: windows on it have them too
     pub r: Rect,      // its rectangle, inside rio's border
     next: u32,
     pub opaque: u32,
@@ -93,6 +111,7 @@ impl Display {
             data,
             buf: Vec::with_capacity(MAXMSG),
             screen: 0,
+            chan: strtochan(&f[2]).unwrap_or(XRGB32),
             r: Rect::new(int(&f[4]), int(&f[5]), int(&f[6]), int(&f[7])),
             next: 16,
             opaque: 0,
@@ -110,6 +129,7 @@ impl Display {
                 let n = d._ctl.read(&mut b)?;
                 let f = info(&b[..n])?;
                 d.screen = id;
+                d.chan = strtochan(&f[2]).unwrap_or(XRGB32);
                 d.r = Rect::new(int(&f[4]), int(&f[5]), int(&f[6]), int(&f[7]));
                 if !w.starts_with("noborder.") {
                     d.r = d.r.inset(BORDERWIDTH);
@@ -173,6 +193,66 @@ impl Display {
         m.extend_from_slice(&col.to_le_bytes());
         self.cmd(&m)?;
         Ok(id)
+    }
+
+    /// 'A': a screen for windows on image, its background fill
+    pub fn allocscreen(&mut self, image: u32, fill: u32) -> io::Result<u32> {
+        let id = self.id();
+        let mut m = vec![b'A'];
+        for v in [id, image, fill] {
+            m.extend_from_slice(&v.to_le_bytes());
+        }
+        m.push(0); // not public
+        self.cmd(&m)?;
+        Ok(id)
+    }
+
+    /// 'b' on a screen: a window (layer) at r, in screen coordinates; devdraw keeps
+    /// what is hidden of it (Refbackup) and shows the screen's fill where none is
+    pub fn allocwindow(&mut self, scr: u32, r: Rect, col: u32) -> io::Result<u32> {
+        let id = self.id();
+        let mut m = vec![b'b'];
+        m.extend_from_slice(&id.to_le_bytes());
+        m.extend_from_slice(&scr.to_le_bytes());
+        m.push(REFBACKUP);
+        m.extend_from_slice(&self.chan.to_le_bytes());
+        m.push(0);
+        Self::rect(&mut m, &r);
+        Self::rect(&mut m, &r);
+        m.extend_from_slice(&col.to_le_bytes());
+        self.cmd(&m)?;
+        Ok(id)
+    }
+
+    /// 'N': give image id a public name (or take it back), for other clients'
+    /// namedimage (a draw(3) program's window, as rio's)
+    pub fn name(&mut self, id: u32, name: &str, on: bool) -> io::Result<()> {
+        let mut m = vec![b'N'];
+        m.extend_from_slice(&id.to_le_bytes());
+        m.push(on as u8);
+        m.push(name.len() as u8);
+        m.extend_from_slice(name.as_bytes());
+        self.cmd(&m)
+    }
+
+    /// 't': windows to the top
+    pub fn top(&mut self, ids: &[u32]) -> io::Result<()> {
+        let mut m = vec![b't', 1];
+        m.extend_from_slice(&(ids.len() as u16).to_le_bytes());
+        for id in ids {
+            m.extend_from_slice(&id.to_le_bytes());
+        }
+        self.cmd(&m)
+    }
+
+    /// 'o': window id to screen point scr, its coordinates starting at log there
+    pub fn origin(&mut self, id: u32, log: (i32, i32), scr: (i32, i32)) -> io::Result<()> {
+        let mut m = vec![b'o'];
+        m.extend_from_slice(&id.to_le_bytes());
+        for v in [log.0, log.1, scr.0, scr.1] {
+            m.extend_from_slice(&v.to_le_bytes());
+        }
+        self.cmd(&m)
     }
 
     /// a colour: 0xRRGGBB
