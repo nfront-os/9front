@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: MIT
+# wsys: the window system of ../9front-ui (PLAN.md stage 3), first prototype:
+# windows as a 9P file tree, their pixels in shared segments, composed by the
+# processor through draw(3). Only std: no crates.
+[package]
+name = "wsys"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[profile.release]
+debug = true

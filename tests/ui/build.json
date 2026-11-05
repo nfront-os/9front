@@ -1,0 +1,21 @@
+[
+	{
+		"Name": "ui-tests",
+		"Include": [
+			"/$ARCH/cflags.json"
+		],
+		"Install": "/tests/ui/root/tests/",
+		"Oflags": [
+			"--entry=_main"
+		],
+		"Libs": [
+			"--start-group",
+			"/$ARCH/lib.gcc/libdraw.a",
+			"/$ARCH/lib.gcc/libc.a",
+			"--end-group"
+		],
+		"SourceFilesCmd": [
+			"wsystest.c"
+		]
+	}
+]

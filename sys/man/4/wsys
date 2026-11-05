@@ -1,0 +1,148 @@
+.TH WSYS 4
+.SH NAME
+wsys \- window system, first prototype (processor backend)
+.SH SYNOPSIS
+.B wsys
+[
+.B -s
+.I srvname
+]
+[
+.B -i
+.I cmd
+]
+[
+.B -x
+]
+.PP
+.B mount /srv/wsys.$user /mnt/wsys
+.SH DESCRIPTION
+.I Wsys
+is the window system of the
+.B ui
+branch, a successor of
+.IR rio (1)
+in the making.
+It draws on the screen
+.IR draw (3)
+gives it (or in the window of
+.BR /dev/winname ),
+posts a 9P connection as
+.BI /srv/ srvname
+(default
+.BR wsys.$user )
+and serves a tree of windows.
+With
+.BR -i ,
+it runs
+.I cmd
+with
+.IR rc (1)
+in a name space of its own with the tree on
+.B /mnt/wsys
+and
+.B $wsys
+naming the service;
+.B -x
+makes it exit when
+.I cmd
+does.
+.PP
+A window's pixels are not sent through the files: they are in a global
+segment of
+.IR segment (3)
+that
+.I wsys
+makes at an address it picks, one per window size; the client attaches it by
+name with
+.IR segattach (2)
+and gets the same address.
+The layout is
+.B x8r8g8b8
+(32 bits a pixel, little-endian: blue, green, red, unused),
+a line every
+.I stride
+bytes.
+.TP
+.B clone
+Opening it makes a window; the open file is then the window's
+.BR ctl ,
+and the window lives until it is closed.
+.TP
+.IB n /ctl
+Reading gives one line of fields:
+.I n
+.I x0 y0 x1 y1
+(the window's content on the screen)
+.I w h stride
+.I segment
+.I address
+.I generation
+.I focus
+(1 if it has the focus).
+Messages written:
+.RS
+.TP
+.BI rect " x0 y0 x1 y1
+moves the window; a new size makes a new segment
+.RI ( generation
+counts them); the client detaches the old one at the
+.B r
+event and attaches the one
+.B ctl
+names.
+.TP
+.BR present " [\fIx0 y0 x1 y1\fP]"
+the pixels of the rectangle (in the window's coordinates; all of them without one) go to the screen.
+.TP
+.B top
+raises the window and gives it the focus.
+.TP
+.BI label " text
+.TP
+.B delete
+.RE
+.TP
+.IB n /event
+Reading blocks until there are events; each is a line:
+.BI m " x y buttons msec
+(the mouse, in the window's coordinates, while it is over the window or a button is held),
+.BI k " rune
+(a key, the rune in hexadecimal),
+.BI r " w h generation
+(a new size),
+.BI f " focus
+(1: the window got the focus, 0: lost it).
+.PP
+.I Wsys
+composes on the processor through
+.IR draw (3):
+a background, the windows bottom to top, each with a border (blue with the focus).
+Mouse events come from
+.BR /dev/mouse ;
+a button pressed over a window gives it the focus and raises it.
+Keys come from
+.B /dev/cons
+in raw mode and go to the focused window.
+.SH EXAMPLES
+A client in C: see
+.BR /tests/ui/wsystest.c .
+.SH SOURCE
+.B /sys/src/cmd/wsys
+(Rust;
+.BR scripts/build/cargo.sh )
+.SH SEE ALSO
+.IR rio (1),
+.IR draw (3),
+.IR segment (3)
+.SH BUGS
+A prototype: no window management by mouse (moving, sweeping), no labels
+shown, no Vulkan backend yet, no
+.IR draw (3)
+for old programs in its windows.
+The segments belong to the user
+.I wsys
+runs as; clients must be that user (or the host owner).
+Keys are read from
+.BR /dev/cons :
+another reader of it (an idle shell on the same console) takes some.
