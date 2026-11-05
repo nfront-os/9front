@@ -154,6 +154,7 @@ typedef struct Mode Mode;
 typedef struct Slot Slot;
 typedef struct Ctx Ctx;
 typedef struct Res Res;
+typedef struct Hold Hold;
 typedef struct Fidaux Fidaux;
 typedef struct Hole Hole;
 
@@ -180,10 +181,19 @@ struct Slot
 	uvlong	fence;
 };
 
+/*
+ * a resource, held by the contexts that made or imported it (Hold): on
+ * the device while any holds it; mapped in the host visible bar while
+ * any of them has it mapped. Exported, a token names it: another
+ * context imports it by the token (ctx ctl export, import)
+ */
 struct Res
 {
-	Res	*next;
+	Res	*xnext;		/* exported */
 	int	id;
+	int	ref;		/* contexts holding it */
+	int	nmapped;	/* of them, with it mapped */
+	char	token[33];	/* exported: its name, else empty */
 	int	mem;
 	uvlong	size;
 	char	seg[32];	/* guest memory: #g segment */
@@ -192,6 +202,13 @@ struct Res
 	int	mapped;		/* host memory in the hostmem bar */
 	uvlong	mapoff;
 	int	mapinfo;
+};
+
+struct Hold
+{
+	Hold	*next;
+	Res	*r;
+	int	mapped;
 };
 
 struct Ctx
@@ -207,7 +224,7 @@ struct Ctx
 	uvlong	donefence;	/* completed, with all before it */
 	uchar	fdone[Fwin];	/* fence k done: fdone[k%Fwin] */
 	int	failed;
-	Res	*res;
+	Hold	*holds;
 	char	*reply;
 	File	*dir, *ctl, *submit, *fence;
 };
@@ -1101,15 +1118,48 @@ ctxreply(Ctx *c, char *fmt, ...)
 	return nil;
 }
 
+static Res *exported;		/* by token */
+
+static Hold*
+findhold(Ctx *c, int id)
+{
+	Hold *h;
+
+	for(h = c->holds; h != nil; h = h->next)
+		if(h->r->id == id)
+			return h;
+	return nil;
+}
+
 static Res*
 findres(Ctx *c, int id)
 {
-	Res *r;
+	Hold *h;
 
-	for(r = c->res; r != nil; r = r->next)
-		if(r->id == id)
-			return r;
-	return nil;
+	if((h = findhold(c, id)) == nil)
+		return nil;
+	return h->r;
+}
+
+static void
+hold(Ctx *c, Res *r)
+{
+	Hold *h;
+
+	h = emalloc9p(sizeof *h);
+	h->r = r;
+	h->mapped = 0;
+	h->next = c->holds;
+	c->holds = h;
+}
+
+/* the reply that names a resource to a context */
+static char*
+resreply(Ctx *c, Res *r)
+{
+	if(r->seg[0])
+		return ctxreply(c, "res %d %llud seg %s %#p\n", r->id, r->size, r->seg, r->segva);
+	return ctxreply(c, "res %d %llud\n", r->id, r->size);
 }
 
 static char*
@@ -1206,22 +1256,22 @@ blobcreate(Ctx *c, int mem, int flags, uvlong blobid, uvlong size)
 		free(r);
 		return "RESOURCE_CREATE_BLOB failed";
 	}
-	r->next = c->res;
-	c->res = r;
-	if(r->seg[0])
-		return ctxreply(c, "res %d %llud seg %s %#p\n", r->id, size, r->seg, r->segva);
-	return ctxreply(c, "res %d %llud\n", r->id, size);
+	r->ref = 1;
+	hold(c, r);
+	return resreply(c, r);
 }
 
 static char*
 blobmap(Ctx *c, int id)
 {
 	uchar rq[Hdrsz+16], rs[Hdrsz+8], *p;
+	Hold *hd;
 	Res *r;
 	uvlong off;
 
-	if((r = findres(c, id)) == nil)
+	if((hd = findhold(c, id)) == nil)
 		return "unknown resource";
+	r = hd->r;
 	if(r->mapped)
 		goto Reply;
 	if(shm.len == 0)
@@ -1240,6 +1290,10 @@ blobmap(Ctx *c, int id)
 	r->mapoff = off;
 	r->mapinfo = GBIT32(rs+Hdrsz);
 Reply:
+	if(!hd->mapped){
+		hd->mapped = 1;
+		r->nmapped++;
+	}
 	return ctxreply(c, "map %d %s %#llux %#llux %llud %#ux\n", id,
 		mapseg(r->mapinfo), barsize[shm.bar], r->mapoff, r->size, r->mapinfo);
 }
@@ -1362,18 +1416,31 @@ static char*
 resunref(Ctx *c, int id)
 {
 	uchar rq[Hdrsz+8], *p;
-	Res *r, **l;
+	Hold *hd, **l;
+	Res *r, **x;
 	char *e;
 
-	for(l = &c->res; (r = *l) != nil; l = &r->next)
-		if(r->id == id)
+	for(l = &c->holds; (hd = *l) != nil; l = &hd->next)
+		if(hd->r->id == id)
 			break;
-	if(r == nil)
+	if(hd == nil)
 		return "unknown resource";
+	r = hd->r;
 	if(scanctx == c && scanblob == id){
 		qlock(&cmdlock);
 		scanoutfb();
 		qunlock(&cmdlock);
+	}
+	if(hd->mapped)
+		r->nmapped--;
+	*l = hd->next;
+	free(hd);
+	if(--r->ref > 0){
+		/* others hold it: this context lets go of it on the device */
+		ctxattach(c, id, 0);
+		if(r->nmapped == 0 && (e = blobunmap(r)) != nil)
+			return e;
+		return nil;
 	}
 	if((e = blobunmap(r)) != nil)
 		return e;
@@ -1381,11 +1448,59 @@ resunref(Ctx *c, int id)
 	PBIT32(p, id);
 	PBIT32(p+4, 0);
 	simplecmd(rq, sizeof rq);
-	*l = r->next;
+	for(x = &exported; *x != nil; x = &(*x)->xnext)
+		if(*x == r){
+			*x = r->xnext;
+			break;
+		}
 	if(r->seg[0])
 		rmseg(r->seg);
 	free(r);
 	return nil;
+}
+
+/*
+ * export: a token that names resource id, for import by another context
+ * (of another process) of this server; 128 random bits, as hard to
+ * guess as a capability should be
+ */
+static char*
+resexport(Ctx *c, int id)
+{
+	Res *r;
+
+	if((r = findres(c, id)) == nil)
+		return "unknown resource";
+	if(r->token[0] == 0){
+		snprint(r->token, sizeof r->token, "%08ux%08ux%08ux%08ux",
+			truerand(), truerand(), truerand(), truerand());
+		r->xnext = exported;
+		exported = r;
+	}
+	return ctxreply(c, "export %s\n", r->token);
+}
+
+/* import: the resource a token names, held by this context too */
+static char*
+resimport(Ctx *c, char *token)
+{
+	Res *r;
+	char *e;
+
+	if(!c->inited)
+		return "context not initialized";
+	for(r = exported; r != nil; r = r->xnext)
+		if(strcmp(r->token, token) == 0)
+			break;
+	if(r == nil)
+		return "no such export";
+	if(findres(c, r->id) == nil){
+		if((e = ctxattach(c, r->id, 1)) != nil)
+			return e;
+		hold(c, r);
+		r->ref++;
+	}
+	return resreply(c, r);
 }
 
 /* called with qlk held */
@@ -1540,8 +1655,8 @@ freectx(Ctx *c)
 	if(scanctx == c)
 		scanoutfb();
 	qunlock(&cmdlock);
-	while(c->res != nil)
-		resunref(c, c->res->id);
+	while(c->holds != nil)
+		resunref(c, c->holds->r->id);
 	if(c->inited){
 		ctxhdr(rq, Ctxdestroy, c->id);
 		simplecmd(rq, sizeof rq);
@@ -1765,12 +1880,21 @@ ctxctl(Ctx *c, char **f, int n)
 	if(n == 2 && strcmp(f[0], "map") == 0)
 		return blobmap(c, atoi(f[1]));
 	if(n == 2 && strcmp(f[0], "unmap") == 0){
-		Res *r;
+		Hold *hd;
 
-		if((r = findres(c, atoi(f[1]))) == nil)
+		if((hd = findhold(c, atoi(f[1]))) == nil)
 			return "unknown resource";
-		return blobunmap(r);
+		if(hd->mapped){
+			hd->mapped = 0;
+			if(--hd->r->nmapped == 0)
+				return blobunmap(hd->r);
+		}
+		return nil;
 	}
+	if(n == 2 && strcmp(f[0], "export") == 0)
+		return resexport(c, atoi(f[1]));
+	if(n == 2 && strcmp(f[0], "import") == 0)
+		return resimport(c, f[1]);
 	if(n == 2 && strcmp(f[0], "unref") == 0)
 		return resunref(c, atoi(f[1]));
 	if(n == 2 && strcmp(f[0], "scanout") == 0 && atoi(f[1]) == 0)

@@ -6,7 +6,8 @@
  * (AMDGPU_INFO), a context, two objects in GTT mapped in the GPU's
  * address space (GEM_VA) and for the processor (map), one IB through
  * AMDGPU_CS with its BO list, WAIT_CS, the value the GPU wrote; and an
- * ioctl whose pointer leaves the arena, refused (EFAULT).
+ * ioctl whose pointer leaves the arena, refused (EFAULT); PRIME's, which
+ * pass file descriptors, refused (EPERM).
  * Prints "ok ..." / "FAIL ..." lines and a summary.
  *
  * The structures are those of Linux's amdgpu_drm.h and drm.h (MIT).
@@ -26,6 +27,12 @@ struct Info {	/* drm_amdgpu_info */
 	u32int	retsize;
 	u32int	query;
 	u32int	arg[4];
+};
+typedef struct Primehandle Primehandle;
+struct Primehandle {	/* drm_prime_handle */
+	u32int	handle;
+	u32int	flags;
+	s32int	fd;
 };
 typedef struct Devinfo Devinfo;
 struct Devinfo {	/* the start of drm_amdgpu_info_device */
@@ -202,6 +209,7 @@ main(int argc, char **argv)
 {
 	char path[128], buf[256], *f[8];
 	Info *in;
+	Primehandle *ph;
 	Devinfo *di;
 	Vramgtt *vg;
 	Ctxreq *cx;
@@ -290,6 +298,22 @@ main(int argc, char **argv)
 		ok("a pointer out of the arena: EFAULT");
 	else
 		fail("a pointer out of the arena: %ld, not EFAULT", r);
+
+	/*
+	 * ioctls with file descriptors are refused (EPERM): the server's
+	 * descriptors are one table for all contexts
+	 */
+	ph = amalloc(sizeof *ph);
+	ph->handle = 1;
+	if((r = ioctl(IOWR(0x2d, Primehandle), ph)) == -1)
+		ok("PRIME_HANDLE_TO_FD: EPERM");
+	else
+		fail("PRIME_HANDLE_TO_FD: %ld, not EPERM", r);
+	ph->fd = 3;
+	if((r = ioctl(IOWR(0x2e, Primehandle), ph)) == -1)
+		ok("PRIME_FD_TO_HANDLE: EPERM");
+	else
+		fail("PRIME_FD_TO_HANDLE: %ld, not EPERM", r);
 
 	/* a context */
 	cx = amalloc(sizeof *cx);

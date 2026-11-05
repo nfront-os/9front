@@ -798,6 +798,49 @@ out:
 }
 
 /*
+ * ioctls a client may not make: those that pass file descriptors (the
+ * KPI's descriptors belong to the server, one table for all contexts:
+ * a client could take another's or leave its own behind), user memory
+ * (USERPTR) or user queues; buffers go between contexts by gpu(4)'s
+ * export and import.  libdrm9 (amdgpu9.c: refused) does not make them.
+ */
+static int
+refused(unsigned int nr)
+{
+	switch (nr) {
+	case 0x2d: case 0x2e:			/* PRIME_HANDLE_TO_FD, PRIME_FD_TO_HANDLE */
+	case 0xC1: case 0xC2: case 0xCF:	/* SYNCOBJ_HANDLE_TO_FD, SYNCOBJ_FD_TO_HANDLE, SYNCOBJ_EVENTFD */
+	case DRM_COMMAND_BASE + DRM_AMDGPU_GEM_USERPTR:
+	case DRM_COMMAND_BASE + DRM_AMDGPU_USERQ:
+	case DRM_COMMAND_BASE + DRM_AMDGPU_USERQ_SIGNAL:
+	case DRM_COMMAND_BASE + DRM_AMDGPU_USERQ_WAIT:
+		return 1;
+	}
+	return 0;
+}
+
+/*
+ * FENCE_TO_HANDLE gives a syncobj, or an fd (GET_SYNCOBJ_FD,
+ * GET_SYNC_FILE_FD): only the first.  The arguments are checked in a copy
+ * of the server's own, as the client can change the arena at any time.
+ */
+static long
+fencetohandle(struct gctx *c, u64 addr)
+{
+	union drm_amdgpu_fence_to_handle k;
+	long r;
+
+	if (copy_from_user(&k, u64_to_user_ptr(addr), sizeof k))
+		return -EFAULT;
+	if (k.in.what != AMDGPU_FENCE_TO_HANDLE_GET_SYNCOBJ)
+		return -EINVAL;
+	r = drm_ioctl_kernel(c->filp, amdgpu_cs_fence_to_handle_ioctl, &k, DRM_AUTH|DRM_RENDER_ALLOW);
+	if (r == 0 && copy_to_user(u64_to_user_ptr(addr), &k, sizeof k))
+		r = -EFAULT;
+	return r;
+}
+
+/*
  * the client's ioctl: its arguments at addr in the arena, and all they
  * point to; priv: the client is the hostowner (capable(CAP_SYS_ADMIN)
  * for it, as for root on Linux)
@@ -813,9 +856,14 @@ amdgpu_ioctl(void *v, unsigned int cmd, u64 addr, int priv)
 		return -ENXIO;
 	if (a < (unsigned long)c->arena || a + _IOC_SIZE(cmd) > (unsigned long)c->arena + size)
 		return -EFAULT;
+	if (refused(_IOC_NR(cmd)))
+		return -EPERM;
 	kpi_user_window(c->arena, size);
 	kpi_user_privileged(priv);
-	r = drm_ioctl(c->filp, cmd, a);
+	if (_IOC_NR(cmd) == DRM_COMMAND_BASE + DRM_AMDGPU_FENCE_TO_HANDLE)
+		r = fencetohandle(c, addr);
+	else
+		r = drm_ioctl(c->filp, cmd, a);
 	kpi_user_privileged(1);
 	kpi_user_window(NULL, 0);
 	return r;

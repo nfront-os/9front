@@ -21,7 +21,7 @@ libs="-Wl,--gc-sections -lvulkan -ldraw -l9 -lfmt -lutf"
 for s in tri.vert tri.frag; do
 	glslc -O -mfmt=c -o "$O/$s.inc" "$HERE/shaders/$s"
 done
-for p in vktest vkdraw vktri vkspeed radvtest gltest gldesk glwin; do
+for p in vktest vkdraw vktri vkspeed vkshare radvtest gltest gldesk glwin; do
 	extra=
 	case $p in
 	vkdraw|vktri)	extra="$O/btassert.o $O/screenpeek.o" ;;

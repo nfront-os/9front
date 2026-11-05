@@ -1584,6 +1584,7 @@
 			"plan9/loader/vkloader.o",
 			"plan9/loader/vkcmds.o",
 			"plan9/lib/dl.o",
+			"plan9/lib/dmabuf.o",
 			"plan9/lib/plan9compat.o",
 			"plan9/lib/segfault.o",
 			"plan9/lib/plan9win.o",

@@ -29,6 +29,9 @@
 
 /* APE's lib9 (lib9.h would bring Plan 9's macros into Mesa) */
 extern void *segattach(int, char *, void *, unsigned long);
+/* plan9/lib/dmabuf.c: gpu(4)'s export tokens as dma-buf fds */
+extern int plan9_dmabuf_fd(const char *token);
+extern int plan9_dmabuf_token(int fd, char *buf, int n);
 extern int segdetach(void *);
 
 #define PLAN9_GPU_DIR "/dev/gpu/0"
@@ -480,11 +483,88 @@ plan9_bo_map(struct vn_renderer *renderer,
    return bo->base.mmap_ptr;
 }
 
+/*
+ * a shareable blob as a dma-buf fd: aux/virtiogpu names it by a token
+ * ("export res" -> "export token"), which another context, of any
+ * process, imports (plan9_bo_create_from_dma_buf)
+ */
 static int
 plan9_bo_export_dma_buf(struct vn_renderer *renderer,
-                        struct vn_renderer_bo *bo)
+                        struct vn_renderer_bo *_bo)
 {
-   return -1;
+   struct plan9 *p9 = (struct plan9 *)renderer;
+   struct plan9_bo *bo = (struct plan9_bo *)_bo;
+   char buf[128], *f[4];
+   int fd = -1;
+
+   if (!(bo->blob_flags & PLAN9_BLOB_FLAG_SHAREABLE))
+      return -1;
+   mtx_lock(&p9->mutex);
+   if (plan9_ctl(p9, buf, sizeof(buf), "export %u", _bo->res_id) &&
+       plan9_fields(buf, f, 4) >= 2 && !strcmp(f[0], "export"))
+      fd = plan9_dmabuf_fd(f[1]);
+   mtx_unlock(&p9->mutex);
+   return fd;
+}
+
+/*
+ * a dma-buf fd's buffer (an export token of aux/virtiogpu) into this
+ * context: "import token" -> "res id size"; as virtgpu's: a resource
+ * this renderer has already is the same bo, with one more reference
+ */
+static VkResult
+plan9_bo_create_from_dma_buf(struct vn_renderer *renderer,
+                             VkDeviceSize size,
+                             int fd,
+                             VkMemoryPropertyFlags flags,
+                             struct vn_renderer_bo **out_bo)
+{
+   struct plan9 *p9 = (struct plan9 *)renderer;
+   char token[64], buf[256], *f[8];
+   uint32_t res_id;
+   size_t real_size;
+
+   if (plan9_dmabuf_token(fd, token, sizeof(token)) < 0)
+      return VK_ERROR_INVALID_EXTERNAL_HANDLE;
+   mtx_lock(&p9->mutex);
+   if (!plan9_ctl(p9, buf, sizeof(buf), "import %s", token) ||
+       plan9_fields(buf, f, 8) < 3 || strcmp(f[0], "res")) {
+      mtx_unlock(&p9->mutex);
+      return VK_ERROR_INVALID_EXTERNAL_HANDLE;
+   }
+   res_id = strtoul(f[1], NULL, 0);
+   real_size = strtoull(f[2], NULL, 0);
+
+   uint32_t blob_flags = PLAN9_BLOB_FLAG_SHAREABLE;
+   size_t mmap_size = 0;
+   if (flags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) {
+      /* smaller than asked: not mappable, the app's map fails later */
+      if (real_size >= size) {
+         blob_flags |= PLAN9_BLOB_FLAG_MAPPABLE;
+         mmap_size = real_size;
+      }
+   }
+
+   struct plan9_bo *bo = util_sparse_array_get(&p9->bo_array, res_id);
+   if (bo->base.res_id == res_id) {
+      if (bo->base.mmap_size < mmap_size || (blob_flags & ~bo->blob_flags)) {
+         mtx_unlock(&p9->mutex);
+         return VK_ERROR_INVALID_EXTERNAL_HANDLE;
+      }
+      vn_refcount_inc(&bo->base.refcount);
+   } else {
+      *bo = (struct plan9_bo){
+         .base = {
+            .refcount = VN_REFCOUNT_INIT(1),
+            .res_id = res_id,
+            .mmap_size = mmap_size,
+         },
+         .blob_flags = blob_flags,
+      };
+   }
+   mtx_unlock(&p9->mutex);
+   *out_bo = &bo->base;
+   return VK_SUCCESS;
 }
 
 static bool
@@ -493,7 +573,14 @@ plan9_bo_destroy(struct vn_renderer *renderer, struct vn_renderer_bo *_bo)
    struct plan9 *p9 = (struct plan9 *)renderer;
 
    mtx_lock(&p9->mutex);
+   /* imported again meanwhile (create_from_dma_buf): it stays */
+   if (vn_refcount_is_valid(&_bo->refcount)) {
+      mtx_unlock(&p9->mutex);
+      return false;
+   }
    plan9_ctl(p9, NULL, 0, "unref %u", _bo->res_id);
+   /* gone: an import of the resource later is a new bo */
+   _bo->res_id = 0;
    mtx_unlock(&p9->mutex);
 
    return true;
@@ -640,7 +727,7 @@ plan9_init_renderer_info(struct plan9 *p9)
    info->pci.vendor_id = PLAN9_PCI_VENDOR_ID;
    info->pci.device_id = PLAN9_PCI_DEVICE_ID;
 
-   info->has_dma_buf_import = false;
+   info->has_dma_buf_import = true;	/* export tokens (plan9/lib/dmabuf.c) */
    info->has_external_sync = false;
    info->has_timeline_sync = true;
    info->has_implicit_fencing = false;
@@ -806,7 +893,7 @@ plan9_init(struct plan9 *p9)
 
    p9->base.bo_ops.create_from_device_memory =
       plan9_bo_create_from_device_memory;
-   p9->base.bo_ops.create_from_dma_buf = NULL;
+   p9->base.bo_ops.create_from_dma_buf = plan9_bo_create_from_dma_buf;
    p9->base.bo_ops.destroy = plan9_bo_destroy;
    p9->base.bo_ops.export_dma_buf = plan9_bo_export_dma_buf;
    p9->base.bo_ops.export_sync_file = vn_renderer_bo_export_sync_file_internal;

@@ -224,6 +224,30 @@ so that the processor sees the memory as the host does.
 .BI detach " r
 unmap, release, attach to or detach from the context.
 .TP
+.BI export " r
+give blob
+.I r
+a name other contexts can import it by; reply
+.BI export " token" ,
+128 random bits in hex, the same for every export of
+.IR r .
+Whoever knows the token can import the blob: pass it only to the
+process meant to have it.
+.TP
+.BI import " token
+the exported blob in this context, of any process (the context must
+be initialized); reply
+.BI res " r size"
+as for
+.BR blob .
+The blob lives until the last context holding it releases it
+.RB ( unref
+or closing the context); the token goes with it.
+Mesa's venus driver uses them for Vulkan's external memory (dma-buf
+handles, VK_KHR_external_memory_fd): in a process a token takes the shape
+of a file descriptor (plan9/lib/dmabuf.c), between processes it goes as
+text.
+.TP
 .BI scanout " r w h stride
 show host blob
 .I r
@@ -912,7 +936,13 @@ Command buffers are limited to the context's segment (1 MB).
 .br
 The host visible bar is mapped uncached.
 .br
-No sync files and no dma-buf sharing between processes.
+No sync files.
+.IR Amdgpu ,
+.IR i915 :
+no sharing of objects between processes yet;
+.IR amdgpu 's
+.B ioctl
+refuses those that pass file descriptors (PRIME, syncobj fds).
 .br
 .IR Amdgpu :
 no display yet (outputs, scanout); a freed VRAM object stays visible
