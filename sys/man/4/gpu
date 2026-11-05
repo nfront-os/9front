@@ -635,6 +635,21 @@ replies the processor's view of an object the client made,
 an alias segment of its pages (GTT) or its part of BAR 0 (VRAM);
 .BI unmap " handle
 ends it, revoking the segment in every process.
+Ioctls that pass file descriptors (PRIME, syncobj fds) are refused
+.RB ( EPERM );
+objects go between contexts by token instead:
+.BI export " handle
+replies
+.BI export " token"
+(128 random bits, the same for every export of the object from the
+context), and
+.BI import " token
+in another context, of any process, replies
+.BI import " handle size" ,
+the object as one of that context's own (a dma-buf between, as PRIME
+on Linux).
+The token is good while the exporting context lives; an imported object
+stays with the importer.
 .PP
 .B Status
 names the chip, its memory, temperatures, power and clocks, the
@@ -937,12 +952,11 @@ Command buffers are limited to the context's segment (1 MB).
 The host visible bar is mapped uncached.
 .br
 No sync files.
-.IR Amdgpu ,
-.IR i915 :
-no sharing of objects between processes yet;
+.IR I915 :
+no sharing of objects between processes yet.
+Mesa's RADV does not use
 .IR amdgpu 's
-.B ioctl
-refuses those that pass file descriptors (PRIME, syncobj fds).
+export and import yet (libdrm9's PRIME is the process's own).
 .br
 .IR Amdgpu :
 no display yet (outputs, scanout); a freed VRAM object stays visible

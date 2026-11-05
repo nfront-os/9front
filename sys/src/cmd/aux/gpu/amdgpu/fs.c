@@ -483,6 +483,24 @@ ctxctl(Ctx *c, char **f, int n)
 		e = amdgpu_unmap(c->lc, strtoul(f[1], nil, 0));
 		return e < 0 ? errstr9(e) : nil;
 	}
+	if(n == 2 && strcmp(f[0], "export") == 0){
+		char token[64];
+
+		e = amdgpu_export(c->lc, strtoul(f[1], nil, 0), token, sizeof token);
+		if(e < 0)
+			return errstr9(e);
+		setreply(c, "export %s\n", token);
+		return nil;
+	}
+	if(n == 2 && strcmp(f[0], "import") == 0){
+		uint h;
+
+		e = amdgpu_import(c->lc, f[1], &h, &size);
+		if(e < 0)
+			return errstr9(e);
+		setreply(c, "import %ud %llud\n", h, size);
+		return nil;
+	}
 	return "unknown ctl message";
 }
 

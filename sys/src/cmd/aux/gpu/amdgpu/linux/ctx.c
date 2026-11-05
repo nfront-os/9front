@@ -51,6 +51,8 @@
 #include <linux/slab.h>
 #include <linux/file.h>
 #include <linux/dma-fence.h>
+#include <linux/dma-buf.h>
+#include <linux/random.h>
 #include <linux/mutex.h>
 #include <linux/pci.h>
 #include <linux/vmalloc.h>
@@ -257,6 +259,7 @@ bofree(struct gctx *c, struct bo *b)
 }
 
 static void unmap(struct gctx *c, struct map *m);
+static void unexport(struct gctx *c);
 
 void
 amdgpu_ctx_free(void *v)
@@ -264,6 +267,7 @@ amdgpu_ctx_free(void *v)
 	struct gctx *c = v;
 	int i;
 
+	unexport(c);	/* its tokens name nothing any more */
 	kmsout_scanout(c->filp, 0, 0, 0, 0);	/* its picture off the display */
 	for (i = 0; i < Nfence; i++)
 		if (c->fence[i]) {
@@ -1010,4 +1014,115 @@ amdgpu_unmap(void *v, u32 handle)
 		}
 	mutex_unlock(&c->lock);
 	return r;
+}
+
+/*
+ * export and import (gpu(4)'s ctx ctl): an object between contexts, of
+ * any process, as a dma-buf fd goes between processes on Linux.  Export
+ * makes the client's object a dma-buf (PRIME) and names it by a token,
+ * 128 random bits; import makes it an object of another context (its
+ * GEM handle, PRIME again: amdgpu's own buffer is the same object).  The
+ * table holds a reference to the dma-buf while the exporting context
+ * lives; what was imported stays with the importer.  The descriptors on
+ * the way are the server's and closed at once.
+ */
+enum { Nexport = 512 };
+static struct export {
+	struct dma_buf	*buf;	/* nil: free */
+	struct gctx	*from;
+	char	token[33];
+} exports[Nexport];
+static DEFINE_MUTEX(exportlock);
+
+int
+amdgpu_export(void *v, u32 handle, char *token, int ntoken)
+{
+	struct gctx *c = v;
+	struct drm_prime_handle p = { .handle = handle, .flags = DRM_CLOEXEC | DRM_RDWR };
+	struct dma_buf *buf;
+	struct export *x, *slot;
+	int r, i;
+
+	r = ioctl(c, DRM_IOCTL_PRIME_HANDLE_TO_FD, &p);
+	if (r)
+		return r;
+	buf = dma_buf_get(p.fd);	/* a reference of ours */
+	close_fd(p.fd);
+	if (IS_ERR(buf))
+		return PTR_ERR(buf);
+	mutex_lock(&exportlock);
+	slot = NULL;
+	for (i = 0; i < Nexport; i++) {
+		x = &exports[i];
+		if (x->buf == buf && x->from == c) {	/* exported before: the same token */
+			dma_buf_put(buf);
+			strscpy(token, x->token, ntoken);
+			mutex_unlock(&exportlock);
+			return 0;
+		}
+		if (x->buf == NULL && slot == NULL)
+			slot = x;
+	}
+	if (slot == NULL) {
+		mutex_unlock(&exportlock);
+		dma_buf_put(buf);
+		return -ENOSPC;
+	}
+	slot->buf = buf;
+	slot->from = c;
+	snprintf(slot->token, sizeof(slot->token), "%08x%08x%08x%08x",
+		 get_random_u32(), get_random_u32(), get_random_u32(), get_random_u32());
+	strscpy(token, slot->token, ntoken);
+	mutex_unlock(&exportlock);
+	return 0;
+}
+
+int
+amdgpu_import(void *v, const char *token, u32 *handle, u64 *size)
+{
+	struct gctx *c = v;
+	struct drm_prime_handle p = { };
+	struct export *x;
+	int fd, i, r;
+
+	mutex_lock(&exportlock);
+	for (i = 0; i < Nexport; i++) {
+		x = &exports[i];
+		if (x->buf != NULL && strcmp(x->token, token) == 0)
+			break;
+	}
+	if (i == Nexport) {
+		mutex_unlock(&exportlock);
+		return -ENOENT;
+	}
+	get_dma_buf(x->buf);
+	fd = dma_buf_fd(x->buf, O_CLOEXEC);	/* the descriptor has the reference */
+	if (fd < 0) {
+		dma_buf_put(x->buf);
+		mutex_unlock(&exportlock);
+		return fd;
+	}
+	*size = x->buf->size;
+	mutex_unlock(&exportlock);
+	p.fd = fd;
+	r = ioctl(c, DRM_IOCTL_PRIME_FD_TO_HANDLE, &p);
+	close_fd(fd);
+	if (r)
+		return r;
+	*handle = p.handle;
+	return 0;
+}
+
+static void
+unexport(struct gctx *c)
+{
+	int i;
+
+	mutex_lock(&exportlock);
+	for (i = 0; i < Nexport; i++)
+		if (exports[i].buf != NULL && exports[i].from == c) {
+			dma_buf_put(exports[i].buf);
+			memset(&exports[i], 0, sizeof(exports[i]));
+		}
+	mutex_unlock(&exportlock);
 }

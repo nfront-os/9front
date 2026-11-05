@@ -33,6 +33,9 @@ int	amdgpu_arena(void *c, char *seg, int nseg, u64g *va, u64g *size);
 long	amdgpu_ioctl(void *c, unsigned int cmd, u64g addr, int priv);	/* its result: 0, >0, or -errno; priv: the hostowner's */
 int	amdgpu_map(void *c, unsigned int handle, char *seg, int nseg, u64g *va, u64g *size);
 int	amdgpu_unmap(void *c, unsigned int handle);
+/* a client's object between contexts by a token (gpu(4) export, import) */
+int	amdgpu_export(void *c, unsigned int handle, char *token, int ntoken);
+int	amdgpu_import(void *c, const char *token, unsigned int *handle, u64g *size);
 #define amdgpu_iserr(p)	((unsigned long)(p) >= (unsigned long)-4095)
 
 /* the display (linux/kms.c, linux/ctx.c) */
