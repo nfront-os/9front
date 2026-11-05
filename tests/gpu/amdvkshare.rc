@@ -1,13 +1,17 @@
 #!/bin/rc
 # aux/amdgpu with its screen; a buffer of RADV's between two processes
-# (dma-buf: aux/amdgpu's export and import by a token), and vktri in a
-# window of wsys with its frames as GPU buffers
+# (dma-buf: aux/amdgpu's export and import by a token), then with a
+# timeline semaphore shared too (syncexport, syncimport)
 bind -a '#i' /dev
 bind -a '#v' /dev
 aux/amdgpu $* >/tmp/amd.log >[2=1]
 sleep 2
 rm -f /tmp/vks /tmp/vks.done
 /tests/vkshare export /tmp/vks & /tests/vkshare import /tmp/vks
+wait
+# with a shared timeline semaphore: the GPUs' work in order across processes
+rm -f /tmp/vks /tmp/vks.ready /tmp/vks.done
+/tests/vkshare -s export /tmp/vks & /tests/vkshare -s import /tmp/vks
 wait
 grep 'WARN|error|fault|BUG' /tmp/amd.log
 echo TESTEND

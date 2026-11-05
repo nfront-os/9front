@@ -1465,6 +1465,44 @@ amdgpu_bo_export(amdgpu_bo_handle b, enum amdgpu_bo_handle_type type, uint32_t *
 	}
 }
 
+/*
+ * a syncobj as a descriptor (opaque, as SYNCOBJ_HANDLE_TO_FD's): the
+ * driver's syncexport names it by a token, the token is the descriptor
+ * (lib/dmabuf.c); syncimport in another context, of any process, gives
+ * a handle of the same syncobj there
+ */
+int
+amd9syncexport(Amd *a, uint32_t handle, int *out)
+{
+	char reply[128], token[64];
+	int fd;
+
+	if(ctlreq(a, reply, sizeof reply, "syncexport %u", handle) < 0)
+		return -errno;
+	if(sscanf(reply, "syncexport %63s", token) != 1)
+		return -EIO;
+	if((fd = plan9_dmabuf_fd(token)) < 0)
+		return -EMFILE;
+	*out = fd;
+	return 0;
+}
+
+int
+amd9syncimport(Amd *a, int fd, uint32_t *handle)
+{
+	char token[64], reply[128];
+	unsigned h;
+
+	if(plan9_dmabuf_token(fd, token, sizeof token) < 0)
+		return -EINVAL;
+	if(ctlreq(a, reply, sizeof reply, "syncimport %s", token) < 0)
+		return -errno;
+	if(sscanf(reply, "syncimport %u", &h) != 1)
+		return -EIO;
+	*handle = h;
+	return 0;
+}
+
 /* a dma-buf descriptor's object: imported by its token */
 static int
 importdmabuf(amdgpu_device_handle d, int fd, struct amdgpu_bo_import_result *out)

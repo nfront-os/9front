@@ -37,6 +37,9 @@ int	amdgpu_unmap(void *c, unsigned int handle);
 int	amdgpu_export(void *c, unsigned int handle, char *token, int ntoken);
 int	amdgpu_import(void *c, const char *token, unsigned int *handle, u64g *size);
 int	amdgpu_gem_close(void *c, unsigned int handle);	/* ctl close: an object the client made or imported */
+/* a syncobj between contexts by a token (gpu(4) syncexport, syncimport) */
+int	amdgpu_syncexport(void *c, unsigned int handle, char *token, int ntoken);
+int	amdgpu_syncimport(void *c, const char *token, unsigned int *handle);
 #define amdgpu_iserr(p)	((unsigned long)(p) >= (unsigned long)-4095)
 
 /* the display (linux/kms.c, linux/ctx.c) */

@@ -1936,16 +1936,29 @@ drmSyncobjTransfer(int fd, uint32_t dst, uint64_t dstpt, uint32_t src, uint64_t 
 int
 drmSyncobjHandleToFD(int fd, uint32_t handle, int *out)
 {
-	if(amd9of(fd) != NULL)
-		return seterr(EOPNOTSUPP);	/* no sync file descriptors for amdgpu here */
+	Amd *a;
+	int r;
+
+	/* amdgpu: the syncobj itself, by aux/amdgpu's syncexport */
+	if((a = amd9of(fd)) != NULL){
+		if((r = amd9syncexport(a, handle, out)) < 0)
+			return seterr(-r);
+		return 0;
+	}
 	return drmSyncobjExportSyncFile(fd, handle, out);
 }
 
 int
 drmSyncobjFDToHandle(int fd, int sfd, uint32_t *handle)
 {
-	if(amd9of(fd) != NULL)
-		return seterr(EOPNOTSUPP);	/* no sync file descriptors for amdgpu here */
+	Amd *a;
+	int r;
+
+	if((a = amd9of(fd)) != NULL){
+		if((r = amd9syncimport(a, sfd, handle)) < 0)
+			return seterr(-r);
+		return 0;
+	}
 	if(drmSyncobjCreate(fd, 0, handle) < 0)
 		return -1;
 	if(drmSyncobjImportSyncFile(fd, *handle, sfd) < 0){

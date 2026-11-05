@@ -653,6 +653,15 @@ stays with the importer.
 .BI close " handle
 lets go of an object the client made through ioctls or imported (GEM_CLOSE,
 its view unmapped first).
+.BI syncexport " handle
+and
+.BI syncimport " token
+do the same for a syncobj (replies
+.BI syncexport " token
+and
+.BI syncimport " handle" ):
+the importer's handle is the same syncobj, whose fences both contexts
+wait for and signal (Vulkan's external semaphores and fences, opaque).
 Mesa's RADV exports and imports its dma-bufs so (libdrm9: the token as a
 descriptor, plan9/lib/dmabuf.c).
 .PP
@@ -956,7 +965,9 @@ Command buffers are limited to the context's segment (1 MB).
 .br
 The host visible bar is mapped uncached.
 .br
-No sync files.
+No sync files (a fence as a file of its own); on
+.I virtiogpu
+no sharing of fences between processes yet.
 .IR I915 :
 no sharing of objects between processes yet.
 .br

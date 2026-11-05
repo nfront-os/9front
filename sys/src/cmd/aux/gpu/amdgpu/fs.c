@@ -496,6 +496,24 @@ ctxctl(Ctx *c, char **f, int n)
 		setreply(c, "export %s\n", token);
 		return nil;
 	}
+	if(n == 2 && strcmp(f[0], "syncexport") == 0){
+		char token[64];
+
+		e = amdgpu_syncexport(c->lc, strtoul(f[1], nil, 0), token, sizeof token);
+		if(e < 0)
+			return errstr9(e);
+		setreply(c, "syncexport %s\n", token);
+		return nil;
+	}
+	if(n == 2 && strcmp(f[0], "syncimport") == 0){
+		uint h;
+
+		e = amdgpu_syncimport(c->lc, f[1], &h);
+		if(e < 0)
+			return errstr9(e);
+		setreply(c, "syncimport %ud\n", h);
+		return nil;
+	}
 	if(n == 2 && strcmp(f[0], "import") == 0){
 		uint h;
 

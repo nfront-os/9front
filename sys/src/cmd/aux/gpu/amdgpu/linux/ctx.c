@@ -1040,58 +1040,59 @@ amdgpu_gem_close(void *v, u32 handle)
 }
 
 /*
- * export and import (gpu(4)'s ctx ctl): an object between contexts, of
- * any process, as a dma-buf fd goes between processes on Linux.  Export
- * makes the client's object a dma-buf (PRIME) and names it by a token,
- * 128 random bits; import makes it an object of another context (its
- * GEM handle, PRIME again: amdgpu's own buffer is the same object).  The
- * table holds a reference to the dma-buf while the exporting context
- * lives; what was imported stays with the importer.  The descriptors on
- * the way are the server's and closed at once.
+ * export and import (gpu(4)'s ctx ctl): an object or a syncobj between
+ * contexts, of any process, as a dma-buf or syncobj fd goes between
+ * processes on Linux.  Export makes the client's object a dma-buf
+ * (PRIME) or its syncobj a syncobj file and names it by a token, 128
+ * random bits; import makes it an object or syncobj of another context
+ * (PRIME again: amdgpu's own buffer is the same object; a syncobj file's
+ * syncobj is the same one).  The table holds a reference to the file
+ * while the exporting context lives; what was imported stays with the
+ * importer.  The descriptors on the way are the server's and closed at
+ * once.
  */
 enum { Nexport = 512 };
+enum { Xdmabuf, Xsyncobj };
 static struct export {
-	struct dma_buf	*buf;	/* nil: free */
+	struct file	*f;	/* nil: free */
+	int	kind;
 	struct gctx	*from;
 	char	token[33];
 } exports[Nexport];
 static DEFINE_MUTEX(exportlock);
 
-int
-amdgpu_export(void *v, u32 handle, char *token, int ntoken)
+/* the file of the server's descriptor fd, named by a token (the same for the same file) */
+static int
+exportfile(struct gctx *c, int kind, int fd, char *token, int ntoken)
 {
-	struct gctx *c = v;
-	struct drm_prime_handle p = { .handle = handle, .flags = DRM_CLOEXEC | DRM_RDWR };
-	struct dma_buf *buf;
+	struct file *f;
 	struct export *x, *slot;
-	int r, i;
+	int i;
 
-	r = ioctl(c, DRM_IOCTL_PRIME_HANDLE_TO_FD, &p);
-	if (r)
-		return r;
-	buf = dma_buf_get(p.fd);	/* a reference of ours */
-	close_fd(p.fd);
-	if (IS_ERR(buf))
-		return PTR_ERR(buf);
+	f = fget(fd);	/* a reference of ours */
+	close_fd(fd);
+	if (f == NULL)
+		return -EBADF;
 	mutex_lock(&exportlock);
 	slot = NULL;
 	for (i = 0; i < Nexport; i++) {
 		x = &exports[i];
-		if (x->buf == buf && x->from == c) {	/* exported before: the same token */
-			dma_buf_put(buf);
+		if (x->f == f && x->from == c) {	/* exported before: the same token */
+			fput(f);
 			strscpy(token, x->token, ntoken);
 			mutex_unlock(&exportlock);
 			return 0;
 		}
-		if (x->buf == NULL && slot == NULL)
+		if (x->f == NULL && slot == NULL)
 			slot = x;
 	}
 	if (slot == NULL) {
 		mutex_unlock(&exportlock);
-		dma_buf_put(buf);
+		fput(f);
 		return -ENOSPC;
 	}
-	slot->buf = buf;
+	slot->f = f;
+	slot->kind = kind;
 	slot->from = c;
 	snprintf(slot->token, sizeof(slot->token), "%08x%08x%08x%08x",
 		 get_random_u32(), get_random_u32(), get_random_u32(), get_random_u32());
@@ -1100,39 +1101,95 @@ amdgpu_export(void *v, u32 handle, char *token, int ntoken)
 	return 0;
 }
 
-int
-amdgpu_import(void *v, const char *token, u32 *handle, u64 *size)
+/* a new descriptor of the server's for the file token names, if it is of kind; its dma-buf's size */
+static int
+importfile(int kind, const char *token, u64 *size)
 {
-	struct gctx *c = v;
-	struct drm_prime_handle p = { };
 	struct export *x;
-	int fd, i, r;
+	int fd, i;
 
 	mutex_lock(&exportlock);
 	for (i = 0; i < Nexport; i++) {
 		x = &exports[i];
-		if (x->buf != NULL && strcmp(x->token, token) == 0)
+		if (x->f != NULL && x->kind == kind && strcmp(x->token, token) == 0)
 			break;
 	}
 	if (i == Nexport) {
 		mutex_unlock(&exportlock);
 		return -ENOENT;
 	}
-	get_dma_buf(x->buf);
-	fd = dma_buf_fd(x->buf, O_CLOEXEC);	/* the descriptor has the reference */
+	fd = get_unused_fd_flags(O_CLOEXEC);
 	if (fd < 0) {
-		dma_buf_put(x->buf);
 		mutex_unlock(&exportlock);
 		return fd;
 	}
-	*size = x->buf->size;
+	get_file(x->f);
+	fd_install(fd, x->f);	/* the descriptor has that reference */
+	if (size && kind == Xdmabuf)
+		*size = ((struct dma_buf *)x->f->private_data)->size;
 	mutex_unlock(&exportlock);
-	p.fd = fd;
+	return fd;
+}
+
+int
+amdgpu_export(void *v, u32 handle, char *token, int ntoken)
+{
+	struct gctx *c = v;
+	struct drm_prime_handle p = { .handle = handle, .flags = DRM_CLOEXEC | DRM_RDWR };
+	int r;
+
+	r = ioctl(c, DRM_IOCTL_PRIME_HANDLE_TO_FD, &p);
+	if (r)
+		return r;
+	return exportfile(c, Xdmabuf, p.fd, token, ntoken);
+}
+
+int
+amdgpu_import(void *v, const char *token, u32 *handle, u64 *size)
+{
+	struct gctx *c = v;
+	struct drm_prime_handle p = { };
+	int r;
+
+	p.fd = importfile(Xdmabuf, token, size);
+	if (p.fd < 0)
+		return p.fd;
 	r = ioctl(c, DRM_IOCTL_PRIME_FD_TO_HANDLE, &p);
-	close_fd(fd);
+	close_fd(p.fd);
 	if (r)
 		return r;
 	*handle = p.handle;
+	return 0;
+}
+
+int
+amdgpu_syncexport(void *v, u32 handle, char *token, int ntoken)
+{
+	struct gctx *c = v;
+	struct drm_syncobj_handle h = { .handle = handle, .flags = 0 };	/* the syncobj, not a sync file */
+	int r;
+
+	r = ioctl(c, DRM_IOCTL_SYNCOBJ_HANDLE_TO_FD, &h);
+	if (r)
+		return r;
+	return exportfile(c, Xsyncobj, h.fd, token, ntoken);
+}
+
+int
+amdgpu_syncimport(void *v, const char *token, u32 *handle)
+{
+	struct gctx *c = v;
+	struct drm_syncobj_handle h = { };
+	int r;
+
+	h.fd = importfile(Xsyncobj, token, NULL);
+	if (h.fd < 0)
+		return h.fd;
+	r = ioctl(c, DRM_IOCTL_SYNCOBJ_FD_TO_HANDLE, &h);
+	close_fd(h.fd);
+	if (r)
+		return r;
+	*handle = h.handle;
 	return 0;
 }
 
@@ -1143,8 +1200,8 @@ unexport(struct gctx *c)
 
 	mutex_lock(&exportlock);
 	for (i = 0; i < Nexport; i++)
-		if (exports[i].buf != NULL && exports[i].from == c) {
-			dma_buf_put(exports[i].buf);
+		if (exports[i].f != NULL && exports[i].from == c) {
+			fput(exports[i].f);
 			memset(&exports[i], 0, sizeof(exports[i]));
 		}
 	mutex_unlock(&exportlock);
