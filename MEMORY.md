@@ -1076,7 +1076,7 @@ Quelle: Geoff Collyers `dist.9k-rv.tgz` (9p.io/sources/contrib/geoff/riscv, Stan
 
 ## 2026-11-05 (Teil 65): riscv auf gcc mit pmc rebased
 
-- **Rebase** (Sicherung `backup/riscv-vor-pmc-rebase`) auf gcc mit pmc(3) (Teil 57): Konflikt nur in MEMORY (riscv-Teile jetzt 58–64); `libc.riscv64.json` mit confpmc.c, rdpmc.c; `tests/pmc` läuft nur auf amd64 und arm64. gcc-Bau riscv64 822 Dateien ok; static 14/14, build 6/6, boot 12/12, guest 128/128.
+- **Rebase** (Stand davor `071fe73fd`) auf gcc mit pmc(3) (Teil 57): Konflikt nur in MEMORY (riscv-Teile jetzt 58–64); `libc.riscv64.json` mit confpmc.c, rdpmc.c; `tests/pmc` läuft nur auf amd64 und arm64. gcc-Bau riscv64 822 Dateien ok; static 14/14, build 6/6, boot 12/12, guest 128/128.
 
 ## Patch-Kandidaten für 9front
 
