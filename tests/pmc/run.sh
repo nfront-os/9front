@@ -5,11 +5,12 @@
 # reading cpu3's counter at once (one on cpu3 itself, one elsewhere).
 # x86 guests get KVM's virtual counters (boot-cli.sh PMU=1), then a
 # second boot without them must show none; arm64 (TCG) has PMUv3 always.
-# SKIP where the virtual processor has no counters. 386 has no pmc.
+# SKIP where the virtual processor has no counters. 386 and riscv64 have
+# no pmc.
 # After tests/nix/pmc.sh on the nix branch.
 . "$(dirname "$0")/../lib.sh"
 HERE=$(cd "$(dirname "$0")" && pwd)
-case $objtype in 386) skip "pmc" "no pmc(3) on 386"; done_tests; exit ;; esac
+case $objtype in amd64|arm64) ;; *) skip "pmc" "no pmc(3) on $objtype"; done_tests; exit ;; esac
 [ -f "$ROOT/$KBIN" ] || { skip "pmc" "no kernel $KBIN, run $BUILDHOW"; done_tests; exit; }
 [ -x "$BUILDEXE" ] || { skip "pmc" "no build tool $BUILDEXE"; done_tests; exit; }
 

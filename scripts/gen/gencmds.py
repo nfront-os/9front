@@ -219,6 +219,18 @@ def isape(text):
 	# or native cc with APE's headers first (antiword: -I/sys/include/ape)
 	return bool(re.search(r'^<\s*/?\$APE/config|^CC\s*=\s*pcc\b|^CFLAGS\s*=.*-I/sys/include/ape', text, re.M))
 
+# `{~ $objtype (386 amd64) && echo $X} and `{~ $objtype mips || echo $Y}:
+# the one rc idiom of 9front's mkfiles that picks words by architecture
+# (cmd/mkfile's PCONLY, doom's -D__BIG_ENDIAN__), evaluated as rc would
+OBJTYPEIF = re.compile(r'`\{\s*~\s+\$objtype\s+(\([^)]*\)|\S+)\s*(&&|\|\|)\s*echo\s+([^}]*)\}')
+
+def objtypeif(s):
+	def sub(m):
+		pats = m.group(1).strip('()').split()
+		hit = OBJTYPE in pats
+		return ' ' + m.group(3) + ' ' if hit == (m.group(2) == '&&') else ' '
+	return OBJTYPEIF.sub(sub, s)
+
 def variables(text):
 	v = {'objtype': [OBJTYPE], 'O': [O], 'cputype': [OBJTYPE], 'CPUS': [OBJTYPE]}
 	if isape(text):	# sys/src/ape/config
@@ -227,7 +239,7 @@ def variables(text):
 	for m in re.finditer(r'^(\w+)\s*=(.*)$', text, re.M):
 		# rc quoting: FS='64', FS='', -D'PROGRAMNAME="troff, Plan 9 edition"'
 		# `{...} (doom's `{~ $objtype mips && echo -D__BIG_ENDIAN__}) is not run
-		val = re.sub(r'`\{[^}]*\}', '', m.group(2))
+		val = re.sub(r'`\{[^}]*\}', '', objtypeif(m.group(2)))
 		v[m.group(1)] = [w for w in rcwords(expand(val, v)) if w != '']
 	return v
 
@@ -762,12 +774,12 @@ def subdirs(d):
 	text = readmk(d)
 	v = variables(text)
 	m = re.search(r'^DIRS\s*=(.*)$', text, re.M)
-	if m and '`' not in m.group(1):
+	if m and '`' not in objtypeif(m.group(1)):
 		# plus library dirs that rules build (auth: $LIB:	cd lib; mk)
 		libs = [s for s in sorted(os.listdir(os.path.join(SRC, d)))
 			if s not in ARCHS and os.path.isfile(os.path.join(SRC, d, s, 'mkfile'))
 			and kind(readmk(os.path.join(d, s))) in ('mklib', 'mksyslib')]
-		ds = expand(m.group(1), v).split()
+		ds = expand(objtypeif(m.group(1)), v).split()
 		if re.search(r'for\s*\(\s*i\s+in\s+\$DIRS\s+\$objtype\s*\)', text):
 			ds.append(OBJTYPE)	# ape/lib/ap: for(i in $DIRS $objtype)
 		return ds + [l for l in libs if l not in ds]

@@ -993,6 +993,7 @@ Nutzer: „go als Programmiersprache für alle Plattformen 386, amd64 usw. mit i
 - **Eigener Kern ohne Tos-Änderung** (Entscheidung des Nutzers): NIX' `getcore(2)` liest `Tos.core`; hier liefert die neue Datei `#ε/core` die CPU des Lesers, `rdpmc` und `confpmc(-1, …)` lesen sie (ein open/read mehr; der Prozess kann dazwischen wandern, wie man(2) sagt, außer er ist wired).
 - **Test** `tests/pmc` (Kategorie `pmc` nach `boot`): `pmctest` an cpu1 gebunden (23 Prüfungen, Zähler von cpu3 mit einer gebundenen Schleife dort), zwei Leser gleichzeitig (einer auf cpu3 selbst, einer auf cpu0), `#ε/core` auf jeder CPU (`pmctest core n`; `wired` wird nicht vererbt, `cat` lief anderswo); amd64 mit `PMU=1` (boot-cli.sh) und ohne. amd64 37/37, arm64 33/33, boot amd64 19/19, arm64 12/12, 386 baut.
 - **Beim nächsten Rebase von `nix`**: `a21f1f5aa` kollidiert; dort die NIX-Fassung (AC-Prüfung, `acipi` über `acsgi`, `getcore`) auf diese setzen, `#ε/core` behalten.
+- **Nachgezogen von `gpu` und `riscv`** (2026-11-05): `gencmds.py` wertet 9fronts rc-Idiom `` `{~ $objtype (386 amd64) && echo $X} `` aus (`objtypeif`, auch in `DIRS`; vorher fiel ein `DIRS` mit `` ` `` auf alle Unterordner zurück) — auf `gpu` baut damit `aux/gpu/intel` nur auf PCs; auf gcc ändert sich kein Manifest. `tests/pmc` läuft nur auf amd64 und arm64 (riscv64 hat keins).
 
 ## Patch-Kandidaten für 9front
 
