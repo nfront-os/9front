@@ -8,6 +8,7 @@
 # runs in the foreground, the console's rc does not read meanwhile), a resize (a new
 # segment), part of a window presented, a window gone with its clone fid. Their output
 # goes to files until the end: the kernel's console draws on the screen the test reads.
+# A second boot runs the same in a rio window.
 # Needs ../9front-rust's stage-1 rustc for wsys (scripts/build/cargo.sh).
 # usage: bash tests/ui/run.sh   (amd64)
 . "$(dirname "$0")/../lib.sh"
@@ -39,6 +40,33 @@ while read -r st rest; do
 	esac
 done < <(grep -E '^(ok|FAIL) ' "$TMPD/log")
 check "wsystest: all passed" grep -q '^wsystest: all passed' "$TMPD/log"
-check "wsys posted /srv/wsys.glenda on the 1024x768 screen" grep -q '^wsys: /srv/wsys.glenda 0 0 1024 768' "$TMPD/log"
+check "wsys posted /srv/wsys.glenda.pid on the 1024x768 screen" grep -qE '^wsys: /srv/wsys.glenda.[0-9]+ 0 0 1024 768' "$TMPD/log"
 check "no kernel panic" bash -c "! grep -q '^panic:' '$TMPD/log'"
+
+# second boot: the same test with wsys in a rio window (rioinit.rc, wsysrio.rc): its
+# screen is the window, mouse and keys come through rio. After rio, rc gets nothing
+# from the serial line: the scripts log to $home, which is on the host (ufsroot).
+cp "$HERE/rioinit.rc" "$HERE/root/tests/rioinit"
+cp "$HERE/wsysrio.rc" "$HERE/root/tests/wsysrio"
+chmod +x "$HERE/root/tests/rioinit" "$HERE/root/tests/wsysrio"
+out=$CLI_DIR/ufsroot/usr/glenda/wsysrio.out
+log=$CLI_DIR/ufsroot/usr/glenda/wsysrio.log
+rm -f "$out" "$log"
+UFS_EXTRA="$HERE/root" MEM=1024 KARGS="vgasize=1024x768x32 monitor=vesa mouseport=ps2" \
+CMDWAIT=5 WAITFOR='never shown' WAITMAX=300 \
+	"$ROOT/scripts/guest/boot-cli.sh" \
+	'aux/realemu' 'aux/vga -m vesa -l 1024x768x32' "bind -a '#i' /dev" "bind -a '#m' /dev" \
+	'rio -i /tests/rioinit' > "$TMPD/consolerio" 2>&1 &
+riopid=$!
+for _ in $(seq 150); do
+	grep -q '^done' "$out" 2>/dev/null && break
+	kill -0 $riopid 2>/dev/null || break
+	sleep 2
+done
+kill $riopid 2>/dev/null
+wait $riopid 2>/dev/null
+cp "$log" "$HERE/rio.log" 2>/dev/null
+check "rio: wsys in a window, wsystest: all passed" grep -q '^wsystest: all passed' "$log"
+check "rio: wsys draws inside the window" grep -qE '^ok wsys draws in \[1[0-9] 1[0-9]\]' "$log"
+grep '^FAIL' "$log" 2>/dev/null | sed 's/^/       /'
 done_tests

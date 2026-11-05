@@ -15,7 +15,7 @@ wsys \- window system, first prototype (processor backend)
 .B -x
 ]
 .PP
-.B mount /srv/wsys.$user /mnt/wsys
+.B mount $wsys /mnt/wsys
 .SH DESCRIPTION
 .I Wsys
 is the window system of the
@@ -30,7 +30,10 @@ gives it (or in the window of
 posts a 9P connection as
 .BI /srv/ srvname
 (default
-.BR wsys.$user )
+.BI wsys.$user. pid\fR,
+as
+.IR rio (1)
+does: one that died leaves its entry behind)
 and serves a tree of windows.
 With
 .BR -i ,
@@ -183,6 +186,10 @@ copied.
 When
 .I wsys
 exits the windows are gone; clients cannot announce theirs again yet.
+Each buffer is a segment of
+.IR wsys 's
+own as well; a process has room for some 250
+(of which Rust's threads take 64), so all windows together get about 190 buffers.
 Keys are read from
 .BR /dev/cons :
 another reader of it (an idle shell on the same console) takes some.

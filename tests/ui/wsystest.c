@@ -49,6 +49,7 @@ struct Win {
 };
 
 static Display *d;
+static Point o;		/* where wsys draws: screen coordinates below are from there */
 static Win *wins[8];
 static int nwins;
 
@@ -334,6 +335,43 @@ onnote(void*, char *msg)
 	return strcmp(msg, "alarm") == 0;
 }
 
+static Point
+P(int x, int y)
+{
+	return addpt(o, Pt(x, y));
+}
+
+static Rectangle
+R(int x0, int y0, int x1, int y1)
+{
+	return rectaddpt(Rect(x0, y0, x1, y1), o);
+}
+
+static void
+ctlrect(Win *w, Rectangle r)
+{
+	ctl(w, "rect %d %d %d %d", r.min.x, r.min.y, r.max.x, r.max.y);
+}
+
+/* the origin of wsys' screen (its rio window, when it runs in one) */
+static void
+screenorigin(void)
+{
+	char buf[64], *f[4];
+	int fd, n;
+
+	if((fd = open("/mnt/wsys/screen", OREAD)) < 0 || (n = read(fd, buf, sizeof buf - 1)) <= 0)
+		fail("/mnt/wsys/screen: %r");
+	close(fd);
+	buf[n] = 0;
+	if(tokenize(buf, f, nelem(f)) != 4)
+		fail("/mnt/wsys/screen: %s", buf);
+	o = Pt(atoi(f[0]), atoi(f[1]));
+	print("ok wsys draws in [%s %s] [%s %s]\n", f[0], f[1], f[2], f[3]);
+	if(atoi(f[2]) - o.x < 520 || atoi(f[3]) - o.y < 420)
+		fail("wsys' screen is too small for the test");
+}
+
 static int
 leftover(void)
 {
@@ -365,13 +403,14 @@ main(void)
 	atnotify(onnote, 1);
 	if((d = initdisplay(nil, nil, nil)) == nil)
 		fail("initdisplay: %r");
+	screenorigin();
 
 	/* window a: 320x240; buffer 0 left half red, right half green */
 	a = newwin();
 	print("ok window %d: %R, range %#llux %#llux\n", a->id, a->r, a->base, a->size);
 	if(!a->focus)
 		fail("a new window has the focus");
-	ctl(a, "rect 100 100 420 340");
+	ctlrect(a, R(100, 100, 420, 340));
 	l = event(a, 'r');
 	if(tokenize(l, f, nelem(f)) != 3 || atoi(f[1]) != 320 || atoi(f[2]) != 240)
 		fail("resize event: %s", l);
@@ -381,18 +420,18 @@ main(void)
 	fill(&a->buf[0], Rect(160, 0, 320, 240), Green);
 	present(a, 0, nil);
 	print("ok a: buffer 0 presented, released\n");
-	want(Pt(180, 220), Red, "a, left");
-	want(Pt(340, 220), Green, "a, right");
-	want(Pt(98, 200), Focused, "a's border, focused");
-	want(Pt(60, 60), Bg, "background");
+	want(P(180, 220), Red, "a, left");
+	want(P(340, 220), Green, "a, right");
+	want(P(98, 200), Focused, "a's border, focused");
+	want(P(60, 60), Bg, "background");
 
 	/* a swap chain: buffer 1 blue on top, then buffer 0 again */
 	mkbuf(a, 1, 320, 240, a->base + Bufstep, 1);
 	fill(&a->buf[1], Rect(0, 0, 320, 240), Blue);
 	present(a, 1, nil);
-	want(Pt(180, 220), Blue, "a, buffer 1");
+	want(P(180, 220), Blue, "a, buffer 1");
 	present(a, 0, nil);
-	want(Pt(180, 220), Red, "a, buffer 0 again");
+	want(P(180, 220), Red, "a, buffer 0 again");
 
 	/* a buffer outside the window's range is refused */
 	if(mkbuf(a, 1, 16, 16, a->base + a->size, 0) == 0)
@@ -403,22 +442,22 @@ main(void)
 	b = newwin();
 	if(b->base == a->base)
 		fail("a and b share a range");
-	ctl(b, "rect 300 200 500 400");
+	ctlrect(b, R(300, 200, 500, 400));
 	event(b, 'r');
 	readctl(b);
 	mkbuf(b, 0, 200, 200, b->base, 1);
 	fill(&b->buf[0], Rect(0, 0, 200, 200), Blue);
 	present(b, 0, nil);
-	want(Pt(400, 300), Blue, "b over a");
-	want(Pt(340, 150), Green, "a beside b");
+	want(P(400, 300), Blue, "b over a");
+	want(P(340, 150), Green, "a beside b");
 	l = event(a, 'f');
 	if(strcmp(l, "f 0") != 0)
 		fail("a lost the focus: %s", l);
 	print("ok a: %s\n", l);
 
 	/* a click on a (where b is not): a comes up and takes the focus, the click is its event */
-	click(Pt(150, 250));
-	want(Pt(350, 250), Green, "a raised by a click");
+	click(P(150, 250));
+	want(P(350, 250), Green, "a raised by a click");
 	l = event(a, 'm');
 	print("ok a: %s\n", l);
 	if(tokenize(l, f, nelem(f)) < 4 || atoi(f[1]) != 50 || atoi(f[2]) != 150 || atoi(f[3]) != 1)
@@ -440,30 +479,30 @@ main(void)
 	print("ok a: %s\n", l);
 
 	/* a smaller: it shows what it showed until a buffer of the new size comes */
-	ctl(a, "rect 80 80 280 200");
+	ctlrect(a, R(80, 80, 280, 200));
 	l = event(a, 'r');
 	print("ok a: %s\n", l);
 	readctl(a);
 	if(Dx(a->r) != 200 || Dy(a->r) != 120)
 		fail("a after the resize: %R", a->r);
-	want(Pt(180, 140), Red, "a resized, the old picture");
-	want(Pt(400, 300), Blue, "b where a was");
+	want(P(180, 140), Red, "a resized, the old picture");
+	want(P(400, 300), Blue, "b where a was");
 	mkbuf(a, 0, 200, 120, a->base, 1);
 	fill(&a->buf[0], Rect(0, 0, 200, 120), Yellow);
 	present(a, 0, nil);
-	want(Pt(180, 140), Yellow, "a's new buffer");
+	want(P(180, 140), Yellow, "a's new buffer");
 
 	/* part of a buffer: its right half red */
 	fill(&a->buf[0], Rect(100, 0, 200, 120), Red);
 	r = Rect(100, 0, 200, 120);
 	present(a, 0, &r);
-	want(Pt(230, 140), Red, "a's right half presented");
-	want(Pt(120, 140), Yellow, "a's left half as it was");
+	want(P(230, 140), Red, "a's right half presented");
+	want(P(120, 140), Yellow, "a's left half as it was");
 
 	/* b gone with its clone fid; its range is given again */
 	close(b->ctl);
-	want(Pt(400, 300), Bg, "background where b was");
-	want(Pt(120, 140), Yellow, "a stays");
+	want(P(400, 300), Bg, "background where b was");
+	want(P(120, 140), Yellow, "a stays");
 	c = newwin();
 	if(c->base != b->base)
 		fail("a new window got range %#llux, b's %#llux was free", c->base, b->base);
@@ -471,24 +510,24 @@ main(void)
 	close(c->ctl);
 
 	/* button 1 on a's border moves it, button 3 on its corner sweeps it */
-	drag(Pt(180, 78), Pt(280, 128), 1);
+	drag(P(180, 78), P(280, 128), 1);
 	sleep(200);
 	readctl(a);
-	if(!eqrect(a->r, Rect(180, 130, 380, 250)))
-		fail("a moved to %R, want [180 130] [380 250]", a->r);
+	if(!eqrect(a->r, R(180, 130, 380, 250)))
+		fail("a moved to %R, want %R", a->r, R(180, 130, 380, 250));
 	print("ok a moved by the mouse: %R\n", a->r);
-	want(Pt(220, 190), Yellow, "a where it was moved");
-	want(Pt(120, 140), Bg, "background where a was");
-	drag(Pt(381, 251), Pt(481, 301), 4);
+	want(P(220, 190), Yellow, "a where it was moved");
+	want(P(120, 140), Bg, "background where a was");
+	drag(P(381, 251), P(481, 301), 4);
 	l = event(a, 'r');
 	if(strcmp(l, "r 300 170") != 0)
 		fail("a swept: %s", l);
 	readctl(a);
-	if(!eqrect(a->r, Rect(180, 130, 480, 300)))
-		fail("a swept to %R, want [180 130] [480 300]", a->r);
+	if(!eqrect(a->r, R(180, 130, 480, 300)))
+		fail("a swept to %R, want %R", a->r, R(180, 130, 480, 300));
 	print("ok a swept by the mouse: %R\n", a->r);
-	want(Pt(220, 190), Yellow, "a swept keeps its picture");
-	want(Pt(450, 280), 0xffffff, "a swept: white beyond it");
+	want(P(220, 190), Yellow, "a swept keeps its picture");
+	want(P(450, 280), 0xffffff, "a swept: white beyond it");
 
 	if(leftover())
 		fail("segments left in #g");

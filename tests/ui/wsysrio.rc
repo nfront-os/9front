@@ -1,0 +1,4 @@
+#!/bin/rc
+# wsys with wsystest, in a rio window
+/tests/wsys -x -i '/tests/wsystest >$home/wsysrio.log >[2=1]' >$home/wsysrio.out >[2=1]
+echo done >>$home/wsysrio.out

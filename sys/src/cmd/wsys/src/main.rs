@@ -3,6 +3,8 @@
 // wsys: the window system of ../9front-ui (PLAN.md stage 3), first prototype
 // with the processor backend. A 9P file server (wsys(4)):
 //
+//	/mnt/wsys/screen	read: x0 y0 x1 y1, where wsys draws (all of the
+//				screen, or inside its rio window)
 //	/mnt/wsys/clone		open: a new window; the fid is then its ctl
 //	/mnt/wsys/N/ctl		read: id x0 y0 x1 y1 w h base size focus
 //				write: rect x0 y0 x1 y1 | buffer n seg w h stride |
@@ -26,7 +28,7 @@
 // new size (an outline until the button comes up).
 //
 // usage: wsys [-s srvname] [-i cmd] [-x]
-//	-s	post as /srv/srvname (default wsys.$user)
+//	-s	post as /srv/srvname (default wsys.$user.$pid)
 //	-i	run cmd (rc) in a name space with /mnt/wsys mounted, $wsys set
 //	-x	exit when cmd exits
 
@@ -68,6 +70,7 @@ enum Ev {
 #[derive(Clone, Copy, PartialEq, Debug)]
 enum Kind {
     Root,
+    Screen,
     Clone,
     WinDir(u32),
     Ctl(u32),
@@ -81,6 +84,10 @@ struct FidState {
     owns: Option<u32>, // the clone fid that made the window: clunked, the window goes
 }
 
+/// A client's buffer. Only the main loop touches it: Rust's std on Plan 9 runs
+/// threads as procs, and a segment attached after they started is the attaching
+/// proc's alone. Each is a segment of wsys's: with the 64 stack segments std
+/// makes, some 190 fit (NSEG).
 struct Buf {
     seg: Seg,
     w: i32,
@@ -145,6 +152,7 @@ fn qid(k: Kind) -> Qid {
     let (ty, path) = match k {
         Kind::Root => (ninep::QTDIR, 0),
         Kind::Clone => (0, 1),
+        Kind::Screen => (0, 5),
         Kind::WinDir(n) => (ninep::QTDIR, (n as u64) << 4 | 2),
         Kind::Ctl(n) => (0, (n as u64) << 4 | 3),
         Kind::Event(n) => (0, (n as u64) << 4 | 4),
@@ -163,6 +171,7 @@ impl Wsys {
         let (name, mode) = match k {
             Kind::Root => ("/".to_string(), ninep::DMDIR | 0o555),
             Kind::Clone => ("clone".to_string(), 0o666),
+            Kind::Screen => ("screen".to_string(), 0o444),
             Kind::WinDir(n) => (n.to_string(), ninep::DMDIR | 0o555),
             Kind::Ctl(_) => ("ctl".to_string(), 0o666),
             Kind::Event(_) => ("event".to_string(), 0o444),
@@ -182,6 +191,9 @@ impl Wsys {
             Kind::Root => {
                 if name == "clone" {
                     return Some(Kind::Clone);
+                }
+                if name == "screen" {
+                    return Some(Kind::Screen);
                 }
                 if name == ".." {
                     return Some(Kind::Root);
@@ -203,7 +215,7 @@ impl Wsys {
     fn children(&self, k: Kind) -> Vec<Kind> {
         match k {
             Kind::Root => {
-                let mut v = vec![Kind::Clone];
+                let mut v = vec![Kind::Screen, Kind::Clone];
                 let mut ids: Vec<u32> = self.wins.keys().copied().collect();
                 ids.sort();
                 v.extend(ids.into_iter().map(Kind::WinDir));
@@ -290,7 +302,7 @@ impl Wsys {
                 let rw = mode & 3;
                 let k = match k {
                     Kind::Root | Kind::WinDir(_) if rw != OREAD as u8 => return e("is a directory"),
-                    Kind::Event(_) if rw != OREAD as u8 => return e("permission denied"),
+                    Kind::Event(_) | Kind::Screen if rw != OREAD as u8 => return e("permission denied"),
                     Kind::Clone => match self.newwin() {
                         Ok(n) => {
                             let f = self.fids.get_mut(&fid).unwrap();
@@ -347,8 +359,11 @@ impl Wsys {
                         self.fids.get_mut(&fid).unwrap().dirpos = n;
                         Some(R::new(117, tag).u32(out.len() as u32).bytes(&out).done())
                     }
-                    Kind::Ctl(n) => {
-                        let s = self.ctltext(n);
+                    Kind::Ctl(_) | Kind::Screen => {
+                        let s = match k {
+                            Kind::Ctl(n) => self.ctltext(n),
+                            _ => format!("{} {} {} {}\n", self.d.r.x0, self.d.r.y0, self.d.r.x1, self.d.r.y1),
+                        };
                         let b = s.as_bytes();
                         let o = (offset as usize).min(b.len());
                         let b = &b[o..(o + count as usize).min(b.len())];
@@ -808,7 +823,8 @@ fn usage() -> ! {
 fn main() {
     let mut args = std::env::args().skip(1);
     let user = std::env::var("user").unwrap_or_else(|_| "none".into());
-    let mut srvname = format!("wsys.{user}");
+    // with its pid as rio: a wsys that died leaves its entry, another starts all the same
+    let mut srvname = format!("wsys.{user}.{}", std::process::id());
     let (mut init, mut exitwith) = (None, false);
     while let Some(a) = args.next() {
         match a.as_str() {
