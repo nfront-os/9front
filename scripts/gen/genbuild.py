@@ -9,7 +9,8 @@ builds what the system needs, in dependency order: libc, the libraries
 (scripts/gen/genlibs.py --list), the kernel's klib*.a, the programs
 (scripts/gen/gencmds.py --list: sys/src/mkfile's $SUBSYS $CMDS; APE's musl
 part after libap's, scripts/gen/genmusl.py --list), on amd64 Linux's DRM
-drivers on the LinuxKPI (sys/src/linux, aux/i915), the files
+drivers on the LinuxKPI (sys/src/linux, aux/i915) and the Rust crates
+(scripts/gen/rustcrates.py, scripts/build/cargo.sh: wsys), the files
 the kernel embeds (scripts/gen-*.sh: rebootcode.i, apbootstrap.i, ...,
 initcode, /boot/boot and $CONF.bootfs.paq), the kernel, its Plan 9
 a.out where 9boot loads it (scripts/build/elf2aout.py), and the check that
@@ -25,7 +26,7 @@ usage: scripts/gen/genbuild.py
 """
 import json, os, subprocess, sys
 
-import genclean
+import genclean, rustcrates
 
 ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..'))
 
@@ -81,7 +82,11 @@ def main():
 		] + ([
 			# Linux's DRM drivers on the LinuxKPI (scripts/linux/genbuild.py)
 			{'Name': 'linux', 'Projects': ['/sys/src/linux/build.json', '/sys/src/cmd/aux/gpu/i915/build.json', '/sys/src/cmd/aux/gpu/amdgpu/build.json']},
-		] if objtype == 'amd64' else []) + [
+		] if objtype == 'amd64' else []) + ([
+			# the Rust crates (scripts/gen/rustcrates.py: rust.json), with ../9front-rust
+			{'Name': 'rust', 'Pre': ['bash scripts/build/cargo.sh %s %s' % (d, ' '.join(p))
+				for d, p in rustcrates.crates()]},
+		] if objtype in rustcrates.OBJTYPES and rustcrates.crates() else []) + [
 			{'Name': 'kernelgen', 'Pre': gens, 'Clean': genclean.clean(gens, ROOT)},
 			{'Name': 'kernel', 'Projects': [kern]},
 			{'Name': 'install', 'Post': ['python3 scripts/build/elf2aout.py %s %s' % (elf, aout),

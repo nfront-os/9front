@@ -1,0 +1,30 @@
+#!/bin/rc
+# cargo.sh on 9front: a Rust crate of the tree built with the native cargo and rustc
+# of ../9front-rust (/$cputype/rust, scripts/install.sh there), linked by the native
+# gcc (/$cputype/gnu), its programs installed in /$objtype/bin. Without them it says
+# so and builds nothing (check-install.rc reports the programs as norust).
+#	cargo.rc dir prog...
+. $PLAN9/scripts/build/rc/lib.rc
+if(~ $#* 0 1)
+	die usage: cargo.rc dir prog...
+rust=/$cputype/rust/bin
+if(! test -x $rust/cargo || ! test -x $rust/rustc || ! test -x $GNU/gcc){
+	echo cargo.rc: no Rust toolchain '('$rust, $GNU')': $* not built >[1=2]
+	exit ''
+}
+dir=$1
+shift
+bind -b $rust /bin
+bind -b $GNU /bin
+target=/tmp/cargo.`{echo $dir | sed 's,/,_,g'}
+@{
+	cd $PLAN9/$dir || die no $dir
+	CARGO_TARGET_DIR=$target cargo build --offline --release --quiet
+} || die cargo build $dir
+mkdir -p $PLAN9/$objtype/bin
+for(p in $*){
+	if(! cmp -s $target/release/$p $PLAN9/$objtype/bin/$p){
+		cp $target/release/$p $PLAN9/$objtype/bin/$p.new && mv $PLAN9/$objtype/bin/$p.new $PLAN9/$objtype/bin/$p || die install $p
+	}
+}
+exit ''

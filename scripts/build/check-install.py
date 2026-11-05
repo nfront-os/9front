@@ -8,6 +8,8 @@ ape, /acme -- programs where their install rules put them, and the
 files those rules install, scripts/build/mkinstall.py) and the kernel.
 
   missing  expected, not in the tree (or in the staged distribution)
+  norust   a Rust crate's program (scripts/gen/rustcrates.py) not built: no Rust
+           toolchain (scripts/build/cargo.sh skips them)
   stale    in /$objtype/bin or /acme/bin/$objtype, but nothing installs
            it there (left from an older build: telnet before it moved
            from /amd64/bin/ip to /amd64/bin, as ip/mkfile installs it)
@@ -33,6 +35,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'gen'))
 import gencmds as g
+import rustcrates
 from arch import OBJTYPE as A
 
 # the kernel mk install puts in /$objtype, and the ELF the build keeps
@@ -75,6 +78,13 @@ def expected():
 				out[b['Install'].replace('/$ARCH', '/' + A) + b['Program']] = m
 	return out
 
+def rustprogs():
+	"""{path: crate} of the Rust crates' programs (scripts/gen/rustcrates.py):
+	built only where there is a Rust toolchain"""
+	if A not in rustcrates.OBJTYPES:
+		return {}
+	return {'/%s/bin/%s' % (A, p): d for d, progs in rustcrates.crates() for p in progs}
+
 def isofiles(iso):
 	r = subprocess.run(['xorriso', '-indev', iso, '-find', '/'],
 		capture_output=True, text=True, check=True)
@@ -83,12 +93,15 @@ def isofiles(iso):
 def main():
 	args = sys.argv[1:]
 	if args == ['-l']:
-		print('\n'.join(sorted(expected())))
+		# the Rust programs marked ?: check-install.rc does not miss them without Rust
+		print('\n'.join(sorted(expected()) + sorted('?' + p for p in rustprogs())))
 		return
 	remove = '-r' in args
 	dist = args[args.index('-d') + 1] if '-d' in args else None
 	iso = isofiles(args[args.index('-i') + 1]) if '-i' in args else None
 	exp = expected()
+	rust = rustprogs()
+	haverust = rustcrates.rustc()
 	broken = g.loadbroken()
 	bad = 0
 	for p, name in sorted(exp.items()):
@@ -105,6 +118,14 @@ def main():
 					print('missing %s %s (%s)' % (what, p, name))
 					bad = 1
 				break
+	for p, name in sorted(rust.items()):
+		if not os.path.exists(g.ROOT + p):
+			if haverust:
+				print('missing tree %s (%s)' % (p, name))
+				bad = 1
+			else:
+				print('norust  %s (%s: no Rust toolchain, ../9front-rust)' % (p, name))
+	exp.update(rust)
 	# stale: what no rule installs in the program directories (the kernel
 	# build's ELF amd64/bin/9pc64 is for boot-cli.sh's multiboot)
 	keep = {'/%s/bin/%s' % (A, KERNELS[0])}

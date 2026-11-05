@@ -368,6 +368,12 @@
 		]
 	},
 	{
+		"Name": "rust",
+		"Pre": [
+			"bash scripts/build/cargo.sh sys/src/cmd/wsys wsys"
+		]
+	},
+	{
 		"Name": "kernelgen",
 		"Pre": [
 			"bash scripts/build/gen-rebootcode-i.sh",

@@ -11,7 +11,13 @@ bad=0
 n=0
 for(p in `{cat $list}){
 	n=`{echo $n + 1 | hoc}
-	if(! test -e $PLAN9$p){
+	if(~ $p '?'*){
+		# a Rust crate's program: built where there is Rust (cargo.rc)
+		p=`{echo $p | sed 's/^.//'}
+		if(! test -e $PLAN9$p)
+			echo norust $p
+	}
+	if not if(! test -e $PLAN9$p){
 		echo missing tree $p
 		bad=1
 	}
