@@ -210,6 +210,8 @@ struct Win {
     shown: (usize, usize, usize), // lines laid out, the first shown, how many fit
     sel: (usize, usize), // the selection: byte offsets in text, then line
     rows: Vec<Row>,      // where the runes shown are
+    hold: bool,          // rio's hold mode: lines typed wait (Esc toggles it)
+    want: Option<usize>, // drawtext scrolls so that this offset is shown (look)
     hidden: bool,        // off the screen (button 3's Hide), listed in its menu
 }
 
@@ -232,7 +234,9 @@ struct Menu {
     cur: Option<usize>,
 }
 
-const MENU2: &[&str] = &["cut", "paste", "snarf", "send"];
+const MENU2: &[&str] = &["cut", "paste", "snarf", "plumb", "look", "send"];
+const HOLDCOL: u32 = 0x000099; // rio's DMedblue: text and border while holding
+const PALEHOLDCOL: u32 = 0x4993DD; // rio's DPalegreyblue: the border of one not focused
 const MENU3: &[&str] = &["New", "Resize", "Move", "Delete", "Hide"];
 
 /// a command of button 3's menu, waiting for button 3 on the screen
@@ -439,6 +443,9 @@ struct Wsys {
     scrollbg: u32,
     scrolling: Option<(u32, i32, std::time::Instant)>, // window, button held in its scroll bar, next repeat
     click: Option<(u32, i32, i32, u32)>, // the last button 1 click in a text window: window, x, y, msec
+    holdcol: u32,
+    paleholdcol: u32,
+    plumbfd: Option<Fd>, // /mnt/plumb/send, opened when first plumbed
 }
 
 fn qid(k: Kind) -> Qid {
@@ -784,7 +791,7 @@ impl Wsys {
                                     self.fids.get_mut(&fid).unwrap().raw = on;
                                     self.setraw(n, on);
                                 }
-                                "holdon" | "holdoff" => {}
+                                "holdon" | "holdoff" => self.sethold(n, w == "holdon"),
                                 _ => return e("unknown control message"),
                             }
                         }
@@ -1052,6 +1059,7 @@ impl Wsys {
             events: VecDeque::new(), raw: false, line: String::new(), cons: VecDeque::new(), eof: false,
             kbd: VecDeque::new(), kbdopen: 0, mouseopen: 0, mouse: VecDeque::new(), resized: false,
             cursor: vec![], state: 1, textwin: text, scroll: 0, sel: (0, 0), rows: vec![], hidden: false,
+            hold: false, want: None,
             scrollr: Rect::default(), shown: (1, 0, 1),
         });
         self.z.push(n);
@@ -1401,7 +1409,12 @@ impl Wsys {
         let w = &self.wins[&n];
         let (l, r) = (w.layer, w.r);
         let f = r.inset(-BORDER);
-        let col = if self.focus == Some(n) { self.cfocus } else { self.cother };
+        let col = match (w.hold, self.focus == Some(n)) {
+            (true, true) => self.holdcol,
+            (true, false) => self.paleholdcol,
+            (false, true) => self.cfocus,
+            (false, false) => self.cother,
+        };
         let res = (|| -> std::io::Result<()> {
             for side in [
                 Rect::new(f.x0, f.y0, f.x1, r.y0),
@@ -1453,6 +1466,9 @@ impl Wsys {
             s.push_str(&w.line);
         }
         let (white, black, pale, scrollbg) = (self.white, self.black, self.pale, self.scrollbg);
+        // while holding, the text is blue, as rio's
+        let ink = if w.hold { self.holdcol } else { black };
+        let want = w.want;
         let tabstop = self.tabstop;
         let (font, d) = (self.font.as_mut().unwrap(), &mut self.d);
         let scrollr = Rect::new(r.x0, r.y0, r.x0 + SCROLLWID, r.y1);
@@ -1489,7 +1505,16 @@ impl Wsys {
         }
         let nvis = (inner.dy() / h).max(1) as usize;
         // back no further than a window full from the start
-        let scroll = scroll.min(lines.len().saturating_sub(nvis));
+        let mut scroll = scroll.min(lines.len().saturating_sub(nvis));
+        if let Some(q) = want {
+            // show the line of offset q (look): a third down from the top when it was not
+            let li = lines.iter().position(|(_, e)| q <= *e).unwrap_or(lines.len() - 1);
+            let (end0, begin0) = (lines.len() - scroll, (lines.len() - scroll).saturating_sub(nvis));
+            if li < begin0 || li >= end0 {
+                let top = li.saturating_sub(nvis / 3);
+                scroll = lines.len().saturating_sub(top + nvis).min(lines.len().saturating_sub(nvis));
+            }
+        }
         let end = lines.len() - scroll;
         let begin = end.saturating_sub(nvis);
         let mut rows = vec![];
@@ -1517,7 +1542,7 @@ impl Wsys {
                     }
                     if let Some(g) = font.glyph(d, c) {
                         let dst = Rect::new(0, 0, g.src.dx(), g.src.dy()).add(inner.x0 + cx + g.dx, y + g.dy + g.src.y0);
-                        d.drawmask(l, &dst.clip(&inner), black, (0, 0), g.img, (g.src.x0, g.src.y0))?;
+                        d.drawmask(l, &dst.clip(&inner), ink, (0, 0), g.img, (g.src.x0, g.src.y0))?;
                     }
                 }
                 // a selection across the end of the line: the rest of it pale
@@ -1543,6 +1568,7 @@ impl Wsys {
             w.scrollr = scrollr;
             w.shown = (lines.len(), begin, nvis);
             w.scroll = scroll;
+            w.want = None;
         }
     }
 
@@ -1975,6 +2001,15 @@ impl Wsys {
             w.cons.extend(bytes);
             return;
         }
+        // Esc toggles hold; Del while holding ends it, then interrupts (rio)
+        if c == '\u{1b}' || (w.hold && c == '\u{7f}') {
+            let on = !w.hold;
+            self.sethold(n, on);
+            if c == '\u{1b}' {
+                return;
+            }
+        }
+        let w = self.wins.get_mut(&n).unwrap();
         match c {
             '\u{7f}' => {
                 // Del: interrupt, the line goes
@@ -1996,6 +2031,7 @@ impl Wsys {
                 w.cons.extend(l.as_bytes());
                 w.text.push_str(&l);
             }
+            '\n' if w.hold => w.line.push('\n'), // held: it waits
             '\n' => {
                 // the line goes to the program, and stays in the text as typed
                 let mut l = std::mem::take(&mut w.line);
@@ -2127,6 +2163,20 @@ impl Wsys {
                     self.typeline(n, &s);
                 }
             }
+            "plumb" => self.plumb(n),
+            "look" => {
+                // the next place with the selected text, round the end to the start
+                if q0 < q1 {
+                    let all = format!("{}{}", w.text, w.line);
+                    let pat = all.get(q0..q1).unwrap_or("").to_string();
+                    let next = all.get(q1..).and_then(|r| r.find(&pat)).map(|i| q1 + i).or_else(|| all.find(&pat));
+                    if let Some(i) = next {
+                        let w = self.wins.get_mut(&n).unwrap();
+                        w.sel = (i, i + pat.len());
+                        w.want = Some(i);
+                    }
+                }
+            }
             "send" => {
                 let mut s = if q0 < q1 { Self::seltext(w) } else { String::from_utf8_lossy(&self.snarf).into_owned() };
                 if !s.ends_with('\n') {
@@ -2139,6 +2189,61 @@ impl Wsys {
             _ => {}
         }
         self.drawtext(n);
+    }
+
+    /// rio's hold mode on or off; off, what was typed meanwhile goes as lines
+    fn sethold(&mut self, n: u32, on: bool) {
+        let Some(w) = self.wins.get_mut(&n) else { return };
+        if w.hold == on {
+            return;
+        }
+        w.hold = on;
+        if !on {
+            if let Some(i) = w.line.rfind('\n') {
+                let l: String = w.line.drain(..=i).collect();
+                w.cons.extend(l.as_bytes());
+                w.text.push_str(&l);
+                w.scroll = 0;
+            }
+            self.wake(n);
+        }
+        self.paintborder(n);
+        self.drawtext(n);
+    }
+
+    /// the selection to the plumber (plumb(6)), else the word around it with
+    /// click= as rio does
+    fn plumb(&mut self, n: u32) {
+        if self.plumbfd.is_none() {
+            // as libplumb's plumbopen: the plumber of wsys' name space (the profile
+            // starts it before wsys)
+            match Fd::open("/mnt/plumb/send", OWRITE) {
+                Ok(f) => self.plumbfd = Some(f),
+                Err(e) => {
+                    eprintln!("wsys: plumb: {e}");
+                    return;
+                }
+            }
+        }
+        let w = &self.wins[&n];
+        let all = format!("{}{}", w.text, w.line);
+        let (q0, q1) = (w.sel.0.min(all.len()), w.sel.1.min(all.len()));
+        let (data, attr) = if q0 < q1 {
+            (all[q0..q1].to_string(), String::new())
+        } else {
+            let sep = |c: char| c == ' ' || c == '\t' || c == '\n';
+            let p0 = all[..q0].rfind(sep).map(|i| i + 1).unwrap_or(0);
+            let p1 = all[q0..].find(sep).map(|i| q0 + i).unwrap_or(all.len());
+            (all[p0..p1].to_string(), format!("click={}", all[p0..q0].chars().count()))
+        };
+        if data.is_empty() || data.len() > 8192 {
+            return;
+        }
+        let wdir = w.wdir.trim().to_string();
+        let msg = format!("rio\n\n{}\ntext\n{}\n{}\n{}", wdir, attr, data.len(), data);
+        if let Err(e) = self.plumbfd.as_ref().unwrap().write1(msg.as_bytes()) {
+            eprintln!("wsys: plumb: {e}");
+        }
     }
 
     /// the offset in window n's text of the rune at x, y (as drawn)
@@ -2415,6 +2520,9 @@ fn main() {
         scrollbg: 0,
         scrolling: None,
         click: None,
+        holdcol: 0,
+        paleholdcol: 0,
+        plumbfd: None,
         tabstop: std::env::var("tabstop").ok().and_then(|t| t.trim().parse().ok()).filter(|&t: &i32| t > 0).unwrap_or(4),
         // rio's snarf, when wsys runs in a window of rio
         parentsnarf: std::fs::metadata("/dev/snarf").is_ok() && std::fs::metadata("/dev/wctl").is_ok(),
@@ -2437,8 +2545,10 @@ fn main() {
         ws.d.flush()?;
         Ok(scr)
     })();
-    match ws.d.color(PALEYELLOW).and_then(|p| Ok((p, ws.d.color(PALEBLUEGREEN)?, ws.d.color(SCROLLBG)?))) {
-        Ok((p, h, sb)) => (ws.pale, ws.menuhi, ws.scrollbg) = (p, h, sb),
+    match ws.d.color(PALEYELLOW).and_then(|p| {
+        Ok((p, ws.d.color(PALEBLUEGREEN)?, ws.d.color(SCROLLBG)?, ws.d.color(HOLDCOL)?, ws.d.color(PALEHOLDCOL)?))
+    }) {
+        Ok((p, h, sb, hc, phc)) => (ws.pale, ws.menuhi, ws.scrollbg, ws.holdcol, ws.paleholdcol) = (p, h, sb, hc, phc),
         Err(e) => {
             eprintln!("wsys: colours: {e}");
             std::process::exit(1);

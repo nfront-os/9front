@@ -14,7 +14,8 @@
 # backspace, Del, drawtest started from it and quit. sel.rc: button 1 selects (the
 # pale on the screen), button 2's menu snarfs, pastes, cuts, sends. menu3.rc: button
 # 3's menu: New with a shell, Move, Resize, Hide and back, Delete. scroll.rc: double
-# clicks (a word, a line, in brackets) and the scroll bar. Their output
+# clicks (a word, a line, in brackets) and the scroll bar. hold.rc: look, hold mode
+# (Esc), plumb (a plumber with plumbrules, started before wsys). Their output
 # goes to files until the end: the kernel's console draws on the screen the test reads.
 # A second boot runs the same in a rio window.
 # Needs ../9front-rust's stage-1 rustc for wsys (scripts/build/cargo.sh).
@@ -34,7 +35,9 @@ cp "$HERE/text.rc" "$HERE/root/tests/text"
 cp "$HERE/sel.rc" "$HERE/root/tests/sel"
 cp "$HERE/menu3.rc" "$HERE/root/tests/menu3"
 cp "$HERE/scroll.rc" "$HERE/root/tests/scroll"
-chmod +x "$HERE/root/tests/rio4" "$HERE/root/tests/text" "$HERE/root/tests/sel" "$HERE/root/tests/menu3" "$HERE/root/tests/scroll"
+cp "$HERE/hold.rc" "$HERE/root/tests/hold"
+cp "$HERE/plumbrules" "$HERE/root/tests/plumbrules"
+chmod +x "$HERE/root/tests/rio4" "$HERE/root/tests/text" "$HERE/root/tests/sel" "$HERE/root/tests/menu3" "$HERE/root/tests/scroll" "$HERE/root/tests/hold"
 
 boot(){
 	UFS_EXTRA="$HERE/root" MEM=1024 KARGS="vgasize=1024x768x32 monitor=vesa mouseport=ps2" \
@@ -47,6 +50,7 @@ boot(){
 		"/tests/wsys -x -i /tests/sel >/tmp/sel.log >[2=1]; cat /tmp/sel.log" \
 		"/tests/wsys -x -i /tests/menu3 >/tmp/menu3.log >[2=1]; cat /tmp/menu3.log" \
 		"/tests/wsys -x -i /tests/scroll >/tmp/scroll.log >[2=1]; cat /tmp/scroll.log" \
+		"plumber -p /tests/plumbrules >/dev/null >[2=1] </dev/null; /tests/wsys -x -i /tests/hold >/tmp/hold.log >[2=1] </dev/null; cat /tmp/hold.log" \
 		> "$TMPD/console" 2>&1
 	tr -d '\r' < "$TMPD/console" > "$TMPD/log"
 }
@@ -64,6 +68,7 @@ check "text windows (a shell typed into, backspace, Del, a draw(3) program and b
 check "selecting and snarfing (button 1, button 2's cut paste snarf send): all passed" grep -q '^sel: all passed' "$TMPD/log"
 check "button 3's menu (New, Move, Resize, Hide and back, Delete): all passed" grep -q '^menu3: all passed' "$TMPD/log"
 check "double clicks (word, line, brackets) and the scroll bar (1 held, 3, 2): all passed" grep -q '^scroll: all passed' "$TMPD/log"
+check "look, hold mode and plumb (the plumber started before wsys): all passed" grep -q '^hold: all passed' "$TMPD/log"
 check "wsys posted /srv/wsys.glenda.pid on the 1024x768 screen" grep -qE '^wsys: /srv/wsys.glenda.[0-9]+ 0 0 1024 768' "$TMPD/log"
 check "no kernel panic" bash -c "! grep -q '^panic:' '$TMPD/log'"
 

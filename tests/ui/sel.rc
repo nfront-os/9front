@@ -72,7 +72,7 @@ echo ok cut: bar snarfed, echo foo ran
 
 # send the snarf buffer as a line
 echo -n 'echo sent' >/mnt/wsys/$id/snarf
-menu 3
+menu 5
 wait1 grep -s '^sent$' /mnt/wsys/$id/text || fail send: `{tail -3 /mnt/wsys/$id/text}
 echo ok send: echo sent ran
 echo sel: all passed

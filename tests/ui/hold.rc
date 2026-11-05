@@ -1,0 +1,77 @@
+#!/bin/rc
+# look, plumb and hold mode of wsys' text windows (as rio's), run by wsys -x -i.
+# Window 100 100 600 400: text at 120,104 in vga's font (8x16), button 2's menu
+# at 300,300: cut paste snarf plumb look send. Prints ok/FAIL lines and
+# "hold: all passed".
+fn fail { echo FAIL $*; exit fail }
+fn wait1 {
+	n=0
+	while(! $* >[2]/dev/null && test $n -lt 100){ sleep 0.1; n=`{echo $n+1 | hoc} }
+	$* >[2]/dev/null
+}
+fn key { /tests/uipeek -k $1 }
+fn nl { /tests/uipeek -k '
+' }
+fn m { echo A $1 $2 $3; sleep 0.05 }
+fn dclick { dx=$1; dy=$2; { m $dx $dy 1; m $dx $dy 0; m $dx $dy 1; m $dx $dy 0 } >/dev/mousein; sleep 0.2 }
+fn menu {
+	my=`{echo 300+16'*'$1 | hoc}
+	{ m 300 300 2; m 300 $my 2; m 300 $my 0 } >/dev/mousein
+	sleep 0.3
+}
+fn x { echo 120+8'*'$1 | hoc }
+fn y { echo 104+16'*'$1+8 | hoc }
+fn pale { # columns c0 c1 of row r: pale pixels (the corners in variables first)
+	px0=`{x $1}; px1=`{x $2}; py=`{y $3}
+	py0=`{echo $py-8 | hoc}; py1=`{echo $py+8 | hoc}
+	/tests/uipeek -n $px0,$py0,$px1,$py1 ffffaa
+}
+fn color { /tests/uipeek $1 | awk '{print $2}' }
+fn away { echo A 1020 760 0 >/dev/mousein; sleep 0.2 }
+
+window -r 100 100 600 400
+wait1 test -d /mnt/wsys/1 || fail no window
+id=1
+sleep 1
+
+# look: row 1 is look look; the first selected, look goes to the second
+key 'echo look look'; nl
+wait1 grep -s '^look look$' /mnt/wsys/$id/text || fail no output
+dclick `{x 1} `{y 1}
+menu 4
+away
+a=`{pale 0 4 1}; b=`{pale 5 9 1}
+test $a -eq 0 && test $b -gt 0 || fail look: pale $a in the first, $b in the second
+echo ok look: the second look selected
+
+# hold: Esc, then a line typed waits; the border blue; Esc again sends it
+key `{awk 'BEGIN{printf "%c", 27}'}
+key 'echo held'; nl
+sleep 0.5
+grep -s '^held$' /mnt/wsys/$id/text && fail held: the line ran
+away
+c=`{color 102,250}
+~ $c 000099 || fail held: the border is $c
+echo ok hold: the line waits, the border blue
+key `{awk 'BEGIN{printf "%c", 27}'}
+wait1 grep -s '^held$' /mnt/wsys/$id/text || fail hold off: the line did not run
+c=`{color 102,250}
+~ $c 335588 || fail hold off: the border is $c
+echo ok hold off: the line ran
+
+# plumb: the plumber started before wsys (tests/ui/plumbrules) sends plumbtest...
+# to the port testport
+test -e /mnt/plumb/send || fail no plumber
+rm -f /tmp/plumbed
+cat /mnt/plumb/testport >/tmp/plumbed >[2]/dev/null </dev/null &
+catpid=$apid
+sleep 0.5
+key 'echo plumbtest42'; nl
+wait1 grep -s '^plumbtest42$' /mnt/wsys/$id/text || fail no plumbtest42
+r=`{grep -n '^plumbtest42$' /mnt/wsys/$id/text | sed 1q | awk -F: '{print $1 - 1}'}
+dclick `{x 3} `{y $r}
+menu 3
+wait1 grep -s plumbtest42 /tmp/plumbed || { echo kill >/proc/$catpid/note; fail plumb: nothing at the port }
+echo ok plumb: `{tr '\012' ' ' </tmp/plumbed}
+echo kill >/proc/$catpid/note
+echo hold: all passed

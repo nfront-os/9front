@@ -171,10 +171,29 @@ or a line when at its start or end; button 2's menu
 (the selection to the snarf buffer, out of the text),
 .BR paste
 (the snarf buffer typed; over a selection in the line typed, in its place),
-.B snarf
+.BR snarf ,
+.B plumb
+(the selection, else the word around it with
+.BR click= ,
+to the plumber of
+.IR wsys 's
+name space, as
+.IR rio ),
+.B look
+(the next place with the selected text)
 and
 .B send
 (the selection, else the snarf buffer, typed as a line).
+Esc toggles
+.IR rio 's
+hold mode (also
+.B holdon
+and
+.B holdoff
+on
+.BR consctl ):
+lines typed wait until it ends, the text and border are blue; Del ends it and
+interrupts.
 The snarf buffer is the
 .B snarf
 file's; when
@@ -369,8 +388,8 @@ A client in C: see
 .IR draw (3),
 .IR segment (3)
 .SH BUGS
-A prototype: no labels shown, no Vulkan backend yet; text windows have no
-plumbing or hold mode;
+A prototype: no labels shown, no Vulkan backend yet; button 2's menu has no
+.BR scroll ;
 .B /dev/screen
 and
 .B window
