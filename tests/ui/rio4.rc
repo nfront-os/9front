@@ -1,0 +1,86 @@
+#!/bin/rc
+# stage 4 in tests/ui, run by wsys -x -i: draw(3) programs in wsys' windows
+# through rio(4)'s files, started with window(1) as it is. Prints ok/FAIL lines
+# and "rio4: all passed". On the bare screen (1024x768); the output goes to a
+# file until the end (the kernel's console draws on the screen).
+fn fail { echo FAIL $*; exit fail }
+fn waitfor { # file pattern
+	n=0
+	while(! grep -s $2 $1 >[2]/dev/null && test $n -lt 100){ sleep 0.1; n=`{echo $n+1 | hoc} }
+	grep -s $2 $1 || fail no $2 in $1
+}
+fn color { # x,y rrggbb what
+	n=0
+	while(! ~ `{/tests/uipeek $1 | awk '{print $2}'} $2 && test $n -lt 50){ sleep 0.1; n=`{echo $n+1 | hoc} }
+	c=`{/tests/uipeek $1 | awk '{print $2}'}
+	if(! ~ $c $2) fail screen at $1 is $c, want $2 '('$3')'
+	echo ok screen at $1: $c '('$3')'
+}
+fn key { # text typed: kbd(3) c messages
+	/tests/uipeek -k $1
+}
+fn wctl { # window: what its wctl says (a second read would wait for a change)
+	dd -if /mnt/wsys/$1/wctl -bs 128 -count 1 -quiet 1
+}
+
+# the pointer out of the way: the kernel draws it into the screen the checks read
+fn away { echo A 1020 760 0 >/dev/mousein; sleep 0.2 }
+away
+
+# a draw(3) program with window(1)
+rm -f /tmp/dt.log
+window -r 100 100 500 400 /tests/drawtest /tmp/dt.log
+waitfor /tmp/dt.log '^start'
+id=`{awk '/^start/{print $2}' /tmp/dt.log}
+echo ok drawtest in window $id: `{grep '^start' /tmp/dt.log}
+grep -s '^start [0-9]+ \[104 104\] \[496 396\]' /tmp/dt.log || fail drawtest\''s rectangle
+color 300,250 ff0000 'drawtest drew its window'
+color 102,250 335588 'the border, focused'
+color 60,60 777777 background
+~ `{cat /mnt/wsys/$id/label} drawtest || fail label `{cat /mnt/wsys/$id/label}
+echo ok label `{cat /mnt/wsys/$id/label}
+
+# mouse and keyboard through its mouse and cons
+echo A 300 250 1 >/dev/mousein; sleep 0.1; echo A 300 250 0 >/dev/mousein
+waitfor /tmp/dt.log '^mouse 300 250 1'
+echo ok drawtest: `{grep '^mouse' /tmp/dt.log}
+away
+key z
+waitfor /tmp/dt.log '^key z'
+echo ok drawtest: `{grep '^key' /tmp/dt.log}
+
+# a resize through its wctl: an r on its mouse file, getwindow, blue
+echo resize -r 50 50 450 350 >/mnt/wsys/$id/wctl
+waitfor /tmp/dt.log '^resized \[54 54\] \[446 346\]'
+echo ok drawtest: `{grep '^resized' /tmp/dt.log | sed 1q}
+color 200,200 0000ff 'drawtest redrew after the resize'
+color 470,250 777777 'background where it was'
+r=`{wctl $id}
+~ $"r '50 50 450 350 current visible' || fail wctl says $r
+echo ok wctl: $r
+
+# rio in a window of wsys, a shell in a window of that rio, typed into
+rm -f /tmp/nested
+echo '#!/bin/rc' >/tmp/inner
+echo 'window -r 20 20 400 300 rc' >>/tmp/inner
+chmod +x /tmp/inner
+window -r 520 100 1000 700 rio -i /tmp/inner
+n=0
+while(! ps | grep -s ' rio$' && test $n -lt 50){ sleep 0.1; n=`{echo $n+1 | hoc} }
+ps | grep -s ' rio$' || fail no inner rio
+sleep 2
+echo ok rio runs in a window of wsys
+key 'echo nested >/tmp/nested'
+key '
+'
+n=0
+while(! test -f /tmp/nested && test $n -lt 50){ sleep 0.1; n=`{echo $n+1 | hoc} }
+~ `{cat /tmp/nested} nested || fail the shell in the inner rio did not run what was typed
+echo ok typed into a shell in rio in wsys: /tmp/nested `{cat /tmp/nested}
+
+# delete: drawtest gets hangup, its window goes
+echo delete >/mnt/wsys/$id/wctl
+color 200,200 777777 'background where drawtest was'
+test -d /mnt/wsys/$id && fail window $id still there
+echo ok window $id deleted
+echo rio4: all passed

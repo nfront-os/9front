@@ -26,13 +26,13 @@ pub struct Dir {
 pub enum T {
     Version { msize: u32, version: String },
     Auth,
-    Attach { fid: u32, _uname: String },
+    Attach { fid: u32, _uname: String, aname: String },
     Flush { oldtag: u16 },
     Walk { fid: u32, newfid: u32, names: Vec<String> },
     Open { fid: u32, mode: u8 },
     Create,
     Read { fid: u32, offset: u64, count: u32 },
-    Write { fid: u32, _offset: u64, data: Vec<u8> },
+    Write { fid: u32, offset: u64, data: Vec<u8> },
     Clunk { fid: u32 },
     Remove { fid: u32 },
     Stat { fid: u32 },
@@ -83,7 +83,7 @@ pub fn parse(m: &[u8]) -> Option<(u16, T)> {
         104 => {
             let fid = r.u32()?;
             let _afid = r.u32()?;
-            T::Attach { fid, _uname: r.str()? }
+            T::Attach { fid, _uname: r.str()?, aname: r.str()? }
         }
         108 => T::Flush { oldtag: r.u16()? },
         110 => {
@@ -100,7 +100,7 @@ pub fn parse(m: &[u8]) -> Option<(u16, T)> {
             let fid = r.u32()?;
             let offset = r.u64()?;
             let n = r.u32()? as usize;
-            T::Write { fid, _offset: offset, data: r.take(n)?.to_vec() }
+            T::Write { fid, offset, data: r.take(n)?.to_vec() }
         }
         120 => T::Clunk { fid: r.u32()? },
         122 => T::Remove { fid: r.u32()? },

@@ -196,15 +196,23 @@ impl Display {
     }
 
     /// 'A': a screen for windows on image, its background fill
+    /// (screen ids are devdraw's, of all clients: as libdraw, try ids until one is free)
     pub fn allocscreen(&mut self, image: u32, fill: u32) -> io::Result<u32> {
-        let id = self.id();
-        let mut m = vec![b'A'];
-        for v in [id, image, fill] {
-            m.extend_from_slice(&v.to_le_bytes());
+        self.flushbuf()?;
+        let mut last = None;
+        for _ in 0..25 {
+            let id = self.id();
+            let mut m = vec![b'A'];
+            for v in [id, image, fill] {
+                m.extend_from_slice(&v.to_le_bytes());
+            }
+            m.push(0); // not public
+            match self.data.write1(&m) {
+                Ok(()) => return Ok(id),
+                Err(e) => last = Some(e),
+            }
         }
-        m.push(0); // not public
-        self.cmd(&m)?;
-        Ok(id)
+        Err(last.unwrap())
     }
 
     /// 'b' on a screen: a window (layer) at r, in screen coordinates; devdraw keeps
@@ -237,7 +245,16 @@ impl Display {
 
     /// 't': windows to the top
     pub fn top(&mut self, ids: &[u32]) -> io::Result<()> {
-        let mut m = vec![b't', 1];
+        self.stack(ids, true)
+    }
+
+    /// 't': windows to the bottom
+    pub fn bottom(&mut self, ids: &[u32]) -> io::Result<()> {
+        self.stack(ids, false)
+    }
+
+    fn stack(&mut self, ids: &[u32], top: bool) -> io::Result<()> {
+        let mut m = vec![b't', top as u8];
         m.extend_from_slice(&(ids.len() as u16).to_le_bytes());
         for id in ids {
             m.extend_from_slice(&id.to_le_bytes());

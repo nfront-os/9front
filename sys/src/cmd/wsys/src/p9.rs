@@ -10,6 +10,9 @@ use std::io;
 pub const OREAD: c_int = 0;
 pub const OWRITE: c_int = 1;
 pub const ORDWR: c_int = 2;
+/// close on exec: what wsys opens stays out of the processes it starts (else they
+/// would hold the mouse, the keyboard and wsys' end of its pipe after it exits)
+const OCEXEC: c_int = 32;
 
 unsafe extern "C" {
     #[link_name = "__p9_create"]
@@ -30,6 +33,8 @@ unsafe extern "C" {
     fn p9segattach(attr: c_int, class: *const c_char, va: *mut c_void, len: c_uint) -> *mut c_void;
     #[link_name = "__p9_segdetach"]
     fn p9segdetach(addr: *mut c_void) -> c_int;
+    #[link_name = "__p9_rfork"]
+    fn p9rfork(flags: c_int) -> c_int;
     #[link_name = "__p9_rerrstr"]
     fn p9rerrstr(buf: *mut c_char, n: c_uint);
 }
@@ -52,22 +57,29 @@ pub struct Fd(pub c_int);
 
 impl Fd {
     pub fn open(name: &str, mode: c_int) -> io::Result<Fd> {
-        let fd = unsafe { p9open(cs(name).as_ptr(), mode) };
+        let fd = unsafe { p9open(cs(name).as_ptr(), mode | OCEXEC) };
         if fd < 0 { Err(err()) } else { Ok(Fd(fd)) }
     }
 
     pub fn create(name: &str, mode: c_int, perm: c_uint) -> io::Result<Fd> {
-        let fd = unsafe { p9create(cs(name).as_ptr(), mode, perm) };
+        let fd = unsafe { p9create(cs(name).as_ptr(), mode | OCEXEC, perm) };
         if fd < 0 { Err(err()) } else { Ok(Fd(fd)) }
     }
 
+    // an empty slice's pointer is dangling (0x1 for bytes), and Plan 9's kernel
+    // checks the address even for no bytes ("bad address in syscall"): one of
+    // its own then
     pub fn read(&self, buf: &mut [u8]) -> io::Result<usize> {
-        let n = unsafe { p9read(self.0, buf.as_mut_ptr() as *mut c_void, buf.len() as c_long) };
+        let mut none = [0u8; 1];
+        let p = if buf.is_empty() { none.as_mut_ptr() } else { buf.as_mut_ptr() };
+        let n = unsafe { p9read(self.0, p as *mut c_void, buf.len() as c_long) };
         if n < 0 { Err(err()) } else { Ok(n as usize) }
     }
 
     pub fn write(&self, buf: &[u8]) -> io::Result<usize> {
-        let n = unsafe { p9write(self.0, buf.as_ptr() as *const c_void, buf.len() as c_long) };
+        let none = [0u8; 1];
+        let p = if buf.is_empty() { none.as_ptr() } else { buf.as_ptr() };
+        let n = unsafe { p9write(self.0, p as *const c_void, buf.len() as c_long) };
         if n < 0 { Err(err()) } else { Ok(n as usize) }
     }
 
@@ -94,12 +106,20 @@ impl Drop for Fd {
     }
 }
 
+pub const RFNOTEG: c_int = 8;
+
+pub fn rfork(flags: c_int) -> io::Result<()> {
+    if unsafe { p9rfork(flags) } < 0 { Err(err()) } else { Ok(()) }
+}
+
 pub fn pipe() -> io::Result<(Fd, Fd)> {
     let mut p = [0 as c_int; 2];
     if unsafe { p9pipe(p.as_mut_ptr()) } < 0 {
         return Err(err());
     }
-    Ok((Fd(p[0]), Fd(p[1])))
+    let (a, b) = (Fd(p[0]), Fd(p[1]));
+    // pipe(2) has no close on exec: the ends again through dup(3), with it
+    Ok((Fd::open(&format!("#d/{}", a.0), ORDWR)?, Fd::open(&format!("#d/{}", b.0), ORDWR)?))
 }
 
 pub fn remove(name: &str) -> io::Result<()> {

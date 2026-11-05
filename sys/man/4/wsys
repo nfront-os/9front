@@ -1,6 +1,6 @@
 .TH WSYS 4
 .SH NAME
-wsys \- window system, first prototype (processor backend)
+wsys \- window system, prototype (processor backend), rio(4)'s files
 .SH SYNOPSIS
 .B wsys
 [
@@ -72,12 +72,100 @@ bytes.
 Once announced, the client may remove the segment's entry in
 .BR #g :
 the segment lives while either side has it attached.
+.PP
+Each window is also a window of
+.IR draw (3)
+on
+.IR wsys 's
+screen, border and all, publicly named; and
+.I wsys
+serves
+.IR rio (4)'s
+files, so that
+.IR draw (3)
+programs,
+.IR window (1)
+and
+.I rio
+itself run in its windows unchanged.
+The attach name
+.B new
+with
+.IR rio 's
+options
+.RB ( -r ,
+.BR -dx ,
+.BR -dy ,
+.BR -pid ,
+.BR -cd )
+makes a window and attaches to its directory; a window's number attaches to
+an existing one;
+.B none
+or none at all gives the tree below.
+.B wctl
+at the root takes
+.BR new ;
+a window's
+.BR wctl ,
+.IR rio 's
+messages
+.RB ( resize ,
+.BR move ,
+.BR top ,
+.BR bottom ,
+.BR current ,
+.BR delete ,
+.BR set ,
+.BR new ).
+A process
+.I wsys
+starts in a new window gets a name space with the window's files on
+.B /dev
+and
+.BR /mnt/wsys ,
+and a note group of its own;
+.B delete
+sends it
+.BR hangup ,
+Del in a window that is not raw
+.BR interrupt .
+A window lives while its files are open (or the
+.B clone
+file that made it).
+.PP
 .TP
 .B clone
 Opening it makes a window; the open file is then the window's
 .BR ctl ,
 and the window lives until it is closed.
 Ranges of closed windows are given again.
+.TP
+.B screen
+gives
+.I x0 y0 x1 y1:
+where
+.I wsys
+draws.
+.TP
+.IB n /cons ", " consctl ", " cursor ", " kbd ", " label ", " mouse ", " snarf ", " text ", " wctl ", " wdir ", " winid ", " winname
+as in
+.IR rio (4):
+the mouse while it is over the window or a button is held (first an
+.B r
+message after a change of the window), keys as
+.IR kbd (3)
+messages to
+.B kbd
+while it is open, else their runes to
+.B cons
+(a line at a time unless raw: backspace, ^U, ^D, Del);
+.B wctl
+reads as
+.IR rio 's,
+a second read waits for a change; writes to
+.B cons
+collect in
+.BR text .
 .TP
 .IB n /ctl
 Reading gives one line of fields:
@@ -153,16 +241,20 @@ composes on the processor through
 .IR draw (3):
 a background, the windows bottom to top, each with a border (blue with the focus).
 Mouse events come from
-.BR /dev/mouse ;
+.B /dev/mouse
+(opened once: the kernel's takes one opener),
+keys from
+.B /dev/kbd
+(else
+.B /dev/cons
+in raw mode);
 a button pressed over a window gives it the focus and raises it;
 on its border, button 1 moves the window and button 3 sweeps it to a new
 size (the edges or the corner grabbed; an outline until the button comes
 up, then the client gets an
 .B r
 event).
-Keys come from
-.B /dev/cons
-in raw mode and go to the focused window.
+Keys go to the focused window.
 .SH EXAMPLES
 A client in C: see
 .BR /tests/ui/wsystest.c .
@@ -172,12 +264,18 @@ A client in C: see
 .BR scripts/build/cargo.sh )
 .SH SEE ALSO
 .IR rio (1),
+.IR rio (4),
+.IR window (1),
 .IR draw (3),
 .IR segment (3)
 .SH BUGS
-A prototype: no labels shown, no Vulkan backend yet, no
-.IR draw (3)
-for old programs in its windows.
+A prototype: no labels shown, no text windows of its own (a shell needs
+.I rio
+in a window), no hidden windows, no menus, no Vulkan backend yet;
+.B /dev/screen
+and
+.B window
+images are not served.
 .I Wsys
 must be allowed to attach the clients' segments: the same user, or the
 host owner.
@@ -190,6 +288,8 @@ Each buffer is a segment of
 .IR wsys 's
 own as well; a process has room for some 250
 (of which Rust's threads take 64), so all windows together get about 190 buffers.
-Keys are read from
-.BR /dev/cons :
-another reader of it (an idle shell on the same console) takes some.
+.I Rio
+in a window breaks when the window goes (its procs, on the note group's
+.BR hangup ,
+as in a window of
+.IR rio ).

@@ -15,7 +15,9 @@
 			"--end-group"
 		],
 		"SourceFilesCmd": [
-			"wsystest.c"
+			"wsystest.c",
+			"drawtest.c",
+			"uipeek.c"
 		]
 	}
 ]
