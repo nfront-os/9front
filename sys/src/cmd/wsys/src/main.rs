@@ -87,12 +87,16 @@ const MAXEVENTS: usize = 512;
 const MAXMOUSE: usize = 32;
 const MAXTEXT: usize = 1 << 20;
 const TEXTSHOWN: usize = 64 << 10; // of a text window's text, laid out to show its end
-const MARGIN: i32 = 4; // between a text window's border and its text
+// a text window as rio's: the scroll bar inside the border, then a gap, then the text
+const SCROLLWID: i32 = 12;
+const SCROLLGAP: i32 = 4;
+const SCROLLBG: u32 = 0x999999; // the scroll bar; the part shown white
 const DEFFONT: &str = "/lib/font/bit/vga/unicode.font";
 const PALEYELLOW: u32 = 0xFFFFAA; // a selection, as acme's and rio's
 const PALEBLUEGREEN: u32 = 0x9EEEEE; // a menu's item under the mouse
 
 enum Ev {
+    Tick, // every 50 ms: a scroll button held repeats
     Msg(Vec<u8>),
     Hangup,
     Mouse { x: i32, y: i32, b: i32, ms: u32 },
@@ -202,6 +206,8 @@ struct Win {
     state: u64,      // bumped when wctl's answer changes
     textwin: bool,   // made by new: shows its text while no program has its mouse
     scroll: usize,   // a text window: lines back from the end
+    scrollr: Rect,   // its scroll bar
+    shown: (usize, usize, usize), // lines laid out, the first shown, how many fit
     sel: (usize, usize), // the selection: byte offsets in text, then line
     rows: Vec<Row>,      // where the runes shown are
     hidden: bool,        // off the screen (button 3's Hide), listed in its menu
@@ -430,6 +436,9 @@ struct Wsys {
     parentsnarf: bool, // in rio: its /dev/snarf is the snarf buffer
     op3: Option<Op3>,  // button 3's command waiting for its click
     tabstop: i32,      // $tabstop, as rio: a tab is this many zeros wide
+    scrollbg: u32,
+    scrolling: Option<(u32, i32, std::time::Instant)>, // window, button held in its scroll bar, next repeat
+    click: Option<(u32, i32, i32, u32)>, // the last button 1 click in a text window: window, x, y, msec
 }
 
 fn qid(k: Kind) -> Qid {
@@ -1043,6 +1052,7 @@ impl Wsys {
             events: VecDeque::new(), raw: false, line: String::new(), cons: VecDeque::new(), eof: false,
             kbd: VecDeque::new(), kbdopen: 0, mouseopen: 0, mouse: VecDeque::new(), resized: false,
             cursor: vec![], state: 1, textwin: text, scroll: 0, sel: (0, 0), rows: vec![], hidden: false,
+            scrollr: Rect::default(), shown: (1, 0, 1),
         });
         self.z.push(n);
         self.setfocus(Some(n));
@@ -1442,11 +1452,13 @@ impl Wsys {
         if !raw {
             s.push_str(&w.line);
         }
-        let (white, black, pale) = (self.white, self.black, self.pale);
+        let (white, black, pale, scrollbg) = (self.white, self.black, self.pale, self.scrollbg);
+        let tabstop = self.tabstop;
         let (font, d) = (self.font.as_mut().unwrap(), &mut self.d);
-        let inner = r.inset(MARGIN);
+        let scrollr = Rect::new(r.x0, r.y0, r.x0 + SCROLLWID, r.y1);
+        let inner = Rect::new(r.x0 + SCROLLWID + SCROLLGAP, r.y0, r.x1, r.y1);
         let (maxw, h) = (inner.dx().max(1), font.height.max(1));
-        let tab = (self.tabstop * font.width(d, '0')).max(1);
+        let tab = (tabstop * font.width(d, '0')).max(1);
         // lay out: lines of (rune, x, width, offset)
         let mut lines: Vec<(Vec<(char, i32, i32, usize)>, usize)> = vec![(vec![], start)];
         let mut x = 0;
@@ -1476,12 +1488,24 @@ impl Wsys {
             }
         }
         let nvis = (inner.dy() / h).max(1) as usize;
-        let scroll = scroll.min(lines.len() - 1);
+        // back no further than a window full from the start
+        let scroll = scroll.min(lines.len().saturating_sub(nvis));
         let end = lines.len() - scroll;
         let begin = end.saturating_sub(nvis);
         let mut rows = vec![];
         let res = (|| -> std::io::Result<()> {
             d.draw(l, &r, white, 0, 0)?;
+            // the scroll bar: grey, white where the lines shown are (rio's scrpos)
+            d.draw(l, &scrollr, scrollbg, 0, 0)?;
+            let (tot, hh) = (lines.len().max(1) as i64, scrollr.dy() as i64);
+            let mut t = scrollr;
+            t.y0 += (hh * begin as i64 / tot) as i32;
+            t.y1 -= (hh * (tot - end as i64) / tot) as i32;
+            if t.y1 < t.y0 + 2 {
+                t.y1 = (t.y0 + 2).min(scrollr.y1);
+                t.y0 = t.y1 - 2;
+            }
+            d.draw(l, &Rect::new(t.x0, t.y0, t.x1 - 1, t.y1), white, 0, 0)?;
             for (row, (line, lend)) in lines[begin..end].iter().enumerate() {
                 let y = inner.y0 + row as i32 * h;
                 for &(c, cx, cw, off) in line {
@@ -1516,7 +1540,94 @@ impl Wsys {
         }
         if let Some(w) = self.wins.get_mut(&n) {
             w.rows = rows;
+            w.scrollr = scrollr;
+            w.shown = (lines.len(), begin, nvis);
+            w.scroll = scroll;
         }
+    }
+
+    /// button but in window n's scroll bar at y, as rio's: 1 back and 3 on by the
+    /// lines from the top of the bar to the mouse, 2 to that place of the text
+    fn scrollstep(&mut self, n: u32, but: i32, y: i32) {
+        let h = self.font.as_ref().map(|f| f.height).unwrap_or(1).max(1);
+        let Some(w) = self.wins.get_mut(&n) else { return };
+        let s = w.scrollr;
+        let (total, begin, nvis) = w.shown;
+        let y = y.clamp(s.y0, s.y1);
+        let lines = ((y - s.y0) / h).max(1) as usize;
+        // scroll counts the lines back from the end (drawtext keeps it in the text)
+        let _ = begin;
+        w.scroll = match but {
+            1 => (w.scroll + lines).min(total.saturating_sub(nvis)),
+            4 => w.scroll.saturating_sub(lines),
+            _ => {
+                let top = (total as i64 * (y - s.y0).min(s.dy() - 2).max(0) as i64 / s.dy().max(1) as i64) as usize;
+                total.saturating_sub(top + nvis)
+            }
+        };
+        self.drawtext(n);
+    }
+
+    /// a double click at q in window n's text, as rio's: inside brackets or quotes
+    /// to their match, a line from its start or end, else a word
+    fn stretch(&self, n: u32, q: usize) -> (usize, usize) {
+        let w = &self.wins[&n];
+        let all: Vec<(usize, char)> = format!("{}{}", w.text, w.line).char_indices().collect();
+        let end = w.text.len() + w.line.len();
+        let i = all.partition_point(|&(o, _)| o < q); // rune index of q
+        let at = |k: usize| all.get(k).map(|r| r.1).unwrap_or('\n');
+        let off = |k: usize| all.get(k).map(|r| r.0).unwrap_or(end);
+        let pairs: [(&str, &str); 3] = [("{[(<«", "}])>»"), ("\n", "\n"), ("'\"`", "'\"`")];
+        for (l, r) in pairs {
+            // the rune before q opens: forward to its match
+            let c = if i == 0 { '\n' } else { at(i - 1) };
+            if let Some(p) = l.chars().position(|x| x == c) {
+                let cr = r.chars().nth(p).unwrap();
+                let (mut k, mut nest) = (i, 1);
+                while k < all.len() {
+                    let x = at(k);
+                    k += 1;
+                    if x == cr {
+                        nest -= 1;
+                        if nest == 0 {
+                            return (q, off(if c == '\n' { k } else { k - 1 }));
+                        }
+                    } else if x == c {
+                        nest += 1;
+                    }
+                }
+                return if c == '\n' && nest == 1 { (q, end) } else { (q, q) };
+            }
+            // the rune at q closes: back to its match
+            let c = if i >= all.len() { '\n' } else { at(i) };
+            if let Some(p) = r.chars().position(|x| x == c) {
+                let cl = l.chars().nth(p).unwrap();
+                let (mut k, mut nest) = (i, 1);
+                while k > 0 {
+                    k -= 1;
+                    let x = at(k);
+                    if x == cl {
+                        nest -= 1;
+                        if nest == 0 {
+                            return (off(k + 1), off(i + (c == '\n' && i < all.len()) as usize));
+                        }
+                    } else if x == c {
+                        nest += 1;
+                    }
+                }
+                return if c == '\n' && nest == 1 { (0, off(i + (i < all.len()) as usize)) } else { (q, q) };
+            }
+        }
+        // a word: letters, digits and _
+        let word = |c: char| c.is_alphanumeric() || c == '_';
+        let (mut a, mut b) = (i, i);
+        while b < all.len() && word(at(b)) {
+            b += 1;
+        }
+        while a > 0 && word(at(a - 1)) {
+            a -= 1;
+        }
+        (off(a), off(b))
     }
 
     fn mouse(&mut self, x: i32, y: i32, b: i32, ms: u32) {
@@ -1536,6 +1647,16 @@ impl Wsys {
                         None => self.menu3(i, &m.hidden),
                     }
                 }
+            }
+            self.buttons = b;
+            return;
+        }
+        if let Some((n, but, _)) = self.scrolling {
+            // a button held in a scroll bar: 2 follows the mouse, 1 and 3 repeat on ticks
+            if b & but == 0 {
+                self.scrolling = None;
+            } else if but == 2 {
+                self.scrollstep(n, 2, y);
             }
             self.buttons = b;
             return;
@@ -1576,7 +1697,8 @@ impl Wsys {
                 None => true,
                 Some(n) => {
                     let w = &self.wins[&n];
-                    w.r.contains(x, y) && w.textwin && w.mouseopen == 0
+                    // (button 3 in the scroll bar scrolls)
+                    w.r.contains(x, y) && w.textwin && w.mouseopen == 0 && !w.scrollr.contains(x, y)
                 }
             };
             if mine {
@@ -1620,8 +1742,28 @@ impl Wsys {
                 // in a text window: button 1 selects, button 2 is its menu
                 let w = &self.wins[&n];
                 if r.contains(x, y) && w.textwin && w.mouseopen == 0 && self.font.is_some() {
+                    if w.scrollr.contains(x, y) && (b == 1 || b == 2 || b == 4) {
+                        // the scroll bar: a step now, more while the button is held
+                        self.scrollstep(n, b, y);
+                        let next = std::time::Instant::now() + std::time::Duration::from_millis(200);
+                        self.scrolling = Some((n, b, next));
+                        self.buttons = b;
+                        return;
+                    }
                     if b == 1 {
                         let q = self.hit(n, x, y);
+                        // a second click at the same place within 500 ms: rio's double click
+                        let double = matches!(self.click, Some((cw, cx, cy, cms))
+                            if cw == n && (cx - x).abs() <= 3 && (cy - y).abs() <= 3 && ms.wrapping_sub(cms) < 500);
+                        if double {
+                            self.click = None;
+                            let sel = self.stretch(n, q);
+                            self.wins.get_mut(&n).unwrap().sel = sel;
+                            self.drawtext(n);
+                            self.buttons = b;
+                            return;
+                        }
+                        self.click = Some((n, x, y, ms));
                         self.wins.get_mut(&n).unwrap().sel = (q, q);
                         self.selecting = Some((n, q));
                         self.drawtext(n);
@@ -2227,6 +2369,14 @@ fn main() {
         let tx = tx.clone();
         thread::spawn(move || kbdreader(tx));
     }
+    {
+        let tx = tx.clone();
+        thread::spawn(move || {
+            while tx.send(Ev::Tick).is_ok() {
+                thread::sleep(std::time::Duration::from_millis(50));
+            }
+        });
+    }
     let mut ws = Wsys {
         srv: p1,
         srvpath: srvpath.clone(),
@@ -2262,6 +2412,9 @@ fn main() {
         selecting: None,
         menu: None,
         op3: None,
+        scrollbg: 0,
+        scrolling: None,
+        click: None,
         tabstop: std::env::var("tabstop").ok().and_then(|t| t.trim().parse().ok()).filter(|&t: &i32| t > 0).unwrap_or(4),
         // rio's snarf, when wsys runs in a window of rio
         parentsnarf: std::fs::metadata("/dev/snarf").is_ok() && std::fs::metadata("/dev/wctl").is_ok(),
@@ -2284,8 +2437,8 @@ fn main() {
         ws.d.flush()?;
         Ok(scr)
     })();
-    match ws.d.color(PALEYELLOW).and_then(|p| Ok((p, ws.d.color(PALEBLUEGREEN)?))) {
-        Ok((p, h)) => (ws.pale, ws.menuhi) = (p, h),
+    match ws.d.color(PALEYELLOW).and_then(|p| Ok((p, ws.d.color(PALEBLUEGREEN)?, ws.d.color(SCROLLBG)?))) {
+        Ok((p, h, sb)) => (ws.pale, ws.menuhi, ws.scrollbg) = (p, h, sb),
         Err(e) => {
             eprintln!("wsys: colours: {e}");
             std::process::exit(1);
@@ -2346,6 +2499,16 @@ fn main() {
             Ev::Hangup => break,
             Ev::Mouse { x, y, b, ms } => ws.mouse(x, y, b, ms),
             Ev::Kbd(m) => ws.kbd(m),
+            Ev::Tick => {
+                if let Some((n, but, next)) = ws.scrolling {
+                    let now = std::time::Instant::now();
+                    if but != 2 && now >= next {
+                        let my = ws.my;
+                        ws.scrollstep(n, but, my);
+                        ws.scrolling = Some((n, but, now + std::time::Duration::from_millis(100)));
+                    }
+                }
+            }
             Ev::WinExit(n) => {
                 // its process is gone: the window too, unless files of it are open
                 if let Some(w) = ws.wins.get_mut(&n) {

@@ -159,7 +159,14 @@ else
 the wheel scrolls it, output scrolls it back to the end; a tab is
 .B $tabstop
 (default 4) zeros wide.
-Button 1 selects text (on a pale background); button 2's menu
+As in
+.IR rio ,
+a scroll bar is at its left: grey, white for the part shown; button 1 in it
+scrolls back and button 3 on by as many lines as the mouse is below its top
+(again and again while held), button 2 goes to that place of the text.
+Button 1 selects text (on a pale background); twice at one place within half
+a second, a word, or what is between brackets or quotes when next to one,
+or a line when at its start or end; button 2's menu
 .B cut
 (the selection to the snarf buffer, out of the text),
 .BR paste
@@ -363,7 +370,7 @@ A client in C: see
 .IR segment (3)
 .SH BUGS
 A prototype: no labels shown, no Vulkan backend yet; text windows have no
-plumbing, scroll bar, hold mode or double-click selection;
+plumbing or hold mode;
 .B /dev/screen
 and
 .B window

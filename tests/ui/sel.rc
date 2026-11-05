@@ -1,7 +1,8 @@
 #!/bin/rc
 # selecting and snarfing in wsys' text windows, run by wsys -x -i: button 1
 # sweeps a selection (pale), button 2's menu snarfs, pastes, cuts, sends. The
-# font is vga's (8x16); the window's text starts at 108,108. Prints ok/FAIL
+# font is vga's (8x16); the window's text starts at 120,104 (as rio's: the
+# scroll bar, 12 wide, and a gap of 4 before it). Prints ok/FAIL
 # lines and "sel: all passed".
 fn fail { echo FAIL $*; exit fail }
 fn wait1 {
@@ -25,8 +26,8 @@ fn menu { # item: button 2 at 300,300, let go over item n (16 high, the first un
 	{ m 300 300 2; m 300 $my 2; m 300 $my 0 } >/dev/mousein
 	sleep 0.2
 }
-fn x { echo 108+8'*'$1 | hoc }	# column n's x
-fn y { echo 108+16'*'$1+8 | hoc }	# row n's middle
+fn x { echo 120+8'*'$1 | hoc }	# column n's x (the scroll bar and its gap before)
+fn y { echo 104+16'*'$1+8 | hoc }	# row n's middle
 fn snarf { cat /mnt/wsys/$id/snarf }
 fn count { grep -c $1 /mnt/wsys/$id/text }
 

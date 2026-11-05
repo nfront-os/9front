@@ -1,0 +1,91 @@
+#!/bin/rc
+# double clicks and the scroll bar of wsys' text windows (as rio's), run by
+# wsys -x -i. The window is 100 100 600 400: its scroll bar is x 104 to 116,
+# y 104 to 396, grey with the part shown white; the text starts at 120,104, in
+# vga's font (8x16). Prints ok/FAIL lines and "scroll: all passed".
+fn fail { echo FAIL $*; exit fail }
+fn wait1 {
+	n=0
+	while(! $* >[2]/dev/null && test $n -lt 100){ sleep 0.1; n=`{echo $n+1 | hoc} }
+	$* >[2]/dev/null
+}
+fn key { /tests/uipeek -k $1 }
+fn nl { /tests/uipeek -k '
+' }
+# mousein keeps the buttons per open file: a press and its release go through one
+fn m { echo A $1 $2 $3; sleep 0.05 }
+fn click { cx=$1; cy=$2; cb=$3; { m $cx $cy $cb; m $cx $cy 0 } >/dev/mousein }
+fn dclick { dx=$1; dy=$2; { m $dx $dy 1; m $dx $dy 0; m $dx $dy 1; m $dx $dy 0 } >/dev/mousein; sleep 0.2 }
+fn menu { # item n of button 2's menu at 300,300
+	my=`{echo 300+16'*'$1 | hoc}
+	{ m 300 300 2; m 300 $my 2; m 300 $my 0 } >/dev/mousein
+	sleep 0.2
+}
+fn x { echo 120+8'*'$1 | hoc }
+fn y { echo 104+16'*'$1+8 | hoc }
+fn snarf { cat /mnt/wsys/$id/snarf }
+fn color { /tests/uipeek $1 | awk '{print $2}' }
+fn away { echo A 1020 760 0 >/dev/mousein; sleep 0.2 }
+fn thumb { # top bottom: the scroll bar's colours at its top and its bottom
+	away
+	echo `{color 110,106} `{color 110,393}
+}
+
+window -r 100 100 600 400
+wait1 test -d /mnt/wsys/1 || fail no window
+id=1
+sleep 1
+key 'echo marked'; nl
+wait1 grep -s '^marked$' /mnt/wsys/$id/text || fail no output
+p=`{sed 1q /mnt/wsys/$id/text | awk '{print index($0, "echo marked") - 1}'}
+
+# a word: row 1's marked, clicked twice in its middle
+dclick `{x 2} `{y 1}
+menu 2
+~ `{snarf} marked || fail double click on a word: `{snarf}
+echo ok double click: a word, marked
+
+# the end of a line: all of it with its newline
+dclick `{x 8} `{y 1}
+menu 2
+~ `{snarf | wc -c} 7 || fail double click at the end of a line: `{snarf | xd -c}
+echo ok double click: the line, marked and its newline
+
+# in brackets: from the ( to the )
+key 'echo (alpha beta)'
+c=`{echo $p+6 | hoc}
+dclick `{x $c} `{y 2}
+menu 2
+~ `{snarf} 'alpha beta' || fail double click after a bracket: `{snarf}
+echo ok double click: in brackets, alpha beta
+nl
+
+# the scroll bar: a hundred lines, the part shown at the bottom
+key 'seq 100'; nl
+wait1 grep -s '^100$' /mnt/wsys/$id/text || fail no seq
+sleep 0.5
+t=`{thumb}
+~ $"t '999999 ffffff' || fail at the end the scroll bar is $t
+echo ok scroll bar at the end: $t
+
+# button 1 held in it: back, again and again, to the start
+{ m 110 300 1; sleep 1.5; m 110 300 0 } >/dev/mousein
+sleep 0.3
+t=`{thumb}
+~ $"t 'ffffff 999999' || fail button 1 held did not scroll to the start: $t
+echo ok button 1 held: at the start, $t
+
+# button 3 once: on by some lines
+click 110 264 4
+sleep 0.3
+t=`{thumb}
+~ $t(1) 999999 || fail button 3 did not scroll on: $t
+echo ok button 3: on, $t
+
+# button 2: to the place, here the end
+click 110 395 2
+sleep 0.3
+t=`{thumb}
+~ $t(2) ffffff || fail button 2 at the bottom did not go to the end: $t
+echo ok button 2: to the end, $t
+echo scroll: all passed
