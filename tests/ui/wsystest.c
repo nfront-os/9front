@@ -353,22 +353,23 @@ ctlrect(Win *w, Rectangle r)
 	ctl(w, "rect %d %d %d %d", r.min.x, r.min.y, r.max.x, r.max.y);
 }
 
-/* the origin of wsys' screen (its rio window, when it runs in one) */
+/* the origin of wsys' screen (its rio window, when it runs in one): the
+ * rectangle in the header of the image(6) its screen file gives */
 static void
 screenorigin(void)
 {
-	char buf[64], *f[4];
+	char buf[5*12+1], *f[5];
 	int fd, n;
 
-	if((fd = open("/mnt/wsys/screen", OREAD)) < 0 || (n = read(fd, buf, sizeof buf - 1)) <= 0)
+	if((fd = open("/mnt/wsys/screen", OREAD)) < 0 || (n = readn(fd, buf, 5*12)) != 5*12)
 		fail("/mnt/wsys/screen: %r");
 	close(fd);
 	buf[n] = 0;
-	if(tokenize(buf, f, nelem(f)) != 4)
+	if(tokenize(buf, f, nelem(f)) != 5)
 		fail("/mnt/wsys/screen: %s", buf);
-	o = Pt(atoi(f[0]), atoi(f[1]));
-	print("ok wsys draws in [%s %s] [%s %s]\n", f[0], f[1], f[2], f[3]);
-	if(atoi(f[2]) - o.x < 520 || atoi(f[3]) - o.y < 420)
+	o = Pt(atoi(f[1]), atoi(f[2]));
+	print("ok wsys draws in [%s %s] [%s %s]\n", f[1], f[2], f[3], f[4]);
+	if(atoi(f[3]) - o.x < 520 || atoi(f[4]) - o.y < 420)
 		fail("wsys' screen is too small for the test");
 }
 

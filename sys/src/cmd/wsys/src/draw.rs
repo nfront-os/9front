@@ -74,6 +74,25 @@ pub fn strtochan(s: &str) -> Option<u32> {
     Some(c)
 }
 
+/// the bits a pixel of channels chan has (chantodepth)
+pub fn chandepth(chan: u32) -> i32 {
+    (0..4).map(|i| ((chan >> (8 * i)) & 15) as i32).sum()
+}
+
+/// channels chan as their name ("x8r8g8b8", chantostr)
+pub fn chanstr(chan: u32) -> String {
+    let mut s = String::new();
+    for i in (0..4).rev() {
+        let c = (chan >> (8 * i)) & 0xFF;
+        if c == 0 {
+            continue;
+        }
+        s.push(b"rgbkamx"[((c >> 4) as usize).min(6)] as char);
+        s.push_str(&(c & 15).to_string());
+    }
+    s
+}
+
 pub const REFBACKUP: u8 = 0;
 
 pub struct Display {
@@ -349,6 +368,36 @@ impl Display {
         Self::rect(&mut m, r);
         m.extend_from_slice(block);
         self.cmd(&m)
+    }
+
+    /// 'r': the pixels of rectangle r of image id (depth bits each), read back
+    /// in bands of rows, as libdraw's unloadimage
+    pub fn unload(&mut self, id: u32, r: &Rect, depth: i32) -> io::Result<Vec<u8>> {
+        self.flushbuf()?;
+        let bpl = ((r.x1 * depth + 7) / 8 - (r.x0 * depth) / 8) as usize;
+        let mut out = Vec::with_capacity(bpl * r.dy().max(0) as usize);
+        let rows = ((MAXMSG / bpl.max(1)) as i32).max(1);
+        let mut y = r.y0;
+        while y < r.y1 {
+            let y1 = (y + rows).min(r.y1);
+            let mut m = vec![b'r'];
+            m.extend_from_slice(&id.to_le_bytes());
+            Self::rect(&mut m, &Rect::new(r.x0, y, r.x1, y1));
+            self.data.write1(&m)?;
+            let want = bpl * (y1 - y) as usize;
+            let mut got = 0;
+            let mut b = vec![0u8; want];
+            while got < want {
+                let n = self.data.read(&mut b[got..])?;
+                if n == 0 {
+                    return Err(io::Error::other("short read of an image"));
+                }
+                got += n;
+            }
+            out.extend_from_slice(&b);
+            y = y1;
+        }
+        Ok(out)
     }
 
     /// 'y': rectangle r of image id from pixels laid out with stride (XRGB32), in

@@ -9,13 +9,13 @@
 //				a new window; the tree is its directory
 //	attach n		window n's directory
 //
-//	/mnt/wsys/screen	read: x0 y0 x1 y1, where wsys draws (all of the
-//				screen, or inside its rio window)
+//	/mnt/wsys/screen	read: an image(6) of where wsys draws (all of the
+//				screen, or inside its rio window), as rio's
 //	/mnt/wsys/wctl		write: new [options] [cmd] (rio(4))
 //	/mnt/wsys/clone		open: a new window; the fid is then its ctl
 //	/mnt/wsys/N/		a window: ctl, event (wsys' own), and rio(4)'s
-//				cons consctl cursor kbd label mouse snarf text
-//				wctl wdir winid winname
+//				cons consctl cursor kbd label mouse screen snarf
+//				text wctl wdir window winid winname
 //	N/ctl			read: id x0 y0 x1 y1 w h base size focus
 //				write: rect x0 y0 x1 y1 | buffer n seg w h stride |
 //				unbuffer n | present n [x0 y0 x1 y1] | top |
@@ -117,9 +117,11 @@ enum F {
     Wdir,
     Winid,
     Winname,
+    Window,
+    Screen,
 }
 
-const WINFILES: [(F, &str, u32); 14] = [
+const WINFILES: [(F, &str, u32); 16] = [
     (F::Ctl, "ctl", 0o666),
     (F::Event, "event", 0o444),
     (F::Cons, "cons", 0o666),
@@ -134,6 +136,8 @@ const WINFILES: [(F, &str, u32); 14] = [
     (F::Wdir, "wdir", 0o666),
     (F::Winid, "winid", 0o444),
     (F::Winname, "winname", 0o444),
+    (F::Window, "window", 0o444),
+    (F::Screen, "screen", 0o444),
 ];
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -154,6 +158,7 @@ struct FidState {
     owns: bool,       // the clone fid that made the window: clunked, the window goes
     raw: bool,        // a consctl that turned raw mode on
     seen: u64,        // wctl: the window's state last read (0: none yet)
+    snap: Option<Vec<u8>>, // screen, window: the image (6) as it was at the first read
 }
 
 /// A client's buffer. Only the main loop touches it: Rust's std on Plan 9 runs
@@ -423,6 +428,7 @@ struct Wsys {
     menu: Option<Menu>,
     parentsnarf: bool, // in rio: its /dev/snarf is the snarf buffer
     op3: Option<Op3>,  // button 3's command waiting for its click
+    tabstop: i32,      // $tabstop, as rio: a tab is this many zeros wide
 }
 
 fn qid(k: Kind) -> Qid {
@@ -524,7 +530,7 @@ impl Wsys {
                 w.pinned = false;
             }
         }
-        self.fids.insert(fid, FidState { kind, open: false, dirpos: 0, win, owns: false, raw: false, seen: 0 });
+        self.fids.insert(fid, FidState { kind, open: false, dirpos: 0, win, owns: false, raw: false, seen: 0, snap: None });
     }
 
     /// the reply, or None when it comes later (a read that waits)
@@ -615,7 +621,7 @@ impl Wsys {
                     Kind::Root | Kind::WinDir(_) if rw != OREAD as u8 => return e("is a directory"),
                     Kind::Screen if writing => return e("permission denied"),
                     Kind::RootWctl if reading => return e("permission denied"),
-                    Kind::File(_, F::Event | F::Winid | F::Winname) if writing => return e("permission denied"),
+                    Kind::File(_, F::Event | F::Winid | F::Winname | F::Window | F::Screen) if writing => return e("permission denied"),
                     Kind::File(_, F::Consctl) if reading => return e("permission denied"),
                     Kind::Clone => match self.newwin(&Opts::default(), false) {
                         Ok(n) => {
@@ -684,9 +690,23 @@ impl Wsys {
                         self.fids.get_mut(&fid).unwrap().dirpos = n;
                         Some(R::new(117, tag).u32(out.len() as u32).bytes(&out).done())
                     }
-                    Kind::Screen => {
-                        let r = self.d.r;
-                        text(format!("{} {} {} {}\n", r.x0, r.y0, r.x1, r.y1).as_bytes())
+                    Kind::Screen | Kind::File(_, F::Screen | F::Window) => {
+                        // an image(6) of the screen or of the window (border and
+                        // all), taken at the read at offset 0
+                        if offset == 0 || f.snap.is_none() {
+                            let (id, r) = match k {
+                                Kind::File(n, F::Window) => (self.wins[&n].layer, self.wins[&n].r.inset(-BORDER)),
+                                _ => (self.d.screen, self.d.r),
+                            };
+                            match self.snapshot(id, r) {
+                                Ok(b) => self.fids.get_mut(&fid).unwrap().snap = Some(b),
+                                Err(err) => return e(&err.to_string()),
+                            }
+                        }
+                        let snap = self.fids[&fid].snap.as_ref().unwrap();
+                        let o = (offset as usize).min(snap.len());
+                        let b = &snap[o..(o + count as usize).min(snap.len())];
+                        Some(R::new(117, tag).u32(b.len() as u32).bytes(b).done())
                     }
                     Kind::File(n, F::Ctl) => text(self.ctltext(n).as_bytes()),
                     Kind::File(n, F::Label) => text(self.wins[&n].label.as_bytes()),
@@ -850,6 +870,14 @@ impl Wsys {
             w.cons.extend(l.as_bytes());
             self.wake(n);
         }
+    }
+
+    /// image(6), uncompressed: rectangle r of image id (the screen's channels)
+    fn snapshot(&mut self, id: u32, r: Rect) -> std::io::Result<Vec<u8>> {
+        let chan = self.d.chan;
+        let mut b = format!("{:>11} {:11} {:11} {:11} {:11} ", draw::chanstr(chan), r.x0, r.y0, r.x1, r.y1).into_bytes();
+        b.extend(self.d.unload(id, &r, draw::chandepth(chan))?);
+        Ok(b)
     }
 
     fn ctltext(&self, n: u32) -> String {
@@ -1417,7 +1445,7 @@ impl Wsys {
         let (font, d) = (self.font.as_mut().unwrap(), &mut self.d);
         let inner = r.inset(MARGIN);
         let (maxw, h) = (inner.dx().max(1), font.height.max(1));
-        let tab = (4 * font.width(d, '0')).max(1);
+        let tab = (self.tabstop * font.width(d, '0')).max(1);
         // lay out: lines of (rune, x, width, offset)
         let mut lines: Vec<(Vec<(char, i32, i32, usize)>, usize)> = vec![(vec![], start)];
         let mut x = 0;
@@ -2233,6 +2261,7 @@ fn main() {
         selecting: None,
         menu: None,
         op3: None,
+        tabstop: std::env::var("tabstop").ok().and_then(|t| t.trim().parse().ok()).filter(|&t: &i32| t > 0).unwrap_or(4),
         // rio's snarf, when wsys runs in a window of rio
         parentsnarf: std::fs::metadata("/dev/snarf").is_ok() && std::fs::metadata("/dev/wctl").is_ok(),
     };
@@ -2268,8 +2297,12 @@ fn main() {
             std::process::exit(1);
         }
     }
-    println!("wsys: {srvpath} {} {} {} {}", all.x0, all.y0, all.x1, all.y1);
-    let _ = std::io::stdout().flush();
+    if exitwith {
+        // for the scripts that run wsys -x: where it is (a desktop prints nothing:
+        // the kernel's console would draw over the screen)
+        println!("wsys: {srvpath} {} {} {} {}", all.x0, all.y0, all.x1, all.y1);
+        let _ = std::io::stdout().flush();
+    }
 
     if let Some(cmd) = init {
         let tx = tx.clone();

@@ -11,6 +11,8 @@ fn wait1 { # cmd...: until it succeeds, 10 s at most
 }
 fn black { /tests/uipeek -n 104,104,596,396 000000 }
 fn key { /tests/uipeek -k $1 }
+fn nl { /tests/uipeek -k '
+' }
 fn away { echo A 1020 760 0 >/dev/mousein; sleep 0.2 }
 away
 
@@ -30,6 +32,23 @@ sleep 0.5
 b1=`{black}
 test $b1 -gt $b0 || fail no more text on the screen: $b0 then $b1 black pixels
 echo ok typed and run: hello wsys, $b1 black pixels now
+
+# window and screen: image(6) headers, as rio's (mc takes the width from window's)
+h=`{dd -if /mnt/wsys/$id/window -bs 60 -count 1 -quiet 1}
+w=`{dd -if /mnt/wsys/$id/wctl -bs 128 -count 1 -quiet 1}
+~ $h(2) $w(1) && ~ $h(3) $w(2) && ~ $h(4) $w(3) && ~ $h(5) $w(4) || fail window $h, wctl $w
+echo ok window: $h
+s=`{dd -if /mnt/wsys/screen -bs 60 -count 1 -quiet 1}
+~ $s(2) 0 && ~ $s(3) 0 && ~ $s(4) 1024 && ~ $s(5) 768 || fail screen: $s
+n=`{cat /mnt/wsys/$id/window | wc -c}
+test $n -gt 400000 || fail window: $n bytes
+echo ok screen: $s, window: $n bytes
+key '{for(i in a b c d e f g h i j k l m n o p q r s t u v w x y z aa bb cc dd ee ff gg hh ii jj) echo $i} | mc'; nl
+wait1 grep -s '^jj' /mnt/wsys/$id/text || wait1 grep -s 'jj$' /mnt/wsys/$id/text || fail mc: `{tail -3 /mnt/wsys/$id/text}
+# with the width of the window mc puts 18 columns of these in a line; without it 10
+c=`{awk '/^a[ 	]/ {print NF; exit}' /mnt/wsys/$id/text}
+test $c -gt 10 || fail mc: $c columns, it did not get the width of the window
+echo ok mc: $c columns, from the width of the window
 
 # backspace while typing
 key 'echo abX'

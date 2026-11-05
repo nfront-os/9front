@@ -156,7 +156,9 @@ else
 else
 .BR /lib/font/bit/vga/unicode.font
 .RI ( font (6));
-the wheel scrolls it, output scrolls it back to the end.
+the wheel scrolls it, output scrolls it back to the end; a tab is
+.B $tabstop
+(default 4) zeros wide.
 Button 1 selects text (on a pale background); button 2's menu
 .B cut
 (the selection to the snarf buffer, out of the text),
@@ -182,13 +184,15 @@ and the window lives until it is closed.
 Ranges of closed windows are given again.
 .TP
 .B screen
-gives
-.I x0 y0 x1 y1:
-where
+an
+.IR image (6)
+of where
 .I wsys
-draws.
+draws (as
+.IR rio 's;
+its header has the rectangle).
 .TP
-.IB n /cons ", " consctl ", " cursor ", " kbd ", " label ", " mouse ", " snarf ", " text ", " wctl ", " wdir ", " winid ", " winname
+.IB n /cons ", " consctl ", " cursor ", " kbd ", " label ", " mouse ", " screen ", " snarf ", " text ", " wctl ", " wdir ", " window ", " winid ", " winname
 as in
 .IR rio (4):
 the mouse while it is over the window or a button is held (first an
@@ -206,7 +210,17 @@ reads as
 a second read waits for a change; writes to
 .B cons
 collect in
-.BR text .
+.BR text ;
+.B window
+and
+.B screen
+are
+.IR image (6)s
+of the window (border and all) and of the screen, taken at a read at offset 0
+.RI ( mc (1)
+takes its width from
+.BR window 's
+header).
 .TP
 .IB n /ctl
 Reading gives one line of fields:
@@ -320,7 +334,19 @@ and takes
 and
 .BR unhide .
 Keys go to the focused window.
+With
+.BR -x ,
+.I wsys
+prints the name it posted and its rectangle (for scripts); otherwise nothing.
 .SH EXAMPLES
+In
+.IR plan9.ini ,
+.B desktop=wsys
+makes the terminal's profile start
+.B wsys -i riostart
+instead of
+.IR rio .
+.PP
 A client in C: see
 .BR /tests/ui/wsystest.c .
 .SH SOURCE

@@ -63,6 +63,31 @@ check "button 3's menu (New, Move, Resize, Hide and back, Delete): all passed" g
 check "wsys posted /srv/wsys.glenda.pid on the 1024x768 screen" grep -qE '^wsys: /srv/wsys.glenda.[0-9]+ 0 0 1024 768' "$TMPD/log"
 check "no kernel panic" bash -c "! grep -q '^panic:' '$TMPD/log'"
 
+# a terminal boot with desktop=wsys: the profile starts wsys instead of rio, with
+# riostart (stats, a shell, the console's window: boot-cli sets console); on a
+# 16-bit VESA screen. The command is typed on the serial line, through kbdfs and
+# wsys into the window last made (wctl is read once: a second read waits).
+desk(){
+	SERVICE=terminal KARGS="vgasize=1024x768x16 monitor=vesa mouseport=ps2 desktop=wsys" \
+	SCREENSHOT="$TMPD/desk.png" CMDWAIT=30 \
+		"$ROOT/scripts/guest/boot-cli.sh" \
+		"sleep 3;{ps;dd -if /dev/wctl -bs 128 -count 1 -quiet 1;echo;mount \$wsys /tmp none;ls /tmp}>'#c/cons'" \
+		> "$TMPD/consoledesk" 2>&1
+	tr -d '\r' < "$TMPD/consoledesk" > "$TMPD/logdesk"
+}
+check "terminal boot with desktop=wsys" desk
+cp "$TMPD/logdesk" "$HERE/desk.log" 2>/dev/null
+cp "$TMPD/desk.png" "$HERE/desk.png" 2>/dev/null
+check "desktop: wsys running, rio not" bash -c "grep -qE ' wsys\$' '$TMPD/logdesk' && ! grep -qE ' rio\$' '$TMPD/logdesk'"
+check "desktop: riostart's stats in a window" grep -qE ' stats$' "$TMPD/logdesk"
+check "desktop: the command typed into the focused window ran (its wctl: current)" grep -qE '^ +[0-9]+ +[0-9]+ +[0-9]+ +[0-9]+ +current +visible' "$TMPD/logdesk"
+check "desktop: three windows (stats, a shell, the console)" bash -c "grep -c '^/tmp/[0-9]' '$TMPD/logdesk' | grep -qx 3"
+check "desktop: screen dump 1024x768" python3 -c "
+import struct, sys
+d = open('$TMPD/desk.png', 'rb').read(24)
+sys.exit(struct.unpack('>II', d[16:24]) != (1024, 768))"
+check "no kernel panic" bash -c "! grep -q '^panic:' '$TMPD/logdesk'"
+
 # second boot: the same test with wsys in a rio window (rioinit.rc, wsysrio.rc): its
 # screen is the window, mouse and keys come through rio. After rio, rc gets nothing
 # from the serial line: the scripts log to $home, which is on the host (ufsroot).

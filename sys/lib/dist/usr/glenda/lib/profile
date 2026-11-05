@@ -13,7 +13,12 @@ case terminal
 	echo -n 'res 3' > '#m/mousectl'
 	prompt=('term% ' '	')
 	fn term%{ $* }
-	rio -i riostart
+	# ui branch: desktop=wsys (plan9.ini) starts wsys(4), the window
+	# system of ../9front-ui, instead of rio; riostart serves both
+	if(~ $desktop wsys && test -x /bin/wsys)
+		wsys -i riostart
+	if not
+		rio -i riostart
 case cpu
 	bind /mnt/term/dev/cons /dev/cons
 	bind -q /mnt/term/dev/consctl /dev/consctl
