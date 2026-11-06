@@ -9,7 +9,8 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(cd "$HERE/../.." && pwd)
 . "$ROOT/scripts/mesa/common.sh"
 CLI_DIR=${CLI_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/9front-cli}
-RUSTC=${RUSTC:-$ROOT/../9front-rust/rust/build/host/stage1/bin/rustc}
+RUST_DIR=${RUST_DIR:-$ROOT/../9front-rust}
+RUSTC=${RUSTC:-$RUST_DIR/rust/build/host/stage1/bin/rustc}
 T=x86_64-unknown-plan9
 # eframetest links Mesa's static libvulkan.a (C++; its plan9 WSI: APE's libdraw);
 # it runs on a GPU (tests/gpu/amdeframe.rc), not here
@@ -19,6 +20,16 @@ T=x86_64-unknown-plan9
 	cargo build --offline --release --target $T --quiet)
 mkdir -p "$HERE/root/tests"
 for p in winittest eguitest; do cp "$BUILD/cargo/tests_winit/$T/release/$p" "$HERE/root/tests/"; done
+# icedtest (iced: tiny-skia, window_clipboard, iced_graphics with plan9) is
+# ../9front-rust's (tests/crates/icedtest: crates.io's crates, not vendored here)
+I=$RUST_DIR/tests/crates/icedtest
+rm -f "$HERE/root/tests/icedtest"
+if [ -d "$I" ]; then
+	(cd "$I" && env RUSTC="$RUSTC" CARGO_TARGET_DIR="$BUILD/cargo/icedtest" \
+		CARGO_TARGET_X86_64_UNKNOWN_PLAN9_LINKER="$CROSS/$TRIPLE-gcc" \
+		cargo --config "$RUST_DIR/cargo-plan9.toml" build --release --target $T --quiet 2>/dev/null) &&
+	cp "$BUILD/cargo/icedtest/$T/release/icedtest" "$HERE/root/tests/"
+fi
 cp "$ROOT/amd64/bin/wsys" "$HERE/root/tests/wsys"
 cp "$HERE/winit.rc" "$HERE/root/tests/winit"
 chmod +x "$HERE/root/tests/winit"
@@ -51,10 +62,11 @@ PY
 }
 keys /tmp/winite.ready a shift+b ret
 keys /tmp/eguie.ready h shift+i
+keys /tmp/icede.ready x shift+y
 wait $run || true
 $M rc 'cat /tmp/wsys.log' 10 | grep -v -e '/srv/wsys' -e '^event' -e '^ok' -e '^winit' -e '^egui' || true
-out=$(cat "$CLI_DIR/winit.out"; printf '%s\n' 'cat /tmp/winit.log /tmp/egui.log' "grep '^event' /tmp/winite.log" \
-	"grep '^(event|clicks|button)' /tmp/eguie.log" | $M rc - 10) || true
+out=$(cat "$CLI_DIR/winit.out"; printf '%s\n' 'cat /tmp/winit.log /tmp/egui.log /tmp/iced.log' "grep '^event' /tmp/winite.log" \
+	"grep '^(event|clicks|button)' /tmp/eguie.log" "grep '^(event|clicks)' /tmp/icede.log | sed 's/^/iced /'" | $M rc - 10) || true
 echo "$out" | grep -E '^(ok|FAIL|winittest|eguitest)' || true
 [ -n "$WINITDEBUG" ] && echo "$out"
 fail=0
@@ -72,6 +84,12 @@ check "winit: B with shift, text B" '^event key down Code(KeyB) Character("B") t
 check "winit: return" '^event key down Code(Enter) Named(Enter)'
 check "egui: button clicked" '^event clicked 1'
 check "egui: text typed" '^event text hI'
+if [ -f "$HERE/root/tests/icedtest" ]; then
+	check "icedtest" '^icedtest: all passed'
+	check "iced: text typed" '^iced event text xY'
+	# open: iced's button takes no click (its press yes, the release finds it not pressed)
+	echo "$out" | grep -q '^iced event clicked 1' && echo "ok iced: button clicked" || echo "open iced: button clicked"
+fi
 kill -TERM -- -$guest 2>/dev/null || kill $guest 2>/dev/null
 wait $guest 2>/dev/null || true
 trap - EXIT

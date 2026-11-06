@@ -11,11 +11,15 @@ fn waitfor { # file pattern
 fn run { # prog log args
 	window -r 100 100 500 400 'rc -c ''/tests/'$1' '$"3' >'$2' >[2=1]; echo '$1': exit $status >>'$2''''
 }
-rm -f /tmp/winit*.log /tmp/egui*.log /tmp/*.ready
+rm -f /tmp/winit*.log /tmp/egui*.log /tmp/iced*.log /tmp/*.ready
 run winittest /tmp/winit.log
 waitfor /tmp/winit.log '^winittest: exit'
 run eguitest /tmp/egui.log
 waitfor /tmp/egui.log '^eguitest: exit'
+if(test -x /tests/icedtest){
+	run icedtest /tmp/iced.log
+	waitfor /tmp/iced.log '^icedtest: exit'
+}
 
 run winittest /tmp/winite.log '-e 6'
 waitfor /tmp/winite.log '^ready for events'
@@ -30,6 +34,19 @@ b=`{grep '^button at' /tmp/eguie.log | sed 's/button at //'}
 { m $b(1) $b(2) 0; m $b(1) $b(2) 1; m $b(1) $b(2) 0 } >/dev/mousein
 echo >/tmp/eguie.ready
 waitfor /tmp/eguie.log '^eguitest: exit'
-cat /tmp/winit.log /tmp/egui.log
+
+# iced: a click into its text field (under the title, at 300 160): the window
+# current (wsys, as rio, keeps the click that makes a window current), then
+# one on its button (most of the window below, at 300 300), then the field
+# again for the host's keys
+if(test -x /tests/icedtest){
+	run icedtest /tmp/icede.log '-e 8'
+	waitfor /tmp/icede.log '^ready for events'
+	{ m 300 160 0; m 300 160 1; m 300 160 0; m 300 300 0; m 300 300 1; m 300 300 0; m 300 160 0; m 300 160 1; m 300 160 0 } >/dev/mousein
+}
+echo >/tmp/icede.ready
+if(test -x /tests/icedtest)
+	waitfor /tmp/icede.log '^icedtest: exit'
+cat /tmp/winit.log /tmp/egui.log /tmp/iced.log
 grep '^event' /tmp/winite.log
 grep '^(event|clicks|button)' /tmp/eguie.log
