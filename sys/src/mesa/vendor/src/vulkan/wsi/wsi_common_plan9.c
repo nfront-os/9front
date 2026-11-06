@@ -30,6 +30,7 @@
 #include "util/macros.h"
 #include "util/timespec.h"
 #include "util/os_time.h"
+#include "c11/threads.h"
 #include "vk_util.h"
 #include "vk_instance.h"
 #include "vk_physical_device.h"
@@ -68,6 +69,34 @@ static const VkPresentModeKHR present_modes[] = {
    VK_PRESENT_MODE_IMMEDIATE_KHR,
 };
 
+/*
+ * the whole screen without rio: the frames go to the display (gpu(4)
+ * scanout) unless WSI_PLAN9_COPY=1 (tests read them back through draw(3))
+ */
+static bool
+plan9_scanout(VkIcdSurfacePlan9 *s, struct wsi_device *wsi_device)
+{
+   const char *copy = getenv("WSI_PLAN9_COPY");
+
+   return wsi_device->plan9_scanout != NULL && !(copy && atoi(copy)) &&
+          plan9win_isscreen(s->windowName);
+}
+
+/*
+ * The images the WSI holds itself while the app acquires: the one being
+ * presented (venus presents on a thread of its own, the image is the
+ * WSI's until the present is done) and, with scanout, the one on the
+ * display.  minImageCount is one more, so that an app holding all the
+ * spec lets it (imageCount - minImageCount) still finds one free: venus
+ * holds the swapchain's lock while acquire waits, the present that would
+ * free one cannot run meanwhile (Zink's kopper hung so, glwin).
+ */
+static uint32_t
+plan9_min_images(VkIcdSurfacePlan9 *s, struct wsi_device *wsi_device)
+{
+   return plan9_scanout(s, wsi_device) ? 3 : 2;
+}
+
 static VkResult
 wsi_plan9_surface_get_capabilities(VkIcdSurfaceBase *surface,
                                    struct wsi_device *wsi_device,
@@ -79,7 +108,7 @@ wsi_plan9_surface_get_capabilities(VkIcdSurfaceBase *surface,
    if (plan9win_size(s->windowName, &w, &h) < 0)
       return VK_ERROR_SURFACE_LOST_KHR;
 
-   caps->surfaceCapabilities.minImageCount = 2;
+   caps->surfaceCapabilities.minImageCount = plan9_min_images(s, wsi_device);
    caps->surfaceCapabilities.maxImageCount = 0;
 
    /* the window's size: the swapchain must have it */
@@ -247,7 +276,7 @@ wsi_plan9_surface_get_present_rectangles(VkIcdSurfaceBase *surface,
 
 struct wsi_plan9_image {
    struct wsi_image base;
-   bool busy;  /* acquired by the app */
+   bool busy;  /* acquired by the app, being presented or on the display (lock) */
 };
 
 struct wsi_plan9_swapchain {
@@ -260,6 +289,8 @@ struct wsi_plan9_swapchain {
    int wsys;         /* the frames go to wsys(4) as GPU buffers: its ctl; -1 not */
    int shown;        /* the image on the display, kept busy; -1 none */
    uint32_t next;
+   mtx_t lock;       /* busy, next */
+   cnd_t freed;      /* an image is no longer busy */
    /* WSI_PLAN9_STATS=1: where a present's time goes, every 100 frames */
    bool stats;
    uint32_t nstat;
@@ -302,6 +333,16 @@ wsi_plan9_swapchain_get_wsi_image(struct wsi_swapchain *wsi_chain,
    return &chain->images[image_index].base;
 }
 
+/* image i no longer busy: an acquire waiting for one goes on */
+static void
+plan9_free(struct wsi_plan9_swapchain *chain, uint32_t i)
+{
+   mtx_lock(&chain->lock);
+   chain->images[i].busy = false;
+   cnd_broadcast(&chain->freed);
+   mtx_unlock(&chain->lock);
+}
+
 static VkResult
 wsi_plan9_swapchain_release_images(struct wsi_swapchain *wsi_chain,
                                    uint32_t count, const uint32_t *indices)
@@ -310,7 +351,7 @@ wsi_plan9_swapchain_release_images(struct wsi_swapchain *wsi_chain,
 
    for (uint32_t i = 0; i < count; i++) {
       assert(indices[i] < chain->base.image_count);
-      chain->images[indices[i]].busy = false;
+      plan9_free(chain, indices[i]);
    }
    return VK_SUCCESS;
 }
@@ -330,6 +371,7 @@ wsi_plan9_swapchain_acquire_next_image(struct wsi_swapchain *wsi_chain,
    clock_gettime(CLOCK_MONOTONIC, &start_time);
    timespec_add(&end_time, &rel_timeout, &start_time);
 
+   mtx_lock(&chain->lock);
    for (;;) {
       /* round robin: the image presented longest ago comes first */
       for (uint32_t n = 0; n < chain->base.image_count; n++) {
@@ -337,15 +379,27 @@ wsi_plan9_swapchain_acquire_next_image(struct wsi_swapchain *wsi_chain,
          if (!chain->images[i].busy) {
             chain->images[i].busy = true;
             chain->next = (i + 1) % chain->base.image_count;
+            mtx_unlock(&chain->lock);
             *image_index = i;
             return chain->status;
          }
       }
 
+      /* none free: until a present or a release frees one */
+      if (info->timeout == UINT64_MAX) {
+         cnd_wait(&chain->freed, &chain->lock);
+         continue;
+      }
       struct timespec current_time;
       clock_gettime(CLOCK_MONOTONIC, &current_time);
-      if (timespec_after(&current_time, &end_time))
+      if (timespec_after(&current_time, &end_time)) {
+         mtx_unlock(&chain->lock);
          return info->timeout ? VK_TIMEOUT : VK_NOT_READY;
+      }
+      /* a finite wait: in steps (cnd_timedwait's clock is the wall clock) */
+      mtx_unlock(&chain->lock);
+      os_time_sleep(100);
+      mtx_lock(&chain->lock);
    }
 }
 
@@ -433,7 +487,7 @@ wsi_plan9_swapchain_queue_present(struct wsi_swapchain *wsi_chain,
                              chain->extent.height,
                              image->base.row_pitches[0]) == VK_SUCCESS) {
          if (chain->shown >= 0 && chain->shown != (int)image_index)
-            chain->images[chain->shown].busy = false;
+            plan9_free(chain, chain->shown);
          chain->shown = image_index;
          goto Shown;
       }
@@ -450,7 +504,7 @@ wsi_plan9_swapchain_queue_present(struct wsi_swapchain *wsi_chain,
       t[1] = t[2] = os_time_get_nano();
       snprintf(msg, sizeof msg, "present %u", image_index);
       if (plan9win_wsysctl(chain->wsys, msg) == 0) {
-         image->busy = false;
+         plan9_free(chain, image_index);
          goto Shown;
       }
       if (chain->stats)
@@ -477,11 +531,11 @@ wsi_plan9_swapchain_queue_present(struct wsi_swapchain *wsi_chain,
    if (plan9win_put(chain->window_name, chain->pixels,
                     chain->extent.width, chain->extent.height,
                     image->base.row_pitches[0]) < 0) {
-      image->busy = false;
+      plan9_free(chain, image_index);
       chain->status = VK_ERROR_SURFACE_LOST_KHR;
       return chain->status;
    }
-   image->busy = false;
+   plan9_free(chain, image_index);
 
 Shown:
    if (chain->stats) {
@@ -519,6 +573,8 @@ wsi_plan9_swapchain_destroy(struct wsi_swapchain *wsi_chain,
          wsi_destroy_image(&chain->base, &chain->images[i].base);
    }
    wsi_swapchain_finish(&chain->base);
+   cnd_destroy(&chain->freed);
+   mtx_destroy(&chain->lock);
    free(chain->pixels);
    vk_free(pAllocator, chain);
 
@@ -541,15 +597,9 @@ wsi_plan9_surface_create_swapchain(VkIcdSurfaceBase *icd_surface,
 
    /* WSI_PLAN9_COPY=1: always through draw(3) (tests read it back there) */
    const char *copy = getenv("WSI_PLAN9_COPY");
-   const bool scanout = wsi_device->plan9_scanout != NULL &&
-                        !(copy && atoi(copy)) &&
-                        plan9win_isscreen(surface->windowName);
-   /*
-    * With scanout one image more: the one on the display, busy until
-    * the next is shown.  Acquire must not wait for it: venus presents
-    * on a thread of its own that excludes acquire while it runs.
-    */
-   uint32_t num_images = MAX2(pCreateInfo->minImageCount, 2) + (scanout ? 1 : 0);
+   const bool scanout = plan9_scanout(surface, wsi_device);
+   /* at least what the caps say (plan9_min_images: the WSI's own and one) */
+   uint32_t num_images = MAX2(pCreateInfo->minImageCount, plan9_min_images(surface, wsi_device));
    /* in a window of wsys the buffers go there: exportable (dma-buf) */
    int wsys = -1;
    if (!scanout && !(copy && atoi(copy)) && !wsi_device->sw && num_images <= Wsysbufs)
@@ -598,6 +648,8 @@ wsi_plan9_surface_create_swapchain(VkIcdSurfaceBase *icd_surface,
    chain->status = VK_SUCCESS;
    chain->scanout = scanout;
    chain->shown = -1;
+   mtx_init(&chain->lock, mtx_plain);
+   cnd_init(&chain->freed);
    const char *stats = getenv("WSI_PLAN9_STATS");
    chain->stats = stats != NULL && atoi(stats) != 0;
    if (chain->stats)
@@ -653,6 +705,8 @@ fail_destroy_images:
    for (uint32_t i = 0; i < image; i++)
       wsi_destroy_image(&chain->base, &chain->images[i].base);
    wsi_swapchain_finish(&chain->base);
+   cnd_destroy(&chain->freed);
+   mtx_destroy(&chain->lock);
 fail_free_chain:
    if (chain->wsys >= 0)
       close(chain->wsys);
