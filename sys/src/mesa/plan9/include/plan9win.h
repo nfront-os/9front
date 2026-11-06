@@ -31,6 +31,7 @@ extern int plan9win_wsys(const char *name);
 
 /* a request to wsys' ctl; -1 if refused */
 extern int plan9win_wsysctl(int fd, const char *msg);
+extern int plan9win_wsysevents(void);	/* the window's event file in wsys (overlay 0|1) */
 
 #ifdef __cplusplus
 }

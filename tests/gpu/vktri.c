@@ -65,6 +65,50 @@ shader(VkDevice dev, const uint32_t *code, size_t size)
 	return m;
 }
 
+/*
+ * a new swapchain for the same window (the WSI said VK_SUBOPTIMAL_KHR: in
+ * wsys, its images go to the overlay plane now, or not any more), its
+ * images' views and framebuffers
+ */
+static void
+rebuild(VkDevice dev, VkSwapchainCreateInfoKHR *swci, VkSwapchainKHR *sc, VkImage *img, uint32_t *nimg,
+	VkImageView *view, VkFramebuffer *fb, VkRenderPass rp)
+{
+	VkSwapchainKHR old = *sc;
+	uint32_t i;
+
+	vkDeviceWaitIdle(dev);
+	for(i = 0; i < *nimg; i++){
+		vkDestroyFramebuffer(dev, fb[i], NULL);
+		vkDestroyImageView(dev, view[i], NULL);
+	}
+	swci->oldSwapchain = old;
+	CHECK(vkCreateSwapchainKHR(dev, swci, NULL, sc), "vkCreateSwapchainKHR (again)");
+	vkDestroySwapchainKHR(dev, old, NULL);
+	*nimg = 8;
+	CHECK(vkGetSwapchainImagesKHR(dev, *sc, nimg, img), "swapchain images");
+	for(i = 0; i < *nimg; i++){
+		VkImageViewCreateInfo vci = {
+			.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+			.image = img[i],
+			.viewType = VK_IMAGE_VIEW_TYPE_2D,
+			.format = swci->imageFormat,
+			.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 },
+		};
+		CHECK(vkCreateImageView(dev, &vci, NULL, &view[i]), "vkCreateImageView");
+		VkFramebufferCreateInfo fci = {
+			.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
+			.renderPass = rp,
+			.attachmentCount = 1,
+			.pAttachments = &view[i],
+			.width = swci->imageExtent.width,
+			.height = swci->imageExtent.height,
+			.layers = 1,
+		};
+		CHECK(vkCreateFramebuffer(dev, &fci, NULL, &fb[i]), "vkCreateFramebuffer");
+	}
+}
+
 int
 main(int argc, char **argv)
 {
@@ -390,6 +434,10 @@ main(int argc, char **argv)
 		CHECK(r, "vkQueuePresentKHR");
 		CHECK(vkWaitForFences(dev, 1, &fence, VK_TRUE, UINT64_MAX), "fence");
 		vkResetFences(dev, 1, &fence);
+		if(r == VK_SUBOPTIMAL_KHR){
+			rebuild(dev, &swci, &sc, img, &nimg, view, fb, rp);
+			printf("ok a new swapchain after %u frames (suboptimal)\n", frames+1);
+		}
 	}
 	vkDeviceWaitIdle(dev);
 	double t1 = now();

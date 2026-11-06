@@ -249,6 +249,7 @@ struct Win {
     hidden: bool,        // off the screen (button 3's Hide), listed in its menu
     lastb: Option<u32>,  // the buffer presented last (the overlay's: copied when it goes off)
     nooverlay: bool,     // the driver refused it the overlay: copies until it moves or resizes
+    ovsent: Option<bool>, // the last "overlay 0|1" event: whether it may go on the plane
 }
 
 /// a line of a text window as drawn: each rune's x, width and offset, and the
@@ -1109,7 +1110,7 @@ impl Wsys {
             kbd: VecDeque::new(), kbdopen: 0, mouseopen: 0, mouse: VecDeque::new(), resized: false,
             cursor: vec![], state: 1, textwin: text, scroll: 0, sel: (0, 0), rows: vec![], hidden: false,
             hold: false, want: None, stale: false,
-            scrollr: Rect::default(), shown: (1, 0, 1), lastb: None, nooverlay: false,
+            scrollr: Rect::default(), shown: (1, 0, 1), lastb: None, nooverlay: false, ovsent: None,
         });
         self.z.push(n);
         self.setfocus(Some(n));
@@ -1499,6 +1500,13 @@ impl Wsys {
     fn copybuf(&mut self, n: u32, b: u32, r: Option<Rect>) -> Result<(), String> {
         let w = &self.wins[&n];
         let buf = w.bufs.get(&b).ok_or("no such buffer")?;
+        if let Mem::Gpu(g) = &buf.mem {
+            if !g.mapped() {
+                // in VRAM for the overlay plane, which the window may not have now: the
+                // client makes buffers wsys can read when it hears "overlay 0"
+                return Ok(());
+            }
+        }
         // what of the buffer the window shows: its top left corner
         let full = Rect::new(0, 0, buf.w.min(w.r.dx()), buf.h.min(w.r.dy()));
         let r = match r {
@@ -1548,19 +1556,30 @@ impl Wsys {
 
     /// why window n's buffer b may not go on the overlay plane (None: it may)
     fn ovwhynot(&self, n: u32, b: u32) -> Option<&'static str> {
-        let Some(w) = self.wins.get(&n) else { return Some("no window") };
+        if let Some(why) = self.ovwinwhynot(n) {
+            return Some(why);
+        }
+        let w = &self.wins[&n];
         let Some(buf) = w.bufs.get(&b) else { return Some("no buffer") };
         let why = [
-            (self.nooverlay, "-O"),
             (!matches!(buf.mem, Mem::Gpu(_)), "not a GPU buffer"),
+            (buf.w != w.r.dx() || buf.h != w.r.dy(), "the buffer is not the window's size"),
+            (buf.stride % 256 != 0, "its stride is not a multiple of 256"),
+        ];
+        why.iter().find(|(c, _)| *c).map(|(_, s)| *s)
+    }
+
+    /// why window n may not go on the overlay plane, whatever its buffers
+    fn ovwinwhynot(&self, n: u32) -> Option<&'static str> {
+        let Some(w) = self.wins.get(&n) else { return Some("no window") };
+        let why = [
+            (self.nooverlay, "-O"),
             (self.gpu.as_ref().and_then(|g| g.overlay_ctl()).is_none(), "the driver has no overlay"),
             (self.z.last() != Some(&n), "not on top"),
             (w.hidden, "hidden"),
             (w.nooverlay, "refused before"),
             (self.menu.is_some() || self.drag.is_some() || self.op3.is_some(), "wsys draws over it"),
             (!self.d.r.contains(w.r.x0, w.r.y0) || w.r.x1 > self.d.r.x1 || w.r.y1 > self.d.r.y1, "not wholly on the screen"),
-            (buf.w != w.r.dx() || buf.h != w.r.dy(), "the buffer is not the window's size"),
-            (buf.stride % 256 != 0, "its stride is not a multiple of 256"),
         ];
         why.iter().find(|(c, _)| *c).map(|(_, s)| *s)
     }
@@ -1647,6 +1666,18 @@ impl Wsys {
     /// the window on the overlay plane may not stay there: off, and what it showed
     /// last into its window (the overlay was over it)
     fn ovcheck(&mut self) {
+        // to each window with GPU buffers: whether it may go on the plane now (Mesa's
+        // WSI makes buffers in VRAM for it, else ones wsys reads: variant b)
+        let gpuwins: Vec<u32> = self.wins.iter()
+            .filter(|(_, w)| w.bufs.values().any(|b| matches!(b.mem, Mem::Gpu(_))))
+            .map(|(&n, _)| n).collect();
+        for n in gpuwins {
+            let ok = self.ovwinwhynot(n).is_none();
+            if self.wins[&n].ovsent != Some(ok) {
+                self.wins.get_mut(&n).unwrap().ovsent = Some(ok);
+                self.event(n, format!("overlay {}", ok as u8));
+            }
+        }
         let Some(n) = self.ov else { return };
         let lastb = self.wins.get(&n).and_then(|w| w.lastb);
         if lastb.is_some_and(|b| self.overlayable(n, b)) {

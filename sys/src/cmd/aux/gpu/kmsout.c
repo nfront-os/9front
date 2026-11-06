@@ -1539,8 +1539,8 @@ ovstate(void)
 			n++;
 	if (!ov_plane)
 		return kasprintf(GFP_KERNEL, "overlay planes %d, none shown\n", n);
-	return kasprintf(GFP_KERNEL, "overlay planes %d, plane %u crtc %u: %ux%u at %d %d\n",
-	    n, ov_plane, ov_crtc, ov_w, ov_h, ov_x, ov_y);
+	return kasprintf(GFP_KERNEL, "overlay planes %d, plane %u crtc %u: %ux%u at %d %d, %s\n",
+	    n, ov_plane, ov_crtc, ov_w, ov_h, ov_x, ov_y, ovd_fb ? "the client's object" : "copied");
 }
 
 /* "plane ..." for the device's ctl: the screen */

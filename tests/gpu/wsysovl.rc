@@ -2,7 +2,11 @@
 # run by wsys -x -i (amdwsys.rc): vktri in a window of wsys on the overlay plane
 # (gpu(4) overlay): wsys copies nothing, the display shows the GPU buffer; the
 # driver's status while it runs, the frames (the display's rate: FIFO at the
-# plane's vblank); what wsys said about the overlay
+# plane's vblank); what wsys said about the overlay.  The WSI starts with
+# buffers wsys reads (copied into VRAM for the plane: variant a), makes them
+# in VRAM when wsys says "overlay 1" (shown as they are: variant b), and
+# buffers wsys reads again when another window covers it ("overlay 0"):
+# then vktri's pixels are in wsys' screen again
 rm -f /tmp/wvo.log
 window -r 100 100 740 580 /tests/wsysvktri /tmp/wvo.log
 sleep 2
@@ -12,8 +16,13 @@ t0=`{awk '{print $2}' /dev/time}
 for(i in `{seq 1 50}) ls /mnt/wsys >/dev/null
 t1=`{awk '{print $2}' /dev/time}
 echo during: 50 ls of /mnt/wsys in `{echo '('$t1-$t0')/1000000' | hoc} ms
+# another window over a corner of it (not where vktri reads its pixels):
+# off the plane, the WSI makes buffers wsys reads again
+window -r 600 500 900 700 sleep 5
+sleep 1
+grep '^overlay' /dev/gpu/0/status | sed 's/^/covered: /'
 n=0
 while(! grep -s '^wsysvk: exit' /tmp/wvo.log && test $n -lt 600){ sleep 0.1; n=`{echo $n+1 | hoc} }
 sleep 1
 grep '^overlay' /dev/gpu/0/status | sed 's/^/after: /'
-grep 'frames|wsys has|exit' /tmp/wvo.log | sed 's/^/overlay: /'
+grep 'frames|wsys has|wsys says|swapchain|screen at|passed|FAIL|exit' /tmp/wvo.log | sed 's/^/overlay: /'

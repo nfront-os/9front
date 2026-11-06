@@ -39,6 +39,11 @@ pub struct GpuMem {
 }
 
 impl GpuMem {
+    /// the processor sees it (else only the display does: in VRAM, on the overlay plane)
+    pub fn mapped(&self) -> bool {
+        self.va != 0
+    }
+
     /// its handle in wsys' context (aux/amdgpu: the object's; virtio: the resource)
     pub fn handle(&self) -> u32 {
         self.res
@@ -190,7 +195,12 @@ impl Gpu {
         if osize < size {
             return Err(io::Error::other(format!("gpu: buffer of {osize} bytes, {size} wanted")));
         }
-        let rep = self.req(&format!("map {h}"))?;
+        // in VRAM not in one piece where BAR 0 shows it (the WSI's images for the overlay
+        // plane, variant b): no view for the processor, the display shows it
+        let Ok(rep) = self.req(&format!("map {h}")) else {
+            m.len = size;
+            return Ok(m);
+        };
         let f: Vec<&str> = rep.split_whitespace().collect();
         let hex = |x: &str| usize::from_str_radix(x.trim_start_matches("0x"), 16).ok();
         let (Some(&"map"), Some(&class), Some(len)) = (f.first(), f.get(2), f.get(4).and_then(|x| hex(x))) else {

@@ -318,6 +318,18 @@ by a thread of its own, so that
 answers its other clients meanwhile.
 When the window may no longer be there, the plane goes off and the last
 presented buffer is copied into the window.
+To a window with GPU buffers
+.I wsys
+sends the event
+.B overlay 1
+when it may go on the plane and
+.B overlay 0
+when no longer: Mesa's plan9 WSI then makes its swapchain's buffers in
+VRAM, which the plane shows as they are (no copy at all), or again where
+.I wsys
+reads them; a buffer in VRAM
+.I wsys
+cannot read, it shows nothing new until the client's next buffers come.
 .B -O
 keeps every window on
 .IR wsys 's

@@ -198,6 +198,13 @@ plan9win_wsys(const char *name)
 	return fd;
 }
 
+/* the window's events in wsys (wsys(4)'s event): a descriptor, -1 */
+int
+plan9win_wsysevents(void)
+{
+	return open("/dev/event", OREAD|OCEXEC);
+}
+
 int
 plan9win_wsysctl(int fd, const char *msg)
 {

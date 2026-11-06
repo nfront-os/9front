@@ -31,6 +31,8 @@
 #include "util/timespec.h"
 #include "util/os_time.h"
 #include "c11/threads.h"
+#include "util/u_atomic.h"
+#include <pthread.h>
 #include "vk_util.h"
 #include "vk_instance.h"
 #include "vk_physical_device.h"
@@ -42,12 +44,21 @@
 extern int plan9_dmabuf_token(int fd, char *buf, int n);	/* plan9/lib/dmabuf.c */
 
 enum { Wsysbufs = 8 };	/* wsys' buffers a window */
+/*
+ * a swapchain's buffers in wsys: numbers 0-3 or 4-7, the other half from the
+ * swapchain before (an app makes the new one before it destroys the old,
+ * whose unbuffers must not hit the new one's)
+ */
+static int wsys_half;
 
 struct wsi_plan9 {
    struct wsi_interface base;
 };
 
 static uint32_t wsi_plan9_select_scanout_memory_type(const struct wsi_device *wsi, uint32_t type_bits);
+static uint32_t wsi_plan9_select_overlay_memory_type(const struct wsi_device *wsi, uint32_t type_bits);
+static VkResult wsi_plan9_create_overlay_mem(const struct wsi_swapchain *chain, const struct wsi_image_info *info,
+                                            struct wsi_image *image);
 static VkResult wsi_plan9_create_scanout_mem(const struct wsi_swapchain *chain, const struct wsi_image_info *info,
                                              struct wsi_image *image);
 
@@ -288,6 +299,8 @@ struct wsi_plan9_swapchain {
    bool scanout;     /* the frames go to the display directly */
    int wsys;         /* the frames go to wsys(4) as GPU buffers: its ctl; -1 not */
    int shown;        /* the image on the display, kept busy; -1 none */
+   bool overlay;     /* in wsys, the images in VRAM for its overlay plane: no copy, no view */
+   uint32_t bufbase; /* its buffers' numbers in wsys: bufbase + image */
    uint32_t next;
    mtx_t lock;       /* busy, next */
    cnd_t freed;      /* an image is no longer busy */
@@ -403,6 +416,46 @@ wsi_plan9_swapchain_acquire_next_image(struct wsi_swapchain *wsi_chain,
    }
 }
 
+/*
+ * wsys' word for this process's window (wsys(4) event "overlay 0|1"):
+ * whether its frames may go on the display's overlay plane, -1 not heard
+ * yet.  A thread reads the window's events; a swapchain made then has its
+ * images in VRAM (1, variant b: the display shows them as they are) or
+ * where wsys reads them (0); when the word changes, present says
+ * VK_SUBOPTIMAL_KHR and the app makes a new swapchain.
+ */
+static int wsys_overlay = -1;
+static pthread_once_t wsys_events_once = PTHREAD_ONCE_INIT;
+
+static void *
+wsys_events(void *arg)
+{
+   char buf[1024];
+   int fd, n;
+
+   (void)arg;
+   if ((fd = plan9win_wsysevents()) < 0)
+      return NULL;
+   while ((n = read(fd, buf, sizeof buf - 1)) > 0) {
+      buf[n] = 0;
+      for (char *l = buf; l != NULL && *l; l = strchr(l, '\n') ? strchr(l, '\n') + 1 : NULL) {
+         if (strncmp(l, "overlay ", 8) == 0)
+            p_atomic_set(&wsys_overlay, atoi(l + 8) != 0);
+      }
+   }
+   close(fd);
+   return NULL;
+}
+
+static void
+wsys_events_start(void)
+{
+   pthread_t t;
+
+   if (pthread_create(&t, NULL, wsys_events, NULL) == 0)
+      pthread_detach(t);
+}
+
 /* wsys lets go of the buffers; frames by copy from now on */
 static void
 wsys_off(struct wsi_plan9_swapchain *chain)
@@ -412,7 +465,7 @@ wsys_off(struct wsi_plan9_swapchain *chain)
    if (chain->wsys < 0)
       return;
    for (uint32_t i = 0; i < chain->base.image_count; i++) {
-      snprintf(msg, sizeof msg, "unbuffer %u", i);
+      snprintf(msg, sizeof msg, "unbuffer %u", chain->bufbase + i);
       plan9win_wsysctl(chain->wsys, msg);
    }
    close(chain->wsys);
@@ -442,7 +495,7 @@ wsys_buffers(struct wsi_plan9_swapchain *chain)
       close(fd);	/* the token stays while the memory does */
       if (r < 0)
          return false;
-      snprintf(msg, sizeof msg, "gpubuffer %u %s %u %u %u", i, token,
+      snprintf(msg, sizeof msg, "gpubuffer %u %s %u %u %u", chain->bufbase + i, token,
                chain->extent.width, chain->extent.height, image->row_pitches[0]);
       if (plan9win_wsysctl(chain->wsys, msg) < 0) {
          if (chain->stats)
@@ -502,10 +555,23 @@ wsi_plan9_swapchain_queue_present(struct wsi_swapchain *wsi_chain,
       char msg[32];
 
       t[1] = t[2] = os_time_get_nano();
-      snprintf(msg, sizeof msg, "present %u", image_index);
+      snprintf(msg, sizeof msg, "present %u", chain->bufbase + image_index);
       if (plan9win_wsysctl(chain->wsys, msg) == 0) {
          plan9_free(chain, image_index);
+         /* wsys' word changed: another kind of images (VRAM for the plane, or not) */
+         int ov = p_atomic_read(&wsys_overlay);
+         if (ov >= 0 && (ov == 1) != chain->overlay && chain->status == VK_SUCCESS) {
+            if (chain->stats)
+               fprintf(stderr, "wsi plan9: wsys says overlay %d: a new swapchain\n", ov);
+            chain->status = VK_SUBOPTIMAL_KHR;
+         }
          goto Shown;
+      }
+      if (chain->overlay) {
+         /* images in VRAM, no view: no copy either; the app makes new ones */
+         plan9_free(chain, image_index);
+         chain->status = VK_ERROR_OUT_OF_DATE_KHR;
+         return chain->status;
       }
       if (chain->stats)
          fprintf(stderr, "wsi plan9: wsys refused present, copying from now on\n");
@@ -602,7 +668,7 @@ wsi_plan9_surface_create_swapchain(VkIcdSurfaceBase *icd_surface,
    uint32_t num_images = MAX2(pCreateInfo->minImageCount, plan9_min_images(surface, wsi_device));
    /* in a window of wsys the buffers go there: exportable (dma-buf) */
    int wsys = -1;
-   if (!scanout && !(copy && atoi(copy)) && !wsi_device->sw && num_images <= Wsysbufs)
+   if (!scanout && !(copy && atoi(copy)) && !wsi_device->sw && num_images <= Wsysbufs / 2)
       wsys = plan9win_wsys(surface->windowName);
    size_t size = sizeof(*chain) + num_images * sizeof(chain->images[0]);
    chain = vk_zalloc(pAllocator, size, 8, VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);
@@ -612,6 +678,8 @@ wsi_plan9_surface_create_swapchain(VkIcdSurfaceBase *icd_surface,
       return VK_ERROR_OUT_OF_HOST_MEMORY;
    }
    chain->wsys = wsys;
+   if (wsys >= 0)
+      chain->bufbase = __atomic_xor_fetch(&wsys_half, Wsysbufs / 2, __ATOMIC_SEQ_CST);
 
    /* rendered by the device, blitted into host memory for draw(3) */
    struct wsi_cpu_image_params cpu_params = {
@@ -644,8 +712,17 @@ wsi_plan9_surface_create_swapchain(VkIcdSurfaceBase *icd_surface,
    /* the images as without wsys, if the driver cannot make them exportable */
    VkResult (*plain_mem)(const struct wsi_swapchain *, const struct wsi_image_info *,
                          struct wsi_image *) = chain->base.image_info.create_mem;
-   if (wsys >= 0)
-      chain->base.image_info.create_mem = wsi_plan9_create_scanout_mem;	/* exportable, mapped */
+   uint32_t (*plain_type)(const struct wsi_device *, uint32_t) = chain->base.image_info.select_blit_dst_memory_type;
+   if (wsys >= 0) {
+      pthread_once(&wsys_events_once, wsys_events_start);
+      if (p_atomic_read(&wsys_overlay) == 1 && wsi_device->plan9_scanout_device_local) {
+         /* on wsys' overlay plane: in VRAM, exportable, the display shows them as they are */
+         chain->overlay = true;
+         chain->base.image_info.select_blit_dst_memory_type = wsi_plan9_select_overlay_memory_type;
+         chain->base.image_info.create_mem = wsi_plan9_create_overlay_mem;
+      } else
+         chain->base.image_info.create_mem = wsi_plan9_create_scanout_mem;	/* exportable, mapped */
+   }
 
    chain->base.destroy = wsi_plan9_swapchain_destroy;
    chain->base.get_wsi_image = wsi_plan9_swapchain_get_wsi_image;
@@ -681,6 +758,8 @@ wsi_plan9_surface_create_swapchain(VkIcdSurfaceBase *icd_surface,
          for (uint32_t i = 0; i < image; i++)
             wsi_destroy_image(&chain->base, &chain->images[i].base);
          wsys_off(chain);
+         chain->overlay = false;
+         chain->base.image_info.select_blit_dst_memory_type = plain_type;
          chain->base.image_info.create_mem = plain_mem;
          image = 0;
          result = wsi_create_image(&chain->base, &chain->base.image_info,
@@ -688,7 +767,7 @@ wsi_plan9_surface_create_swapchain(VkIcdSurfaceBase *icd_surface,
       }
       if (result != VK_SUCCESS)
          goto fail_destroy_images;
-      if (chain->images[image].base.cpu_map == NULL) {
+      if (chain->images[image].base.cpu_map == NULL && !chain->overlay) {
          result = VK_ERROR_OUT_OF_HOST_MEMORY;
          image++;
          goto fail_destroy_images;
@@ -699,7 +778,8 @@ wsi_plan9_surface_create_swapchain(VkIcdSurfaceBase *icd_surface,
    if (chain->wsys >= 0 && !wsys_buffers(chain))
       wsys_off(chain);
    if (chain->stats && wsys >= 0)
-      fprintf(stderr, "wsi plan9: %s\n", chain->wsys >= 0 ? "wsys has the buffers" : "wsys refused, copying");
+      fprintf(stderr, "wsi plan9: %s\n", chain->wsys >= 0 ? chain->overlay ? "wsys has the buffers, in VRAM for its overlay plane" :
+              "wsys has the buffers" : "wsys refused, copying");
 
    /* 64-byte aligned for the streaming loads */
    size_t frame = (size_t)chain->images[0].base.row_pitches[0] * chain->extent.height;
@@ -827,4 +907,28 @@ wsi_CreatePlan9SurfacePLAN9(VkInstance _instance,
 
    *pSurface = VkIcdSurfaceBase_to_handle(&surface->base);
    return VK_SUCCESS;
+}
+
+/* the overlay plane's images (variant b): exportable, in VRAM, no view for the processor */
+static VkResult
+wsi_plan9_create_overlay_mem(const struct wsi_swapchain *chain, const struct wsi_image_info *info,
+                             struct wsi_image *image)
+{
+   return wsi_create_buffer_blit_context(chain, info, image, VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT);
+}
+
+/* device local, rather one the processor does not see (the part of VRAM BAR 0 does not show) */
+static uint32_t
+wsi_plan9_select_overlay_memory_type(const struct wsi_device *wsi, uint32_t type_bits)
+{
+   u_foreach_bit(t, type_bits) {
+      VkMemoryPropertyFlags f = wsi->memory_props.memoryTypes[t].propertyFlags;
+      if ((f & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) && !(f & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT))
+         return t;
+   }
+   u_foreach_bit(t, type_bits) {
+      if (wsi->memory_props.memoryTypes[t].propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
+         return t;
+   }
+   return ffs(type_bits) - 1;
 }
