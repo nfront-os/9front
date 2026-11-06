@@ -47,4 +47,6 @@ int	amdgpu_syncimport(void *c, const char *token, unsigned int *handle);
 int	amdgpu_kms_start(void);
 /* the outputs and the screen: kmsout.h (their strings: amdgpu_freestr) */
 int	amdgpu_scanout(void *c, int id, unsigned int w, unsigned int h, unsigned int stride);	/* id 0: off again */
+/* a client's object on an overlay plane at x y (linux/ctx.c: a GPU copy into VRAM); handle 0: off */
+int	amdgpu_overlay(void *c, unsigned int handle, int x, int y, unsigned int w, unsigned int h, unsigned int stride);
 int	amdgpu_scanout_gem(void *c, unsigned int handle, unsigned int w, unsigned int h, unsigned int stride);	/* a client's GEM object */

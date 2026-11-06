@@ -77,6 +77,21 @@ static u32 shown_fb;			/* a client's picture on the display */
 static struct file *shown_by;		/* the client's file */
 static int shown_out;			/* the output that shows it, -1: every one */
 static struct drm_mode_modeinfo shown_mode;	/* its mode there */
+/*
+ * an overlay plane per CRTC (GETRESOURCES' order), XRGB8888; a client's
+ * window on one of them: two objects of ours in VRAM, the driver copies
+ * the client's picture into the one not shown (kmsout_overlay_back),
+ * then it is shown (kmsout_overlay_show)
+ */
+static u32 ovplane[Ncrtc];
+static struct file *ov_by;		/* the client's file, NULL: none */
+static u32 ov_handle[2], ov_fb[2];	/* ours, in VRAM */
+static u32 ov_w, ov_h, ov_pitch;
+static int ov_back;			/* the one not shown */
+static u32 ov_plane, ov_crtc;		/* where it is, 0: not shown yet */
+static int ov_x, ov_y;
+static void	ovfree(void);
+static char	*ovstate(void);
 static struct drm_client_dev client;	/* for DRM's hotplug events */
 
 enum { Curw = 64 };			/* the cursor object's side: every display has 64 */
@@ -262,6 +277,41 @@ findmode(struct out *o, u32 w, u32 h, u32 hz, struct drm_mode_modeinfo *m, bool 
 	return r;
 }
 
+/*
+ * the overlay planes (GETPLANERESOURCES lists only them: we did not ask
+ * for universal planes), the first for each CRTC that takes XRGB8888
+ */
+static void
+findplanes(void)
+{
+	struct drm_mode_get_plane_res pr = { };
+	struct drm_mode_get_plane gp;
+	u32 ids[16], fmts[64];
+	unsigned int i, j, k;
+
+	memset(ovplane, 0, sizeof(ovplane));
+	pr.plane_id_ptr = (u64)(uintptr_t)ids;
+	pr.count_planes = ARRAY_SIZE(ids);
+	if (kioctl(kms, DRM_IOCTL_MODE_GETPLANERESOURCES, &pr))
+		return;
+	for (i = 0; i < min_t(u32, pr.count_planes, ARRAY_SIZE(ids)); i++) {
+		memset(&gp, 0, sizeof(gp));
+		gp.plane_id = ids[i];
+		gp.format_type_ptr = (u64)(uintptr_t)fmts;
+		gp.count_format_types = ARRAY_SIZE(fmts);
+		if (kioctl(kms, DRM_IOCTL_MODE_GETPLANE, &gp))
+			continue;
+		for (j = 0; j < min_t(u32, gp.count_format_types, ARRAY_SIZE(fmts)); j++)
+			if (fmts[j] == DRM_FORMAT_XRGB8888)
+				break;
+		if (j == min_t(u32, gp.count_format_types, ARRAY_SIZE(fmts)))
+			continue;
+		for (k = 0; k < (unsigned)ncrtc; k++)
+			if ((gp.possible_crtcs & (1U << k)) && ovplane[k] == 0)
+				ovplane[k] = ids[i];
+	}
+}
+
 int
 kmsout_init(struct file *f, const struct kmsout_ops *o)
 {
@@ -280,6 +330,7 @@ kmsout_init(struct file *f, const struct kmsout_ops *o)
 	if (r)
 		return r;
 	ncrtc = min_t(int, res.count_crtcs, Ncrtc);
+	findplanes();
 	dev = kmsdev();
 	nout = 0;
 	drm_connector_list_iter_begin(dev, &it);
@@ -435,6 +486,15 @@ kmsout_status(void)
 		kfree(s);
 		s = t;
 	}
+	if (s && kms) {
+		mutex_lock(&kmslock);
+		c = ovstate();
+		mutex_unlock(&kmslock);
+		t = kasprintf(GFP_KERNEL, "%s%s", s, c ? c : "");
+		kfree(c);
+		kfree(s);
+		s = t;
+	}
 	return s;
 }
 
@@ -586,6 +646,7 @@ apply(unsigned long long maxbytes)
 	r = bbox(&w, &h);
 	if (r)
 		return r;
+	ovfree();	/* a new layout: the client's overlay comes again with its next picture */
 	if (w > dev->mode_config.max_width || h > dev->mode_config.max_height || (unsigned long long)w * h * 4 > maxbytes)
 		return -E2BIG;
 	r = assign(want);
@@ -1189,6 +1250,178 @@ rm:
 out:
 	mutex_unlock(&kmslock);
 	return r;
+}
+
+/* the overlay off the display and its objects freed; kmslock held */
+static void
+ovfree(void)
+{
+	struct drm_mode_set_plane sp = { };
+	int i;
+
+	if (ov_plane) {
+		sp.plane_id = ov_plane;
+		sp.crtc_id = ov_crtc;
+		kioctl(kms, DRM_IOCTL_MODE_SETPLANE, &sp);	/* fb 0: off */
+	}
+	for (i = 0; i < 2; i++) {
+		if (ov_fb[i])
+			kioctl(kms, DRM_IOCTL_MODE_RMFB, &ov_fb[i]);
+		if (ov_handle[i])
+			ops->screen_free(kms, ov_handle[i]);
+		ov_fb[i] = ov_handle[i] = 0;
+	}
+	ov_by = NULL;
+	ov_plane = ov_crtc = 0;
+	ov_w = ov_h = ov_pitch = 0;
+}
+
+/*
+ * the object the client's picture (w x h, stride bytes a row, XRGB8888)
+ * goes into next: one of ours in VRAM, made (two) when the size changes;
+ * the master file and its handle there for the copy.  Another client's
+ * overlay stays: -EBUSY.
+ */
+int
+kmsout_overlay_back(struct file *from, u32 w, u32 h, u32 stride, struct file **kmsf, u32 *handle)
+{
+	struct drm_mode_fb_cmd2 fb;
+	unsigned long long off;
+	u32 pitch;
+	int i, r;
+
+	if (!kms || !scr_fb)
+		return -ENODEV;
+	if (w == 0 || h == 0 || stride < w * 4 || stride % 256)
+		return -EINVAL;	/* the copy is one piece: our pitch is the client's */
+	mutex_lock(&kmslock);
+	r = 0;
+	if (ov_by && ov_by != from) {
+		r = -EBUSY;
+		goto out;
+	}
+	if (ov_by != from || ov_w != w || ov_h != h || ov_pitch != stride) {
+		ovfree();
+		for (i = 0; i < 2; i++) {
+			/* screen_alloc's pitch is ALIGN(w*4, 256): the client's stride */
+			r = ops->screen_alloc(kms, stride / 4, h, &ov_handle[i], &pitch, &off);
+			if (r == 0 && pitch != stride)
+				r = -EINVAL;
+			if (r == 0) {
+				memset(&fb, 0, sizeof(fb));
+				fb.width = w;
+				fb.height = h;
+				fb.pixel_format = DRM_FORMAT_XRGB8888;
+				fb.handles[0] = ov_handle[i];
+				fb.pitches[0] = stride;
+				r = kioctl(kms, DRM_IOCTL_MODE_ADDFB2, &fb);
+				ov_fb[i] = fb.fb_id;
+			}
+			if (r) {
+				ovfree();
+				goto out;
+			}
+		}
+		ov_by = from;
+		ov_w = w;
+		ov_h = h;
+		ov_pitch = stride;
+		ov_back = 0;
+	}
+	*kmsf = kms;
+	*handle = ov_handle[ov_back];
+out:
+	mutex_unlock(&kmslock);
+	return r;
+}
+
+/*
+ * the back object on the overlay plane of the output whose part of the
+ * screen has the window (x y on the screen) wholly, then the other one
+ * is the back; returns when the display shows it (the plane's update
+ * waits for the vblank).  -ERANGE: no output has it all, or no overlay
+ * plane on its CRTC (the client copies).
+ */
+int
+kmsout_overlay_show(struct file *from, int x, int y)
+{
+	struct drm_mode_set_plane sp = { };
+	struct out *o = NULL;
+	int i, k, r;
+
+	mutex_lock(&kmslock);
+	if (ov_by != from || !ov_fb[ov_back]) {
+		r = -EINVAL;
+		goto out;
+	}
+	for (i = 0; i < nout; i++) {
+		struct out *p = &outs[i];
+
+		if (p->on && p->crtc && x >= p->x && y >= p->y &&
+		    x + (int)ov_w <= p->x + p->mode.hdisplay && y + (int)ov_h <= p->y + p->mode.vdisplay) {
+			o = p;
+			break;
+		}
+	}
+	for (k = 0; o && k < ncrtc; k++)
+		if (crtcs[k] == o->crtc)
+			break;
+	if (!o || k == ncrtc || !ovplane[k] || (shown_fb && (shown_out < 0 || &outs[shown_out] == o))) {
+		r = -ERANGE;
+		goto out;
+	}
+	if (ov_plane && (ov_plane != ovplane[k] || ov_crtc != o->crtc)) {
+		/* the window went to another output: off on the old one */
+		sp.plane_id = ov_plane;
+		sp.crtc_id = ov_crtc;
+		kioctl(kms, DRM_IOCTL_MODE_SETPLANE, &sp);
+		memset(&sp, 0, sizeof(sp));
+	}
+	sp.plane_id = ovplane[k];
+	sp.crtc_id = o->crtc;
+	sp.fb_id = ov_fb[ov_back];
+	sp.crtc_x = x - o->x;
+	sp.crtc_y = y - o->y;
+	sp.crtc_w = ov_w;
+	sp.crtc_h = ov_h;
+	sp.src_w = ov_w << 16;
+	sp.src_h = ov_h << 16;
+	r = kioctl(kms, DRM_IOCTL_MODE_SETPLANE, &sp);
+	if (r == 0) {
+		ov_plane = ovplane[k];
+		ov_crtc = o->crtc;
+		ov_x = x;
+		ov_y = y;
+		ov_back ^= 1;
+	}
+out:
+	mutex_unlock(&kmslock);
+	return r;
+}
+
+/* the client's overlay off (from NULL: whoever's); its objects freed */
+void
+kmsout_overlay_off(struct file *from)
+{
+	mutex_lock(&kmslock);
+	if (ov_by && (from == NULL || ov_by == from))
+		ovfree();
+	mutex_unlock(&kmslock);
+}
+
+/* "overlay ..." for the device's status */
+static char *
+ovstate(void)
+{
+	int k, n = 0;
+
+	for (k = 0; k < ncrtc; k++)
+		if (ovplane[k])
+			n++;
+	if (!ov_plane)
+		return kasprintf(GFP_KERNEL, "overlay planes %d, none shown\n", n);
+	return kasprintf(GFP_KERNEL, "overlay planes %d, plane %u crtc %u: %ux%u at %d %d\n",
+	    n, ov_plane, ov_crtc, ov_w, ov_h, ov_x, ov_y);
 }
 
 /* "plane ..." for the device's ctl: the screen */

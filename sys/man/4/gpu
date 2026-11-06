@@ -795,6 +795,24 @@ stays with the importer.
 .BI close " handle
 lets go of an object the client made through ioctls or imported (GEM_CLOSE,
 its view unmapped first).
+.BI overlay " handle x y w h stride
+shows the client's object (XRGB8888,
+.I w
+by
+.IR h ,
+.I stride
+bytes a row, a multiple of 256) at
+.I x y
+of the screen on an overlay plane of the output that has that part of
+the screen wholly, above the screen: the GPU copies it into an object
+of the display's in VRAM, the client's object stays where the processor
+reads it.
+Returns when the display shows it (its next vblank); refused when no
+output has the window wholly or a context's picture is on the display
+.RB ( scanout ).
+One client at a time;
+.B overlay off
+ends it, as does the end of the context or a new layout of the outputs.
 .BI syncexport " handle
 and
 .BI syncimport " token

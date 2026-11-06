@@ -70,7 +70,8 @@ struct Kreq {
 	void	*lc;
 	int	free;	/* amdgpu_ctx_free: its picture off the display */
 	int	gem;	/* id is a GEM handle of the client's (scanoutgem) */
-	int	id, w, h, stride;
+	int	overlay;	/* overlay: id a GEM handle of the client's at x y, 0 off */
+	int	id, w, h, stride, x, y;
 	int	r;
 	Channel	*done;
 };
@@ -85,6 +86,8 @@ kmsproc(void*)
 		k = recvp(kmsc);
 		if(k->free)
 			amdgpu_ctx_free(k->lc);
+		else if(k->overlay)
+			k->r = amdgpu_overlay(k->lc, k->id, k->x, k->y, k->w, k->h, k->stride);
 		else if(k->gem)
 			k->r = amdgpu_scanout_gem(k->lc, k->id, k->w, k->h, k->stride);
 		else
@@ -170,11 +173,34 @@ doreq(void *lc, char **f, int nf, char *reply, int nreply, int priv)
 	return q.r;
 }
 
+/* a client's object on an overlay plane (id 0: off), on the display's proc */
+static int
+overlay(void *lc, int id, int x, int y, int w, int h, int stride)
+{
+	Kreq k;
+
+	memset(&k, 0, sizeof k);
+	k.lc = lc;
+	k.overlay = 1;
+	k.id = id;
+	k.x = x;
+	k.y = y;
+	k.w = w;
+	k.h = h;
+	k.stride = stride;
+	k.done = chancreate(sizeof(ulong), 0);
+	sendp(kmsc, &k);
+	recvul(k.done);
+	chanfree(k.done);
+	return k.r;
+}
+
 static int
 scanout(void *lc, int gem, int id, int w, int h, int stride)
 {
 	Kreq k;
 
+	memset(&k, 0, sizeof k);
 	k.lc = lc;
 	k.free = 0;
 	k.gem = gem;
@@ -671,6 +697,21 @@ fswrite(Req *r)
 		if(n < 1){
 			respond(r, "empty ctl message");
 			return;
+		}
+		if((n == 2 && strcmp(f[1], "off") == 0 || n == 7) && strcmp(f[0], "overlay") == 0){
+			/* overlay handle x y w h stride, overlay off: the display is the hostowner's */
+			if(!iseve9p(r->fid->uid)){
+				respond(r, "permission denied: the display is the hostowner's");
+				return;
+			}
+			srvrelease(r->srv);
+			x = overlay(fa->ctx->lc, n == 2 ? 0 : strtoul(f[1], nil, 0), n == 2 ? 0 : atoi(f[2]),
+				n == 2 ? 0 : atoi(f[3]), n == 2 ? 0 : atoi(f[4]), n == 2 ? 0 : atoi(f[5]),
+				n == 2 ? 0 : atoi(f[6]));
+			srvacquire(r->srv);
+			if(x < 0)
+				e = errstr9(x);
+			break;
 		}
 		if((n == 2 || n == 5) && strcmp(f[0], "scanout") == 0 || n == 5 && strcmp(f[0], "scanoutgem") == 0){
 			/* the display is the hostowner's (the console's) */

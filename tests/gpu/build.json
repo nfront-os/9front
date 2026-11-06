@@ -21,6 +21,7 @@
 			"amdctxtest.c",
 			"amdscanout.c",
 			"amdcs.c",
+			"amdoverlay.c",
 			"amdshare.c",
 			"amdhang.c",
 			"segrevoke.c"

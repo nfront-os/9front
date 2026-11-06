@@ -258,6 +258,7 @@ amdgpu_ctx_free(void *v)
 
 	unexport(c);	/* its tokens name nothing any more */
 	kmsout_scanout(c->filp, 0, 0, 0, 0);	/* its picture off the display */
+	kmsout_overlay_off(c->filp);
 	for (i = 0; i < Nfence; i++)
 		if (c->fence[i]) {
 			dma_fence_wait_timeout(c->fence[i], false, 5 * HZ);
@@ -565,6 +566,85 @@ amdgpu_scanout_gem(void *v, u32 handle, unsigned int w, unsigned int h, unsigned
 			return -EINVAL;	/* the display scans out VRAM only */
 	}
 	return kmsout_scanout(c->filp, handle, w, h, stride);
+}
+
+/*
+ * ctl "overlay handle x y w h stride": the client's object (its window's
+ * picture, XRGB8888, stride bytes a row, the window at x y on the screen)
+ * on an overlay plane: copied by the GPU's copy engine (amdgpu's TTM
+ * buffer functions, SDMA) into an object of the display's in VRAM, which
+ * the plane then shows (kmsout.c); the client's object stays where the
+ * processor reads it (GTT).  Returns when the display shows it.  handle
+ * 0: off.
+ */
+int
+amdgpu_overlay(void *v, u32 handle, int x, int y, u32 w, u32 h, u32 stride)
+{
+	struct gctx *c = v;
+	struct drm_gem_object *sobj, *dobj;
+	struct amdgpu_bo *src, *dst;
+	struct amdgpu_device *adev;
+	struct dma_fence *fence = NULL;
+	struct file *kmsf;
+	u64 saddr, daddr;
+	u32 dh;
+	int r;
+
+	if (handle == 0) {
+		kmsout_overlay_off(c->filp);
+		return 0;
+	}
+	r = kmsout_overlay_back(c->filp, w, h, stride, &kmsf, &dh);
+	if (r)
+		return r;
+	if ((sobj = drm_gem_object_lookup(c->file, handle)) == NULL)
+		return -ENOENT;
+	if ((dobj = drm_gem_object_lookup(kmsf->private_data, dh)) == NULL) {
+		drm_gem_object_put(sobj);
+		return -ENOENT;
+	}
+	src = gem_to_amdgpu_bo(sobj);
+	dst = gem_to_amdgpu_bo(dobj);
+	adev = amdgpu_ttm_adev(src->tbo.bdev);
+	if (sobj->size < (u64)stride * h || dobj->size < (u64)stride * h) {
+		r = -EINVAL;
+		goto put;
+	}
+	/* where it is now, pinned there while the copy reads it; in GTT through the GART */
+	r = amdgpu_bo_reserve(src, false);
+	if (r)
+		goto put;
+	r = amdgpu_bo_pin(src, amdgpu_mem_type_to_domain(src->tbo.resource->mem_type));
+	if (r == 0 && src->tbo.resource->mem_type == TTM_PL_TT) {
+		r = amdgpu_ttm_alloc_gart(&src->tbo);
+		if (r)
+			amdgpu_bo_unpin(src);
+	}
+	if (r == 0)
+		saddr = amdgpu_bo_gpu_offset(src);
+	amdgpu_bo_unreserve(src);
+	if (r)
+		goto put;
+	daddr = amdgpu_bo_gpu_offset(dst);	/* pinned in VRAM (screen_alloc) */
+	/* as amdgpu_benchmark: the default entity's lock around the copy */
+	mutex_lock(&adev->mman.default_entity.lock);
+	r = amdgpu_copy_buffer(adev, &adev->mman.default_entity, saddr, daddr, stride * h,
+	    NULL, &fence, false, 0);
+	mutex_unlock(&adev->mman.default_entity.lock);
+	if (r == 0) {
+		dma_fence_wait(fence, false);
+		dma_fence_put(fence);
+	}
+	if (amdgpu_bo_reserve(src, true) == 0) {
+		amdgpu_bo_unpin(src);
+		amdgpu_bo_unreserve(src);
+	}
+	if (r == 0)
+		r = kmsout_overlay_show(c->filp, x, y);
+put:
+	drm_gem_object_put(dobj);
+	drm_gem_object_put(sobj);
+	return r;
 }
 
 /* a free entry of the object table */

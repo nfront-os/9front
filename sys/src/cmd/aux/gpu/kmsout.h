@@ -75,6 +75,10 @@ int	kmsout_init(struct file *kms, const struct kmsout_ops *ops);
 int	kmsout_screenfb(u32 *fb, u32 *w, u32 *h, u32 *pitch);
 int	kmsout_scanout(struct file *from, u32 handle, u32 w, u32 h, u32 stride);
 int	kmsout_prime(struct file *from, u32 handle, struct file *to, u32 *out);
+/* a client's window on an overlay plane: the object to copy its picture into, show it, off */
+int	kmsout_overlay_back(struct file *from, u32 w, u32 h, u32 stride, struct file **kms, u32 *handle);
+int	kmsout_overlay_show(struct file *from, int x, int y);
+void	kmsout_overlay_off(struct file *from);
 #endif
 
 #endif
