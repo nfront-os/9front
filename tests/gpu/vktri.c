@@ -116,7 +116,7 @@ main(int argc, char **argv)
 	VkDevice dev;
 	VkSurfaceKHR surf;
 	VkSwapchainKHR sc;
-	uint32_t n, i, qf, nimg, frames, apiver;
+	uint32_t n, i, qf, nimg, frames, apiver, nrebuilt = 0;
 	double secs, t0;
 
 	secs = argc > 1 ? atof(argv[1]) : 3;
@@ -434,8 +434,12 @@ main(int argc, char **argv)
 		CHECK(r, "vkQueuePresentKHR");
 		CHECK(vkWaitForFences(dev, 1, &fence, VK_TRUE, UINT64_MAX), "fence");
 		vkResetFences(dev, 1, &fence);
-		/* VKTRI_NOREBUILD=1: as many apps, VK_SUBOPTIMAL_KHR ignored (the WSI's out of date must come) */
-		if(r == VK_SUBOPTIMAL_KHR && getenv("VKTRI_NOREBUILD") == NULL){
+		/*
+		 * VKTRI_NOREBUILD=1: one new swapchain (in wsys: onto the overlay
+		 * plane, images in VRAM), then VK_SUBOPTIMAL_KHR ignored, as many
+		 * apps: covered, the WSI's out of date must come
+		 */
+		if(r == VK_SUBOPTIMAL_KHR && (getenv("VKTRI_NOREBUILD") == NULL || nrebuilt++ == 0)){
 			rebuild(dev, &swci, &sc, img, &nimg, view, fb, rp);
 			printf("ok a new swapchain after %u frames (suboptimal)\n", frames+1);
 		}
