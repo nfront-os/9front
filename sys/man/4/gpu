@@ -824,9 +824,15 @@ DRM's version, then the driver's name, date and description a line each.
 .BI map " handle
 replies the processor's view of an object the client made,
 .BI map " handle seg va size" :
-an alias segment of its pages (GTT) or its part of BAR 0 (VRAM; while
-mapped the object stays in one piece in the part BAR 0 shows, moved there
-if it was not);
+an alias segment of its pages (GTT) or, for an object in VRAM, a pager
+segment (segment(3)) of BAR 0: page by page as Linux maps it, the
+object moved into the part BAR 0 shows when a page of it is touched
+(or its pages in memory, if it stays in GTT), not pinned, its pages
+taken back when the driver moves it; refused
+.RB ( EPERM )
+for an object made without a processor's view
+.RB ( nocpuaccess ,
+a display's image);
 .BI unmap " handle
 ends it, revoking the segment in every process.
 There are no requests with file descriptors (PRIME, syncobj fds):

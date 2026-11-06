@@ -232,6 +232,7 @@ amdgpu_status(void)
 	    amdgpu_asic_name[a->asic_type], a->family, a->rev_id, a->external_rev_id);
 	p += scnprintf(p, e - p, "vram %llu MB visible %llu MB gtt %llu MB\n",
 	    a->gmc.real_vram_size >> 20, a->gmc.visible_vram_size >> 20, a->gmc.gart_size >> 20);
+	p += amdgpu_pagerstatus(p, e - p);	/* ctx.c */
 	p += scnprintf(p, e - p, "accel %s\n", a->accel_working ? "working" : "not working");
 	if (a->pm.dpm_enabled)
 		p = power(p, e, a);

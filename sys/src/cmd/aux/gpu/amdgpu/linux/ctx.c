@@ -109,10 +109,30 @@ struct gctx {
 struct map {
 	struct list_head	node;
 	u32	handle;
-	struct amdgpu_bo	*abo;	/* pinned, a GEM reference of ours */
+	struct amdgpu_bo	*abo;	/* a GEM reference of ours; GTT: pinned */
 	bool	vram;
 	char	seg[32];
+	/* VRAM: a pager segment (below), in pmaps; the object's mmap offset */
+	struct list_head	pnode;
+	u64	mmoff, mmlen;
 };
+
+/*
+ * 9front-ng: VRAM shown to the processor page by page, as Linux maps
+ * it: the client's segment is a pager segment of BAR 0 (segment(3))
+ * without pages; its first touch is a fault the pager proc serves as
+ * Linux's fault handler does, the object moved into the part BAR 0
+ * shows (amdgpu_bo_fault_reserve_notify) and its pages given, not
+ * pinned and not in one piece; before TTM moves it again it takes the
+ * pages back (ttm_bo_unmap_virtual -> unmap_mapping_range -> pagerunmap),
+ * the next touch faults again.  pmaplock: the maps of every context,
+ * held briefly, never while waiting for an object's reservation
+ */
+static DEFINE_MUTEX(pmaplock);
+static LIST_HEAD(pmaps);
+static char pagerq[48];
+static int pagerstarted;
+static atomic64_t npfault, npunmap, npnopage;
 
 
 /* Linux 7.3: drm_open_helper wants the flag DRM's own GEM fops have */
@@ -844,15 +864,249 @@ static void
 unmap(struct gctx *c, struct map *m)
 {
 	list_del(&m->node);
-	p9_segfree(m->seg, NULL);	/* revoked in every process (GTT's alias, VRAM's part of BAR 0) */
+	if (m->vram) {
+		if (amdgpu_fencetrace)
+			pr_info("amdgpu: pager %s: unmapped\n", m->seg);
+		mutex_lock(&pmaplock);
+		list_del(&m->pnode);
+		mutex_unlock(&pmaplock);
+		p9_segfree(m->seg, NULL);	/* its faults fail from now on */
+		drm_gem_object_put(&m->abo->tbo.base);
+		kfree(m);
+		return;
+	}
+	p9_segfree(m->seg, NULL);	/* revoked in every process (GTT's alias) */
 	unpin(m->abo);
 	kfree(m);
 }
 
+/* TTM moves objects (unmap_mapping_range): their pages are taken back */
+static void
+pagerunmap(unsigned long long start, unsigned long long len)
+{
+	struct map *m;
+
+	mutex_lock(&pmaplock);
+	list_for_each_entry(m, &pmaps, pnode)
+		if (m->mmoff < start + len && start < m->mmoff + m->mmlen) {
+			p9_segctl(m->seg, "unmap");
+			atomic64_inc(&npunmap);
+		}
+	mutex_unlock(&pmaplock);
+}
+
+/*
+ * the pages of the object in VRAM, from page 0 on, in lines of at most
+ * ~3K, formatted here (p9_segctl's format is Plan 9's: %s only)
+ */
+static int
+pagerpages(const char *seg, struct amdgpu_bo *abo, u64 size)
+{
+	struct amdgpu_res_cursor cur;
+	char *line;
+	u64 off;
+	unsigned long i;
+	int n, r;
+
+	line = kmalloc(4096, GFP_KERNEL);
+	if (!line)
+		return -ENOMEM;
+	r = 0;
+	i = 0;
+	n = scnprintf(line, 4096, "pages %lu", i);
+	for (amdgpu_res_first(abo->tbo.resource, 0, size, &cur); cur.remaining && r == 0; amdgpu_res_next(&cur, cur.size))
+		for (off = cur.start; off < cur.start + cur.size && r == 0; off += PAGE_SIZE) {
+			n += scnprintf(line + n, 4096 - n, " %#llx", off);
+			i++;
+			if (n > 3000) {
+				r = p9_segctl(seg, "%s", line);
+				n = scnprintf(line, 4096, "pages %lu", i);
+			}
+		}
+	if (r == 0 && strchr(line + 6, ' ') != NULL)
+		r = p9_segctl(seg, "%s", line);
+	if (amdgpu_fencetrace)
+		pr_info("amdgpu: pager %s: %lu pages written (%d)\n", seg, i, r);
+	kfree(line);
+	return r < 0 ? -EIO : 0;
+}
+
+/*
+ * the pages of the object in GTT (or system memory): memory's pages by
+ * physical address ("ram", mapped cached as the GTT path's alias), as
+ * Linux maps a GTT object's pages when the fault leaves it there
+ */
+static int
+pagerram(const char *seg, struct amdgpu_bo *abo, u64 size)
+{
+	struct ttm_operation_ctx ctx = { false, false };
+	struct ttm_tt *tt;
+	unsigned long i, n, first;
+	char *line;
+	int len, r;
+
+	tt = abo->tbo.ttm;
+	n = size >> PAGE_SHIFT;
+	if (!tt || tt->num_pages < n)
+		return -EIO;
+	if (!ttm_tt_is_populated(tt) && (r = ttm_tt_populate(abo->tbo.bdev, tt, &ctx)) != 0)
+		return r;
+	if (!tt->pages)
+		return -EIO;
+	line = kmalloc(4096, GFP_KERNEL);
+	if (!line)
+		return -ENOMEM;
+	r = 0;
+	first = 0;
+	len = scnprintf(line, 4096, "ram %lu", first);
+	for (i = 0; i < n && r == 0; i++) {
+		len += scnprintf(line + len, 4096 - len, " %#llx", (u64)page_to_phys(tt->pages[i]));
+		if (len > 3000) {
+			r = p9_segctl(seg, "%s", line);
+			first = i + 1;
+			len = scnprintf(line, 4096, "ram %lu", first);
+		}
+	}
+	if (r == 0 && first < n)
+		r = p9_segctl(seg, "%s", line);
+	kfree(line);
+	return r < 0 ? -EIO : 0;
+}
+
+/* a fault on seg's pager segment: the object made visible to the processor, its pages given */
+static void
+pagerfault(const char *seg)
+{
+	struct amdgpu_device *adev;
+	struct amdgpu_bo *abo;
+	struct map *m;
+	char name[32];
+	vm_fault_t vf;
+	u64 size;
+	long r;
+	int tries;
+
+	abo = NULL;
+	size = 0;
+	mutex_lock(&pmaplock);
+	list_for_each_entry(m, &pmaps, pnode)
+		if (strcmp(m->seg, seg) == 0) {
+			abo = m->abo;
+			size = m->mmlen;
+			drm_gem_object_get(&abo->tbo.base);
+			break;
+		}
+	mutex_unlock(&pmaplock);
+	if (amdgpu_fencetrace)
+		pr_info("amdgpu: pager %s: fault%s\n", seg, abo ? "" : ", no such map");
+	if (!abo)
+		return;		/* unmapped meanwhile: its segment is gone, the fault fails */
+	strscpy(name, seg, sizeof(name));
+	adev = amdgpu_ttm_adev(abo->tbo.bdev);
+	for (tries = 0; tries < 100; tries++) {
+		if (amdgpu_bo_reserve(abo, false) != 0)
+			break;
+		vf = amdgpu_bo_fault_reserve_notify(&abo->tbo);
+		if (vf == VM_FAULT_NOPAGE) {
+			/* busy (Linux: the fault again): a while, then again */
+			amdgpu_bo_unreserve(abo);
+			msleep(1);
+			continue;
+		}
+		if (vf == 0 && (abo->tbo.resource->mem_type == TTM_PL_TT || abo->tbo.resource->mem_type == TTM_PL_SYSTEM ||
+		    (abo->tbo.resource->mem_type == TTM_PL_VRAM && amdgpu_res_cpu_visible(adev, abo->tbo.resource)))) {
+			/* a move's copy first (Linux: ttm_bo_vm_fault_idle), then the processor */
+			r = dma_resv_wait_timeout(abo->tbo.base.resv, DMA_RESV_USAGE_KERNEL, false, MAX_SCHEDULE_TIMEOUT);
+			if (r >= 0 && (abo->tbo.resource->mem_type == TTM_PL_VRAM ?
+			    pagerpages(name, abo, size) : pagerram(name, abo, size)) == 0) {
+				if (amdgpu_fencetrace)
+					pr_info("amdgpu: pager %s: %llu pages in %s at %#llx...\n", name, size >> PAGE_SHIFT,
+					    abo->tbo.resource->mem_type == TTM_PL_VRAM ? "VRAM" : "memory",
+					    (u64)abo->tbo.resource->start << PAGE_SHIFT);
+				atomic64_inc(&npfault);
+				amdgpu_bo_unreserve(abo);
+				drm_gem_object_put(&abo->tbo.base);
+				return;
+			}
+		}
+		pr_warn("amdgpu: pager %s: not visible to the processor (fault %#x, in %u)\n", name, vf,
+		    abo->tbo.resource ? abo->tbo.resource->mem_type : 99);
+		amdgpu_bo_unreserve(abo);
+		break;
+	}
+	p9_segctl(name, "nopage");
+	atomic64_inc(&npnopage);
+	drm_gem_object_put(&abo->tbo.base);
+}
+
+/* the pager proc: the queue's faults ("NAME PAGE" lines) */
+static int
+pagerproc(void *arg)
+{
+	char buf[2048], *p, *e, *sp;
+	int fd = (int)(long)arg;
+	long n;
+
+	while ((n = p9_pagerqread(fd, buf, sizeof(buf) - 1)) > 0) {
+		buf[n] = 0;
+		for (p = buf; (e = strchr(p, '\n')) != NULL; p = e + 1) {
+			*e = 0;
+			if ((sp = strchr(p, ' ')) != NULL) {
+				*sp = 0;
+				pagerfault(p);
+			}
+		}
+	}
+	pr_warn("amdgpu: pager queue %s ended\n", pagerq);
+	return 0;
+}
+
+/* the queue and its proc, at the first VRAM map */
+static int
+pagerinit(void)
+{
+	int fd, r;
+
+	r = 0;
+	mutex_lock(&pmaplock);
+	if (!pagerstarted) {
+		snprintf(pagerq, sizeof(pagerq), "amdgpu.%d.pager", p9_getpid());
+		if (p9_pagerq(pagerq) < 0 || (fd = p9_pagerqopen(pagerq)) < 0) {
+			pr_warn("amdgpu: pager queue %s: no\n", pagerq);
+			r = -EIO;
+		} else if (IS_ERR_OR_NULL(kthread_run(pagerproc, (void *)(long)fd, "amdgpu-pager"))) {
+			pr_warn("amdgpu: pager proc: no\n");
+			r = -EIO;
+		} else {
+			kpi_unmap_range = pagerunmap;
+			pagerstarted = 1;
+		}
+	}
+	mutex_unlock(&pmaplock);
+	return r;
+}
+
+/* the status: the processor's view of VRAM */
+int
+amdgpu_pagerstatus(char *p, int n)
+{
+	struct map *m;
+	int nmap;
+
+	nmap = 0;
+	mutex_lock(&pmaplock);
+	list_for_each_entry(m, &pmaps, pnode)
+		nmap++;
+	mutex_unlock(&pmaplock);
+	return scnprintf(p, n, "cpu view of vram: %d mapped, page by page; faults %lld, taken back %lld, refused %lld\n",
+	    nmap, (long long)atomic64_read(&npfault), (long long)atomic64_read(&npunmap), (long long)atomic64_read(&npnopage));
+}
+
 /*
  * the processor's view of the client's object handle, a segment at va:
- * GTT, an alias of its pages; VRAM, its part of BAR 0 (segment(3)'s
- * phys); revoked by unmap and when the context goes
+ * GTT, an alias of its pages (pinned); VRAM, a pager segment of BAR 0,
+ * page by page as Linux (pmaps above); revoked by unmap and when the
+ * context goes
  */
 int
 amdgpu_map(void *v, u32 handle, char *seg, int nseg, u64 *va, u64 *size)
@@ -886,26 +1140,59 @@ amdgpu_map(void *v, u32 handle, char *seg, int nseg, u64 *va, u64 *size)
 	}
 	m->handle = handle;
 	m->abo = gem_to_amdgpu_bo(gobj);
+	/* as Linux's amdgpu_gem_object_mmap: no view of an object without one (a display's image in VRAM) */
+	if (amdgpu_ttm_tt_get_usermm(m->abo->tbo.ttm) || (m->abo->flags & AMDGPU_GEM_CREATE_NO_CPU_ACCESS)) {
+		drm_gem_object_put(gobj);
+		kfree(m);
+		r = -EPERM;
+		goto out;
+	}
 	adev = amdgpu_ttm_adev(m->abo->tbo.bdev);
 	domain = m->abo->preferred_domains & AMDGPU_GEM_DOMAIN_VRAM ? AMDGPU_GEM_DOMAIN_VRAM : AMDGPU_GEM_DOMAIN_GTT;
 	m->vram = domain == AMDGPU_GEM_DOMAIN_VRAM;
 	*size = amdgpu_bo_size(m->abo);
+	if (m->vram) {
+		char bar[32];
+
+		/* page by page, not pinned (above): the mmap offset TTM's unmaps name it by */
+		if ((r = pagerinit()) != 0 || (r = drm_gem_create_mmap_offset(gobj)) != 0) {
+			drm_gem_object_put(gobj);
+			kfree(m);
+			goto out;
+		}
+		if (p9_barseg(0, 1, bar, sizeof(bar)) < 0) {
+			pr_warn("amdgpu: map %u: no BAR 0 segment\n", handle);
+			drm_gem_object_put(gobj);
+			kfree(m);
+			r = -ENOSPC;
+			goto out;
+		}
+		snprintf(m->seg, sizeof(m->seg), "amdgpu.%d.%d.m%u", p9_getpid(), c->id, handle);
+		*va = (unsigned long)p9_segpager(m->seg, bar, *size, pagerq);
+		if (!*va) {
+			drm_gem_object_put(gobj);
+			kfree(m);
+			r = -ENOMEM;
+			goto out;
+		}
+		m->mmoff = drm_vma_node_offset_addr(&gobj->vma_node);
+		m->mmlen = *size;
+		mutex_lock(&pmaplock);
+		list_add(&m->pnode, &pmaps);
+		mutex_unlock(&pmaplock);
+		if (amdgpu_fencetrace)
+			pr_info("amdgpu: pager %s: mapped, %llu bytes\n", m->seg, *size);
+		strscpy(seg, m->seg, nseg);
+		list_add(&m->node, &c->maps);
+		mutex_unlock(&c->lock);
+		return 0;
+	}
 	r = amdgpu_bo_reserve(m->abo, false);
 	if (r == 0) {
 		u32 was = m->abo->tbo.resource->mem_type;
 		u64 wasat = m->abo->tbo.resource->start;
-		u64 flags = m->abo->flags;
 
-		/*
-		 * VRAM is shown as one range of BAR 0 (segment(3)'s phys): in
-		 * one piece while mapped (Linux maps it page by page; a pool of
-		 * RADV's of 448K came in pieces); after, it may move as before
-		 */
-		if (m->vram)
-			m->abo->flags |= AMDGPU_GEM_CREATE_VRAM_CONTIGUOUS;
 		r = amdgpu_bo_pin(m->abo, domain);
-		if (!(flags & AMDGPU_GEM_CREATE_VRAM_CONTIGUOUS))
-			m->abo->flags &= ~AMDGPU_GEM_CREATE_VRAM_CONTIGUOUS;
 		if (r == 0 && (m->abo->tbo.resource->mem_type != was || m->abo->tbo.resource->start != wasat))
 			pr_info("amdgpu: map %u: the pin moved it: type %u page %#llx -> type %u page %#llx\n",
 			    handle, was, wasat, m->abo->tbo.resource->mem_type, (u64)m->abo->tbo.resource->start);
@@ -927,44 +1214,16 @@ amdgpu_map(void *v, u32 handle, char *seg, int nseg, u64 *va, u64 *size)
 		goto unpin;
 	r = 0;
 	*va = 0;
-	if (m->vram) {
-		char bar[32];
-		u64 off;
-
-		/* in one piece, in the part BAR 0 shows */
-		amdgpu_res_first(m->abo->tbo.resource, 0, *size, &cur);
-		off = cur.start;
-		for (next = cur.start; cur.remaining; amdgpu_res_next(&cur, cur.size)) {
-			if (cur.start != next)
-				break;
-			next = cur.start + cur.size;
-		}
-		if (cur.remaining || off + *size > adev->gmc.visible_vram_size ||
-		    p9_barseg(0, 1, bar, sizeof(bar)) < 0) {
-			pr_warn("amdgpu: map %u: %s (%#llx bytes at %#llx, visible %#llx)\n", handle,
-			    cur.remaining ? "VRAM in pieces" : off + *size > adev->gmc.visible_vram_size ?
-			    "beyond BAR 0" : "no BAR 0 segment", *size, off, (u64)adev->gmc.visible_vram_size);
-			r = -ENOSPC;
-			goto unpin;
-		}
-		snprintf(m->seg, sizeof(m->seg), "amdgpu.%d.%d.m%u", p9_getpid(), c->id, handle);
-		*va = (unsigned long)p9_segphys(m->seg, bar, off, *size);
-		if (!*va) {
-			r = -ENOMEM;
-			goto unpin;
-		}
-	} else {
-		tt = m->abo->tbo.ttm;
-		if (!tt || !tt->pages || tt->num_pages < (*size >> PAGE_SHIFT)) {
-			r = -EIO;
-			goto unpin;
-		}
-		snprintf(m->seg, sizeof(m->seg), "amdgpu.%d.%d.m%u", p9_getpid(), c->id, handle);
-		*va = (unsigned long)kpi_alias_pages(m->seg, tt->pages, *size >> PAGE_SHIFT, false);
-		if (!*va) {
-			r = -ENOMEM;
-			goto unpin;
-		}
+	tt = m->abo->tbo.ttm;
+	if (!tt || !tt->pages || tt->num_pages < (*size >> PAGE_SHIFT)) {
+		r = -EIO;
+		goto unpin;
+	}
+	snprintf(m->seg, sizeof(m->seg), "amdgpu.%d.%d.m%u", p9_getpid(), c->id, handle);
+	*va = (unsigned long)kpi_alias_pages(m->seg, tt->pages, *size >> PAGE_SHIFT, false);
+	if (!*va) {
+		r = -ENOMEM;
+		goto unpin;
 	}
 	strscpy(seg, m->seg, nseg);
 	list_add(&m->node, &c->maps);
