@@ -305,7 +305,8 @@ ctxctl(Ctx *c, char **f, int n)
 		return scanout(c, 0, 0, 0, 0);
 	if(n == 5 && strcmp(f[0], "scanout") == 0)
 		return scanout(c, atoi(f[1]), atoi(f[2]), atoi(f[3]), atoi(f[4]));
-	if(n == 2 && strcmp(f[0], "free") == 0){
+	/* close: gpu(4)'s word of every driver for letting go of an object */
+	if(n == 2 && (strcmp(f[0], "free") == 0 || strcmp(f[0], "close") == 0)){
 		if((b = findbo(c, atoi(f[1]))) == nil)
 			return "unknown object";
 		if(c->nfence > c->donefence)

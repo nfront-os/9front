@@ -302,6 +302,55 @@ or
 .B failed
 follows if the device rejected a submission.
 At most 64 fences of a context can be outstanding.
+.SS "Words every driver takes"
+A context's requests are text in every driver; where drivers do the same
+they take the same word (older words stay as synonyms):
+.TF "\fLexport\fP, \fLimport\fP"
+.TP
+.B close
+lets go of an object (virtiogpu's
+.BR unref ,
+i915's and intelgpu's
+.BR free ,
+amdgpu's GEM objects)
+.TP
+.BR map ", " unmap
+the processor's view of an object, a segment (virtiogpu, amdgpu; i915
+and intelgpu give it when the object is made)
+.TP
+.B scanout
+a context's picture on the display, 0 the screen again
+.TP
+.BR export ", " import
+an object between contexts by token (virtiogpu, amdgpu)
+.TP
+.B submit
+the file a context's work goes to;
+.B fence
+the file its fences are waited for and asked about
+.RB ( wait ,
+.BR query )
+.PD
+.PP
+Besides, each driver has its own: virtiogpu
+.BR init ,
+.BR blob ,
+.BR attach ;
+i915 and intelgpu
+.BR bo ,
+.BR bind ,
+.BR getparam ;
+amdgpu
+.BR bo ,
+.BR bind ,
+.BR syncexport ,
+.BR syncimport ,
+.BR overlay
+and amdgpu's own ioctls as words
+.RB ( gem ,
+.BR va ,
+.BR cs ,
+\&...).
 .SS Intel
 .I Intelgpu
 drives an Intel GPU of generation 8 (Broadwell) through

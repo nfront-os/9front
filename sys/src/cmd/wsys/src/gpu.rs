@@ -30,7 +30,6 @@ pub struct Gpu {
 /// a buffer imported into wsys's context: released there when dropped
 pub struct GpuMem {
     ctl: Rc<Fd>,
-    drv: Drv,
     res: u32,         // the resource (virtio) or the object's handle (amd)
     seg: Option<Seg>, // amd: the object's own segment
     va: usize,
@@ -95,11 +94,8 @@ impl Drop for GpuMem {
     fn drop(&mut self) {
         // the view first, then the object
         self.seg = None;
-        let msg = match self.drv {
-            Drv::Virtio => format!("unref {}", self.res),
-            Drv::Amd => format!("close {}", self.res),
-        };
-        let _ = self.ctl.write(msg.as_bytes());
+        // close: gpu(4)'s word of every driver (virtio's unref, amdgpu's GEM_CLOSE)
+        let _ = self.ctl.write(format!("close {}", self.res).as_bytes());
     }
 }
 
@@ -160,7 +156,7 @@ impl Gpu {
             return Err(bad("import", &rep));
         };
         // from here on dropping m lets go of it again
-        let mut m = GpuMem { ctl: self.ctl.clone(), drv: self.drv, res, seg: None, va: 0, len: 0, copy: vec![] };
+        let mut m = GpuMem { ctl: self.ctl.clone(), res, seg: None, va: 0, len: 0, copy: vec![] };
         if rsize < size {
             return Err(io::Error::other(format!("gpu: buffer of {rsize} bytes, {size} wanted")));
         }
@@ -191,7 +187,7 @@ impl Gpu {
         let (Some(&"import"), Some(h), Some(osize)) = (f.first(), f.get(1).and_then(|x| x.parse::<u32>().ok()), f.get(2).and_then(|x| x.parse::<usize>().ok())) else {
             return Err(bad("import", &rep));
         };
-        let mut m = GpuMem { ctl: self.ctl.clone(), drv: self.drv, res: h, seg: None, va: 0, len: 0, copy: vec![] };
+        let mut m = GpuMem { ctl: self.ctl.clone(), res: h, seg: None, va: 0, len: 0, copy: vec![] };
         if osize < size {
             return Err(io::Error::other(format!("gpu: buffer of {osize} bytes, {size} wanted")));
         }

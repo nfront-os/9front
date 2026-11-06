@@ -1936,7 +1936,8 @@ ctxctl(Ctx *c, char **f, int n)
 		return resexport(c, atoi(f[1]));
 	if(n == 2 && strcmp(f[0], "import") == 0)
 		return resimport(c, f[1]);
-	if(n == 2 && strcmp(f[0], "unref") == 0)
+	/* close: gpu(4)'s word of every driver for letting go of an object */
+	if(n == 2 && (strcmp(f[0], "unref") == 0 || strcmp(f[0], "close") == 0))
 		return resunref(c, atoi(f[1]));
 	if(n == 2 && strcmp(f[0], "scanout") == 0 && atoi(f[1]) == 0)
 		return blobscanout(c, 0, 0, 0, 0);

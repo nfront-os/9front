@@ -335,7 +335,8 @@ ctxctl(Ctx *c, char **f, int n)
 		e = i915_bo_bind(c->lc, atoi(f[1]), strtoull(f[2], nil, 0));
 		return e < 0 ? errstr9(e) : nil;
 	}
-	if(n == 2 && strcmp(f[0], "free") == 0){
+	/* close: gpu(4)'s word of every driver for letting go of an object */
+	if(n == 2 && (strcmp(f[0], "free") == 0 || strcmp(f[0], "close") == 0)){
 		e = i915_bo_free(c->lc, atoi(f[1]));
 		return e < 0 ? errstr9(e) : nil;
 	}
