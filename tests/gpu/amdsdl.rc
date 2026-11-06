@@ -1,8 +1,9 @@
 #!/bin/rc
 # aux/amdgpu with its screen; SDL3's Vulkan renderer (sdlvk: SDL_Vulkan_*,
-# VK_PLAN9_surface) in a window of wsys, its frames as GPU buffers: read back
-# by the renderer and from wsys' screen (-O: no overlay plane), then on the
-# overlay plane (amdsdlwin.rc overlay)
+# VK_PLAN9_surface) and its OpenGL (sdlgl: EGL's plan9 platform, zink) in a
+# window of wsys, their frames as GPU buffers: read back by the program and
+# from wsys' screen (-O: no overlay plane), then on the overlay plane
+# (amdsdlwin.rc overlay)
 bind -a '#i' /dev
 bind -a '#v' /dev
 aux/amdgpu $* >/tmp/amd.log >[2=1]
@@ -10,6 +11,10 @@ sleep 2
 /tests/wsys -O -x -i 'rc /tests/amdsdlwin.rc' >/tmp/wsys.log >[2=1]
 cat /tmp/wsys.log
 WSYSDEBUG=overlay /tests/wsys -x -i 'rc /tests/amdsdlwin.rc overlay' >/tmp/wsys.log >[2=1]
+cat /tmp/wsys.log
+/tests/wsys -O -x -i 'rc /tests/amdsdlwin.rc - sdlgl' >/tmp/wsys.log >[2=1]
+cat /tmp/wsys.log
+WSYSDEBUG=overlay /tests/wsys -x -i 'rc /tests/amdsdlwin.rc overlay sdlgl' >/tmp/wsys.log >[2=1]
 cat /tmp/wsys.log
 grep 'WARN|error|fault|BUG' /tmp/amd.log
 echo TESTEND

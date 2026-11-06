@@ -35,6 +35,9 @@ done
 if [ -f "$ROOT/$objtype/lib.gcc/ape/libSDL3.a" ]; then
 	"$CROSS/$TRIPLE-gcc" -std=gnu11 -O2 -Wall -c -o "$O/sdlvk.o" "$ROOT/tests/sdl/sdlvk.c"
 	"$CROSS/$TRIPLE-g++" -o "$HERE/root/tests/sdlvk" "$O/sdlvk.o" -Wl,-u,vkGetInstanceProcAddr -lSDL3 $libs -lm
+	# sdlgl: SDL3's OpenGL (EGL's plan9 platform); SDL refers to EGL weakly too
+	"$CROSS/$TRIPLE-gcc" -std=gnu11 -O2 -Wall -c -o "$O/sdlgl.o" "$ROOT/tests/sdl/sdlgl.c"
+	"$CROSS/$TRIPLE-g++" -o "$HERE/root/tests/sdlgl" "$O/sdlgl.o" -Wl,-u,eglGetDisplay -lSDL3 $libs -lm
 fi
 # rsvk: vktri in Rust (ash, ../9front-ui stage 1b), built by cargo with ../9front-rust's
 # stage-1 rustc for x86_64-unknown-plan9 and linked by the cross gcc above (the view of this

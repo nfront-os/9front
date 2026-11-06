@@ -461,8 +461,8 @@
 /* #undef SDL_VIDEO_RENDER_GPU */
 /* #undef SDL_VIDEO_RENDER_METAL */
 #define SDL_VIDEO_RENDER_VULKAN 1	/* 9front: over SDL_VIDEO_VULKAN; without -lvulkan it says so and SDL takes the next */
-/* #undef SDL_VIDEO_RENDER_OGL */
-/* #undef SDL_VIDEO_RENDER_OGL_ES2 */
+#define SDL_VIDEO_RENDER_OGL 1	/* 9front: SDL's GL renderer over it */
+#define SDL_VIDEO_RENDER_OGL_ES2 1	/* 9front: and its GLES2 renderer */
 /* #undef SDL_VIDEO_RENDER_NGAGE */
 /* #undef SDL_VIDEO_RENDER_PS2 */
 /* #undef SDL_VIDEO_RENDER_PSP */
@@ -471,9 +471,9 @@
 /* #undef SDL_VIDEO_RENDER_PRIVATE */
 
 /* Enable OpenGL support */
-/* #undef SDL_VIDEO_OPENGL */
+#define SDL_VIDEO_OPENGL 1	/* 9front: desktop GL through EGL (plan9/video/SDL_plan9opengl.c), not SDL_egl.c */
 /* #undef SDL_VIDEO_OPENGL_ES */
-/* #undef SDL_VIDEO_OPENGL_ES2 */
+#define SDL_VIDEO_OPENGL_ES2 1	/* 9front: the same */
 /* #undef SDL_VIDEO_OPENGL_CGL */
 /* #undef SDL_VIDEO_OPENGL_GLX */
 /* #undef SDL_VIDEO_OPENGL_WGL */

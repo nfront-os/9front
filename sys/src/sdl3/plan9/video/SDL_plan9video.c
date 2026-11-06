@@ -27,6 +27,7 @@
 #include "events/SDL_keyboard_c.h"
 #include "events/SDL_mouse_c.h"
 #include "events/SDL_windowevents_c.h"
+#include "SDL_plan9opengl.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -545,6 +546,17 @@ static SDL_VideoDevice *PLAN9_CreateDevice(void)
     device->GetClipboardText = PLAN9_GetClipboardText;
     device->HasClipboardText = PLAN9_HasClipboardText;
 #ifdef SDL_VIDEO_VULKAN
+#if defined(SDL_VIDEO_OPENGL) || defined(SDL_VIDEO_OPENGL_ES2)
+    device->GL_LoadLibrary = PLAN9_GL_LoadLibrary;
+    device->GL_GetProcAddress = PLAN9_GL_GetProcAddress;
+    device->GL_UnloadLibrary = PLAN9_GL_UnloadLibrary;
+    device->GL_CreateContext = PLAN9_GL_CreateContext;
+    device->GL_MakeCurrent = PLAN9_GL_MakeCurrent;
+    device->GL_SetSwapInterval = PLAN9_GL_SetSwapInterval;
+    device->GL_GetSwapInterval = PLAN9_GL_GetSwapInterval;
+    device->GL_SwapWindow = PLAN9_GL_SwapWindow;
+    device->GL_DestroyContext = PLAN9_GL_DestroyContext;
+#endif
     device->Vulkan_LoadLibrary = PLAN9_Vulkan_LoadLibrary;
     device->Vulkan_UnloadLibrary = PLAN9_Vulkan_UnloadLibrary;
     device->Vulkan_GetInstanceExtensions = PLAN9_Vulkan_GetInstanceExtensions;
