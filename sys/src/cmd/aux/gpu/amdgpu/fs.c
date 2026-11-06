@@ -245,7 +245,7 @@ errstr9(int e)
 	case 22:	return "bad request";
 	case 24:	return "too many open files";
 	case 25:	return "not an ioctl";
-	case 28:	return "no room in visible VRAM";
+	case 28:	return "no space";
 	case 34:	return "out of range";
 	case 35:	return "deadlock";
 	case 38:	return "not implemented";

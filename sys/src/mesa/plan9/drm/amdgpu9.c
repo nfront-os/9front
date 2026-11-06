@@ -937,7 +937,7 @@ static const struct {
 	{ "try again", EAGAIN }, { "out of memory", ENOMEM }, { "permission denied", EACCES },
 	{ "bad address", EFAULT }, { "busy", EBUSY }, { "exists", EEXIST }, { "no device", ENODEV },
 	{ "bad request", EINVAL }, { "too many open files", EMFILE }, { "not an ioctl", ENOTTY },
-	{ "no room in visible VRAM", ENOSPC }, { "out of range", ERANGE }, { "deadlock", EDEADLK },
+	{ "no space", ENOSPC }, { "out of range", ERANGE }, { "deadlock", EDEADLK },
 	{ "not implemented", ENOSYS }, { "no data", ENODATA }, { "timer expired", ETIME },
 	{ "overflow", EOVERFLOW }, { "not supported", EOPNOTSUPP },
 	{ "GPU address in use or out of range", EINVAL }, { "timed out", ETIMEDOUT },
@@ -1043,7 +1043,7 @@ treq(Amd *a, int sub, Tb *b, char *rep)
 		err[0] = 0;
 		_ERRSTR(err, sizeof err);
 		tfidput(a, sub, fd);
-		dbg("%.*s: %s", b->n > 60 ? 60 : b->n, b->s, err);
+		dbg("%.*s: %s", b->n, b->s, err);
 		return errno = errnoof(err), -1;
 	}
 	for(n = 0; n < Maxrep - 1; n += m)

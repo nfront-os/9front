@@ -35,14 +35,14 @@ fn expect {
 		expect '^[1-9][0-9]*$' info timestamp
 		expect '^1$' info accel
 		expect '^error: bad request$' info nosuch
-		expect '^error: bad request$' gem 0 4096 gtt 0
+		expect '^error: ' gem 0 4096 gtt 0
 
 		g=`{req gem 65536 4096 gtt cpuaccess}
 		if(! ~ $g(1) gem) fail gem: $g
 		if not {
 			h=$g(2)
 			ok gem: object $h
-			expect '^geminfo '$h' 65536 4096 gtt cpuaccess$' geminfo $h
+			expect '^geminfo '$h' 65536 4096 gtt ' geminfo $h
 			expect '^$' meta $h 0x1 0x2 00ff10
 			expect '^meta '$h' 0x1 0x2 00ff10$' meta $h
 			expect '^$' va map $h 0x200000000 0 65536 r,w

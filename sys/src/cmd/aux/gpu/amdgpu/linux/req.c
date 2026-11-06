@@ -718,13 +718,19 @@ syncreq(void *c, struct rq *q, char **f, int n, int priv)
 }
 
 /*
- * cs hwctx flags item ...: the chunks in the order given, the IBs first
+ * cs hwctx flags item ...: a chunk for each IB and the fence, in the
+ * order given; the syncobjs of each kind (in, out, twait, tsignal) and the
+ * BOs one chunk each, as libdrm makes them: amdgpu takes one signalling
+ * chunk only (a second is EINVAL)
  */
 static long
 cs(void *c, struct rq *q, char **f, int n, int priv)
 {
 	union drm_amdgpu_cs *x;
 	struct drm_amdgpu_cs_chunk *ch;
+	struct drm_amdgpu_cs_chunk_sem *sin, *sout;
+	struct drm_amdgpu_cs_chunk_syncobj *twait, *tsig;
+	int nin, nout, ntwait, ntsig;
 	u64 *chp, v;
 	int i, nch, maxch;
 	long r;
@@ -738,6 +744,13 @@ cs(void *c, struct rq *q, char **f, int n, int priv)
 	maxch = n;	/* at most one chunk a word */
 	if (!(chp = rqalloc(q, maxch * sizeof *chp)) || !(ch = rqalloc(q, maxch * sizeof *ch)))
 		return -ENOMEM;
+	sin = rqalloc(q, maxch * sizeof *sin);
+	sout = rqalloc(q, maxch * sizeof *sout);
+	twait = rqalloc(q, maxch * sizeof *twait);
+	tsig = rqalloc(q, maxch * sizeof *tsig);
+	if (!sin || !sout || !twait || !tsig)
+		return -ENOMEM;
+	nin = nout = ntwait = ntsig = 0;
 	nch = 0;
 	for (i = 3; i < n; ) {
 		struct drm_amdgpu_cs_chunk *k = &ch[nch];
@@ -769,28 +782,20 @@ cs(void *c, struct rq *q, char **f, int n, int priv)
 			k->chunk_data = (u64)(uintptr_t)fe;
 			i += 3;
 		} else if ((strcmp(f[i], "in") == 0 || strcmp(f[i], "out") == 0) && i + 1 < n) {
-			struct drm_amdgpu_cs_chunk_sem *s = rqalloc(q, sizeof *s);
+			struct drm_amdgpu_cs_chunk_sem *s = f[i][0] == 'i' ? &sin[nin++] : &sout[nout++];
 
-			if (!s)
-				return -ENOMEM;
 			NUM32(f[i+1], s->handle);
-			k->chunk_id = f[i][0] == 'i' ? AMDGPU_CHUNK_ID_SYNCOBJ_IN : AMDGPU_CHUNK_ID_SYNCOBJ_OUT;
-			k->length_dw = sizeof *s / 4;
-			k->chunk_data = (u64)(uintptr_t)s;
 			i += 2;
+			continue;	/* their chunks at the end */
 		} else if ((strcmp(f[i], "twait") == 0 || strcmp(f[i], "tsignal") == 0) && i + 3 < n) {
-			struct drm_amdgpu_cs_chunk_syncobj *s = rqalloc(q, sizeof *s);
+			struct drm_amdgpu_cs_chunk_syncobj *s = f[i][1] == 'w' ? &twait[ntwait++] : &tsig[ntsig++];
 
-			if (!s)
-				return -ENOMEM;
 			NUM32(f[i+1], s->handle);
 			NUM(f[i+2], s->point);
 			BITS(f[i+3], syncflags, v);
 			s->flags = v;
-			k->chunk_id = f[i][1] == 'w' ? AMDGPU_CHUNK_ID_SYNCOBJ_TIMELINE_WAIT : AMDGPU_CHUNK_ID_SYNCOBJ_TIMELINE_SIGNAL;
-			k->length_dw = sizeof *s / 4;
-			k->chunk_data = (u64)(uintptr_t)s;
 			i += 4;
+			continue;
 		} else if (strcmp(f[i], "bo") == 0) {
 			struct drm_amdgpu_bo_list_in *bl = rqalloc(q, sizeof *bl);
 			struct drm_amdgpu_bo_list_entry *e;
@@ -816,6 +821,19 @@ cs(void *c, struct rq *q, char **f, int n, int priv)
 		chp[nch] = (u64)(uintptr_t)k;
 		nch++;
 	}
+	/* the syncobjs: a chunk of each kind there is */
+#define SYNCCHUNK(nn, arr, id)	if (nn > 0) { \
+		ch[nch].chunk_id = id; \
+		ch[nch].length_dw = nn * sizeof(arr[0]) / 4; \
+		ch[nch].chunk_data = (u64)(uintptr_t)arr; \
+		chp[nch] = (u64)(uintptr_t)&ch[nch]; \
+		nch++; \
+	}
+	SYNCCHUNK(nin, sin, AMDGPU_CHUNK_ID_SYNCOBJ_IN)
+	SYNCCHUNK(nout, sout, AMDGPU_CHUNK_ID_SYNCOBJ_OUT)
+	SYNCCHUNK(ntwait, twait, AMDGPU_CHUNK_ID_SYNCOBJ_TIMELINE_WAIT)
+	SYNCCHUNK(ntsig, tsig, AMDGPU_CHUNK_ID_SYNCOBJ_TIMELINE_SIGNAL)
+#undef SYNCCHUNK
 	x->in.num_chunks = nch;
 	x->in.chunks = (u64)(uintptr_t)chp;
 	r = rqioctl(c, q, DRM_IOCTL_AMDGPU_CS, x, priv);
