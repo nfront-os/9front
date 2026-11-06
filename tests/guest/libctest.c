@@ -3,7 +3,7 @@
  * 9front (tests/guest/run.sh). They target what host tests cannot see:
  * kencc vs. gcc semantics (unsigned-preserving promotion, enumerator
  * types, 32-bit ulong vs. 64-bit long), the System V ports of the
- * amd64 assembly and the kernel interface (system call stubs, notes,
+ * amd64 assembly (memmove and memcpy at every alignment) and the kernel interface (system call stubs, notes,
  * exec, rendezvous).
  *
  * Output: one "ok name" or "FAIL name: detail" line per check, then
@@ -17,6 +17,7 @@
 static int nok, nfail;
 
 static int intcmp(void*, void*);
+static void testmemmove(void);
 
 static void
 check(char *name, int ok, char *fmt, ...)
@@ -145,6 +146,43 @@ testmem(void)
 	qsort(a, 100, sizeof a[0], (int(*)(void*, void*))intcmp);
 	check("qsort", a[0] == 0 && a[50] == 50 && a[99] == 99, nil);
 	check("muldiv/umuldiv", muldiv(-7, 3, 2) == -10 && umuldiv(4000000000U, 3, 4) == 3000000000U, nil);
+	testmemmove();
+}
+
+/*
+ * memmove and memcpy (9front's memcpy copies overlapping memory as well)
+ * against a byte at a time: every alignment of the source, the
+ * destination before and after it, overlapping or not, lengths 0 to 100
+ * and a long one; the bytes around stay
+ */
+static void
+testmemmove(void)
+{
+	static uchar b[2048], want[2048];
+	uchar *src, *dst;
+	int f, so, d, n, i, k, bad;
+	static int lens[] = {0, 1, 2, 7, 8, 9, 15, 16, 17, 31, 33, 64, 100, 1000};
+
+	bad = 0;
+	for(f = 0; f < 2 && !bad; f++)
+	for(so = 0; so < 8 && !bad; so++)
+	for(d = -20; d <= 20 && !bad; d++)
+	for(k = 0; k < nelem(lens) && !bad; k++){
+		n = lens[k];
+		for(i = 0; i < nelem(b); i++)
+			b[i] = want[i] = i*7 + 3;
+		src = b + 512 + so;
+		dst = src + d;
+		for(i = 0; i < n; i++)
+			want[dst-b+i] = (src-b+i)*7 + 3;
+		if((f ? memcpy(dst, src, n) : memmove(dst, src, n)) != dst || memcmp(b, want, sizeof b) != 0){
+			bad = 1;
+			check("memmove/memcpy at every alignment", 0, "%s source +%d destination %+d length %d",
+				f ? "memcpy" : "memmove", so, d, n);
+		}
+	}
+	if(!bad)
+		check("memmove/memcpy at every alignment", 1, nil);
 }
 
 static int

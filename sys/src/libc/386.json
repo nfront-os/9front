@@ -206,15 +206,16 @@
             "386/getcallerpc.S",
             "386/notejmp.c",
             "386/vlrt.c",
-            "port/memccpy.c",
-            "port/memchr.c",
-            "port/memcmp.c",
-            "port/memmove.c",
-            "port/memset.c",
-            "port/strcat.c",
-            "port/strchr.c",
-            "port/strcpy.c",
-            "port/strlen.c"
+            "386/memccpy.S",
+            "386/memchr.S",
+            "386/memcmp.S",
+            "386/memcpy.S",
+            "386/memmove.S",
+            "386/memset.S",
+            "386/strcat.S",
+            "386/strchr.S",
+            "386/strcpy.S",
+            "386/strlen.S"
         ]
     }
 ]

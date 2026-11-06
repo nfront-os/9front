@@ -106,7 +106,8 @@ ASMDIRS="sys/src/libc/amd64 sys/src/ape/lib/ap/amd64 sys/src/ape/lib/9/amd64
 asmpairs(){
 	local bad=0
 	for d in $ASMDIRS; do
-		git diff --quiet front -- "$d"/*.s || { echo "$d: .s differs from front"; bad=1; }
+		# changed or gone (one added for 6a, as APE amd64's memcpy.s, changes none of 9front's)
+		git diff --quiet --diff-filter=MD front -- "$d"/*.s || { echo "$d: .s differs from front"; bad=1; }
 		for s in "$d"/*.s; do
 			[ -f "${s%.s}.S" ] || { echo "$s: no GAS port ${s%.s}.S"; bad=1; }
 		done

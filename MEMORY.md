@@ -1006,3 +1006,10 @@ Code gleich dem gcc-Branch (bis auf Kommentare), mit 6c/8c/7c -FTVw im Gast gege
 von `upstream` übersetzt, als Serie auf origin/front anwendbar. Nicht dabei: das halbe
 Schließen von TCP (neue Schnittstelle für den Rust-Port).
 - 0023/0024 (2026-11-05, vom Branch `gpu`): `fault.c` SG_FAULT (`||` bindet stärker als `?:`, Lesen/Schreiben ging durch; auf gpu `16edbc924`, gefunden mit segment(3)s revoke, `tests/gpu/segrevoke`), hier mit Kommentar „GCC port“; `sys/lib/dist/mkfile` 16 MB statt 2 MB vor der ESP (auf gcc wirkt es in `scripts/guest/boot/mkiso.rc`, von gpu `98b95ff65`). fault.c mit 6c/8c/7c -FTVw im Gast gegen upstreams Header übersetzt. Offen auf gpu, ohne Fix: Pager-Livelock, wenn nur Prozesse des Hostowners laufen.
+
+## 2026-11-06: memmove/memcpy schneller (von Branch ui übernommen)
+- **APE amd64** hatte nur `gen/memmove.c` (Byte-Schleife, -O0): jetzt `amd64/memcpy.$O memmove.$O` im mkfile wie 386/arm64; `.S` = musl 1.2.5 x86_64 unverändert (MIT, `sys/src/ape/lib/musl/COPYRIGHT`: Ziel ausrichten, `rep movsq`), `.s` = libcs für 6a.
+- **libc amd64** `memmove.S`/`memcpy.S`: Quadwörter bei jeder Ausrichtung (musls Weise), 9fronts Verhalten bleibt (memcpy überlappend, negatives n faultet). Im RAM gleich schnell (ERMS), durch einen BAR (uncached) 8 statt 1 Byte je Zugriff.
+- **klibc amd64/386** (Kernel): libcs Assembler (`memmove memcpy memset memchr memcmp memccpy strcat strchr strcpy strlen`) statt `port/*.c` (Byte-Schleifen mit `-Os`), wie Upstream libc.a linkt; keine nutzt r14/r15 (amd64 m/up), Trap-/Syscall-Eintritt machen `cld`. 1 MB: amd64 360 → 55 µs, 386 665 → 55 µs.
+- `tests/static`: „9fronts .s unverändert“ prüft nur geänderte/gelöschte (`--diff-filter=MD`), ein für 6a hinzugefügtes ist erlaubt. apetest/libctest prüfen memmove/memcpy bei allen Ausrichtungen.
+- gcc: amd64 Bau 812/812, guest 129/129, boot 19/19; 386 Bau 812/812, guest 129/129, boot 19/19; static 14/14.

@@ -1,87 +1,82 @@
 /*
- * GCC port: GAS/System V translation: p1, p2, n arrive in %rdi, %rsi,
- * %rdx (6c: RARG, p2+8(FP), n+16(FP)); %r9 replaces the callee-saved
- * BX. The backward copy sets the direction flag; System V requires it
- * clear on return, so _return clears it (the original left it set).
+ * GCC port: GAS/System V version of memmove.s: p1, p2, n arrive in %rdi, %rsi,
+ * %rdx (6c: RARG, p2+8(FP), n+16(FP)).  As memmove.s it copies overlapping
+ * memory either way and faults on a negative n; unlike it, it copies whole
+ * quadwords at any alignment (musl's way: the destination aligned, then
+ * rep movsq whatever the source's alignment; the backward copy so from the
+ * end), not longs only when both are aligned and bytes else (through a
+ * device's BAR, as a GPU's memory, each byte is an uncached access).  The
+ * direction flag is clear on return, as System V requires.
  */
 .globl memmove
 memmove:
 	movq	%rdi, %rax		/* return value */
-	movq	%rdx, %r9
-	cmpq	$0, %r9
+	testq	%rdx, %rdx
 	jg	1f
 	je	9f			/* nothing to do if n == 0 */
-	movl	$0, %esi		/* fault if n < 0 */
+	xorl	%esi, %esi		/* fault if n < 0 */
+	movb	(%rsi), %cl
 
 /*
- * check and set for backwards:
- *	(p2 < p1) && ((p2+n) > p1)
+ * backwards if p1 is in p2's n bytes: 0 < p1-p2 < n (unsigned)
  */
 1:
-	cmpq	%rdi, %rsi
-	jg	2f
+	movq	%rdi, %rcx
+	subq	%rsi, %rcx
 	je	9f			/* nothing to do if p2 == p1 */
-	movq	%rsi, %rdx
-	addq	%r9, %rdx
-	cmpq	%rdi, %rdx
-	jg	4f
+	cmpq	%rdx, %rcx
+	jb	4f
 
 /*
- * copy whole longs if aligned
+ * forwards: bytes until p1 is aligned, quadwords, the rest by bytes
  */
+	cmpq	$8, %rdx
+	jb	3f
 2:
-	cld
-	movq	%rsi, %rdx
-	orq	%rdi, %rdx
-	andl	$3, %edx
-	jne	3f
-	movq	%r9, %rcx
-	shrq	$2, %rcx
-	andl	$3, %r9d
-	rep; movsl
-
-/*
- * copy the rest, by bytes
- */
-	je	9f			/* flags set by above ANDL */
+	testl	$7, %edi
+	jz	2f
+	movsb
+	decq	%rdx
+	jmp	2b
+2:
+	movq	%rdx, %rcx
+	shrq	$3, %rcx
+	rep; movsq
+	andl	$7, %edx
 3:
-	movq	%r9, %rcx
+	movq	%rdx, %rcx
 	rep; movsb
-
+9:
 	ret
 
 /*
- * whole thing backwards has
- * adjusted addresses
+ * backwards, from the last byte: bytes until p1+1 is aligned, quadwords,
+ * the rest by bytes
  */
 4:
-	addq	%r9, %rdi
-	addq	%r9, %rsi
 	std
-	subq	$4, %rdi
-	subq	$4, %rsi
-/*
- * copy whole longs, if aligned
- */
-	movq	%rdi, %rdx
-	orq	%rsi, %rdx
-	andl	$3, %edx
-	jne	5f
-	movq	%r9, %rcx
-	shrq	$2, %rcx
-	andl	$3, %r9d
-	rep; movsl
-/*
- * copy the rest, by bytes
- */
-	je	9f			/* flags set by above ANDL */
-
+	leaq	-1(%rdi,%rdx), %rdi
+	leaq	-1(%rsi,%rdx), %rsi
+	cmpq	$8, %rdx
+	jb	6f
 5:
-	addq	$3, %rdi
-	addq	$3, %rsi
-	movq	%r9, %rcx
+	leaq	1(%rdi), %rcx
+	testl	$7, %ecx
+	jz	5f
+	movsb
+	decq	%rdx
+	jmp	5b
+5:
+	subq	$7, %rdi
+	subq	$7, %rsi
+	movq	%rdx, %rcx
+	shrq	$3, %rcx
+	rep; movsq
+	addq	$7, %rdi
+	addq	$7, %rsi
+	andl	$7, %edx
+6:
+	movq	%rdx, %rcx
 	rep; movsb
-
-9:
 	cld
 	ret

@@ -7,6 +7,8 @@ OFILES=\
 	lock.$O\
 	main9.$O\
 	main9p.$O\
+	memcpy.$O\
+	memmove.$O\
 	notetramp.$O\
 	setjmp.$O\
 	strchr.$O\

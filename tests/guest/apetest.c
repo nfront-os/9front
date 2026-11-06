@@ -4,7 +4,8 @@
  * (tests/guest/run.sh). They cover the amd64 parts of libap the port
  * rewrote: main9.s/_callmain (argv, environ), setjmp.s, the system call
  * stubs (gen-9syscall.sh --ape), the _NOTIFY/notecont trampolines
- * behind signal(), sigsetjmp/siglongjmp out of a handler.
+ * behind signal(), sigsetjmp/siglongjmp out of a handler, memcpy and
+ * memmove (amd64: musl's, the machine's elsewhere) at every alignment.
  *
  * Output: one "ok name" or "FAIL name: detail" line per check, then
  * "apetest: N ok, M failed".
@@ -176,6 +177,70 @@ testfork(void)
 		"%s", buf);
 }
 
+/*
+ * memcpy and memmove against a byte at a time: every alignment of source
+ * and destination, lengths 0 to 64 and a long one, memmove overlapping
+ * both ways; the bytes around the destination stay
+ */
+static void
+testmemmove(void)
+{
+	static unsigned char a[4096], b[4096], want[4096];
+	int so, d, n, i, bad, k, which;
+	unsigned char *src, *dst;
+	static int lens[] = {0, 1, 2, 3, 7, 8, 9, 15, 16, 17, 31, 32, 33, 63, 64, 1000, 2047};
+	char *what;
+
+	bad = 0;
+	what = "";
+	for(which = 0; which < 4 && !bad; which++)
+	for(so = 0; so < 8 && !bad; so++)
+	for(d = 0; d < 8 && !bad; d++)
+	for(k = 0; k < (int)(sizeof lens/sizeof lens[0]) && !bad; k++){
+		n = lens[k];
+		for(i = 0; i < (int)sizeof a; i++)
+			a[i] = i*7 + 3, b[i] = i*13 + 5;
+		switch(which){
+		case 0:	/* memcpy, separate buffers */
+			what = "memcpy";
+			memcpy(want, b, sizeof b);
+			for(i = 0; i < n; i++)
+				want[64+d+i] = a[64+so+i];
+			memcpy(b+64+d, a+64+so, n);
+			break;
+		case 1:	/* memmove, separate buffers */
+			what = "memmove";
+			memcpy(want, b, sizeof b);
+			for(i = 0; i < n; i++)
+				want[64+d+i] = a[64+so+i];
+			memmove(b+64+d, a+64+so, n);
+			break;
+		case 2:	/* memmove within one buffer, destination after the source */
+		case 3:	/* and before it */
+			what = which == 2 ? "memmove up" : "memmove down";
+			memcpy(b, a, sizeof a);
+			src = b + 64 + so + (which == 3 ? 16 : 0);
+			dst = b + 64 + d + (which == 2 ? 16 : 0);
+			memcpy(want, a, sizeof a);
+			for(i = 0; i < n; i++)
+				want[dst-b+i] = a[src-b+i];
+			if(memmove(dst, src, n) != dst)
+				bad = 1;
+			break;
+		}
+		for(i = 0; i < (int)sizeof b; i++)
+			if(b[i] != want[i]){
+				bad = 1;
+				break;
+			}
+		if(bad)
+			check("memcpy, memmove at every alignment", 0, "%s: source +%d destination +%d length %d: byte %d",
+				what, so, d, n, i);
+	}
+	if(!bad)
+		check("memcpy, memmove at every alignment", 1, NULL);
+}
+
 int
 main(int argc, char **argv, char **envp)
 {
@@ -184,6 +249,7 @@ main(int argc, char **argv, char **envp)
 	testjmp();
 	testsignal();
 	testfork();
+	testmemmove();
 	printf("apetest: %d ok, %d failed\n", nok, nfail);
 	return nfail != 0;
 }

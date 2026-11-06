@@ -18,6 +18,8 @@
 			"lock.c",
 			"main9.S",
 			"main9p.S",
+			"memcpy.S",
+			"memmove.S",
 			"notetramp.c",
 			"setjmp.S",
 			"strchr.S",
