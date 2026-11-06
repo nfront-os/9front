@@ -824,7 +824,9 @@ DRM's version, then the driver's name, date and description a line each.
 .BI map " handle
 replies the processor's view of an object the client made,
 .BI map " handle seg va size" :
-an alias segment of its pages (GTT) or its part of BAR 0 (VRAM);
+an alias segment of its pages (GTT) or its part of BAR 0 (VRAM; while
+mapped the object stays in one piece in the part BAR 0 shows, moved there
+if it was not);
 .BI unmap " handle
 ends it, revoking the segment in every process.
 There are no requests with file descriptors (PRIME, syncobj fds):

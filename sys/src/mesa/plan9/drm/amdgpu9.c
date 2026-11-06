@@ -2150,7 +2150,11 @@ amdgpu_bo_cpu_map(amdgpu_bo_handle b, void **cpu)
 	if(sscanf(reply, "map %*u %63s %lli %lli", seg, &va, &size) == 3){
 		p = mesa9_segattach(seg, NULL, size);
 		if(p == (void*)-1){
-			dbg("map %u: segattach %s %#llx: %s", b->handle, seg, size, strerror(errno));
+			char why[128];
+
+			why[0] = 0;
+			_ERRSTR(why, sizeof why);	/* the raw call leaves errno alone: the kernel's reason */
+			dbg("map %u: segattach %s %#llx: %s", b->handle, seg, size, why);
 			ctlreq(a, NULL, 0, "unmap %u", b->handle);
 			return -ENOMEM;
 		}

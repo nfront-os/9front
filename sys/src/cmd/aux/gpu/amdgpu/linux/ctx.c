@@ -894,8 +894,18 @@ amdgpu_map(void *v, u32 handle, char *seg, int nseg, u64 *va, u64 *size)
 	if (r == 0) {
 		u32 was = m->abo->tbo.resource->mem_type;
 		u64 wasat = m->abo->tbo.resource->start;
+		u64 flags = m->abo->flags;
 
+		/*
+		 * VRAM is shown as one range of BAR 0 (segment(3)'s phys): in
+		 * one piece while mapped (Linux maps it page by page; a pool of
+		 * RADV's of 448K came in pieces); after, it may move as before
+		 */
+		if (m->vram)
+			m->abo->flags |= AMDGPU_GEM_CREATE_VRAM_CONTIGUOUS;
 		r = amdgpu_bo_pin(m->abo, domain);
+		if (!(flags & AMDGPU_GEM_CREATE_VRAM_CONTIGUOUS))
+			m->abo->flags &= ~AMDGPU_GEM_CREATE_VRAM_CONTIGUOUS;
 		if (r == 0 && (m->abo->tbo.resource->mem_type != was || m->abo->tbo.resource->start != wasat))
 			pr_info("amdgpu: map %u: the pin moved it: type %u page %#llx -> type %u page %#llx\n",
 			    handle, was, wasat, m->abo->tbo.resource->mem_type, (u64)m->abo->tbo.resource->start);
@@ -931,6 +941,9 @@ amdgpu_map(void *v, u32 handle, char *seg, int nseg, u64 *va, u64 *size)
 		}
 		if (cur.remaining || off + *size > adev->gmc.visible_vram_size ||
 		    p9_barseg(0, 1, bar, sizeof(bar)) < 0) {
+			pr_warn("amdgpu: map %u: %s (%#llx bytes at %#llx, visible %#llx)\n", handle,
+			    cur.remaining ? "VRAM in pieces" : off + *size > adev->gmc.visible_vram_size ?
+			    "beyond BAR 0" : "no BAR 0 segment", *size, off, (u64)adev->gmc.visible_vram_size);
 			r = -ENOSPC;
 			goto unpin;
 		}
