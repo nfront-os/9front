@@ -1,0 +1,40 @@
+[
+	{
+		"Name": "glfw",
+		"Compat": true,
+		"Cflags": [
+			"-O2",
+			"-Wall",
+			"-fno-strict-aliasing",
+			"-D_GLFW_PLAN9",
+			"-D_DEFAULT_SOURCE",
+			"-Iplan9",
+			"-Ivendor/src"
+		],
+		"Library": "libglfw3.a",
+		"Install": "/$ARCH/lib.gcc/ape",
+		"SourceFiles": [
+			"vendor/src/context.c",
+			"vendor/src/init.c",
+			"vendor/src/input.c",
+			"vendor/src/monitor.c",
+			"vendor/src/platform.c",
+			"vendor/src/vulkan.c",
+			"vendor/src/window.c",
+			"vendor/src/egl_context.c",
+			"vendor/src/osmesa_context.c",
+			"vendor/src/null_init.c",
+			"vendor/src/null_monitor.c",
+			"vendor/src/null_window.c",
+			"vendor/src/null_joystick.c",
+			"vendor/src/posix_time.c",
+			"vendor/src/posix_thread.c",
+			"plan9/plan9_cursor.c",
+			"plan9/plan9_draw.c",
+			"plan9/plan9_init.c",
+			"plan9/plan9_module.c",
+			"plan9/plan9_monitor.c",
+			"plan9/plan9_window.c"
+		]
+	}
+]

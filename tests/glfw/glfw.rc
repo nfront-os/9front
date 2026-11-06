@@ -1,0 +1,20 @@
+#!/bin/rc
+# run by wsys -x -i (tests/glfw/run.sh): glfwtest in a window of wsys (window(1));
+# then glfwtest -e with the mouse through /dev/mousein (moved into the window,
+# buttons 1 and 3, the wheel) and keys the host sends through QEMU while it
+# waits (/tmp/glfwe.ready tells the host); the logs at the end
+fn waitfor { # file pattern
+	n=0
+	while(! grep -s $2 $1 && test $n -lt 300){ sleep 0.1; n=`{echo $n+1 | hoc} }
+}
+rm -f /tmp/glfw.log /tmp/glfwe.log /tmp/glfwe.ready
+window -r 100 100 500 400 'rc -c ''/tests/glfwtest >/tmp/glfw.log >[2=1]; echo glfw: exit $status >>/tmp/glfw.log'''
+waitfor /tmp/glfw.log '^glfw: exit'
+window -r 100 100 500 400 'rc -c ''/tests/glfwtest -e 6 >/tmp/glfwe.log >[2=1]; echo glfw: exit $status >>/tmp/glfwe.log'''
+waitfor /tmp/glfwe.log '^ready for events'
+fn m { echo A $1 $2 $3; sleep 0.1 }
+{ m 300 250 0; m 300 250 1; m 300 250 0; m 320 260 4; m 320 260 0; m 320 260 8; m 320 260 0 } >/dev/mousein
+echo >/tmp/glfwe.ready
+waitfor /tmp/glfwe.log '^glfw: exit'
+cat /tmp/glfw.log
+grep '^event' /tmp/glfwe.log
