@@ -1,0 +1,35 @@
+#!/bin/rc
+# run by wsys -x -i (tests/winit/run.sh): winittest and eguitest in windows of
+# wsys (window(1)); then winittest -e with the mouse through /dev/mousein and
+# keys the host sends through QEMU while it waits (/tmp/winite.ready tells the
+# host), and eguitest -e: its button clicked where it says it is, keys typed
+# into its text field by the host (/tmp/eguie.ready); the logs at the end
+fn waitfor { # file pattern
+	n=0
+	while(! grep -s $2 $1 && test $n -lt 300){ sleep 0.1; n=`{echo $n+1 | hoc} }
+}
+fn run { # prog log args
+	window -r 100 100 500 400 'rc -c ''/tests/'$1' '$"3' >'$2' >[2=1]; echo '$1': exit $status >>'$2''''
+}
+rm -f /tmp/winit*.log /tmp/egui*.log /tmp/*.ready
+run winittest /tmp/winit.log
+waitfor /tmp/winit.log '^winittest: exit'
+run eguitest /tmp/egui.log
+waitfor /tmp/egui.log '^eguitest: exit'
+
+run winittest /tmp/winite.log '-e 6'
+waitfor /tmp/winite.log '^ready for events'
+fn m { echo A $1 $2 $3; sleep 0.1 }
+{ m 300 250 0; m 300 250 1; m 300 250 0; m 320 260 4; m 320 260 0; m 320 260 8; m 320 260 0 } >/dev/mousein
+echo >/tmp/winite.ready
+waitfor /tmp/winite.log '^winittest: exit'
+
+run eguitest /tmp/eguie.log '-e 8'
+waitfor /tmp/eguie.log '^ready for events'
+b=`{grep '^button at' /tmp/eguie.log | sed 's/button at //'}
+{ m $b(1) $b(2) 0; m $b(1) $b(2) 1; m $b(1) $b(2) 0 } >/dev/mousein
+echo >/tmp/eguie.ready
+waitfor /tmp/eguie.log '^eguitest: exit'
+cat /tmp/winit.log /tmp/egui.log
+grep '^event' /tmp/winite.log
+grep '^(event|clicks|button)' /tmp/eguie.log
