@@ -266,8 +266,9 @@ fixfault(Segment *s, uintptr addr, int read)
 	return 0;
 }
 
+/* 9front-ng: pa, the page's physical address (a pager's segment: from the driver) */
 static void
-mapphys(Segment *s, uintptr addr, int attr)
+mapphys(Segment *s, uintptr addr, int attr, uintptr pa)
 {
 	uintptr mmuphys;
 	Page pg = {0};
@@ -275,7 +276,7 @@ mapphys(Segment *s, uintptr addr, int attr)
 	addr &= ~(BY2PG-1);
 	pg.Ref.ref = 1;
 	pg.va = addr;
-	pg.pa = s->pseg->pa+(addr-s->base);
+	pg.pa = pa;
 	settxtflush(&pg, s->flushme);
 
 	mmuphys = PPN(pg.pa) | PTEVALID;
@@ -366,7 +367,33 @@ fault(uintptr addr, uintptr pc, int read)
 		}
 
 		if((attr & SG_TYPE) == SG_PHYSICAL){
-			mapphys(s, addr, attr);
+			uintptr pa;
+
+			if(s->pseg->pager == nil)
+				pa = s->pseg->pa+((addr&~(BY2PG-1))-s->base);
+			else if(!(*_pagerpa)(s->pseg->pager, addr-s->base, &pa)){
+				/*
+				 * 9front-ng: a pager's segment without the page: the
+				 * driver puts it there (a GPU object made visible to
+				 * the processor, as Linux's fault handler does), then
+				 * around again; no page to come is a fault
+				 */
+				qunlock(&s->QLock);
+				if((*_pagerwait)(s->pseg->pager, addr-s->base) < 0){
+					up->psstate = sps;
+					up->insyscall = ins;
+					if(up->kp && up->nerrlab)	/* for segio */
+						error(Eio);
+					return -1;
+				}
+				goto again;
+			}
+			/* 9front-ng: a pager's page of memory (devsegment.c "ram"): cached */
+			if(pa & 1){
+				pa &= ~(uintptr)1;
+				attr = (attr & ~(SG_DEVICE|SG_WC)) | SG_CACHED;
+			}
+			mapphys(s, addr, attr, pa);
 			goto done;
 		}
 
@@ -385,6 +412,7 @@ fault(uintptr addr, uintptr pc, int read)
 			/* TLB might be stale, go around */
 		}
 
+	again:
 		splhi();
 		switch(up->procctl){
 		case Proc_exitme:

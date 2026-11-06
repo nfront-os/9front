@@ -32,7 +32,8 @@
 			"authtest.c",
 			"mptest.c",
 			"paktest.c",
-			"segtest.c"
+			"segtest.c",
+			"segpager.c"
 		]
 	},
 	{

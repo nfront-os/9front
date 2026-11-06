@@ -164,6 +164,62 @@ or removing it makes every access of every process that has it
 attached fault, as for an alias segment: a driver gives a client the
 view of one object and takes it back when the object is freed.
 .PP
+A
+.B pager
+segment shows a driver's memory page by page, as Linux maps a GPU
+object: its pages come when they are touched, from wherever the
+object is, and go again when the driver moves it.
+Writing
+.B pager
+to the control file of a new directory makes it a queue (no memory);
+its
+.B data
+file, opened by the hostowner for reading, yields a line
+.IB "name page" \en
+for each fault waiting for a page.
+.IP
+.EX
+	va Iaddr lenP phys IphyssegP pager IqueueP
+.EE
+.PP
+makes a segment of
+.I len
+bytes of the physical segment
+.I physseg
+(its attributes) without pages, whose faults go to
+.IR queue :
+the faulting process waits.
+The driver answers on the segment's control file:
+.TF "nopage "
+.TP
+.BI pages " idx off ..."
+the pages from page
+.I idx
+on are at the page aligned offsets
+.I off
+of
+.IR physseg ;
+.TP
+.BI ram " idx pa ..."
+they are memory's pages at the physical addresses
+.IR pa ,
+mapped cached;
+.TP
+.B unmap
+every page goes, the mappings of every process are flushed, the next
+touch faults again;
+.TP
+.B nopage
+there is none: the waiting faults fail.
+.PD
+.PP
+Removing the segment, or the queue, or closing the queue's last
+reader fails its faults too.
+Reading the control file says how many pages are there and whether a
+fault waits for the driver.
+.PP
+The table of global segments grows as they are made (once 100).
+.PP
 Opening
 .B data
 or reading

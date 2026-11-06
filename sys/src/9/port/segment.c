@@ -38,6 +38,10 @@ static struct Imagealloc
 }imagealloc;
 
 Segment* (*_globalsegattach)(char*);
+/* 9front-ng: a pager's segment (devsegment.c): a page's address, waiting for one, the end */
+int	(*_pagerpa)(Pager*, uintptr, uintptr*);
+int	(*_pagerwait)(Pager*, uintptr);
+void	(*_pagerfree)(Pager*);
 
 Segment *
 newseg(int type, uintptr base, ulong size)
@@ -345,6 +349,10 @@ putseg(Segment *s)
 
 	if(s->profile != nil)
 		free(s->profile);
+
+	/* 9front-ng: a pager's segment (devsegment.c) */
+	if((s->type&SG_TYPE) == SG_PHYSICAL && s->pseg != nil && s->pseg->pager != nil && _pagerfree != nil)
+		(*_pagerfree)(s->pseg->pager);
 
 	free(s);
 }

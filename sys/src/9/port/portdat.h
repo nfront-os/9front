@@ -29,6 +29,7 @@ typedef struct Palloc	Palloc;
 typedef struct Perf	Perf;
 typedef struct PhysUart	PhysUart;
 typedef struct Pgrp	Pgrp;
+typedef struct Pager	Pager;
 typedef struct Physseg	Physseg;
 typedef struct Proc	Proc;
 typedef struct Pte	Pte;
@@ -423,6 +424,7 @@ struct Physseg
 	uintptr	pa;			/* Physical address */
 	uintptr	size;			/* Maximum segment size in bytes */
 	int	eveonly;		/* 9front-ng: only the hostowner attaches it (a GPU's bars: #G) */
+	Pager	*pager;			/* 9front-ng: its pages one by one, from a driver (devsegment.c) */
 };
 
 struct Sema

@@ -15,10 +15,13 @@ enum
 };
 
 #define TYPE(c) 	(int)( (c)->qid.path & 0x7 )
-#define SEG(c)	 	( ((c)->qid.path >> 3) & 0x3ff )	/* 9front-ng: was 0x3f */
+#define SEG(c)	 	( ((c)->qid.path >> 3) & 0xfffff )	/* 9front-ng: was 0x3f; Maxglobal */
 #define PATH(s, t) 	( ((s)<<3) | (t) )
 
 typedef struct Globalseg Globalseg;
+typedef struct Pagerq Pagerq;
+typedef struct Pagerreq Pagerreq;
+
 struct Globalseg
 {
 	Ref;
@@ -28,11 +31,63 @@ struct Globalseg
 	vlong	length;
 	long	perm;
 	int	alias;	/* 9front-ng: made by "va ... alias" (takes page) or "va ... phys": revoke */
+	Pagerq	*q;	/* 9front-ng: made by "pager": a driver reads its pagers' faults from data */
 
 	Segio;
 };
 
-static Globalseg *globalseg[1024];	/* 9front-ng: was 100 (and SEG reached 64); GPU drivers keep their memory in segments */
+/*
+ * 9front-ng: pager segments, a driver's memory shown page by page as
+ * Linux maps a GPU object: "va VA LEN phys PHYS pager QUEUE" makes a
+ * part of the physical segment PHYS (a BAR) without pages; a fault on
+ * one queues "NAME PAGE" on the queue QUEUE (a directory made by
+ * "pager", its data read by the driver) and waits; the driver puts the
+ * pages where the object is ("pages IDX OFF..."), takes them all back
+ * when it moves it ("unmap": the mappings flushed everywhere), or says
+ * there is none ("nopage": the fault fails).  A removed segment or a
+ * queue nobody reads any more fails the faults too.
+ */
+struct Pagerreq
+{
+	Pagerreq	*next;
+	char	line[1];
+};
+
+struct Pagerq
+{
+	Ref;
+	Lock;
+	Rendez	r;	/* the driver's read waits here */
+	Pagerreq	*head, *tail;
+	int	readers;	/* open data files */
+	int	dead;		/* removed, or its last reader gone */
+};
+
+struct Pager
+{
+	Lock;
+	Rendez	r;	/* faults wait here */
+	Segment	*s;
+	Pagerq	*q;
+	char	*name;
+	uintptr	base;	/* the physical segment's start and size */
+	uintptr	size;
+	uintptr	*pa;	/* each page's address, or ~0 */
+	ulong	npage;
+	int	asked;	/* a request is queued */
+	ulong	nopage;	/* bumped by "nopage" */
+	int	dead;
+};
+
+/*
+ * 9front-ng: was 100 (and SEG reached 64).  GPU drivers show each object
+ * a client maps as a segment (a Vulkan program keeps hundreds): the
+ * table grows (segmentcreate), doubling, up to Maxglobal; every use
+ * holds globalseglock, so an outgrown table is freed
+ */
+enum { Nglobal0 = 1024, Maxglobal = 1<<20 };
+static Globalseg **globalseg;
+static int nglobalseg;
 static Lock globalseglock;
 
 
@@ -40,6 +95,8 @@ static Lock globalseglock;
 static	Segment* globalsegattach(char *name);
 
 static	Segment* fixedseg(uintptr va, ulong len, int type, uintptr align);
+static	void	pagerqdead(Pagerq*);
+static	void	putpagerq(Pagerq*);
 
 /*
  *  returns with globalseg incref'd
@@ -52,7 +109,7 @@ getgseg(Chan *c)
 
 	x = SEG(c);
 	lock(&globalseglock);
-	if(x >= nelem(globalseg))
+	if(x >= nglobalseg)
 		panic("getgseg");
 	g = globalseg[x];
 	if(g != nil)
@@ -70,10 +127,272 @@ putgseg(Globalseg *g)
 		return;
 	if(g->Segio.s != nil)
 		putseg(g->Segio.s);
+	if(g->q != nil){
+		pagerqdead(g->q);
+		putpagerq(g->q);
+	}
 	segio(&g->Segio,nil,nil,0,0,0);
 	free(g->name);
 	free(g->uid);
 	free(g);
+}
+
+static void
+putpagerq(Pagerq *q)
+{
+	Pagerreq *r;
+
+	if(q == nil || decref(&q->Ref))
+		return;
+	while((r = q->head) != nil){
+		q->head = r->next;
+		free(r);
+	}
+	free(q);
+}
+
+static void
+pagerqdead(Pagerq *q)
+{
+	lock(q);
+	q->dead = 1;
+	unlock(q);
+	wakeup(&q->r);
+}
+
+/* the page at off's address, if it is there (s->QLock held) */
+static int
+pagerpa(Pager *pg, uintptr off, uintptr *pa)
+{
+	ulong i;
+	int ok;
+
+	i = off/BY2PG;
+	lock(pg);
+	ok = i < pg->npage && pg->pa[i] != ~(uintptr)0;
+	if(ok)
+		*pa = pg->pa[i];
+	unlock(pg);
+	return ok;
+}
+
+typedef struct Pagerwait Pagerwait;
+struct Pagerwait
+{
+	Pager	*pg;
+	ulong	i;
+	ulong	nopage;
+};
+
+static int
+pagerready(void *a)
+{
+	Pagerwait *w = a;
+	Pager *pg = w->pg;
+
+	/* the page, an end, or no request outstanding (taken back meanwhile: ask again) */
+	return pg->pa[w->i] != ~(uintptr)0 || pg->dead || pg->q->dead || pg->nopage != w->nopage || !pg->asked;
+}
+
+/*
+ * the fault of a page not there: ask the driver (once a request is
+ * outstanding), wait for it; 0: go around (also after a note: the note
+ * first, then the fault again), -1: no page to come
+ */
+static int
+pagerwait(Pager *pg, uintptr off)
+{
+	Pagerwait w;
+	Pagerreq *r;
+	Pagerq *q;
+	int n, waited;
+
+	w.pg = pg;
+	w.i = off/BY2PG;
+	if(w.i >= pg->npage)
+		return -1;
+	q = pg->q;
+	n = strlen(pg->name) + 32;
+	lock(pg);
+	w.nopage = pg->nopage;
+	unlock(pg);
+	r = nil;
+	for(waited = 0;; waited++){
+		if(r == nil && (r = malloc(sizeof(Pagerreq) + n)) == nil)
+			return -1;
+		lock(pg);
+		if(pg->dead || q->dead || pg->nopage != w.nopage){
+			unlock(pg);
+			free(r);
+			return pg->pa[w.i] != ~(uintptr)0 ? 0 : -1;
+		}
+		if(pg->pa[w.i] != ~(uintptr)0){
+			unlock(pg);
+			free(r);
+			return 0;
+		}
+		if(!pg->asked){
+			pg->asked = 1;
+			snprint(r->line, n, "%s %lud\n", pg->name, w.i);
+			r->next = nil;
+			lock(q);
+			if(q->tail != nil)
+				q->tail->next = r;
+			else
+				q->head = r;
+			q->tail = r;
+			unlock(q);
+			r = nil;
+			unlock(pg);
+			wakeup(&q->r);
+		} else
+			unlock(pg);
+		if(waserror()){
+			free(r);
+			return 0;
+		}
+		tsleep(&pg->r, pagerready, &w, 1000);
+		poperror();
+		if(up->procctl == Proc_exitme || up->procctl == Proc_exitbig){
+			free(r);
+			return 0;
+		}
+		/* a driver that does not answer: say so (once) */
+		if(waited == 5)
+			print("pager %s page %lud: waiting 5 s (pid %lud)\n", pg->name, w.i, up->pid);
+	}
+}
+
+static void
+pagerfree(Pager *pg)
+{
+	putpagerq(pg->q);
+	free(pg->name);
+	free(pg->pa);
+	free(pg);
+}
+
+static int
+havereq(void *a)
+{
+	Pagerq *q = a;
+
+	return q->head != nil || q->dead;
+}
+
+/* the driver's read of its queue: whole lines of requests (copied out after the lock) */
+static long
+pagerqread(Pagerq *q, char *a, long n)
+{
+	Pagerreq *r;
+	char *buf;
+	long m, l;
+
+	sleep(&q->r, havereq, q);
+	buf = smalloc(n);
+	m = 0;
+	lock(q);
+	while((r = q->head) != nil){
+		l = strlen(r->line);
+		if(m + l > n)
+			break;
+		memmove(buf+m, r->line, l);
+		m += l;
+		q->head = r->next;
+		if(q->head == nil)
+			q->tail = nil;
+		free(r);
+	}
+	unlock(q);
+	if(waserror()){
+		free(buf);
+		nexterror();
+	}
+	if(m == 0 && !q->dead)
+		error(Etoosmall);
+	memmove(a, buf, m);
+	poperror();
+	free(buf);
+	return m;
+}
+
+static Pagerq*
+findpagerq(char *name)
+{
+	Globalseg *g;
+	Pagerq *q;
+	int x;
+
+	q = nil;
+	lock(&globalseglock);
+	for(x = 0; x < nglobalseg; x++){
+		g = globalseg[x];
+		if(g != nil && g->q != nil && strcmp(g->name, name) == 0){
+			q = g->q;
+			incref(&q->Ref);
+			break;
+		}
+	}
+	unlock(&globalseglock);
+	if(q == nil)
+		error("no such pager queue");
+	return q;
+}
+
+static Pager*
+pagerof(Globalseg *g)
+{
+	Segment *s;
+
+	s = g->Segio.s;
+	if(s == nil || (s->type&SG_TYPE) != SG_PHYSICAL || s->pseg->pager == nil)
+		error("not a pager segment");
+	return s->pseg->pager;
+}
+
+/*
+ * "pages IDX OFF...": the pages at the offsets OFF of the physical
+ * segment from page IDX on; "ram IDX PA...": memory's pages at the
+ * physical addresses PA (a GPU object in GTT, as Linux maps those),
+ * mapped cached: marked by the low bit (fault.c)
+ */
+static void
+pagerpages(Pager *pg, char **f, int n, int ram)
+{
+	uintptr off;
+	ulong i, j;
+
+	i = strtoul(f[0], 0, 0);
+	if(i >= pg->npage || n-1 > pg->npage - i)
+		error(Ebadarg);
+	for(j = 1; j < n; j++){
+		off = strtoull(f[j], 0, 0);
+		if((off & (BY2PG-1)) != 0 || (!ram && off >= pg->size))
+			error(Ebadarg);
+	}
+	lock(pg);
+	for(j = 1; j < n; j++)
+		pg->pa[i+j-1] = ram ? strtoull(f[j], 0, 0) | 1 : pg->base + strtoull(f[j], 0, 0);
+	pg->asked = 0;
+	unlock(pg);
+	wakeup(&pg->r);
+}
+
+/* "unmap": every page gone, the mappings flushed everywhere (a fault meanwhile goes around: tlbflush) */
+static void
+pagerunmap(Pager *pg)
+{
+	ulong i;
+
+	lock(pg);
+	for(i = 0; i < pg->npage; i++)
+		pg->pa[i] = ~(uintptr)0;
+	pg->asked = 0;
+	unlock(pg);
+	if(pg->s->Ref.ref > 1)
+		procflushseg(pg->s);
+	flushmmu();
+	wakeup(&pg->r);		/* a fault waiting: it asks again */
 }
 
 static int
@@ -93,7 +412,7 @@ segmentgen(Chan *c, char*, Dirtab*, int, int s, Dir *dp)
 			break;
 		}
 
-		if(s >= nelem(globalseg))
+		if(s >= nglobalseg)
 			return -1;
 
 		lock(&globalseglock);
@@ -166,6 +485,9 @@ static void
 segmentinit(void)
 {
 	_globalsegattach = globalsegattach;
+	_pagerpa = pagerpa;
+	_pagerwait = pagerwait;
+	_pagerfree = pagerfree;
 }
 
 static Chan*
@@ -206,6 +528,17 @@ segmentopen(Chan *c, int omode)
 			nexterror();
 		}
 		devpermcheck(g->uid, g->perm, omode);
+		if(TYPE(c) == Qdata && g->q != nil){
+			/* a pager queue's data: the faults, for the hostowner (its driver) */
+			if(!iseve() || openmode(omode) != OREAD)
+				error(Eperm);
+			lock(g->q);
+			g->q->readers++;
+			unlock(g->q);
+			c->aux = g;
+			poperror();
+			break;
+		}
 		if(TYPE(c) == Qdata && g->Segio.s == nil)
 			error("segment not yet allocated");
 		c->aux = g;
@@ -265,6 +598,17 @@ segmentremove(Chan *c)
 		/* 9front-ng: an alias segment's memory is its owner's again: revoke it */
 		if(g->alias && g->Segio.s != nil)
 			segrevoke(g->Segio.s);
+		/* a pager's faults fail from now on, a queue's too */
+		if(g->Segio.s != nil && (g->Segio.s->type&SG_TYPE) == SG_PHYSICAL && g->Segio.s->pseg->pager != nil){
+			Pager *pg = g->Segio.s->pseg->pager;
+
+			lock(pg);
+			pg->dead = 1;
+			unlock(pg);
+			wakeup(&pg->r);
+		}
+		if(g->q != nil)
+			pagerqdead(g->q);
 		putgseg(g);
 	}
 }
@@ -278,8 +622,20 @@ segmentclose(Chan *c)
 			if(c->flag & CRCLOSE)
 				segmentremove(c);
 			break;
-		case Qctl:
 		case Qdata:
+			/* 9front-ng: a pager queue's last reader gone (its driver): its faults fail */
+			if(((Globalseg*)c->aux)->q != nil){
+				Pagerq *q = ((Globalseg*)c->aux)->q;
+				int last;
+
+				lock(q);
+				last = --q->readers == 0;
+				unlock(q);
+				if(last)
+					pagerqdead(q);
+			}
+			/* fall through */
+		case Qctl:
 		case Qpa:
 			putgseg(c->aux);
 			c->aux = nil;
@@ -315,25 +671,53 @@ segmentcreate(Chan *c, char *name, int omode, ulong perm)
 	kstrdup(&g->name, name);
 	kstrdup(&g->uid, up->user);
 
-	lock(&globalseglock);
-	if(waserror()){
+	for(;;){
+		Globalseg **t, **o;
+		int n;
+
+		lock(&globalseglock);
+		if(waserror()){
+			unlock(&globalseglock);
+			putgseg(g);
+			nexterror();
+		}
+		xfree = -1;
+		for(x = 0; x < nglobalseg; x++){
+			if(globalseg[x] == nil){
+				if(xfree < 0)
+					xfree = x;
+			} else if(strcmp(globalseg[x]->name, name) == 0)
+				error(Eexist);
+		}
+		if(xfree >= 0){
+			globalseg[xfree] = g;
+			unlock(&globalseglock);
+			poperror();
+			break;
+		}
+		/* 9front-ng: full: a table twice the size, made without the lock (above) */
+		n = nglobalseg ? 2*nglobalseg : Nglobal0;
+		if(n > Maxglobal)
+			error("too many global segments");
 		unlock(&globalseglock);
-		putgseg(g);
-		nexterror();
+		poperror();
+		t = mallocz(n*sizeof(Globalseg*), 1);
+		if(t == nil){
+			putgseg(g);
+			error(Enomem);
+		}
+		lock(&globalseglock);
+		o = nil;
+		if(nglobalseg < n){
+			memmove(t, globalseg, nglobalseg*sizeof(Globalseg*));
+			o = globalseg;
+			globalseg = t;
+			nglobalseg = n;
+		} else
+			o = t;	/* another grew it meanwhile */
+		unlock(&globalseglock);
+		free(o);
 	}
-	xfree = -1;
-	for(x = 0; x < nelem(globalseg); x++){
-		if(globalseg[x] == nil){
-			if(xfree < 0)
-				xfree = x;
-		} else if(strcmp(globalseg[x]->name, name) == 0)
-			error(Eexist);
-	}
-	if(xfree < 0)
-		error("too many global segments");
-	globalseg[xfree] = g;
-	unlock(&globalseglock);
-	poperror();
 
 	c->qid.path = PATH(xfree, Qsegdir);
 	c->qid.type = QTDIR;
@@ -406,7 +790,7 @@ aliaspages(Segment *s, char *src, uintptr idx, char **offs, int n)
 
 	g = nil;
 	lock(&globalseglock);
-	for(x = 0; x < nelem(globalseg); x++)
+	for(x = 0; x < nglobalseg; x++)
 		if(globalseg[x] != nil && strcmp(globalseg[x]->name, src) == 0){
 			g = globalseg[x];
 			incref(&g->Ref);
@@ -462,6 +846,8 @@ segmentread(Chan *c, void *a, long n, vlong voff)
 	g = c->aux;
 	switch(TYPE(c)){
 	case Qctl:
+		if(g->q != nil)
+			return readstr(voff, a, n, g->q->dead ? "pager dead\n" : "pager\n");
 		if(g->Segio.s == nil)
 			error("segment not yet allocated");
 		if((g->Segio.s->type&SG_TYPE) == SG_FIXED)
@@ -469,13 +855,28 @@ segmentread(Chan *c, void *a, long n, vlong voff)
 				g->Segio.s->map[0]->pages[0]->pa);
 		else if((g->Segio.s->type&SG_TYPE) == SG_STICKY)
 			snprint(buf, sizeof(buf), "va %#p %#p sticky\n", g->Segio.s->base, g->Segio.s->top-g->Segio.s->base);
-		else if((g->Segio.s->type&SG_TYPE) == SG_PHYSICAL)
+		else if((g->Segio.s->type&SG_TYPE) == SG_PHYSICAL && g->Segio.s->pseg->pager != nil){
+			Pager *pg = g->Segio.s->pseg->pager;
+			ulong i, have;
+
+			/* 9front-ng: a pager segment, its pages there, a fault waiting for the driver */
+			lock(pg);
+			for(have = i = 0; i < pg->npage; i++)
+				have += pg->pa[i] != ~(uintptr)0;
+			snprint(buf, sizeof(buf), "va %#p %#p phys %s pager %s: %lud of %lud pages%s%s%s\n",
+				g->Segio.s->base, g->Segio.s->top-g->Segio.s->base, g->Segio.s->pseg->name,
+				pg->q->dead ? "(queue gone)" : "", have, pg->npage, pg->asked ? ", asked" : "",
+				pg->dead ? ", dead" : "", (g->Segio.s->type&SG_FAULT) ? " revoked" : "");
+			unlock(pg);
+		} else if((g->Segio.s->type&SG_TYPE) == SG_PHYSICAL)
 			snprint(buf, sizeof(buf), "va %#p %#p phys %s %#p%s\n", g->Segio.s->base, g->Segio.s->top-g->Segio.s->base,
 				g->Segio.s->pseg->name, g->Segio.s->pseg->pa, (g->Segio.s->type&SG_FAULT) ? " revoked" : "");
 		else
 			snprint(buf, sizeof(buf), "va %#p %#p\n", g->Segio.s->base, g->Segio.s->top-g->Segio.s->base);
 		return readstr(voff, a, n, buf);
 	case Qdata:
+		if(g->q != nil)
+			return pagerqread(g->q, a, n);
 		return segio(&g->Segio,g->Segio.s,a,n,voff,1);
 	case Qpa:
 		return pagepa(g->Segio.s, a, n, voff);
@@ -548,6 +949,48 @@ segmentwrite(Chan *c, void *a, long n, vlong voff)
 					segpage(s, fillpage(newpage(va, nil), 0));
 				poperror();
 				g->Segio.s = s;
+			} else if(cb->nf == 7 && strcmp(cb->f[3], "phys") == 0 && strcmp(cb->f[5], "pager") == 0){
+				Physseg *ps, *pp;
+				Segment *s;
+				Pager *pg;
+				Pagerq *q;
+				ulong i;
+
+				/* 9front-ng: a pager segment (above), no pages yet */
+				if(!iseve())
+					error(Eperm);
+				if((ps = findphysseg(cb->f[4])) == nil)
+					error("no such physical segment");
+				q = findpagerq(cb->f[6]);
+				pg = malloc(sizeof(Pager));
+				if(pg != nil)
+					pg->pa = malloc((len/BY2PG)*sizeof(uintptr));
+				if(pg == nil || pg->pa == nil){
+					free(pg);
+					putpagerq(q);
+					error(Enomem);
+				}
+				pg->npage = len/BY2PG;
+				for(i = 0; i < pg->npage; i++)
+					pg->pa[i] = ~(uintptr)0;
+				pg->q = q;
+				pg->base = ps->pa;
+				pg->size = ps->size;
+				kstrdup(&pg->name, g->name);
+				if(waserror()){
+					pagerfree(pg);
+					nexterror();
+				}
+				s = newseg(ps->attr, va, len/BY2PG);
+				poperror();
+				pp = (Physseg*)(s+1);
+				*pp = *ps;
+				pp->size = len;
+				pp->pager = pg;
+				pg->s = s;
+				s->pseg = pp;
+				g->Segio.s = s;
+				g->alias = 1;
 			} else if(cb->nf >= 6 && strcmp(cb->f[3], "phys") == 0){
 				Physseg *ps, *pp;
 				uvlong off;
@@ -580,6 +1023,33 @@ segmentwrite(Chan *c, void *a, long n, vlong voff)
 				g->alias = 1;
 			} else
 				g->Segio.s = newseg(SG_SHARED, va, len/BY2PG);
+		} else if(cb->nf == 1 && strcmp(cb->f[0], "pager") == 0){
+			/* 9front-ng: a pager queue (above) */
+			if(!iseve())
+				error(Eperm);
+			if(g->Segio.s != nil || g->q != nil)
+				error("already a segment");
+			g->q = smalloc(sizeof(Pagerq));
+			g->q->Ref.ref = 1;
+		} else if(cb->nf >= 2 && (strcmp(cb->f[0], "pages") == 0 || strcmp(cb->f[0], "ram") == 0)){
+			if(!iseve())
+				error(Eperm);
+			pagerpages(pagerof(g), cb->f+1, cb->nf-1, cb->f[0][0] == 'r');
+		} else if(cb->nf == 1 && strcmp(cb->f[0], "unmap") == 0){
+			if(!iseve())
+				error(Eperm);
+			pagerunmap(pagerof(g));
+		} else if(cb->nf == 1 && strcmp(cb->f[0], "nopage") == 0){
+			Pager *pg;
+
+			if(!iseve())
+				error(Eperm);
+			pg = pagerof(g);
+			lock(pg);
+			pg->nopage++;
+			pg->asked = 0;
+			unlock(pg);
+			wakeup(&pg->r);
 		} else if(cb->nf == 1 && strcmp(cb->f[0], "revoke") == 0){
 			/* the memory went back to its owner: nobody keeps seeing it */
 			if(g->Segio.s == nil || !g->alias)
@@ -656,7 +1126,7 @@ globalsegattach(char *name)
 		unlock(&globalseglock);
 		nexterror();
 	}
-	for(x = 0; x < nelem(globalseg); x++){
+	for(x = 0; x < nglobalseg; x++){
 		g = globalseg[x];
 		if(g != nil && strcmp(g->name, name) == 0)
 			goto Found;
