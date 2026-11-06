@@ -1,0 +1,8 @@
+#!/bin/rc
+# run by wsys -x -i (tests/sdl): sdltest in a window of wsys (window(1)), its
+# log at the end
+rm -f /tmp/sdl.log
+window -r 100 100 500 400 'rc -c ''/tests/sdltest >/tmp/sdl.log >[2=1]; echo sdl: exit $status >>/tmp/sdl.log'''
+n=0
+while(! grep -s '^sdl: exit' /tmp/sdl.log && test $n -lt 300){ sleep 0.1; n=`{echo $n+1 | hoc} }
+cat /tmp/sdl.log
