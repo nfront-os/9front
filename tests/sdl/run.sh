@@ -14,9 +14,13 @@ cp "$ROOT/amd64/bin/wsys" "$HERE/root/tests/wsys"
 cp "$HERE/sdl.rc" "$HERE/root/tests/sdl"
 chmod +x "$HERE/root/tests/sdl"
 
+# a sound card whose output QEMU writes to a WAV file: what SDL played
+wav=$CLI_DIR/sdlaudio.wav
+rm -f "$wav"
 UFS_EXTRA=$HERE/root MEM=1024 KARGS="vgasize=1024x768x32 monitor=vesa mouseport=ps2" \
+	QEMU_EXTRA="-audiodev wav,id=snd,path=$wav -device intel-hda -device hda-output,audiodev=snd" \
 	setsid bash "$ROOT/scripts/guest/mcp-guest.sh" 'aux/realemu' 'aux/vga -m vesa -l 1024x768x32' \
-	"bind -a '#i' /dev" "bind -a '#m' /dev" >"$CLI_DIR/sdlguest.log" 2>&1 &
+	"bind -a '#i' /dev" "bind -a '#m' /dev" "bind -a '#A' /dev" >"$CLI_DIR/sdlguest.log" 2>&1 &
 guest=$!
 trap 'kill -TERM -- -$guest 2>/dev/null || kill $guest 2>/dev/null; wait $guest 2>/dev/null || true' EXIT
 M="python3 $ROOT/scripts/guest/mcp.py"
@@ -56,5 +60,20 @@ check "keyboard: text a" '^event text a'
 check "keyboard: shift" '^event key down Left Shift'
 check "keyboard: text B" '^event text B'
 check "keyboard: return up" '^event key up Return'
+check "audio through /dev/audio" '^ok audio: 0.2 s through plan9'
+# the guest's end writes the WAV file whole: what it played, not silence
+kill -TERM -- -$guest 2>/dev/null || kill $guest 2>/dev/null
+wait $guest 2>/dev/null || true
+trap - EXIT
+if python3 - "$wav" <<'PY'
+import struct, sys
+# QEMU's wav backend fills in the header's sizes only when it closes the file: the samples after it
+d = open(sys.argv[1], 'rb').read()[44:]
+v = struct.unpack('<%dh' % (len(d) // 2), d[:len(d) // 2 * 2])
+peak = max((abs(x) for x in v), default=0)
+print('wav: %d samples, peak %d' % (len(v), peak))
+sys.exit(0 if peak > 1000 else 1)
+PY
+then echo "ok audio: the host heard it"; else echo "FAIL audio: silence on the host"; fail=1; fi
 [ $fail = 0 ] && echo "sdl: all passed" || echo "sdl: failed"
 exit $fail
