@@ -762,33 +762,23 @@ and
 .BI mmr " offset count instance flags
 (registers) as numbers.
 .TP
+.BI cap " n
+DRM's capability
+.I n
+(GET_CAP), reply
+.BI cap " n value" .
+.TP
 .B version
 DRM's version, then the driver's name, date and description a line each.
 .PD
 .PP
-For the change from the ioctl file the context still has it:
-.B arena
-in its
-.B ctl
-replies
-.BI arena " seg va size" ,
-memory the client attaches at
-.I va
-and the driver sees at the same address; the client puts an ioctl's
-structure and all it points to there and writes
-.BI ioctl " cmd addr
-to the
-.B ioctl
-file (libdrm9 with
-.BR AMD9ARENA=1 ).
 .BI map " handle
 replies the processor's view of an object the client made,
 .BI map " handle seg va size" :
 an alias segment of its pages (GTT) or its part of BAR 0 (VRAM);
 .BI unmap " handle
 ends it, revoking the segment in every process.
-Ioctls that pass file descriptors (PRIME, syncobj fds) are refused
-.RB ( EPERM );
+There are no requests with file descriptors (PRIME, syncobj fds):
 objects go between contexts by token instead:
 .BI export " handle
 replies
@@ -947,7 +937,7 @@ mount -a /srv/gpu.0.\fIname\fP /dev
 .EE
 .PP
 A context is its creator's: its files are the creator's alone (0600),
-and so are the segments the driver makes for it (the arena, objects,
+and so are the segments the driver makes for it (objects,
 maps: their owner the creator, mode 0600).
 The display is the hostowner's: only it may write the driver's
 .BR ctl ,

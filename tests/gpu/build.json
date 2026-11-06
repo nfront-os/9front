@@ -20,7 +20,7 @@
 			"gpuctxtest.c",
 			"amdctxtest.c",
 			"amdscanout.c",
-			"amdioctl.c",
+			"amdcs.c",
 			"amdshare.c",
 			"amdhang.c",
 			"segrevoke.c"

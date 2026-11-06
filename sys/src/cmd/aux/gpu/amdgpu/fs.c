@@ -22,7 +22,6 @@ enum {
 	Xctxctl,
 	Xctxsubmit,
 	Xctxfence,
-	Xctxioctl,
 	Xoutedid,
 	Xoutmodes,
 	Xoutmode,
@@ -38,7 +37,7 @@ struct Ctx {
 	int	id;
 	void	*lc;		/* the Linux side's */
 	int	ref;		/* open files */
-	File	*dir, *ctl, *submit, *fence, *ioctl;
+	File	*dir, *ctl, *submit, *fence;
 	char	*reply;
 	char	*uid;		/* its creator's: its files, its segments */
 };
@@ -48,8 +47,6 @@ struct Fidaux {
 	char	*reply;		/* the reply to the last request on this fid (ctl, submit) */
 	vlong	rend;		/* where the request ended: a read from there is the reply's start */
 	int	rbase;		/* rend decided by the first read: -1 not yet, else 0 or 1 */
-	long	ioctlr;		/* the ioctl's result, for the read */
-	int	ioctlset;
 	u64g	fence;		/* written to fence: wait for it */
 	int	query;
 };
@@ -123,16 +120,15 @@ outreq(Req *r, char *out, char *spec, int bl, char **s)
 }
 
 /*
- * the clients' ioctls: a pool of procs with big stacks (amdgpu's own
- * code under them), so that one that waits (a syncobj) holds up no other
+ * the clients' requests as text (linux/req.c): a pool of procs with big
+ * stacks (amdgpu's own code under them), so that one that waits (a
+ * syncobj) holds up no other
  */
-enum { Nioctlproc = 4 };
-typedef struct Ireq Ireq;
-struct Ireq {
+enum { Nreqproc = 4 };
+typedef struct Treq Treq;
+struct Treq {
 	void	*lc;
-	uint	cmd;
-	u64g	addr;
-	char	**f;	/* a request as text (linux/req.c), not an ioctl */
+	char	**f;
 	int	nf;
 	char	*reply;
 	int	nreply;
@@ -140,45 +136,25 @@ struct Ireq {
 	long	r;
 	Channel	*done;
 };
-static Channel *ioctlc;
+static Channel *reqc;
 
 static void
-ioctlproc(void*)
+reqproc(void*)
 {
-	Ireq *q;
+	Treq *q;
 
 	for(;;){
-		q = recvp(ioctlc);
-		if(q->f != nil)
-			q->r = amdgpu_req(q->lc, q->f, q->nf, q->reply, q->nreply, q->priv);
-		else
-			q->r = amdgpu_ioctl(q->lc, q->cmd, q->addr, q->priv);
+		q = recvp(reqc);
+		q->r = amdgpu_req(q->lc, q->f, q->nf, q->reply, q->nreply, q->priv);
 		sendul(q->done, 1);
 	}
 }
 
-static long
-doioctl(void *lc, uint cmd, u64g addr, int priv)
-{
-	Ireq q;
-
-	memset(&q, 0, sizeof q);
-	q.lc = lc;
-	q.cmd = cmd;
-	q.addr = addr;
-	q.priv = priv;
-	q.done = chancreate(sizeof(ulong), 0);
-	sendp(ioctlc, &q);
-	recvul(q.done);
-	chanfree(q.done);
-	return q.r;
-}
-
-/* a request as text on an ioctl proc: the reply's length or -errno */
+/* a request as text on a request proc: the reply's length or -errno */
 static long
 doreq(void *lc, char **f, int nf, char *reply, int nreply, int priv)
 {
-	Ireq q;
+	Treq q;
 
 	memset(&q, 0, sizeof q);
 	q.lc = lc;
@@ -188,7 +164,7 @@ doreq(void *lc, char **f, int nf, char *reply, int nreply, int priv)
 	q.nreply = nreply;
 	q.priv = priv;
 	q.done = chancreate(sizeof(ulong), 0);
-	sendp(ioctlc, &q);
+	sendp(reqc, &q);
 	recvul(q.done);
 	chanfree(q.done);
 	return q.r;
@@ -313,7 +289,6 @@ newctx(char *uid)
 	c->ctl = createfile(c->dir, "ctl", uid, 0600, (void*)(uintptr)(id<<8 | Xctxctl));
 	c->submit = createfile(c->dir, "submit", uid, 0600, (void*)(uintptr)(id<<8 | Xctxsubmit));
 	c->fence = createfile(c->dir, "fence", uid, 0600, (void*)(uintptr)(id<<8 | Xctxfence));
-	c->ioctl = createfile(c->dir, "ioctl", uid, 0600, (void*)(uintptr)(id<<8 | Xctxioctl));
 	ctxs[id] = c;
 	setreply(c, "ctx %d\n", id);
 	return c;
@@ -324,12 +299,10 @@ freectx(Ctx *c)
 {
 	ctxs[c->id] = nil;
 	ctxfree(c->lc);
-	removefile(c->ioctl);
 	removefile(c->fence);
 	removefile(c->submit);
 	removefile(c->ctl);
 	removefile(c->dir);
-	closefile(c->ioctl);
 	closefile(c->fence);
 	closefile(c->submit);
 	closefile(c->ctl);
@@ -363,7 +336,6 @@ fsopen(Req *r)
 	case Xctxctl:
 	case Xctxsubmit:
 	case Xctxfence:
-	case Xctxioctl:
 		qlock(&ctxlock);
 		if((c = ctxs[CTXN(r->fid->file)]) == nil){
 			qunlock(&ctxlock);
@@ -470,15 +442,6 @@ fsread(Req *r)
 		USED(c);
 		s = estrdup9p(fa->reply != nil ? fa->reply : "");
 		break;
-	case Xctxioctl:
-		/* the result of the last ioctl written on this fid */
-		r->ifcall.offset = 0;
-		if(!fa->ioctlset){
-			respond(r, "no ioctl");
-			return;
-		}
-		s = smprint("%ld\n", fa->ioctlr);
-		break;
 	case Xctxfence:
 		c = fa->ctx;
 		r->ifcall.offset = 0;
@@ -542,14 +505,6 @@ ctxctl(Fidaux *fa, char **f, int n)
 	if(n == 2 && strcmp(f[0], "free") == 0){
 		e = amdgpu_bo_free(c->lc, atoi(f[1]));
 		return e < 0 ? errstr9(e) : nil;
-	}
-	if(n == 1 && strcmp(f[0], "arena") == 0){
-		e = amdgpu_arena(c->lc, seg, sizeof seg, &va, &size);
-		if(e < 0)
-			return errstr9(e);
-		segown(seg, c->uid);
-		fsetreply(fa, "arena %s %#llux %#llux\n", seg, va, size);
-		return nil;
 	}
 	if(n == 2 && strcmp(f[0], "map") == 0){
 		e = amdgpu_map(c->lc, strtoul(f[1], nil, 0), seg, sizeof seg, &va, &size);
@@ -627,7 +582,7 @@ istext(Req *r)
 
 /*
  * a request as text (linux/req.c), up to a message's size: run on an
- * ioctl proc (it may wait), its reply kept for the fid's next read
+ * request proc (it may wait), its reply kept for the fid's next read
  */
 static void
 fsreq(Req *r)
@@ -763,17 +718,6 @@ fswrite(Req *r)
 		if(x < 0)
 			e = errstr9(x);
 		break;
-	case Xctxioctl:
-		/* cmd addr: the ioctl, its arguments in the arena; blocks as it does */
-		if(n != 2){
-			respond(r, "usage: cmd addr");
-			return;
-		}
-		srvrelease(r->srv);
-		fa->ioctlr = doioctl(fa->ctx->lc, strtoul(f[0], nil, 0), strtoull(f[1], nil, 0), iseve9p(r->fid->uid));
-		srvacquire(r->srv);
-		fa->ioctlset = 1;
-		break;
 	case Xctxfence:
 		if(n == 1){
 			fa->query = 0;
@@ -838,9 +782,9 @@ serve(char *srvname)
 	srvname9 = estrdup9p(srvname);
 	kmsc = chancreate(sizeof(void*), 0);
 	proccreate(kmsproc, nil, 1024*1024);
-	ioctlc = chancreate(sizeof(void*), 0);
-	for(i = 0; i < Nioctlproc; i++)
-		proccreate(ioctlproc, nil, 1024*1024);
+	reqc = chancreate(sizeof(void*), 0);
+	for(i = 0; i < Nreqproc; i++)
+		proccreate(reqproc, nil, 1024*1024);
 	mktree();
 	threadpostmountsrv(&fs, srvname, "/dev", MAFTER);
 }

@@ -31,16 +31,10 @@
  *	scanout id w h stride	the object (VRAM) on the display (kms.c)
  *	scanoutgem handle w h stride	a GEM object of the client's (VRAM) there
  *
- * And amdgpu's ioctls themselves, as a process makes them on Linux
- * (libdrm_amdgpu, Mesa's RADV): the context's arena is memory at one
- * address in the client and here (an alias segment both attach at its
- * place); the client puts an ioctl's structure and all it points to
- * there and names the command and the address; drm_ioctl runs with the
- * proc's user window on the arena, so that the ioctl reaches nothing
- * else of ours (copy_from_user, access_ok: kpi/obsd/systm.c).
+ * And what a process asks of amdgpu through its ioctls on Linux
+ * (libdrm_amdgpu, Mesa's RADV), as text: req.c, which builds the ioctl's
+ * structures in memory of the server's own.
  *
- *	arena			the arena (made at the first request)
- *	ioctl cmd addr		(the ioctl file) drm_ioctl, its result
  *	map handle		the processor's view of an object the client
  *				made: GTT pinned, an alias segment; VRAM in one
  *				piece where BAR 0 shows it, a segment of that
@@ -108,10 +102,6 @@ struct gctx {
 	struct dma_fence	*fence[Nfence];	/* fence k at k % Nfence */
 	ktime_t	tsub[Nfence], tcs[Nfence];	/* -t: before the CS, after it */
 	bool	failed;
-	char	arenaseg[32];		/* the arena: at arena in both */
-	void	*arena;
-	struct page	**arenapages;
-	unsigned int	narena;
 	struct list_head	maps;	/* the client's objects it maps (struct map) */
 };
 
@@ -124,7 +114,6 @@ struct map {
 	char	seg[32];
 };
 
-enum { Arenapages = 1024 };	/* 4 MB */
 
 /* Linux 7.3: drm_open_helper wants the flag DRM's own GEM fops have */
 static const struct file_operations ctx_fops = { .fop_flags = FOP_UNSIGNED_OFFSET };
@@ -280,12 +269,6 @@ amdgpu_ctx_free(void *v)
 	kfree(c->bo);
 	while (!list_empty(&c->maps))
 		unmap(c, list_first_entry(&c->maps, struct map, node));
-	if (c->arena) {
-		p9_segfree(c->arenaseg, c->arena);	/* the client's view revoked */
-		for (i = 0; i < c->narena; i++)
-			__free_page(c->arenapages[i]);
-		kfree(c->arenapages);
-	}
 	closefile(c);	/* amdgpu_driver_postclose_kms: the contexts, the VM, the syncobjs */
 	kfree(c);
 }
@@ -766,118 +749,6 @@ struct file *
 amdgpu_ctx_filp(void *v)
 {
 	return ((struct gctx *)v)->filp;
-}
-
-/* the arena: its segment, address and size for the client */
-int
-amdgpu_arena(void *v, char *seg, int nseg, u64 *va, u64 *size)
-{
-	struct gctx *c = v;
-	unsigned int i;
-	int r = 0;
-
-	mutex_lock(&c->lock);
-	if (!c->arena) {
-		c->arenapages = kcalloc(Arenapages, sizeof(*c->arenapages), GFP_KERNEL);
-		if (!c->arenapages) {
-			r = -ENOMEM;
-			goto out;
-		}
-		for (i = 0; i < Arenapages; i++)
-			if (!(c->arenapages[i] = alloc_page(GFP_KERNEL | __GFP_ZERO)))
-				break;
-		c->narena = i;
-		snprintf(c->arenaseg, sizeof(c->arenaseg), "amdgpu.%d.%d.arena", p9_getpid(), c->id);
-		/* attached here too: the same address on both sides */
-		if (i == Arenapages)
-			c->arena = kpi_alias_pages(c->arenaseg, c->arenapages, Arenapages, true);
-		if (!c->arena) {
-			while (c->narena > 0)
-				__free_page(c->arenapages[--c->narena]);
-			kfree(c->arenapages);
-			c->arenapages = NULL;
-			r = -ENOMEM;
-			goto out;
-		}
-	}
-	strscpy(seg, c->arenaseg, nseg);
-	*va = (unsigned long)c->arena;
-	*size = (u64)Arenapages << PAGE_SHIFT;
-out:
-	mutex_unlock(&c->lock);
-	return r;
-}
-
-/*
- * ioctls a client may not make: those that pass file descriptors (the
- * KPI's descriptors belong to the server, one table for all contexts:
- * a client could take another's or leave its own behind), user memory
- * (USERPTR) or user queues; buffers go between contexts by gpu(4)'s
- * export and import.  libdrm9 (amdgpu9.c: refused) does not make them.
- */
-static int
-refused(unsigned int nr)
-{
-	switch (nr) {
-	case 0x2d: case 0x2e:			/* PRIME_HANDLE_TO_FD, PRIME_FD_TO_HANDLE */
-	case 0xC1: case 0xC2: case 0xCF:	/* SYNCOBJ_HANDLE_TO_FD, SYNCOBJ_FD_TO_HANDLE, SYNCOBJ_EVENTFD */
-	case DRM_COMMAND_BASE + DRM_AMDGPU_GEM_USERPTR:
-	case DRM_COMMAND_BASE + DRM_AMDGPU_USERQ:
-	case DRM_COMMAND_BASE + DRM_AMDGPU_USERQ_SIGNAL:
-	case DRM_COMMAND_BASE + DRM_AMDGPU_USERQ_WAIT:
-		return 1;
-	}
-	return 0;
-}
-
-/*
- * FENCE_TO_HANDLE gives a syncobj, or an fd (GET_SYNCOBJ_FD,
- * GET_SYNC_FILE_FD): only the first.  The arguments are checked in a copy
- * of the server's own, as the client can change the arena at any time.
- */
-static long
-fencetohandle(struct gctx *c, u64 addr)
-{
-	union drm_amdgpu_fence_to_handle k;
-	long r;
-
-	if (copy_from_user(&k, u64_to_user_ptr(addr), sizeof k))
-		return -EFAULT;
-	if (k.in.what != AMDGPU_FENCE_TO_HANDLE_GET_SYNCOBJ)
-		return -EINVAL;
-	r = drm_ioctl_kernel(c->filp, amdgpu_cs_fence_to_handle_ioctl, &k, DRM_AUTH|DRM_RENDER_ALLOW);
-	if (r == 0 && copy_to_user(u64_to_user_ptr(addr), &k, sizeof k))
-		r = -EFAULT;
-	return r;
-}
-
-/*
- * the client's ioctl: its arguments at addr in the arena, and all they
- * point to; priv: the client is the hostowner (capable(CAP_SYS_ADMIN)
- * for it, as for root on Linux)
- */
-long
-amdgpu_ioctl(void *v, unsigned int cmd, u64 addr, int priv)
-{
-	struct gctx *c = v;
-	unsigned long a = addr, size = (unsigned long)Arenapages << PAGE_SHIFT;
-	long r;
-
-	if (!c->arena)
-		return -ENXIO;
-	if (a < (unsigned long)c->arena || a + _IOC_SIZE(cmd) > (unsigned long)c->arena + size)
-		return -EFAULT;
-	if (refused(_IOC_NR(cmd)))
-		return -EPERM;
-	kpi_user_window(c->arena, size);
-	kpi_user_privileged(priv);
-	if (_IOC_NR(cmd) == DRM_COMMAND_BASE + DRM_AMDGPU_FENCE_TO_HANDLE)
-		r = fencetohandle(c, addr);
-	else
-		r = drm_ioctl(c->filp, cmd, a);
-	kpi_user_privileged(1);
-	kpi_user_window(NULL, 0);
-	return r;
 }
 
 static void

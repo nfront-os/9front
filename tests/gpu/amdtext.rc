@@ -25,6 +25,7 @@ fn expect {
 	d=/dev/gpu/0/ctx/$n(2)
 	<>[4]$d/ctl {
 		expect '^version [0-9]+ [0-9]+ ' version
+		expect '^cap 20 1$' cap 20
 		expect '^name amdgpu$' version
 		expect '^family [0-9]+$' info device
 		expect '^num_shader_engines [1-9]' info device

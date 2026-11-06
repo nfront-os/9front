@@ -3,39 +3,24 @@
  *
  * amdshare: an object of aux/amdgpu's between two contexts (gpu(4)'s
  * export and import, ../9front-ui stage 2): context A makes an object in
- * GTT (GEM_CREATE through its arena), writes a pattern through its map,
+ * GTT (gem), writes a pattern through its map,
  * exports it (ctl export handle -> token); context B imports the token
  * (import token -> handle size), maps the handle and reads the pattern,
  * writes one of its own that A reads.  A token nobody exported is
  * refused; once A is gone, so is its token, while B keeps the object.
  * Prints "ok ..." / "FAIL ..." lines and a summary.
- *
- * The structures are those of Linux's amdgpu_drm.h (MIT).
  */
 #include <u.h>
 #include <libc.h>
 
-#define IOC(dir, nr, size)	((u32int)(dir) << 30 | (u32int)(size) << 16 | 'd' << 8 | (nr))
-#define IOWR(nr, t)	IOC(3, nr, sizeof(t))
-#define CMD	0x40	/* DRM_COMMAND_BASE */
-
-typedef struct Gemcreate Gemcreate;
-struct Gemcreate {	/* drm_amdgpu_gem_create: in; out.handle over bo_size */
-	uvlong	bo_size, alignment, domains, domain_flags;
-};
-
 enum {
-	Ggemcreate	= 0x00,
-	Domgtt	= 2,
 	Size	= 64*1024,
 };
 
 typedef struct Ctx Ctx;
 struct Ctx {
 	char	*name;
-	int	cfd, ifd;
-	uchar	*arena;
-	uvlong	asize;
+	int	cfd;
 };
 
 static char *dev = "/dev/gpu/0";
@@ -101,48 +86,23 @@ open1(Ctx *c, char *name)
 	buf[n] = 0;
 	if(tokenize(buf, f, nelem(f)) < 2)
 		sysfatal("clone: %s", buf);
-	snprint(path, sizeof path, "%s/ctx/%s/ioctl", dev, f[1]);
-	if((c->ifd = open(path, ORDWR)) < 0)
-		sysfatal("open %s: %r", path);
-	if(ctl(c, buf, sizeof buf, "arena") < 0 || tokenize(buf, f, nelem(f)) != 4)
-		sysfatal("arena: %r");
-	c->asize = strtoull(f[3], nil, 0);
-	if((c->arena = segattach(0, f[1], nil, c->asize)) == (void*)-1)
-		sysfatal("segattach %s: %r", f[1]);
-	if((uvlong)c->arena != strtoull(f[2], nil, 0))
-		sysfatal("arena at %#p, the server has it at %s", c->arena, f[2]);
 }
 
 static void
 close1(Ctx *c)
 {
-	segdetach(c->arena);
-	close(c->ifd);
 	close(c->cfd);
 }
 
-/* an object in GTT made by c's GEM_CREATE: its handle */
+/* an object in GTT made by c's gem: its handle */
 static u32int
 gemcreate(Ctx *c)
 {
-	Gemcreate *gc;
-	char buf[64];
-	long r;
-	int n;
+	char buf[64], *f[4];
 
-	gc = (Gemcreate*)c->arena;
-	memset(gc, 0, sizeof *gc);
-	gc->bo_size = Size;
-	gc->alignment = 4096;
-	gc->domains = Domgtt;
-	if(fprint(c->ifd, "%#ux %#p", IOWR(CMD+Ggemcreate, Gemcreate), gc) < 0)
-		sysfatal("GEM_CREATE: %r");
-	if((n = pread(c->ifd, buf, sizeof buf - 1, 0)) <= 0)
-		sysfatal("GEM_CREATE: %r");
-	buf[n] = 0;
-	if((r = strtol(buf, nil, 10)) != 0)
-		sysfatal("GEM_CREATE: %ld", r);
-	return *(u32int*)gc;
+	if(ctl(c, buf, sizeof buf, "gem %d 4096 gtt 0", Size) < 0 || tokenize(buf, f, nelem(f)) != 2)
+		sysfatal("%s: gem: %r", c->name);
+	return strtoul(f[1], nil, 0);
 }
 
 /* the processor's view of c's object h */

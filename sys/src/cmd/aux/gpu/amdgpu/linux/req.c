@@ -37,6 +37,7 @@
  *	syncquery flags sync ...		SYNCOBJ_QUERY: syncquery point ...
  *	synctransfer src srcpoint dst dstpoint flags	SYNCOBJ_TRANSFER
  *	info query [args]			INFO: see infos below
+ *	cap n					GET_CAP: cap n value
  *	version					VERSION: version major minor patch,
  *						then name, date, desc a line each
  *	cs hwctx flags item ...			CS (written to submit): cs seq
@@ -1074,6 +1075,23 @@ info(void *c, struct rq *q, char **f, int n, int priv)
 	return 0;
 }
 
+/* cap n: DRM's GET_CAP (syncobj, timeline syncobj, ...): cap n value */
+static long
+cap(void *c, struct rq *q, char **f, int n, int priv)
+{
+	struct drm_get_cap *g;
+	long r;
+
+	if (n != 2)
+		return -EINVAL;
+	g = rqalloc(q, sizeof *g);
+	NUM(f[1], g->capability);
+	r = rqioctl(c, q, DRM_IOCTL_GET_CAP, g, priv);
+	if (r == 0)
+		rprint(q, "cap %llu %llu\n", g->capability, g->value);
+	return r;
+}
+
 /* version: DRM's VERSION: "version major minor patch" and name, date, desc a line each */
 static long
 version(void *c, struct rq *q, char **f, int n, int priv)
@@ -1110,7 +1128,7 @@ static const struct {
 	{ "syncnew", syncreq }, { "syncfree", syncreq }, { "syncwait", syncreq }, { "synctwait", syncreq },
 	{ "syncreset", syncreq }, { "syncsignal", syncreq }, { "synctsignal", syncreq },
 	{ "syncquery", syncreq }, { "synctransfer", syncreq },
-	{ "info", info }, { "cs", cs }, { "version", version },
+	{ "info", info }, { "cs", cs }, { "version", version }, { "cap", cap },
 };
 
 /* is f[0] a verb of these */

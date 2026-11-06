@@ -1,9 +1,9 @@
 #!/bin/rc
-# a GPU page fault on purpose (amdioctl -u: WRITE_DATA where nothing is
+# a GPU page fault on purpose (amdcs -u: WRITE_DATA where nothing is
 # mapped): does amdgpu report it (gmc's interrupt), what the hub's status says
 aux/amdgpu -S $* >/tmp/amd.log >[2=1]
 sleep 2
-/tests/amdioctl -u | grep 'FAIL|passed|GPU wrote'
+/tests/amdcs -u | grep 'FAIL|passed|GPU wrote'
 echo waves >/dev/gpu/0/ctl
 grep -i 'fault|GCVM|MORE|WALKER|PERMISSION|MAPPING|RW|CID|waves$' /tmp/amd.log | sed 20q
 echo TESTEND

@@ -75,7 +75,9 @@ Options (environment):
   `scripts/debug/thread-dump.py` (see `scripts/README.md`).
 - The host's AMD card in a guest (VFIO; bound to vfio-pci, `sudo scripts/guest/vfio-gpu.sh bind PID`):
   `scripts/guest/vfio-test.sh 'rc /tests/amdall.rc'` with `WAITFOR=TESTEND`; the scripts are
-  `tests/gpu/amd*.rc`: `amdall` (contexts, scanout, ioctls, RADV, vkcube), `amdgl` (zink),
+  `tests/gpu/amd*.rc`: `amdall` (contexts, scanout, a submission through the requests as text: amdcs, RADV, vkcube), `amdtext` (each request
+  of gpu(4)'s text interface, its reply and errors), `amdhighva` and `amdfault` (amdcs high in the address space, a
+  page fault), `amdgl` (zink),
   `amdshare` (an object between two contexts: export, import), `amdvkshare` (RADV's
   dma-buf and a timeline semaphore between two processes), `amdwsys` (vktri in a window
   of wsys, its frames as GPU buffers).

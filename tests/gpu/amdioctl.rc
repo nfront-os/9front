@@ -1,8 +1,0 @@
-#!/bin/rc
-# aux/amdgpu without its screen; amdgpu's ioctls through the arena
-aux/amdgpu -S $* >/tmp/amd.log >[2=1]
-sleep 2
-/tests/amdioctl
-/tests/amdctxtest | grep 'passed|FAIL'
-grep 'WARN|error|fault|fallback' /tmp/amd.log
-echo TESTEND

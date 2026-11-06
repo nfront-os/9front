@@ -5,13 +5,12 @@
  * (gpu(4)): what Mesa's RADV (src/amd/common/ac_linux_drm.c) uses.
  *
  * A descriptor is a context of aux/amdgpu, opened by /dev/gpu/N/clone
- * (drm9.c finds it); the context's arena is memory at one address here
- * and in the driver. An ioctl's structure and everything it points to
- * (CS chunks, BO lists, INFO's result, syncobj handles, ...) are copied
- * there, the ioctl is written to the context's ioctl file as "cmd addr",
- * and what the driver wrote comes back. The driver is Linux's amdgpu:
- * its ioctl numbers are Linux's (here BSD's encoding, sys/ioccom.h), its
- * errors Linux's errno values (here APE's).
+ * (drm9.c finds it).  Each ioctl RADV makes becomes a request as text
+ * (gpu(4)): words written to the context's ctl (CS: its submit file),
+ * the reply read back on the same fid; nothing of ours is in the
+ * driver's memory or its in ours.  The driver is Linux's amdgpu: its
+ * ioctl numbers are Linux's (here BSD's encoding, sys/ioccom.h), its
+ * errors named (aux/amdgpu fs.c), here APE's errno values again.
  *
  *	libdrm_amdgpu	device, objects (GEM_CREATE; cpu_map: the driver's
  *			"map", a segment), the GPU's address space (a
@@ -58,8 +57,7 @@ extern int	mesa9_segdetach(void*);
 extern int	_ERRSTR(char*, unsigned int);
 
 enum {
-	Slot	= 64*1024,	/* the arena in slots, one or more a call */
-	Nfid	= 8,		/* ioctl files kept open */
+	Nfid	= 8,		/* ctl and submit fids kept open, each */
 	Maxbo	= 4096,
 };
 
@@ -68,20 +66,10 @@ struct Amd {
 	int	ctx;
 	char	dir[32];	/* /dev/gpu/N */
 	pthread_mutex_t	lk;
-	pthread_cond_t	free;
-	unsigned char	*arena;
-	uint64_t	asize;
-	int	nslot;
-	unsigned char	*used;	/* per slot */
-	int	fids[Nfid];
-	int	nfids;
-	int	tfids[2][Nfid];	/* text requests: ctl's, submit's */
+	int	tfids[2][Nfid];	/* requests: ctl's, submit's */
 	int	ntfids[2];
 };
 
-/*
- * the arena
- */
 /* DRM9DEBUG=1: the ioctls that fail, as drm9.c's */
 static void
 dbg(const char *fmt, ...)
@@ -150,122 +138,7 @@ amd9attach(int fd, const char *dir, int ctx)
 	a->ctx = ctx;
 	snprintf(a->dir, sizeof a->dir, "%s", dir);
 	pthread_mutex_init(&a->lk, NULL);
-	pthread_cond_init(&a->free, NULL);
-	/* the arena when an ioctl first needs it (AMD9ARENA=1, or one without a word) */
 	return a;
-}
-
-/* the arena, attached at the first ioctl that goes through it; with a->lk */
-static int
-arenaattach(Amd *a)
-{
-	char buf[256], seg[64];
-	unsigned long long va, size;
-	char path[64];
-	long n;
-	int fd;
-
-	if(a->arena != NULL)
-		return 0;
-	/* ctlreq takes a->lk: a fid of its own */
-	snprintf(path, sizeof path, "%s/ctx/%d/ctl", a->dir, a->ctx);
-	if((fd = open(path, O_RDWR)) < 0)
-		return -1;
-	if(write(fd, "arena", 5) != 5 || (n = pread(fd, buf, sizeof buf - 1, 0)) <= 0){
-		close(fd);
-		return -1;
-	}
-	close(fd);
-	buf[n] = 0;
-	if(sscanf(buf, "arena %63s %lli %lli", seg, &va, &size) != 3)
-		return errno = EIO, -1;
-	/* the driver's pointers into it are ours: it attaches where it is */
-	a->arena = mesa9_segattach(seg, NULL, size);
-	if(a->arena == (void*)-1 || (uintptr_t)a->arena != va){
-		if(a->arena != (void*)-1)
-			mesa9_segdetach(a->arena);
-		a->arena = NULL;
-		return errno = EIO, -1;
-	}
-	a->asize = size;
-	a->nslot = size / Slot;
-	a->used = calloc(a->nslot, 1);
-	if(a->used == NULL){
-		mesa9_segdetach(a->arena);
-		a->arena = NULL;
-		return errno = ENOMEM, -1;
-	}
-	return 0;
-}
-
-/* n bytes of the arena, contiguous slots; waits for them */
-static unsigned char*
-aget(Amd *a, uint64_t n, int *first, int *count)
-{
-	int i, j, k;
-
-	k = (n + Slot - 1) / Slot;
-	if(k == 0)
-		k = 1;
-	pthread_mutex_lock(&a->lk);
-	if(arenaattach(a) < 0 || k > a->nslot){
-		pthread_mutex_unlock(&a->lk);
-		return NULL;
-	}
-	for(;;){
-		for(i = 0; i + k <= a->nslot; i++){
-			for(j = 0; j < k && !a->used[i+j]; j++)
-				;
-			if(j == k){
-				memset(a->used + i, 1, k);
-				pthread_mutex_unlock(&a->lk);
-				*first = i;
-				*count = k;
-				return a->arena + (uint64_t)i*Slot;
-			}
-		}
-		pthread_cond_wait(&a->free, &a->lk);
-	}
-}
-
-static void
-aput(Amd *a, int first, int count)
-{
-	pthread_mutex_lock(&a->lk);
-	memset(a->used + first, 0, count);
-	pthread_cond_broadcast(&a->free);
-	pthread_mutex_unlock(&a->lk);
-}
-
-/* an ioctl file of the context: kept open, one per call at a time */
-static int
-fidget(Amd *a)
-{
-	char path[64];
-	int fd;
-
-	pthread_mutex_lock(&a->lk);
-	if(a->nfids > 0){
-		fd = a->fids[--a->nfids];
-		pthread_mutex_unlock(&a->lk);
-		return fd;
-	}
-	pthread_mutex_unlock(&a->lk);
-	snprintf(path, sizeof path, "%s/ctx/%d/ioctl", a->dir, a->ctx);
-	return open(path, O_RDWR);
-}
-
-static void
-fidput(Amd *a, int fd)
-{
-	pthread_mutex_lock(&a->lk);
-	if(a->nfids < Nfid){
-		a->fids[a->nfids++] = fd;
-		fd = -1;
-	}
-	pthread_mutex_unlock(&a->lk);
-	if(fd >= 0)
-		close(fd);
 }
 
 /* Linux's errno values (the driver's) as APE's */
@@ -306,231 +179,8 @@ apeerrno(long e)
 	return EIO;
 }
 
-/* the ioctl with its arguments at p in the arena: 0, or -1 and errno */
-static int
-call(Amd *a, unsigned long lcmd, void *p)
-{
-	char buf[64];
-	long r;
-	int fd, n;
-
-	if((fd = fidget(a)) < 0)
-		return -1;
-	n = snprintf(buf, sizeof buf, "%#lx %#llx", lcmd, (unsigned long long)(uintptr_t)p);
-	if(write(fd, buf, n) != n || (n = pread(fd, buf, sizeof buf - 1, 0)) <= 0){
-		close(fd);
-		errno = EIO;
-		return -1;
-	}
-	fidput(a, fd);
-	buf[n] = 0;
-	r = strtol(buf, NULL, 10);
-	if(r < 0){
-		errno = apeerrno(-r);
-		return -1;
-	}
-	return 0;
-}
-
-/*
- * marshalling: the structure and what it points to, copied into the
- * arena (a first pass only counts), and back
- */
-typedef struct M M;
-struct M {
-	unsigned char	*base;	/* nil: counting */
-	uint64_t	n;
-};
-
-/* room for n bytes: the copy of src (or zeros) */
-static void*
-mput(M *m, const void *src, uint64_t n)
-{
-	void *p;
-
-	n = (n + 15) & ~(uint64_t)15;
-	if(m->base == NULL){
-		m->n += n;
-		return (void*)(uintptr_t)16;	/* not used when counting */
-	}
-	p = m->base + m->n;
-	m->n += n;
-	if(src != NULL)
-		memcpy(p, src, n);
-	else
-		memset(p, 0, n);
-	return p;
-}
-
 #define P(x)	((void*)(uintptr_t)(x))
 #define U(p)	((uint64_t)(uintptr_t)(p))
-
-/*
- * the nested parts of an ioctl's arguments s (in the arena already):
- * copied in (dir 0) or back out to the caller's (dir 1, orig: the
- * caller's structure)
- */
-static int
-nested(M *m, unsigned nr, void *s, void *orig, int out)
-{
-	switch(nr){
-	case 0x00: {	/* VERSION */
-		struct drm_version *v = s, *o = orig;
-
-		if(!out){
-			v->name = o->name_len ? mput(m, NULL, o->name_len) : NULL;
-			v->date = o->date_len ? mput(m, NULL, o->date_len) : NULL;
-			v->desc = o->desc_len ? mput(m, NULL, o->desc_len) : NULL;
-		}else{
-			if(o->name && v->name)
-				memcpy(o->name, v->name, o->name_len < v->name_len ? o->name_len : v->name_len);
-			if(o->date && v->date)
-				memcpy(o->date, v->date, o->date_len < v->date_len ? o->date_len : v->date_len);
-			if(o->desc && v->desc)
-				memcpy(o->desc, v->desc, o->desc_len < v->desc_len ? o->desc_len : v->desc_len);
-			o->version_major = v->version_major;
-			o->version_minor = v->version_minor;
-			o->version_patchlevel = v->version_patchlevel;
-			o->name_len = v->name_len;
-			o->date_len = v->date_len;
-			o->desc_len = v->desc_len;
-			return 1;	/* copied: the pointers are the caller's */
-		}
-		break;
-	}
-	case 0xC3: {	/* SYNCOBJ_WAIT */
-		struct drm_syncobj_wait *w = s, *o = orig;
-
-		if(!out)
-			w->handles = U(mput(m, P(o->handles), (uint64_t)o->count_handles * 4));
-		else{
-			o->first_signaled = w->first_signaled;
-			return 1;
-		}
-		break;
-	}
-	case 0xC4:	/* SYNCOBJ_RESET */
-	case 0xC5: {	/* SYNCOBJ_SIGNAL */
-		struct drm_syncobj_array *y = s, *o = orig;
-
-		if(!out)
-			y->handles = U(mput(m, P(o->handles), (uint64_t)o->count_handles * 4));
-		else
-			return 1;
-		break;
-	}
-	case 0xCA: {	/* SYNCOBJ_TIMELINE_WAIT */
-		struct drm_syncobj_timeline_wait *w = s, *o = orig;
-
-		if(!out){
-			w->handles = U(mput(m, P(o->handles), (uint64_t)o->count_handles * 4));
-			w->points = U(mput(m, P(o->points), (uint64_t)o->count_handles * 8));
-		}else{
-			o->first_signaled = w->first_signaled;
-			return 1;
-		}
-		break;
-	}
-	case 0xCB:	/* SYNCOBJ_QUERY */
-	case 0xCD: {	/* SYNCOBJ_TIMELINE_SIGNAL */
-		struct drm_syncobj_timeline_array *y = s, *o = orig;
-
-		if(!out){
-			y->handles = U(mput(m, P(o->handles), (uint64_t)o->count_handles * 4));
-			y->points = U(mput(m, P(o->points), (uint64_t)o->count_handles * 8));
-		}else{
-			if(nr == 0xCB && o->points)
-				memcpy(P(o->points), P(y->points), (uint64_t)o->count_handles * 8);
-			return 1;
-		}
-		break;
-	}
-	case DRM_COMMAND_BASE + DRM_AMDGPU_BO_LIST: {
-		union drm_amdgpu_bo_list *l = s, *o = orig;
-
-		if(!out)
-			l->in.bo_info_ptr = U(mput(m, P(o->in.bo_info_ptr),
-				(uint64_t)o->in.bo_number * o->in.bo_info_size));
-		else{
-			o->out = l->out;
-			return 1;
-		}
-		break;
-	}
-	case DRM_COMMAND_BASE + DRM_AMDGPU_CS: {
-		union drm_amdgpu_cs *c = s, *o = orig;
-		uint64_t *chp, *och;
-		struct drm_amdgpu_cs_chunk *ch, *oc;
-		struct drm_amdgpu_bo_list_in *bl, *obl;
-		uint32_t i;
-
-		if(out){
-			o->out = c->out;
-			return 1;
-		}
-		och = P(o->in.chunks);
-		chp = mput(m, NULL, (uint64_t)o->in.num_chunks * 8);
-		c->in.chunks = U(chp);
-		for(i = 0; i < o->in.num_chunks; i++){
-			oc = P(och[i]);
-			ch = mput(m, oc, sizeof *ch);
-			if(m->base != NULL)
-				chp[i] = U(ch);
-			if(m->base == NULL){
-				mput(m, NULL, (uint64_t)oc->length_dw * 4);
-				if(oc->chunk_id == AMDGPU_CHUNK_ID_BO_HANDLES){
-					obl = P(oc->chunk_data);
-					mput(m, NULL, (uint64_t)obl->bo_number * obl->bo_info_size);
-				}
-				continue;
-			}
-			ch->chunk_data = U(mput(m, P(oc->chunk_data), (uint64_t)oc->length_dw * 4));
-			if(oc->chunk_id == AMDGPU_CHUNK_ID_BO_HANDLES){
-				bl = P(ch->chunk_data);
-				obl = P(oc->chunk_data);
-				bl->bo_info_ptr = U(mput(m, P(obl->bo_info_ptr), (uint64_t)obl->bo_number * obl->bo_info_size));
-			}
-		}
-		break;
-	}
-	case DRM_COMMAND_BASE + DRM_AMDGPU_INFO: {
-		struct drm_amdgpu_info *in = s, *o = orig;
-
-		if(!out)
-			in->return_pointer = U(mput(m, NULL, o->return_size));
-		else{
-			memcpy(P(o->return_pointer), P(in->return_pointer), o->return_size);
-			return 1;
-		}
-		break;
-	}
-	case DRM_COMMAND_BASE + DRM_AMDGPU_GEM_OP: {
-		struct drm_amdgpu_gem_op *g = s, *o = orig;
-
-		if(o->op != AMDGPU_GEM_OP_GET_GEM_CREATE_INFO)
-			break;
-		if(!out)
-			g->value = U(mput(m, NULL, sizeof(struct drm_amdgpu_gem_create_in)));
-		else{
-			memcpy(P(o->value), P(g->value), sizeof(struct drm_amdgpu_gem_create_in));
-			return 1;
-		}
-		break;
-	}
-	case DRM_COMMAND_BASE + DRM_AMDGPU_WAIT_FENCES: {
-		union drm_amdgpu_wait_fences *w = s, *o = orig;
-
-		if(!out)
-			w->in.fences = U(mput(m, P(o->in.fences), (uint64_t)o->in.fence_count * sizeof(struct drm_amdgpu_fence)));
-		else{
-			o->out = w->out;
-			return 1;
-		}
-		break;
-	}
-	}
-	return 0;
-}
 
 /* ioctls that pass descriptors or user memory: none here */
 static int
@@ -915,15 +565,12 @@ out:
 }
 
 /*
- * the ioctls as text (gpu(4); aux/amdgpu's linux/req.c): each becomes
- * words written to the context's ctl (CS: its submit file), the reply
- * read back on the same fid.  Nothing of ours is in the driver's memory
- * or its in ours.  AMD9ARENA=1: the arena as before, for comparison.
+ * the ioctls as text (gpu(4); aux/amdgpu's linux/req.c)
  */
 enum {
 	Maxreq	= 32*1024 - 64,	/* a 9P message (devmnt's MAXRPC) */
 	Maxrep	= 64*1024,
-	Notext	= -2,		/* no word for it: the arena */
+	Notext	= -2,		/* no request for it */
 };
 
 /* the driver's names of Linux's errors (aux/amdgpu fs.c: errstr9) */
@@ -956,16 +603,6 @@ errnoof(const char *s)
 	if(sscanf(s, "error %d", &n) == 1)
 		return apeerrno(n);
 	return EIO;
-}
-
-static int
-textmode(void)
-{
-	static int t = -1;
-
-	if(t < 0)
-		t = getenv("AMD9ARENA") == NULL;
-	return t;
 }
 
 /* a fid of the context's ctl (0) or submit (1), kept open */
@@ -1232,14 +869,23 @@ tput(unsigned char *out, size_t size, size_t off, int type, uint64_t v)
 	}
 }
 
-/* "name v ..." lines into out by fields t; codec: "k.name v" into codec_info[k] */
+/*
+ * "name v ..." lines into out by fields t; codec: "k.name v" into
+ * codec_info[k].  The names only one side knows (a newer header on one of
+ * them) go to DRM9DEBUG's output: a field of ours the driver did not send
+ * stays 0 without that (tests/gpu/amdall.rc checks for them).
+ */
+enum { Maxfld = 128 };
 static void
-tfields(char *rep, const Fld *t, int codec, unsigned char *out, size_t size)
+tfields(char *rep, const Fld *t, int codec, unsigned char *out, size_t size, unsigned query)
 {
 	char *line, *next, *name, *v, *e;
 	const Fld *f;
 	size_t base;
 	int i, k;
+	char seen[Maxfld];
+
+	memset(seen, 0, sizeof seen);
 
 	for(line = rep; line != NULL && *line; line = next){
 		if((next = strchr(line, '\n')) != NULL)
@@ -1259,8 +905,12 @@ tfields(char *rep, const Fld *t, int codec, unsigned char *out, size_t size)
 		for(f = t; f->name != NULL; f++)
 			if(strcmp(f->name, name) == 0)
 				break;
-		if(f->name == NULL)
+		if(f->name == NULL){
+			dbg("info %#x: %s only in the driver's", query, name);
 			continue;	/* Linux's, not in Mesa's header */
+		}
+		if(f - t < Maxfld)
+			seen[f - t] = 1;
 		if(f->type == TA32){
 			for(i = 0; i < f->n && *v; i++){
 				tput(out, size, base + f->off + 4*i, T32, strtoull(v, &e, 0));
@@ -1269,24 +919,10 @@ tfields(char *rep, const Fld *t, int codec, unsigned char *out, size_t size)
 		}else
 			tput(out, size, base + f->off, f->type, TU(v));
 	}
+	for(f = t; f->name != NULL && f - t < Maxfld; f++)
+		if(!seen[f - t])
+			dbg("info %#x: %s only in Mesa's, 0", query, f->name);
 }
-
-/*
- * AMD9CHECK=1: each INFO query also through the arena (the ioctl as
- * before), the results compared field by field: a name only one side
- * knows, or a value the text lost, shows (on stderr)
- */
-static int
-checkmode(void)
-{
-	static int c = -1;
-
-	if(c < 0)
-		c = getenv("AMD9CHECK") != NULL;
-	return c;
-}
-
-static const Fld *lastfld;	/* tinfo's table of the last query (the check's, one at a time) */
 
 static int
 tinfo(Amd *a, struct drm_amdgpu_info *in, Tb *b, char *rep)
@@ -1333,27 +969,11 @@ tinfo(Amd *a, struct drm_amdgpu_info *in, Tb *b, char *rep)
 	default:
 		return errno = EINVAL, -1;	/* no word for it */
 	}
-	lastfld = codec ? NULL : t;
 	if(treq(a, 0, b, rep) < 0)
 		return -1;
 	memset(out, 0, size);
 	if(t != NULL){
-		/* a name of the driver's this side does not know (AMD9CHECK) */
-		if(checkmode() && !codec){
-			char *l, *e2;
-			const Fld *f;
-
-			for(l = rep; *l; l = e2 + (*e2 != 0)){
-				e2 = l + strcspn(l, "\n");
-				for(f = t; f->name != NULL; f++)
-					if(strncmp(l, f->name, strlen(f->name)) == 0 && l[strlen(f->name)] == ' ')
-						break;
-				if(f->name == NULL)
-					fprintf(stderr, "amd9check: info %#x: the driver's %.*s: not in Mesa's structure\n",
-						in->query, (int)strcspn(l, " "), l);
-			}
-		}
-		tfields(rep, t, codec, out, size);
+		tfields(rep, t, codec, out, size, in->query);
 		return 0;
 	}
 	/* numbers: one (32 or 64 bits by the size asked for) or 32-bit ones */
@@ -1522,6 +1142,17 @@ textioctl1(Amd *a, unsigned nr, void *arg, Tb *b, char *rep)
 			else if(strncmp(l + 1, "desc ", 5) == 0)
 				v->desc_len = tstr(v->desc, v->desc_len, l + 6);
 		}
+		return 0;
+	}
+	case 0x0c: {	/* GET_CAP */
+		struct drm_get_cap *g = arg;
+
+		tprint(b, "cap %llu", (unsigned long long)g->capability);
+		if(treq(a, 0, b, rep) < 0)
+			return -1;
+		if(twords(rep, "cap", w, 2) != 2)
+			return errno = EIO, -1;
+		g->value = TU(w[1]);
 		return 0;
 	}
 	case 0x09:	/* GEM_CLOSE */
@@ -1826,8 +1457,6 @@ textioctl1(Amd *a, unsigned nr, void *arg, Tb *b, char *rep)
 	return Notext;
 }
 
-static int	arenaioctl(Amd*, unsigned long, void*);
-
 int
 amd9ioctl(Amd *a, unsigned long req, void *arg)
 {
@@ -1842,80 +1471,14 @@ amd9ioctl(Amd *a, unsigned long req, void *arg)
 	if(nr == DRM_COMMAND_BASE + DRM_AMDGPU_FENCE_TO_HANDLE &&
 	   ((union drm_amdgpu_fence_to_handle*)arg)->in.what != AMDGPU_FENCE_TO_HANDLE_GET_SYNCOBJ)
 		return errno = EOPNOTSUPP, -1;	/* sync file descriptors: none */
-	if(textmode() && checkmode() && nr == DRM_COMMAND_BASE + DRM_AMDGPU_INFO){
-		struct drm_amdgpu_info *in = arg, old = *(struct drm_amdgpu_info*)arg;
-		unsigned char *want, *got = P(in->return_pointer);
-		uint32_t i;
-
-		if((r = textioctl(a, nr, arg)) != Notext && r == 0 && (want = calloc(1, in->return_size + 1)) != NULL){
-			old.return_pointer = U(want);
-			if(arenaioctl(a, req, &old) == 0 && memcmp(want, got, in->return_size) != 0){
-				const Fld *f;
-
-				for(i = 0; i < in->return_size; i++)
-					if(want[i] != got[i])
-						break;
-				f = NULL;
-				if(lastfld != NULL)
-					for(f = lastfld; f->name != NULL; f++)
-						if(i >= f->off && i < f->off + (f->type == T64 ? 8 : f->type == TA32 ? 4*f->n : 4))
-							break;
-				fprintf(stderr, "amd9check: info %#x: byte %u differs (%s): arena %#x, text %#x\n",
-					in->query, i, f != NULL && f->name != NULL ? f->name : "no field of the table",
-					want[i], got[i]);
-			}
-			free(want);
-		}
-		if(r != Notext)
-			return r;
-	}
-	if(textmode() && (r = textioctl(a, nr, arg)) != Notext){
-		if(r < 0)
-			dbg("ioctl %#x as text: %s", nr, strerror(errno));
-		return r;
-	}
-	return arenaioctl(a, req, arg);
-}
-
-/* the ioctl through the arena: its structure and all it points to copied there */
-static int
-arenaioctl(Amd *a, unsigned long req, void *arg)
-{
-	unsigned nr, size, dir;
-	unsigned long lcmd;
-	unsigned char *p;
-	int first, count, r;
-	M m;
-	void *s;
-
-	nr = req & 0xff;
-	size = (req >> 16) & IOCPARM_MASK;
-	/* Linux's encoding: 1 the caller writes (IOC_IN), 2 it reads (IOC_OUT) */
-	dir = ((req & IOC_IN) ? 1 : 0) | ((req & IOC_OUT) ? 2 : 0);
-	lcmd = (unsigned long)dir << 30 | (unsigned long)size << 16 | DRM_IOCTL_BASE << 8 | nr;
-	/* the size of the copy */
-	m.base = NULL;
-	m.n = 0;
-	s = mput(&m, NULL, size);
-	if(m.n > 0 && size > 0){
-		/* count the nested parts on a copy of the caller's structure */
-		unsigned char tmp[4096];
-
-		if(size > sizeof tmp)
-			return errno = EINVAL, -1;
-		memcpy(tmp, arg, size);
-		nested(&m, nr, tmp, arg, 0);
-	}
-	if((p = aget(a, m.n, &first, &count)) == NULL)
-		return errno = E2BIG, -1;
-	m.base = p;
-	m.n = 0;
-	s = mput(&m, arg, size);
-	nested(&m, nr, s, arg, 0);
 	if(nr == DRM_COMMAND_BASE + DRM_AMDGPU_GEM_CREATE)
-		tracecreate(s);
-	r = call(a, lcmd, s);
-	trace(nr, s, r);
+		tracecreate(arg);
+	r = textioctl(a, nr, arg);
+	if(r == Notext){
+		dbg("ioctl %#x: no request for it", nr);
+		return errno = EOPNOTSUPP, -1;
+	}
+	trace(nr, arg, r);
 	if(r == 0 && !inpeek && dbglevel() >= 4 && nr == DRM_COMMAND_BASE + DRM_AMDGPU_CS && dbguserdata != 0){
 		uint32_t ctx = ((union drm_amdgpu_cs*)arg)->in.ctx_id;
 
@@ -1930,14 +1493,6 @@ arenaioctl(Amd *a, unsigned long req, void *arg)
 		else
 			dbg("ioctl %#x: %s", nr, strerror(errno));
 	}
-	/*
-	 * what the driver wrote: through the structure's pointers whatever its
-	 * direction (INFO is an IOW: its result goes to return_pointer), the
-	 * structure itself if the caller reads it
-	 */
-	if(r == 0 && !nested(&m, nr, s, arg, 1) && (dir & 2))
-		memcpy(arg, s, size);
-	aput(a, first, count);
 	return r;
 }
 
