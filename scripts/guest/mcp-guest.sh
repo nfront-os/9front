@@ -28,7 +28,8 @@ ss -ltnH "sport = :$PORT" | grep -q . && { echo "mcp-guest: port $PORT is taken 
 X=$CLI_DIR/mcp/root
 rm -rf "$X"
 mkdir -p "$X/tests"
-[ -z "$UFS_EXTRA" ] || cp -r "$UFS_EXTRA"/. "$X/"
+# hard links where they can be (the same file system: GBs of test programs), else a copy
+[ -z "$UFS_EXTRA" ] || cp -al "$UFS_EXTRA"/. "$X/" 2>/dev/null || cp -r "$UFS_EXTRA"/. "$X/"
 GOOS=plan9 GOARCH=$A CGO_ENABLED=0 GOCACHE=$CLI_DIR/mcp/gocache \
 	"$GO" build -C "$MCP_SRC" -o "$X/tests/9front-mcp" .
 rm -f "$CLI_DIR/mcp.sid"

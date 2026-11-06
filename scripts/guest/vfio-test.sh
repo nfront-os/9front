@@ -11,6 +11,9 @@
 # in the guest's /lib/firmware/amdgpu: aux/amdgpu loads it from there.
 #
 # usage: scripts/guest/vfio-test.sh [guest commands]
+#        MCP=1 scripts/guest/vfio-test.sh [first commands]
+#   MCP=1: the guest runs ../9front-mcp's server instead (mcp-guest.sh) and
+#   keeps running; scripts/guest/mcp.py then works in it
 #   env: FWDIR  the host's amdgpu firmware (/usr/lib/firmware/amdgpu)
 #        FW     prefixes of its files: the families of the RDNA 3 cards'
 #               IP blocks (GC 11.0, PSP and SMU 13.0, DCN 3.2, SDMA 6.0,
@@ -60,5 +63,9 @@ cp "$ROOT"/tests/gpu/amd*.rc "$X/tests/" 2>/dev/null || true
 # by default: the PCI devices with their BARs (pci -bv), and the first
 # words of the AMD functions' configuration space (vendor 1002)
 cmds=${1:-"pci -bv; for(f in '#\$/pci/'*ctl) if(grep -s '1002/' \$f){ echo \$f; cat \$f; xd -x4 \`{echo \$f | sed 's/ctl\$/raw/'} | sed 4q }"}
+if [ -n "$MCP" ]; then
+	UFS_EXTRA=$X MEM=${MEM:-4096} CPU=${CPU:-host} QEMU_EXTRA="-device vfio-pci,host=$GPU,multifunction=on -device vfio-pci,host=$AUDIO $QEMU_EXTRA" \
+		exec "$ROOT/scripts/guest/mcp-guest.sh" "$@"
+fi
 UFS_EXTRA=$X MEM=${MEM:-4096} CPU=${CPU:-host} QEMU_EXTRA="-device vfio-pci,host=$GPU,multifunction=on -device vfio-pci,host=$AUDIO $QEMU_EXTRA" \
 	"$ROOT/scripts/guest/boot-cli.sh" "$cmds"
