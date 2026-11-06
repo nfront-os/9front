@@ -1013,3 +1013,6 @@ Schließen von TCP (neue Schnittstelle für den Rust-Port).
 - **klibc amd64/386** (Kernel): libcs Assembler (`memmove memcpy memset memchr memcmp memccpy strcat strchr strcpy strlen`) statt `port/*.c` (Byte-Schleifen mit `-Os`), wie Upstream libc.a linkt; keine nutzt r14/r15 (amd64 m/up), Trap-/Syscall-Eintritt machen `cld`. 1 MB: amd64 360 → 55 µs, 386 665 → 55 µs.
 - `tests/static`: „9fronts .s unverändert“ prüft nur geänderte/gelöschte (`--diff-filter=MD`), ein für 6a hinzugefügtes ist erlaubt. apetest/libctest prüfen memmove/memcpy bei allen Ausrichtungen.
 - gcc: amd64 Bau 812/812, guest 129/129, boot 19/19; 386 Bau 812/812, guest 129/129, boot 19/19; static 14/14.
+
+## 2026-11-06: build.exe kompiliert parallel (von Branch ui übernommen)
+Vorher war eine Bibliothek **ein** gcc-Aufruf mit allen Dateien (gcc übersetzt sie nacheinander), Programme und Kernel-Bibliotheken liefen nacheinander; `CPUS` war gesetzt, aber unbenutzt. Jetzt `parallel()` in build.go: jede Quelldatei eines Manifests ist ein eigener gcc-Lauf, `CPUS` zugleich (Vorgabe NumCPU; `CPUS=1` wie vorher). Manifeste laufen weiter nacheinander, Link/Archiv danach. Auf ui (12 Kerne): SDL3 82 → 13,5 s, ganzer Baum nach `touch sys/include/libc.h` mit `-D` 84 s statt > 10 min.

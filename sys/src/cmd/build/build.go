@@ -68,6 +68,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -659,18 +660,49 @@ func isasm(f string) bool {
 	return strings.HasSuffix(f, ".s") || strings.HasSuffix(f, ".S")
 }
 
+// parallel runs the jobs, $CPUS of them at once (main sets it from
+// runtime.NumCPU); a failing one ends the tool (run's log.Fatal)
+func parallel(jobs []func()) {
+	n, _ := strconv.Atoi(os.Getenv("CPUS"))
+	if n <= 1 || len(jobs) <= 1 {
+		for _, j := range jobs {
+			j()
+		}
+		return
+	}
+	sem := make(chan struct{}, n)
+	var wg sync.WaitGroup
+	for _, j := range jobs {
+		wg.Add(1)
+		sem <- struct{}{}
+		go func(j func()) {
+			defer wg.Done()
+			defer func() { <-sem }()
+			j()
+		}(j)
+	}
+	wg.Wait()
+}
+
+// compile: each source file by a compiler run of its own, in parallel
+// (parallel): the objects, gcc's x.d and their signatures are per file
 func compile(b *build) {
 	log.Printf("Building %s\n", b.Name)
 	command, args, asmArgs := compileArgs(b)
 	if len(b.SourceFilesCmd) > 0 {
+		var jobs []func()
 		for _, sourceFile := range b.SourceFilesCmd {
 			if b.cmdstale != nil && !b.cmdstale[sourceFile] {
 				continue // -D: only to be linked again
 			}
-			cmd := exec.Command(command, append(append(args[:len(args):len(args)], shellflags(b)...), sourceFile)...)
-			run(b, *shellhack, cmd)
-			signdeps(b, sourceFile, command, args)
+			f := sourceFile
+			jobs = append(jobs, func() {
+				cmd := exec.Command(command, append(append(args[:len(args):len(args)], shellflags(b)...), f)...)
+				run(b, *shellhack, cmd)
+				signdeps(b, f, command, args)
+			})
 		}
+		parallel(jobs)
 		return
 	}
 
@@ -685,32 +717,30 @@ func compile(b *build) {
 		}
 	}
 
-	// Assemble .s/.S files with gcc (uses gas)
-	if len(asmFiles) > 0 {
-		cc(b, tools["cc"], asmArgs, asmFiles)
-	}
-
-	// Compile .c files
-	if len(cFiles) > 0 {
-		cc(b, command, args, cFiles)
-	}
+	// Assemble .s/.S files with gcc (uses gas), compile .c files: all at once
+	jobs := cc(b, tools["cc"], asmArgs, asmFiles)
+	jobs = append(jobs, cc(b, command, args, cFiles)...)
+	parallel(jobs)
 }
 
-// cc compiles the files fs in one run of the compiler; with an Objtag
-// each by itself into its x.<Objtag>.o (-o), which leaves the x.o of
-// the same source, and gcc names the dependency file after it
-func cc(b *build, command string, args, fs []string) {
+// cc: a job for each of the files fs, a run of the compiler each; with
+// an Objtag into its x.<Objtag>.o (-o), which leaves the x.o of the same
+// source, and gcc names the dependency file after it
+func cc(b *build, command string, args, fs []string) []func() {
 	cargs := append(args[:len(args):len(args)], shellflags(b)...)
-	if b.Objtag == "" {
-		run(b, *shellhack, exec.Command(command, append(cargs, fs...)...))
-	} else {
-		for _, f := range fs {
-			run(b, *shellhack, exec.Command(command, append(cargs, "-o", objectOf(b, f), f)...))
-		}
-	}
+	var jobs []func()
 	for _, f := range fs {
-		signdeps(b, f, command, args)
+		f := f
+		jobs = append(jobs, func() {
+			if b.Objtag == "" {
+				run(b, *shellhack, exec.Command(command, append(cargs[:len(cargs):len(cargs)], f)...))
+			} else {
+				run(b, *shellhack, exec.Command(command, append(cargs[:len(cargs):len(cargs)], "-o", objectOf(b, f), f)...))
+			}
+			signdeps(b, f, command, args)
+		})
 	}
+	return jobs
 }
 
 // the dependency file gcc -MMD writes for source f's object
