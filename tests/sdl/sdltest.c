@@ -5,8 +5,10 @@
  * wsys or rio: the video driver's name, the window's size and title
  * (/dev/label), the window surface (left half red, right half blue) and
  * the software renderer (a green square) read back from the window
- * (/dev/window, image(6)), the clipboard (/dev/snarf), events pumped for
- * a while, a tone through /dev/audio if there is one.
+ * (/dev/window, image(6)), the clipboard (/dev/snarf), cursors (/dev/cursor
+ * read back where wsys gives it: one of the program's, a system cursor,
+ * hidden, the default), the pointer warped, events pumped for a while, a
+ * tone through /dev/audio if there is one.
  * -e secs: then the input events for secs seconds (keys, the mouse), a line
  * each (the host types and moves the mouse through QEMU: tests/sdl/README).
  * Prints "ok ..." / "FAIL ..." lines and a summary.
@@ -101,6 +103,91 @@ static void check(const char *what, int x, int y, unsigned want)
     }
 }
 
+/* the window's cursor as mouse(3) gives it: 72 bytes, none for the default; -1 unreadable */
+static int readcursor(unsigned char *c)
+{
+    int fd, n;
+
+    if ((fd = open("/dev/cursor", O_RDONLY)) < 0) {
+        return -1;
+    }
+    n = (int)read(fd, c, 72);
+    close(fd);
+    return n;
+}
+
+static int le32(const unsigned char *p)
+{
+    return (int)(p[0] | p[1] << 8 | p[2] << 16 | (unsigned)p[3] << 24);
+}
+
+static void cursors(void)
+{
+    SDL_Surface *s;
+    SDL_Cursor *cur, *sys;
+    unsigned char c[72];
+    int n, x, y, bad;
+
+    /* 16x16: the top half's left black, its right white, the bottom half clear */
+    s = SDL_CreateSurface(16, 16, SDL_PIXELFORMAT_ARGB8888);
+    for (y = 0; y < 16; y++) {
+        for (x = 0; x < 16; x++) {
+            SDL_WriteSurfacePixel(s, x, y, x < 8 ? 0 : 255, x < 8 ? 0 : 255, x < 8 ? 0 : 255, y < 8 ? 255 : 0);
+        }
+    }
+    if (!(cur = SDL_CreateColorCursor(s, 3, 5)) || !SDL_SetCursor(cur)) {
+        FAIL("cursor: %s", SDL_GetError());
+        SDL_DestroySurface(s);
+        return;
+    }
+    SDL_DestroySurface(s);
+    if ((n = readcursor(c)) < 0) {
+        OK("cursor set; /dev/cursor not readable here (rio)");
+        SDL_SetCursor(SDL_GetDefaultCursor());
+        SDL_DestroyCursor(cur);
+        return;
+    }
+    bad = n != 72 || le32(c) != -3 || le32(c + 4) != -5;
+    for (y = 0; y < 16 && !bad; y++) {
+        /* clr (white) then set (black), two bytes a row */
+        bad = c[8 + 2 * y] != 0 || c[8 + 2 * y + 1] != (y < 8 ? 0xff : 0) ||
+              c[40 + 2 * y] != (y < 8 ? 0xff : 0) || c[40 + 2 * y + 1] != 0;
+    }
+    if (bad) {
+        FAIL("cursor: /dev/cursor has %d bytes, offset %d %d, not the surface's", n, n >= 8 ? le32(c) : 0, n >= 8 ? le32(c + 4) : 0);
+    } else {
+        OK("cursor from a surface in /dev/cursor");
+    }
+
+    sys = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_CROSSHAIR);
+    if (!sys || !SDL_SetCursor(sys) || readcursor(c) != 72 || le32(c) != -7 || le32(c + 4) != -7 || c[40 + 2 * 7] != 0xf8) {
+        FAIL("system cursor crosshair: %s", SDL_GetError());
+    } else {
+        OK("system cursor crosshair in /dev/cursor");
+    }
+
+    SDL_HideCursor();
+    n = readcursor(c);
+    for (x = 8, bad = n != 72; x < 72 && !bad; x++) {
+        bad = c[x] != 0;
+    }
+    if (bad) {
+        FAIL("hidden cursor: /dev/cursor has %d bytes, not a cursor of no pixels", n);
+    } else {
+        OK("hidden cursor: no pixels");
+    }
+    SDL_ShowCursor();
+
+    SDL_SetCursor(SDL_GetDefaultCursor());
+    if ((n = readcursor(c)) != 0) {
+        FAIL("default cursor: /dev/cursor has %d bytes, want none (the arrow)", n);
+    } else {
+        OK("default cursor: the window system's arrow");
+    }
+    SDL_DestroyCursor(sys);
+    SDL_DestroyCursor(cur);
+}
+
 int main(int argc, char **argv)
 {
     SDL_Window *win;
@@ -179,6 +266,15 @@ int main(int argc, char **argv)
         OK("clipboard through /dev/snarf");
     } else {
         FAIL("clipboard: %s", SDL_GetError());
+    }
+
+    cursors();
+    SDL_ClearError();
+    SDL_WarpMouseInWindow(win, 50, 60);
+    if (*SDL_GetError() == 0) {
+        OK("pointer warped");
+    } else {
+        FAIL("SDL_WarpMouseInWindow: %s", SDL_GetError());
     }
 
     /* events for a while: whatever comes, no hang */

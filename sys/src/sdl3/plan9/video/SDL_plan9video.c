@@ -12,6 +12,8 @@
     keys down after a press or release, so each change is a key event;
     c the character typed, SDL's text input)
   - the title: /dev/label; the clipboard: /dev/snarf; the size: /dev/wctl
+  - cursors: /dev/cursor (SDL_plan9mouse.c); warping the pointer: writing
+    m x y to /dev/mouse
   - Vulkan: VK_PLAN9_surface (SDL_plan9vulkan.c)
 
   One window a process (its window of the window system); readers of
@@ -28,6 +30,7 @@
 #include "events/SDL_mouse_c.h"
 #include "events/SDL_windowevents_c.h"
 #include "SDL_plan9opengl.h"
+#include "SDL_plan9mouse.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -485,6 +488,23 @@ static bool PLAN9_HasClipboardText(SDL_VideoDevice *_this)
     return has;
 }
 
+/* the pointer to x y in the window: m x y on the screen to /dev/mouse */
+static bool PLAN9_WarpMouse(SDL_Window *window, float x, float y)
+{
+    char msg[64];
+    int n;
+
+    (void)window;
+    if (p9.mousefd < 0) {
+        return SDL_SetError("plan9: no /dev/mouse");
+    }
+    n = SDL_snprintf(msg, sizeof msg, "m%d %d", p9.wx + (int)x, p9.wy + (int)y);
+    if (write(p9.mousefd, msg, n) != n) {
+        return SDL_SetError("plan9: /dev/mouse: %s", strerror(errno));
+    }
+    return true;
+}
+
 static bool PLAN9_VideoInit(SDL_VideoDevice *_this)
 {
     SDL_DisplayMode mode;
@@ -507,12 +527,15 @@ static bool PLAN9_VideoInit(SDL_VideoDevice *_this)
     }
     SDL_AddKeyboard(SDL_DEFAULT_KEYBOARD_ID, "plan9 kbd");
     SDL_AddMouse(SDL_DEFAULT_MOUSE_ID, "plan9 mouse");
+    PLAN9_InitMouse();
+    SDL_GetMouse()->WarpMouse = PLAN9_WarpMouse;
     return true;
 }
 
 static void PLAN9_VideoQuit(SDL_VideoDevice *_this)
 {
     (void)_this;
+    PLAN9_QuitMouse();
     p9draw_close();
 }
 

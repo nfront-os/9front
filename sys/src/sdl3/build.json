@@ -203,6 +203,7 @@
 			"vendor/src/video/yuv2rgb/yuv_rgb_sse.c",
 			"vendor/src/video/yuv2rgb/yuv_rgb_std.c",
 			"plan9/audio/SDL_plan9audio.c",
+			"plan9/video/SDL_plan9mouse.c",
 			"plan9/video/SDL_plan9opengl.c",
 			"plan9/video/SDL_plan9video.c",
 			"plan9/video/SDL_plan9vulkan.c",

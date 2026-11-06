@@ -11,7 +11,10 @@ the headers in `/sys/include/ape/SDL3`. Programs are APE programs:
   without either) through draw(3) (`p9draw.c`, APE's libdraw), the window
   framebuffer loaded into it; mouse `/dev/mouse` (`r`: resized), keyboard
   `/dev/kbd` (kbd(3): key down and up, text from `c`), title `/dev/label`,
-  clipboard `/dev/snarf`, size `/dev/wctl`. One window a process. Vulkan:
+  clipboard `/dev/snarf`, size `/dev/wctl`; cursors `/dev/cursor` (`SDL_plan9mouse.c`:
+  16x16 of two bits, a program's scaled down and made dark or light, the system
+  cursors drawn there), the pointer warped by `m x y` to `/dev/mouse`. One window
+  a process. Vulkan:
   `VK_PLAN9_surface`, the static libvulkan.a by a weak reference (a program with
   SDL's Vulkan links `-Wl,-u,vkGetInstanceProcAddr -lSDL3 -lvulkan`); then SDL's
   Vulkan renderer is there too (`tests/sdl/sdlvk.c`, on the card `tests/gpu/amdsdl.rc`).
@@ -31,4 +34,4 @@ the headers in `/sys/include/ape/SDL3`. Programs are APE programs:
   `scripts/sdl3/vendor.sh` from the release (`VERSION`; its tarball in
   ../9front-ui/src) with the overlay over it; `build.json` too.
 
-Not yet: joysticks, cursors, more than one window, SDL's GPU API.
+Not yet: joysticks, more than one window, SDL's GPU API.
