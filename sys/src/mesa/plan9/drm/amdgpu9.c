@@ -75,6 +75,8 @@ struct Amd {
 	unsigned char	*used;	/* per slot */
 	int	fids[Nfid];
 	int	nfids;
+	int	tfids[2][Nfid];	/* text requests: ctl's, submit's */
+	int	ntfids[2];
 };
 
 /*
@@ -139,8 +141,6 @@ amd9setfd(Amd *a, int fd)
 Amd*
 amd9attach(int fd, const char *dir, int ctx)
 {
-	char buf[256], seg[64];
-	unsigned long long va, size;
 	Amd *a;
 
 	a = calloc(1, sizeof *a);
@@ -151,28 +151,51 @@ amd9attach(int fd, const char *dir, int ctx)
 	snprintf(a->dir, sizeof a->dir, "%s", dir);
 	pthread_mutex_init(&a->lk, NULL);
 	pthread_cond_init(&a->free, NULL);
-	if(ctlreq(a, buf, sizeof buf, "arena") < 0 ||
-	   sscanf(buf, "arena %63s %lli %lli", seg, &va, &size) != 3){
-		free(a);
-		return NULL;
+	/* the arena when an ioctl first needs it (AMD9ARENA=1, or one without a word) */
+	return a;
+}
+
+/* the arena, attached at the first ioctl that goes through it; with a->lk */
+static int
+arenaattach(Amd *a)
+{
+	char buf[256], seg[64];
+	unsigned long long va, size;
+	char path[64];
+	long n;
+	int fd;
+
+	if(a->arena != NULL)
+		return 0;
+	/* ctlreq takes a->lk: a fid of its own */
+	snprintf(path, sizeof path, "%s/ctx/%d/ctl", a->dir, a->ctx);
+	if((fd = open(path, O_RDWR)) < 0)
+		return -1;
+	if(write(fd, "arena", 5) != 5 || (n = pread(fd, buf, sizeof buf - 1, 0)) <= 0){
+		close(fd);
+		return -1;
 	}
+	close(fd);
+	buf[n] = 0;
+	if(sscanf(buf, "arena %63s %lli %lli", seg, &va, &size) != 3)
+		return errno = EIO, -1;
 	/* the driver's pointers into it are ours: it attaches where it is */
 	a->arena = mesa9_segattach(seg, NULL, size);
 	if(a->arena == (void*)-1 || (uintptr_t)a->arena != va){
 		if(a->arena != (void*)-1)
 			mesa9_segdetach(a->arena);
-		free(a);
-		return NULL;
+		a->arena = NULL;
+		return errno = EIO, -1;
 	}
 	a->asize = size;
 	a->nslot = size / Slot;
 	a->used = calloc(a->nslot, 1);
 	if(a->used == NULL){
 		mesa9_segdetach(a->arena);
-		free(a);
-		return NULL;
+		a->arena = NULL;
+		return errno = ENOMEM, -1;
 	}
-	return a;
+	return 0;
 }
 
 /* n bytes of the arena, contiguous slots; waits for them */
@@ -184,9 +207,11 @@ aget(Amd *a, uint64_t n, int *first, int *count)
 	k = (n + Slot - 1) / Slot;
 	if(k == 0)
 		k = 1;
-	if(k > a->nslot)
-		return NULL;
 	pthread_mutex_lock(&a->lk);
+	if(arenaattach(a) < 0 || k > a->nslot){
+		pthread_mutex_unlock(&a->lk);
+		return NULL;
+	}
 	for(;;){
 		for(i = 0; i + k <= a->nslot; i++){
 			for(j = 0; j < k && !a->used[i+j]; j++)
@@ -889,6 +914,885 @@ out:
 	inpeek = 0;
 }
 
+/*
+ * the ioctls as text (gpu(4); aux/amdgpu's linux/req.c): each becomes
+ * words written to the context's ctl (CS: its submit file), the reply
+ * read back on the same fid.  Nothing of ours is in the driver's memory
+ * or its in ours.  AMD9ARENA=1: the arena as before, for comparison.
+ */
+enum {
+	Maxreq	= 32*1024 - 64,	/* a 9P message (devmnt's MAXRPC) */
+	Maxrep	= 64*1024,
+	Notext	= -2,		/* no word for it: the arena */
+};
+
+/* the driver's names of Linux's errors (aux/amdgpu fs.c: errstr9) */
+static const struct {
+	const char	*s;
+	int	e;
+} errs[] = {
+	{ "operation not permitted", EPERM }, { "no such object", ENOENT },
+	{ "no such process", ESRCH }, { "interrupted", EINTR }, { "i/o error", EIO },
+	{ "no such device or address", ENXIO }, { "too big", E2BIG }, { "bad handle", EBADF },
+	{ "try again", EAGAIN }, { "out of memory", ENOMEM }, { "permission denied", EACCES },
+	{ "bad address", EFAULT }, { "busy", EBUSY }, { "exists", EEXIST }, { "no device", ENODEV },
+	{ "bad request", EINVAL }, { "too many open files", EMFILE }, { "not an ioctl", ENOTTY },
+	{ "no room in visible VRAM", ENOSPC }, { "out of range", ERANGE }, { "deadlock", EDEADLK },
+	{ "not implemented", ENOSYS }, { "no data", ENODATA }, { "timer expired", ETIME },
+	{ "overflow", EOVERFLOW }, { "not supported", EOPNOTSUPP },
+	{ "GPU address in use or out of range", EINVAL }, { "timed out", ETIMEDOUT },
+	{ "canceled", ECANCELED },
+};
+
+static int
+errnoof(const char *s)
+{
+	unsigned i;
+	int n;
+
+	for(i = 0; i < sizeof errs / sizeof errs[0]; i++)
+		if(strcmp(errs[i].s, s) == 0)
+			return errs[i].e;
+	if(sscanf(s, "error %d", &n) == 1)
+		return apeerrno(n);
+	return EIO;
+}
+
+static int
+textmode(void)
+{
+	static int t = -1;
+
+	if(t < 0)
+		t = getenv("AMD9ARENA") == NULL;
+	return t;
+}
+
+/* a fid of the context's ctl (0) or submit (1), kept open */
+static int
+tfidget(Amd *a, int sub)
+{
+	char path[64];
+	int fd;
+
+	pthread_mutex_lock(&a->lk);
+	if(a->ntfids[sub] > 0){
+		fd = a->tfids[sub][--a->ntfids[sub]];
+		pthread_mutex_unlock(&a->lk);
+		return fd;
+	}
+	pthread_mutex_unlock(&a->lk);
+	snprintf(path, sizeof path, "%s/ctx/%d/%s", a->dir, a->ctx, sub ? "submit" : "ctl");
+	return open(path, O_RDWR);
+}
+
+static void
+tfidput(Amd *a, int sub, int fd)
+{
+	pthread_mutex_lock(&a->lk);
+	if(a->ntfids[sub] < Nfid){
+		a->tfids[sub][a->ntfids[sub]++] = fd;
+		fd = -1;
+	}
+	pthread_mutex_unlock(&a->lk);
+	if(fd >= 0)
+		close(fd);
+}
+
+/* a request being written */
+typedef struct Tb Tb;
+struct Tb {
+	char	s[Maxreq+1];
+	int	n;
+	int	over;
+};
+
+static void
+tprint(Tb *b, const char *fmt, ...)
+{
+	va_list arg;
+	int m;
+
+	if(b->over)
+		return;
+	va_start(arg, fmt);
+	m = vsnprintf(b->s + b->n, sizeof b->s - b->n, fmt, arg);
+	va_end(arg);
+	if(m < 0 || b->n + m >= (int)sizeof b->s)
+		b->over = 1;
+	else
+		b->n += m;
+}
+
+/*
+ * the request in b, on ctl or submit; its reply in rep (Maxrep bytes, NUL
+ * terminated): 0, or -1 and errno
+ */
+static int
+treq(Amd *a, int sub, Tb *b, char *rep)
+{
+	char err[256];
+	long n, m;
+	int fd;
+
+	if(b->over)
+		return errno = E2BIG, -1;
+	if((fd = tfidget(a, sub)) < 0)
+		return -1;
+	if(write(fd, b->s, b->n) != b->n){
+		err[0] = 0;
+		_ERRSTR(err, sizeof err);
+		tfidput(a, sub, fd);
+		dbg("%.*s: %s", b->n > 60 ? 60 : b->n, b->s, err);
+		return errno = errnoof(err), -1;
+	}
+	for(n = 0; n < Maxrep - 1; n += m)
+		if((m = pread(fd, rep + n, Maxrep - 1 - n, n)) <= 0)
+			break;
+	rep[n] = 0;
+	tfidput(a, sub, fd);
+	return 0;
+}
+
+/* the reply's words after its first, "verb w1 w2 ..." */
+static int
+twords(char *rep, const char *verb, char **w, int max)
+{
+	char *p;
+	int n;
+
+	n = 0;
+	p = rep;
+	while(*p == ' ')
+		p++;
+	if(strncmp(p, verb, strlen(verb)) != 0)
+		return -1;
+	p += strlen(verb);
+	while(n < max){
+		while(*p == ' ' || *p == '\n')
+			*p++ = 0;
+		if(*p == 0)
+			break;
+		w[n++] = p;
+		while(*p && *p != ' ' && *p != '\n')
+			p++;
+	}
+	return n;
+}
+
+#define TU(s)	strtoull((s), NULL, 0)
+
+/* the driver's names of domains (0) and creation flags (1), back to bits */
+typedef struct Tname Tname;
+struct Tname {
+	const char	*s;
+	uint64_t	bit;
+};
+
+static uint64_t
+tbits(char *s, int flags)
+{
+	static const Tname dom[] = {
+		{ "cpu", AMDGPU_GEM_DOMAIN_CPU }, { "gtt", AMDGPU_GEM_DOMAIN_GTT },
+		{ "vram", AMDGPU_GEM_DOMAIN_VRAM }, { "gds", AMDGPU_GEM_DOMAIN_GDS },
+		{ "gws", AMDGPU_GEM_DOMAIN_GWS }, { "oa", AMDGPU_GEM_DOMAIN_OA },
+		{ "doorbell", AMDGPU_GEM_DOMAIN_DOORBELL }, { NULL, 0 }
+	}, fl[] = {
+		{ "cpuaccess", AMDGPU_GEM_CREATE_CPU_ACCESS_REQUIRED },
+		{ "nocpuaccess", AMDGPU_GEM_CREATE_NO_CPU_ACCESS },
+		{ "uswc", AMDGPU_GEM_CREATE_CPU_GTT_USWC }, { "cleared", AMDGPU_GEM_CREATE_VRAM_CLEARED },
+		{ "contiguous", AMDGPU_GEM_CREATE_VRAM_CONTIGUOUS },
+		{ "local", AMDGPU_GEM_CREATE_VM_ALWAYS_VALID },
+		{ "explicitsync", AMDGPU_GEM_CREATE_EXPLICIT_SYNC }, { "mqd", AMDGPU_GEM_CREATE_CP_MQD_GFX9 },
+		{ "wipe", AMDGPU_GEM_CREATE_VRAM_WIPE_ON_RELEASE }, { "encrypted", AMDGPU_GEM_CREATE_ENCRYPTED },
+		{ "preemptible", AMDGPU_GEM_CREATE_PREEMPTIBLE },
+		{ "discardable", AMDGPU_GEM_CREATE_DISCARDABLE }, { "coherent", AMDGPU_GEM_CREATE_COHERENT },
+		{ "uncached", AMDGPU_GEM_CREATE_UNCACHED }, { "extcoherent", AMDGPU_GEM_CREATE_EXT_COHERENT },
+		{ "dcc", AMDGPU_GEM_CREATE_GFX12_DCC }, { NULL, 0 }
+	};
+	const Tname *t = flags ? fl : dom;
+	uint64_t v;
+	char *e;
+	int i, n;
+
+	v = 0;
+	while(*s){
+		n = strcspn(s, ",");
+		if(*s >= '0' && *s <= '9')
+			v |= strtoull(s, &e, 0);
+		else
+			for(i = 0; t[i].s != NULL; i++)
+				if(strlen(t[i].s) == (size_t)n && strncmp(t[i].s, s, n) == 0)
+					v |= t[i].bit;
+		s += n;
+		if(*s == ',')
+			s++;
+	}
+	return v;
+}
+
+/*
+ * INFO: the driver's "name value" lines into the caller's structure, by
+ * the names of its fields (the structures of Mesa's header and Linux's
+ * can differ: what one has and the other not stays zero)
+ */
+enum { T32, T64, TA32 };
+typedef struct Fld Fld;
+struct Fld {
+	const char	*name;
+	int	type;
+	size_t	off;
+	int	n;
+};
+#define D32(s, f)	{ #f, T32, offsetof(struct s, f), 1 }
+#define D64(s, f)	{ #f, T64, offsetof(struct s, f), 1 }
+#define DA(s, f, n)	{ #f, TA32, offsetof(struct s, f), n }
+#define DN(s, p, f)	{ #p "." #f, T64, offsetof(struct s, p.f), 1 }
+#define DEV	drm_amdgpu_info_device
+
+static const Fld devfld[] = {
+	D32(DEV, device_id), D32(DEV, chip_rev), D32(DEV, external_rev), D32(DEV, pci_rev),
+	D32(DEV, family), D32(DEV, num_shader_engines), D32(DEV, num_shader_arrays_per_engine),
+	D32(DEV, gpu_counter_freq), D64(DEV, max_engine_clock), D64(DEV, max_memory_clock),
+	D32(DEV, cu_active_number), D32(DEV, cu_ao_mask), DA(DEV, cu_bitmap, 16),
+	D32(DEV, enabled_rb_pipes_mask), D32(DEV, num_rb_pipes), D32(DEV, num_hw_gfx_contexts),
+	D32(DEV, pcie_gen), D64(DEV, ids_flags), D64(DEV, virtual_address_offset),
+	D64(DEV, virtual_address_max), D32(DEV, virtual_address_alignment), D32(DEV, pte_fragment_size),
+	D32(DEV, gart_page_size), D32(DEV, ce_ram_size), D32(DEV, vram_type), D32(DEV, vram_bit_width),
+	D32(DEV, vce_harvest_config), D32(DEV, gc_double_offchip_lds_buf), D64(DEV, prim_buf_gpu_addr),
+	D64(DEV, pos_buf_gpu_addr), D64(DEV, cntl_sb_buf_gpu_addr), D64(DEV, param_buf_gpu_addr),
+	D32(DEV, prim_buf_size), D32(DEV, pos_buf_size), D32(DEV, cntl_sb_buf_size), D32(DEV, param_buf_size),
+	D32(DEV, wave_front_size), D32(DEV, num_shader_visible_vgprs), D32(DEV, num_cu_per_sh),
+	D32(DEV, num_tcc_blocks), D32(DEV, gs_vgt_table_depth), D32(DEV, gs_prim_buffer_depth),
+	D32(DEV, max_gs_waves_per_vgt), D32(DEV, pcie_num_lanes), DA(DEV, cu_ao_bitmap, 16),
+	D64(DEV, high_va_offset), D64(DEV, high_va_max), D32(DEV, pa_sc_tile_steering_override),
+	D64(DEV, tcc_disabled_mask), D64(DEV, min_engine_clock), D64(DEV, min_memory_clock),
+	D32(DEV, tcp_cache_size), D32(DEV, num_sqc_per_wgp), D32(DEV, sqc_data_cache_size),
+	D32(DEV, sqc_inst_cache_size), D32(DEV, gl1c_cache_size), D32(DEV, gl2c_cache_size),
+	D64(DEV, mall_size), D32(DEV, enabled_rb_pipes_mask_hi), D32(DEV, shadow_size),
+	D32(DEV, shadow_alignment), D32(DEV, csa_size), D32(DEV, csa_alignment), D32(DEV, userq_ip_mask),
+	{ NULL }
+};
+#undef DEV
+
+static const Fld hwipfld[] = {
+	D32(drm_amdgpu_info_hw_ip, hw_ip_version_major), D32(drm_amdgpu_info_hw_ip, hw_ip_version_minor),
+	D64(drm_amdgpu_info_hw_ip, capabilities_flags), D32(drm_amdgpu_info_hw_ip, ib_start_alignment),
+	D32(drm_amdgpu_info_hw_ip, ib_size_alignment), D32(drm_amdgpu_info_hw_ip, available_rings),
+	D32(drm_amdgpu_info_hw_ip, ip_discovery_version),
+	{ NULL }
+};
+
+static const Fld vramgttfld[] = {
+	D64(drm_amdgpu_info_vram_gtt, vram_size), D64(drm_amdgpu_info_vram_gtt, vram_cpu_accessible_size),
+	D64(drm_amdgpu_info_vram_gtt, gtt_size),
+	{ NULL }
+};
+
+#define HEAP(p)	DN(drm_amdgpu_memory_info, p, total_heap_size), DN(drm_amdgpu_memory_info, p, usable_heap_size), \
+		DN(drm_amdgpu_memory_info, p, heap_usage), DN(drm_amdgpu_memory_info, p, max_allocation)
+static const Fld memfld[] = {
+	HEAP(vram), HEAP(cpu_accessible_vram), HEAP(gtt),
+	{ NULL }
+};
+#undef HEAP
+
+static const Fld fwfld[] = {
+	D32(drm_amdgpu_info_firmware, ver), D32(drm_amdgpu_info_firmware, feature),
+	{ NULL }
+};
+
+static const Fld faultfld[] = {
+	D64(drm_amdgpu_info_gpuvm_fault, addr), D32(drm_amdgpu_info_gpuvm_fault, status),
+	D32(drm_amdgpu_info_gpuvm_fault, vmhub),
+	{ NULL }
+};
+
+static const Fld codecfld[] = {
+	D32(drm_amdgpu_info_video_codec_info, valid), D32(drm_amdgpu_info_video_codec_info, max_width),
+	D32(drm_amdgpu_info_video_codec_info, max_height),
+	D32(drm_amdgpu_info_video_codec_info, max_pixels_per_frame),
+	D32(drm_amdgpu_info_video_codec_info, max_level),
+	{ NULL }
+};
+
+/* a field's value at off in out (size bytes): what fits */
+static void
+tput(unsigned char *out, size_t size, size_t off, int type, uint64_t v)
+{
+	uint32_t x;
+
+	if(type == T64){
+		if(off + 8 <= size)
+			memcpy(out + off, &v, 8);
+	}else{
+		x = v;
+		if(off + 4 <= size)
+			memcpy(out + off, &x, 4);
+	}
+}
+
+/* "name v ..." lines into out by fields t; codec: "k.name v" into codec_info[k] */
+static void
+tfields(char *rep, const Fld *t, int codec, unsigned char *out, size_t size)
+{
+	char *line, *next, *name, *v, *e;
+	const Fld *f;
+	size_t base;
+	int i, k;
+
+	for(line = rep; line != NULL && *line; line = next){
+		if((next = strchr(line, '\n')) != NULL)
+			*next++ = 0;
+		name = line;
+		if((v = strchr(line, ' ')) == NULL)
+			continue;
+		*v++ = 0;
+		base = 0;
+		if(codec){
+			k = strtol(name, &e, 10);
+			if(*e != '.' || k < 0 || k >= AMDGPU_INFO_VIDEO_CAPS_CODEC_IDX_COUNT)
+				continue;
+			name = e + 1;
+			base = k * sizeof(struct drm_amdgpu_info_video_codec_info);
+		}
+		for(f = t; f->name != NULL; f++)
+			if(strcmp(f->name, name) == 0)
+				break;
+		if(f->name == NULL)
+			continue;	/* Linux's, not in Mesa's header */
+		if(f->type == TA32){
+			for(i = 0; i < f->n && *v; i++){
+				tput(out, size, base + f->off + 4*i, T32, strtoull(v, &e, 0));
+				v = e;
+			}
+		}else
+			tput(out, size, base + f->off, f->type, TU(v));
+	}
+}
+
+static int
+tinfo(Amd *a, struct drm_amdgpu_info *in, Tb *b, char *rep)
+{
+	unsigned char *out = P(in->return_pointer);
+	size_t size = in->return_size;
+	const Fld *t = NULL;
+	char *e, *v;
+	int codec = 0, i;
+
+	switch(in->query){
+	case AMDGPU_INFO_ACCEL_WORKING:	tprint(b, "info accel"); break;
+	case AMDGPU_INFO_DEV_INFO:	tprint(b, "info device"); t = devfld; break;
+	case AMDGPU_INFO_HW_IP_INFO:
+		tprint(b, "info hwip %u %u", in->query_hw_ip.type, in->query_hw_ip.ip_instance);
+		t = hwipfld;
+		break;
+	case AMDGPU_INFO_HW_IP_COUNT:	tprint(b, "info hwipcount %u", in->query_hw_ip.type); break;
+	case AMDGPU_INFO_FW_VERSION:
+		tprint(b, "info fw %u %u %u", in->query_fw.fw_type, in->query_fw.ip_instance, in->query_fw.index);
+		t = fwfld;
+		break;
+	case AMDGPU_INFO_VRAM_GTT:	tprint(b, "info vramgtt"); t = vramgttfld; break;
+	case AMDGPU_INFO_MEMORY:	tprint(b, "info memory"); t = memfld; break;
+	case AMDGPU_INFO_TIMESTAMP:	tprint(b, "info timestamp"); break;
+	case AMDGPU_INFO_NUM_BYTES_MOVED:	tprint(b, "info moved"); break;
+	case AMDGPU_INFO_NUM_EVICTIONS:	tprint(b, "info evictions"); break;
+	case AMDGPU_INFO_NUM_VRAM_CPU_PAGE_FAULTS:	tprint(b, "info vramfaults"); break;
+	case AMDGPU_INFO_VRAM_USAGE:	tprint(b, "info vramusage"); break;
+	case AMDGPU_INFO_VIS_VRAM_USAGE:	tprint(b, "info visvramusage"); break;
+	case AMDGPU_INFO_GTT_USAGE:	tprint(b, "info gttusage"); break;
+	case AMDGPU_INFO_GPUVM_FAULT:	tprint(b, "info vmfault"); t = faultfld; break;
+	case AMDGPU_INFO_VIDEO_CAPS:
+		tprint(b, "info video %u", in->video_cap.type);
+		t = codecfld;
+		codec = 1;
+		break;
+	case AMDGPU_INFO_SENSOR:	tprint(b, "info sensor %u", in->sensor_info.type); break;
+	case AMDGPU_INFO_MAX_IBS:	tprint(b, "info maxibs"); break;
+	case AMDGPU_INFO_READ_MMR_REG:
+		tprint(b, "info mmr %u %u %u %u", in->read_mmr_reg.dword_offset, in->read_mmr_reg.count,
+			in->read_mmr_reg.instance, in->read_mmr_reg.flags);
+		break;
+	default:
+		return errno = EINVAL, -1;	/* no word for it */
+	}
+	if(treq(a, 0, b, rep) < 0)
+		return -1;
+	memset(out, 0, size);
+	if(t != NULL){
+		tfields(rep, t, codec, out, size);
+		return 0;
+	}
+	/* numbers: one (32 or 64 bits by the size asked for) or 32-bit ones */
+	v = rep;
+	if(size == 8 && in->query != AMDGPU_INFO_READ_MMR_REG && in->query != AMDGPU_INFO_MAX_IBS){
+		tput(out, size, 0, T64, TU(v));
+		return 0;
+	}
+	for(i = 0; (size_t)(4*i + 4) <= size && *v && *v != '\n'; i++){
+		tput(out, size, 4*i, T32, strtoull(v, &e, 0));
+		v = e;
+		while(*v == ' ')
+			v++;
+	}
+	return 0;
+}
+
+/* CS: its chunks as words, to the submit file */
+static int
+tcs(Amd *a, union drm_amdgpu_cs *c, Tb *b, char *rep)
+{
+	uint64_t *chp = P(c->in.chunks);
+	struct drm_amdgpu_cs_chunk *ch;
+	char *w[2];
+	uint32_t i, j, n;
+
+	if(c->in.bo_list_handle != 0)
+		return errno = EOPNOTSUPP, -1;	/* BO lists by handle (BO_LIST): none, a CS names its BOs */
+	tprint(b, "cs %u %u", c->in.ctx_id, c->in.flags);
+	for(i = 0; i < c->in.num_chunks; i++){
+		ch = P(chp[i]);
+		switch(ch->chunk_id){
+		case AMDGPU_CHUNK_ID_IB: {
+			struct drm_amdgpu_cs_chunk_ib *ib = P(ch->chunk_data);
+
+			tprint(b, " ib %u %u %u %#llx %u %u", ib->ip_type, ib->ip_instance, ib->ring,
+				(unsigned long long)ib->va_start, ib->ib_bytes, ib->flags);
+			break;
+		}
+		case AMDGPU_CHUNK_ID_FENCE: {
+			struct drm_amdgpu_cs_chunk_fence *fe = P(ch->chunk_data);
+
+			tprint(b, " fence %u %u", fe->handle, fe->offset);
+			break;
+		}
+		case AMDGPU_CHUNK_ID_SYNCOBJ_IN:
+		case AMDGPU_CHUNK_ID_SYNCOBJ_OUT: {
+			struct drm_amdgpu_cs_chunk_sem *s = P(ch->chunk_data);
+
+			n = ch->length_dw * 4 / sizeof *s;
+			for(j = 0; j < n; j++)
+				tprint(b, " %s %u", ch->chunk_id == AMDGPU_CHUNK_ID_SYNCOBJ_IN ? "in" : "out", s[j].handle);
+			break;
+		}
+		case AMDGPU_CHUNK_ID_SYNCOBJ_TIMELINE_WAIT:
+		case AMDGPU_CHUNK_ID_SYNCOBJ_TIMELINE_SIGNAL: {
+			struct drm_amdgpu_cs_chunk_syncobj *s = P(ch->chunk_data);
+
+			n = ch->length_dw * 4 / sizeof *s;
+			for(j = 0; j < n; j++)
+				tprint(b, " %s %u %llu %u", ch->chunk_id == AMDGPU_CHUNK_ID_SYNCOBJ_TIMELINE_WAIT ? "twait" : "tsignal",
+					s[j].handle, (unsigned long long)s[j].point, s[j].flags);
+			break;
+		}
+		case AMDGPU_CHUNK_ID_BO_HANDLES: {
+			struct drm_amdgpu_bo_list_in *bl = P(ch->chunk_data);
+			unsigned char *e = P(bl->bo_info_ptr);
+
+			for(j = 0; j < bl->bo_number; j++){
+				struct drm_amdgpu_bo_list_entry *x = (void*)(e + (uint64_t)j * bl->bo_info_size);
+
+				tprint(b, " bo %u %u", x->bo_handle, x->bo_priority);
+			}
+			break;
+		}
+		default:
+			dbg("CS chunk %u: no word for it", ch->chunk_id);
+			return errno = EINVAL, -1;
+		}
+	}
+	if(treq(a, 1, b, rep) < 0)
+		return -1;
+	if(twords(rep, "cs", w, 1) != 1)
+		return errno = EIO, -1;
+	c->out.handle = TU(w[0]);
+	return 0;
+}
+
+/* syncobj handles, and points (timeline) */
+static void
+tsyncs(Tb *b, uint64_t handles, uint64_t points, uint32_t n)
+{
+	uint32_t *h = P(handles), i;
+	uint64_t *pt = P(points);
+
+	for(i = 0; i < n; i++)
+		if(pt != NULL)
+			tprint(b, " %u %llu", h[i], (unsigned long long)pt[i]);
+		else
+			tprint(b, " %u", h[i]);
+}
+
+/* as Linux's VERSION: the string s (to the line's end) up to len bytes at dst; its length */
+static size_t
+tstr(char *dst, size_t len, const char *s)
+{
+	size_t n;
+
+	n = strcspn(s, "\n");
+	if(dst != NULL && len > 0)
+		memcpy(dst, s, n < len ? n : len);
+	return n;
+}
+
+/* the ioctl as text: 0, -1 and errno, or Notext */
+static int textioctl1(Amd*, unsigned, void*, Tb*, char*);
+
+static int
+textioctl(Amd *a, unsigned nr, void *arg)
+{
+	char *rep;
+	Tb *b;
+	int r, e;
+
+	b = malloc(sizeof *b);
+	rep = malloc(Maxrep);
+	if(b == NULL || rep == NULL){
+		free(b);
+		free(rep);
+		return errno = ENOMEM, -1;
+	}
+	b->n = 0;
+	b->over = 0;
+	r = textioctl1(a, nr, arg, b, rep);
+	e = errno;
+	free(rep);
+	free(b);
+	errno = e;
+	return r;
+}
+
+static int
+textioctl1(Amd *a, unsigned nr, void *arg, Tb *b, char *rep)
+{
+	char *w[8];
+
+	switch(nr){
+	case 0x00: {	/* VERSION */
+		struct drm_version *v = arg;
+		char *l;
+		int maj, min, pl;
+
+		tprint(b, "version");
+		if(treq(a, 0, b, rep) < 0)
+			return -1;
+		if(sscanf(rep, "version %d %d %d", &maj, &min, &pl) != 3)
+			return errno = EIO, -1;
+		v->version_major = maj;
+		v->version_minor = min;
+		v->version_patchlevel = pl;
+		for(l = strchr(rep, '\n'); l != NULL && l[1]; l = strchr(l + 1, '\n')){
+			if(strncmp(l + 1, "name ", 5) == 0)
+				v->name_len = tstr(v->name, v->name_len, l + 6);
+			else if(strncmp(l + 1, "date ", 5) == 0)
+				v->date_len = tstr(v->date, v->date_len, l + 6);
+			else if(strncmp(l + 1, "desc ", 5) == 0)
+				v->desc_len = tstr(v->desc, v->desc_len, l + 6);
+		}
+		return 0;
+	}
+	case 0x09:	/* GEM_CLOSE */
+		tprint(b, "close %u", ((struct drm_gem_close*)arg)->handle);
+		return treq(a, 0, b, rep);
+	case DRM_COMMAND_BASE + DRM_AMDGPU_GEM_CREATE: {
+		union drm_amdgpu_gem_create *g = arg;
+
+		tprint(b, "gem %llu %llu %#llx %#llx", (unsigned long long)g->in.bo_size,
+			(unsigned long long)g->in.alignment, (unsigned long long)g->in.domains,
+			(unsigned long long)g->in.domain_flags);
+		if(treq(a, 0, b, rep) < 0)
+			return -1;
+		if(twords(rep, "gem", w, 1) != 1)
+			return errno = EIO, -1;
+		memset(&g->out, 0, sizeof g->out);
+		g->out.handle = TU(w[0]);
+		return 0;
+	}
+	case DRM_COMMAND_BASE + DRM_AMDGPU_GEM_OP: {
+		struct drm_amdgpu_gem_op *o = arg;
+		struct drm_amdgpu_gem_create_in *ci;
+
+		if(o->op == AMDGPU_GEM_OP_SET_PLACEMENT){
+			tprint(b, "place %u %#llx", o->handle, (unsigned long long)o->value);
+			return treq(a, 0, b, rep);
+		}
+		if(o->op != AMDGPU_GEM_OP_GET_GEM_CREATE_INFO)
+			return errno = EINVAL, -1;
+		tprint(b, "geminfo %u", o->handle);
+		if(treq(a, 0, b, rep) < 0)
+			return -1;
+		if(twords(rep, "geminfo", w, 5) != 5)
+			return errno = EIO, -1;
+		ci = P(o->value);
+		ci->bo_size = TU(w[1]);
+		ci->alignment = TU(w[2]);
+		ci->domains = tbits(w[3], 0);
+		ci->domain_flags = tbits(w[4], 1);
+		return 0;
+	}
+	case DRM_COMMAND_BASE + DRM_AMDGPU_GEM_METADATA: {
+		struct drm_amdgpu_gem_metadata *m = arg;
+		unsigned char *d = (unsigned char*)m->data.data;
+		uint32_t i, len;
+
+		if(m->op == AMDGPU_GEM_METADATA_OP_SET_METADATA){
+			len = m->data.data_size_bytes;
+			if(len > sizeof m->data.data)
+				return errno = EINVAL, -1;
+			tprint(b, "meta %u %#llx %#llx ", m->handle, (unsigned long long)m->data.flags,
+				(unsigned long long)m->data.tiling_info);
+			for(i = 0; i < len; i++)
+				tprint(b, "%02x", d[i]);
+			tprint(b, "%s", len ? "" : "-");
+			return treq(a, 0, b, rep);
+		}
+		tprint(b, "meta %u", m->handle);
+		if(treq(a, 0, b, rep) < 0)
+			return -1;
+		if(twords(rep, "meta", w, 4) != 4)
+			return errno = EIO, -1;
+		m->data.flags = TU(w[1]);
+		m->data.tiling_info = TU(w[2]);
+		len = 0;
+		if(strcmp(w[3], "-") != 0)
+			for(; w[3][2*len] && w[3][2*len+1] && len < sizeof m->data.data; len++){
+				char x[3] = { w[3][2*len], w[3][2*len+1], 0 };
+
+				d[len] = strtoul(x, NULL, 16);
+			}
+		m->data.data_size_bytes = len;
+		return 0;
+	}
+	case DRM_COMMAND_BASE + DRM_AMDGPU_GEM_VA: {
+		struct drm_amdgpu_gem_va *v = arg;
+		static const char *ops[] = { "map", "unmap", "clear", "replace" };
+		uint32_t *in, i;
+
+		if(v->operation < AMDGPU_VA_OP_MAP || v->operation > AMDGPU_VA_OP_REPLACE)
+			return errno = EINVAL, -1;
+		tprint(b, "va %s %u %#llx %#llx %#llx %#x", ops[v->operation - AMDGPU_VA_OP_MAP], v->handle,
+			(unsigned long long)v->va_address, (unsigned long long)v->offset_in_bo,
+			(unsigned long long)v->map_size, v->flags);
+		if(v->vm_timeline_syncobj_out != 0)
+			tprint(b, " out %u %llu", v->vm_timeline_syncobj_out, (unsigned long long)v->vm_timeline_point);
+		if(v->num_syncobj_handles > 0){
+			in = P(v->input_fence_syncobj_handles);
+			tprint(b, " in");
+			for(i = 0; i < v->num_syncobj_handles; i++)
+				tprint(b, " %u", in[i]);
+		}
+		return treq(a, 0, b, rep);
+	}
+	case DRM_COMMAND_BASE + DRM_AMDGPU_GEM_WAIT_IDLE: {
+		union drm_amdgpu_gem_wait_idle *wi = arg;
+
+		tprint(b, "idle %u %llu", wi->in.handle, (unsigned long long)wi->in.timeout);
+		if(treq(a, 0, b, rep) < 0)
+			return -1;
+		if(twords(rep, "idle", w, 2) != 2)
+			return errno = EIO, -1;
+		memset(&wi->out, 0, sizeof wi->out);
+		wi->out.status = strcmp(w[0], "busy") == 0;
+		wi->out.domain = TU(w[1]);
+		return 0;
+	}
+	case DRM_COMMAND_BASE + DRM_AMDGPU_CTX: {
+		union drm_amdgpu_ctx *x = arg;
+		uint32_t op = x->in.op, id = x->in.ctx_id;
+
+		switch(op){
+		case AMDGPU_CTX_OP_ALLOC_CTX:
+			tprint(b, "hwctx new %d %u", x->in.priority, x->in.flags);
+			if(treq(a, 0, b, rep) < 0)
+				return -1;
+			if(twords(rep, "hwctx", w, 1) != 1)
+				return errno = EIO, -1;
+			memset(&x->out, 0, sizeof x->out);
+			x->out.alloc.ctx_id = TU(w[0]);
+			return 0;
+		case AMDGPU_CTX_OP_FREE_CTX:
+			tprint(b, "hwctx free %u", id);
+			return treq(a, 0, b, rep);
+		case AMDGPU_CTX_OP_QUERY_STATE2:
+			tprint(b, "hwctx state %u", id);
+			if(treq(a, 0, b, rep) < 0)
+				return -1;
+			if(twords(rep, "hwctx state", w, 1) != 1)
+				return errno = EIO, -1;
+			memset(&x->out, 0, sizeof x->out);
+			x->out.state.flags = TU(w[0]);
+			return 0;
+		case AMDGPU_CTX_OP_GET_STABLE_PSTATE:
+		case AMDGPU_CTX_OP_SET_STABLE_PSTATE:
+			if(op == AMDGPU_CTX_OP_SET_STABLE_PSTATE){
+				tprint(b, "pstate %u %u", id, x->in.flags);
+				return treq(a, 0, b, rep);
+			}
+			tprint(b, "pstate %u", id);
+			if(treq(a, 0, b, rep) < 0)
+				return -1;
+			if(twords(rep, "pstate", w, 1) != 1)
+				return errno = EIO, -1;
+			memset(&x->out, 0, sizeof x->out);
+			x->out.pstate.flags = TU(w[0]);
+			return 0;
+		}
+		return errno = EINVAL, -1;
+	}
+	case DRM_COMMAND_BASE + DRM_AMDGPU_VM: {
+		union drm_amdgpu_vm *v = arg;
+
+		if(v->in.op == AMDGPU_VM_OP_RESERVE_VMID)
+			tprint(b, "vmid reserve");
+		else if(v->in.op == AMDGPU_VM_OP_UNRESERVE_VMID)
+			tprint(b, "vmid unreserve");
+		else
+			return errno = EINVAL, -1;
+		if(treq(a, 0, b, rep) < 0)
+			return -1;
+		memset(&v->out, 0, sizeof v->out);
+		return 0;
+	}
+	case DRM_COMMAND_BASE + DRM_AMDGPU_CS:
+		return tcs(a, arg, b, rep);
+	case DRM_COMMAND_BASE + DRM_AMDGPU_WAIT_CS: {
+		union drm_amdgpu_wait_cs *x = arg;
+
+		tprint(b, "waitcs %u %u %u %u %llu %llu", x->in.ctx_id, x->in.ip_type, x->in.ip_instance,
+			x->in.ring, (unsigned long long)x->in.handle, (unsigned long long)x->in.timeout);
+		if(treq(a, 0, b, rep) < 0)
+			return -1;
+		if(twords(rep, "waitcs", w, 1) != 1)
+			return errno = EIO, -1;
+		memset(&x->out, 0, sizeof x->out);
+		x->out.status = strcmp(w[0], "busy") == 0;
+		return 0;
+	}
+	case DRM_COMMAND_BASE + DRM_AMDGPU_WAIT_FENCES: {
+		union drm_amdgpu_wait_fences *x = arg;
+		struct drm_amdgpu_fence *f = P(x->in.fences);
+		uint32_t i;
+
+		tprint(b, "waitfences %s %llu", x->in.wait_all ? "all" : "any", (unsigned long long)x->in.timeout_ns);
+		for(i = 0; i < x->in.fence_count; i++)
+			tprint(b, " %u %u %u %u %llu", f[i].ctx_id, f[i].ip_type, f[i].ip_instance, f[i].ring,
+				(unsigned long long)f[i].seq_no);
+		if(treq(a, 0, b, rep) < 0)
+			return -1;
+		if(twords(rep, "waitfences", w, 2) != 2)
+			return errno = EIO, -1;
+		memset(&x->out, 0, sizeof x->out);
+		x->out.status = TU(w[0]);
+		x->out.first_signaled = TU(w[1]);
+		return 0;
+	}
+	case DRM_COMMAND_BASE + DRM_AMDGPU_FENCE_TO_HANDLE: {
+		union drm_amdgpu_fence_to_handle *x = arg;
+		struct drm_amdgpu_fence *f = &x->in.fence;
+
+		if(x->in.what != AMDGPU_FENCE_TO_HANDLE_GET_SYNCOBJ)
+			return errno = EOPNOTSUPP, -1;
+		tprint(b, "fromfence %u %u %u %u %llu", f->ctx_id, f->ip_type, f->ip_instance, f->ring,
+			(unsigned long long)f->seq_no);
+		if(treq(a, 0, b, rep) < 0)
+			return -1;
+		if(twords(rep, "fromfence", w, 1) != 1)
+			return errno = EIO, -1;
+		memset(&x->out, 0, sizeof x->out);
+		x->out.handle = TU(w[0]);
+		return 0;
+	}
+	case DRM_COMMAND_BASE + DRM_AMDGPU_INFO:
+		return tinfo(a, arg, b, rep);
+	case 0xBF: {	/* SYNCOBJ_CREATE */
+		struct drm_syncobj_create *s = arg;
+
+		if(s->flags & ~DRM_SYNCOBJ_CREATE_SIGNALED)
+			return errno = EINVAL, -1;
+		tprint(b, "syncnew%s", s->flags ? " signaled" : "");
+		if(treq(a, 0, b, rep) < 0)
+			return -1;
+		if(twords(rep, "syncnew", w, 1) != 1)
+			return errno = EIO, -1;
+		s->handle = TU(w[0]);
+		return 0;
+	}
+	case 0xC0:	/* SYNCOBJ_DESTROY */
+		tprint(b, "syncfree %u", ((struct drm_syncobj_destroy*)arg)->handle);
+		return treq(a, 0, b, rep);
+	case 0xC3: {	/* SYNCOBJ_WAIT */
+		struct drm_syncobj_wait *s = arg;
+
+		tprint(b, "syncwait %#x %lld", s->flags, (long long)s->timeout_nsec);
+		tsyncs(b, s->handles, 0, s->count_handles);
+		if(treq(a, 0, b, rep) < 0)
+			return -1;
+		if(twords(rep, "syncwait", w, 1) != 1)
+			return errno = EIO, -1;
+		s->first_signaled = TU(w[0]);
+		return 0;
+	}
+	case 0xCA: {	/* SYNCOBJ_TIMELINE_WAIT */
+		struct drm_syncobj_timeline_wait *s = arg;
+
+		tprint(b, "synctwait %#x %lld", s->flags, (long long)s->timeout_nsec);
+		tsyncs(b, s->handles, s->points, s->count_handles);
+		if(treq(a, 0, b, rep) < 0)
+			return -1;
+		if(twords(rep, "synctwait", w, 1) != 1)
+			return errno = EIO, -1;
+		s->first_signaled = TU(w[0]);
+		return 0;
+	}
+	case 0xC4:	/* SYNCOBJ_RESET */
+	case 0xC5: {	/* SYNCOBJ_SIGNAL */
+		struct drm_syncobj_array *s = arg;
+
+		tprint(b, "%s", nr == 0xC4 ? "syncreset" : "syncsignal");
+		tsyncs(b, s->handles, 0, s->count_handles);
+		return treq(a, 0, b, rep);
+	}
+	case 0xCD: {	/* SYNCOBJ_TIMELINE_SIGNAL */
+		struct drm_syncobj_timeline_array *s = arg;
+
+		if(s->flags != 0)
+			return errno = EINVAL, -1;
+		tprint(b, "synctsignal");
+		tsyncs(b, s->handles, s->points, s->count_handles);
+		return treq(a, 0, b, rep);
+	}
+	case 0xCB: {	/* SYNCOBJ_QUERY */
+		struct drm_syncobj_timeline_array *s = arg;
+		uint64_t *pt = P(s->points);
+		char *v, *e;
+		uint32_t i;
+
+		tprint(b, "syncquery %#x", s->flags);
+		tsyncs(b, s->handles, 0, s->count_handles);
+		if(treq(a, 0, b, rep) < 0)
+			return -1;
+		if(strncmp(rep, "syncquery", 9) != 0)
+			return errno = EIO, -1;
+		v = rep + 9;
+		for(i = 0; i < s->count_handles; i++){
+			pt[i] = strtoull(v, &e, 0);
+			if(e == v)
+				return errno = EIO, -1;
+			v = e;
+		}
+		return 0;
+	}
+	case 0xCC: {	/* SYNCOBJ_TRANSFER */
+		struct drm_syncobj_transfer *s = arg;
+
+		tprint(b, "synctransfer %u %llu %u %llu %#x", s->src_handle, (unsigned long long)s->src_point,
+			s->dst_handle, (unsigned long long)s->dst_point, s->flags);
+		return treq(a, 0, b, rep);
+	}
+	}
+	return Notext;
+}
+
 int
 amd9ioctl(Amd *a, unsigned long req, void *arg)
 {
@@ -908,6 +1812,11 @@ amd9ioctl(Amd *a, unsigned long req, void *arg)
 	if(nr == DRM_COMMAND_BASE + DRM_AMDGPU_FENCE_TO_HANDLE &&
 	   ((union drm_amdgpu_fence_to_handle*)arg)->in.what != AMDGPU_FENCE_TO_HANDLE_GET_SYNCOBJ)
 		return errno = EOPNOTSUPP, -1;	/* sync file descriptors: none */
+	if(textmode() && (r = textioctl(a, nr, arg)) != Notext){
+		if(r < 0)
+			dbg("ioctl %#x as text: %s", nr, strerror(errno));
+		return r;
+	}
 	/* Linux's encoding: 1 the caller writes (IOC_IN), 2 it reads (IOC_OUT) */
 	dir = ((req & IOC_IN) ? 1 : 0) | ((req & IOC_OUT) ? 2 : 0);
 	lcmd = (unsigned long)dir << 30 | (unsigned long)size << 16 | DRM_IOCTL_BASE << 8 | nr;

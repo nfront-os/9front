@@ -109,7 +109,8 @@
 			"linux/amdgpu.c",
 			"linux/ctx.c",
 			"linux/kms.c",
-			"linux/kmsout.c"
+			"linux/kmsout.c",
+			"linux/req.c"
 		]
 	},
 	{

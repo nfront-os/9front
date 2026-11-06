@@ -31,6 +31,9 @@ extern int amdgpu_fencetrace;	/* -t */
 /* amdgpu's ioctls of the client (linux/ctx.c): the arena, the ioctl, the client's objects mapped */
 int	amdgpu_arena(void *c, char *seg, int nseg, u64g *va, u64g *size);
 long	amdgpu_ioctl(void *c, unsigned int cmd, u64g addr, int priv);	/* its result: 0, >0, or -errno; priv: the hostowner's */
+/* the context's requests as text (linux/req.c): the reply's length or -errno; isreq: a verb of them */
+int	amdgpu_req(void *c, char **f, int n, char *reply, int nreply, int priv);
+int	amdgpu_isreq(const char *verb);
 int	amdgpu_map(void *c, unsigned int handle, char *seg, int nseg, u64g *va, u64g *size);
 int	amdgpu_unmap(void *c, unsigned int handle);
 /* a client's object between contexts by a token (gpu(4) export, import) */

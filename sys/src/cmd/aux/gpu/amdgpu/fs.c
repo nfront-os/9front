@@ -45,6 +45,7 @@ struct Ctx {
 
 struct Fidaux {
 	Ctx	*ctx;
+	char	*reply;		/* the reply to the last request on this fid (ctl, submit) */
 	long	ioctlr;		/* the ioctl's result, for the read */
 	int	ioctlset;
 	u64g	fence;		/* written to fence: wait for it */
@@ -129,6 +130,10 @@ struct Ireq {
 	void	*lc;
 	uint	cmd;
 	u64g	addr;
+	char	**f;	/* a request as text (linux/req.c), not an ioctl */
+	int	nf;
+	char	*reply;
+	int	nreply;
 	int	priv;	/* the client is the hostowner */
 	long	r;
 	Channel	*done;
@@ -142,7 +147,10 @@ ioctlproc(void*)
 
 	for(;;){
 		q = recvp(ioctlc);
-		q->r = amdgpu_ioctl(q->lc, q->cmd, q->addr, q->priv);
+		if(q->f != nil)
+			q->r = amdgpu_req(q->lc, q->f, q->nf, q->reply, q->nreply, q->priv);
+		else
+			q->r = amdgpu_ioctl(q->lc, q->cmd, q->addr, q->priv);
 		sendul(q->done, 1);
 	}
 }
@@ -152,9 +160,30 @@ doioctl(void *lc, uint cmd, u64g addr, int priv)
 {
 	Ireq q;
 
+	memset(&q, 0, sizeof q);
 	q.lc = lc;
 	q.cmd = cmd;
 	q.addr = addr;
+	q.priv = priv;
+	q.done = chancreate(sizeof(ulong), 0);
+	sendp(ioctlc, &q);
+	recvul(q.done);
+	chanfree(q.done);
+	return q.r;
+}
+
+/* a request as text on an ioctl proc: the reply's length or -errno */
+static long
+doreq(void *lc, char **f, int nf, char *reply, int nreply, int priv)
+{
+	Ireq q;
+
+	memset(&q, 0, sizeof q);
+	q.lc = lc;
+	q.f = f;
+	q.nf = nf;
+	q.reply = reply;
+	q.nreply = nreply;
 	q.priv = priv;
 	q.done = chancreate(sizeof(ulong), 0);
 	sendp(ioctlc, &q);
@@ -186,23 +215,60 @@ scanout(void *lc, int gem, int id, int w, int h, int stride)
 #define KIND(f)		((uintptr)(f)->aux & 0xFF)
 #define CTXN(f)		((uintptr)(f)->aux >> 8)
 
+/*
+ * Linux's errors as text: libdrm9 (amdgpu9.c: errnoof) turns them back
+ * into errno values, so each a client tells apart has its own
+ */
 static char*
 errstr9(int e)
 {
 	static char buf[64];
 
 	switch(-e){
+	case 1:	return "operation not permitted";
 	case 2:	return "no such object";
+	case 3:	return "no such process";
+	case 4:	return "interrupted";
+	case 5:	return "i/o error";
+	case 6:	return "no such device or address";
+	case 7:	return "too big";
+	case 9:	return "bad handle";
+	case 11:	return "try again";
 	case 12:	return "out of memory";
+	case 13:	return "permission denied";
 	case 14:	return "bad address";
-	case 16:	return "too many fences outstanding";
+	case 16:	return "busy";
+	case 17:	return "exists";
 	case 19:	return "no device";
 	case 22:	return "bad request";
+	case 24:	return "too many open files";
+	case 25:	return "not an ioctl";
 	case 28:	return "no room in visible VRAM";
+	case 34:	return "out of range";
+	case 35:	return "deadlock";
+	case 38:	return "not implemented";
+	case 61:	return "no data";
+	case 62:	return "timer expired";
+	case 75:	return "overflow";
+	case 95:	return "not supported";
 	case 98:	return "GPU address in use or out of range";
+	case 110:	return "timed out";
+	case 125:	return "canceled";
 	}
 	snprint(buf, sizeof buf, "error %d", -e);
 	return buf;
+}
+
+/* the reply to the request on fid fa */
+static void
+fsetreply(Fidaux *fa, char *fmt, ...)
+{
+	va_list arg;
+
+	free(fa->reply);
+	va_start(arg, fmt);
+	fa->reply = vsmprint(fmt, arg);
+	va_end(arg);
 }
 
 static void
@@ -243,7 +309,7 @@ newctx(char *uid)
 	snprint(name, sizeof name, "%d", id);
 	c->dir = createfile(ctxdir, name, uid, DMDIR|0500, nil);
 	c->ctl = createfile(c->dir, "ctl", uid, 0600, (void*)(uintptr)(id<<8 | Xctxctl));
-	c->submit = createfile(c->dir, "submit", uid, 0200, (void*)(uintptr)(id<<8 | Xctxsubmit));
+	c->submit = createfile(c->dir, "submit", uid, 0600, (void*)(uintptr)(id<<8 | Xctxsubmit));
 	c->fence = createfile(c->dir, "fence", uid, 0600, (void*)(uintptr)(id<<8 | Xctxfence));
 	c->ioctl = createfile(c->dir, "ioctl", uid, 0600, (void*)(uintptr)(id<<8 | Xctxioctl));
 	ctxs[id] = c;
@@ -326,6 +392,7 @@ fsdestroyfid(Fid *f)
 		return;
 	f->aux = nil;
 	c = fa->ctx;
+	free(fa->reply);
 	free(fa);
 	qlock(&ctxlock);
 	if(--c->ref == 0)
@@ -386,9 +453,13 @@ fsread(Req *r)
 		}
 		break;
 	case Xctxctl:
+	case Xctxsubmit:
 		c = fa->ctx;
 		qlock(&ctxlock);
-		s = estrdup9p(c->reply != nil ? c->reply : "");
+		if(fa->reply != nil)
+			s = estrdup9p(fa->reply);
+		else
+			s = estrdup9p(c->reply != nil && KIND(r->fid->file) == Xctxctl ? c->reply : "");
 		qunlock(&ctxlock);
 		break;
 	case Xctxioctl:
@@ -429,8 +500,9 @@ fsread(Req *r)
 }
 
 static char*
-ctxctl(Ctx *c, char **f, int n)
+ctxctl(Fidaux *fa, char **f, int n)
 {
+	Ctx *c = fa->ctx;
 	char seg[32];
 	u64g va, size, gpu;
 	int e, id;
@@ -452,7 +524,7 @@ ctxctl(Ctx *c, char **f, int n)
 		if(e < 0)
 			return errstr9(e);
 		segown(seg, c->uid);
-		setreply(c, "bo %d %s %#llux %#llux %#llux\n", id, seg, va, size, gpu);
+		fsetreply(fa, "bo %d %s %#llux %#llux %#llux\n", id, seg, va, size, gpu);
 		return nil;
 	}
 	if(n == 3 && strcmp(f[0], "bind") == 0){
@@ -468,7 +540,7 @@ ctxctl(Ctx *c, char **f, int n)
 		if(e < 0)
 			return errstr9(e);
 		segown(seg, c->uid);
-		setreply(c, "arena %s %#llux %#llux\n", seg, va, size);
+		fsetreply(fa, "arena %s %#llux %#llux\n", seg, va, size);
 		return nil;
 	}
 	if(n == 2 && strcmp(f[0], "map") == 0){
@@ -476,7 +548,7 @@ ctxctl(Ctx *c, char **f, int n)
 		if(e < 0)
 			return errstr9(e);
 		segown(seg, c->uid);
-		setreply(c, "map %s %s %#llux %#llux\n", f[1], seg, va, size);
+		fsetreply(fa, "map %s %s %#llux %#llux\n", f[1], seg, va, size);
 		return nil;
 	}
 	if(n == 2 && strcmp(f[0], "unmap") == 0){
@@ -493,7 +565,7 @@ ctxctl(Ctx *c, char **f, int n)
 		e = amdgpu_export(c->lc, strtoul(f[1], nil, 0), token, sizeof token);
 		if(e < 0)
 			return errstr9(e);
-		setreply(c, "export %s\n", token);
+		fsetreply(fa, "export %s\n", token);
 		return nil;
 	}
 	if(n == 2 && strcmp(f[0], "syncexport") == 0){
@@ -502,7 +574,7 @@ ctxctl(Ctx *c, char **f, int n)
 		e = amdgpu_syncexport(c->lc, strtoul(f[1], nil, 0), token, sizeof token);
 		if(e < 0)
 			return errstr9(e);
-		setreply(c, "syncexport %s\n", token);
+		fsetreply(fa, "syncexport %s\n", token);
 		return nil;
 	}
 	if(n == 2 && strcmp(f[0], "syncimport") == 0){
@@ -511,7 +583,7 @@ ctxctl(Ctx *c, char **f, int n)
 		e = amdgpu_syncimport(c->lc, f[1], &h);
 		if(e < 0)
 			return errstr9(e);
-		setreply(c, "syncimport %ud\n", h);
+		fsetreply(fa, "syncimport %ud\n", h);
 		return nil;
 	}
 	if(n == 2 && strcmp(f[0], "import") == 0){
@@ -520,10 +592,63 @@ ctxctl(Ctx *c, char **f, int n)
 		e = amdgpu_import(c->lc, f[1], &h, &size);
 		if(e < 0)
 			return errstr9(e);
-		setreply(c, "import %ud %llud\n", h, size);
+		fsetreply(fa, "import %ud %llud\n", h, size);
 		return nil;
 	}
 	return "unknown ctl message";
+}
+
+enum { Nreply = 64*1024 };
+
+/* is the request a verb of linux/req.c's (the first word) */
+static int
+istext(Req *r)
+{
+	char w[32], *p, *e;
+	int n;
+
+	p = r->ifcall.data;
+	e = p + r->ifcall.count;
+	while(p < e && (*p == ' ' || *p == '\t'))
+		p++;
+	for(n = 0; p < e && n < sizeof w - 1 && *p != ' ' && *p != '\t' && *p != '\n'; n++)
+		w[n] = *p++;
+	w[n] = 0;
+	return n > 0 && amdgpu_isreq(w);
+}
+
+/*
+ * a request as text (linux/req.c), up to a message's size: run on an
+ * ioctl proc (it may wait), its reply kept for the fid's next read
+ */
+static void
+fsreq(Req *r)
+{
+	char *buf, **f, *reply;
+	Fidaux *fa;
+	long x;
+	int n, nf;
+
+	fa = r->fid->aux;
+	n = r->ifcall.count;
+	buf = emalloc9p(n+1);
+	memmove(buf, r->ifcall.data, n);
+	buf[n] = 0;
+	f = emalloc9p((n/2+2) * sizeof *f);
+	nf = tokenize(buf, f, n/2+2);
+	reply = emalloc9p(Nreply);
+	srvrelease(r->srv);
+	x = doreq(fa->ctx->lc, f, nf, reply, Nreply, iseve9p(r->fid->uid));
+	srvacquire(r->srv);
+	if(x >= 0){
+		free(fa->reply);
+		fa->reply = estrdup9p(reply);
+		r->ofcall.count = r->ifcall.count;
+	}
+	free(reply);
+	free(f);
+	free(buf);
+	respond(r, x < 0 ? errstr9(x) : nil);
 }
 
 static void
@@ -534,6 +659,14 @@ fswrite(Req *r)
 	u64g k;
 	int n, x;
 
+	switch(KIND(r->fid->file)){
+	case Xctxctl:
+	case Xctxsubmit:
+		if(istext(r)){
+			fsreq(r);
+			return;
+		}
+	}
 	n = r->ifcall.count;
 	if(n >= sizeof buf)
 		n = sizeof buf-1;
@@ -590,7 +723,7 @@ fswrite(Req *r)
 			break;
 		}
 		qlock(&ctxlock);
-		e = ctxctl(fa->ctx, f, n);
+		e = ctxctl(fa, f, n);
 		qunlock(&ctxlock);
 		break;
 	case Xctxsubmit:

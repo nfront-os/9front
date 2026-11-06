@@ -761,6 +761,13 @@ amdgpu_fence_count(void *v, u64 *done, u64 *n, int *failed)
 	mutex_unlock(&c->lock);
 }
 
+/* the context's DRM file (req.c: its requests as text) */
+struct file *
+amdgpu_ctx_filp(void *v)
+{
+	return ((struct gctx *)v)->filp;
+}
+
 /* the arena: its segment, address and size for the client */
 int
 amdgpu_arena(void *v, char *seg, int nseg, u64 *va, u64 *size)
