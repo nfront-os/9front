@@ -36,7 +36,6 @@
 			"memccpy.c",
 			"memchr.c",
 			"memcmp.c",
-			"memmove.c",
 			"memset.c",
 			"mktime.c",
 			"mkstemp.c",

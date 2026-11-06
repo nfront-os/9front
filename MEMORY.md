@@ -1089,3 +1089,9 @@ Code gleich dem gcc-Branch (bis auf Kommentare), mit 6c/8c/7c -FTVw im Gast gege
 von `upstream` übersetzt, als Serie auf origin/front anwendbar. Nicht dabei: das halbe
 Schließen von TCP (neue Schnittstelle für den Rust-Port).
 - 0023/0024 (2026-11-05, vom Branch `gpu`): `fault.c` SG_FAULT (`||` bindet stärker als `?:`, Lesen/Schreiben ging durch; auf gpu `16edbc924`, gefunden mit segment(3)s revoke, `tests/gpu/segrevoke`), hier mit Kommentar „GCC port“; `sys/lib/dist/mkfile` 16 MB statt 2 MB vor der ESP (auf gcc wirkt es in `scripts/guest/boot/mkiso.rc`, von gpu `98b95ff65`). fault.c mit 6c/8c/7c -FTVw im Gast gegen upstreams Header übersetzt. Offen auf gpu, ohne Fix: Pager-Livelock, wenn nur Prozesse des Hostowners laufen.
+
+## 2026-11-06: memmove schneller (riscv64)
+- **libc `riscv64/memmove.S`** neu (gilt auch für den Kernel, klibc nahm es schon): Ziel ausrichten, dann 4 Doppelwörter je Runde, wenn die Quelle gleich ausgerichtet ist; sonst zwei ausgerichtete Loads zusammengeschoben (keine misaligned Zugriffe, viele Harts trappen); rückwärts dasselbe vom Ende (vorher rückwärts immer Bytes, ungleich ausgerichtet Bytes). Unter qemu-riscv64 (1 MB): ausgerichtet 403 → 106 µs, ungleich 1752 → 362, rückwärts 1570 → 104. Host-Test gegen Byte-Referenz (alle Ausrichtungen, Überlappung, Längen 0–200) in qemu-riscv64.
+- **APE riscv64** hatte kein memmove (gen/memmove.c, Byte-Schleife): `memmove.$O` im mkfile, `.S` = libcs, `.s` = libcs mit `MOVWU n` (size_t 4 Byte unter jc, wie APE arm64).
+- **klibc riscv64:** memccpy/memchr/memcmp/strchr/strcmp/strcpy aus `riscv64/*.S` statt port/*.c (keine nutzt s10/s11 = up/m).
+- Tests: apetest/libctest prüfen memmove/memcpy bei allen Ausrichtungen (aus Branch ui). riscv64: Bau 822/822, guest 130/130, boot 12/12, static 14/14. Dasselbe für amd64/386 liegt auf Branch ui (APE amd64 musl, libc amd64, klibc amd64/386); arm64 brauchte nichts (16 Byte je Schritt überall).

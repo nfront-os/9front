@@ -19,6 +19,7 @@
 			"lock.c",
 			"main9.S",
 			"main9p.S",
+			"memmove.S",
 			"notetramp.c",
 			"setjmp.S",
 			"tas.S",
