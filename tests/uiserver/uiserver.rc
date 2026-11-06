@@ -146,6 +146,60 @@ if not {
 }
 test -e /proc/$uicpid && echo kill >/proc/$uicpid/note
 
+# a program in Rust (uitodo: uiview, views of its state as Xilem's): its
+# window's files mounted here as well (it mounts them in a namespace of its
+# own); an item added (the button, then enter), checked, taken away; the
+# list in its file after each
+fn tnode { grep '^new [^ ]* '$1 /mnt/uit/tree | sed -n $2^p | awk '{print $2}' }
+fn click { p=`{at $1 /mnt/uit}; { m $p(1) $p(2) 0; m $p(1) $p(2) 1; m $p(1) $p(2) 0 } >/dev/mousein; sleep 0.5 }
+fn waitfile { # file pattern
+	n=0
+	while(! grep -s $2 $1 >[2]/dev/null && test $n -lt 50){ sleep 0.1; n=`{echo $n+1 | hoc} }
+	grep -s $2 $1 >[2]/dev/null
+}
+rm -f /tmp/todo
+/tests/uitodo -f /tmp/todo >/tmp/uitodo.log >[2=1] </dev/null &
+todopid=$apid
+s=/srv/ui.glenda.$todopid.0
+n=0
+while(! test -e $s && test $n -lt 100){ sleep 0.1; n=`{echo $n+1 | hoc} }
+if(! test -e $s || ! mount $s /mnt/uit) fail uitodo: no $s: `{cat /tmp/uitodo.log}
+if not {
+	cat /mnt/uit/event >/tmp/uitev &
+	uitevpid=$apid
+	waitfor /mnt/uit/tree textbox
+	f=`{tnode textbox 1}
+	add=`{tnode button 1}
+	if(~ $#f 1 && ~ $#add 1) ok uitodo: its scene, text box $f, button $add
+	if not fail uitodo scene: `{cat /mnt/uit/tree}
+	# the first click may only make the window current
+	click $f; click $f
+	/tests/uipeek -k milk
+	sleep 0.3
+	click $add
+	waitfile /tmp/todo '^0 milk$' && ok 'uitodo: milk added (the button)' || fail uitodo add: `{cat /tmp/todo}
+	grep -s 'text 1 of 1 to do$' /mnt/uit/tree && ok 'uitodo: 1 of 1 to do' || fail uitodo label: `{grep 'to do' /mnt/uit/tree}
+	if(grep -s '^set '$f' text .' /mnt/uit/tree && ! grep -s '^set '$f' text ''''$' /mnt/uit/tree) fail uitodo text box not empty: `{grep '^set '$f' text' /mnt/uit/tree}
+	if not ok 'uitodo: the text box emptied'
+	click $f
+	/tests/uipeek -k 'eggs
+'
+	waitfile /tmp/todo '^0 eggs$' && ok 'uitodo: eggs added (enter)' || fail uitodo enter: `{cat /tmp/todo}
+	c=`{tnode checkbox 1}
+	click $c
+	waitfile /tmp/todo '^1 milk$' && ok 'uitodo: milk done' || fail uitodo check: `{cat /tmp/todo}
+	grep -s 'text 1 of 2 to do$' /mnt/uit/tree && ok 'uitodo: 1 of 2 to do' || fail uitodo label: `{grep 'to do' /mnt/uit/tree}
+	away=`{tnode button 2}
+	click $away
+	n=0
+	while(grep -s milk /tmp/todo && test $n -lt 50){ sleep 0.1; n=`{echo $n+1 | hoc} }
+	l=`{cat /tmp/todo}
+	check 'uitodo: milk away, eggs left' '0 eggs' $"l
+	echo kill >/proc/$uitevpid/note
+	unmount /mnt/uit
+}
+test -e /proc/$todopid && echo kill >/proc/$todopid/note
+
 cat /tmp/ui.log | grep -v '^uitest$'
 if(~ $nfail 0) echo uiserver: all passed
 if not echo uiserver: $nfail failed

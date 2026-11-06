@@ -131,6 +131,8 @@ uiclose(u);
 .B /sys/src/libui
 .SH SEE ALSO
 .IR ui (4),
+.IR uiview (2)
+(the same from Rust),
 .IR rio (1)
 .SH BUGS
 A line of

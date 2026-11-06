@@ -503,6 +503,11 @@ impl<T: 'static> EventLoop<T> {
                             is_synthetic: false,
                         });
                     }
+                } else if keycode(c).1.is_some() {
+                    // a key's character without the key (written to /dev/kbdin:
+                    // vncs, a test): Enter, Tab, Backspace, ... pressed and let go
+                    key_event(h, c, true, Some(c), false);
+                    key_event(h, c, false, None, false);
                 }
             },
             Input::Wctl(line) => {

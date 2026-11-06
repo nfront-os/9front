@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: MIT
+# uidemo: programs on ui(4) through uiview (sys/src/libui/rust): uicount, a
+# counter; uitodo, a list of things to do. Part of the workspace in
+# sys/src/rust.
+[package]
+name = "uidemo"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+publish = false
+workspace = "../../rust"
+
+[dependencies]
+uiview = { path = "../../libui/rust" }

@@ -372,6 +372,7 @@
 		"Name": "rust",
 		"Pre": [
 			"bash scripts/build/cargo.sh sys/src/cmd/ui ui",
+			"bash scripts/build/cargo.sh sys/src/cmd/uidemo uicount uitodo",
 			"bash scripts/build/cargo.sh sys/src/cmd/wsys wsys"
 		]
 	},

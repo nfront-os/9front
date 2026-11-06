@@ -1,0 +1,120 @@
+.TH UIVIEW 2
+.SH NAME
+uiview \- ui(4)'s windows from Rust, views of the program's state
+.SH SYNOPSIS
+.EX
+use uiview::*;
+
+fn app(n: &mut i64) -> impl UiView<i64> + use<> {
+	column((
+		label(format!("count {n}")),
+		button("add one", |n: &mut i64| *n += 1),
+	))
+}
+
+fn main() {
+	uiview::run("count", 0, app).unwrap();
+}
+.EE
+.SH DESCRIPTION
+.I Uiview
+is a Rust crate that does for
+.IR ui (4)
+what Xilem (linebender) does for Masonry's widgets.
+A function of the program's state gives a tree of views; after each event
+it is called again, and the new tree is compared with the old one
+(xilem_core's
+.BR View ).
+What changed goes to
+.I ui
+as
+.BR ctl 's
+lines, those of one event in one write: one transaction.
+The widgets and what is only theirs (focus, the text being edited) stay in
+.IR ui ;
+the program holds its own state and nothing else.
+.PP
+The views:
+.BI label( text ) ,
+.BI button( "text, f" ) ,
+.BI textbox( "text, f" )
+.RI ( f
+gets each change;
+.BI .on_enter( f )
+the text when enter is pressed;
+.BI .placeholder( p )\fR),
+.BI checkbox( "text, checked, f" ) ,
+.BI slider( "min, max, value, f" ) ,
+.BI progress( done )
+.RB ( None :
+not known),
+and those holding others:
+.BI column( children ) ,
+.BI row( children ) ,
+.BI scroll( child ) ,
+.BI sized( child )
+with
+.BI .width( w )
+and
+.BI .height( h ) .
+Children are a view, a tuple of views, a
+.BR Vec ,
+an
+.BR Option ;
+.B AnyUiView
+is a view of one of several types, chosen at run time.
+.BI .flex( f ) ,
+.BI .gap( g ) ,
+.BI .align( a )
+and
+.BI .prop( "key, value" )
+set
+.IR ui (4)'s
+properties.
+A callback gets the state,
+.B &mut
+.IR S ,
+and changes it.
+.PP
+A view is a controlled one: what the user changes comes back as an event,
+and if the state then says otherwise, the view's value goes to
+.I ui
+again (a text box whose callback keeps nothing stays as it was).
+.PP
+.I Run
+starts
+.B /bin/ui
+in a new window
+.RB ( window
+in
+.IR rio (1)),
+mounts its files in a namespace of the program's own
+.RB ( rfork (RFNAMEG))
+and runs until the window is closed.
+.I Run_on
+does it in a ui already there,
+.BI Ui::open( "srv, mtpt" ) .
+.PP
+.B Cx
+holds what views build; tests on the host use it without
+.IR ui :
+.BR build ,
+.BR Cx::message ,
+.BR Cx::rebuild ,
+and
+.B Cx::take
+for the transaction made.
+.SH SOURCE
+.B /sys/src/libui/rust
+(a member of the workspace in
+.BR /sys/src/rust ;
+xilem_core at the revision of the server's Masonry)
+.br
+.B /sys/src/cmd/uidemo
+(uicount, uitodo)
+.SH SEE ALSO
+.IR ui (4),
+.IR ui (2)
+.SH BUGS
+A property a view stops setting keeps its last value in
+.IR ui .

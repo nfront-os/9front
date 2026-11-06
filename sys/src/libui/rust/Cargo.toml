@@ -1,0 +1,20 @@
+# SPDX-License-Identifier: MIT
+# uiview: ui(4)'s windows from Rust, as Xilem does Masonry's: the program's
+# state makes a tree of views, a new tree after each event, and what
+# changed goes to ui as one transaction of ctl. On xilem_core (linebender),
+# the same revision as the server's Masonry. Part of the workspace in
+# sys/src/rust.
+[package]
+name = "uiview"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+publish = false
+workspace = "../../rust"
+
+[dependencies]
+xilem_core = { git = "https://github.com/linebender/xilem", rev = "dc496876a2f6ff2ce7687bfc8c19bd311bb553dc" }
+
+[lints.rust]
+# a host's rustc (cargo test) does not know the plan9 target
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(target_os, values("plan9"))'] }

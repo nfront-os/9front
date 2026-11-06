@@ -1,0 +1,44 @@
+.TH UITODO 1
+.SH NAME
+uitodo, uicount \- programs on ui(4)
+.SH SYNOPSIS
+.B uitodo
+[
+.B -f
+.I file
+]
+.PP
+.B uicount
+.SH DESCRIPTION
+Both run in a new window of
+.IR ui (4),
+written in Rust with
+.IR uiview (2).
+.PP
+.I Uitodo
+keeps a list of things to do.
+A text box takes a new one (enter, or the
+.B add
+button); each has a check box (done) and a button that takes it away.
+With
+.BR -f ,
+the list is read from
+.I file
+at the start and written to it after each change, a line each:
+.B 0
+or
+.B 1
+(done), a blank, the text.
+.PP
+.I Uicount
+counts: a number and buttons to add one, take one, and start again.
+.PP
+The windows' files are those of
+.IR ui (4):
+.B /srv/ui.\fIuser\fP.\fIpid\fP.0
+mounted elsewhere shows the list's tree and changes it.
+.SH SOURCE
+.B /sys/src/cmd/uidemo
+.SH SEE ALSO
+.IR ui (4),
+.IR uiview (2)

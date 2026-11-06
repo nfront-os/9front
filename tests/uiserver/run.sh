@@ -2,7 +2,7 @@
 # uiserver: ui (sys/src/cmd/ui, ../9front-ui PLAN stage 5: a window of widgets
 # a client describes through files) in a window of wsys on a VESA screen, a
 # client in rc (tests/uiserver/uiserver.rc) and one in C through libui
-# (uiclient.c), in a guest of
+# (uiclient.c) and uitodo (sys/src/cmd/uidemo: Rust, uiview), in a guest of
 # scripts/guest/mcp-guest.sh.
 # usage: tests/uiserver/run.sh   (needs ../9front-rust's stage-1 rustc, a build: wsys)
 set -e
@@ -15,11 +15,13 @@ RUSTC=${RUSTC:-$RUST_DIR/rust/build/host/stage1/bin/rustc}
 T=x86_64-unknown-plan9
 (cd "$ROOT/sys/src/rust" && env RUSTC="$RUSTC" CARGO_TARGET_DIR="$BUILD/cargo/rust" \
 	CARGO_TARGET_X86_64_UNKNOWN_PLAN9_LINKER="$CROSS/$TRIPLE-gcc" \
-	cargo build --offline --release --target $T --quiet -p ui)
+	cargo build --offline --release --target $T --quiet -p ui -p uidemo)
 mkdir -p "$HERE/root/tests" "$HERE/root/lib/font/ttf"
 (cd "$ROOT/tests/ui" && env PLAN9="$ROOT" ARCH=amd64 CC=gcc "$ROOT/sys/src/cmd/build/build.exe" build.json >/dev/null)
 (cd "$HERE" && env PLAN9="$ROOT" ARCH=amd64 CC=gcc "$ROOT/sys/src/cmd/build/build.exe" build.json >/dev/null)
-"$CROSS/$TRIPLE-strip" -o "$HERE/root/tests/ui" "$BUILD/cargo/rust/$T/release/ui"
+for p in ui uitodo; do
+	"$CROSS/$TRIPLE-strip" -o "$HERE/root/tests/$p" "$BUILD/cargo/rust/$T/release/$p"
+done
 cp "$ROOT/amd64/bin/wsys" "$ROOT/tests/ui/root/tests/uipeek" "$HERE/root/tests/"
 cp "$ROOT/lib/font/ttf/"*.ttf "$HERE/root/lib/font/ttf/"
 cp "$HERE/uiserver.rc" "$HERE/root/tests/uiserver"
