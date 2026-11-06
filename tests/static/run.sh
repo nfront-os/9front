@@ -141,4 +141,14 @@ rcsyntax(){
 }
 check "rc scripts (scripts/build/rc, scripts/guest/boot, tests/hw) parse" rcsyntax
 
+# 8. the Rust crates 9front changed (sys/src/rust) are ../9front-rust's,
+#    whose patches are their master (scripts/rust/crates.sh); without
+#    ../9front-rust there is nothing to compare with
+rustcrates(){
+	local r=${RUST_DIR:-$ROOT/../9front-rust}
+	[ -d "$r/crates" ] || { echo "no $r/crates: not compared"; return 0; }
+	bash scripts/rust/crates.sh -n
+}
+check "sys/src/rust is ../9front-rust's crates and p9win (scripts/rust/crates.sh)" rustcrates
+
 done_tests

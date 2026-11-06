@@ -552,6 +552,6 @@ features = [
     "Win32_UI_WindowsAndMessaging",
 ]
 
-# 9front: the plan9 backend's window (sys/src/rust/p9win)
+# 9front: the plan9 backend's window (../9front-rust/plan9/p9win)
 [target.'cfg(target_os = "plan9")'.dependencies.p9win]
-path = "../../p9win"
+path = "../../plan9/p9win"

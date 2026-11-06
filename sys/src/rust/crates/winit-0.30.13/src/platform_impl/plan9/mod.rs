@@ -1,6 +1,6 @@
 //! 9front: winit's plan9 backend (target_os = "plan9"): the process's window
 //! of wsys or rio, the screen without either, through p9win
-//! (sys/src/rust/p9win): draw(3) for its place, /dev/mouse, /dev/kbd and
+//! (../9front-rust/plan9/p9win): draw(3) for its place, /dev/mouse, /dev/kbd and
 //! /dev/wctl read by threads of their own, /dev/wctl, /dev/label and
 //! /dev/cursor written. One window a process; pixels come from softbuffer's
 //! plan9 backend, or Vulkan's VK_PLAN9_surface and EGL's plan9 platform (the

@@ -281,6 +281,6 @@ features = [
 ]
 default-features = false
 
-# 9front: the plan9 backend draws through draw(3) (sys/src/rust/p9win)
+# 9front: the plan9 backend draws through draw(3) (../9front-rust/plan9/p9win)
 [target.'cfg(target_os = "plan9")'.dependencies.p9win]
-path = "../../p9win"
+path = "../../plan9/p9win"
