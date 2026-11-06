@@ -804,9 +804,11 @@ by
 bytes a row, a multiple of 256) at
 .I x y
 of the screen on an overlay plane of the output that has that part of
-the screen wholly, above the screen: the GPU copies it into an object
-of the display's in VRAM, the client's object stays where the processor
-reads it.
+the screen wholly, above the screen.
+An object in VRAM the plane shows as it is (the display's own
+framebuffer of it, kept for a swapchain's few images); one in GTT the
+GPU copies into an object of the display's in VRAM, and it stays where
+the processor reads it.
 Returns when the display shows it (its next vblank); refused when no
 output has the window wholly or a context's picture is on the display
 .RB ( scanout ).

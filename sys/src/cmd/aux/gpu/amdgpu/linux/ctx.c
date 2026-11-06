@@ -571,10 +571,10 @@ amdgpu_scanout_gem(void *v, u32 handle, unsigned int w, unsigned int h, unsigned
 /*
  * ctl "overlay handle x y w h stride": the client's object (its window's
  * picture, XRGB8888, stride bytes a row, the window at x y on the screen)
- * on an overlay plane: copied by the GPU's copy engine (amdgpu's TTM
- * buffer functions, SDMA) into an object of the display's in VRAM, which
- * the plane then shows (kmsout.c); the client's object stays where the
- * processor reads it (GTT).  Returns when the display shows it.  handle
+ * on an overlay plane.  In VRAM (variant b) the plane shows it as it is;
+ * else (GTT, where wsys reads it: variant a) the GPU's copy engine (amdgpu's
+ * TTM buffer functions, SDMA) copies it into an object of the display's in
+ * VRAM, which the plane then shows (kmsout.c).  Returns when the display shows it.  handle
  * 0: off.
  */
 int
@@ -594,6 +594,15 @@ amdgpu_overlay(void *v, u32 handle, int x, int y, u32 w, u32 h, u32 stride)
 		kmsout_overlay_off(c->filp);
 		return 0;
 	}
+	/* in VRAM already (variant b, the WSI's images for the plane): shown as it is */
+	if ((sobj = drm_gem_object_lookup(c->file, handle)) == NULL)
+		return -ENOENT;
+	src = gem_to_amdgpu_bo(sobj);
+	r = src->tbo.resource && src->tbo.resource->mem_type == TTM_PL_VRAM &&
+	    (src->preferred_domains & AMDGPU_GEM_DOMAIN_VRAM);
+	drm_gem_object_put(sobj);
+	if (r)
+		return kmsout_overlay_direct(c->filp, handle, w, h, stride, x, y);
 	r = kmsout_overlay_back(c->filp, w, h, stride, &kmsf, &dh);
 	if (r)
 		return r;

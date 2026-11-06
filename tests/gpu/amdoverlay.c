@@ -10,7 +10,12 @@
  * 640x480 rectangle at 100,100 blinking red and blue, then gone.
  * Prints "ok ..." / "FAIL ..." lines and a summary.
  *
- * usage: amdoverlay [-n frames] [-x x] [-y y] [dev]
+ * -v: the object in VRAM: the driver shows it itself, no copy (variant
+ * b); not filled (amdgpu clears it: black), as only a contiguous object
+ * would be in BAR 0 and clients may not ask for that.  Else in GTT,
+ * copied into VRAM (variant a).
+ *
+ * usage: amdoverlay [-v] [-n frames] [-x x] [-y y] [dev]
  */
 #include <u.h>
 #include <libc.h>
@@ -102,10 +107,11 @@ main(int argc, char **argv)
 {
 	char path[128], buf[256], *f[8];
 	u32int h, *px;
-	int i, n, x, y;
+	int i, n, x, y, vram;
 	vlong t0, t1;
 
 	n = 120;
+	vram = 0;
 	x = 100;
 	y = 100;
 	ARGBEGIN{
@@ -118,6 +124,9 @@ main(int argc, char **argv)
 	case 'y':
 		y = atoi(EARGF(sysfatal("usage")));
 		break;
+	case 'v':
+		vram = 1;
+		break;
 	}ARGEND
 	if(argc > 0)
 		dev = argv[0];
@@ -128,13 +137,16 @@ main(int argc, char **argv)
 	if(pread(cfd, buf, sizeof buf - 1, 0) <= 0)
 		sysfatal("clone: %r");
 	ok("%s", ovline());
-	if(req(buf, sizeof buf, "gem %d 4096 gtt cpuaccess", Stride*H) < 0 || tokenize(buf, f, nelem(f)) != 2)
+	if(req(buf, sizeof buf, "gem %d 4096 %s cpuaccess", Stride*H, vram ? "vram" : "gtt") < 0 || tokenize(buf, f, nelem(f)) != 2)
 		sysfatal("gem: %r");
 	h = strtoul(f[1], nil, 0);
-	if(req(buf, sizeof buf, "map %ud", h) < 0 || tokenize(buf, f, nelem(f)) != 5)
-		sysfatal("map: %r");
-	if((px = segattach(0, f[2], nil, strtoull(f[4], nil, 0))) == (void*)-1)
-		sysfatal("segattach %s: %r", f[2]);
+	px = nil;
+	if(!vram){
+		if(req(buf, sizeof buf, "map %ud", h) < 0 || tokenize(buf, f, nelem(f)) != 5)
+			sysfatal("map: %r");
+		if((px = segattach(0, f[2], nil, strtoull(f[4], nil, 0))) == (void*)-1)
+			sysfatal("segattach %s: %r", f[2]);
+	}
 
 	/* refusals: a stride not a multiple of 256, a window no output has wholly */
 	if(req(nil, 0, "overlay %ud %d %d %d %d %d", h, x, y, W-1, H, Stride-4) < 0)
@@ -148,7 +160,8 @@ main(int argc, char **argv)
 
 	t0 = nsec();
 	for(i = 0; i < n; i++){
-		fill(px, i/30 % 2 ? 0x0000ff : 0xff0000);	/* half a second each */
+		if(px != nil)
+			fill(px, i/30 % 2 ? 0x0000ff : 0xff0000);	/* half a second each */
 		if(req(nil, 0, "overlay %ud %d %d %d %d %d", h, x, y, W, H, Stride) < 0){
 			fail("overlay, frame %d: %r", i);
 			break;
@@ -158,14 +171,16 @@ main(int argc, char **argv)
 	}
 	t1 = nsec();
 	if(i == n)
-		ok("%d frames in %.2f s: %.2f ms each (the display's vblank)", n, (t1-t0)/1e9, (t1-t0)/1e6/n);
+		ok("%s: %d frames in %.2f s: %.2f ms each (the display's vblank)", vram ? "VRAM, shown as it is" : "GTT, copied",
+			n, (t1-t0)/1e9, (t1-t0)/1e6/n);
 	if(req(nil, 0, "overlay off") < 0)
 		fail("overlay off: %r");
 	else if(strstr(ovline(), "none shown") == nil)
 		fail("off: %s", ovline());
 	else
 		ok("off: %s", ovline());
-	segdetach(px);
+	if(px != nil)
+		segdetach(px);
 	req(nil, 0, "close %ud", h);
 	close(cfd);
 	print(nfail ? "amdoverlay: %d failed\n" : "amdoverlay: all passed\n", nfail);

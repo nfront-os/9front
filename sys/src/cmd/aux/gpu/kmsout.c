@@ -90,6 +90,10 @@ static u32 ov_w, ov_h, ov_pitch;
 static int ov_back;			/* the one not shown */
 static u32 ov_plane, ov_crtc;		/* where it is, 0: not shown yet */
 static int ov_x, ov_y;
+/* variant b: the client's own objects in VRAM, on the plane as they are (no copy) */
+enum { Ndirect = 4 };			/* a swapchain's images */
+static struct { u32 handle, fb; } ovd[Ndirect];	/* ours (PRIME) and their framebuffers */
+static u32 ovd_fb;			/* the one shown */
 static void	ovfree(void);
 static char	*ovstate(void);
 static struct drm_client_dev client;	/* for DRM's hotplug events */
@@ -1252,6 +1256,79 @@ out:
 	return r;
 }
 
+/* the client's objects of variant b let go of, but the one shown (keep); kmslock held */
+static void
+ovdfree(u32 keep)
+{
+	struct drm_gem_close cl;
+	int i;
+
+	for (i = 0; i < Ndirect; i++) {
+		if (!ovd[i].fb || ovd[i].fb == keep)
+			continue;
+		kioctl(kms, DRM_IOCTL_MODE_RMFB, &ovd[i].fb);
+		memset(&cl, 0, sizeof(cl));
+		cl.handle = ovd[i].handle;
+		kioctl(kms, DRM_IOCTL_GEM_CLOSE, &cl);
+		ovd[i].fb = ovd[i].handle = 0;
+	}
+	if (!keep)
+		ovd_fb = 0;
+}
+
+/*
+ * fb on the overlay plane of the output whose part of the screen has the
+ * window (ov_w x ov_h at x y) wholly; waits for the vblank.  -ERANGE: no
+ * output has it all, no overlay plane on its CRTC, or a client's picture
+ * is on that output (scanout).  kmslock held.
+ */
+static int
+ovplace(u32 fb, int x, int y)
+{
+	struct drm_mode_set_plane sp = { };
+	struct out *o = NULL;
+	int i, k, r;
+
+	for (i = 0; i < nout; i++) {
+		struct out *p = &outs[i];
+
+		if (p->on && p->crtc && x >= p->x && y >= p->y &&
+		    x + (int)ov_w <= p->x + p->mode.hdisplay && y + (int)ov_h <= p->y + p->mode.vdisplay) {
+			o = p;
+			break;
+		}
+	}
+	for (k = 0; o && k < ncrtc; k++)
+		if (crtcs[k] == o->crtc)
+			break;
+	if (!o || k == ncrtc || !ovplane[k] || (shown_fb && (shown_out < 0 || &outs[shown_out] == o)))
+		return -ERANGE;
+	if (ov_plane && (ov_plane != ovplane[k] || ov_crtc != o->crtc)) {
+		/* the window went to another output: off on the old one */
+		sp.plane_id = ov_plane;
+		sp.crtc_id = ov_crtc;
+		kioctl(kms, DRM_IOCTL_MODE_SETPLANE, &sp);
+		memset(&sp, 0, sizeof(sp));
+	}
+	sp.plane_id = ovplane[k];
+	sp.crtc_id = o->crtc;
+	sp.fb_id = fb;
+	sp.crtc_x = x - o->x;
+	sp.crtc_y = y - o->y;
+	sp.crtc_w = ov_w;
+	sp.crtc_h = ov_h;
+	sp.src_w = ov_w << 16;
+	sp.src_h = ov_h << 16;
+	r = kioctl(kms, DRM_IOCTL_MODE_SETPLANE, &sp);
+	if (r == 0) {
+		ov_plane = ovplane[k];
+		ov_crtc = o->crtc;
+		ov_x = x;
+		ov_y = y;
+	}
+	return r;
+}
+
 /* the overlay off the display and its objects freed; kmslock held */
 static void
 ovfree(void)
@@ -1271,6 +1348,7 @@ ovfree(void)
 			ops->screen_free(kms, ov_handle[i]);
 		ov_fb[i] = ov_handle[i] = 0;
 	}
+	ovdfree(0);
 	ov_by = NULL;
 	ov_plane = ov_crtc = 0;
 	ov_w = ov_h = ov_pitch = 0;
@@ -1300,7 +1378,7 @@ kmsout_overlay_back(struct file *from, u32 w, u32 h, u32 stride, struct file **k
 		r = -EBUSY;
 		goto out;
 	}
-	if (ov_by != from || ov_w != w || ov_h != h || ov_pitch != stride) {
+	if (ov_by != from || ov_w != w || ov_h != h || ov_pitch != stride || !ov_handle[0]) {
 		ovfree();
 		for (i = 0; i < 2; i++) {
 			/* screen_alloc's pitch is ALIGN(w*4, 256): the client's stride */
@@ -1345,57 +1423,98 @@ out:
 int
 kmsout_overlay_show(struct file *from, int x, int y)
 {
-	struct drm_mode_set_plane sp = { };
-	struct out *o = NULL;
-	int i, k, r;
+	int r;
 
 	mutex_lock(&kmslock);
-	if (ov_by != from || !ov_fb[ov_back]) {
+	if (ov_by != from || !ov_fb[ov_back])
 		r = -EINVAL;
-		goto out;
-	}
-	for (i = 0; i < nout; i++) {
-		struct out *p = &outs[i];
-
-		if (p->on && p->crtc && x >= p->x && y >= p->y &&
-		    x + (int)ov_w <= p->x + p->mode.hdisplay && y + (int)ov_h <= p->y + p->mode.vdisplay) {
-			o = p;
-			break;
-		}
-	}
-	for (k = 0; o && k < ncrtc; k++)
-		if (crtcs[k] == o->crtc)
-			break;
-	if (!o || k == ncrtc || !ovplane[k] || (shown_fb && (shown_out < 0 || &outs[shown_out] == o))) {
-		r = -ERANGE;
-		goto out;
-	}
-	if (ov_plane && (ov_plane != ovplane[k] || ov_crtc != o->crtc)) {
-		/* the window went to another output: off on the old one */
-		sp.plane_id = ov_plane;
-		sp.crtc_id = ov_crtc;
-		kioctl(kms, DRM_IOCTL_MODE_SETPLANE, &sp);
-		memset(&sp, 0, sizeof(sp));
-	}
-	sp.plane_id = ovplane[k];
-	sp.crtc_id = o->crtc;
-	sp.fb_id = ov_fb[ov_back];
-	sp.crtc_x = x - o->x;
-	sp.crtc_y = y - o->y;
-	sp.crtc_w = ov_w;
-	sp.crtc_h = ov_h;
-	sp.src_w = ov_w << 16;
-	sp.src_h = ov_h << 16;
-	r = kioctl(kms, DRM_IOCTL_MODE_SETPLANE, &sp);
-	if (r == 0) {
-		ov_plane = ovplane[k];
-		ov_crtc = o->crtc;
-		ov_x = x;
-		ov_y = y;
+	else if ((r = ovplace(ov_fb[ov_back], x, y)) == 0)
 		ov_back ^= 1;
-	}
-out:
 	mutex_unlock(&kmslock);
+	return r;
+}
+
+/*
+ * variant b: the client's object handle itself (in VRAM, XRGB8888, w x h,
+ * stride bytes a row, a multiple of 256) on the overlay plane at x y, no
+ * copy: ours by PRIME, a framebuffer of it kept while the client shows
+ * its swapchain's images in turn.  Returns when the display shows it.
+ */
+int
+kmsout_overlay_direct(struct file *from, u32 handle, u32 w, u32 h, u32 stride, int x, int y)
+{
+	struct drm_mode_fb_cmd2 fb;
+	struct drm_gem_close cl;
+	u32 kh;
+	int i, r;
+
+	if (!kms || !scr_fb)
+		return -ENODEV;
+	if (w == 0 || h == 0 || stride < w * 4 || stride % 256)
+		return -EINVAL;
+	r = kmsout_prime(from, handle, kms, &kh);
+	if (r)
+		return r;
+	mutex_lock(&kmslock);
+	if (ov_by && ov_by != from) {
+		r = -EBUSY;
+		goto close;
+	}
+	if (ov_by != from || ov_handle[0] || ov_w != w || ov_h != h || ov_pitch != stride) {
+		ovfree();	/* variant a's objects, or another size */
+		ov_by = from;
+		ov_w = w;
+		ov_h = h;
+		ov_pitch = stride;
+	}
+	for (i = 0; i < Ndirect; i++)
+		if (ovd[i].fb && ovd[i].handle == kh)
+			break;
+	if (i == Ndirect) {
+		/* a new one: in a free slot, or one not shown */
+		for (i = 0; i < Ndirect && ovd[i].fb; i++)
+			;
+		if (i == Ndirect)
+			for (i = 0; i < Ndirect && ovd[i].fb == ovd_fb; i++)
+				;
+		if (ovd[i].fb) {
+			kioctl(kms, DRM_IOCTL_MODE_RMFB, &ovd[i].fb);
+			memset(&cl, 0, sizeof(cl));
+			cl.handle = ovd[i].handle;
+			kioctl(kms, DRM_IOCTL_GEM_CLOSE, &cl);
+			ovd[i].fb = ovd[i].handle = 0;
+		}
+		memset(&fb, 0, sizeof(fb));
+		fb.width = w;
+		fb.height = h;
+		fb.pixel_format = DRM_FORMAT_XRGB8888;
+		fb.handles[0] = kh;
+		fb.pitches[0] = stride;
+		r = kioctl(kms, DRM_IOCTL_MODE_ADDFB2, &fb);
+		if (r)
+			goto close;
+		ovd[i].handle = kh;
+		ovd[i].fb = fb.fb_id;
+		kh = 0;		/* the slot holds it now */
+	} else if (kh != ovd[i].handle) {
+		memset(&cl, 0, sizeof(cl));
+		cl.handle = kh;
+		kioctl(kms, DRM_IOCTL_GEM_CLOSE, &cl);
+		kh = 0;
+	} else
+		kh = 0;		/* PRIME gave the handle we hold */
+	r = ovplace(ovd[i].fb, x, y);
+	if (r == 0)
+		ovd_fb = ovd[i].fb;
+	mutex_unlock(&kmslock);
+	return r;
+close:
+	mutex_unlock(&kmslock);
+	if (kh) {
+		memset(&cl, 0, sizeof(cl));
+		cl.handle = kh;
+		kioctl(kms, DRM_IOCTL_GEM_CLOSE, &cl);
+	}
 	return r;
 }
 
