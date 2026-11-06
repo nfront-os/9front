@@ -484,6 +484,9 @@ impl ApplicationHandler<UserEvent> for App {
                 self.fs.size = (s.width, s.height);
                 g.window.request_redraw();
             }
+            WinitWindowEvent::Moved(p) => {
+                self.fs.origin = (p.x, p.y);
+            }
             WinitWindowEvent::Focused(f) => {
                 g.root.handle_text_event(TextEvent::WindowFocusChange(f));
             }

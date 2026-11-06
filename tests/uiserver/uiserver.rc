@@ -5,18 +5,19 @@
 # nodes/id/props, clicks the button (/dev/mousein) and reads the click from
 # event, types into the text box (uipeek -k: kbd(3) through /dev/kbdin) and
 # reads its text events; a read of event let go (its process killed: Tflush)
-# leaves ui answering; the window's pixels from wsys' screen (uipeek).
+# leaves ui answering; the window's pixels from wsys' screen (uipeek); a
+# client in C (uiclient: libui) in a window of its own.
 # Prints ok/FAIL lines and "uiserver: all passed".
 nfail=0
 fn ok { echo ok $* }
 fn fail { echo FAIL $*; nfail=`{echo $nfail+1 | hoc} }
 fn check { # what want got
 	if(~ $3 $2) ok $1
-	if not fail $1: got $3, want $2
+	if not fail $1: got $"3, want $2
 }
 fn waitfor { # file pattern
 	n=0
-	while(! grep -s $2 $1 && test $n -lt 100){ sleep 0.1; n=`{echo $n+1 | hoc} }
+	while(! grep -s $2 $1 >[2]/dev/null && test $n -lt 100){ sleep 0.1; n=`{echo $n+1 | hoc} }
 }
 # mousein keeps the buttons per open file: a press and its release through one
 fn m { echo A $1 $2 $3; sleep 0.1 }
@@ -69,8 +70,16 @@ if(test $bg -gt 1000 && test $other -gt 500) ok window drawn: $bg background, $o
 if not fail window: $bg of $total background
 
 # where a node is on the screen: the middle of nodes/id/rect, the window's contents at 104,104
-# (hoc's int: a dot would end mousein's message)
-fn at { r=`{cat /mnt/ui/nodes/$1/rect}; echo `{echo 'int(104+('$r(1)+$r(3)')/2)' | hoc} `{echo 'int(104+('$r(2)+$r(4)')/2)' | hoc} }
+# (hoc's int: a dot would end mousein's message); ctl says where the contents are
+fn at { # node [mtpt]
+	mt=/mnt/ui
+	if(! ~ $#2 0) mt=$2
+	o=`{cat $mt/ctl}
+	r=`{cat $mt/nodes/$1/rect}
+	echo `{echo 'int('$o(1)'+('$r(1)+$r(3)')/2)' | hoc} `{echo 'int('$o(2)'+('$r(2)+$r(4)')/2)' | hoc}
+}
+o=`{cat /mnt/ui/ctl}
+check 'ctl: where the contents are' '104 104 492 342' $"o
 r=`{cat /mnt/ui/nodes/b/rect}
 if(~ $#r 4) ok 'nodes/b/rect:' $r
 if not fail no rect for b
@@ -108,6 +117,34 @@ sleep 0.3
 ps | grep -s ' ui$' && fail 'ui still running' || ok 'ui gone, the reader of event let go'
 
 unmount /mnt/ui >[2]/dev/null
+
+# a client in C (uiclient.c, libui: ui(2)): ui in a new window (uinew: /bin/ui
+# in wsys' namespace, the test's ui bound there by run.sh), a
+# scene; two clicks of its button counted in its label
+/tests/uiclient >/tmp/uic >[2=1] </dev/null &
+uicpid=$apid
+waitfor /tmp/uic '^ready'
+if(! grep -s '^ready' /tmp/uic) fail uiclient: `{cat /tmp/uic}
+if not {
+	ok uiclient: `{grep '^ready' /tmp/uic}
+	grep -s '^text  check me $' /mnt/uic/nodes/c/props && ok 'uiset: blanks kept' || fail uiset: `{cat /mnt/uic/nodes/c/props}
+	grep -s '^title uiclient$' /mnt/uic/tree && ok 'uinew: the title' || fail uinew title: `{grep '^title' /mnt/uic/tree}
+	sleep 1
+	b=`{at b /mnt/uic}
+	# a click until the button has one: the first may only make the window current
+	n=0
+	while(! grep -s '^event click b' /tmp/uic && test $n -lt 3){
+		{ m $b(1) $b(2) 0; m $b(1) $b(2) 1; m $b(1) $b(2) 0 } >/dev/mousein
+		sleep 0.5
+		n=`{echo $n+1 | hoc}
+	}
+	grep -s '^text count 1$' /mnt/uic/nodes/l/props && ok 'uiclient: the label says count 1' || fail uiclient label: `{cat /mnt/uic/nodes/l/props}
+	{ m $b(1) $b(2) 1; m $b(1) $b(2) 0 } >/dev/mousein
+	waitfor /tmp/uic '^count'
+	c=`{grep '^count' /tmp/uic}
+	check 'uiclient: two clicks counted' 'count 2' $"c
+}
+test -e /proc/$uicpid && echo kill >/proc/$uicpid/note
 
 cat /tmp/ui.log | grep -v '^uitest$'
 if(~ $nfail 0) echo uiserver: all passed

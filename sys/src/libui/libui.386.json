@@ -1,0 +1,13 @@
+[
+	{
+		"Name": "Ui",
+		"Include": [
+			"../lib.json"
+		],
+		"Install": "/$ARCH/lib.gcc/",
+		"Library": "libui.a",
+		"SourceFiles": [
+			"ui.c"
+		]
+	}
+]

@@ -2,8 +2,8 @@
 //
 // ui's files (ui(4)):
 //
-//	ctl		written: a transaction of the scene (scene.rs); read: the
-//			window's size
+//	ctl		written: a transaction of the scene (scene.rs); read: where
+//			the window's contents are on the screen: x y width height
 //	event		read: a line an event (click id, text id ..., check id 0|1,
 //			slide id v, enter id ..., close); each open from then on;
 //			a read waits for one (Tflush ends the wait)
@@ -48,6 +48,7 @@ pub struct Fs {
     pub scene: Scene,
     pub changes: Vec<Change>,
     pub size: (u32, u32),
+    pub origin: (i32, i32),
     pub rects: HashMap<String, [i32; 4]>, // the widgets' places, as the last frame had them
     uid: String,
     msize: u32,
@@ -65,6 +66,7 @@ impl Fs {
             scene: Scene::new(),
             changes: Vec::new(),
             size: (0, 0),
+            origin: (0, 0),
             rects: HashMap::new(),
             uid: uid.to_string(),
             msize: 8192 + ninep::IOHDRSZ,
@@ -159,7 +161,7 @@ impl Fs {
 
     fn content(&self, p: &Path) -> Vec<u8> {
         match p {
-            Path::Ctl => format!("{} {}\n", self.size.0, self.size.1).into_bytes(),
+            Path::Ctl => format!("{} {} {} {}\n", self.origin.0, self.origin.1, self.size.0, self.size.1).into_bytes(),
             Path::Tree => self.scene.dump().into_bytes(),
             Path::NodeFile(id, f) => {
                 let Some(n) = self.scene.nodes.get(id) else { return vec![] };

@@ -1,0 +1,140 @@
+.TH UI 2
+.SH NAME
+uiopen, uinew, uictl, uiset, uievent, uiclose \- a client of ui(4)
+.SH SYNOPSIS
+.B #include <u.h>
+.br
+.B #include <libc.h>
+.br
+.B #include <ui.h>
+.PP
+.ta \w'\fLUi* 'u
+.B
+Ui*	uiopen(char *srv, char *mtpt)
+.PP
+.B
+Ui*	uinew(char *title, char *mtpt)
+.PP
+.B
+int	uictl(Ui *u, char *fmt, ...)
+.PP
+.B
+int	uiset(Ui *u, char *id, char *key, char *value)
+.PP
+.B
+int	uievent(Ui *u, Uievent *e)
+.PP
+.B
+void	uiclose(Ui *u)
+.SH DESCRIPTION
+These routines are a thin layer over the files of
+.IR ui (4):
+a window of widgets that a program describes in
+.BR ctl 's
+language and whose events it reads from
+.BR event .
+Everything they do can be done with
+.IR open (2),
+.IR read (2)
+and
+.IR write (2)
+on the files as well.
+.PP
+.I Uiopen
+mounts
+.BI /srv/ srv\fR,
+the files of a running
+.IR ui ,
+on
+.I mtpt
+(default
+.BR /mnt/ui )
+and opens its
+.B ctl
+and
+.BR event .
+.I Uinew
+starts
+.B /bin/ui
+in a new window of
+.IR rio (1)
+or
+.IR wsys (4)
+.RB ( window
+in
+.IR rio (1)),
+waits up to ten seconds for its files and opens them as
+.I uiopen
+does; a
+.I title
+not nil is the window's.
+.PP
+.I Uictl
+writes a transaction: the text
+.I fmt
+makes
+.RI ( print (2)),
+its lines applied all or none.
+It returns 0, or \-1 with the error
+.I ui
+gave (which names the line).
+.I Uiset
+sets one property, quoting
+.I value
+as
+.IR rc (1)
+does
+.RB ( %q ).
+.PP
+.I Uievent
+waits for the next event and fills
+.IR e :
+.IP
+.EX
+typedef struct Uievent {
+	char	*kind;	/* click text enter check slide close */
+	char	*id;	/* the node; nil for close */
+	char	*arg;	/* the rest of the line, or "" */
+	char	line[1024];
+} Uievent;
+.EE
+.PP
+The strings point into
+.BR e->line ,
+good until the next call.
+It returns \-1 when
+.I ui
+is gone.
+.PP
+.I Uiclose
+closes the files and unmounts them; the window stays until
+.I ui
+ends.
+.SH EXAMPLE
+A button that counts its clicks:
+.IP
+.EX
+Ui *u;
+Uievent e;
+int n;
+
+if((u = uinew("count", nil)) == nil)
+	sysfatal("uinew: %r");
+uictl(u, "new l label\enset l text 0\ennew b button\enset b text add one\en");
+n = 0;
+while(uievent(u, &e) >= 0 && strcmp(e.kind, "close") != 0)
+	if(strcmp(e.kind, "click") == 0 && strcmp(e.id, "b") == 0)
+		uictl(u, "set l text %d", ++n);
+uiclose(u);
+.EE
+.SH SOURCE
+.B /sys/src/libui
+.SH SEE ALSO
+.IR ui (4),
+.IR rio (1)
+.SH BUGS
+A line of
+.B event
+longer than
+.B e->line
+is cut.

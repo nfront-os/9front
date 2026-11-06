@@ -43,7 +43,8 @@ It takes its fonts from
 .TP
 .B ctl
 Written: a transaction, the lines of one write applied all or none (an error
-names the line); read: the window's size.
+names the line); read: where the window's contents are on the screen,
+.IR "x y width height" .
 .TP
 .B event
 Read: what the user did, a line each, from the open on:
@@ -168,6 +169,8 @@ cat /mnt/ui/event	# click b, when it is pressed
 (Rust; Masonry, winit and softbuffer with their plan9 backends:
 .BR /sys/src/rust )
 .SH SEE ALSO
+.IR ui (2)
+(the files from C),
 .IR wsys (4),
 .IR rio (4),
 .IR acme (4)

@@ -1,7 +1,8 @@
 #!/bin/bash
 # uiserver: ui (sys/src/cmd/ui, ../9front-ui PLAN stage 5: a window of widgets
 # a client describes through files) in a window of wsys on a VESA screen, a
-# client in rc (tests/uiserver/uiserver.rc), in a guest of
+# client in rc (tests/uiserver/uiserver.rc) and one in C through libui
+# (uiclient.c), in a guest of
 # scripts/guest/mcp-guest.sh.
 # usage: tests/uiserver/run.sh   (needs ../9front-rust's stage-1 rustc, a build: wsys)
 set -e
@@ -15,8 +16,9 @@ T=x86_64-unknown-plan9
 (cd "$ROOT/sys/src/rust" && env RUSTC="$RUSTC" CARGO_TARGET_DIR="$BUILD/cargo/rust" \
 	CARGO_TARGET_X86_64_UNKNOWN_PLAN9_LINKER="$CROSS/$TRIPLE-gcc" \
 	cargo build --offline --release --target $T --quiet -p ui)
-(cd "$ROOT/tests/ui" && env PLAN9="$ROOT" ARCH=amd64 CC=gcc "$ROOT/sys/src/cmd/build/build.exe" build.json >/dev/null)
 mkdir -p "$HERE/root/tests" "$HERE/root/lib/font/ttf"
+(cd "$ROOT/tests/ui" && env PLAN9="$ROOT" ARCH=amd64 CC=gcc "$ROOT/sys/src/cmd/build/build.exe" build.json >/dev/null)
+(cd "$HERE" && env PLAN9="$ROOT" ARCH=amd64 CC=gcc "$ROOT/sys/src/cmd/build/build.exe" build.json >/dev/null)
 "$CROSS/$TRIPLE-strip" -o "$HERE/root/tests/ui" "$BUILD/cargo/rust/$T/release/ui"
 cp "$ROOT/amd64/bin/wsys" "$ROOT/tests/ui/root/tests/uipeek" "$HERE/root/tests/"
 cp "$ROOT/lib/font/ttf/"*.ttf "$HERE/root/lib/font/ttf/"
@@ -30,7 +32,7 @@ guest=$!
 trap 'kill -TERM -- -$guest 2>/dev/null || kill $guest 2>/dev/null; wait $guest 2>/dev/null || true' EXIT
 M="timeout 300 python3 $ROOT/scripts/guest/mcp.py"
 $M wait 600 >/dev/null
-$M rc '/tests/wsys -x -i /tests/uiserver >/tmp/wsys.log >[2=1] </dev/null' 240 >"$CLI_DIR/uiserver.out" || true
+$M rc 'bind /tests/ui /bin/ui; /tests/wsys -x -i /tests/uiserver >/tmp/wsys.log >[2=1] </dev/null' 240 >"$CLI_DIR/uiserver.out" || true
 out=$($M rc 'cat /tmp/wsys.log' 20) || true
 echo "$out" | grep -v -e '/srv/wsys'
 fail=0
