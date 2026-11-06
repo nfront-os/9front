@@ -1093,17 +1093,54 @@ shmalloc(uvlong len)
 	return ~0ULL;
 }
 
+/*
+ * back into the holes, kept in address order and merged with the holes
+ * before and after it: unmerged, the memory came apart into pieces too
+ * small for a big blob after a few dozen programs (venus then failed
+ * with VK_ERROR_OUT_OF_HOST_MEMORY although most of it was free)
+ */
 static void
 shmfree(uvlong off, uvlong len)
 {
-	Hole *h;
+	Hole *h, *p, **l;
 
 	len = (len + 0xFFF) & ~0xFFFULL;
-	h = emalloc9p(sizeof *h);	/* no merging: good enough for now */
+	p = nil;
+	for(l = &holes; (h = *l) != nil && h->off < off; l = &h->next)
+		p = h;
+	if(p != nil && p->off + p->len == off){
+		p->len += len;
+		if(h != nil && off + len == h->off){
+			p->len += h->len;
+			p->next = h->next;
+			free(h);
+		}
+		return;
+	}
+	if(h != nil && off + len == h->off){
+		h->off = off;
+		h->len += len;
+		return;
+	}
+	h = emalloc9p(sizeof *h);
 	h->off = off;
 	h->len = len;
-	h->next = holes;
-	holes = h;
+	h->next = *l;
+	*l = h;
+}
+
+/* free host visible memory: all of it, the biggest piece; with ctxlock */
+static void
+shmfreecount(uvlong *all, uvlong *big)
+{
+	Hole *h;
+
+	*all = *big = 0;
+	for(h = holes; h != nil; h = h->next){
+		*all += h->len;
+		if(h->len > *big)
+			*big = h->len;
+	}
 }
 
 static char*
@@ -1694,7 +1731,11 @@ statusstr(void)
 		features & Fblob ? " blob" : "", features & Fctxinit ? " ctxinit" : "",
 		qsize, nslot, irqfd >= 0 ? "on" : "poll", disp.w, disp.h, cur.w, cur.h, scanres, fbpa, fbsize);
 	if(shm.len != 0){
-		t = smprint("%shostmem %s %#llux %#llux\n", s, barseg[shm.bar], shm.off, shm.len);
+		uvlong all, big;
+
+		shmfreecount(&all, &big);	/* the caller holds ctxlock */
+		t = smprint("%shostmem %s %#llux %#llux free %#llux biggest %#llux\n", s, barseg[shm.bar],
+			shm.off, shm.len, all, big);
 		free(s);
 		s = t;
 	}
