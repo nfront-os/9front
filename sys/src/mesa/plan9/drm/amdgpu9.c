@@ -1271,6 +1271,23 @@ tfields(char *rep, const Fld *t, int codec, unsigned char *out, size_t size)
 	}
 }
 
+/*
+ * AMD9CHECK=1: each INFO query also through the arena (the ioctl as
+ * before), the results compared field by field: a name only one side
+ * knows, or a value the text lost, shows (on stderr)
+ */
+static int
+checkmode(void)
+{
+	static int c = -1;
+
+	if(c < 0)
+		c = getenv("AMD9CHECK") != NULL;
+	return c;
+}
+
+static const Fld *lastfld;	/* tinfo's table of the last query (the check's, one at a time) */
+
 static int
 tinfo(Amd *a, struct drm_amdgpu_info *in, Tb *b, char *rep)
 {
@@ -1316,10 +1333,26 @@ tinfo(Amd *a, struct drm_amdgpu_info *in, Tb *b, char *rep)
 	default:
 		return errno = EINVAL, -1;	/* no word for it */
 	}
+	lastfld = codec ? NULL : t;
 	if(treq(a, 0, b, rep) < 0)
 		return -1;
 	memset(out, 0, size);
 	if(t != NULL){
+		/* a name of the driver's this side does not know (AMD9CHECK) */
+		if(checkmode() && !codec){
+			char *l, *e2;
+			const Fld *f;
+
+			for(l = rep; *l; l = e2 + (*e2 != 0)){
+				e2 = l + strcspn(l, "\n");
+				for(f = t; f->name != NULL; f++)
+					if(strncmp(l, f->name, strlen(f->name)) == 0 && l[strlen(f->name)] == ' ')
+						break;
+				if(f->name == NULL)
+					fprintf(stderr, "amd9check: info %#x: the driver's %.*s: not in Mesa's structure\n",
+						in->query, (int)strcspn(l, " "), l);
+			}
+		}
 		tfields(rep, t, codec, out, size);
 		return 0;
 	}
@@ -1793,8 +1826,60 @@ textioctl1(Amd *a, unsigned nr, void *arg, Tb *b, char *rep)
 	return Notext;
 }
 
+static int	arenaioctl(Amd*, unsigned long, void*);
+
 int
 amd9ioctl(Amd *a, unsigned long req, void *arg)
+{
+	unsigned nr;
+	int r;
+
+	nr = req & 0xff;
+	if(refused(nr)){
+		dbg("ioctl %#x: not here", nr);
+		return errno = EOPNOTSUPP, -1;
+	}
+	if(nr == DRM_COMMAND_BASE + DRM_AMDGPU_FENCE_TO_HANDLE &&
+	   ((union drm_amdgpu_fence_to_handle*)arg)->in.what != AMDGPU_FENCE_TO_HANDLE_GET_SYNCOBJ)
+		return errno = EOPNOTSUPP, -1;	/* sync file descriptors: none */
+	if(textmode() && checkmode() && nr == DRM_COMMAND_BASE + DRM_AMDGPU_INFO){
+		struct drm_amdgpu_info *in = arg, old = *(struct drm_amdgpu_info*)arg;
+		unsigned char *want, *got = P(in->return_pointer);
+		uint32_t i;
+
+		if((r = textioctl(a, nr, arg)) != Notext && r == 0 && (want = calloc(1, in->return_size + 1)) != NULL){
+			old.return_pointer = U(want);
+			if(arenaioctl(a, req, &old) == 0 && memcmp(want, got, in->return_size) != 0){
+				const Fld *f;
+
+				for(i = 0; i < in->return_size; i++)
+					if(want[i] != got[i])
+						break;
+				f = NULL;
+				if(lastfld != NULL)
+					for(f = lastfld; f->name != NULL; f++)
+						if(i >= f->off && i < f->off + (f->type == T64 ? 8 : f->type == TA32 ? 4*f->n : 4))
+							break;
+				fprintf(stderr, "amd9check: info %#x: byte %u differs (%s): arena %#x, text %#x\n",
+					in->query, i, f != NULL && f->name != NULL ? f->name : "no field of the table",
+					want[i], got[i]);
+			}
+			free(want);
+		}
+		if(r != Notext)
+			return r;
+	}
+	if(textmode() && (r = textioctl(a, nr, arg)) != Notext){
+		if(r < 0)
+			dbg("ioctl %#x as text: %s", nr, strerror(errno));
+		return r;
+	}
+	return arenaioctl(a, req, arg);
+}
+
+/* the ioctl through the arena: its structure and all it points to copied there */
+static int
+arenaioctl(Amd *a, unsigned long req, void *arg)
 {
 	unsigned nr, size, dir;
 	unsigned long lcmd;
@@ -1805,18 +1890,6 @@ amd9ioctl(Amd *a, unsigned long req, void *arg)
 
 	nr = req & 0xff;
 	size = (req >> 16) & IOCPARM_MASK;
-	if(refused(nr)){
-		dbg("ioctl %#x: not here", nr);
-		return errno = EOPNOTSUPP, -1;
-	}
-	if(nr == DRM_COMMAND_BASE + DRM_AMDGPU_FENCE_TO_HANDLE &&
-	   ((union drm_amdgpu_fence_to_handle*)arg)->in.what != AMDGPU_FENCE_TO_HANDLE_GET_SYNCOBJ)
-		return errno = EOPNOTSUPP, -1;	/* sync file descriptors: none */
-	if(textmode() && (r = textioctl(a, nr, arg)) != Notext){
-		if(r < 0)
-			dbg("ioctl %#x as text: %s", nr, strerror(errno));
-		return r;
-	}
 	/* Linux's encoding: 1 the caller writes (IOC_IN), 2 it reads (IOC_OUT) */
 	dir = ((req & IOC_IN) ? 1 : 0) | ((req & IOC_OUT) ? 2 : 0);
 	lcmd = (unsigned long)dir << 30 | (unsigned long)size << 16 | DRM_IOCTL_BASE << 8 | nr;
