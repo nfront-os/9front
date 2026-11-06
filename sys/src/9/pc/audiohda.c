@@ -328,9 +328,15 @@ struct Ctlr {
 	Codec *codec[Maxcodecs];
 };
 
-#define csr32(c, r)	(*(ulong *)&(c)->mem[r])
-#define csr16(c, r)	(*(ushort *)&(c)->mem[r])
-#define csr8(c, r)	(*(uchar *)&(c)->mem[r])
+/*
+ * GCC port: volatile: gcc merged adjacent register stores into one wider
+ * write (Corbwp/Corbrp and Rirbwp/Rintcnt as one 32-bit store; QEMU's
+ * intel-hda took it as a write of Corbwp alone, the CORB never ran: "no
+ * audio codecs found"); kencc emits each store as written.
+ */
+#define csr32(c, r)	(*(volatile ulong *)&(c)->mem[r])
+#define csr16(c, r)	(*(volatile ushort *)&(c)->mem[r])
+#define csr8(c, r)	(*(volatile uchar *)&(c)->mem[r])
 
 static char *widtype[] = {
 	"aout",
