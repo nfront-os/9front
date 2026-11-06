@@ -9,14 +9,16 @@
  * read back where wsys gives it); waiting for events with a time and woken
  * by glfwPostEmptyEvent from another thread.  With a GPU (-g): an OpenGL
  * context (EGL, zink), a frame cleared green and read back; Vulkan's
- * extensions and a surface.
+ * extensions, an instance with them and a surface of the window
+ * (VK_PLAN9_surface) the device can present to.
  * -e secs: then the input events for secs seconds (keys, the mouse), a line
  * each (the host types and moves the mouse: tests/glfw/run.sh).
  * Prints "ok ..." / "FAIL ..." lines and a summary.
  *
  * usage: glfwtest [-g] [-e secs]
  */
-#define GLFW_INCLUDE_NONE
+#include <vulkan/vulkan.h>
+#define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 #include <fcntl.h>
 #include <pthread.h>
@@ -210,6 +212,18 @@ static void gl(void)
 
 static void vulkan(void)
 {
+    PFN_vkCreateInstance createinstance;
+    PFN_vkDestroyInstance destroyinstance;
+    PFN_vkEnumeratePhysicalDevices enumdevices;
+    PFN_vkGetPhysicalDeviceSurfaceSupportKHR support;
+    PFN_vkDestroySurfaceKHR destroysurface;
+    VkInstanceCreateInfo ici;
+    VkInstance inst;
+    VkPhysicalDevice dev;
+    VkSurfaceKHR surf;
+    VkBool32 ok;
+    VkResult r;
+    GLFWwindow *win;
     const char **ext;
     uint32_t n, i;
 
@@ -225,6 +239,41 @@ static void vulkan(void)
     for (i = 0; i < n; i++) {
         OK("Vulkan instance extension %s", ext[i]);
     }
+    createinstance = (PFN_vkCreateInstance)glfwGetInstanceProcAddress(NULL, "vkCreateInstance");
+    memset(&ici, 0, sizeof ici);
+    ici.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+    ici.enabledExtensionCount = n;
+    ici.ppEnabledExtensionNames = ext;
+    if (!createinstance || (r = createinstance(&ici, NULL, &inst)) != VK_SUCCESS) {
+        FAIL("vkCreateInstance with GLFW's extensions");
+        return;
+    }
+    destroyinstance = (PFN_vkDestroyInstance)glfwGetInstanceProcAddress(inst, "vkDestroyInstance");
+    enumdevices = (PFN_vkEnumeratePhysicalDevices)glfwGetInstanceProcAddress(inst, "vkEnumeratePhysicalDevices");
+    support = (PFN_vkGetPhysicalDeviceSurfaceSupportKHR)glfwGetInstanceProcAddress(inst, "vkGetPhysicalDeviceSurfaceSupportKHR");
+    destroysurface = (PFN_vkDestroySurfaceKHR)glfwGetInstanceProcAddress(inst, "vkDestroySurfaceKHR");
+    glfwDefaultWindowHints();
+    glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+    if (!(win = glfwCreateWindow(W, H, "glfwtest vulkan", NULL, NULL))) {
+        FAIL("Vulkan window");
+        destroyinstance(inst, NULL);
+        return;
+    }
+    if ((r = glfwCreateWindowSurface(inst, win, NULL, &surf)) != VK_SUCCESS) {
+        FAIL("glfwCreateWindowSurface: %d", r);
+    } else {
+        n = 1;
+        ok = VK_FALSE;
+        if (enumdevices(inst, &n, &dev) >= 0 && n == 1 && support(dev, 0, surf, &ok) == VK_SUCCESS && ok &&
+            glfwGetPhysicalDevicePresentationSupport(inst, dev, 0)) {
+            OK("Vulkan surface of the window (VK_PLAN9_surface), queue family 0 presents to it");
+        } else {
+            FAIL("Vulkan surface: no device presents to it");
+        }
+        destroysurface(inst, surf, NULL);
+    }
+    glfwDestroyWindow(win);
+    destroyinstance(inst, NULL);
 }
 
 int main(int argc, char **argv)

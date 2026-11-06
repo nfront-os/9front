@@ -1,0 +1,20 @@
+#!/bin/rc
+# aux/amdgpu with its screen; GLFW (sys/src/glfw) in a window of wsys:
+# glfwtest -g, its window checks and then an OpenGL context (EGL's plan9
+# platform, zink: a frame cleared green, read back) and Vulkan (GLFW's
+# instance extensions, a surface of the window: VK_PLAN9_surface)
+bind -a '#i' /dev
+bind -a '#v' /dev
+aux/amdgpu $* >/tmp/amd.log >[2=1]
+sleep 2
+cat >/tmp/glfwwin.rc <<'.'
+rm -f /tmp/glfw.log
+window -r 100 100 500 400 'rc -c ''/tests/glfwtest -g >/tmp/glfw.log >[2=1]; echo glfw: exit $status >>/tmp/glfw.log'''
+n=0
+while(! grep -s '^glfw: exit' /tmp/glfw.log && test $n -lt 600){ sleep 0.1; n=`{echo $n+1 | hoc} }
+cat /tmp/glfw.log
+.
+/tests/wsys -x -i 'rc /tmp/glfwwin.rc' >/tmp/wsys.log >[2=1]
+cat /tmp/wsys.log
+grep 'WARN|error|fault|BUG' /tmp/amd.log
+echo TESTEND
