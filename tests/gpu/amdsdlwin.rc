@@ -5,13 +5,15 @@
 rm -f /tmp/svk.log
 flag=()
 label=wsys
+frames=60
 if(~ $1 overlay){
 	flag=-W
 	label=overlay
+	frames=180	# 3 s at the display's rate: the status is read while it runs
 }
-window -r 100 100 500 400 'rc -c ''/tests/sdlvk '$"flag' 60 >/tmp/svk.log >[2=1]; echo sdlvk: exit $status >>/tmp/svk.log'''
+window -r 100 100 500 400 'rc -c ''/tests/sdlvk '$"flag' '$frames' >/tmp/svk.log >[2=1]; echo sdlvk: exit $status >>/tmp/svk.log'''
 if(~ $1 overlay){
-	sleep 2
+	sleep 1
 	grep '^overlay' /dev/gpu/0/status | sed 's/^/during: /'
 }
 n=0
