@@ -34,7 +34,10 @@ GOOS=plan9 GOARCH=$A CGO_ENABLED=0 GOCACHE=$CLI_DIR/mcp/gocache \
 rm -f "$CLI_DIR/mcp.sid"
 
 export HOLD=1 UFS_EXTRA=$X SMP=${SMP:-4} MEM=${MEM:-2048}
-export QEMU_EXTRA="$QEMU_EXTRA -netdev user,id=mcpnet,net=10.0.3.0/24,hostfwd=tcp:127.0.0.1:$PORT-10.0.3.15:8090 -device e1000,netdev=mcpnet"
+# QMP for a guest that hangs (scripts/debug/qemu-ctl.py $CLI_DIR hmp ...), unless boot-cli makes one (SCREENSHOT)
+qmp=
+[ -n "$SCREENSHOT" ] || { rm -f "$CLI_DIR/qmp.sock"; qmp="-qmp unix:$CLI_DIR/qmp.sock,server,nowait"; }
+export QEMU_EXTRA="$QEMU_EXTRA $qmp -netdev user,id=mcpnet,net=10.0.3.0/24,hostfwd=tcp:127.0.0.1:$PORT-10.0.3.15:8090 -device e1000,netdev=mcpnet"
 exec bash "$ROOT/scripts/guest/boot-cli.sh" "$@" \
 	"bind -a '#l1' /net; ip/ipconfig ether /net/ether1 10.0.3.15 255.255.255.0" \
 	"mkdir -p /tmp/mcp; /tests/9front-mcp -http 'tcp!*!8090' -token $TOKEN -dir /tmp/mcp -disks >[2]/tmp/mcp.log </dev/null &" \
