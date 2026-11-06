@@ -656,12 +656,13 @@ enum
 
 /*
  *  process memory segments - NSEG always last !
- *  9front-ng: 250 for segattach, not 4 (a GPU driver's buffer objects
- *  are segments, gpu(4))
+ *  9front-ng: NSEG is the table a process starts with; segattach grows
+ *  it (a GPU driver's buffer objects are segments, gpu(4): a Vulkan
+ *  program keeps hundreds mapped), segment.c
  */
 enum
 {
-	SSEG, TSEG, DSEG, BSEG, ESEG, LSEG, SEG1, SEG2, SEG3, SEG4, NSEG = SEG1+250
+	SSEG, TSEG, DSEG, BSEG, ESEG, LSEG, SEG1, SEG2, SEG3, SEG4, NSEG
 };
 
 enum
@@ -747,7 +748,13 @@ struct Proc
 	Rendez	waitr;		/* Place to hang out in wait */
 
 	QLock	seglock;	/* locked whenever seg[] changes */
-	Segment	*seg[NSEG];
+	Segment	**seg;		/* 9front-ng: seg0, or the table it grew into (segment.c) */
+	int	nseg;		/* slots in use: seg[0] to seg[nseg-1] */
+	int	segcap;		/* slots of seg and sorted */
+	Segment	**sorted;	/* the attached segments by base, for seg() */
+	int	nsorted;
+	Segment	*seg0[NSEG];
+	Segment	*sorted0[NSEG];
 
 	Pgrp	*pgrp;		/* Process group for namespace */
 	Egrp 	*egrp;		/* Environment group */

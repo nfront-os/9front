@@ -476,23 +476,17 @@ vmemchr(void *s, int c, ulong n)
 Segment*
 seg(Proc *p, uintptr addr, int dolock)
 {
-	int i;
 	Segment *s;
 
-	for(i = 0; i < NSEG; i++) {
-		if((s = p->seg[i]) == nil)
-			continue;
-		if(addr >= s->base && addr < s->top) {
-			if(dolock == 0)
-				return s;
-
-			qlock(&s->QLock);
-			if(addr >= s->base && addr < s->top)
-				return s;
-			qunlock(&s->QLock);
-		}
-	}
-
+	/* 9front-ng: by address, a binary search (segment.c: segbyaddr) */
+	if((s = segbyaddr(p, addr)) == nil)
+		return nil;
+	if(dolock == 0)
+		return s;
+	qlock(&s->QLock);
+	if(addr >= s->base && addr < s->top)
+		return s;
+	qunlock(&s->QLock);
 	return nil;
 }
 
@@ -509,7 +503,7 @@ checkpages(void)
 	if(up == nil)
 		return;
 
-	for(i = 0; i < NSEG; i++) {
+	for(i = 0; i < up->nseg; i++) {
 		if((s = up->seg[i]) == nil)
 			continue;
 		qlock(&s->QLock);

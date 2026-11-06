@@ -31,7 +31,8 @@
 			"threadtest.c",
 			"authtest.c",
 			"mptest.c",
-			"paktest.c"
+			"paktest.c",
+			"segtest.c"
 		]
 	},
 	{

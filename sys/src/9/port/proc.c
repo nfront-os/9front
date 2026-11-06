@@ -707,6 +707,10 @@ newproc(void)
 		}
 		p = (Proc*)(b + KSTACK);
 		p->index = procalloc.nextindex++;
+		/* 9front-ng: the segment table it starts with (segment.c) */
+		p->seg = p->seg0;
+		p->sorted = p->sorted0;
+		p->segcap = NSEG;
 		procalloc.tab[p->index] = p;
 	}
 	assert(p->state == Dead);
@@ -715,6 +719,8 @@ newproc(void)
 	unlock(&procalloc.Lock);
 
 	p->psstate = nil;
+	p->nseg = NSEG;		/* 9front-ng: the table may be one a process before grew */
+	p->nsorted = 0;
 	p->state = New;
 	p->PFPU.fpstate = FPinit;
 #ifdef KFPSTATE
@@ -1353,7 +1359,7 @@ pexit(char *exitstr, int freemem)
 	}
 
 	qlock(&up->seglock);
-	for(i = NSEG-1; i >= 0; i--)
+	for(i = up->nseg-1; i >= 0; i--)
 		putseg(detachseg(up, i));
 	qunlock(&up->seglock);
 
@@ -1563,10 +1569,12 @@ procflushseg(Segment *s)
 static int
 matchpseg(Proc *p, void *a)
 {
-	int i;
+	int i, n;
 	Segment *s;
 
-	for(i = 0; i < NSEG; i++) {
+	n = p->nseg;	/* 9front-ng: before p->seg, which segreserve swaps first */
+	coherence();
+	for(i = 0; i < n; i++) {
 		s = p->seg[i];
 		if(s != nil && s->pseg == a)
 			return 1;
@@ -1739,12 +1747,14 @@ exhausted(char *resource)
 ulong
 procpagecount(Proc *p)
 {
-	int i;
+	int i, n;
 	Segment *s;
 	ulong pages;
 
 	pages = 0;
-	for(i = 0; i < NSEG; i++) {
+	n = p->nseg;	/* 9front-ng: before p->seg, which segreserve swaps first */
+	coherence();
+	for(i = 0; i < n; i++) {
 		if((s = p->seg[i]) != nil)
 			pages += s->used;
 	}

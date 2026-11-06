@@ -164,5 +164,6 @@ returns
 .B (void*)-1
 on error.
 .SH BUGS
-There is a small fixed limit on the number of segments that may be attached,
-as well as a maximum segment size.
+There is a maximum segment size.
+The number of segments a process may attach is limited by memory only:
+its table grows as it attaches more.

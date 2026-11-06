@@ -194,7 +194,8 @@ sysrfork(uchar *list)
 		qunlock(&p->seglock);
 		nexterror();
 	}
-	for(i = 0; i < NSEG; i++) {
+	segreserve(p, up->nseg);	/* 9front-ng: the parent's table may have grown */
+	for(i = 0; i < up->nseg; i++) {
 		Segment *s = dupseg(i, n);
 		if(s != nil)
 			attachseg(p, i, s);
@@ -629,7 +630,7 @@ sysexec(uchar *list)
 			nexterror();
 		}
 
-		for(i = NSEG-1; i > ESEG; i--) {
+		for(i = up->nseg-1; i > ESEG; i--) {
 			s = up->seg[i];
 			if(s != nil && (s->type&SG_CEXEC) != 0)
 				putseg(detachseg(up, i));
@@ -715,7 +716,7 @@ sysexec(uchar *list)
 		nexterror();
 	}
 
-	for(i = NSEG-1; i > ESEG; i--) {
+	for(i = up->nseg-1; i > ESEG; i--) {
 		s = up->seg[i];
 		if(s != nil && (s->type&SG_CEXEC) != 0)
 			putseg(detachseg(up, i));

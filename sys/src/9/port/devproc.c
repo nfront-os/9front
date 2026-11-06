@@ -873,7 +873,7 @@ procread(Chan *c, void *va, long n, vlong off)
 {
 	char statbuf[1024], *sps;
 	ulong offset;
-	int i, j, rsize;
+	int i, j, k, rsize;
 	uchar *rptr;
 	uintptr addr;
 	Segment *s;
@@ -1035,23 +1035,31 @@ procread(Chan *c, void *va, long n, vlong off)
 		return n;
 
 	case Qsegment:
-		/* 9front-ng: NSEG lines do not fit statbuf */
-		sps = smalloc(NSEG*64);
+		/* 9front-ng: the table's lines do not fit statbuf; it grows (segment.c) */
+		eqlock(&p->seglock);
 		if(waserror()){
-			free(sps);
+			qunlock(&p->seglock);
 			nexterror();
 		}
+		k = p->nseg;
+		sps = smalloc(k*64);
 		j = 0;
-		for(i = 0; i < NSEG; i++) {
+		for(i = 0; i < k; i++) {
 			s = p->seg[i];
 			if(s == nil)
 				continue;
-			j += snprint(sps+j, NSEG*64-j,
+			j += snprint(sps+j, k*64-j,
 				"%-6s %c%c %8p %8p %4ld\n",
 				sname[s->type&SG_TYPE],
 				s->type&SG_FAULT ? 'F' : (s->type&SG_RONLY ? 'R' : ' '),
 				s->profile ? 'P' : ' ',
 				s->base, s->top, s->Ref.ref);
+		}
+		qunlock(&p->seglock);
+		poperror();
+		if(waserror()){
+			free(sps);
+			nexterror();
 		}
 		n = readstr(offset, va, n, sps);
 		poperror();

@@ -449,6 +449,8 @@ Segment*	data2txt(Segment*);
 Segment*	dupseg(int, int);
 Segment*	newseg(int, uintptr, ulong);
 Segment*	seg(Proc*, uintptr, int);
+Segment*	segbyaddr(Proc*, uintptr);
+void		segreserve(Proc*, int);
 Segment*	txt2data(Segment*);
 void		hnputv(void*, uvlong);
 void		hnputl(void*, uint);

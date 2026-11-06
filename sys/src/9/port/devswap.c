@@ -236,7 +236,7 @@ pager(void*)
 		up->psstate = "Pageout";
 
 		/* pageout segments in reverse order */
-		for(i = NSEG-1; i >= 0; i--) {
+		for(i = p->nseg-1; i >= 0; i--) {
 			s = p->seg[i];
 			if(s == nil)
 				continue;

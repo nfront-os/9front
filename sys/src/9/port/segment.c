@@ -105,12 +105,127 @@ newseg(int type, uintptr base, ulong size)
 	return s;
 }
 
-/* Must be called with p->seglock locked. */
+/*
+ * 9front-ng: a process's table of segments grows.  It starts as p->seg0
+ * (NSEG slots, the fixed ones SSEG to SEG4 among them); segreserve makes
+ * room for more, doubling it (a GPU client maps each buffer object as a
+ * segment of its own: SDL's Vulkan renderer keeps some 300, games more).
+ * p->nseg bounds the slots in use, which loops over the table walk.
+ *
+ * A table that grew is never freed: other processors read p->seg without
+ * p->seglock (procflushmmu's matchers, procpagecount), and may still hold
+ * the old one.  The Proc keeps its largest table for the processes after
+ * (newproc), so a slot frees at most the smaller ones it outgrew, less
+ * than the largest.
+ *
+ * p->sorted holds the attached segments by base (they do not overlap:
+ * isoverlap), for seg()'s and isoverlap's binary search; only the process
+ * itself and holders of p->seglock read it, so an old one is freed.
+ * Only the process changes its table, holding p->seglock (fork: the child's).
+ */
+void
+segreserve(Proc *p, int n)
+{
+	Segment **t, **o;
+	int cap;
+
+	if(n <= p->segcap)
+		return;
+	for(cap = 2*p->segcap; cap < n; cap *= 2)
+		;
+	t = malloc(cap*sizeof(Segment*));
+	o = malloc(cap*sizeof(Segment*));
+	if(t == nil || o == nil){
+		free(t);
+		free(o);
+		error(Enovmem);
+	}
+	memmove(t, p->seg, p->segcap*sizeof(Segment*));
+	memmove(o, p->sorted, p->nsorted*sizeof(Segment*));
+	coherence();
+	p->seg = t;		/* the old table stays (above) */
+	if(p->sorted != p->sorted0)
+		free(p->sorted);
+	p->sorted = o;
+	p->segcap = cap;
+}
+
+/* the first of p->sorted that starts at or above base */
+static int
+sortpos(Proc *p, uintptr base)
+{
+	int lo, hi, m;
+
+	lo = 0;
+	hi = p->nsorted;
+	while(lo < hi){
+		m = (lo+hi)/2;
+		if(p->sorted[m]->base < base)
+			lo = m+1;
+		else
+			hi = m;
+	}
+	return lo;
+}
+
+static void
+sortin(Proc *p, Segment *s)
+{
+	int i;
+
+	i = sortpos(p, s->base);
+	memmove(&p->sorted[i+1], &p->sorted[i], (p->nsorted-i)*sizeof(Segment*));
+	p->sorted[i] = s;
+	p->nsorted++;
+}
+
+static void
+sortout(Proc *p, Segment *s)
+{
+	int i;
+
+	for(i = sortpos(p, s->base); i < p->nsorted; i++)
+		if(p->sorted[i] == s){
+			p->nsorted--;
+			memmove(&p->sorted[i], &p->sorted[i+1], (p->nsorted-i)*sizeof(Segment*));
+			return;
+		}
+	panic("sortout: segment %#p not in pid %lud's table", s->base, p->pid);
+}
+
+/*
+ * the attached segment holding addr, or nil: of p->sorted the last that
+ * starts at or below addr (the process itself, or with p->seglock)
+ */
+Segment*
+segbyaddr(Proc *p, uintptr addr)
+{
+	int lo, hi, m;
+	Segment *s;
+
+	lo = 0;
+	hi = p->nsorted;
+	while(lo < hi){
+		m = (lo+hi)/2;
+		if(p->sorted[m]->base <= addr)
+			lo = m+1;
+		else
+			hi = m;
+	}
+	if(lo == 0)
+		return nil;
+	s = p->sorted[lo-1];
+	return addr < s->top ? s : nil;
+}
+
+/* Must be called with p->seglock locked; segno below p->segcap (segreserve). */
 void
 attachseg(Proc *p, int segno, Segment *s)
 {
 	int i = p->index;
 
+	if(segno >= p->segcap)
+		panic("attachseg: slot %d of %d", segno, p->segcap);
 	qlock(&s->QLock);
 	if(i < s->firstproc)
 		s->firstproc = i;
@@ -120,6 +235,11 @@ attachseg(Proc *p, int segno, Segment *s)
 	qunlock(&s->QLock);
 
 	p->seg[segno] = s;
+	sortin(p, s);
+	if(segno >= p->nseg){
+		coherence();
+		p->nseg = segno+1;
+	}
 }
 
 int
@@ -127,9 +247,9 @@ segno(Proc *p, Segment *s)
 {
 	int i = s->segno;
 
-	if(i < 0 || p->seg[i] == s)
+	if(i < 0 || (i < p->nseg && p->seg[i] == s))
 		return i;
-	for(i = 0; i < NSEG; i++) {
+	for(i = 0; i < p->nseg; i++) {
 		if(p->seg[i] == s)
 			return i;
 	}
@@ -141,7 +261,10 @@ Segment*
 detachseg(Proc *p, int segno)
 {
 	Segment *s = p->seg[segno];
-	p->seg[segno] = nil;
+	if(s != nil){
+		p->seg[segno] = nil;
+		sortout(p, s);
+	}
 	return s;
 }
 
@@ -853,14 +976,18 @@ isoverlap(uintptr base, uintptr len)
 	Segment *s;
 	uintptr top;
 
+	/*
+	 * 9front-ng: of the segments, sorted by base and not overlapping,
+	 * the last that starts below top ends last of those: it overlaps
+	 * if any does
+	 */
 	top = base+len;
-	for(i = 0; i < NSEG; i++) {
-		s = up->seg[i];
-		if(s == nil)
-			continue;
-		if(top > s->base && base < s->top)
-			return s;
-	}
+	i = sortpos(up, top);
+	if(i == 0)
+		return nil;
+	s = up->sorted[i-1];
+	if(top > s->base && base < s->top)
+		return s;
 	return nil;
 }
 
@@ -902,16 +1029,18 @@ findphysseg(char *name)
 	return nil;
 }
 
+/* 9front-ng: a free slot, the table grown if every one is in use (seglock held) */
 static int
 unusedsegno(int i)
 {
-	if(i < 0 || i == ESEG || up->seg[i] != nil)
+	if(i < 0 || i == ESEG || i >= up->nseg || up->seg[i] != nil)
 		i = 0;
-	for(; i < NSEG; i++) {
+	for(; i < up->nseg; i++) {
 		if(up->seg[i] == nil && i != ESEG)
 			return i;
 	}
-	return -1;
+	segreserve(up, up->nseg+1);
+	return up->nseg;
 }
 
 uintptr
