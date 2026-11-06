@@ -4,6 +4,8 @@ wsys \- window system, prototype (processor backend), rio(4)'s files
 .SH SYNOPSIS
 .B wsys
 [
+.B -Ox
+] [
 .B -f
 .I font
 ]
@@ -53,7 +55,11 @@ naming the service;
 .B -x
 makes it exit when
 .I cmd
-does.
+does;
+.B -O
+uses no overlay plane (see
+.B gpubuffer
+below).
 .PP
 A window's pixels are not sent through the files: they are in global
 segments of
@@ -295,6 +301,29 @@ visible memory).
 Mesa's plan9 WSI does this for Vulkan programs in a window of
 .IR wsys :
 their frames are not copied by the program.
+With
+.IR aux/amdgpu ,
+a window on top, wholly on the screen, with nothing of
+.I wsys
+over it (a menu, a sweep) and a GPU buffer as big as its contents (rows
+a multiple of 256 bytes) goes on an overlay plane
+.RB ( overlay
+in
+.IR gpu (4)):
+the display shows the buffer, copied into VRAM by the GPU, and
+.I wsys
+copies nothing; a present returns at the display's next vblank, done
+by a thread of its own, so that
+.I wsys
+answers its other clients meanwhile.
+When the window may no longer be there, the plane goes off and the last
+presented buffer is copied into the window.
+.B -O
+keeps every window on
+.IR wsys 's
+screen (tests that read the pixels back);
+.B WSYSDEBUG=overlay
+writes why a window's present does not go on the plane.
 .TP
 .BI unbuffer " b
 .I wsys

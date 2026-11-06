@@ -623,6 +623,18 @@ wsi_plan9_surface_create_swapchain(VkIcdSurfaceBase *icd_surface,
    if (result != VK_SUCCESS)
       goto fail_free_chain;
 
+   /*
+    * Buffers the display may show (scanout; in wsys, an overlay plane:
+    * gpu(4) overlay): rows a multiple of 256 bytes, the display's pitch
+    * (AMD's DCN: 64 pixels), so that the driver copies or shows them in
+    * one piece; the blit and gpubuffer take the stride from here.
+    */
+   if ((scanout || wsys >= 0) && chain->base.blit.type == WSI_SWAPCHAIN_BUFFER_BLIT) {
+      chain->base.image_info.linear_stride = align(chain->base.image_info.linear_stride, 256);
+      chain->base.image_info.linear_size = (uint64_t)chain->base.image_info.linear_stride *
+                                           pCreateInfo->imageExtent.height;
+   }
+
    /* the display reads VRAM only: the copy the display shows there, an
     * object the display may take (exportable, not one of the VM's own) */
    if (scanout && wsi_device->plan9_scanout_device_local) {

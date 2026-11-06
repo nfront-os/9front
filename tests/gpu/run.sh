@@ -273,7 +273,8 @@ if [ -r /dev/dri/renderD128 ] && [ -w /dev/dri/renderD128 ] &&
 		cp "$ROOT/$objtype/bin/wsys" "$HERE/root/tests/wsys"
 		cp "$HERE/wsysvk.rc" "$HERE/root/tests/wsysvk"
 		cp "$HERE/wsysvktri.rc" "$HERE/root/tests/wsysvktri"
-		chmod +x "$HERE/root/tests/wsysvk" "$HERE/root/tests/wsysvktri"
+		cp "$HERE/wsysovl.rc" "$HERE/root/tests/wsysovl"
+		chmod +x "$HERE/root/tests/wsysvk" "$HERE/root/tests/wsysvktri" "$HERE/root/tests/wsysovl"
 		bootwsys(){
 			CMDWAIT=120 CPU=host MEM=1024 UFS_EXTRA="$HERE/root" \
 			QEMU_EXTRA="-vga none -display egl-headless -device virtio-gpu-gl-pci,blob=true,venus=true,hostmem=256M -object memory-backend-memfd,id=mem1,size=1024M,share=on -machine memory-backend=mem1" \

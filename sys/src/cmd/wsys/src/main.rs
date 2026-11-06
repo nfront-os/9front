@@ -51,11 +51,12 @@
 // A window lives while its files are open (or the clone fid that made it).
 // Processes wsys starts (-i, wctl's new) get note groups of their own.
 //
-// usage: wsys [-f font] [-s srvname] [-i cmd] [-x]
+// usage: wsys [-Ox] [-f font] [-s srvname] [-i cmd]
 //	-f	the font of text windows (default $font, else /lib/font/bit/vga/unicode.font)
 //	-s	post as /srv/srvname (default wsys.$user.$pid)
 //	-i	run cmd (rc) in a name space with /mnt/wsys mounted, $wsys set
 //	-x	exit when cmd exits
+//	-O	no overlay plane: every window's pixels in wsys' screen (tests read them back)
 
 mod draw;
 mod font;
@@ -104,6 +105,18 @@ enum Ev {
     Kbd(Vec<Vec<u8>>), // kbd(3) messages: k, K or c and runes
     ChildExit(String),
     WinExit(u32), // the process wsys started in a window
+    // the overlay's thread did a request: a present (its write's tag, unless off) or off
+    Overlay { win: u32, b: u32, tag: Option<u16>, count: u32, err: Option<String> },
+}
+
+/// a request for the overlay's thread: its own fid of wsys' GPU context, as the
+/// display's update waits for the vblank (wsys goes on meanwhile)
+struct OvJob {
+    win: u32,
+    b: u32,
+    tag: Option<u16>, // a present's write, answered when it is done; None: off
+    count: u32,
+    line: String,
 }
 
 /// a window's files
@@ -234,6 +247,8 @@ struct Win {
     hold: bool,          // rio's hold mode: lines typed wait (Esc toggles it)
     want: Option<usize>, // drawtext scrolls so that this offset is shown (look)
     hidden: bool,        // off the screen (button 3's Hide), listed in its menu
+    lastb: Option<u32>,  // the buffer presented last (the overlay's: copied when it goes off)
+    nooverlay: bool,     // the driver refused it the overlay: copies until it moves or resizes
 }
 
 /// a line of a text window as drawn: each rune's x, width and offset, and the
@@ -467,6 +482,11 @@ struct Wsys {
     holdcol: u32,
     paleholdcol: u32,
     plumbfd: Option<Fd>, // /mnt/plumb/send, opened when first plumbed
+    ovtx: Option<mpsc::Sender<OvJob>>, // the overlay's thread, started for the first
+    ov: Option<u32>,                   // the window on the overlay plane
+    ovtags: Vec<u16>,                  // presents waiting for the overlay's thread
+    ovwhy: Option<&'static str>,       // why the last present did not go there (WSYSDEBUG)
+    nooverlay: bool,                   // -O
     gpu: Option<gpu::Gpu>, // a context for clients' GPU buffers, made for the first
 }
 
@@ -607,6 +627,7 @@ impl Wsys {
             }
             T::Flush { oldtag } => {
                 self.pending.retain(|p| p.tag != oldtag);
+                self.ovtags.retain(|&t| t != oldtag); // no answer for it any more
                 Some(R::new(109, tag).done())
             }
             T::Walk { fid, newfid, names } => {
@@ -785,6 +806,12 @@ impl Wsys {
                 let s = String::from_utf8_lossy(&data).into_owned();
                 match k {
                     Kind::File(n, F::Ctl) => {
+                        let lines: Vec<&str> = s.lines().map(str::trim).filter(|l| !l.is_empty()).collect();
+                        if let [line] = lines[..] {
+                            if self.overlay_present(n, line, tag, data.len() as u32) {
+                                return None; // answered when the overlay's thread is done
+                            }
+                        }
                         for line in s.lines() {
                             if let Err(err) = self.ctl(n, line.trim()) {
                                 return e(&err);
@@ -1082,7 +1109,7 @@ impl Wsys {
             kbd: VecDeque::new(), kbdopen: 0, mouseopen: 0, mouse: VecDeque::new(), resized: false,
             cursor: vec![], state: 1, textwin: text, scroll: 0, sel: (0, 0), rows: vec![], hidden: false,
             hold: false, want: None, stale: false,
-            scrollr: Rect::default(), shown: (1, 0, 1),
+            scrollr: Rect::default(), shown: (1, 0, 1), lastb: None, nooverlay: false,
         });
         self.z.push(n);
         self.setfocus(Some(n));
@@ -1315,37 +1342,9 @@ impl Wsys {
             }
             "present" => {
                 let b = *nums.first().ok_or("usage: present n [x0 y0 x1 y1]")? as u32;
-                let w = &self.wins[&n];
-                let buf = w.bufs.get(&b).ok_or("no such buffer")?;
-                // what of the buffer the window shows: its top left corner
-                let full = Rect::new(0, 0, buf.w.min(w.r.dx()), buf.h.min(w.r.dy()));
-                let r = if nums.len() == 5 { Rect::new(nums[1], nums[2], nums[3], nums[4]).clip(&full) } else { full };
-                if !r.empty() {
-                    // straight into its window in draw(3) (screen coordinates),
-                    // img follows when it is needed; but through img if the
-                    // screen's pixels are not the buffers'
-                    let direct = self.d.chan == XRGB32;
-                    if !direct {
-                        self.freshen(n);
-                    }
-                    let w = self.wins.get_mut(&n).unwrap();
-                    let (layer, img, o) = (w.layer, w.img, (w.r.x0, w.r.y0));
-                    let buf = w.bufs.get_mut(&b).unwrap();
-                    let stride = buf.stride;
-                    let (px, row) = buf.mem.rows(r.y0, r.y1, stride);
-                    let d = &mut self.d;
-                    let res = if direct {
-                        d.load_at(layer, &r.add(o.0, o.1), px, stride, r.x0, r.y0 - row).and_then(|_| d.flush())
-                    } else {
-                        d.load_at(img, &r, px, stride, r.x0, r.y0 - row)
-                    };
-                    res.map_err(|e| e.to_string())?;
-                    if direct {
-                        self.wins.get_mut(&n).unwrap().stale = true;
-                    } else {
-                        self.paint(n, Some(r));
-                    }
-                }
+                let r = if nums.len() == 5 { Some(Rect::new(nums[1], nums[2], nums[3], nums[4])) } else { None };
+                self.copybuf(n, b, r)?;
+                self.wins.get_mut(&n).unwrap().lastb = Some(b);
                 // copied: the client may write it again
                 self.event(n, format!("b {b}"));
                 Ok(())
@@ -1377,6 +1376,9 @@ impl Wsys {
     /// what it showed (white beyond it), and its client an r event; a draw(3)
     /// program reads r from its mouse file either way
     fn setrect(&mut self, n: u32, r: Rect) -> Result<(), String> {
+        if let Some(w) = self.wins.get_mut(&n) {
+            w.nooverlay = false; // somewhere else: the overlay again, perhaps
+        }
         if r.dx() < 1 || r.dy() < 1 || r.dx() > 16384 || r.dy() > 16384 {
             return Err("bad rectangle".into());
         }
@@ -1490,6 +1492,174 @@ impl Wsys {
         })();
         if let Err(e) = res {
             eprintln!("wsys: draw: {e}");
+        }
+    }
+
+    /// buffer b of window n (all, or its rectangle r) into what the window shows
+    fn copybuf(&mut self, n: u32, b: u32, r: Option<Rect>) -> Result<(), String> {
+        let w = &self.wins[&n];
+        let buf = w.bufs.get(&b).ok_or("no such buffer")?;
+        // what of the buffer the window shows: its top left corner
+        let full = Rect::new(0, 0, buf.w.min(w.r.dx()), buf.h.min(w.r.dy()));
+        let r = match r {
+            Some(r) => r.clip(&full),
+            None => full,
+        };
+        if r.empty() {
+            return Ok(());
+        }
+        // straight into its window in draw(3) (screen coordinates), img follows
+        // when it is needed; but through img if the screen's pixels are not the
+        // buffers'
+        let direct = self.d.chan == XRGB32;
+        if !direct {
+            self.freshen(n);
+        }
+        let w = self.wins.get_mut(&n).unwrap();
+        let (layer, img, o) = (w.layer, w.img, (w.r.x0, w.r.y0));
+        let buf = w.bufs.get_mut(&b).unwrap();
+        let stride = buf.stride;
+        let (px, row) = buf.mem.rows(r.y0, r.y1, stride);
+        let d = &mut self.d;
+        let res = if direct {
+            d.load_at(layer, &r.add(o.0, o.1), px, stride, r.x0, r.y0 - row).and_then(|_| d.flush())
+        } else {
+            d.load_at(img, &r, px, stride, r.x0, r.y0 - row)
+        };
+        res.map_err(|e| e.to_string())?;
+        if direct {
+            self.wins.get_mut(&n).unwrap().stale = true;
+        } else {
+            self.paint(n, Some(r));
+        }
+        Ok(())
+    }
+
+    /*
+     * The overlay plane (gpu(4) overlay, aux/amdgpu): the window on top, wholly on
+     * the screen, nothing of wsys' over it (menu, sweep), its GPU buffer as big as
+     * the window: the display shows the buffer itself (the driver copies it into
+     * VRAM on the GPU), wsys copies nothing.  The request waits for the display:
+     * a thread of its own does it, the present's write is answered then.
+     */
+    fn overlayable(&self, n: u32, b: u32) -> bool {
+        self.ovwhynot(n, b).is_none()
+    }
+
+    /// why window n's buffer b may not go on the overlay plane (None: it may)
+    fn ovwhynot(&self, n: u32, b: u32) -> Option<&'static str> {
+        let Some(w) = self.wins.get(&n) else { return Some("no window") };
+        let Some(buf) = w.bufs.get(&b) else { return Some("no buffer") };
+        let why = [
+            (self.nooverlay, "-O"),
+            (!matches!(buf.mem, Mem::Gpu(_)), "not a GPU buffer"),
+            (self.gpu.as_ref().and_then(|g| g.overlay_ctl()).is_none(), "the driver has no overlay"),
+            (self.z.last() != Some(&n), "not on top"),
+            (w.hidden, "hidden"),
+            (w.nooverlay, "refused before"),
+            (self.menu.is_some() || self.drag.is_some() || self.op3.is_some(), "wsys draws over it"),
+            (!self.d.r.contains(w.r.x0, w.r.y0) || w.r.x1 > self.d.r.x1 || w.r.y1 > self.d.r.y1, "not wholly on the screen"),
+            (buf.w != w.r.dx() || buf.h != w.r.dy(), "the buffer is not the window's size"),
+            (buf.stride % 256 != 0, "its stride is not a multiple of 256"),
+        ];
+        why.iter().find(|(c, _)| *c).map(|(_, s)| *s)
+    }
+
+    /// the overlay's thread, started for the first request
+    fn ovthread(&mut self) -> Option<&mpsc::Sender<OvJob>> {
+        if self.ovtx.is_none() {
+            let path = self.gpu.as_ref()?.overlay_ctl()?;
+            let fd = Fd::open(&path, ORDWR).inspect_err(|e| eprintln!("wsys: {path}: {e}")).ok()?;
+            let (jtx, jrx) = mpsc::channel::<OvJob>();
+            let tx = self.tx.clone();
+            thread::spawn(move || {
+                for j in jrx {
+                    let err = fd.write1(j.line.as_bytes()).err().map(|e| e.to_string());
+                    if tx.send(Ev::Overlay { win: j.win, b: j.b, tag: j.tag, count: j.count, err }).is_err() {
+                        return;
+                    }
+                }
+            });
+            self.ovtx = Some(jtx);
+        }
+        self.ovtx.as_ref()
+    }
+
+    /// a present of window n to the overlay's thread, if it can go there
+    fn overlay_present(&mut self, n: u32, line: &str, tag: u16, count: u32) -> bool {
+        let mut f = line.split_whitespace();
+        if f.next() != Some("present") {
+            return false;
+        }
+        let (Some(b), None) = (f.next().and_then(|x| x.parse::<u32>().ok()), f.next()) else { return false };
+        if let Some(why) = self.ovwhynot(n, b) {
+            // WSYSDEBUG=overlay: why not, once for each change
+            if std::env::var("WSYSDEBUG").is_ok_and(|v| v.contains("overlay")) && self.ovwhy != Some(why) {
+                eprintln!("wsys: window {n}: no overlay: {why}");
+            }
+            self.ovwhy = Some(why);
+            return false;
+        }
+        self.ovwhy = None;
+        let w = &self.wins[&n];
+        let buf = &w.bufs[&b];
+        let Mem::Gpu(g) = &buf.mem else { return false };
+        let req = format!("overlay {} {} {} {} {} {}", g.handle(), w.r.x0, w.r.y0, buf.w, buf.h, buf.stride);
+        let Some(tx) = self.ovthread() else { return false };
+        if tx.send(OvJob { win: n, b, tag: Some(tag), count, line: req }).is_err() {
+            return false;
+        }
+        self.ovtags.push(tag);
+        self.ov = Some(n);
+        self.wins.get_mut(&n).unwrap().lastb = Some(b);
+        true
+    }
+
+    /// the overlay's thread did a request
+    fn overlay_done(&mut self, win: u32, b: u32, tag: Option<u16>, count: u32, err: Option<String>) {
+        let Some(tag) = tag else { return }; // off
+        let answer = self.ovtags.contains(&tag);
+        self.ovtags.retain(|&t| t != tag);
+        let r = if !self.wins.contains_key(&win) {
+            Err("window deleted".to_string())
+        } else if let Some(e) = err {
+            // refused (no output has it all, another's on the plane): copies from now on
+            eprintln!("wsys: window {win}: overlay: {e}");
+            self.wins.get_mut(&win).unwrap().nooverlay = true;
+            if self.ov == Some(win) {
+                self.ov = None;
+            }
+            self.copybuf(win, b, None)
+        } else {
+            Ok(())
+        };
+        if r.is_ok() {
+            self.event(win, format!("b {b}"));
+        }
+        if answer {
+            self.send(match r {
+                Ok(()) => R::new(119, tag).u32(count).done(),
+                Err(e) => ninep::error(tag, &e),
+            });
+        }
+    }
+
+    /// the window on the overlay plane may not stay there: off, and what it showed
+    /// last into its window (the overlay was over it)
+    fn ovcheck(&mut self) {
+        let Some(n) = self.ov else { return };
+        let lastb = self.wins.get(&n).and_then(|w| w.lastb);
+        if lastb.is_some_and(|b| self.overlayable(n, b)) {
+            return;
+        }
+        self.ov = None;
+        if let Some(tx) = &self.ovtx {
+            let _ = tx.send(OvJob { win: n, b: 0, tag: None, count: 0, line: "overlay off".into() });
+        }
+        if let Some(b) = lastb {
+            if self.wins.contains_key(&n) {
+                let _ = self.copybuf(n, b, None);
+            }
         }
     }
 
@@ -2486,7 +2656,7 @@ fn kbdreader(tx: mpsc::Sender<Ev>) {
 }
 
 fn usage() -> ! {
-    eprintln!("usage: wsys [-f font] [-s srvname] [-i cmd] [-x]");
+    eprintln!("usage: wsys [-Ox] [-f font] [-s srvname] [-i cmd]");
     std::process::exit(1);
 }
 
@@ -2495,13 +2665,14 @@ fn main() {
     let user = std::env::var("user").unwrap_or_else(|_| "none".into());
     // with its pid as rio: a wsys that died leaves its entry, another starts all the same
     let mut srvname = format!("wsys.{user}.{}", std::process::id());
-    let (mut init, mut exitwith) = (None, false);
+    let (mut init, mut exitwith, mut nooverlay) = (None, false, false);
     let mut fontname = std::env::var("font").ok().filter(|f| !f.is_empty()).unwrap_or(DEFFONT.to_string());
     while let Some(a) = args.next() {
         match a.as_str() {
             "-s" => srvname = args.next().unwrap_or_else(|| usage()),
             "-i" => init = Some(args.next().unwrap_or_else(|| usage())),
             "-x" => exitwith = true,
+            "-O" => nooverlay = true,
             "-f" => fontname = args.next().unwrap_or_else(|| usage()),
             _ => usage(),
         }
@@ -2598,6 +2769,11 @@ fn main() {
         click: None,
         holdcol: 0,
         paleholdcol: 0,
+        ovtx: None,
+        ov: None,
+        ovtags: vec![],
+        ovwhy: None,
+        nooverlay,
         plumbfd: None,
         gpu: None,
         tabstop: std::env::var("tabstop").ok().and_then(|t| t.trim().parse().ok()).filter(|&t: &i32| t > 0).unwrap_or(4),
@@ -2705,6 +2881,7 @@ fn main() {
                     }
                 }
             }
+            Ev::Overlay { win, b, tag, count, err } => ws.overlay_done(win, b, tag, count, err),
             Ev::ChildExit(s) => {
                 if exitwith && quit.is_none() {
                     if !s.is_empty() {
@@ -2719,6 +2896,8 @@ fn main() {
                 }
             }
         }
+        // after whatever changed: the window on the overlay plane may have to leave it
+        ws.ovcheck();
     }
     let _ = p9::remove(&srvpath);
     // the windows let go of their clients' segments; their processes hang up

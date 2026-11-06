@@ -23,6 +23,7 @@ enum Drv {
 pub struct Gpu {
     ctl: Rc<Fd>,
     drv: Drv,
+    ctx: Option<u32>, // the context's number (clone's "ctx n"): its ctl for another fid
     bars: HashMap<String, Seg>, // virtio: the host visible memory, by segment class
 }
 
@@ -38,6 +39,11 @@ pub struct GpuMem {
 }
 
 impl GpuMem {
+    /// its handle in wsys' context (aux/amdgpu: the object's; virtio: the resource)
+    pub fn handle(&self) -> u32 {
+        self.res
+    }
+
     /// n bytes from offset off, read into wsys's memory: with SSE4.1's
     /// streaming loads where there are any, as Mesa's plan9 WSI reads them (the
     /// host visible memory of venus is write-combined on the host; plain loads
@@ -107,11 +113,23 @@ impl Gpu {
             l => return Err(io::Error::other(format!("gpu: no buffers of {l:?} yet"))),
         };
         let ctl = Fd::open("/dev/gpu/0/clone", ORDWR)?;
-        let g = Gpu { ctl: Rc::new(ctl), drv, bars: HashMap::new() };
+        let mut b = [0u8; 64];
+        let n = ctl.pread(&mut b, 0).unwrap_or(0);
+        let ctx = String::from_utf8_lossy(&b[..n]).split_whitespace().nth(1).and_then(|x| x.parse::<u32>().ok());
+        let g = Gpu { ctl: Rc::new(ctl), drv, ctx, bars: HashMap::new() };
         if drv == Drv::Virtio {
             g.req("init 4")?;
         }
         Ok(g)
+    }
+
+    /// the context's ctl, for a fid of another thread's (the overlay's: it waits for the
+    /// display); only aux/amdgpu shows a client's window on an overlay plane
+    pub fn overlay_ctl(&self) -> Option<String> {
+        match (self.drv, self.ctx) {
+            (Drv::Amd, Some(n)) => Some(format!("/dev/gpu/0/ctx/{n}/ctl")),
+            _ => None,
+        }
     }
 
     /// a request and its reply
