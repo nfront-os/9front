@@ -2727,6 +2727,9 @@ fn main() {
         ws.delwin(n, true);
     }
     // std's threads are procs of their own, blocked in reads of the mouse and the
-    // keyboard: they go with wsys' note group (windows and -i have groups of their own)
-    postnote(std::process::id(), "kill");
+    // keyboard: std's exit kills them (end_program, /proc/n/ctl kill under its lock of the
+    // thread list). Not a kill note to wsys' own note group: it could hit a thread inside
+    // that lock (one ending, as the ticker when its channel closes), and exit would then
+    // wait for the lock forever (wsys -x hung so, spinning in sleep(0)).
+    std::process::exit(0);
 }
