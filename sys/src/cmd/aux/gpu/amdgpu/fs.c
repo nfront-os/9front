@@ -46,6 +46,8 @@ struct Ctx {
 struct Fidaux {
 	Ctx	*ctx;
 	char	*reply;		/* the reply to the last request on this fid (ctl, submit) */
+	vlong	rend;		/* where the request ended: a read from there is the reply's start */
+	int	rbase;		/* rend decided by the first read: -1 not yet, else 0 or 1 */
 	long	ioctlr;		/* the ioctl's result, for the read */
 	int	ioctlset;
 	u64g	fence;		/* written to fence: wait for it */
@@ -378,6 +380,8 @@ fsopen(Req *r)
 	fa = emalloc9p(sizeof *fa);
 	memset(fa, 0, sizeof *fa);
 	fa->ctx = c;
+	if(KIND(r->fid->file) == Xctxctl && c->reply != nil)
+		fa->reply = estrdup9p(c->reply);	/* the clone's: "ctx n" */
 	r->fid->aux = fa;
 	respond(r, nil);
 }
@@ -455,12 +459,16 @@ fsread(Req *r)
 	case Xctxctl:
 	case Xctxsubmit:
 		c = fa->ctx;
-		qlock(&ctxlock);
-		if(fa->reply != nil)
-			s = estrdup9p(fa->reply);
-		else
-			s = estrdup9p(c->reply != nil && KIND(r->fid->file) == Xctxctl ? c->reply : "");
-		qunlock(&ctxlock);
+		/*
+		 * the reply from offset 0 (pread) or from where the request
+		 * ended (rc: a read after the write): the first read decides
+		 */
+		if(fa->rbase < 0)
+			fa->rbase = fa->rend > 0 && r->ifcall.offset == fa->rend;
+		if(fa->rbase > 0 && r->ifcall.offset >= fa->rend)
+			r->ifcall.offset -= fa->rend;
+		USED(c);
+		s = estrdup9p(fa->reply != nil ? fa->reply : "");
 		break;
 	case Xctxioctl:
 		/* the result of the last ioctl written on this fid */
@@ -643,6 +651,8 @@ fsreq(Req *r)
 	if(x >= 0){
 		free(fa->reply);
 		fa->reply = estrdup9p(reply);
+		fa->rend = r->ifcall.offset + r->ifcall.count;
+		fa->rbase = -1;
 		r->ofcall.count = r->ifcall.count;
 	}
 	free(reply);
@@ -722,9 +732,16 @@ fswrite(Req *r)
 				e = errstr9(x);
 			break;
 		}
+		/* a request's reply is its own: none unless the request has one */
+		free(fa->reply);
+		fa->reply = nil;
 		qlock(&ctxlock);
 		e = ctxctl(fa, f, n);
 		qunlock(&ctxlock);
+		if(e == nil){
+			fa->rend = r->ifcall.offset + r->ifcall.count;
+			fa->rbase = -1;
+		}
 		break;
 	case Xctxsubmit:
 		if(n != 3 && n != 4){

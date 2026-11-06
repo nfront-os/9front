@@ -1,0 +1,88 @@
+#!/bin/rc
+# aux/amdgpu's requests as text (gpu(4), linux/req.c): each verb on a
+# context's ctl, its reply read back on the same fid (rc: a read after the
+# write), the errors by name.  CS is radvtest's (RADV through libdrm9).
+rfork e
+aux/amdgpu -S $* >/tmp/amd.log >[2=1]
+sleep 2
+nfail=0
+fn ok { echo ok $* }
+fn fail { echo FAIL $*; nfail=`{echo $nfail + 1 | hoc} }
+# req words: the reply on stdout, an error as "error: ..."
+fn req { echo -n $* >[1=4] >[2]/tmp/req.err && cat <[0=4] || echo error: `{sed 's/^echo: write error: //' /tmp/req.err} }
+# expect pattern words: the reply matches the pattern (grep -s)
+fn expect {
+	pat=$1
+	shift
+	r=`''{req $*}
+	if(echo $r | grep -s $pat)
+		ok $"* '->' `{echo $r | sed 1q}
+	if not
+		fail $"* '->' $r '(want' $pat')'
+}
+<>[3]/dev/gpu/0/clone {
+	n=`{read <[0=3]}
+	d=/dev/gpu/0/ctx/$n(2)
+	<>[4]$d/ctl {
+		expect '^version [0-9]+ [0-9]+ ' version
+		expect '^name amdgpu$' version
+		expect '^family [0-9]+$' info device
+		expect '^num_shader_engines [1-9]' info device
+		expect '^[1-9][0-9]*$' info hwipcount 0
+		expect '^hw_ip_version_major [0-9]+$' info hwip 0 0
+		expect '^vram.total_heap_size [1-9]' info memory
+		expect '^vram_size [1-9]' info vramgtt
+		expect '^[1-9][0-9]*$' info timestamp
+		expect '^1$' info accel
+		expect '^error: bad request$' info nosuch
+		expect '^error: bad request$' gem 0 4096 gtt 0
+
+		g=`{req gem 65536 4096 gtt cpuaccess}
+		if(! ~ $g(1) gem) fail gem: $g
+		if not {
+			h=$g(2)
+			ok gem: object $h
+			expect '^geminfo '$h' 65536 4096 gtt cpuaccess$' geminfo $h
+			expect '^$' meta $h 0x1 0x2 00ff10
+			expect '^meta '$h' 0x1 0x2 00ff10$' meta $h
+			expect '^$' va map $h 0x200000000 0 65536 r,w
+			expect '^error: ' va map $h 0x200000000 0 65536 r,w
+			expect '^idle done ' idle $h 0
+			expect '^$' va unmap $h 0x200000000 0 65536 0
+			expect '^$' close $h
+			expect '^error: no such object$' geminfo $h
+		}
+
+		x=`{req hwctx new 0 0}
+		if(! ~ $x(1) hwctx) fail hwctx: $x
+		if not {
+			ok hwctx: $x(2)
+			expect '^hwctx state 0x' hwctx state $x(2)
+			expect '^$' hwctx free $x(2)
+			expect '^error: ' hwctx state $x(2)
+		}
+
+		s=`{req syncnew signaled}
+		if(! ~ $s(1) syncnew) fail syncnew: $s
+		if not {
+			expect '^syncwait 0$' syncwait 0 0 $s(2)
+			expect '^$' syncreset $s(2)
+			expect '^error: ' syncwait 0 0 $s(2)
+			expect '^$' syncfree $s(2)
+		}
+		t=`{req syncnew}
+		if(! ~ $t(1) syncnew) fail syncnew: $t
+		if not {
+			expect '^$' synctsignal $t(2) 5
+			expect '^syncquery 5$' syncquery 0 $t(2)
+			expect '^synctwait 0$' synctwait 0 0 $t(2) 4
+			expect '^error: timer expired$' synctwait submit 0 $t(2) 6
+			expect '^$' syncfree $t(2)
+		}
+		expect '^error: bad request$' syncwait 0 0
+	}
+}
+grep 'WARN|error|fault|BUG' /tmp/amd.log
+if(~ $nfail 0) echo amdtext: all passed
+if not echo amdtext: $nfail failed
+echo TESTEND

@@ -611,24 +611,176 @@ in object
 as one IB (PM4 packets on gfx and compute, SDMA packets on sdma); the
 fences are as above.
 .PP
-A context also takes amdgpu's own ioctls, as a process makes them on
-Linux (libdrm_amdgpu; Mesa's RADV through
-.BR /sys/src/mesa/plan9/drm/amdgpu9.c ).
+A context also takes, as text, what a process asks of amdgpu on Linux
+through its ioctls (libdrm_amdgpu; Mesa's RADV through
+.BR /sys/src/mesa/plan9/drm/amdgpu9.c ):
+a request is words written to the context's
+.B ctl
+.RB ( cs
+to its
+.BR submit ),
+numbers as in C, domains and flags as names joined by commas or as
+numbers; the reply is read back on the same fid, from offset 0 or from
+where the request ended (a read after the write in
+.IR rc (1)).
+A request is at most one message (32 KB); the driver builds amdgpu's
+structures itself, so nothing of the client's memory is read while
+amdgpu works on it.
+Errors are named
+.RB ( "bad request" ,
+.BR "no such object" ,
+.BR "timer expired" ,
+.BR canceled ,
+\&...).
+Timeouts are absolute nanoseconds of the monotonic clock, as amdgpu's.
+.TF "\fLwaitfences\fP"
+.TP
+.BI gem " size align domains flags
+creates an object (GEM_CREATE: domains
+.BR cpu ,
+.BR gtt ,
+.BR vram ,
+\&...; flags
+.BR cpuaccess ,
+.BR nocpuaccess ,
+.BR uswc ,
+.BR cleared ,
+.BR contiguous ,
+.BR local ,
+\&...), reply
+.BI gem " handle" ;
+.BI geminfo " handle
+replies
+.BI geminfo " handle size align domains flags" ;
+.BI place " handle domains
+moves it;
+.BI meta " handle
+and
+.BI meta " handle flags tiling hex
+read and set the metadata of a shared object.
+.TP
+.BI va " op handle addr offset size flags \fR[\fPout \fIsync point\fR] [\fPin \fIsync ...\fR]
+maps
+.RB ( map ,
+.BR unmap ,
+.BR clear ,
+.BR replace )
+an object in the context's GPU address space; flags
+.BR r ,
+.BR w ,
+.BR x ,
+.BR prt .
+.BI idle " handle timeout
+replies
+.B idle done
+or
+.B busy
+and the domain.
+.TP
+.BI "hwctx new" " priority flags
+an amdgpu context of the context, reply
+.BI hwctx " id" ;
+.BI "hwctx free" " id" ,
+.BI "hwctx state" " id
+(its reset state),
+.BI pstate " id \fR[\fPvalue\fR]" ;
+.B vmid reserve
+and
+.BR unreserve .
+.TP
+.BI cs " hwctx flags items
+(to
+.BR submit )
+a submission, reply
+.BI cs " seq" ;
+the items are
+.BI ib " ip instance ring va bytes flags" ,
+.BI fence " handle offset" ,
+.BI in " sync" ,
+.BI out " sync" ,
+.BI twait " sync point flags" ,
+.BI tsignal " sync point flags
+and
+.BI bo " handle priority
+(the objects that are not
+.BR local ).
+.TP
+.BI waitcs " hwctx ip instance ring seq timeout
+replies
+.B waitcs done
+or
+.BR busy ;
+.BI waitfences " all\fR|\fPany timeout \fR(\fPhwctx ip instance ring seq\fR) ...
+replies the status and the first signalled;
+.BI fromfence " hwctx ip instance ring seq
+a syncobj of the fence.
+.TP
+.BI syncnew " \fR[\fPsignaled\fR]
+a syncobj, reply
+.BI syncnew " sync" ;
+.BI syncfree ,
+.BI syncwait " flags timeout sync ...
+(flags
+.BR all ,
+.BR submit ,
+.BR available ;
+reply the first signalled),
+.BI synctwait " flags timeout \fR(\fPsync point\fR) ...\fP" ,
+.BI syncreset ,
+.BI syncsignal ,
+.BI synctsignal " \fR(\fPsync point\fR) ...\fP" ,
+.BI syncquery " flags sync ...
+(reply the points) and
+.BI synctransfer " src point dst point flags" :
+amdgpu's syncobjs.
+.TP
+.BI info " query \fR[\fPargs\fR]
+what the device is:
+.B device
+(each field of amdgpu's device information as
+.IB "name value" ,
+a line each),
+.BI hwip " type instance" ,
+.BI hwipcount " type" ,
+.BI fw " type instance index" ,
+.BR vramgtt ,
+.BR memory ,
+.BI video " type" ,
+.B vmfault
+the same way;
+.BR accel ,
+.BR timestamp ,
+.BR moved ,
+.BR evictions ,
+.BR vramfaults ,
+.BR vramusage ,
+.BR visvramusage ,
+.BR gttusage ,
+.BI sensor " type" ,
+.B maxibs
+and
+.BI mmr " offset count instance flags
+(registers) as numbers.
+.TP
+.B version
+DRM's version, then the driver's name, date and description a line each.
+.PD
+.PP
+For the change from the ioctl file the context still has it:
 .B arena
 in its
 .B ctl
 replies
-.BI arena " seg va size" :
+.BI arena " seg va size" ,
 memory the client attaches at
 .I va
-and the driver sees at the same address.
-The client puts an ioctl's structure, and all it points to, in the
-arena and writes
+and the driver sees at the same address; the client puts an ioctl's
+structure and all it points to there and writes
 .BI ioctl " cmd addr
-(Linux's encoding of the command) to the context's
+to the
 .B ioctl
-file; reading the file gives the result (0 or a negative Linux error).
-The ioctl reaches nothing outside the arena.
+file (libdrm9 with
+.BR AMD9ARENA=1 ).
 .BI map " handle
 replies the processor's view of an object the client made,
 .BI map " handle seg va size" :
@@ -684,7 +836,7 @@ The bars themselves (BAR 0 with all the visible VRAM and the driver's
 own data, the register bar) only the hostowner may attach
 .RI ( gpu (3));
 the GPU's own address spaces are per context.
-A client's ioctls have a superuser's rights (Linux's
+A client's requests have a superuser's rights (Linux's
 .BR CAP_SYS_ADMIN ,
 .B DRM_ROOT_ONLY
 ioctls) only if it is the hostowner.
