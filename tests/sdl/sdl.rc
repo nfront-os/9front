@@ -1,8 +1,20 @@
 #!/bin/rc
-# run by wsys -x -i (tests/sdl): sdltest in a window of wsys (window(1)), its
-# log at the end
-rm -f /tmp/sdl.log
+# run by wsys -x -i (tests/sdl/run.sh): sdltest in a window of wsys (window(1));
+# then sdltest -e with the mouse through /dev/mousein (moved into the window,
+# buttons 1 and 3, the wheel) and keys the host sends through QEMU while it
+# waits (/tmp/sdle.ready tells the host); the logs at the end
+fn waitfor { # file pattern
+	n=0
+	while(! grep -s $2 $1 && test $n -lt 300){ sleep 0.1; n=`{echo $n+1 | hoc} }
+}
+rm -f /tmp/sdl.log /tmp/sdle.log /tmp/sdle.ready
 window -r 100 100 500 400 'rc -c ''/tests/sdltest >/tmp/sdl.log >[2=1]; echo sdl: exit $status >>/tmp/sdl.log'''
-n=0
-while(! grep -s '^sdl: exit' /tmp/sdl.log && test $n -lt 300){ sleep 0.1; n=`{echo $n+1 | hoc} }
+waitfor /tmp/sdl.log '^sdl: exit'
+window -r 100 100 500 400 'rc -c ''/tests/sdltest -e 6 >/tmp/sdle.log >[2=1]; echo sdl: exit $status >>/tmp/sdle.log'''
+waitfor /tmp/sdle.log '^ready for events'
+fn m { echo A $1 $2 $3; sleep 0.1 }
+{ m 300 250 0; m 300 250 1; m 300 250 0; m 320 260 4; m 320 260 0; m 320 260 8; m 320 260 0 } >/dev/mousein
+echo >/tmp/sdle.ready
+waitfor /tmp/sdle.log '^sdl: exit'
 cat /tmp/sdl.log
+grep '^event' /tmp/sdle.log

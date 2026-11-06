@@ -7,6 +7,8 @@
  * the software renderer (a green square) read back from the window
  * (/dev/window, image(6)), the clipboard (/dev/snarf), events pumped for
  * a while, a tone through /dev/audio if there is one.
+ * -e secs: then the input events for secs seconds (keys, the mouse), a line
+ * each (the host types and moves the mouse through QEMU: tests/sdl/README).
  * Prints "ok ..." / "FAIL ..." lines and a summary.
  */
 #include <SDL3/SDL.h>
@@ -112,8 +114,8 @@ int main(int argc, char **argv)
     int w, h, n, i;
     Uint64 t0;
 
-    (void)argc;
-    (void)argv;
+    int evsecs = argc > 2 && strcmp(argv[1], "-e") == 0 ? atoi(argv[2]) : 0;
+
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS)) {
         printf("FAIL SDL_Init: %s\nsdltest: failed\n", SDL_GetError());
         return 1;
@@ -208,6 +210,43 @@ int main(int argc, char **argv)
         SDL_DestroyAudioStream(as);
     } else {
         OK("audio: no /dev/audio here");
+    }
+
+    /* -e: the input, as SDL gives it */
+    if (evsecs > 0) {
+        SDL_StartTextInput(win);
+        printf("ready for events\n");
+        fflush(stdout);
+    }
+    t0 = SDL_GetTicks();
+    while (evsecs > 0 && SDL_GetTicks() - t0 < (Uint64)evsecs * 1000) {
+        while (SDL_PollEvent(&ev)) {
+            switch (ev.type) {
+            case SDL_EVENT_KEY_DOWN:
+            case SDL_EVENT_KEY_UP:
+                printf("event key %s %s\n", ev.type == SDL_EVENT_KEY_DOWN ? "down" : "up", SDL_GetScancodeName(ev.key.scancode));
+                break;
+            case SDL_EVENT_TEXT_INPUT:
+                printf("event text %s\n", ev.text.text);
+                break;
+            case SDL_EVENT_MOUSE_BUTTON_DOWN:
+            case SDL_EVENT_MOUSE_BUTTON_UP:
+                printf("event button %d %s at %.0f,%.0f\n", ev.button.button,
+                       ev.type == SDL_EVENT_MOUSE_BUTTON_DOWN ? "down" : "up", ev.button.x, ev.button.y);
+                break;
+            case SDL_EVENT_MOUSE_MOTION:
+                printf("event motion %.0f,%.0f\n", ev.motion.x, ev.motion.y);
+                break;
+            case SDL_EVENT_MOUSE_WHEEL:
+                printf("event wheel %.0f\n", ev.wheel.y);
+                break;
+            case SDL_EVENT_WINDOW_RESIZED:
+                printf("event resized %dx%d\n", ev.window.data1, ev.window.data2);
+                break;
+            }
+            fflush(stdout);
+        }
+        SDL_Delay(10);
     }
 
     SDL_DestroyRenderer(ren);
