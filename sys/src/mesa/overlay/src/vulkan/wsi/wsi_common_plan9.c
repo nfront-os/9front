@@ -301,6 +301,7 @@ struct wsi_plan9_swapchain {
    int shown;        /* the image on the display, kept busy; -1 none */
    bool overlay;     /* in wsys, the images in VRAM for its overlay plane: no copy, no view */
    uint32_t bufbase; /* its buffers' numbers in wsys: bufbase + image */
+   uint32_t ignored; /* presents since VK_SUBOPTIMAL_KHR off the overlay plane */
    uint32_t next;
    mtx_t lock;       /* busy, next */
    cnd_t freed;      /* an image is no longer busy */
@@ -564,6 +565,16 @@ wsi_plan9_swapchain_queue_present(struct wsi_swapchain *wsi_chain,
             if (chain->stats)
                fprintf(stderr, "wsi plan9: wsys says overlay %d: a new swapchain\n", ov);
             chain->status = VK_SUBOPTIMAL_KHR;
+            chain->ignored = 0;
+         } else if (ov == 0 && chain->overlay && chain->status == VK_SUBOPTIMAL_KHR && ++chain->ignored > 2) {
+            /*
+             * images in VRAM off the plane: wsys cannot show them, the window
+             * stands still; an app that does not make a new swapchain on
+             * VK_SUBOPTIMAL_KHR must on VK_ERROR_OUT_OF_DATE_KHR (as on a resize)
+             */
+            if (chain->stats)
+               fprintf(stderr, "wsi plan9: suboptimal ignored off the overlay plane: out of date\n");
+            chain->status = VK_ERROR_OUT_OF_DATE_KHR;
          }
          goto Shown;
       }

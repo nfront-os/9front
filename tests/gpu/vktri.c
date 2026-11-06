@@ -434,7 +434,8 @@ main(int argc, char **argv)
 		CHECK(r, "vkQueuePresentKHR");
 		CHECK(vkWaitForFences(dev, 1, &fence, VK_TRUE, UINT64_MAX), "fence");
 		vkResetFences(dev, 1, &fence);
-		if(r == VK_SUBOPTIMAL_KHR){
+		/* VKTRI_NOREBUILD=1: as many apps, VK_SUBOPTIMAL_KHR ignored (the WSI's out of date must come) */
+		if(r == VK_SUBOPTIMAL_KHR && getenv("VKTRI_NOREBUILD") == NULL){
 			rebuild(dev, &swci, &sc, img, &nimg, view, fb, rp);
 			printf("ok a new swapchain after %u frames (suboptimal)\n", frames+1);
 		}
