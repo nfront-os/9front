@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: MIT
+# The Rust programs of the tree that use crates of crates.io, as one
+# workspace: one Cargo.lock, one vendor/ (scripts/rust/vendor.sh), and the
+# crates 9front changed patched in here (crates/, plan9/: a copy of
+# ../9front-rust's, scripts/rust/crates.sh). wsys needs no crates and stays
+# by itself.
+[workspace]
+resolver = "2"
+members = ["../cmd/ui", "../../../tests/winit"]
+
+[patch.crates-io]
+raw-window-handle = { path = "crates/raw-window-handle-0.6.2" }
+winit = { path = "crates/winit-0.30.13" }
+softbuffer = { path = "crates/softbuffer-0.4.8" }
+
+[profile.release]
+debug = true

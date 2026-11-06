@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: MIT
+# ui: a window of widgets a client describes through files (ui(4)); Masonry's
+# widgets (linebender, Xilem's), drawn on the processor (vello_cpu). Part of
+# the workspace in sys/src/rust (its vendor/, its crates with plan9 backends).
+[package]
+name = "ui"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+publish = false
+workspace = "../../rust"
+
+[dependencies]
+# Masonry's own repository (not yet released with its imaging backends: the
+# processor's vello_cpu among them), fixed at a revision
+masonry = { git = "https://github.com/linebender/xilem", rev = "dc496876a2f6ff2ce7687bfc8c19bd311bb553dc", default-features = false }
+masonry_imaging = { git = "https://github.com/linebender/xilem", rev = "dc496876a2f6ff2ce7687bfc8c19bd311bb553dc", default-features = false, features = ["imaging_vello_cpu"] }
+imaging = "0.0.1"
+ui-events-winit = { version = "0.3.0", default-features = false }
+winit = { version = "0.30.13", default-features = false, features = ["rwh_06"] }
+softbuffer = { version = "0.4.8", default-features = false }
+p9win = { path = "../../rust/plan9/p9win" }

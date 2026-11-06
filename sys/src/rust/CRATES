@@ -2,6 +2,3 @@
 raw-window-handle-0.6.2
 winit-0.30.13
 softbuffer-0.4.8
-wgpu-30.0.1
-wgpu-core-30.0.1
-wgpu-hal-30.0.1

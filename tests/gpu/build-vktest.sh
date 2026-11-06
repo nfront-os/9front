@@ -64,13 +64,16 @@ if [ "$objtype" = amd64 ] && [ -x "$RUSTC" ] && command -v cargo >/dev/null; the
 	 RUSTFLAGS="-L $O -l screenpeek -l draw -l 9 -l fmt -l utf -l stdc++ -C link-arg=-Wl,--gc-sections" \
 	 cargo build --offline --release --target $T)
 	cp "$O/rsvk/$T/release/rsvk" "$HERE/root/tests/rsvk"
-	# eframetest: eframe on wgpu's Vulkan (tests/winit, sys/src/rust/crates: wgpu-*)
-	(cd "$ROOT/tests/winit" &&
-	 RUSTC="$RUSTC" CARGO_TARGET_DIR="$BUILD/cargo/tests_winit" \
-	 CARGO_TARGET_X86_64_UNKNOWN_PLAN9_LINKER="$CROSS/$TRIPLE-gcc" \
-	 RUSTFLAGS="-l draw -l 9 -l fmt -l utf -l stdc++ -C link-arg=-Wl,--gc-sections" \
-	 cargo build --offline --release --target $T --bin eframetest)
-	"$CROSS/$TRIPLE-strip" -o "$HERE/root/tests/eframetest" "$BUILD/cargo/tests_winit/$T/release/eframetest"
+	# eframetest: eframe on wgpu's Vulkan, ../9front-rust's (tests/crates/eframetest:
+	# crates.io's crates, its patched winit and wgpu-*: cargo-plan9.toml)
+	if [ -d "$RUST_DIR/tests/crates/eframetest" ]; then
+		(cd "$RUST_DIR/tests/crates/eframetest" &&
+		 RUSTC="$RUSTC" CARGO_TARGET_DIR="$BUILD/cargo/eframetest" \
+		 CARGO_TARGET_X86_64_UNKNOWN_PLAN9_LINKER="$CROSS/$TRIPLE-gcc" \
+		 RUSTFLAGS="-l draw -l 9 -l fmt -l utf -l stdc++ -C link-arg=-Wl,--gc-sections" \
+		 cargo --config "$RUST_DIR/cargo-plan9.toml" build --release --target $T --quiet)
+		"$CROSS/$TRIPLE-strip" -o "$HERE/root/tests/eframetest" "$BUILD/cargo/eframetest/$T/release/eframetest"
+	fi
 else
 	echo "rsvk: not built (objtype=$objtype, or no stage-1 rustc $RUSTC or cargo)" >&2
 fi

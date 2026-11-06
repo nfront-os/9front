@@ -1,0 +1,28 @@
+[package]
+name = "anymore"
+version.workspace = true
+license.workspace = true
+edition.workspace = true
+description = "AnyDebug: Dynamically typed values which can be inspected"
+keywords = ["anydebug", "any", "downcast"]
+categories = ["development-tools", "no-std", "rust-patterns"]
+repository.workspace = true
+rust-version.workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
+# There are no platform specific docs.
+default-target = "x86_64-unknown-linux-gnu"
+targets = []
+
+[features]
+default = ["alloc", "type_name"]
+# Include helper implementation of downcasting from a `Box`.
+alloc = []
+# Include the `AnyDebug::type_name` method, which is useful for debugging downcasting.
+type_name = []
+
+[dependencies]
+
+[lints]
+workspace = true

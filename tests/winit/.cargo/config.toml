@@ -1,6 +1,0 @@
-# the crates come from vendor/ (scripts/rust/vendor.sh), the build needs no network
-[source.crates-io]
-replace-with = "vendored-sources"
-
-[source.vendored-sources]
-directory = "vendor"

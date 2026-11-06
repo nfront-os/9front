@@ -27,10 +27,18 @@ fi
 dir=$(cd "$ROOT/$1" 2>/dev/null || cd "$1" && pwd); shift
 name=${dir#$ROOT/}
 V=$(echo "$T" | tr a-z- A-Z_)
+# a member of a workspace (workspace = "..." in its Cargo.toml: sys/src/rust's)
+# is built there, as its package: the workspace has the vendor/ and the patches
+ws=$(sed -n 's/^workspace *= *"\(.*\)"/\1/p' "$dir/Cargo.toml")
+pkg=()
+if [ -n "$ws" ]; then
+	pkg=(-p "$(sed -n 's/^name *= *"\(.*\)"/\1/p' "$dir/Cargo.toml" | head -1)")
+	dir=$(cd "$dir/$ws" && pwd)
+fi
 (cd "$dir" &&
  env RUSTC="$RUSTC" CARGO_TARGET_DIR="$BUILD/cargo/${name//\//_}" \
 	"CARGO_TARGET_${V}_LINKER=$CROSS/$TRIPLE-gcc" \
-	cargo build --offline --release --target $T --quiet)
+	cargo build --offline --release --target $T --quiet "${pkg[@]}")
 mkdir -p "$ROOT/$objtype/bin"
 for p in "$@"; do
 	new=$BUILD/cargo/${name//\//_}/$T/release/$p

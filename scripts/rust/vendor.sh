@@ -6,25 +6,22 @@
 # others become stubs, their manifest and an empty lib.rs (cargo reads every
 # package of Cargo.lock, builds only those of the target). Crates the
 # manifest patches to a path (sys/src/rust/crates) are not vendored.
-# usage: scripts/rust/vendor.sh dir   (dir: a crate with Cargo.toml)
+# usage: scripts/rust/vendor.sh [dir]   (dir: a crate or workspace with Cargo.toml;
+#        default sys/src/rust, the tree's workspace)
 # env: RUSTC (../9front-rust's stage-1 rustc: it knows the plan9 target)
 set -e
-[ $# -eq 1 ] || { echo "usage: scripts/rust/vendor.sh dir" >&2; exit 1; }
 ROOT=$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)
+[ $# -le 1 ] || { echo "usage: scripts/rust/vendor.sh [dir]" >&2; exit 1; }
+set -- "${1:-$ROOT/sys/src/rust}"
 RUSTC=${RUSTC:-$ROOT/../9front-rust/rust/build/host/stage1/bin/rustc}
 T=${T:-x86_64-unknown-plan9}
 cd "$1"
 rm -rf vendor
 mkdir -p .cargo
-cargo vendor --versioned-dirs --quiet vendor >/dev/null
-cat > .cargo/config.toml <<'CONF'
-# the crates come from vendor/ (scripts/rust/vendor.sh), the build needs no network
-[source.crates-io]
-replace-with = "vendored-sources"
-
-[source.vendored-sources]
-directory = "vendor"
-CONF
+# cargo vendor says how to find them (crates.io's and git's): the config
+{ echo '# the crates come from vendor/ (scripts/rust/vendor.sh), the build needs no network'
+  cargo vendor --versioned-dirs --quiet vendor; } > .cargo/config.toml.new
+mv .cargo/config.toml.new .cargo/config.toml
 # the packages the target builds: name-version
 keep=$(RUSTC=$RUSTC cargo tree --offline --target "$T" -e normal,build --prefix none --format '{p}' |
 	sed -n 's/^\([^ ]*\) v\([^ ]*\).*/\1-\2/p' | sort -u)

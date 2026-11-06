@@ -1,0 +1,114 @@
+#!/bin/rc
+# run by wsys -x -i (tests/uiserver/run.sh): ui (sys/src/cmd/ui) in a window of
+# wsys, a client in rc: mounts its /srv, builds a scene through ctl (one write
+# one transaction), reads it back (tree, nodes/), changes a property through
+# nodes/id/props, clicks the button (/dev/mousein) and reads the click from
+# event, types into the text box (uipeek -k: kbd(3) through /dev/kbdin) and
+# reads its text events; a read of event let go (its process killed: Tflush)
+# leaves ui answering; the window's pixels from wsys' screen (uipeek).
+# Prints ok/FAIL lines and "uiserver: all passed".
+nfail=0
+fn ok { echo ok $* }
+fn fail { echo FAIL $*; nfail=`{echo $nfail+1 | hoc} }
+fn check { # what want got
+	if(~ $3 $2) ok $1
+	if not fail $1: got $3, want $2
+}
+fn waitfor { # file pattern
+	n=0
+	while(! grep -s $2 $1 && test $n -lt 100){ sleep 0.1; n=`{echo $n+1 | hoc} }
+}
+# mousein keeps the buttons per open file: a press and its release through one
+fn m { echo A $1 $2 $3; sleep 0.1 }
+
+window -r 100 100 600 450 '/tests/ui -s uitest >/tmp/ui.log >[2=1]'
+n=0
+while(! test -e /srv/uitest && test $n -lt 100){ sleep 0.1; n=`{echo $n+1 | hoc} }
+if(! test -e /srv/uitest){ fail no /srv/uitest; cat /tmp/ui.log; echo uiserver: failed; exit fail }
+mount /srv/uitest /mnt/ui || { fail mount; exit fail }
+ok ui posted /srv/uitest, mounted
+
+# the event log, read from the start (each open sees what comes after it)
+cat /mnt/ui/event >/tmp/ev &
+evpid=$apid
+sleep 0.3
+
+# a scene: one write, one transaction
+echo 'title uitest
+new b button
+set b text press me
+new t label
+set t text hello 9front
+new f textbox
+set f placeholder type here
+new c checkbox
+set c text a box
+set c checked 0
+new p progress
+set p value 0.5' >/mnt/ui/ctl && ok scene written
+sleep 1
+tree=`{cat /mnt/ui/tree | grep -c '^new '}
+check 'tree: five nodes' 5 $tree
+check 'nodes/t/kind' label `{cat /mnt/ui/nodes/t/kind}
+grep -s '^text hello 9front$' /mnt/ui/nodes/t/props && ok 'nodes/t/props' || fail nodes/t/props: `{cat /mnt/ui/nodes/t/props}
+# a write with a bad line changes nothing, and says which line
+if(echo 'new x label
+set nope text a' >/mnt/ui/ctl >[2]/tmp/err) fail a bad transaction taken
+if not ok 'a bad transaction refused:' `{cat /tmp/err}
+test -e /mnt/ui/nodes/x && fail 'a refused transaction left node x' || ok 'a refused transaction changed nothing'
+# a property through the node's props file
+echo 'text changed by props' >/mnt/ui/nodes/t/props
+grep -s '^set t text changed by props$' /mnt/ui/tree && ok 'props written: in the tree' || fail props write
+
+# the window's pixels: Masonry's background, and widgets drawn on it
+sleep 1
+bg=`{/tests/uipeek -n 104,104,596,446 1d1d1d}
+total=`{echo 492'*'342 | hoc}
+other=`{echo $total-$bg | hoc}
+if(test $bg -gt 1000 && test $other -gt 500) ok window drawn: $bg background, $other else
+if not fail window: $bg of $total background
+
+# where a node is on the screen: the middle of nodes/id/rect, the window's contents at 104,104
+# (hoc's int: a dot would end mousein's message)
+fn at { r=`{cat /mnt/ui/nodes/$1/rect}; echo `{echo 'int(104+('$r(1)+$r(3)')/2)' | hoc} `{echo 'int(104+('$r(2)+$r(4)')/2)' | hoc} }
+r=`{cat /mnt/ui/nodes/b/rect}
+if(~ $#r 4) ok 'nodes/b/rect:' $r
+if not fail no rect for b
+# the button: a click; the first click makes the window current (wsys keeps it,
+# as rio), the second is the button's
+b=`{at b}
+{ m $b(1) $b(2) 0; m $b(1) $b(2) 1; m $b(1) $b(2) 0; m $b(1) $b(2) 1; m $b(1) $b(2) 0 } >/dev/mousein
+waitfor /tmp/ev '^click b$'
+grep -s '^click b$' /tmp/ev && ok 'event: click b' || fail no click event: `{cat /tmp/ev}
+
+# the text box: a click into it (below the button and the label), typed into
+f=`{at f}
+{ m $f(1) $f(2) 0; m $f(1) $f(2) 1; m $f(1) $f(2) 0 } >/dev/mousein
+sleep 0.3
+/tests/uipeek -k 'hi'
+waitfor /tmp/ev '^text f hi$'
+grep -s '^text f hi$' /tmp/ev && ok 'event: text f hi' || fail no text event: `{grep '^text' /tmp/ev}
+grep -s '^text hi$' /mnt/ui/nodes/f/props && ok 'the typed text in nodes/f/props' || fail nodes/f/props: `{cat /mnt/ui/nodes/f/props}
+
+# a read of event let go (its process killed: the kernel's Tflush): ui answers on
+echo kill >/proc/$evpid/note
+sleep 0.3
+echo 'set p value 1' >/mnt/ui/ctl && grep -s '^set p value 1$' /mnt/ui/tree && ok 'ui answers after a flushed read' || fail ui after a flushed read
+
+# the window deleted: wsys ends ui with a note (as rio); its /srv/uitest goes
+# with it (ORCLOSE), a read of event ends
+cat /mnt/ui/event >/tmp/ev2 &
+sleep 0.2
+# ui's window: the only one (wsys' /mnt/wsys/1)
+echo delete >/mnt/wsys/1/wctl
+n=0
+while(test -e /srv/uitest && test $n -lt 50){ sleep 0.1; n=`{echo $n+1 | hoc} }
+test -e /srv/uitest && fail '/srv/uitest left after the window went' || ok '/srv/uitest gone with the window'
+sleep 0.3
+ps | grep -s ' ui$' && fail 'ui still running' || ok 'ui gone, the reader of event let go'
+
+unmount /mnt/ui >[2]/dev/null
+
+cat /tmp/ui.log | grep -v '^uitest$'
+if(~ $nfail 0) echo uiserver: all passed
+if not echo uiserver: $nfail failed

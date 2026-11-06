@@ -17,9 +17,16 @@ shift
 bind -b $rust /bin
 bind -b $GNU /bin
 target=/tmp/cargo.`{echo $dir | sed 's,/,_,g'}
+# a member of a workspace (workspace = "..." in its Cargo.toml) is built there, as its package
+ws=`{sed -n 's/^workspace *= *"(.*)"/\1/p' $PLAN9/$dir/Cargo.toml}
+pkg=()
+if(! ~ $#ws 0)
+	pkg=(-p `{sed -n 's/^name *= *"(.*)"/\1/p' $PLAN9/$dir/Cargo.toml | sed 1q})
 @{
 	cd $PLAN9/$dir || die no $dir
-	CARGO_TARGET_DIR=$target cargo build --offline --release --quiet
+	if(! ~ $#ws 0)
+		cd $ws || die no workspace $ws
+	CARGO_TARGET_DIR=$target cargo build --offline --release --quiet $pkg
 } || die cargo build $dir
 mkdir -p $PLAN9/$objtype/bin
 for(p in $*){

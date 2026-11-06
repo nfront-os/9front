@@ -1,0 +1,38 @@
+[package]
+name = "imaging_vello_cpu"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Vello CPU backend for the imaging command stream."
+readme = "README.md"
+keywords = ["graphics", "imaging", "rendering", "vello"]
+categories = ["graphics", "rendering"]
+
+[dependencies]
+imaging.workspace = true
+kurbo.workspace = true
+peniko.workspace = true
+vello_common = { default-features = false, version = "0.0.7" }
+vello_cpu = { default-features = false, features = ["text", "u8_pipeline"], version = "0.0.7" }
+
+[lints]
+workspace = true
+
+[features]
+default = ["std"]
+std = [
+    "imaging/std",
+    "vello_cpu/png",
+    "vello_cpu/std",
+]
+libm = [
+    "imaging/libm",
+    "vello_cpu/libm",
+]
+f32_pipeline = ["vello_cpu/f32_pipeline"]
+
+[package.metadata.docs.rs]
+default-target = "x86_64-unknown-linux-gnu"
+targets = []

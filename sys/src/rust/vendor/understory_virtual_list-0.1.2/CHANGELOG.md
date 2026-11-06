@@ -1,0 +1,84 @@
+<!-- Instructions
+
+This changelog follows the patterns described here: <https://keepachangelog.com/en/>.
+
+Subheadings to categorize changes are `added, changed, deprecated, removed, fixed, security`.
+
+-->
+
+# Changelog
+
+The latest published Understory Virtual List release is [0.1.2](#012-2026-05-22) which was released on 2026-05-22.
+You can find its changes [documented below](#012-2026-05-22).
+
+## [Unreleased]
+
+## [0.1.2][] (2026-05-22)
+
+This release has an [MSRV][] of 1.88.
+
+### Added
+
+- Added `IndexStrip`, `IndexStrip::range`, `IndexStrip::covered_extent`,
+  `compute_materialized_strip`, `VirtualList::viewport_strip`, and
+  `VirtualList::viewport_range` for half-open materialized and viewport ranges.
+  ([#169][] and [#171][] by [@waywardmonkeys][])
+- Added `VirtualList::set_len` for resizable models, `ResizableExtentModel` for
+  `TailAnchoredExtentModel`, and model query wrappers on `VirtualList` that do
+  not invalidate its cached materialized strip. ([#170][] by [@waywardmonkeys][])
+- Added `VirtualList::materialized_strip`, `VirtualList::materialized_range`,
+  `VirtualList::materialized_indices`, `VirtualList::first_materialized_index`,
+  and `VirtualList::last_materialized_index` for the overscanned range that host
+  code should instantiate. ([#171][] by [@waywardmonkeys][])
+
+### Deprecated
+
+- Deprecated `VirtualList::visible_strip`, `VirtualList::visible_indices`,
+  `VirtualList::first_visible_index`, and `VirtualList::last_visible_index`;
+  these names implied viewport visibility, but their results include overscan.
+  ([#171][] by [@waywardmonkeys][])
+- Deprecated `VisibleStrip`, `VisibleStrip::visible_extent`, and
+  `compute_visible_strip`; these names implied viewport visibility, but the
+  result may include overscan. ([#171][] by [@waywardmonkeys][])
+
+## [0.1.1][] (2026-05-17)
+
+This release has an [MSRV][] of 1.88.
+
+### Added
+
+- Added `VirtualList::restore_tail_anchor`, a convenience helper for applying a
+  tail-anchor state captured before mutating the model. ([#165][] by [@waywardmonkeys][])
+- Implemented `ResizableExtentModel` for `SparsePrefixSumExtentModel`. ([#166][] by [@waywardmonkeys][])
+
+### Deprecated
+
+- Deprecated `VirtualList::stick_to_tail_if_anchored`; it checks anchoring after
+  the model has changed, which can miss append/update cases that were anchored
+  before mutation. ([#165][] by [@waywardmonkeys][])
+
+### Fixed
+
+- Fixed empty visible-strip spacer metadata when the requested range is at or
+  beyond the end of the content. ([#165][] by [@waywardmonkeys][])
+
+## [0.1.0][] (2026-05-14)
+
+This release has an [MSRV][] of 1.88.
+
+This is the initial release.
+
+[@waywardmonkeys]: https://github.com/waywardmonkeys
+
+[#165]: https://github.com/forest-rs/understory/pull/165
+[#166]: https://github.com/forest-rs/understory/pull/166
+[#169]: https://github.com/forest-rs/understory/pull/169
+[#170]: https://github.com/forest-rs/understory/pull/170
+[#171]: https://github.com/forest-rs/understory/pull/171
+
+[Unreleased]: https://github.com/forest-rs/understory/compare/understory_virtual_list-v0.1.2...HEAD
+[0.1.2]: https://github.com/forest-rs/understory/compare/understory_virtual_list-v0.1.1...understory_virtual_list-v0.1.2
+[0.1.1]: https://github.com/forest-rs/understory/compare/understory_virtual_list-v0.1.0...understory_virtual_list-v0.1.1
+[0.1.0]: https://github.com/forest-rs/understory/releases/tag/understory_virtual_list-v0.1.0
+
+[MSRV]: README.md#minimum-supported-rust-version-msrv

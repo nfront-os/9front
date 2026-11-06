@@ -1,0 +1,475 @@
+// Copyright 2025 the Understory Authors
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
+//! Core extent model traits and helpers.
+
+use core::{cmp, ops::Range};
+
+use crate::Scalar;
+
+/// Result of an index-strip query over a 1D extent model.
+///
+/// Depending on the query that produced it, this may describe the overscanned
+/// materialized range or the non-overscanned viewport range.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct IndexStrip<S: Scalar> {
+    /// First covered index (inclusive).
+    pub start: usize,
+    /// One past the last covered index (exclusive).
+    pub end: usize,
+
+    /// Total extent of items before `start`.
+    pub before_extent: S,
+    /// Total extent of items after `end`.
+    pub after_extent: S,
+    /// Total extent of the entire strip (all items `0..len`).
+    pub content_extent: S,
+}
+
+/// Deprecated name for [`IndexStrip`].
+#[deprecated(
+    since = "0.1.2",
+    note = "use `IndexStrip`; this type can describe materialized or viewport ranges"
+)]
+pub type VisibleStrip<S> = IndexStrip<S>;
+
+impl<S: Scalar> IndexStrip<S> {
+    /// Returns the half-open index range covered by this strip.
+    ///
+    /// The returned range is always `start..end`, with `end` excluded. Empty
+    /// strips are represented as `idx..idx`, matching Rust collection APIs.
+    #[must_use]
+    pub const fn range(&self) -> Range<usize> {
+        Range {
+            start: self.start,
+            end: self.end,
+        }
+    }
+
+    /// Returns `true` if this strip covers no items.
+    #[must_use]
+    pub const fn is_empty(&self) -> bool {
+        self.start == self.end
+    }
+
+    /// Returns the number of covered items in this strip.
+    ///
+    /// Returns `0` if `end` is before `start`, which can only happen when
+    /// callers manually construct an incoherent strip.
+    #[must_use]
+    pub const fn len(&self) -> usize {
+        self.end.saturating_sub(self.start)
+    }
+
+    /// Returns the total extent of the covered items in this strip.
+    ///
+    /// This is `content_extent - before_extent - after_extent`, clamped to
+    /// zero to guard against floating-point rounding.
+    #[must_use]
+    pub fn covered_extent(&self) -> S {
+        (self.content_extent - self.before_extent - self.after_extent).max(S::zero())
+    }
+
+    /// Returns the total extent of the covered items in this strip.
+    #[deprecated(
+        since = "0.1.2",
+        note = "use `covered_extent`; this strip may describe materialized or viewport ranges"
+    )]
+    #[must_use]
+    pub fn visible_extent(&self) -> S {
+        self.covered_extent()
+    }
+}
+
+/// A 1D model over a dense strip of items, indexed `0..len`.
+///
+/// All extents and offsets are in the same coordinate space as your scroll offset,
+/// viewport extent, and spacer nodes (typically logical pixels).
+///
+/// Methods that logically consult prefix sums take `&mut self` so implementations
+/// are free to maintain internal caches without exposing interior mutability at
+/// the call site.
+///
+/// Query methods may update derived caches, but should not change the logical
+/// item count or item extents. Use model-specific mutation APIs or
+/// [`ResizableExtentModel::set_len`] for changes that alter the strip geometry.
+pub trait ExtentModel {
+    /// Scalar type used for extents and offsets.
+    type Scalar: Scalar;
+
+    /// Number of items in this strip.
+    fn len(&self) -> usize;
+
+    /// Returns `true` if there are no items in this strip.
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// Total extent of the entire strip.
+    fn total_extent(&mut self) -> Self::Scalar;
+
+    /// Size of a single item.
+    ///
+    /// Implementations must return a non-negative value. Returning zero is
+    /// allowed but may cause degenerate behavior if *all* items are zero-sized.
+    fn extent_of(&mut self, index: usize) -> Self::Scalar;
+
+    /// Offset of the start of the given item from the start of the strip.
+    ///
+    /// `index` is expected to be a valid item index in `0..len()`. Implementations
+    /// may choose how to handle out-of-range inputs, but callers should use
+    /// [`ExtentModel::total_extent`] when they need the end-of-content sentinel.
+    ///
+    /// Implementations must guarantee that:
+    /// - if `len() > 0`, `offset_of(0) == 0`,
+    /// - for every `i` where `i + 1 < len()`,
+    ///   `offset_of(i + 1) >= offset_of(i) + extent_of(i)`.
+    fn offset_of(&mut self, index: usize) -> Self::Scalar;
+
+    /// Given a scroll offset, find the greatest index `i` such that the item
+    /// at `i` starts at or before that offset, or, if `len() == 0`, return `0`
+    /// (note: this is not a valid index).
+    ///
+    /// When `len() > 0`, the return value must be in `0..len()`.
+    ///
+    /// # Panics / misuse
+    ///
+    /// This method itself must not panic, but when `len() == 0` it returns `0`
+    /// as a sentinel. Treating the result as a valid index without checking
+    /// `len()` may lead to panics elsewhere (for example, indexing a slice).
+    /// Prefer [`ExtentModel::try_index_at_offset`] when the strip may be empty.
+    ///
+    /// Typical implementations use prefix sums plus a binary search.
+    fn index_at_offset(&mut self, offset: Self::Scalar) -> usize;
+
+    /// Like [`ExtentModel::index_at_offset`], but returns `None` if `len() == 0`.
+    ///
+    /// This is a convenience helper for call sites that want to avoid relying
+    /// on the `0` sentinel returned by [`ExtentModel::index_at_offset`] for
+    /// empty strips.
+    #[must_use]
+    fn try_index_at_offset(&mut self, offset: Self::Scalar) -> Option<usize> {
+        if self.len() == 0 {
+            None
+        } else {
+            Some(self.index_at_offset(offset))
+        }
+    }
+}
+
+/// An [`ExtentModel`] whose logical length can be resized.
+///
+/// Implementations define their own policy for the extent of newly added
+/// items. Variable-size models commonly initialize new items to `0.0` until
+/// callers provide measurements, while fixed-size models keep using their
+/// uniform extent.
+pub trait ResizableExtentModel: ExtentModel {
+    /// Ensures that the model can represent `len` items.
+    ///
+    /// Implementations may grow internal storage, truncate stale state, or
+    /// update a logical length depending on how they represent extents.
+    fn set_len(&mut self, len: usize);
+}
+
+/// Computes the materialized strip for a scroll position, viewport size, and overscan.
+///
+/// - `scroll_offset`: top of the viewport in strip coordinates (`>= 0`).
+/// - `viewport_extent`: size of the viewport in strip coordinates (`>= 0`).
+/// - `overscan_before`: extra margin *before* the viewport to reduce popping.
+/// - `overscan_after`: extra margin *after* the viewport to reduce popping.
+///
+/// The returned [`IndexStrip`] tells you:
+/// - Which indices to materialize: `[start, end)`.
+/// - How much padding to place before/after the materialized chunk.
+/// - The total content extent.
+pub fn compute_materialized_strip<M>(
+    model: &mut M,
+    scroll_offset: M::Scalar,
+    viewport_extent: M::Scalar,
+    overscan_before: M::Scalar,
+    overscan_after: M::Scalar,
+) -> IndexStrip<M::Scalar>
+where
+    M: ExtentModel,
+{
+    type S<M> = <M as ExtentModel>::Scalar;
+    let len = model.len();
+    if len == 0 {
+        return IndexStrip {
+            start: 0,
+            end: 0,
+            before_extent: S::<M>::zero(),
+            after_extent: S::<M>::zero(),
+            content_extent: S::<M>::zero(),
+        };
+    }
+
+    let mut content_extent = model.total_extent().max(S::<M>::zero());
+    if content_extent == S::<M>::zero() {
+        // All items collapsed; treat as empty strip.
+        return IndexStrip {
+            start: 0,
+            end: 0,
+            before_extent: S::<M>::zero(),
+            after_extent: S::<M>::zero(),
+            content_extent: S::<M>::zero(),
+        };
+    }
+
+    let scroll_offset = scroll_offset.max(S::<M>::zero());
+    let viewport_extent = viewport_extent.max(S::<M>::zero());
+    let overscan_before = overscan_before.max(S::<M>::zero());
+    let overscan_after = overscan_after.max(S::<M>::zero());
+
+    let min = (scroll_offset - overscan_before).max(S::<M>::zero());
+    let max = (scroll_offset + viewport_extent + overscan_after).min(content_extent);
+
+    if max <= min {
+        // Very small viewport / overscan, or near-zero content.
+        let anchor = min.min(content_extent);
+        if anchor >= content_extent {
+            return IndexStrip {
+                start: len,
+                end: len,
+                before_extent: content_extent,
+                after_extent: S::<M>::zero(),
+                content_extent,
+            };
+        }
+
+        let index = cmp::min(model.index_at_offset(anchor), len.saturating_sub(1));
+        let before_extent = model.offset_of(index);
+        return IndexStrip {
+            start: index,
+            end: index,
+            before_extent,
+            after_extent: (content_extent - before_extent).max(S::<M>::zero()),
+            content_extent,
+        };
+    }
+
+    // Start from the item whose start is at or before `min`.
+    let mut start = {
+        let idx = model.index_at_offset(min);
+        cmp::min(idx, len.saturating_sub(1))
+    };
+
+    // Walk backwards to make sure item_at(start) actually starts <= min.
+    while start > 0 && model.offset_of(start) > min {
+        start -= 1;
+    }
+
+    // Walk forwards until we pass `max`.
+    let mut end = start;
+    while end < len && model.offset_of(end) < max {
+        end += 1;
+    }
+
+    let before_extent = model.offset_of(start);
+    content_extent = model.total_extent().max(content_extent);
+
+    let end_start = if end < len {
+        model.offset_of(end)
+    } else {
+        content_extent
+    };
+    let after_extent = (content_extent - end_start).max(S::<M>::zero());
+
+    IndexStrip {
+        start,
+        end,
+        before_extent,
+        after_extent,
+        content_extent,
+    }
+}
+
+/// Computes the materialized strip for a scroll position, viewport size, and overscan.
+#[deprecated(
+    since = "0.1.2",
+    note = "use `compute_materialized_strip`; this helper includes overscan and is not limited to the viewport"
+)]
+pub fn compute_visible_strip<M>(
+    model: &mut M,
+    scroll_offset: M::Scalar,
+    viewport_extent: M::Scalar,
+    overscan_before: M::Scalar,
+    overscan_after: M::Scalar,
+) -> IndexStrip<M::Scalar>
+where
+    M: ExtentModel,
+{
+    compute_materialized_strip(
+        model,
+        scroll_offset,
+        viewport_extent,
+        overscan_before,
+        overscan_after,
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use alloc::vec::Vec;
+
+    use super::{ExtentModel, IndexStrip, compute_materialized_strip};
+    use crate::Scalar;
+
+    #[derive(Clone, Debug)]
+    struct SimpleModel {
+        extents: Vec<f32>,
+    }
+
+    impl SimpleModel {
+        fn new(extents: &[f32]) -> Self {
+            Self {
+                extents: extents.to_vec(),
+            }
+        }
+    }
+
+    impl ExtentModel for SimpleModel {
+        type Scalar = f32;
+
+        fn len(&self) -> usize {
+            self.extents.len()
+        }
+
+        fn total_extent(&mut self) -> Self::Scalar {
+            self.extents.iter().copied().sum()
+        }
+
+        fn extent_of(&mut self, index: usize) -> Self::Scalar {
+            self.extents.get(index).copied().unwrap_or(0.0)
+        }
+
+        fn offset_of(&mut self, index: usize) -> Self::Scalar {
+            self.extents.iter().take(index).copied().sum()
+        }
+
+        fn index_at_offset(&mut self, offset: Self::Scalar) -> usize {
+            let mut pos = 0.0;
+            for (i, extent) in self.extents.iter().copied().enumerate() {
+                if pos + extent > offset {
+                    return i;
+                }
+                pos += extent;
+            }
+            self.extents.len().saturating_sub(1)
+        }
+    }
+
+    #[test]
+    fn empty_model_yields_empty_strip() {
+        let mut model = SimpleModel::new(&[]);
+        let strip = compute_materialized_strip(&mut model, 0.0, 100.0, 10.0, 10.0);
+        assert_eq!(
+            strip,
+            IndexStrip {
+                start: 0,
+                end: 0,
+                before_extent: <f32 as Scalar>::zero(),
+                after_extent: <f32 as Scalar>::zero(),
+                content_extent: <f32 as Scalar>::zero(),
+            }
+        );
+    }
+
+    #[test]
+    fn simple_materialized_range() {
+        // Three items, each 10 units tall.
+        let mut model = SimpleModel::new(&[10.0, 10.0, 10.0]);
+        let strip = compute_materialized_strip(&mut model, 5.0, 10.0, 0.0, 0.0);
+        assert_eq!(strip.start, 0);
+        assert_eq!(strip.end, 2);
+        assert_eq!(strip.before_extent, 0.0);
+        assert_eq!(strip.after_extent, 10.0);
+        assert_eq!(strip.content_extent, 30.0);
+    }
+
+    #[test]
+    fn index_strip_len_and_covered_extent() {
+        // Three items of 10 each, viewport at offset 5 with size 10 → items 0..2 visible.
+        let mut model = SimpleModel::new(&[10.0, 10.0, 10.0]);
+        let strip = compute_materialized_strip(&mut model, 5.0, 10.0, 0.0, 0.0);
+        assert_eq!(strip.range(), 0..2);
+        assert_eq!(strip.len(), 2);
+        assert!((strip.covered_extent() - 20.0_f32).abs() < 1e-5);
+
+        // Empty model → len 0, covered extent 0.
+        let mut model = SimpleModel::new(&[]);
+        let strip = compute_materialized_strip(&mut model, 0.0, 100.0, 0.0, 0.0);
+        assert_eq!(strip.range(), 0..0);
+        assert_eq!(strip.len(), 0);
+        assert!(strip.is_empty());
+        assert!((strip.covered_extent() - 0.0_f32).abs() < 1e-5);
+    }
+
+    #[test]
+    fn index_strip_len_saturates_for_incoherent_public_values() {
+        let strip = IndexStrip {
+            start: 5,
+            end: 3,
+            before_extent: 0.0_f32,
+            after_extent: 0.0_f32,
+            content_extent: 0.0_f32,
+        };
+
+        assert_eq!(strip.len(), 0);
+    }
+
+    #[test]
+    fn empty_materialized_range_beyond_content_has_coherent_spacers() {
+        let mut model = SimpleModel::new(&[10.0, 10.0, 10.0]);
+        let strip = compute_materialized_strip(&mut model, 100.0, 0.0, 0.0, 0.0);
+
+        assert_eq!(strip.start, 3);
+        assert_eq!(strip.end, 3);
+        assert_eq!(strip.before_extent, 30.0);
+        assert_eq!(strip.after_extent, 0.0);
+        assert_eq!(strip.content_extent, 30.0);
+        assert_eq!(strip.covered_extent(), 0.0);
+        assert_eq!(strip.range(), 3..3);
+    }
+
+    #[test]
+    fn empty_materialized_range_inside_content_has_coherent_spacers() {
+        let mut model = SimpleModel::new(&[10.0, 10.0, 10.0]);
+        let strip = compute_materialized_strip(&mut model, 15.0, 0.0, 0.0, 0.0);
+
+        assert_eq!(strip.start, 1);
+        assert_eq!(strip.end, 1);
+        assert_eq!(strip.before_extent, 10.0);
+        assert_eq!(strip.after_extent, 20.0);
+        assert_eq!(strip.content_extent, 30.0);
+        assert_eq!(strip.covered_extent(), 0.0);
+        assert_eq!(strip.range(), 1..1);
+    }
+
+    #[test]
+    fn asymmetric_overscan_extends_in_one_direction() {
+        let mut model = SimpleModel::new(&[10.0, 10.0, 10.0, 10.0]);
+        // Viewport covers roughly items 1 and 2 (offset 10..30). Overscan only after.
+        let strip = compute_materialized_strip(&mut model, 10.0, 20.0, 0.0, 10.0);
+        // We should still start at item 1, but extend end to include item 3.
+        assert_eq!(strip.start, 1);
+        assert_eq!(strip.end, 4);
+    }
+
+    #[test]
+    #[allow(
+        deprecated,
+        reason = "the test verifies deprecated visible names forward to the replacement API"
+    )]
+    fn deprecated_visible_names_forward_to_index_strip_names() {
+        let mut model = SimpleModel::new(&[10.0, 10.0, 10.0]);
+        let strip: super::VisibleStrip<f32> =
+            super::compute_visible_strip(&mut model, 5.0, 10.0, 0.0, 0.0);
+
+        assert_eq!(
+            strip,
+            compute_materialized_strip(&mut model, 5.0, 10.0, 0.0, 0.0)
+        );
+        assert_eq!(strip.visible_extent(), strip.covered_extent());
+    }
+}

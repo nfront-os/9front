@@ -1,0 +1,184 @@
+.TH UI 4
+.SH NAME
+ui \- a window of widgets, described through files
+.SH SYNOPSIS
+.B ui
+[
+.B -s
+.I srvname
+]
+.PP
+.B mount /srv/ui.\fIuser\fP.\fIpid\fP /mnt/ui
+.SH DESCRIPTION
+.I Ui
+runs in a window of
+.IR wsys (4)
+or
+.IR rio (1)
+and shows there what a client describes: a tree of widgets (rows, columns,
+labels, buttons, text boxes, check boxes, progress bars, sliders, scrolled
+and sized boxes).
+The client writes the tree and reads what the user did; the widgets, their
+state (focus, the text being edited, scrolling) and their layout stay in
+.IR ui ,
+as an
+.IR acme (4)
+window's text stays in acme.
+The files are 9P: a client on another machine mounts them as well
+.RI ( import (4)).
+.PP
+.I Ui
+posts its files in
+.BI /srv/ srvname
+(default
+.BI ui. user . pid\fR,
+printed on standard output); the entry goes with
+.IR ui .
+Its widgets are Masonry's (linebender), drawn by the processor (vello_cpu):
+no GPU is needed.
+It takes its fonts from
+.BR /lib/font/ttf .
+.SS Files
+.TF nodes/id/children
+.TP
+.B ctl
+Written: a transaction, the lines of one write applied all or none (an error
+names the line); read: the window's size.
+.TP
+.B event
+Read: what the user did, a line each, from the open on:
+.BI click " id" ,
+.BI text " id text"
+(a text box changed),
+.BI enter " id text" ,
+.BI check " id " 0 \fR|\fP 1\fR,
+.BI slide " id value" ,
+.BR close .
+A read waits for one; a flush (an interrupt) ends the wait.
+.TP
+.B tree
+The tree in
+.BR ctl 's
+language: written to
+.B ctl
+it makes the same scene.
+.TP
+.BI nodes/ id /kind
+The node's kind.
+.TP
+.BI nodes/ id /props
+Its properties,
+.I key value
+a line; written:
+.B set
+for each line.
+.TP
+.BI nodes/ id /children
+.TP
+.BI nodes/ id /rect
+Where it is in the window,
+.I x0 y0 x1 y1
+(as the last frame had it).
+.PD
+.SS Ctl's language
+.TF "move id parent [index]"
+.TP
+.BI new " id kind \fR[\fPparent \fR[\fPindex\fR]]"
+A node of a kind:
+.BR column ,
+.BR row ,
+.BR label ,
+.BR button ,
+.BR textbox ,
+.BR checkbox ,
+.BR progress ,
+.BR slider ,
+.B scroll
+(one child),
+.B box
+(one child or none); in
+.I parent
+(default
+.BR root ,
+a column) at
+.I index
+(default: the end).
+Ids are letters, digits and
+.BR _-. .
+.TP
+.BI set " id key value"
+A property; the value is the rest of the line (in rc's quotes if it starts or
+ends with blanks):
+.B text
+(label, button, text box, check box),
+.B placeholder
+(text box),
+.B checked
+(0 or 1),
+.B value
+(progress: 0 to 1 or
+.BR none ;
+slider),
+.BR min ,
+.BR max ,
+.B step
+(slider),
+.BR width ,
+.B height
+(box, in pixels),
+.B flex
+(a child's share of its row or column),
+.B gap
+and
+.B align
+.RB ( start ,
+.BR center ,
+.BR end :
+across a row or column).
+.TP
+.BI del " id
+The node and what is under it.
+.TP
+.BI move " id parent \fR[\fPindex\fR]
+.TP
+.BI title " text
+.TP
+.B clear
+All but the root.
+.PD
+.PP
+The user's changes go into the tree as well: a text box's
+.BR text ,
+a check box's
+.BR checked ,
+a slider's
+.BR value .
+.SH EXAMPLES
+A window with a button, from rc:
+.IP
+.EX
+window 'ui -s hello'
+mount /srv/hello /mnt/ui
+echo 'new b button
+set b text press me' >/mnt/ui/ctl
+cat /mnt/ui/event	# click b, when it is pressed
+.EE
+.SH SOURCE
+.B /sys/src/cmd/ui
+(Rust; Masonry, winit and softbuffer with their plan9 backends:
+.BR /sys/src/rust )
+.SH SEE ALSO
+.IR wsys (4),
+.IR rio (4),
+.IR acme (4)
+.SH BUGS
+One window an
+.IR ui .
+Deleting the window ends
+.I ui
+with a note: the clients' reads of
+.B event
+end without
+.BR close .
+A change of the tree's shape makes all widgets again (the focus is lost);
+properties change the widgets in place.
