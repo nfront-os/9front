@@ -460,7 +460,7 @@
 /* #undef SDL_VIDEO_RENDER_D3D12 */
 /* #undef SDL_VIDEO_RENDER_GPU */
 /* #undef SDL_VIDEO_RENDER_METAL */
-/* #undef SDL_VIDEO_RENDER_VULKAN */
+#define SDL_VIDEO_RENDER_VULKAN 1	/* 9front: over SDL_VIDEO_VULKAN; without -lvulkan it says so and SDL takes the next */
 /* #undef SDL_VIDEO_RENDER_OGL */
 /* #undef SDL_VIDEO_RENDER_OGL_ES2 */
 /* #undef SDL_VIDEO_RENDER_NGAGE */

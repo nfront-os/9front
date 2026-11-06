@@ -4521,6 +4521,12 @@ static bool VULKAN_RenderPresent(SDL_Renderer *renderer)
             SET_ERROR_CODE("vkQueuePresentKHR()", result);
             return false;
         }
+        /* 9front: the plan9 WSI says suboptimal once, when wsys changes its mind
+           about the window's overlay plane (images in VRAM shown as they are, or
+           ones wsys reads); a new swapchain the next frame gets the better kind */
+        if (result == VK_SUBOPTIMAL_KHR) {
+            rendererData->recreateSwapchain = true;
+        }
 
         rendererData->currentCommandBufferIndex = ( rendererData->currentCommandBufferIndex + 1 ) % rendererData->swapchainImageCount;
 

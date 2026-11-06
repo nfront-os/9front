@@ -30,6 +30,12 @@ for p in vktest vkdraw vktri vkspeed vkshare radvtest gltest gldesk glwin; do
 	"$CROSS/$TRIPLE-gcc" -std=gnu11 -O2 -Wall -I"$O" -c -o "$O/$p.o" "$HERE/$p.c"
 	"$CROSS/$TRIPLE-g++" -o "$HERE/root/tests/$p" "$O/$p.o" $extra $libs
 done
+# sdlvk: SDL3's Vulkan renderer (tests/sdl/sdlvk.c), if libSDL3.a is built
+# (sys/src/sdl3); SDL refers to Vulkan weakly: -u pulls the loader in
+if [ -f "$ROOT/$objtype/lib.gcc/ape/libSDL3.a" ]; then
+	"$CROSS/$TRIPLE-gcc" -std=gnu11 -O2 -Wall -c -o "$O/sdlvk.o" "$ROOT/tests/sdl/sdlvk.c"
+	"$CROSS/$TRIPLE-g++" -o "$HERE/root/tests/sdlvk" "$O/sdlvk.o" -Wl,-u,vkGetInstanceProcAddr -lSDL3 $libs -lm
+fi
 # rsvk: vktri in Rust (ash, ../9front-ui stage 1b), built by cargo with ../9front-rust's
 # stage-1 rustc for x86_64-unknown-plan9 and linked by the cross gcc above (the view of this
 # tree: libp9, APE, libvulkan.a); the crates are in rsvk/vendor (no network). Skipped
