@@ -26,3 +26,13 @@ while(! grep -s '^wsysvk: exit' /tmp/wvo.log && test $n -lt 600){ sleep 0.1; n=`
 sleep 1
 grep '^overlay' /dev/gpu/0/status | sed 's/^/after: /'
 grep 'frames|wsys has|wsys says|swapchain|screen at|passed|FAIL|exit' /tmp/wvo.log | sed 's/^/overlay: /'
+# again, vktri ignoring VK_SUBOPTIMAL_KHR (as many apps): covered, its images
+# in VRAM, the WSI must say out of date (vktri: "window changed size")
+rm -f /tmp/wvo.log
+window -r 100 100 740 580 /tests/wsysvktri /tmp/wvo.log norebuild
+sleep 2
+window -r 600 500 900 700 sleep 4
+n=0
+while(! grep -s '^wsysvk: exit' /tmp/wvo.log && test $n -lt 600){ sleep 0.1; n=`{echo $n+1 | hoc} }
+grep 'wsys says|out of date|changed size|exit' /tmp/wvo.log | sed 's/^/norebuild: /'
+
