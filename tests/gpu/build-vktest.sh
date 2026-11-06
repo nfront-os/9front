@@ -21,7 +21,7 @@ libs="-Wl,--gc-sections -lvulkan -ldraw -l9 -lfmt -lutf"
 for s in tri.vert tri.frag; do
 	glslc -O -mfmt=c -o "$O/$s.inc" "$HERE/shaders/$s"
 done
-for p in vktest vkdraw vktri vkspeed vkshare radvtest gltest gldesk glwin; do
+for p in vktest vkdraw vktri vkspeed vkshare radvtest vktimeline gltest gldesk glwin; do
 	extra=
 	case $p in
 	vkdraw|vktri)	extra="$O/btassert.o $O/screenpeek.o" ;;
@@ -64,6 +64,13 @@ if [ "$objtype" = amd64 ] && [ -x "$RUSTC" ] && command -v cargo >/dev/null; the
 	 RUSTFLAGS="-L $O -l screenpeek -l draw -l 9 -l fmt -l utf -l stdc++ -C link-arg=-Wl,--gc-sections" \
 	 cargo build --offline --release --target $T)
 	cp "$O/rsvk/$T/release/rsvk" "$HERE/root/tests/rsvk"
+	# eframetest: eframe on wgpu's Vulkan (tests/winit, sys/src/rust/crates: wgpu-*)
+	(cd "$ROOT/tests/winit" &&
+	 RUSTC="$RUSTC" CARGO_TARGET_DIR="$BUILD/cargo/tests_winit" \
+	 CARGO_TARGET_X86_64_UNKNOWN_PLAN9_LINKER="$CROSS/$TRIPLE-gcc" \
+	 RUSTFLAGS="-l draw -l 9 -l fmt -l utf -l stdc++ -C link-arg=-Wl,--gc-sections" \
+	 cargo build --offline --release --target $T --bin eframetest)
+	"$CROSS/$TRIPLE-strip" -o "$HERE/root/tests/eframetest" "$BUILD/cargo/tests_winit/$T/release/eframetest"
 else
 	echo "rsvk: not built (objtype=$objtype, or no stage-1 rustc $RUSTC or cargo)" >&2
 fi

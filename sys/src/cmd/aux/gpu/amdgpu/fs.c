@@ -575,6 +575,36 @@ ctxctl(Fidaux *fa, char **f, int n)
 		fsetreply(fa, "syncimport %ud\n", h);
 		return nil;
 	}
+	/* sync files of the context (linux/ctx.c: amdgpu_syncfile) */
+	if(n == 2 && strcmp(f[0], "syncfile") == 0){
+		int id;
+
+		e = amdgpu_syncfile(c->lc, strtoul(f[1], nil, 0), &id);
+		if(e < 0)
+			return errstr9(e);
+		fsetreply(fa, "syncfile %d\n", id);
+		return nil;
+	}
+	if(n == 3 && strcmp(f[0], "syncmerge") == 0){
+		int id;
+
+		e = amdgpu_syncmerge(c->lc, atoi(f[1]), atoi(f[2]), &id);
+		if(e < 0)
+			return errstr9(e);
+		fsetreply(fa, "syncmerge %d\n", id);
+		return nil;
+	}
+	if(n == 3 && strcmp(f[0], "syncin") == 0){
+		e = amdgpu_syncin(c->lc, strtoul(f[1], nil, 0), atoi(f[2]));
+		return e < 0 ? errstr9(e) : nil;
+	}
+	if(n >= 2 && strcmp(f[0], "syncclose") == 0){
+		int i;
+
+		for(i = 1; i < n; i++)
+			amdgpu_syncclose(c->lc, atoi(f[i]));
+		return nil;
+	}
 	if(n == 2 && strcmp(f[0], "import") == 0){
 		uint h;
 

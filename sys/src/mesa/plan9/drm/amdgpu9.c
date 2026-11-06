@@ -2040,6 +2040,47 @@ amd9syncimport(Amd *a, int fd, uint32_t *handle)
 	return 0;
 }
 
+/*
+ * sync files (SYNCOBJ_HANDLE_TO_FD's EXPORT_SYNC_FILE): the driver keeps
+ * them in the context and names them by numbers (ctx ctl syncfile,
+ * syncmerge, syncin, syncclose); drm9.c makes descriptors of them
+ */
+int
+amd9syncfile(Amd *a, uint32_t handle, int *id)
+{
+	char reply[64];
+
+	if(ctlreq(a, reply, sizeof reply, "syncfile %u", handle) < 0)
+		return -errno;
+	if(sscanf(reply, "syncfile %d", id) != 1)
+		return -EIO;
+	return 0;
+}
+
+int
+amd9syncmerge(Amd *a, int x, int y, int *id)
+{
+	char reply[64];
+
+	if(ctlreq(a, reply, sizeof reply, "syncmerge %d %d", x, y) < 0)
+		return -errno;
+	if(sscanf(reply, "syncmerge %d", id) != 1)
+		return -EIO;
+	return 0;
+}
+
+int
+amd9syncin(Amd *a, uint32_t handle, int id)
+{
+	return ctlreq(a, NULL, 0, "syncin %u %d", handle, id) < 0 ? -errno : 0;
+}
+
+void
+amd9syncclose(Amd *a, int id)
+{
+	ctlreq(a, NULL, 0, "syncclose %d", id);
+}
+
 /* a dma-buf descriptor's object: imported by its token */
 static int
 importdmabuf(amdgpu_device_handle d, int fd, struct amdgpu_bo_import_result *out)

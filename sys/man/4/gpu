@@ -345,6 +345,10 @@ amdgpu
 .BR bind ,
 .BR syncexport ,
 .BR syncimport ,
+.BR syncfile ,
+.BR syncmerge ,
+.BR syncin ,
+.BR syncclose ,
 .BR overlay
 and amdgpu's own ioctls as words
 .RB ( gem ,
@@ -884,6 +888,27 @@ wait for and signal (Vulkan's external semaphores and fences, opaque).
 Mesa's RADV exports and imports its dma-bufs so (libdrm9: the token as a
 descriptor, plan9/lib/dmabuf.c).
 .PP
+Sync files (a fence in a file of its own, as Linux's
+.B SYNCOBJ_HANDLE_TO_FD
+makes with
+.BR EXPORT_SYNC_FILE )
+stay in the context, named by numbers:
+.BI syncfile " handle
+takes the fence a syncobj has now (reply
+.BI syncfile " n" ),
+.BI syncmerge " a b
+makes one of two, signalled when both are (reply
+.BI syncmerge " n" ),
+.BI syncin " handle n
+puts one into a syncobj, and
+.BI syncclose " n ...
+lets them go.
+libdrm9 makes descriptors of them (a pipe each, known by its qid, so
+also when duplicated), merges them for
+.B SYNC_IOC_MERGE
+and gives back those whose descriptors are all closed;
+RADV makes its submissions that only wait and signal of them.
+.PP
 .B Status
 names the chip, its memory, temperatures, power and clocks, the
 interrupt ring, each ring's fences (emitted, signalled, as the ring
@@ -1193,7 +1218,9 @@ Command buffers are limited to the context's segment (1 MB).
 .br
 The host visible bar is mapped uncached.
 .br
-No sync files (a fence as a file of its own); on
+Sync files (a fence as a file of its own) only on
+.IR amdgpu ,
+within a context (not between processes); on
 .I virtiogpu
 no sharing of fences between processes yet.
 .IR I915 :

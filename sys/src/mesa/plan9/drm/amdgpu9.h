@@ -7,3 +7,8 @@ int	amd9ioctl(Amd *a, unsigned long req, void *arg);	/* 0, or -1 and errno */
 Amd	*amd9of(int fd);	/* drm9.c: the descriptor's, or NULL */
 int	amd9syncexport(Amd *a, uint32_t handle, int *fd);	/* a syncobj as a descriptor: 0, or -errno */
 int	amd9syncimport(Amd *a, int fd, uint32_t *handle);
+/* sync files of the context, by the driver's numbers (ctx ctl syncfile ...): 0, or -errno */
+int	amd9syncfile(Amd *a, uint32_t handle, int *id);
+int	amd9syncmerge(Amd *a, int x, int y, int *id);
+int	amd9syncin(Amd *a, uint32_t handle, int id);
+void	amd9syncclose(Amd *a, int id);

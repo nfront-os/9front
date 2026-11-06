@@ -140,6 +140,8 @@ struct Fd {
 	uint32_t	handle;	/* dma-buf: the GEM object */
 	Fence	f;		/* sync file */
 	int	hasf;
+	Amd	*amd;		/* amdgpu's sync file: the driver's, number sid in that context */
+	int	sid;
 };
 
 static pthread_mutex_t lk = PTHREAD_MUTEX_INITIALIZER;
@@ -424,9 +426,109 @@ newfd(int kind, Dev *d)
 static Fd*
 getfd(int fd, int kind)
 {
-	if(fd < 0 || fd >= Maxfd || fds[fd].kind != kind || fds[fd].ino != ino(fd))
+	uint64_t q;
+	int i;
+
+	if(fd < 0 || fd >= Maxfd)
 		return NULL;
-	return &fds[fd];
+	if(fds[fd].kind == kind && fds[fd].ino == ino(fd))
+		return &fds[fd];
+	/* a descriptor dup'd from a known one (libsync's sync_accumulate dups): the same */
+	if((q = ino(fd)) == 0)
+		return NULL;
+	for(i = 0; i < Maxfd; i++)
+		if(i != fd && fds[i].kind == kind && fds[i].ino == q && ino(i) == q){
+			fds[fd] = fds[i];
+			return &fds[fd];
+		}
+	return NULL;
+}
+
+/*
+ * amdgpu's sync files whose descriptors are all closed: the driver's
+ * numbers given back (close(2) is APE's, it does not tell us); before a
+ * new descriptor, that may take a closed one's number.  With lk.
+ */
+static void
+syncsweep(void)
+{
+	uint64_t q;
+	int i, j, live;
+
+	for(i = 0; i < Maxfd; i++){
+		if(fds[i].kind != Ksyncfile || fds[i].amd == NULL || ino(i) == fds[i].ino)
+			continue;
+		q = fds[i].ino;
+		live = 0;
+		for(j = 0; j < Maxfd && !live; j++)
+			if(j != i && fds[j].kind == Ksyncfile && fds[j].ino == q && ino(j) == q)
+				live = 1;
+		if(!live){
+			for(j = 0; j < Maxfd; j++)	/* dead copies of it */
+				if(j != i && fds[j].kind == Ksyncfile && fds[j].ino == q)
+					memset(&fds[j], 0, sizeof fds[j]);
+			amd9syncclose(fds[i].amd, fds[i].sid);
+		}
+		memset(&fds[i], 0, sizeof fds[i]);
+	}
+}
+
+/* a descriptor for amdgpu's sync file sid of context a; with lk */
+static int
+amdsyncfd(Dev *d, Amd *a, int sid)
+{
+	int r;
+
+	if((r = newfd(Ksyncfile, d)) < 0){
+		amd9syncclose(a, sid);
+		return -1;
+	}
+	fds[r].amd = a;
+	fds[r].sid = sid;
+	return r;
+}
+
+/* SYNC_IOC_MERGE (libsync's sync_merge): two sync files as one */
+struct sync_merge_data9 {
+	char	name[32];
+	int32_t	fd2;
+	int32_t	fence;
+	uint32_t	flags;
+	uint32_t	pad;
+};
+
+static int
+syncfileioctl(int fd, unsigned long req, void *arg)
+{
+	struct sync_merge_data9 *m = arg;
+	Fd *f, *g;
+	Dev *d;
+	Amd *a;
+	int x, y, id, r;
+
+	if((req & 0xff) != 3 || (req >> 16 & 0x3fff) != sizeof *m)	/* SYNC_IOC_MERGE */
+		return seterr(ENOTTY);
+	pthread_mutex_lock(&lk);
+	if((f = getfd(fd, Ksyncfile)) == NULL || (g = getfd(m->fd2, Ksyncfile)) == NULL ||
+	   f->amd == NULL || f->amd != g->amd){
+		pthread_mutex_unlock(&lk);
+		return seterr(EINVAL);	/* amdgpu's, of one context; i915's: not yet */
+	}
+	a = f->amd;
+	d = f->dev;
+	x = f->sid;
+	y = g->sid;
+	syncsweep();
+	pthread_mutex_unlock(&lk);
+	if((r = amd9syncmerge(a, x, y, &id)) < 0)
+		return seterr(-r);
+	pthread_mutex_lock(&lk);
+	r = amdsyncfd(d, a, id);
+	pthread_mutex_unlock(&lk);
+	if(r < 0)
+		return -1;
+	m->fence = r;
+	return 0;
 }
 
 /* the driver's ctl: a request, its reply */
@@ -1290,6 +1392,8 @@ ioctl(int fd, unsigned long req, void *arg)
 			return seterr(ENOTTY);
 		return dmabufioctl(f, req, arg);
 	}
+	if((req >> 8 & 0xff) == '>')	/* SYNC_IOC_MAGIC: sync files */
+		return syncfileioctl(fd, req, arg);
 	if(req == FIONREAD){
 		if(fstat(fd, &st) < 0)
 			return seterr(EBADF);
@@ -1971,8 +2075,24 @@ drmSyncobjFDToHandle(int fd, int sfd, uint32_t *handle)
 int
 drmSyncobjExportSyncFile(int fd, uint32_t handle, int *out)
 {
-	if(amd9of(fd) != NULL)
-		return seterr(EOPNOTSUPP);	/* no sync file descriptors for amdgpu here */
+	Amd *a;
+
+	if((a = amd9of(fd)) != NULL){
+		Dev *d;
+		int id, r;
+
+		if((r = amd9syncfile(a, handle, &id)) < 0)
+			return seterr(-r);
+		pthread_mutex_lock(&lk);
+		syncsweep();
+		d = getdev(fd);
+		r = amdsyncfd(d, a, id);
+		pthread_mutex_unlock(&lk);
+		if(r < 0)
+			return -1;
+		*out = r;
+		return 0;
+	}
 	Fence f;
 	Sync *s;
 	Dev *d;
@@ -2002,8 +2122,22 @@ drmSyncobjExportSyncFile(int fd, uint32_t handle, int *out)
 int
 drmSyncobjImportSyncFile(int fd, uint32_t handle, int sfd)
 {
-	if(amd9of(fd) != NULL)
-		return seterr(EOPNOTSUPP);	/* no sync file descriptors for amdgpu here */
+	Amd *a;
+
+	if((a = amd9of(fd)) != NULL){
+		Fd *f;
+		int id, r;
+
+		pthread_mutex_lock(&lk);
+		f = getfd(sfd, Ksyncfile);
+		id = f != NULL && f->amd == a ? f->sid : -1;
+		pthread_mutex_unlock(&lk);
+		if(id < 0)
+			return seterr(EINVAL);
+		if((r = amd9syncin(a, handle, id)) < 0)
+			return seterr(-r);
+		return 0;
+	}
 	Sync *s;
 	Dev *d;
 	Fd *f;

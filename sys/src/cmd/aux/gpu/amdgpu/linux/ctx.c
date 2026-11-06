@@ -46,6 +46,8 @@
 #include <linux/file.h>
 #include <linux/dma-fence.h>
 #include <linux/dma-buf.h>
+#include <linux/dma-fence-unwrap.h>
+#include <linux/sync_file.h>
 #include <linux/random.h>
 #include <linux/mutex.h>
 #include <linux/pci.h>
@@ -88,6 +90,8 @@ struct bo {
 	unsigned long	va;
 };
 
+enum { Nsyncfile = 256 };
+
 struct gctx {
 	int	id;
 	struct mutex	lock;
@@ -103,6 +107,7 @@ struct gctx {
 	ktime_t	tsub[Nfence], tcs[Nfence];	/* -t: before the CS, after it */
 	bool	failed;
 	struct list_head	maps;	/* the client's objects it maps (struct map) */
+	struct file	*syncfile[Nsyncfile];	/* its sync files (amdgpu_syncfile), by number */
 };
 
 /* an object of the client's (made by its ioctls) that it has a view of */
@@ -277,6 +282,9 @@ amdgpu_ctx_free(void *v)
 	int i;
 
 	unexport(c);	/* its tokens name nothing any more */
+	for (i = 0; i < Nsyncfile; i++)
+		if (c->syncfile[i])
+			fput(c->syncfile[i]);
 	kmsout_scanout(c->filp, 0, 0, 0, 0);	/* its picture off the display */
 	kmsout_overlay_off(c->filp);
 	for (i = 0; i < Nfence; i++)
@@ -1429,6 +1437,140 @@ amdgpu_syncimport(void *v, const char *token, u32 *handle)
 	if (r)
 		return r;
 	*handle = h.handle;
+	return 0;
+}
+
+/*
+ * sync files (gpu(4)'s ctx ctl syncfile, syncmerge, syncin, syncclose):
+ * a fence in a file, as SYNCOBJ_HANDLE_TO_FD's EXPORT_SYNC_FILE makes it
+ * on Linux, kept in the context and named by a number; libdrm9 makes a
+ * descriptor of the client's of it (RADV merges them, imports them into
+ * syncobjs: its submissions that only wait and signal).  Within a context;
+ * gone with it, or when the client says so.
+ */
+static int
+syncfileslot(struct gctx *c, struct file *f, int *id)
+{
+	int i;
+
+	mutex_lock(&c->lock);
+	for (i = 0; i < Nsyncfile; i++)
+		if (c->syncfile[i] == NULL) {
+			c->syncfile[i] = f;
+			mutex_unlock(&c->lock);
+			*id = i;
+			return 0;
+		}
+	mutex_unlock(&c->lock);
+	fput(f);
+	return -EMFILE;
+}
+
+static struct dma_fence *
+syncfilefence(struct gctx *c, int id)
+{
+	struct dma_fence *f = NULL;
+
+	mutex_lock(&c->lock);
+	if (id >= 0 && id < Nsyncfile && c->syncfile[id])
+		f = dma_fence_get(((struct sync_file *)c->syncfile[id]->private_data)->fence);
+	mutex_unlock(&c->lock);
+	return f;
+}
+
+/* the fence of syncobj handle (now) as a sync file */
+int
+amdgpu_syncfile(void *v, u32 handle, int *id)
+{
+	struct gctx *c = v;
+	struct drm_syncobj_handle h = {
+		.handle = handle,
+		.flags = DRM_SYNCOBJ_HANDLE_TO_FD_FLAGS_EXPORT_SYNC_FILE,
+	};
+	struct file *f;
+	int r;
+
+	r = ioctl(c, DRM_IOCTL_SYNCOBJ_HANDLE_TO_FD, &h);
+	if (r)
+		return r;
+	f = fget(h.fd);	/* a reference of ours */
+	close_fd(h.fd);
+	if (f == NULL)
+		return -EBADF;
+	return syncfileslot(c, f, id);
+}
+
+/* sync files a and b as one (SYNC_IOC_MERGE): signaled when both are */
+int
+amdgpu_syncmerge(void *v, int a, int b, int *id)
+{
+	struct gctx *c = v;
+	struct dma_fence *fa, *fb, *m;
+	struct sync_file *sf;
+
+	fa = syncfilefence(c, a);
+	fb = syncfilefence(c, b);
+	if (fa == NULL || fb == NULL) {
+		dma_fence_put(fa);
+		dma_fence_put(fb);
+		return -EBADF;
+	}
+	m = dma_fence_unwrap_merge(fa, fb);
+	dma_fence_put(fa);
+	dma_fence_put(fb);
+	if (m == NULL)
+		return -ENOMEM;
+	sf = sync_file_create(m);	/* its own reference */
+	dma_fence_put(m);
+	if (sf == NULL)
+		return -ENOMEM;
+	return syncfileslot(c, sf->file, id);
+}
+
+/* sync file id's fence into syncobj handle (FD_TO_HANDLE's IMPORT_SYNC_FILE) */
+int
+amdgpu_syncin(void *v, u32 handle, int id)
+{
+	struct gctx *c = v;
+	struct drm_syncobj_handle h = {
+		.handle = handle,
+		.flags = DRM_SYNCOBJ_FD_TO_HANDLE_FLAGS_IMPORT_SYNC_FILE,
+	};
+	struct file *f;
+	int r;
+
+	mutex_lock(&c->lock);
+	f = id >= 0 && id < Nsyncfile ? c->syncfile[id] : NULL;
+	if (f)
+		get_file(f);
+	mutex_unlock(&c->lock);
+	if (f == NULL)
+		return -EBADF;
+	h.fd = get_unused_fd_flags(O_CLOEXEC);
+	if (h.fd < 0) {
+		fput(f);
+		return h.fd;
+	}
+	fd_install(h.fd, f);	/* the descriptor has that reference */
+	r = ioctl(c, DRM_IOCTL_SYNCOBJ_FD_TO_HANDLE, &h);
+	close_fd(h.fd);
+	return r;
+}
+
+int
+amdgpu_syncclose(void *v, int id)
+{
+	struct gctx *c = v;
+	struct file *f;
+
+	mutex_lock(&c->lock);
+	f = id >= 0 && id < Nsyncfile ? c->syncfile[id] : NULL;
+	if (f)
+		c->syncfile[id] = NULL;
+	mutex_unlock(&c->lock);
+	if (f == NULL)
+		return -EBADF;
+	fput(f);
 	return 0;
 }
 

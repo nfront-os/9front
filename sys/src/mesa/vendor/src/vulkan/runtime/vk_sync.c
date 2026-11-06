@@ -29,6 +29,7 @@
 #include "util/u_debug.h"
 #include "util/macros.h"
 #include "util/os_time.h"
+#include "util/stack_array.h"
 
 #include "vk_alloc.h"
 #include "vk_device.h"
@@ -400,6 +401,32 @@ __vk_sync_wait_many(struct vk_device *device,
 {
    if (wait_count == 0)
       return VK_SUCCESS;
+
+   /* 9front: a dummy sync is signaled (the WSI's acquire semaphore where it
+    * has no fence of the image: plan9's, whose acquire returns once the
+    * window system gave the image back).  Among other waits it would be of
+    * another type than the device's (can_wait_many: an assertion, then
+    * one wait after the other); without it the others' own wait_many.
+    */
+   uint32_t ndummy = 0;
+   for (uint32_t i = 0; i < wait_count; i++) {
+      if (vk_sync_type_is_dummy(waits[i].sync->type))
+         ndummy++;
+   }
+   if (ndummy > 0) {
+      if (ndummy == wait_count || (wait_flags & VK_SYNC_WAIT_ANY))
+         return VK_SUCCESS;
+      STACK_ARRAY(struct vk_sync_wait, real, wait_count - ndummy);
+      uint32_t n = 0;
+      for (uint32_t i = 0; i < wait_count; i++) {
+         if (!vk_sync_type_is_dummy(waits[i].sync->type))
+            real[n++] = waits[i];
+      }
+      VkResult result = __vk_sync_wait_many(device, n, real, wait_flags,
+                                            abs_timeout_ns);
+      STACK_ARRAY_FINISH(real);
+      return result;
+   }
 
    if (wait_count == 1) {
       return __vk_sync_wait(device, waits[0].sync, waits[0].wait_value,
