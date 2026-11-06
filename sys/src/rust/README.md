@@ -24,16 +24,29 @@ winit, raw-window-handle and softbuffer with backends of their own for 9front
     `CursorGrabMode::Locked` (back to the middle, motion as device events);
     size, place, hiding, maximizing and fullscreen through `/dev/wctl`, the
     window system's answer seen as a change; cursor icons and RGBA cursors.
+    `set_visible(false)` (eframe until its first frame) hides the window but
+    is neither minimized nor occluded (egui would not draw it); hidden by the
+    window system's menu is minimized (`Occluded`). `run_on_demand` and
+    `pump_events` (eframe) from one round of the loop and a wait.
     `build.rs` (`plan9_platform`), `platform_impl/mod.rs`, `event.rs`,
     `platform/mod.rs`, `Cargo.toml` (p9win) name it.
   - `softbuffer-0.4.8`: `src/backends/plan9.rs`: the buffer loaded into the
     window (only the damage) through p9win's draw; `Cargo.toml` (p9win).
     Without its default features (X11, Wayland, KMS).
+  - `wgpu-30.0.1`, `wgpu-core-30.0.1`, `wgpu-hal-30.0.1`: wgpu's Vulkan backend
+    on plan9 (`vulkan` cfg alias; wgpu-core's `vulkan` feature turns on
+    wgpu-hal's itself, plan9 having none of the deps crates). wgpu-hal: ash
+    without `loaded` (no dlopen), the entry from the static libvulkan.a's
+    `vkGetInstanceProcAddr` (`#[link(name = "vulkan")]`: after wgpu-hal on
+    the link line); `VK_PLAN9_surface` asked for and `RawWindowHandle::Plan9`
+    made a surface of. Programs link `-l draw -l 9 -l fmt -l utf -l stdc++`
+    (Mesa's C++, its plan9 WSI) through RUSTFLAGS. eframe (egui's framework)
+    runs on it unchanged.
 
 A crate that uses them patches crates.io to these paths and vendors the rest
 (`scripts/rust/vendor.sh`: only what the plan9 target builds keeps its
-sources); `tests/winit` (winittest, eguitest with egui_software_backend).
+sources); `tests/winit` (winittest, eguitest with hdrshot-egui-backend: egui_software_backend for egui 0.37, eframetest on wgpu).
 
-Not yet: wgpu and glutin (egui's GPU renderers; Vulkan and EGL are there:
-`VK_PLAN9_surface`, EGL's plan9 platform), several windows a process, IME,
-the clipboard of egui-winit (`/dev/snarf`: p9win has it).
+Not yet: glutin (egui's GL renderer; EGL's plan9 platform is there), wgpu
+on 386/arm64, several windows a process, IME, the clipboard of egui-winit
+(`/dev/snarf`: p9win has it).

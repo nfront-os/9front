@@ -27,6 +27,7 @@ pub mod x11;
     android_platform,
     x11_platform,
     wayland_platform,
+    plan9_platform, // 9front
     docsrs,
 ))]
 pub mod run_on_demand;
@@ -37,6 +38,7 @@ pub mod run_on_demand;
     android_platform,
     x11_platform,
     wayland_platform,
+    plan9_platform, // 9front
     docsrs,
 ))]
 pub mod pump_events;

@@ -11,8 +11,11 @@ ROOT=$(cd "$HERE/../.." && pwd)
 CLI_DIR=${CLI_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/9front-cli}
 RUSTC=${RUSTC:-$ROOT/../9front-rust/rust/build/host/stage1/bin/rustc}
 T=x86_64-unknown-plan9
+# eframetest links Mesa's static libvulkan.a (C++; its plan9 WSI: APE's libdraw);
+# it runs on a GPU (tests/gpu/amdeframe.rc), not here
 (cd "$HERE" && env RUSTC="$RUSTC" CARGO_TARGET_DIR="$BUILD/cargo/tests_winit" \
 	CARGO_TARGET_X86_64_UNKNOWN_PLAN9_LINKER="$CROSS/$TRIPLE-gcc" \
+	RUSTFLAGS="-l draw -l 9 -l fmt -l utf -l stdc++ -C link-arg=-Wl,--gc-sections" \
 	cargo build --offline --release --target $T --quiet)
 mkdir -p "$HERE/root/tests"
 for p in winittest eguitest; do cp "$BUILD/cargo/tests_winit/$T/release/$p" "$HERE/root/tests/"; done

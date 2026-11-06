@@ -10,16 +10,17 @@
 # See Cargo.toml.orig for the original contents.
 
 [package]
+autotests = false
+autobenches = false
+autoexamples = false
 rust-version = "1.0"
 name = "autocfg"
 version = "1.5.1"
 authors = ["Josh Stone <cuviper@gmail.com>"]
+build = false
 exclude = ["/.github/**"]
 autolib = false
 autobins = false
-autoexamples = false
-autotests = false
-autobenches = false
 description = "Automatic cfg for Rust compiler features"
 documentation = "https://docs.rs/autocfg/"
 readme = "README.md"
@@ -32,6 +33,7 @@ categories = ["development-tools::build-utils"]
 license = "Apache-2.0 OR MIT"
 repository = "https://github.com/cuviper/autocfg"
 
-
 [lib]
-path = "lib.rs"
+name = "autocfg"
+path = "src/lib.rs"
+

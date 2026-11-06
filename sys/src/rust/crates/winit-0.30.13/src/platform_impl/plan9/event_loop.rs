@@ -18,6 +18,7 @@ use smol_str::SmolStr;
 use crate::error::EventLoopError;
 use crate::event::{self, Modifiers, StartCause};
 use crate::event_loop::{self, ControlFlow, DeviceEvents};
+use crate::platform::pump_events::PumpStatus;
 use crate::keyboard::{
     Key, KeyCode, KeyLocation, ModifiersKeys, ModifiersState, NamedKey, NativeKey, NativeKeyCode,
     PhysicalKey,
@@ -77,7 +78,11 @@ pub(super) struct WinState {
     pub cursor_visible: AtomicBool,
     pub grab: Mutex<CursorGrabMode>,
     pub focused: AtomicBool,
+    /// hidden by the window system (its menu: what a user minimizes)
     pub hidden: AtomicBool,
+    /// hidden by the program (set_visible(false): eframe until its first
+    /// frame); neither minimized nor occluded
+    pub invisible: AtomicBool,
     /// before maximizing or fullscreen: the window's rectangle (with its border)
     pub restore: Mutex<Option<Rect>>,
     pub fullscreen: AtomicBool,
@@ -261,6 +266,9 @@ pub struct EventLoop<T: 'static> {
     window_target: event_loop::ActiveEventLoop,
     user_events_sender: mpsc::Sender<T>,
     user_events_receiver: mpsc::Receiver<T>,
+    st: State,
+    start_cause: StartCause,
+    started: bool, // pump_events: Init sent
 }
 
 type Handler<'a, T> = dyn FnMut(event::Event<T>) + 'a;
@@ -330,6 +338,9 @@ impl<T: 'static> EventLoop<T> {
             },
             user_events_sender,
             user_events_receiver,
+            st: State::default(),
+            start_cause: StartCause::Init,
+            started: false,
         })
     }
 
@@ -502,7 +513,9 @@ impl<T: 'static> EventLoop<T> {
                     window_event(h, event::WindowEvent::Focused(focused));
                 }
                 let hidden = line.contains("hidden");
-                if hidden != win.hidden.swap(hidden, Ordering::Relaxed) {
+                if hidden != win.hidden.swap(hidden, Ordering::Relaxed)
+                    && !win.invisible.load(Ordering::Relaxed)
+                {
                     window_event(h, event::WindowEvent::Occluded(hidden));
                 }
             },
@@ -510,115 +523,155 @@ impl<T: 'static> EventLoop<T> {
         }
     }
 
-    pub fn run<F>(self, mut event_handler_inner: F) -> Result<(), EventLoopError>
+    pub fn run<F>(mut self, event_handler: F) -> Result<(), EventLoopError>
+    where
+        F: FnMut(event::Event<T>, &event_loop::ActiveEventLoop),
+    {
+        self.run_on_demand(event_handler)
+    }
+
+    /// until the program asks to exit (again after that: from Init)
+    pub fn run_on_demand<F>(&mut self, mut event_handler: F) -> Result<(), EventLoopError>
+    where
+        F: FnMut(event::Event<T>, &event_loop::ActiveEventLoop),
+    {
+        self.start_cause = StartCause::Init;
+        loop {
+            self.round(&mut event_handler);
+            if self.window_target.p.exiting() {
+                break;
+            }
+            self.wait(None);
+        }
+        event_handler(event::Event::LoopExiting, &self.window_target);
+        Ok(())
+    }
+
+    /// one round, waiting first (not longer than timeout) unless it is the first
+    pub fn pump_events<F>(&mut self, timeout: Option<Duration>, mut event_handler: F) -> PumpStatus
+    where
+        F: FnMut(event::Event<T>, &event_loop::ActiveEventLoop),
+    {
+        if !self.started {
+            self.started = true;
+            self.start_cause = StartCause::Init;
+        } else {
+            self.wait(Some(timeout.unwrap_or(Duration::MAX)));
+        }
+        self.round(&mut event_handler);
+        if self.window_target.p.exiting() {
+            event_handler(event::Event::LoopExiting, &self.window_target);
+            self.started = false;
+            return PumpStatus::Exit(0);
+        }
+        PumpStatus::Continue
+    }
+
+    /// what came: winit's events of it, from NewEvents to AboutToWait
+    fn round<F>(&mut self, event_handler_inner: &mut F)
     where
         F: FnMut(event::Event<T>, &event_loop::ActiveEventLoop),
     {
         let shared = self.window_target.p.shared.clone();
-        let mut st = State::default();
-        let mut start_cause = StartCause::Init;
-
-        loop {
-            {
-                let target = &self.window_target;
-                let mut h = |e: event::Event<T>| event_handler_inner(e, target);
-                h(event::Event::NewEvents(start_cause));
-                if start_cause == StartCause::Init {
-                    h(event::Event::Resumed);
-                }
-
-                let (inputs, created, destroyed) = {
-                    let mut q = shared.queue.lock().unwrap();
-                    q.wake = false;
-                    (
-                        std::mem::take(&mut q.inputs),
-                        std::mem::take(&mut q.created),
-                        std::mem::take(&mut q.destroyed),
-                    )
-                };
-                let win = shared.win.lock().unwrap().clone();
-                if let Some(win) = &win {
-                    if created {
-                        // the first size and place
-                        st = State::default();
-                        st.content = *win.content.lock().unwrap();
-                        let c = st.content;
-                        window_event(&mut h, event::WindowEvent::Resized(
-                            (c.dx().max(0) as u32, c.dy().max(0) as u32).into(),
-                        ));
-                        window_event(&mut h, event::WindowEvent::Moved((c.x0, c.y0).into()));
-                        window_event(&mut h, event::WindowEvent::Focused(true));
-                    }
-                    for input in inputs {
-                        Self::input(win, &mut st, input, &mut h, &shared);
-                    }
-                    if matches!(st.pending, Some((_, t)) if t.elapsed() >= CHARWAIT) {
-                        Self::flush_pending(&mut st, &mut h);
-                    }
-                }
-                if destroyed {
-                    window_event(&mut h, event::WindowEvent::Destroyed);
-                    *shared.win.lock().unwrap() = None;
-                }
-
-                while let Ok(event) = self.user_events_receiver.try_recv() {
-                    h(event::Event::UserEvent(event));
-                }
-
-                let redraw = std::mem::take(&mut shared.queue.lock().unwrap().redraw);
-                if redraw && shared.win.lock().unwrap().is_some() {
-                    window_event(&mut h, event::WindowEvent::RedrawRequested);
-                }
-
-                h(event::Event::AboutToWait);
-            }
-
-            if self.window_target.p.exiting() {
-                break;
-            }
-
-            let requested_resume = match self.window_target.p.control_flow() {
-                ControlFlow::Poll => {
-                    start_cause = StartCause::Poll;
-                    continue;
-                },
-                ControlFlow::Wait => None,
-                ControlFlow::WaitUntil(instant) => Some(instant),
-            };
-            // a key press waiting for its character: not longer than that
-            let until = match (requested_resume, st.pending) {
-                (r, Some((_, t))) => Some(r.map_or(t + CHARWAIT, |r| r.min(t + CHARWAIT))),
-                (r, None) => r,
-            };
-
-            let start = Instant::now();
-            let mut q = shared.queue.lock().unwrap();
-            let mut timed_out = false;
-            while q.inputs.is_empty() && !q.wake && !q.redraw && !q.created && !q.destroyed {
-                match until {
-                    None => q = shared.cv.wait(q).unwrap(),
-                    Some(until) => {
-                        let now = Instant::now();
-                        if now >= until {
-                            timed_out = true;
-                            break;
-                        }
-                        q = shared.cv.wait_timeout(q, until - now).unwrap().0;
-                    },
-                }
-            }
-            drop(q);
-            start_cause = match requested_resume {
-                Some(requested_resume) if timed_out && Instant::now() >= requested_resume => {
-                    StartCause::ResumeTimeReached { start, requested_resume }
-                },
-                _ => StartCause::WaitCancelled { start, requested_resume },
-            };
+        let st = &mut self.st;
+        let start_cause = self.start_cause;
+        let target = &self.window_target;
+        let mut h = |e: event::Event<T>| event_handler_inner(e, target);
+        h(event::Event::NewEvents(start_cause));
+        if start_cause == StartCause::Init {
+            h(event::Event::Resumed);
         }
 
-        let target = &self.window_target;
-        event_handler_inner(event::Event::LoopExiting, target);
-        Ok(())
+        let (inputs, created, destroyed) = {
+            let mut q = shared.queue.lock().unwrap();
+            q.wake = false;
+            (
+                std::mem::take(&mut q.inputs),
+                std::mem::take(&mut q.created),
+                std::mem::take(&mut q.destroyed),
+            )
+        };
+        let win = shared.win.lock().unwrap().clone();
+        if let Some(win) = &win {
+            if created {
+                // the first size and place
+                *st = State::default();
+                st.content = *win.content.lock().unwrap();
+                let c = st.content;
+                window_event(&mut h, event::WindowEvent::Resized(
+                    (c.dx().max(0) as u32, c.dy().max(0) as u32).into(),
+                ));
+                window_event(&mut h, event::WindowEvent::Moved((c.x0, c.y0).into()));
+                window_event(&mut h, event::WindowEvent::Focused(true));
+            }
+            for input in inputs {
+                Self::input(win, st, input, &mut h, &shared);
+            }
+            if matches!(st.pending, Some((_, t)) if t.elapsed() >= CHARWAIT) {
+                Self::flush_pending(st, &mut h);
+            }
+        }
+        if destroyed {
+            window_event(&mut h, event::WindowEvent::Destroyed);
+            *shared.win.lock().unwrap() = None;
+        }
+
+        while let Ok(event) = self.user_events_receiver.try_recv() {
+            h(event::Event::UserEvent(event));
+        }
+
+        let redraw = std::mem::take(&mut shared.queue.lock().unwrap().redraw);
+        if redraw && shared.win.lock().unwrap().is_some() {
+            window_event(&mut h, event::WindowEvent::RedrawRequested);
+        }
+
+        h(event::Event::AboutToWait);
+    }
+
+    /// until something comes, as the control flow says (not longer than limit);
+    /// the cause of the next round
+    fn wait(&mut self, limit: Option<Duration>) {
+        let shared = self.window_target.p.shared.clone();
+        let start = Instant::now();
+        let requested_resume = match self.window_target.p.control_flow() {
+            ControlFlow::Poll => {
+                self.start_cause = StartCause::Poll;
+                return;
+            },
+            ControlFlow::Wait => None,
+            ControlFlow::WaitUntil(instant) => Some(instant),
+        };
+        // a key press waiting for its character: not longer than that
+        let mut until = match (requested_resume, self.st.pending) {
+            (r, Some((_, t))) => Some(r.map_or(t + CHARWAIT, |r| r.min(t + CHARWAIT))),
+            (r, None) => r,
+        };
+        if let Some(l) = limit.and_then(|l| start.checked_add(l)) {
+            until = Some(until.map_or(l, |u| u.min(l)));
+        }
+
+        let mut q = shared.queue.lock().unwrap();
+        let mut timed_out = false;
+        while q.inputs.is_empty() && !q.wake && !q.redraw && !q.created && !q.destroyed {
+            match until {
+                None => q = shared.cv.wait(q).unwrap(),
+                Some(until) => {
+                    let now = Instant::now();
+                    if now >= until {
+                        timed_out = true;
+                        break;
+                    }
+                    q = shared.cv.wait_timeout(q, until - now).unwrap().0;
+                },
+            }
+        }
+        drop(q);
+        self.start_cause = match requested_resume {
+            Some(requested_resume) if timed_out && Instant::now() >= requested_resume => {
+                StartCause::ResumeTimeReached { start, requested_resume }
+            },
+            _ => StartCause::WaitCancelled { start, requested_resume },
+        };
     }
 
     pub fn window_target(&self) -> &event_loop::ActiveEventLoop {
@@ -707,6 +760,10 @@ impl ActiveEventLoop {
 
     pub(crate) fn exiting(&self) -> bool {
         self.exit.get()
+    }
+
+    pub(crate) fn clear_exit(&self) {
+        self.exit.set(false);
     }
 
     pub(crate) fn owned_display_handle(&self) -> OwnedDisplayHandle {

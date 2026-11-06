@@ -1,0 +1,19 @@
+#!/bin/rc
+# aux/amdgpu with its screen; eframe (egui's framework, tests/winit
+# eframetest) on wgpu's Vulkan (RADV) in a window of wsys: the adapter, its
+# frames read back from wsys' screen (-O: no overlay plane)
+bind -a '#i' /dev
+bind -a '#v' /dev
+aux/amdgpu $* >/tmp/amd.log >[2=1]
+sleep 2
+cat >/tmp/eframewin.rc <<'.'
+rm -f /tmp/eframe.log
+window -r 100 100 600 450 'rc -c ''/tests/eframetest >/tmp/eframe.log >[2=1]; echo eframetest: exit $status >>/tmp/eframe.log'''
+n=0
+while(! grep -s '^eframetest: exit' /tmp/eframe.log && test $n -lt 900){ sleep 0.1; n=`{echo $n+1 | hoc} }
+cat /tmp/eframe.log
+.
+/tests/wsys -O -x -i 'rc /tmp/eframewin.rc' >/tmp/wsys.log >[2=1]
+cat /tmp/wsys.log
+grep 'WARN|error|BUG' /tmp/amd.log
+echo TESTEND

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 //
 // eguitest: egui on 9front: winit (its plan9 backend), egui-winit for the
-// input, egui_software_backend drawing on the processor into softbuffer (its
+// input, hdrshot-egui-backend (egui_software_backend ported to egui 0.37) drawing on the processor into softbuffer (its
 // plan9 backend: draw(3)), in a window of wsys or rio. Checks that a frame
 // reaches the window (/dev/window: egui's panel colour, and text on it),
 // then -e secs: a button and a text field for the host (tests/winit/run.sh):
@@ -56,7 +56,7 @@ impl App {
         let (mut clicks, mut text, mut told, focus) = (self.clicks, self.text.clone(), self.told, self.focus);
         let origin = g.window.inner_position().map(|p| (p.x, p.y)).unwrap_or((0, 0));
         let out = g.ctx.run_ui(input, |ui| {
-            egui::CentralPanel::default().show_inside(ui, |ui| {
+            egui::CentralPanel::default().show(ui, |ui| {
                 ui.heading("egui on 9front");
                 ui.label("winit, softbuffer: draw(3); egui_software_backend");
                 let b = ui.button("press me");

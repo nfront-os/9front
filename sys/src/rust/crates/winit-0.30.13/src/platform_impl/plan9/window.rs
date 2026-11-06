@@ -111,6 +111,7 @@ impl Window {
             grab: Mutex::new(CursorGrabMode::None),
             focused: AtomicBool::new(true),
             hidden: AtomicBool::new(false),
+            invisible: AtomicBool::new(false),
             restore: Mutex::new(restore),
             fullscreen: AtomicBool::new(fullscreen),
         });
@@ -255,13 +256,13 @@ impl Window {
 
     #[inline]
     pub fn set_visible(&self, visible: bool) {
+        self.st.invisible.store(!visible, Ordering::Relaxed);
         wctl(if visible { "unhide" } else { "hide" });
-        self.st.hidden.store(!visible, Ordering::Relaxed);
     }
 
     #[inline]
     pub fn is_visible(&self) -> Option<bool> {
-        Some(!self.st.hidden.load(Ordering::Relaxed))
+        Some(!self.st.invisible.load(Ordering::Relaxed) && !self.st.hidden.load(Ordering::Relaxed))
     }
 
     #[inline]
@@ -282,12 +283,14 @@ impl Window {
 
     #[inline]
     pub fn set_minimized(&self, minimized: bool) {
-        self.set_visible(!minimized);
+        // the window system's hide: what its menu does
+        wctl(if minimized { "hide" } else { "unhide" });
+        self.st.hidden.store(minimized, Ordering::Relaxed);
     }
 
     #[inline]
     pub fn is_minimized(&self) -> Option<bool> {
-        Some(self.st.hidden.load(Ordering::Relaxed))
+        Some(self.st.hidden.load(Ordering::Relaxed) && !self.st.invisible.load(Ordering::Relaxed))
     }
 
     #[inline]
