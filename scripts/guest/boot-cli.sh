@@ -255,14 +255,14 @@ prompted(){
 	esac
 	return 1
 }
-# rc prompted since the console log had $1 bytes, after a newline (the
-# echoed input line)
+# rc prompted since the console log had $1 bytes: its prompt $2 begins a
+# line after the echoed input line. Anywhere, not only at the end: a
+# command in the background (cmd &) may write after the prompt.
 replied(){
 	local out
 	out=$(tail -c +$(($1 + 1)) "$CLI_DIR/console.log" | tr -d '\r')
-	[ "$out" != "${out%%$'\n'*}" ] || return 1
-	case ${out##*$'\n'} in
-	*'% '|*'# ')	return 0 ;;
+	case $out in
+	*$'\n'"$2"*)	return 0 ;;
 	esac
 	return 1
 }
@@ -291,12 +291,20 @@ while [ $SECONDS -lt $end ] && ! prompted; do
 	fi
 	sleep 0.5
 done
+ready=0	# rc prompted after the last line (replied)
+prompt=
 for c in "${cmds[@]}"; do
 	end=$((SECONDS + ${PROMPTWAIT:-300}))
-	until prompted || [ $SECONDS -ge $end ] || ! running; do
+	until [ $ready = 1 ] || prompted || [ $SECONDS -ge $end ] || ! running; do
 		sleep 1
 	done
 	running || break
+	# rc's prompt as it stands at the end of the log (it may change)
+	if [ $ready = 0 ] && prompted; then
+		prompt=$(tr -d '\r' < "$CLI_DIR/console.log")
+		prompt=${prompt##*$'\n'}
+	fi
+	ready=0
 	# in pieces: the serial input buffer drops what exceeds about 128
 	# bytes at once (the rest of a long line, its newline with it)
 	start=$(stat -c %s "$CLI_DIR/console.log")
@@ -307,9 +315,10 @@ for c in "${cmds[@]}"; do
 		sleep 0.2
 	done
 	end=$((SECONDS + ${CMDWAIT:-60}))
-	until replied $start || [ $SECONDS -ge $end ] || ! running; do
+	until replied $start "$prompt" || [ $SECONDS -ge $end ] || ! running; do
 		sleep 0.5
 	done
+	replied $start "$prompt" && ready=1
 done
 if [ -n "$WAITFOR" ]; then
 	end=$((SECONDS + ${WAITMAX:-3600}))
