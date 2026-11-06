@@ -1178,6 +1178,15 @@ are ported this way.
 .IR vga (3),
 .IR vga (8)
 .SH BUGS
+A client's touch of a mapped object in VRAM waits for the driver (its
+pager proc, one for all faults): with the driver busy or hung the client
+stands still, in state
+.B Fault
+.RI ( ps (1)),
+and the console says
+.B "pager ... waiting 5 s"
+after five seconds; with the driver gone the touch faults.
+.br
 One output, one framebuffer; no cursor plane, no hotplug yet.
 .br
 Command buffers are limited to the context's segment (1 MB).
