@@ -51,6 +51,7 @@
 			"readv.c",
 			"rresvport.c",
 			"send.c",
+			"sendmsg.c",
 			"sendto.c",
 			"setlinebuf.c",
 			"shutdown.c",

@@ -39,6 +39,7 @@ OFILES=\
 	readv.$O\
 	rresvport.$O\
 	send.$O\
+	sendmsg.$O\
 	sendto.$O\
 	setlinebuf.$O\
 	shutdown.$O\

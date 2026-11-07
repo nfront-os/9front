@@ -33,6 +33,7 @@ struct Rock
 	struct sockaddr	raddr;		/* peer address */
 	char		ctl[Ctlsize];	/* name of control file (if any) */
 	int		other;		/* fd of the remote end for Unix domain */
+	int		rest;		/* 9front-ng: bytes of a sendmsg's message still in the pipe (sendmsg.c) */
 };
 
 extern Rock*	_sock_findrock(int, struct stat*);

@@ -65,6 +65,7 @@ _sock_newrock(int fd)
 		_sock_rock = r;
 	}
 	unlock(&_sock_lock);
+	r->rest = 0;
 	memset(&r->raddr, 0, sizeof(r->raddr));
 	memset(&r->addr, 0, sizeof(r->addr));
 	r->reserved = 0;

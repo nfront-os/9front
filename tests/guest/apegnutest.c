@@ -29,6 +29,8 @@
 #include <wchar.h>
 #include <math.h>
 #include <sys/wait.h>
+#include <sys/socket.h>
+#include <sys/un.h>
 
 static int nok, nfail;
 
@@ -197,6 +199,111 @@ testshm(void)
 		close(fd);
 		check("shm_unlink", shm_unlink("/apegnutest") == 0 && shm_open("/apegnutest", O_RDWR, 0) < 0, NULL);
 	}
+}
+
+/*
+ * 9front-ng: descriptors over a PF_UNIX socket (sendmsg/recvmsg,
+ * SCM_RIGHTS: Wayland's way to hand over shared memory): a child connects
+ * and sends a memfd with some data; the parent takes the data in two
+ * reads (the rest waits in the pipe: poll says so), maps the memfd and
+ * sees the child's bytes; a plain write reads as plain data
+ */
+static void
+testscm(void)
+{
+	struct sockaddr_un a;
+	struct msghdr m;
+	struct iovec iov;
+	struct cmsghdr *c;
+	struct pollfd pf;
+	char buf[64], cbuf[CMSG_SPACE(sizeof(int))];
+	char *p;
+	int s, cs, fd, st, mfd;
+	pid_t pid;
+
+	memset(&a, 0, sizeof a);
+	a.sun_family = AF_UNIX;
+	strcpy(a.sun_path, "/tmp/apegnutest.sock");
+	s = socket(AF_UNIX, SOCK_STREAM, 0);
+	if(s < 0 || bind(s, (struct sockaddr *)&a, sizeof a) < 0 || listen(s, 1) < 0){
+		check("PF_UNIX socket, bind, listen", 0, "%s", strerror(errno));
+		return;
+	}
+	switch(pid = fork()){
+	case -1:
+		check("fork", 0, "%s", strerror(errno));
+		return;
+	case 0:
+		cs = socket(AF_UNIX, SOCK_STREAM, 0);
+		if(cs < 0 || connect(cs, (struct sockaddr *)&a, sizeof a) < 0)
+			_exit(1);
+		mfd = memfd_create("scm", 0);
+		if(mfd < 0 || ftruncate(mfd, 4096) < 0)
+			_exit(2);
+		p = mmap(NULL, 4096, PROT_READ|PROT_WRITE, MAP_SHARED, mfd, 0);
+		if(p == MAP_FAILED)
+			_exit(3);
+		strcpy(p, "through the socket");
+		memset(&m, 0, sizeof m);
+		iov.iov_base = "0123456789abcdef";
+		iov.iov_len = 16;
+		m.msg_iov = &iov;
+		m.msg_iovlen = 1;
+		m.msg_control = cbuf;
+		m.msg_controllen = sizeof cbuf;
+		c = CMSG_FIRSTHDR(&m);
+		c->cmsg_level = SOL_SOCKET;
+		c->cmsg_type = SCM_RIGHTS;
+		c->cmsg_len = CMSG_LEN(sizeof(int));
+		memcpy(CMSG_DATA(c), &mfd, sizeof(int));
+		if(sendmsg(cs, &m, MSG_NOSIGNAL) != 16)
+			_exit(4);
+		if(write(cs, "plain", 5) != 5)
+			_exit(5);
+		/* the parent has it: this one's descriptor and mapping may go */
+		read(cs, buf, 1);
+		_exit(0);
+	}
+	fd = accept(s, NULL, NULL);
+	check("accept", fd >= 0, "%s", strerror(errno));
+	if(fd < 0)
+		return;
+	memset(&m, 0, sizeof m);
+	iov.iov_base = buf;
+	iov.iov_len = 10;
+	m.msg_iov = &iov;
+	m.msg_iovlen = 1;
+	m.msg_control = cbuf;
+	m.msg_controllen = sizeof cbuf;
+	check("recvmsg: 10 of the 16 bytes", recvmsg(fd, &m, MSG_CMSG_CLOEXEC) == 10 && memcmp(buf, "0123456789", 10) == 0, NULL);
+	c = CMSG_FIRSTHDR(&m);
+	mfd = -1;
+	if(c != NULL && c->cmsg_level == SOL_SOCKET && c->cmsg_type == SCM_RIGHTS && c->cmsg_len == CMSG_LEN(sizeof(int)))
+		memcpy(&mfd, CMSG_DATA(c), sizeof(int));
+	check("SCM_RIGHTS: a descriptor came", mfd >= 0, NULL);
+	pf.fd = fd;
+	pf.events = POLLIN;
+	pf.revents = 0;
+	check("poll: the rest is there", poll(&pf, 1, 1000) == 1 && (pf.revents & POLLIN), NULL);
+	m.msg_control = NULL;
+	m.msg_controllen = 0;
+	iov.iov_len = sizeof buf;
+	check("recvmsg: the other 6", recvmsg(fd, &m, 0) == 6 && memcmp(buf, "abcdef", 6) == 0, NULL);
+	check("recvmsg of a plain write: its data", recvmsg(fd, &m, 0) == 5 && memcmp(buf, "plain", 5) == 0, NULL);
+	if(mfd >= 0){
+		p = mmap(NULL, 4096, PROT_READ, MAP_SHARED, mfd, 0);
+		check("the passed memfd maps the sender's memory", p != MAP_FAILED && strcmp(p, "through the socket") == 0, NULL);
+		if(p != MAP_FAILED)
+			munmap(p, 4096);
+		close(mfd);
+	}
+	write(fd, "x", 1);
+	waitpid(pid, &st, 0);
+	check("the sender", WIFEXITED(st) && WEXITSTATUS(st) == 0, "%#x", st);
+	close(fd);
+	close(s);
+	unlink("/tmp/apegnutest.sock");
+	unlink("/srv/UD.apegnutest.sock");	/* listen's entry (APE's PF_UNIX sockets are in /srv) */
 }
 
 static void
@@ -470,6 +577,7 @@ main(void)
 	testalloc();
 	testmmap();
 	testshm();
+	testscm();
 	testposix();
 	testthreads();
 	testlocals();

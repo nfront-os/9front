@@ -176,18 +176,48 @@ struct sockproto {
 /*
  * Message header for recvmsg and sendmsg calls.
  */
+#include <sys/uio.h>	/* 9front-ng: struct iovec, as POSIX has it here */
+
+/*
+ * 9front-ng: POSIX's form (it was 4.3BSD's msg_accrights, never
+ * implemented); descriptors pass as SCM_RIGHTS over PF_UNIX sockets
+ * (sendmsg.c: through /srv)
+ */
 struct msghdr {
-	char	*msg_name;		/* optional address */
-	int	msg_namelen;		/* size of address */
+	void	*msg_name;		/* optional address */
+	socklen_t	msg_namelen;	/* size of address */
 	struct	iovec *msg_iov;		/* scatter/gather array */
 	int	msg_iovlen;		/* # elements in msg_iov */
-	char	*msg_accrights;		/* access rights sent/received */
-	int	msg_accrightslen;
+	void	*msg_control;		/* ancillary data: cmsghdrs */
+	socklen_t	msg_controllen;
+	int	msg_flags;		/* recvmsg: MSG_TRUNC, MSG_CTRUNC */
 };
+
+struct cmsghdr {
+	socklen_t	cmsg_len;	/* with the header */
+	int	cmsg_level;		/* SOL_SOCKET */
+	int	cmsg_type;		/* SCM_RIGHTS */
+};
+
+#define	SCM_RIGHTS	1
+#define	_CMSG_ALIGN(n)	(((n) + sizeof(long) - 1) & ~(sizeof(long) - 1))
+#define	CMSG_DATA(c)	((unsigned char *)(c) + _CMSG_ALIGN(sizeof(struct cmsghdr)))
+#define	CMSG_SPACE(n)	(_CMSG_ALIGN(sizeof(struct cmsghdr)) + _CMSG_ALIGN(n))
+#define	CMSG_LEN(n)	(_CMSG_ALIGN(sizeof(struct cmsghdr)) + (n))
+#define	CMSG_FIRSTHDR(m)	((m)->msg_controllen >= (socklen_t)sizeof(struct cmsghdr) ? \
+	(struct cmsghdr *)(m)->msg_control : (struct cmsghdr *)0)
+#define	CMSG_NXTHDR(m, c)	((char *)(c) + _CMSG_ALIGN((c)->cmsg_len) + sizeof(struct cmsghdr) > \
+	(char *)(m)->msg_control + (m)->msg_controllen ? (struct cmsghdr *)0 : \
+	(struct cmsghdr *)((char *)(c) + _CMSG_ALIGN((c)->cmsg_len)))
 
 #define	MSG_OOB		0x1		/* process out-of-band data */
 #define	MSG_PEEK	0x2		/* peek at incoming message */
 #define	MSG_DONTROUTE	0x4		/* send without using routing tables */
+#define	MSG_CTRUNC	0x8		/* recvmsg: not all of the ancillary data fit */
+#define	MSG_TRUNC	0x20
+#define	MSG_DONTWAIT	0x40		/* taken, ignored: a pipe read waits */
+#define	MSG_NOSIGNAL	0x4000		/* taken: no SIGPIPE from sendmsg */
+#define	MSG_CMSG_CLOEXEC	0x40000000	/* received descriptors close on exec */
 
 #define	MSG_MAXIOVLEN	16
 
