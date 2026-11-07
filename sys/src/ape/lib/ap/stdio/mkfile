@@ -33,6 +33,7 @@ OFILES=\
 	ftello.$O\
 	ftoa.$O\
 	fwrite.$O\
+	getdelim.$O\
 	getc.$O\
 	getchar.$O\
 	gets.$O\

@@ -30,6 +30,14 @@
 #define	F_SETLK		6	/* Set file lock */
 #define	F_SETLKW	7	/* Set file lock and wait */
 #define	F_DUPFD_CLOEXEC	1030	/* 9front-ng: F_DUPFD, the new one closed on exec (POSIX.1-2008) */
+/* 9front-ng: a memfd's seals (Linux's; gnu/mman.c: kept within the process) */
+#define	F_ADD_SEALS	1033
+#define	F_GET_SEALS	1034
+#define	F_SEAL_SEAL	0x0001
+#define	F_SEAL_SHRINK	0x0002
+#define	F_SEAL_GROW	0x0004
+#define	F_SEAL_WRITE	0x0008
+#define	F_SEAL_FUTURE_WRITE	0x0010
 
 #define FD_CLOEXEC	1
 

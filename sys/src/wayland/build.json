@@ -69,5 +69,27 @@
 		"SourceFiles": [
 			"vendor/egl/wayland-egl.c"
 		]
+	},
+	{
+		"Name": "wayland-cursor",
+		"Compat": true,
+		"Cflags": [
+			"-O2",
+			"-Wall",
+			"-fno-strict-aliasing",
+			"-Iplan9",
+			"-Igen",
+			"-Ivendor/src",
+			"-Ivendor/cursor",
+			"-DICONDIR=\"/lib/icons\""
+		],
+		"Library": "libwayland-cursor.a",
+		"Install": "/$ARCH/lib.gcc/ape",
+		"Objtag": "k",
+		"SourceFiles": [
+			"vendor/cursor/wayland-cursor.c",
+			"vendor/cursor/os-compatibility.c",
+			"vendor/cursor/xcursor.c"
+		]
 	}
 ]

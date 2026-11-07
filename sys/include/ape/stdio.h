@@ -158,6 +158,12 @@ extern FILE _IO_stream[FOPEN_MAX];
 extern int fileno(FILE *);
 extern FILE* fdopen(int, const char*);
 extern FILE *open_memstream(char **, size_t *);	/* 9front-ng: POSIX.1-2008 */
+#ifndef _SSIZE_T
+#define _SSIZE_T
+typedef long ssize_t;
+#endif
+extern ssize_t getdelim(char **, size_t *, int, FILE *);	/* 9front-ng: POSIX.1-2008 */
+extern ssize_t getline(char **, size_t *, FILE *);
 extern char *ctermid(char *);
 #endif
 

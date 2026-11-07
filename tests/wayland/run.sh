@@ -10,7 +10,8 @@
 # Then, with libvulkan.a (build.exe, sys/src/mesa) and a host that runs venus
 # (virtio-gpu-gl), wlvk in a second guest: GPU buffers by zwp_linux_dmabuf_v1,
 # then a swapchain of Mesa's Wayland WSI, vkcube --wsi wayland, and GLES on
-# EGL's Wayland platform (wlgl)
+# EGL's Wayland platform (wlgl), weston's simple-egl; the VESA guest weston's
+# simple-shm (scripts/wayland/weston.sh)
 # (VKONLY=1: only that guest; NOVK=1: not it).
 # usage: tests/wayland/run.sh   (needs ../9front-gcc's cross gcc; a build with wsys)
 set -e
@@ -25,12 +26,26 @@ bash "$ROOT/scripts/wayland/build.sh" "$HERE/root/tests"
 	-lwayland-server -lwayland-client -lffi
 "$CROSS/$TRIPLE-gcc" -std=gnu11 -O2 -Wall -Wno-unused-parameter -o "$HERE/root/tests/wlclient" "$HERE/wlclient.c" \
 	-lwayland-client -lffi
+"$CROSS/$TRIPLE-gcc" -std=gnu11 -O2 -Wall -o "$HERE/root/tests/wlwatch" "$HERE/wlwatch.c"
+# weston's examples (scripts/wayland/weston.sh: simple-shm, simple-egl)
+bash "$ROOT/scripts/wayland/weston.sh" build "$HERE/root/tests" >/dev/null
+cp "$HERE/wlweston.rc" "$HERE/root/tests/wlweston.rc"
+chmod +x "$HERE/root/tests/wlweston.rc"
 cp "$ROOT/amd64/bin/wsys" "$HERE/root/tests/wsys"
 cp "$HERE/wlsys.rc" "$HERE/root/tests/wlsys.rc"
 cp "$HERE/wlvk.rc" "$HERE/root/tests/wlvk.rc"
 chmod +x "$HERE/root/tests/wlsys.rc" "$HERE/root/tests/wlvk.rc"
 fail=0
 M="timeout 300 python3 $ROOT/scripts/guest/mcp.py"
+# weston's example: its lines (prefix p), watched by wlwatch, gone when deleted
+weston(){ # output prefix title
+	echo "$1" | grep "^$2: \(ok\|FAIL\|wlwatch\)" | sed "s/^$2: //"
+	if echo "$1" | grep -q "^$2: wlwatch $3: all passed" && echo "$1" | grep -q "^$2: weston-simple-$2: gone after the delete"; then
+		echo "ok weston-simple-$2"
+	else
+		echo "FAIL weston-simple-$2"; fail=1
+	fi
+}
 stop(){ kill -TERM -- -$guest 2>/dev/null || kill $guest 2>/dev/null; wait $guest 2>/dev/null || true; }
 
 if [ "${VKONLY:-0}" = 0 ]; then
@@ -42,13 +57,14 @@ if [ "${VKONLY:-0}" = 0 ]; then
 	timeout 660 python3 "$ROOT/scripts/guest/mcp.py" wait 600 >/dev/null
 	out=$($M rc '/tests/wltest >[2=1]' 120) || true
 	echo "$out"
-	wl=$($M rc "bind -a '#i' /dev; bind -a '#m' /dev; /tests/wsys -x -i /tests/wlsys.rc >/tmp/wsys.log >[2=1]; cat /tmp/wsys.log /tmp/wlclient.log" 240) || true
+	wl=$($M rc "bind -a '#i' /dev; bind -a '#m' /dev; /tests/wsys -x -i /tests/wlsys.rc >/tmp/wsys.log >[2=1]; cat /tmp/wsys.log /tmp/wlclient.log; sed 's/^/shm: /' /tmp/weston-simple-shm.log" 300) || true
 	echo "$wl"
 	$M rc "cat /tmp/keymap.xkb" > "$CLI_DIR/wlsys-keymap.xkb" 2>/dev/null || true
 	stop
 	trap - EXIT
 	echo "$out" | grep -q '^wltest: all passed' || { echo "FAIL wltest"; fail=1; }
 	echo "$wl" | grep -q '^wlclient: all passed' || { echo "FAIL wlclient"; fail=1; }
+	weston "$wl" shm simple-shm
 	if command -v xkbcli >/dev/null; then
 		if [ -s "$CLI_DIR/wlsys-keymap.xkb" ] &&
 		   xkbcli compile-keymap --keymap "$CLI_DIR/wlsys-keymap.xkb" >/dev/null 2>"$CLI_DIR/wlsys-keymap.err"; then
@@ -82,13 +98,14 @@ if [ "${NOVK:-0}" = 0 ]; then
 	trap stop EXIT
 	timeout 660 python3 "$ROOT/scripts/guest/mcp.py" wait 600 >/dev/null
 	t0=$(date +%s)
-	vk=$(timeout 700 python3 "$ROOT/scripts/guest/mcp.py" rc "bind -a '#i' /dev; bind -a '#m' /dev; /tests/wsys -x -i /tests/wlvk.rc >/tmp/wsys.log >[2=1]; cat /tmp/wsys.log /tmp/wlvk.log; sed 's/^/vkcube: /' /tmp/vkcube.log; sed 's/^/wlgl: /' /tmp/wlgl.log" 660) || true
+	vk=$(timeout 700 python3 "$ROOT/scripts/guest/mcp.py" rc "bind -a '#i' /dev; bind -a '#m' /dev; /tests/wsys -x -i /tests/wlvk.rc >/tmp/wsys.log >[2=1]; cat /tmp/wsys.log /tmp/wlvk.log; sed 's/^/vkcube: /' /tmp/vkcube.log; sed 's/^/wlgl: /' /tmp/wlgl.log; sed 's/^/egl: /' /tmp/weston-simple-egl.log" 660) || true
 	echo "wlvk and vkcube: $(($(date +%s) - t0)) s"
 	echo "$vk"
 	stop
 	trap - EXIT
 	echo "$vk" | grep -q '^wlvk: all passed' || { echo "FAIL wlvk"; fail=1; }
 	echo "$vk" | grep -q '^wlgl: wlgl: all passed' || { echo "FAIL wlgl (EGL's Wayland platform)"; fail=1; }
+	weston "$vk" egl simple-egl
 	# vkcube on Mesa's Wayland WSI: its window, its frames presented, a clean exit
 	frames=$(echo "$vk" | grep -cE '^vkcube: wlsys: ctl [0-9]+: present' || true)
 	if echo "$vk" | grep -qE '^vkcube: wlsys: window [0-9]+ for 500x500' && [ "$frames" -ge 100 ] &&

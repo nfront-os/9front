@@ -34,7 +34,7 @@ static Lock lk;
 static Map *maps;
 
 typedef struct Shm Shm;
-static void *shmmap(int, size_t, off_t);
+static void *shmmap(int, size_t, off_t, int);
 static int shmunmap(void *);
 static Shm *shmfind(void *);
 static int shmdata(int);
@@ -65,7 +65,7 @@ mmap(void *addr, size_t len, int prot, int flags, int fd, off_t off)
 	int rfd;
 
 	(void)addr;
-	if(!(flags & MAP_ANONYMOUS) && (flags & MAP_SHARED) && (p = shmmap(fd, len, off)) != NULL)
+	if(!(flags & MAP_ANONYMOUS) && (flags & MAP_SHARED) && (p = shmmap(fd, len, off, (prot & PROT_WRITE) != 0)) != NULL)
 		return p;
 	if(len == 0 || (prot & PROT_EXEC) || len > 0xffffffffUL){
 		errno = len == 0 ? EINVAL : ENOMEM;
@@ -237,6 +237,33 @@ struct Shm {
 static Shm *shms;
 static int memfdn;
 
+/*
+ * A memfd's seals (Linux's F_ADD_SEALS, F_GET_SEALS) and its size as
+ * ftruncate gave it (the segment reserves more addresses).  Kept in the
+ * process: another that got the descriptor (SCM_RIGHTS) sees none.  One
+ * made without MFD_ALLOW_SEALING is sealed against seals.
+ */
+typedef struct Seal Seal;
+struct Seal {
+	char	name[128];
+	int	seals;
+	off_t	size;
+	Seal	*next;
+};
+static Seal *seals;
+
+/* with lk */
+static Seal *
+sealof(char *name)
+{
+	Seal *s;
+
+	for(s = seals; s != NULL; s = s->next)
+		if(strcmp(s->name, name) == 0)
+			return s;
+	return NULL;
+}
+
 /* the segment fd is the directory of, if it is one */
 static int
 shmname(int fd, char *name, int n)
@@ -296,6 +323,51 @@ shmfind(void *p)
 	return s;
 }
 
+/* the size ftruncate gave a memfd */
+static void
+sealsize(char *name, off_t length)
+{
+	Seal *sl;
+
+	lock(&lk);
+	if((sl = sealof(name)) != NULL)
+		sl->size = length;
+	unlock(&lk);
+}
+
+/* fcntl's F_ADD_SEALS and F_GET_SEALS (plan9/fcntl.c): the seals, or -1 */
+int
+__shmseals(int fd, int cmd, int arg)
+{
+	char name[128];
+	Seal *sl;
+	int r;
+
+	if(!shmname(fd, name, sizeof name)){
+		errno = EINVAL;	/* not a memfd */
+		return -1;
+	}
+	lock(&lk);
+	if((sl = sealof(name)) == NULL){
+		unlock(&lk);
+		errno = EINVAL;	/* shm_open's, or one of another process */
+		return -1;
+	}
+	if(cmd == F_GET_SEALS){
+		r = sl->seals;
+		unlock(&lk);
+		return r;
+	}
+	if(sl->seals & F_SEAL_SEAL){
+		unlock(&lk);
+		errno = EPERM;
+		return -1;
+	}
+	sl->seals |= arg;
+	unlock(&lk);
+	return 0;
+}
+
 /* ftruncate of a segment's descriptor (-2: not one) */
 int
 __shmtruncate(int fd, off_t length)
@@ -307,9 +379,28 @@ __shmtruncate(int fd, off_t length)
 
 	if(!shmname(fd, name, sizeof name))
 		return -2;
+	{
+		Seal *sl;
+		int e;
+
+		e = 0;
+		lock(&lk);
+		if((sl = sealof(name)) != NULL){
+			if((length < sl->size && (sl->seals & F_SEAL_SHRINK)) ||
+			   (length > sl->size && (sl->seals & F_SEAL_GROW)))
+				e = EPERM;
+		}
+		unlock(&lk);
+		if(e){
+			errno = e;
+			return -1;
+		}
+	}
 	if(shmva(name, &va, &len)){
-		if((size_t)length <= len)
+		if((size_t)length <= len){
+			sealsize(name, length);
 			return 0;
+		}
 		errno = EFBIG;	/* beyond what it reserved */
 		return -1;
 	}
@@ -330,11 +421,12 @@ __shmtruncate(int fd, off_t length)
 		return -1;
 	}
 	_CLOSE(cfd);
+	sealsize(name, length);
 	return 0;
 }
 
 static void *
-shmmap(int fd, size_t len, off_t off)
+shmmap(int fd, size_t len, off_t off, int writable)
 {
 	char name[128];
 	uintptr_t va;
@@ -344,6 +436,18 @@ shmmap(int fd, size_t len, off_t off)
 
 	if(!shmname(fd, name, sizeof name))
 		return NULL;
+	if(writable){
+		Seal *sl;
+		int sealed;
+
+		lock(&lk);
+		sealed = (sl = sealof(name)) != NULL && (sl->seals & (F_SEAL_WRITE|F_SEAL_FUTURE_WRITE));
+		unlock(&lk);
+		if(sealed){
+			errno = EPERM;
+			return MAP_FAILED;
+		}
+	}
 	if(!shmva(name, &va, &slen) || off < 0 || (size_t)off > slen || len > slen - off){
 		errno = ENXIO;	/* no size yet (ftruncate first), or beyond it */
 		return MAP_FAILED;
@@ -430,14 +534,25 @@ int
 memfd_create(const char *name, unsigned int flags)
 {
 	char path[128];
-	int n;
+	Seal *sl;
+	int n, fd;
 
 	(void)name;
 	lock(&lk);
 	n = memfdn++;
 	unlock(&lk);
 	snprintf(path, sizeof path, "#g/ape.memfd.%d.%d", getpid(), n);
-	return shmfd(_CREATE(path, OREAD9|ORCLOSE9, DMDIR9|0600), flags & MFD_CLOEXEC);
+	fd = shmfd(_CREATE(path, OREAD9|ORCLOSE9, DMDIR9|0600), flags & MFD_CLOEXEC);
+	if(fd >= 0 && (sl = malloc(sizeof *sl)) != NULL){
+		snprintf(sl->name, sizeof sl->name, "ape.memfd.%d.%d", getpid(), n);
+		sl->seals = flags & (MFD_ALLOW_SEALING|MFD_NOEXEC_SEAL) ? 0 : F_SEAL_SEAL;
+		sl->size = 0;
+		lock(&lk);
+		sl->next = seals;
+		seals = sl;
+		unlock(&lk);
+	}
+	return fd;
 }
 
 static void

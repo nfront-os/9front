@@ -22,6 +22,8 @@ fcntl(int fd, int cmd, ...)
 
 	err = 0;
 	ans = 0;
+	extern int __shmseals(int, int, int);
+
 	va_start(va, cmd);
 	arg = va_arg(va, int);
 	va_end(va);
@@ -103,6 +105,13 @@ fcntl(int fd, int cmd, ...)
 		case F_SETLK:
 		case F_SETLKW:
 			err = EINVAL;
+			break;
+		case F_ADD_SEALS:	/* 9front-ng: a memfd's (gnu/mman.c) */
+		case F_GET_SEALS:
+			if((ans = __shmseals(fd, cmd, arg)) < 0){
+				err = errno;
+				ans = -1;
+			}
 			break;
 		default:
 			/* 9front-ng: an unknown command is an error (POSIX); it returned 0 (Mesa's F_DUPFD_CLOEXEC, before there was one: stdin as the new descriptor) */

@@ -3,3 +3,6 @@
 # client in a window of wsys; wlsys' own lines (-d) go to the same log
 /tests/wlsys -d /tests/wlclient >/tmp/wlclient.log >[2=1]
 echo wlsys: exit $status >>/tmp/wlclient.log
+# weston's simple-shm (wl_shm, a memfd with seals)
+if(test -x /tests/weston-simple-shm)
+	/tests/wlweston.rc weston-simple-shm simple-shm

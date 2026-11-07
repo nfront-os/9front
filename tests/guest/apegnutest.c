@@ -125,6 +125,51 @@ testmmap(void)
  * parent's bytes and writes some back; memfd's segment goes with its last
  * descriptor
  */
+/*
+ * 9front-ng: a memfd's seals (F_ADD_SEALS, F_GET_SEALS: weston's anonymous
+ * files): without MFD_ALLOW_SEALING none can be added; shrink and grow
+ * sealed, ftruncate to another size fails; write sealed, a writable shared
+ * mapping fails, a readable one not; F_SEAL_SEAL ends adding
+ */
+static void
+testseals(void)
+{
+	char *p;
+	int fd, pfd[2];
+
+	fd = memfd_create("seals0", 0);
+	if(fd >= 0){
+		check("a memfd without MFD_ALLOW_SEALING: F_GET_SEALS is F_SEAL_SEAL", fcntl(fd, F_GET_SEALS) == F_SEAL_SEAL, NULL);
+		check("its F_ADD_SEALS: EPERM", fcntl(fd, F_ADD_SEALS, F_SEAL_SHRINK) < 0 && errno == EPERM, "%s", strerror(errno));
+		close(fd);
+	}
+	fd = memfd_create("seals", MFD_CLOEXEC|MFD_ALLOW_SEALING);
+	check("memfd_create MFD_ALLOW_SEALING", fd >= 0, "%s", strerror(errno));
+	if(fd < 0)
+		return;
+	check("no seals yet", fcntl(fd, F_GET_SEALS) == 0, NULL);
+	ftruncate(fd, 8192);
+	check("F_ADD_SEALS shrink and grow", fcntl(fd, F_ADD_SEALS, F_SEAL_SHRINK|F_SEAL_GROW) == 0, "%s", strerror(errno));
+	check("F_GET_SEALS: them", fcntl(fd, F_GET_SEALS) == (F_SEAL_SHRINK|F_SEAL_GROW), NULL);
+	check("ftruncate smaller: EPERM", ftruncate(fd, 4096) < 0 && errno == EPERM, "%s", strerror(errno));
+	check("ftruncate larger: EPERM", ftruncate(fd, 16384) < 0 && errno == EPERM, "%s", strerror(errno));
+	check("ftruncate to its size", ftruncate(fd, 8192) == 0, "%s", strerror(errno));
+	check("F_ADD_SEALS write", fcntl(fd, F_ADD_SEALS, F_SEAL_WRITE) == 0, NULL);
+	check("a writable shared mapping: EPERM", mmap(NULL, 4096, PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0) == MAP_FAILED && errno == EPERM, NULL);
+	p = mmap(NULL, 4096, PROT_READ, MAP_SHARED, fd, 0);
+	check("a readable one", p != MAP_FAILED, "%s", strerror(errno));
+	if(p != MAP_FAILED)
+		munmap(p, 4096);
+	check("F_ADD_SEALS F_SEAL_SEAL", fcntl(fd, F_ADD_SEALS, F_SEAL_SEAL) == 0, NULL);
+	check("then no more: EPERM", fcntl(fd, F_ADD_SEALS, F_SEAL_GROW) < 0 && errno == EPERM, NULL);
+	close(fd);
+	if(pipe(pfd) == 0){
+		check("F_GET_SEALS of a pipe: EINVAL", fcntl(pfd[0], F_GET_SEALS) < 0 && errno == EINVAL, NULL);
+		close(pfd[0]);
+		close(pfd[1]);
+	}
+}
+
 static void
 testshm(void)
 {
@@ -623,6 +668,7 @@ main(void)
 	testalloc();
 	testmmap();
 	testshm();
+	testseals();
 	testscm();
 	testposix();
 	testthreads();

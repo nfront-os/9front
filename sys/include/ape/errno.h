@@ -4,6 +4,11 @@
 
 extern int *_errnoloc;
 #define errno (*_errnoloc)
+#ifdef _GNU_SOURCE
+/* 9front-ng: glibc's: argv[0] and its last element (plan9/callmain.c) */
+extern char *program_invocation_name;
+extern char *program_invocation_short_name;
+#endif
 
 #define EDOM	1000
 #define ERANGE	1001

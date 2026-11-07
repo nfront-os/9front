@@ -50,6 +50,7 @@ extern int shm_open(const char *, int, mode_t);
 extern int shm_unlink(const char *);
 #define MFD_CLOEXEC	1
 #define MFD_ALLOW_SEALING	2
+#define MFD_NOEXEC_SEAL	8	/* 9front-ng: segments are never executable: as MFD_ALLOW_SEALING */
 extern int memfd_create(const char *, unsigned int);
 #ifdef __cplusplus
 }

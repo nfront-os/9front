@@ -68,10 +68,21 @@ _callmain(int (*f)(int, char**), int argc, char *arg0)
 #endif
 }
 
+/* 9front-ng: glibc's (errno.h, _GNU_SOURCE): argv[0] and its last element */
+char *program_invocation_name = "";
+char *program_invocation_short_name = "";
+
 int
 _apemain(int argc, char **argv)
 {
+	char *p;
+
 	_envsetup();
+	if(argc > 0 && argv[0] != NULL){
+		program_invocation_name = argv[0];
+		p = strrchr(argv[0], '/');
+		program_invocation_short_name = p != NULL ? p+1 : argv[0];
+	}
 	extern int main(int, char**, char**);
 #ifdef __GNUC_MINOR__
 	if(__plan9_mainstack)

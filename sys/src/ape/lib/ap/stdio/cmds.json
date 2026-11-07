@@ -43,6 +43,7 @@
 			"ftello.c",
 			"ftoa.c",
 			"fwrite.c",
+			"getdelim.c",
 			"getc.c",
 			"getchar.c",
 			"gets.c",

@@ -13,3 +13,6 @@ if(test -x /tests/wlgl){
 	/tests/wlsys -d /tests/wlgl >/tmp/wlgl.log >[2=1]
 	echo wlsys: exit $status >>/tmp/wlgl.log
 }
+# weston's simple-egl (GLES on EGL's Wayland platform)
+if(test -x /tests/weston-simple-egl)
+	/tests/wlweston.rc weston-simple-egl simple-egl

@@ -79,6 +79,8 @@ for f in ('wayland-client.h', 'wayland-client-core.h', 'wayland-server.h', 'wayl
 # libwayland-egl's (wl_egl_window for EGL's Wayland platform)
 for f in ('wayland-egl.h', 'wayland-egl-core.h', 'wayland-egl-backend.h'):
     shutil.copy2(os.path.join(tree, 'egl', f), os.path.join(pub, f))
+# libwayland-cursor's (cursor images from themes, a built-in one without)
+shutil.copy2(os.path.join(tree, 'cursor', 'wayland-cursor.h'), os.path.join(pub, 'wayland-cursor.h'))
 shutil.copy2(os.path.join(gen, 'wayland-version.h'), os.path.join(pub, 'wayland-version.h'))
 for name in protos:
     for side in ('client', 'server'):
@@ -111,6 +113,14 @@ build = [{
     'Install': '/$ARCH/lib.gcc/ape',
     'Objtag': 'e',
     'SourceFiles': files(('egl',)),
+}, {
+    'Name': 'wayland-cursor',
+    'Compat': True,
+    'Cflags': cflags + ['-Ivendor/cursor', '-DICONDIR="/lib/icons"'],
+    'Library': 'libwayland-cursor.a',
+    'Install': '/$ARCH/lib.gcc/ape',
+    'Objtag': 'k',
+    'SourceFiles': files(('cursor',)),
 }]
 with open(os.path.join(wl, 'build.json'), 'w') as f:
     json.dump(build, f, indent='\t')
