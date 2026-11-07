@@ -2,7 +2,8 @@
 # winit on 9front (../9front-ui PLAN stage 4b): winittest (winit's events,
 # softbuffer's pixels in the window), eguitest (egui through egui-winit,
 # drawn by hdrshot-egui-backend: egui_software_backend for egui 0.37); eframetest
-# (eframe on wgpu's Vulkan) is ../9front-rust's (tests/crates/eframetest),
+# (eframe on wgpu's Vulkan, on the processor without a GPU) is ../9front-rust's
+# (tests/crates/eframetest),
 # in a window of wsys or rio. Part of the workspace in sys/src/rust (its
 # vendor/, its crates with plan9 backends).
 [package]

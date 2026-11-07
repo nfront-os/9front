@@ -1,8 +1,9 @@
 #!/bin/rc
 # run by wsys -x -i (tests/gpu/run.sh): vktri in a window of wsys, whose
 # frames go to wsys as GPU buffers (gpu(4) export, wsys' gpubuffer), then
-# again by copy (WSI_PLAN9_COPY=1); the logs at the end
-rm -f /tmp/wvk.log /tmp/wvkcopy.log
+# again by copy (WSI_PLAN9_COPY=1); eframetest (egui's eframe) on wgpu's
+# Vulkan: with a GPU it must not fall back to the processor; the logs at the end
+rm -f /tmp/wvk.log /tmp/wvkcopy.log /tmp/eframe.log
 fn waitexit { # log
 	n=0
 	while(! grep -s '^wsysvk: exit' $1 && test $n -lt 600){ sleep 0.1; n=`{echo $n+1 | hoc} }
@@ -11,5 +12,12 @@ window -r 100 100 740 580 /tests/wsysvktri /tmp/wvk.log
 waitexit /tmp/wvk.log
 window -r 100 100 740 580 /tests/wsysvktri /tmp/wvkcopy.log copy
 waitexit /tmp/wvkcopy.log
+if(test -x /tests/eframetest){
+	window -r 100 100 600 450 'rc -c ''/tests/eframetest -r wgpu >/tmp/eframe.log >[2=1]; echo eframetest: exit $status >>/tmp/eframe.log'''
+	n=0
+	while(! grep -s '^eframetest: exit' /tmp/eframe.log && test $n -lt 900){ sleep 0.1; n=`{echo $n+1 | hoc} }
+}
 sed 's/^/gpu: /' /tmp/wvk.log
 sed 's/^/copy: /' /tmp/wvkcopy.log
+if(test -e /tmp/eframe.log)
+	sed 's/^/eframe: /' /tmp/eframe.log

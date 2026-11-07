@@ -21,7 +21,8 @@
 # display directly (gpu(4) scanout); the host's display is read
 # through VNC. A third boot: vkcube in a rio window, resized, quit with
 # q (riovk.rc).
-# A fourth: vktri in a window of wsys, its frames as GPU buffers (wsysvk.rc).
+# A fourth: vktri in a window of wsys, its frames as GPU buffers, and
+# eframetest on wgpu (wsysvk.rc).
 # usage: bash tests/gpu/run.sh   (amd64 only; needs a build)
 . "$(dirname "$0")/../lib.sh"
 HERE=$(cd "$(dirname "$0")" && pwd)
@@ -288,6 +289,10 @@ if [ -r /dev/dri/renderD128 ] && [ -w /dev/dri/renderD128 ] &&
 		check "wsys: vktri through GPU buffers, its pixels in the window: all passed" grep -q '^gpu: vktri: all passed' "$TMPD/logwsys"
 		check "wsys: vktri by copy (WSI_PLAN9_COPY=1): all passed" grep -q '^copy: vktri: all passed' "$TMPD/logwsys"
 		grep -E '^(gpu|copy): ok [0-9]+ frames' "$TMPD/logwsys" | sed 's/^/  /'
+		if [ -x "$HERE/root/tests/eframetest" ]; then
+			check "wsys: eframetest (egui's eframe) on wgpu's Vulkan, not the processor: all passed" grep -q '^eframe: eframetest: all passed' "$TMPD/logwsys"
+			grep -E '^eframe: ok (wgpu adapter|[0-9]+ frames)' "$TMPD/logwsys" | sed 's/^/  /'
+		fi
 	else
 		skip "wsys with GPU buffers" "no vktri or no $objtype/bin/wsys"
 	fi

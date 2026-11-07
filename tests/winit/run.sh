@@ -1,6 +1,7 @@
 #!/bin/bash
 # winit on 9front (sys/src/rust/crates: winit, softbuffer, raw-window-handle with
-# plan9 backends; p9win): winittest and eguitest in windows of wsys on a VESA
+# plan9 backends; p9win): winittest, eguitest, icedtest and eframetest (eframe
+# falls back to the processor: no GPU) in windows of wsys on a VESA
 # screen without a GPU driver, in a guest of scripts/guest/mcp-guest.sh; the
 # host types into them through QEMU (QMP) while their -e runs log the events.
 # usage: tests/winit/run.sh   (needs ../9front-rust's stage-1 rustc, cargo; a build: wsys)
@@ -27,6 +28,21 @@ if [ -d "$I" ]; then
 		CARGO_TARGET_X86_64_UNKNOWN_PLAN9_LINKER="$CROSS/$TRIPLE-gcc" \
 		cargo --config "$RUST_DIR/cargo-plan9.toml" build --release --target $T --quiet 2>/dev/null) &&
 	cp "$BUILD/cargo/icedtest/$T/release/icedtest" "$HERE/root/tests/"
+fi
+# eframetest (eframe: wgpu, the processor without an adapter) and
+# eframetestsw (eframe without wgpu: no Vulkan linked), ../9front-rust's too
+E=$RUST_DIR/tests/crates/eframetest
+rm -f "$HERE/root/tests/eframetest" "$HERE/root/tests/eframetestsw"
+if [ -d "$E" ]; then
+	for v in eframetest:: eframetestsw:--no-default-features:; do
+		n=${v%%:*} f=${v#*:}; f=${f%:}
+		l="-l draw -l 9 -l fmt -l utf"; [ -z "$f" ] && l="$l -l stdc++"
+		(cd "$E" && env RUSTC="$RUSTC" CARGO_TARGET_DIR="$BUILD/cargo/$n" \
+			CARGO_TARGET_X86_64_UNKNOWN_PLAN9_LINKER="$CROSS/$TRIPLE-gcc" \
+			RUSTFLAGS="$l -C link-arg=-Wl,--gc-sections" \
+			cargo --config "$RUST_DIR/cargo-plan9.toml" build --release --target $T --quiet $f 2>/dev/null) &&
+		"$CROSS/$TRIPLE-strip" -o "$HERE/root/tests/$n" "$BUILD/cargo/$n/$T/release/eframetest"
+	done
 fi
 cp "$ROOT/amd64/bin/wsys" "$HERE/root/tests/wsys"
 cp "$HERE/winit.rc" "$HERE/root/tests/winit"
@@ -63,9 +79,9 @@ keys /tmp/eguie.ready h shift+i
 keys /tmp/icede.ready x shift+y
 wait $run || true
 $M rc 'cat /tmp/wsys.log' 10 | grep -v -e '/srv/wsys' -e '^event' -e '^ok' -e '^winit' -e '^egui' || true
-out=$(cat "$CLI_DIR/winit.out"; printf '%s\n' 'cat /tmp/winit.log /tmp/egui.log /tmp/iced.log' "grep '^event' /tmp/winite.log" \
+out=$(cat "$CLI_DIR/winit.out"; printf '%s\n' 'cat /tmp/winit.log /tmp/egui.log /tmp/iced.log /tmp/eframetest*.log' "grep '^event' /tmp/winite.log" \
 	"grep '^(event|clicks|button)' /tmp/eguie.log" "grep '^(event|clicks)' /tmp/icede.log | sed 's/^/iced /'" | $M rc - 10) || true
-echo "$out" | grep -E '^(ok|FAIL|winittest|eguitest)' || true
+echo "$out" | grep -E '^(ok|FAIL|winittest|eguitest|eframetest)' || true
 [ -n "$WINITDEBUG" ] && echo "$out"
 fail=0
 check() { if echo "$out" | grep -q -- "$2"; then echo "ok $1"; else echo "FAIL $1 (no \"$2\")"; fail=1; fi; }
@@ -82,6 +98,10 @@ check "winit: B with shift, text B" '^event key down Code(KeyB) Character("B") t
 check "winit: return" '^event key down Code(Enter) Named(Enter)'
 check "egui: button clicked" '^event clicked 1'
 check "egui: text typed" '^event text hI'
+for n in eframetest eframetestsw; do
+	[ -f "$HERE/root/tests/$n" ] || continue
+	check "$n (no GPU: the processor)" "^$n: all passed"
+done
 if [ -f "$HERE/root/tests/icedtest" ]; then
 	check "icedtest" '^icedtest: all passed'
 	check "iced: text typed" '^iced event text xY'

@@ -11,7 +11,7 @@ fn waitfor { # file pattern
 fn run { # prog log args
 	window -r 100 100 500 400 'rc -c ''/tests/'$1' '$"3' >'$2' >[2=1]; echo '$1': exit $status >>'$2''''
 }
-rm -f /tmp/winit*.log /tmp/egui*.log /tmp/iced*.log /tmp/*.ready
+rm -f /tmp/winit*.log /tmp/egui*.log /tmp/iced*.log /tmp/eframe*.log /tmp/*.ready
 run winittest /tmp/winit.log
 waitfor /tmp/winit.log '^winittest: exit'
 run eguitest /tmp/egui.log
@@ -19,6 +19,12 @@ waitfor /tmp/egui.log '^eguitest: exit'
 if(test -x /tests/icedtest){
 	run icedtest /tmp/iced.log
 	waitfor /tmp/iced.log '^icedtest: exit'
+}
+# eframe without a GPU: wgpu finds no adapter, the processor paints;
+# eframetestsw has no wgpu at all
+for(e in eframetest eframetestsw) if(test -x /tests/$e){
+	run $e /tmp/$e.log '-r software 20'
+	waitfor /tmp/$e.log '^'$e': exit'
 }
 
 run winittest /tmp/winite.log '-e 6'
@@ -48,5 +54,6 @@ echo >/tmp/icede.ready
 if(test -x /tests/icedtest)
 	waitfor /tmp/icede.log '^icedtest: exit'
 cat /tmp/winit.log /tmp/egui.log /tmp/iced.log
+cat /tmp/eframetest.log /tmp/eframetestsw.log >[2]/dev/null
 grep '^event' /tmp/winite.log
 grep '^(event|clicks|button)' /tmp/eguie.log
