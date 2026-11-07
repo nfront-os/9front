@@ -1,5 +1,11 @@
 #!/bin/rc
 # run by wsys -x -i (tests/wayland/run.sh, the guest with venus): wlsys with
-# wlvk, a Wayland client whose buffers are GPU buffers (zwp_linux_dmabuf_v1)
+# wlvk, a Wayland client whose buffers are GPU buffers (zwp_linux_dmabuf_v1,
+# then Mesa's Wayland WSI); then Khronos' vkcube on Mesa's Wayland WSI
+# (--wsi wayland), 120 frames
 /tests/wlsys -d /tests/wlvk >/tmp/wlvk.log >[2=1]
 echo wlsys: exit $status >>/tmp/wlvk.log
+if(test -x /tests/vkcube){
+	/tests/wlsys -d /tests/vkcube --wsi wayland --c 120 >/tmp/vkcube.log >[2=1]
+	echo vkcube: exit $status >>/tmp/vkcube.log
+}

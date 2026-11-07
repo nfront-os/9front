@@ -1,0 +1,95 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Stefan Hertenberger <erde74@gmail.com>
+Date: Sat, 7 Nov 2026 17:42:47 +0100
+Subject: [PATCH] vkcube: Wayland on 9front (libwayland-client linked in, no
+ dlopen)
+
+---
+ cube/cube.c           | 10 ++++++++++
+ cube/wayland_loader.h | 29 +++++++++++++++++++++++++++++
+ 2 files changed, 39 insertions(+)
+
+diff --git a/cube/cube.c b/cube/cube.c
+index 42c5bb4..077f219 100644
+--- a/cube/cube.c
++++ b/cube/cube.c
+@@ -44,7 +44,17 @@
+ #include "xcb_loader.h"
+ #endif
+ #if defined(VK_USE_PLATFORM_WAYLAND_KHR)
++#if defined(VK_USE_PLATFORM_PLAN9_9FRONT)
++// 9front has no <linux/input.h>: the Linux key codes the Wayland part uses
++// (wlsys(4) sends them)
++#define KEY_ESC 1
++#define KEY_SPACE 57
++#define KEY_LEFT 105
++#define KEY_RIGHT 106
++#define BTN_LEFT 0x110
++#else
+ #include <linux/input.h>
++#endif
+ #include "wayland_loader.h"
+ #endif
+ 
+diff --git a/cube/wayland_loader.h b/cube/wayland_loader.h
+index 7d7d914..aa750c8 100644
+--- a/cube/wayland_loader.h
++++ b/cube/wayland_loader.h
+@@ -22,7 +22,9 @@
+ 
+ #include <stdbool.h>
+ #include <stdlib.h>
++#if !defined(VK_USE_PLATFORM_PLAN9_9FRONT)
+ #include <dlfcn.h>
++#endif
+ 
+ #include <wayland-client-core.h>
+ 
+@@ -61,6 +63,29 @@ static PFN_wl_proxy_destroy cube_wl_proxy_destroy = NULL;
+ static PFN_wl_display_roundtrip cube_wl_display_roundtrip = NULL;
+ static PFN_wl_display_disconnect cube_wl_display_disconnect = NULL;
+ 
++#if defined(VK_USE_PLATFORM_PLAN9_9FRONT)
++// 9front has no shared libraries: libwayland-client is linked in
++// (-lwayland-client -lffi), its functions are taken as they are
++static inline void *initialize_wayland_linked(void) {
++    cube_wl_display_connect = wl_display_connect;
++    cube_wl_display_flush = wl_display_flush;
++    cube_wl_display_dispatch = wl_display_dispatch;
++    cube_wl_display_prepare_read = wl_display_prepare_read;
++    cube_wl_display_dispatch_pending = wl_display_dispatch_pending;
++    cube_wl_display_read_events = wl_display_read_events;
++    cube_wl_proxy_marshal = wl_proxy_marshal;
++    cube_wl_proxy_marshal_constructor = wl_proxy_marshal_constructor;
++    cube_wl_proxy_marshal_constructor_versioned = wl_proxy_marshal_constructor_versioned;
++    cube_wl_proxy_marshal_flags = wl_proxy_marshal_flags;
++    cube_wl_proxy_get_version = wl_proxy_get_version;
++    cube_wl_proxy_add_listener = wl_proxy_add_listener;
++    cube_wl_proxy_destroy = wl_proxy_destroy;
++    cube_wl_display_roundtrip = wl_display_roundtrip;
++    cube_wl_display_disconnect = wl_display_disconnect;
++    return (void *)cube_wl_display_connect;
++}
++#endif
++
+ // Use macro's to redefine the PFN's as the functions in client code
+ #define wl_display_connect cube_wl_display_connect
+ #define wl_display_flush cube_wl_display_flush
+@@ -79,6 +104,9 @@ static PFN_wl_display_disconnect cube_wl_display_disconnect = NULL;
+ #define wl_display_disconnect cube_wl_display_disconnect
+ 
+ static inline void *initialize_wayland() {
++#if defined(VK_USE_PLATFORM_PLAN9_9FRONT)
++    return initialize_wayland_linked();
++#else
+     void *wayland_library = NULL;
+     if (NULL == wayland_library) {
+         wayland_library = dlopen("libwayland-client.so.0", RTLD_NOW | RTLD_LOCAL);
+@@ -115,6 +143,7 @@ static inline void *initialize_wayland() {
+     cube_wl_display_disconnect = TYPE_CONVERSION(PFN_wl_display_disconnect)(dlsym(wayland_library, "wl_display_disconnect"));
+ 
+     return wayland_library;
++#endif
+ }
+ 
+ #include "xdg-shell-client-header.h"

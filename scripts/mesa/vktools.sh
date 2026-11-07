@@ -55,14 +55,19 @@ build(){
 	O=$BUILD/vktools
 	mkdir -p "$O"
 	flags="-O2 -DVK_USE_PLATFORM_PLAN9_9FRONT"
-	"$CROSS/$TRIPLE-gcc" -std=gnu11 $flags -I"$VT_SRC/cube" -c -o "$O/cube.o" "$VT_SRC/cube/cube.c"
+	# vkcube with Wayland too (--wsi wayland, wlsys(4)): the protocols' headers
+	# under the names its CMake gives them (the code is in libwayland-client.a)
+	echo '#include <xdg-shell-client-protocol.h>' > "$O/xdg-shell-client-header.h"
+	echo '#include <xdg-decoration-unstable-v1-client-protocol.h>' > "$O/xdg-decoration-client-header.h"
+	"$CROSS/$TRIPLE-gcc" -std=gnu11 $flags -DVK_USE_PLATFORM_WAYLAND_KHR -I"$O" -I"$VT_SRC/cube" \
+		-c -o "$O/cube.o" "$VT_SRC/cube/cube.c"
 	"$CROSS/$TRIPLE-g++" -std=c++17 $flags -I"$VT_SRC/vulkaninfo" -I"$VT_SRC/vulkaninfo/generated" \
 		-c -o "$O/vulkaninfo.o" "$VT_SRC/vulkaninfo/vulkaninfo.cpp"
 	# g++: Mesa has C++ in it
-	for p in cube:vkcube vulkaninfo:vulkaninfo; do
-		"$CROSS/$TRIPLE-g++" -o "$O/${p#*:}" "$O/${p%:*}.o" -Wl,--gc-sections \
-			-lvulkan -ldraw -l9 -lfmt -lutf
-	done
+	"$CROSS/$TRIPLE-g++" -o "$O/vkcube" "$O/cube.o" -Wl,--gc-sections \
+		-lvulkan -ldraw -l9 -lfmt -lutf -lwayland-client -lffi
+	"$CROSS/$TRIPLE-g++" -o "$O/vulkaninfo" "$O/vulkaninfo.o" -Wl,--gc-sections \
+		-lvulkan -ldraw -l9 -lfmt -lutf
 	echo "vktools: $O/vkcube $O/vulkaninfo"
 }
 

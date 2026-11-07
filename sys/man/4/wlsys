@@ -139,6 +139,10 @@ and
 .BR xrgb8888 ;
 other buffers fail.
 There are no fences: the client's rendering must be done when it commits.
+Mesa's Vulkan drivers do so for a
+.B VK_KHR_wayland_surface
+swapchain
+.RI ( gpu (4)).
 .PP
 The pointer is the mouse of
 .IR wsys
@@ -197,9 +201,10 @@ A first version: one output, no cursor surfaces (the cursor stays
 .IR wsys 's),
 no subsurfaces, no popups, no clipboard; dma-bufs without feedback
 (version 4), modifiers or fences
-.RB ( linux-drm-syncobj ),
-and Mesa's own Wayland WSI and EGL platform are not built yet; scale and
-transform are taken as 1 and normal.
+.RB ( linux-drm-syncobj :
+Mesa's Wayland WSI waits for its blit before it commits); EGL's Wayland
+platform is built but not tried; scale and transform are taken as 1 and
+normal.
 The keymap is not made again when
 .B /dev/kbmap
 changes.

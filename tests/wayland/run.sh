@@ -8,7 +8,8 @@
 # buffers on wsys' screen, a click, keys, a resize, close). The keymap wlsys made
 # of kbdfs' tables is compiled with the host's xkbcommon (xkbcli), if it has one.
 # Then, with libvulkan.a (build.exe, sys/src/mesa) and a host that runs venus
-# (virtio-gpu-gl), wlvk in a second guest: GPU buffers by zwp_linux_dmabuf_v1
+# (virtio-gpu-gl), wlvk in a second guest: GPU buffers by zwp_linux_dmabuf_v1,
+# then a swapchain of Mesa's Wayland WSI
 # (VKONLY=1: only that guest; NOVK=1: not it).
 # usage: tests/wayland/run.sh   (needs ../9front-gcc's cross gcc; a build with wsys)
 set -e
@@ -37,7 +38,7 @@ if [ "${VKONLY:-0}" = 0 ]; then
 		>"$CLI_DIR/waylandguest.log" 2>&1 &
 	guest=$!
 	trap stop EXIT
-	$M wait 600 >/dev/null
+	timeout 660 python3 "$ROOT/scripts/guest/mcp.py" wait 600 >/dev/null
 	out=$($M rc '/tests/wltest >[2=1]' 120) || true
 	echo "$out"
 	wl=$($M rc "bind -a '#i' /dev; bind -a '#m' /dev; /tests/wsys -x -i /tests/wlsys.rc >/tmp/wsys.log >[2=1]; cat /tmp/wsys.log /tmp/wlclient.log" 240) || true
@@ -64,18 +65,32 @@ if [ "${NOVK:-0}" = 0 ]; then
 	"$CROSS/$TRIPLE-gcc" -std=gnu11 -O2 -Wall -Wno-unused-parameter -c -o "$CLI_DIR/wlvk.o" "$HERE/wlvk.c"
 	"$CROSS/$TRIPLE-g++" -o "$HERE/root/tests/wlvk" "$CLI_DIR/wlvk.o" -Wl,--gc-sections \
 		-lvulkan -ldraw -l9 -lfmt -lutf -lwayland-client -lffi
+	# vkcube (scripts/mesa/vktools.sh: Wayland too)
+	. "$ROOT/scripts/mesa/common.sh"
+	bash "$ROOT/scripts/mesa/vktools.sh" build >/dev/null
+	cp "$BUILD/vktools/vkcube" "$HERE/root/tests/vkcube"
 	UFS_EXTRA=$HERE/root MEM=1024 CPU=host \
 	QEMU_EXTRA="-vga none -display egl-headless -device virtio-gpu-gl-pci,blob=true,venus=true,hostmem=256M -object memory-backend-memfd,id=mem1,size=1024M,share=on -machine memory-backend=mem1" \
 		setsid bash "$ROOT/scripts/guest/mcp-guest.sh" 'aux/virtiogpu' \
 		>"$CLI_DIR/waylandvkguest.log" 2>&1 &
 	guest=$!
 	trap stop EXIT
-	$M wait 600 >/dev/null
-	vk=$($M rc "bind -a '#i' /dev; bind -a '#m' /dev; /tests/wsys -x -i /tests/wlvk.rc >/tmp/wsys.log >[2=1]; cat /tmp/wsys.log /tmp/wlvk.log" 240) || true
+	timeout 660 python3 "$ROOT/scripts/guest/mcp.py" wait 600 >/dev/null
+	t0=$(date +%s)
+	vk=$(timeout 700 python3 "$ROOT/scripts/guest/mcp.py" rc "bind -a '#i' /dev; bind -a '#m' /dev; /tests/wsys -x -i /tests/wlvk.rc >/tmp/wsys.log >[2=1]; cat /tmp/wsys.log /tmp/wlvk.log; sed 's/^/vkcube: /' /tmp/vkcube.log" 660) || true
+	echo "wlvk and vkcube: $(($(date +%s) - t0)) s"
 	echo "$vk"
 	stop
 	trap - EXIT
 	echo "$vk" | grep -q '^wlvk: all passed' || { echo "FAIL wlvk"; fail=1; }
+	# vkcube on Mesa's Wayland WSI: its window, its frames presented, a clean exit
+	frames=$(echo "$vk" | grep -cE '^vkcube: wlsys: ctl [0-9]+: present' || true)
+	if echo "$vk" | grep -qE '^vkcube: wlsys: window [0-9]+ for 500x500' && [ "$frames" -ge 100 ] &&
+	   echo "$vk" | grep -q '^vkcube: vkcube: exit $'; then
+		echo "ok vkcube --wsi wayland: a window, $frames frames"
+	else
+		echo "FAIL vkcube --wsi wayland"; fail=1
+	fi
 fi
 [ $fail = 0 ] && { echo "wayland: all passed"; exit 0; }
 echo "wayland: failed"

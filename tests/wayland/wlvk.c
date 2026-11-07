@@ -8,7 +8,10 @@
  * plan9/lib/dmabuf.c) handed to wlsys by zwp_linux_dmabuf_v1 (one by create,
  * one by create_immed); the toplevel shows one, then the other, read back
  * from wsys' screen; the first released.  Params wlsys must refuse (an
- * offset) fail.  Prints "ok ..." / "FAIL ..." lines and a summary.
+ * offset) fail.  Then Mesa's Wayland WSI: a second toplevel with a
+ * VkSurfaceKHR of its wl_surface (VK_KHR_wayland_surface), a swapchain,
+ * three frames cleared to three colours, each read back.
+ * Prints "ok ..." / "FAIL ..." lines and a summary.
  */
 #include <stdio.h>
 #include <stdarg.h>
@@ -18,8 +21,9 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <dirent.h>
-#include <vulkan/vulkan.h>
 #include <wayland-client.h>
+#define VK_USE_PLATFORM_WAYLAND_KHR
+#include <vulkan/vulkan.h>
 #include <xdg-shell-client-protocol.h>
 #include <linux-dmabuf-unstable-v1-client-protocol.h>
 
@@ -64,6 +68,7 @@ static VkInstance inst;
 static VkPhysicalDevice pd;
 static VkDevice dev;
 static VkQueue q;
+static uint32_t qfam;
 static VkCommandPool cpool;
 
 static void
@@ -72,7 +77,9 @@ vksetup(void)
 	uint32_t n, qf;
 	VkQueueFamilyProperties qfp[16];
 	float prio = 1.0f;
-	const char *dext[] = { VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME, VK_EXT_EXTERNAL_MEMORY_DMA_BUF_EXTENSION_NAME };
+	const char *dext[] = { VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME, VK_EXT_EXTERNAL_MEMORY_DMA_BUF_EXTENSION_NAME,
+		VK_KHR_SWAPCHAIN_EXTENSION_NAME };
+	const char *iext[] = { VK_KHR_SURFACE_EXTENSION_NAME, VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME };
 	VkApplicationInfo app = {
 		.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
 		.pApplicationName = "wlvk",
@@ -81,8 +88,10 @@ vksetup(void)
 	VkInstanceCreateInfo ici = {
 		.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
 		.pApplicationInfo = &app,
+		.enabledExtensionCount = 2,
+		.ppEnabledExtensionNames = iext,
 	};
-	VK(vkCreateInstance(&ici, NULL, &inst), "vkCreateInstance");
+	VK(vkCreateInstance(&ici, NULL, &inst), "vkCreateInstance (VK_KHR_wayland_surface)");
 	n = 1;
 	vkEnumeratePhysicalDevices(inst, &n, &pd);
 	if(n == 0)
@@ -104,11 +113,12 @@ vksetup(void)
 		.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
 		.queueCreateInfoCount = 1,
 		.pQueueCreateInfos = &qci,
-		.enabledExtensionCount = 2,
+		.enabledExtensionCount = 3,
 		.ppEnabledExtensionNames = dext,
 	};
-	VK(vkCreateDevice(pd, &dci, NULL, &dev), "vkCreateDevice (external memory fd, dma-buf)");
+	VK(vkCreateDevice(pd, &dci, NULL, &dev), "vkCreateDevice (external memory fd, dma-buf, swapchain)");
 	vkGetDeviceQueue(dev, qf, 0, &q);
+	qfam = qf;
 	VkCommandPoolCreateInfo pci = {
 		.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
 		.queueFamilyIndex = qf,
@@ -339,9 +349,9 @@ readfile(char *path, char *buf, int n)
 	return m;
 }
 
-/* the window of wsys labelled "wlvk", and where it is */
+/* the window of wsys labelled label, and where it is */
 static int
-findwin(void)
+findwin(char *label)
 {
 	DIR *dir;
 	struct dirent *e;
@@ -355,7 +365,7 @@ findwin(void)
 		if((id = atoi(e->d_name)) <= 0)
 			continue;
 		snprintf(path, sizeof path, "/mnt/wsys/%d/label", id);
-		if(readfile(path, buf, sizeof buf) >= 0 && strcmp(buf, "wlvk") == 0)
+		if(readfile(path, buf, sizeof buf) >= 0 && strcmp(buf, label) == 0)
 			winid = id;
 	}
 	closedir(dir);
@@ -422,6 +432,182 @@ want(int x, int y, long rgb, char *what)
 	}
 	snprintf(buf, sizeof buf, "the window at %d,%d: %s", x, y, what);
 	check(buf, v == rgb, "%06lx, want %06lx", v, rgb);
+}
+
+/* ---- Mesa's Wayland WSI ---- */
+
+static void
+clearframe(VkSwapchainKHR sc, VkImage *imgs, float r, float g, float b, char *what)
+{
+	VkSemaphore acq, done;
+	VkFence f;
+	VkCommandBuffer cb;
+	uint32_t i;
+	VkSemaphoreCreateInfo sci = { .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO };
+	VkFenceCreateInfo fci = { .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO };
+	VkResult res;
+	char buf[96];
+
+	VK(vkCreateSemaphore(dev, &sci, NULL, &acq), "vkCreateSemaphore");
+	VK(vkCreateSemaphore(dev, &sci, NULL, &done), "vkCreateSemaphore");
+	VK(vkCreateFence(dev, &fci, NULL, &f), "vkCreateFence");
+	res = vkAcquireNextImageKHR(dev, sc, 5000000000ULL, acq, VK_NULL_HANDLE, &i);
+	snprintf(buf, sizeof buf, "vkAcquireNextImageKHR (%s)", what);
+	check(buf, res == VK_SUCCESS || res == VK_SUBOPTIMAL_KHR, "VkResult %d", res);
+	if(res != VK_SUCCESS && res != VK_SUBOPTIMAL_KHR)
+		return;
+
+	VkCommandBufferAllocateInfo cai = {
+		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+		.commandPool = cpool,
+		.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+		.commandBufferCount = 1,
+	};
+	VkCommandBufferBeginInfo bi = {
+		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+		.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+	};
+	VkImageSubresourceRange range = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+	VkImageMemoryBarrier tobuf = {
+		.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+		.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+		.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+		.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+		.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+		.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+		.image = imgs[i],
+		.subresourceRange = range,
+	};
+	VkImageMemoryBarrier topresent = tobuf;
+	topresent.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+	topresent.dstAccessMask = 0;
+	topresent.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+	topresent.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+	VkClearColorValue c = { .float32 = { r, g, b, 1.0f } };
+
+	VK(vkAllocateCommandBuffers(dev, &cai, &cb), "vkAllocateCommandBuffers");
+	VK(vkBeginCommandBuffer(cb, &bi), "vkBeginCommandBuffer");
+	vkCmdPipelineBarrier(cb, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+		0, 0, NULL, 0, NULL, 1, &tobuf);
+	vkCmdClearColorImage(cb, imgs[i], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &c, 1, &range);
+	vkCmdPipelineBarrier(cb, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+		0, 0, NULL, 0, NULL, 1, &topresent);
+	VK(vkEndCommandBuffer(cb), "vkEndCommandBuffer");
+	VkPipelineStageFlags stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+	VkSubmitInfo si = {
+		.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+		.waitSemaphoreCount = 1,
+		.pWaitSemaphores = &acq,
+		.pWaitDstStageMask = &stage,
+		.commandBufferCount = 1,
+		.pCommandBuffers = &cb,
+		.signalSemaphoreCount = 1,
+		.pSignalSemaphores = &done,
+	};
+	VK(vkQueueSubmit(q, 1, &si, f), "vkQueueSubmit");
+	VkPresentInfoKHR pi = {
+		.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+		.waitSemaphoreCount = 1,
+		.pWaitSemaphores = &done,
+		.swapchainCount = 1,
+		.pSwapchains = &sc,
+		.pImageIndices = &i,
+	};
+	res = vkQueuePresentKHR(q, &pi);
+	snprintf(buf, sizeof buf, "vkQueuePresentKHR (%s)", what);
+	check(buf, res == VK_SUCCESS || res == VK_SUBOPTIMAL_KHR, "VkResult %d", res);
+	VK(vkWaitForFences(dev, 1, &f, VK_TRUE, 10000000000ULL), "vkWaitForFences");
+	vkDestroyFence(dev, f, NULL);
+	vkFreeCommandBuffers(dev, cpool, 1, &cb);
+	/* the semaphores may still be in use by the present: kept */
+}
+
+static void
+wsi(void)
+{
+	struct wl_surface *ws;
+	struct xdg_surface *wx;
+	struct xdg_toplevel *wt;
+	VkSurfaceKHR vs;
+	VkSwapchainKHR sc;
+	VkSurfaceCapabilitiesKHR caps;
+	VkSurfaceFormatKHR fmts[16];
+	VkImage imgs[8];
+	VkBool32 ok;
+	uint32_t n, i;
+	VkResult res;
+
+	check("vkGetPhysicalDeviceWaylandPresentationSupportKHR",
+		vkGetPhysicalDeviceWaylandPresentationSupportKHR(pd, qfam, d), NULL);
+	ws = wl_compositor_create_surface(comp);
+	wx = xdg_wm_base_get_xdg_surface(wm, ws);
+	configured = 0;
+	xdg_surface_add_listener(wx, &xslistener, NULL);
+	wt = xdg_surface_get_toplevel(wx);
+	xdg_toplevel_add_listener(wt, &toplistener, NULL);
+	xdg_toplevel_set_title(wt, "wlvk-wsi");
+	wl_surface_commit(ws);
+	check("wsi: configure", waitfor(&configured), NULL);
+	xdg_surface_ack_configure(wx, confserial);
+
+	VkWaylandSurfaceCreateInfoKHR wci = {
+		.sType = VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR,
+		.display = d,
+		.surface = ws,
+	};
+	VK(vkCreateWaylandSurfaceKHR(inst, &wci, NULL, &vs), "vkCreateWaylandSurfaceKHR");
+	ok = VK_FALSE;
+	vkGetPhysicalDeviceSurfaceSupportKHR(pd, qfam, vs, &ok);
+	check("wsi: the queue presents to the surface", ok, NULL);
+	VK(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(pd, vs, &caps), "vkGetPhysicalDeviceSurfaceCapabilitiesKHR");
+	n = 16;
+	VK(vkGetPhysicalDeviceSurfaceFormatsKHR(pd, vs, &n, fmts), "vkGetPhysicalDeviceSurfaceFormatsKHR");
+	for(i = 0; i < n; i++)
+		if(fmts[i].format == VK_FORMAT_B8G8R8A8_UNORM)
+			break;
+	check("wsi: B8G8R8A8_UNORM offered", i < n, "%u formats", n);
+	if(i == n)
+		return;
+	VkSwapchainCreateInfoKHR sci = {
+		.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
+		.surface = vs,
+		.minImageCount = caps.minImageCount < 3 ? 3 : caps.minImageCount,
+		.imageFormat = VK_FORMAT_B8G8R8A8_UNORM,
+		.imageColorSpace = fmts[i].colorSpace,
+		.imageExtent = { W, H },
+		.imageArrayLayers = 1,
+		.imageUsage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+		.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE,
+		.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR,
+		.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
+		.presentMode = VK_PRESENT_MODE_FIFO_KHR,
+		.clipped = VK_TRUE,
+	};
+	if(sci.minImageCount > 8)
+		sci.minImageCount = 8;
+	res = vkCreateSwapchainKHR(dev, &sci, NULL, &sc);
+	check("wsi: vkCreateSwapchainKHR", res == VK_SUCCESS, "VkResult %d", res);
+	if(res != VK_SUCCESS)
+		return;
+	n = 8;
+	VK(vkGetSwapchainImagesKHR(dev, sc, &n, imgs), "vkGetSwapchainImagesKHR");
+
+	clearframe(sc, imgs, 1, 0, 1, "magenta");
+	usleep(200*1000);
+	check("wsi: a window of wsys labelled wlvk-wsi", findwin("wlvk-wsi") == 0, NULL);
+	want(W/2, H/2, 0xff00ff, "the WSI's first frame (magenta)");
+	clearframe(sc, imgs, 1, 1, 0, "yellow");
+	want(W/2, H/2, 0xffff00, "the second (yellow)");
+	clearframe(sc, imgs, 0, 1, 0, "green");
+	want(W-1, H-1, 0x00ff00, "the third (green), its last pixel");
+
+	vkDeviceWaitIdle(dev);
+	vkDestroySwapchainKHR(dev, sc, NULL);
+	vkDestroySurfaceKHR(inst, vs, NULL);
+	xdg_toplevel_destroy(wt);
+	xdg_surface_destroy(wx);
+	wl_surface_destroy(ws);
+	wl_display_roundtrip(d);
 }
 
 int
@@ -496,7 +682,7 @@ main(void)
 	wl_surface_commit(surf);
 	wl_display_roundtrip(d);
 	usleep(200*1000);
-	check("a window of wsys labelled wlvk", findwin() == 0, NULL);
+	check("a window of wsys labelled wlvk", findwin("wlvk") == 0, NULL);
 	want(10, 10, Orange, "the first GPU buffer (orange)");
 	want(W-1, H-1, Orange, "its last pixel");
 
@@ -513,6 +699,8 @@ main(void)
 	wl_buffer_destroy(b0);
 	wl_buffer_destroy(b1);
 	wl_display_roundtrip(d);
+
+	wsi();
 	wl_display_disconnect(d);
 	printf(nfail ? "wlvk: %d failed\n" : "wlvk: all passed\n", nfail);
 	return nfail != 0;

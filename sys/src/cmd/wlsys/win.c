@@ -108,8 +108,7 @@ event(Win *w, char *l)
 	int x, y, b, i;
 	uint32_t ms;
 
-	if(l[0] != 'b')
-		dprint("event %d: %s\n", w->id, l);
+	dprint("event %d: %s\n", w->id, l);
 	switch(l[0]){
 	case 'm':
 		if(sscanf(l+1, "%d %d %d %u", &x, &y, &b, &ms) == 4)
