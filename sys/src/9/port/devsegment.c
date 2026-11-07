@@ -95,6 +95,89 @@ static Lock globalseglock;
 static	Segment* globalsegattach(char *name);
 
 static	Segment* fixedseg(uintptr va, ulong len, int type, uintptr align);
+
+/*
+ * 9front-ng: the ranges of SHAREDBASE..SHAREDTOP handed out by "va 0 len",
+ * sorted.  Each holds a reference to its segment: the range is free again
+ * once that is the only one left (the #g entry removed, every process
+ * detached), seen when a range is wanted.
+ */
+typedef struct Srange Srange;
+struct Srange
+{
+	uintptr	base;
+	uintptr	top;
+	Segment	*s;	/* nil while the segment is being made */
+	Srange	*next;
+};
+static Srange *sranges;
+static Lock srangelock;
+
+/* a free range of len bytes (rounded to 2 MB: page tables of their own) */
+static uintptr
+srangealloc(uintptr len)
+{
+	Srange **l, *r, *n, *dead;
+	uintptr va;
+
+	len = (len + 2*1024*1024-1) & ~(uintptr)(2*1024*1024-1);
+	n = smalloc(sizeof(Srange));
+	dead = nil;
+	lock(&srangelock);
+	for(l = &sranges; (r = *l) != nil;){
+		if(r->s != nil && r->s->ref == 1){
+			*l = r->next;
+			r->next = dead;
+			dead = r;
+			continue;
+		}
+		l = &r->next;
+	}
+	va = SHAREDBASE;
+	for(l = &sranges; (r = *l) != nil; l = &r->next){
+		if(r->base - va >= len)
+			break;
+		va = r->top;
+	}
+	if(va > SHAREDTOP || SHAREDTOP - va < len){
+		unlock(&srangelock);
+		free(n);
+		va = 0;
+	}else{
+		n->base = va;
+		n->top = va + len;
+		n->s = nil;
+		n->next = *l;
+		*l = n;
+		unlock(&srangelock);
+	}
+	while((r = dead) != nil){
+		dead = r->next;
+		putseg(r->s);
+		free(r);
+	}
+	return va;
+}
+
+/* the range at va: its segment made (s), or not (nil: the range is freed) */
+static void
+srangeset(uintptr va, Segment *s)
+{
+	Srange **l, *r;
+
+	lock(&srangelock);
+	for(l = &sranges; (r = *l) != nil; l = &r->next)
+		if(r->base == va)
+			break;
+	if(r != nil && s != nil){
+		incref(s);
+		r->s = s;
+		r = nil;
+	}else if(r != nil)
+		*l = r->next;
+	unlock(&srangelock);
+	free(r);
+}
 static	void	pagerqdead(Pagerq*);
 static	void	putpagerq(Pagerq*);
 
@@ -910,6 +993,27 @@ segmentwrite(Chan *c, void *a, long n, vlong voff)
 				error(Ebadarg);
 			va = strtoull(cb->f[1], 0, 0);
 			len = strtoull(cb->f[2], 0, 0);
+			if(va == 0 && cb->nf == 3){
+				/*
+				 * 9front-ng: the kernel chooses: a range of the
+				 * shared region no other such segment has
+				 */
+				if(len == 0 || len > SEGMAXSIZE)
+					error(Ebadarg);
+				len = PGROUND(len);
+				if((va = srangealloc(len)) == 0)
+					error(Enovmem);
+				if(waserror()){
+					srangeset(va, nil);
+					nexterror();
+				}
+				g->Segio.s = newseg(SG_SHARED, va, len/BY2PG);
+				poperror();
+				srangeset(va, g->Segio.s);
+				free(cb);
+				poperror();
+				return n;
+			}
 			top = PGROUND(va + len);
 			va = va&~(BY2PG-1);
 			if(va == 0 || top > USTKTOP || top <= va)

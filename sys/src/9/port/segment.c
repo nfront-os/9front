@@ -1106,6 +1106,12 @@ segattach(int attr, char *name, uintptr va, uintptr len)
 			if(len >= va)
 				error(Enovmem);
 			va -= len;
+			/* 9front-ng: not in segment(3)'s shared region (portdat.h) */
+			if(va < SHAREDTOP && va+len > SHAREDBASE){
+				if(len >= SHAREDBASE)
+					error(Enovmem);
+				va = SHAREDBASE - len;
+			}
 		}
 	}
 

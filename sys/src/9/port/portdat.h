@@ -416,6 +416,13 @@ enum
 #define swapaddr(s)	(((uintptr)s)&~PG_ONSWAP)
 
 #define SEGMAXSIZE	(1ULL*SEGMAPSIZE*PTEMAPMEM)
+/*
+ * 9front-ng: the region where segment(3) puts the segments whose address
+ * it chooses ("va 0 len"), each at an address no other one has, so any
+ * process can attach any of them; segattach's own choice stays out of it
+ */
+#define	SHAREDBASE	((USTKTOP/2) & ~(uintptr)(2*1024*1024-1))
+#define	SHAREDTOP	(SHAREDBASE + ((USTKTOP/16) & ~(uintptr)(2*1024*1024-1)))
 
 struct Physseg
 {

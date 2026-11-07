@@ -33,7 +33,8 @@
 			"mptest.c",
 			"paktest.c",
 			"segtest.c",
-			"segpager.c"
+			"segpager.c",
+			"segshared.c"
 		]
 	},
 	{

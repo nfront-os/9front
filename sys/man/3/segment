@@ -87,6 +87,17 @@ Only the hostowner is allowed to create
 or
 .B sticky
 segments.
+.PPAn
+.I address
+of 0 (and no
+.IR type )
+lets the kernel choose: a range of a region reserved for such segments
+(from half the user address space up, a sixteenth of it), one no other
+segment of the region has, so that any process can attach any of them
+without a collision; the range is free again once the segment is
+removed and no process has it attached any more.
+.IR Segattach (2)'s
+own choice of an address (0) stays out of that region.
 .PP
 When the segment is attached using
 .IR segattach,

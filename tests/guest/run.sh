@@ -23,5 +23,5 @@ while read -r st name; do
 	FAIL)	fail "guest: $name" ;;
 	esac
 done < <(grep -E '^(ok|FAIL) ' "$TMPD/log")
-grep -q '^tests: all passed' "$TMPD/log" || { fail "guest: /tests/run summary"; grep -E '^(tests|libctest|threadtest|authtest|passtokey|mptest|authpak_hash|paktest|segtest|segpager|apetest|apegnutest):' "$TMPD/log" | sed 's/^/       /'; }
+grep -q '^tests: all passed' "$TMPD/log" || { fail "guest: /tests/run summary"; grep -E '^(tests|libctest|threadtest|authtest|passtokey|mptest|authpak_hash|paktest|segtest|segpager|segshared|apetest|apegnutest):' "$TMPD/log" | sed 's/^/       /'; }
 done_tests
