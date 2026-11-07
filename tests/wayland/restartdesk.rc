@@ -1,0 +1,9 @@
+#!/bin/rc
+# run by wsys -x -i (tests/wayland/run.sh): wsysrestart.rc in a window of
+# this wsys, as wlrun runs it on a machine with a wsys desktop: under the
+# wsys started there (A, B, C) is this one, not nothing; done when the
+# window's rc is (2 minutes at most)
+rm -f /tmp/restartdesk.done /tmp/restartdesk.log
+window -r 0 0 1000 700 /tests/restartwin.rc
+n=0
+while(! test -e /tmp/restartdesk.done && test $n -lt 120){ sleep 1; n=`{echo $n+1 | hoc} }

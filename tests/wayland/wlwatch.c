@@ -1,11 +1,12 @@
 /*
  * SPDX-License-Identifier: MIT
  *
- * wlwatch [-k] label: a Wayland client's window of wsys from the outside
- * (weston's examples: wlweston.rc, wsysrestart.rc): within 10 s a window
- * labelled label; its pixels, on a grid, not all alike (something drawn);
- * again a second later, some changed (it animates); then deleted through
- * its ctl (the client is told to close), unless -k keeps it.
+ * wlwatch [-k] [-c rrggbb] label: a Wayland client's window of wsys from
+ * the outside (weston's examples: wlweston.rc, wsysrestart.rc): within 10 s
+ * a window labelled label; its pixels, on a grid, not all alike (something
+ * drawn), with -c at least half of them that colour (its background: not
+ * garbage); again a second later, some changed (it animates); then deleted
+ * through its ctl (the client is told to close), unless -k keeps it.
  * Prints "ok ..." / "FAIL ..." lines and a summary.
  */
 #include <stdio.h>
@@ -130,19 +131,47 @@ sample(long px[Grid*Grid])
 	return 0;
 }
 
+/* the colour most points have, and in how many */
+static int
+common(long px[Grid*Grid], long *c)
+{
+	int i, j, n, best;
+
+	best = 0;
+	*c = 0;
+	for(i = 0; i < Grid*Grid; i++){
+		for(n = 0, j = 0; j < Grid*Grid; j++)
+			n += px[j] == px[i];
+		if(n > best){
+			best = n;
+			*c = px[i];
+		}
+	}
+	return best;
+}
+
 int
 main(int argc, char **argv)
 {
-	long a[Grid*Grid], b[Grid*Grid];
+	long a[Grid*Grid], b[Grid*Grid], c;
 	char path[64];
-	int i, n, fd, ok, keep;
+	int i, n, m, fd, ok, keep;
+	char *bg;
 
-	keep = argc == 3 && strcmp(argv[1], "-k") == 0;
-	if(argc != 2 + keep){
-		fprintf(stderr, "usage: wlwatch [-k] label\n");
+	keep = 0;
+	bg = NULL;
+	for(i = 1; i < argc - 1; i++)
+		if(strcmp(argv[i], "-k") == 0)
+			keep = 1;
+		else if(strcmp(argv[i], "-c") == 0 && i + 1 < argc - 1)
+			bg = argv[++i];
+		else
+			break;
+	if(i != argc - 1){
+		fprintf(stderr, "usage: wlwatch [-k] [-c rrggbb] label\n");
 		return 2;
 	}
-	label = argv[1 + keep];
+	label = argv[i];
 	ok = -1;
 	for(i = 0; i < 100 && (ok = findwin()) < 0; i++)
 		usleep(100*1000);
@@ -159,6 +188,13 @@ main(int argc, char **argv)
 		for(n = 0, i = 1; i < Grid*Grid; i++)
 			n += a[i] != a[0];
 		check("something drawn (not one colour)", n > 0, "%06lx everywhere", a[0]);
+		m = common(a, &c);
+		printf("wlwatch %s: %06lx in %d of %d points\n", label, c, m, Grid*Grid);
+		if(bg != NULL){
+			for(n = 0, i = 0; i < Grid*Grid; i++)
+				n += a[i] == strtol(bg, NULL, 16);
+			check("its background colour", 2*n >= Grid*Grid, "%s in %d of %d points", bg, n, Grid*Grid);
+		}
 		for(n = 0, i = 0; i < Grid*Grid; i++)
 			n += a[i] != b[i];
 		check("it moves (pixels changed in a second)", n > 0, NULL);

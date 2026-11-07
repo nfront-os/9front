@@ -144,12 +144,14 @@ anv_state_table_expand_range(struct anv_state_table *table, uint32_t size);
 #if DETECT_OS_PLAN9
 /*
  * 9front has no anonymous files to map again and again: the table is
- * one shared segment of the whole size, paged in where it is used, at
- * an address that never changes (what the maps of the file would all
- * show).
+ * one segment of the whole size, paged in where it is used, at an
+ * address that never changes (what the maps of the file would all
+ * show), and in every thread of the program (plan9/lib/segfault.c: a
+ * segment a proc attaches is that proc's; zink's threads wrote to the
+ * table, a fault that killed the program)
  */
-extern void *_SEGATTACH(int, char *, void *, unsigned long);
-extern int _SEGDETACH(void *);
+void *mesa9_sharedmem(unsigned long long size, int *fdp);
+void mesa9_sharedfree(void *p, int fd);
 #endif
 
 VkResult
@@ -166,8 +168,7 @@ anv_state_table_init(struct anv_state_table *table,
     * userptr and send a chunk of it off to the GPU.
     */
 #if DETECT_OS_PLAN9
-   table->fd = -1;
-   table->map = _SEGATTACH(0, "shared", NULL, BLOCK_POOL_MEMFD_SIZE);
+   table->map = mesa9_sharedmem(BLOCK_POOL_MEMFD_SIZE, &table->fd);
    if (table->map == (void *)-1)
       return vk_error(device, VK_ERROR_INITIALIZATION_FAILED);
 #else
@@ -197,7 +198,7 @@ anv_state_table_init(struct anv_state_table *table,
    u_vector_finish(&table->cleanups);
  fail_fd:
 #if DETECT_OS_PLAN9
-   _SEGDETACH(table->map);
+   mesa9_sharedfree(table->map, table->fd);
 #else
    close(table->fd);
 #endif
@@ -298,7 +299,7 @@ anv_state_table_finish(struct anv_state_table *table)
    u_vector_finish(&table->cleanups);
 
 #if DETECT_OS_PLAN9
-   _SEGDETACH(table->map);
+   mesa9_sharedfree(table->map, table->fd);
 #else
    close(table->fd);
 #endif

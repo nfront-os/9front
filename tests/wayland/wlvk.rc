@@ -15,4 +15,4 @@ if(test -x /tests/wlgl){
 }
 # weston's simple-egl (GLES on EGL's Wayland platform)
 if(test -x /tests/weston-simple-egl)
-	/tests/wlweston.rc weston-simple-egl simple-egl
+	/tests/wlweston.rc weston-simple-egl simple-egl -c 000000

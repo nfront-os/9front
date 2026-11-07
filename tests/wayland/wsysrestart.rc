@@ -12,6 +12,10 @@ fn waitsrv { # pid of the wsys whose srv entry to wait for
 	n=0
 	while(! test -e /srv/wsys.$user.$1 && test $n -lt 100){ sleep 0.1; n=`{echo $n+1 | hoc} }
 }
+fn wsysmount { # name of the wsys
+	if(mount /srv/wsys.$user /mnt/wsys) echo ok /srv/wsys.$user mounted: wsys $1
+	if not echo FAIL /srv/wsys.$user mounted: wsys $1
+}
 fn alive { # what
 	w=`{cat /tmp/wlsys.pid}
 	if(test -e /proc/$w) echo ok wlsys outlives $1
@@ -28,7 +32,7 @@ alive 'wsys A (exited)'
 /tests/wsys >/tmp/wsysB.log >[2=1] &
 b=$apid
 waitsrv $b
-mount /srv/wsys.$user /mnt/wsys
+wsysmount B
 /tests/wlwatch -k simple-shm
 # all of B's procs, nothing else (its note group: a desktop's wsys stays)
 echo killing wsys B
@@ -40,15 +44,18 @@ alive 'wsys B (killed)'
 /tests/wsys >/tmp/wsysC.log >[2=1] &
 c=$apid
 waitsrv $c
-mount /srv/wsys.$user /mnt/wsys
+wsysmount C
 /tests/wlwatch simple-shm
 w=`{cat /tmp/wlsys.pid}
 n=0
 while(test -e /proc/$w && test $n -lt 50){ sleep 0.1; n=`{echo $n+1 | hoc} }
 if(test -e /proc/$w){
 	echo FAIL simple-shm still running after the delete
+	ps | grep -v ' (listen|Wakeme|Idle) '
+	sed 's/^/log: /' /tmp/restart.log
 	echo kill >/proc/$w/ctl
 }
 if not echo ok simple-shm gone after the delete in wsys C
 echo kill >/proc/$c/notepg
-grep 'wlsys: wsys\|wlsys: /srv' /tmp/restart.log
+# (Plan 9's grep: | without a backslash)
+grep 'wlsys: (wsys|/srv)' /tmp/restart.log

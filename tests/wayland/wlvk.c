@@ -10,7 +10,8 @@
  * from wsys' screen; the first released.  Params wlsys must refuse (an
  * offset) fail.  Then Mesa's Wayland WSI: a second toplevel with a
  * VkSurfaceKHR of its wl_surface (VK_KHR_wayland_surface), a swapchain,
- * three frames cleared to three colours, each read back.
+ * three frames cleared to three colours, each read back by the GPU first
+ * (the image is right) and then from wsys' screen (it got there).
  * Prints "ok ..." / "FAIL ..." lines and a summary.
  */
 #include <stdio.h>
@@ -436,6 +437,36 @@ want(int x, int y, long rgb, char *what)
 
 /* ---- Mesa's Wayland WSI ---- */
 
+/*
+ * the swapchain image read back by the GPU into a buffer of ours (host
+ * visible): whether the frame is right before the WSI hands it on
+ */
+static VkBuffer rbbuf;
+static VkDeviceMemory rbmem;
+static uint32_t *rbmap;
+
+static void
+readbackinit(void)
+{
+	VkMemoryRequirements mr;
+	VkBufferCreateInfo bci = {
+		.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+		.size = W*H*4,
+		.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+		.sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+	};
+	VK(vkCreateBuffer(dev, &bci, NULL, &rbbuf), "vkCreateBuffer (read back)");
+	vkGetBufferMemoryRequirements(dev, rbbuf, &mr);
+	VkMemoryAllocateInfo mai = {
+		.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+		.allocationSize = mr.size,
+		.memoryTypeIndex = memtype(mr.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT|VK_MEMORY_PROPERTY_HOST_COHERENT_BIT),
+	};
+	VK(vkAllocateMemory(dev, &mai, NULL, &rbmem), "vkAllocateMemory (read back)");
+	VK(vkBindBufferMemory(dev, rbbuf, rbmem, 0), "vkBindBufferMemory (read back)");
+	VK(vkMapMemory(dev, rbmem, 0, VK_WHOLE_SIZE, 0, (void **)&rbmap), "vkMapMemory (read back)");
+}
+
 static void
 clearframe(VkSwapchainKHR sc, VkImage *imgs, float r, float g, float b, char *what)
 {
@@ -478,11 +509,29 @@ clearframe(VkSwapchainKHR sc, VkImage *imgs, float r, float g, float b, char *wh
 		.image = imgs[i],
 		.subresourceRange = range,
 	};
+	VkImageMemoryBarrier tosrc = tobuf;
+	tosrc.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+	tosrc.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+	tosrc.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+	tosrc.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
 	VkImageMemoryBarrier topresent = tobuf;
-	topresent.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+	topresent.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
 	topresent.dstAccessMask = 0;
-	topresent.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+	topresent.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
 	topresent.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+	VkBufferImageCopy rb = {
+		.imageSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 },
+		.imageExtent = { W, H, 1 },
+	};
+	VkBufferMemoryBarrier tohost = {
+		.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
+		.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+		.dstAccessMask = VK_ACCESS_HOST_READ_BIT,
+		.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+		.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+		.buffer = rbbuf,
+		.size = VK_WHOLE_SIZE,
+	};
 	VkClearColorValue c = { .float32 = { r, g, b, 1.0f } };
 
 	VK(vkAllocateCommandBuffers(dev, &cai, &cb), "vkAllocateCommandBuffers");
@@ -490,6 +539,11 @@ clearframe(VkSwapchainKHR sc, VkImage *imgs, float r, float g, float b, char *wh
 	vkCmdPipelineBarrier(cb, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
 		0, 0, NULL, 0, NULL, 1, &tobuf);
 	vkCmdClearColorImage(cb, imgs[i], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &c, 1, &range);
+	vkCmdPipelineBarrier(cb, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+		0, 0, NULL, 0, NULL, 1, &tosrc);
+	vkCmdCopyImageToBuffer(cb, imgs[i], VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, rbbuf, 1, &rb);
+	vkCmdPipelineBarrier(cb, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_HOST_BIT,
+		0, 0, NULL, 1, &tohost, 0, NULL);
 	vkCmdPipelineBarrier(cb, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
 		0, 0, NULL, 0, NULL, 1, &topresent);
 	VK(vkEndCommandBuffer(cb), "vkEndCommandBuffer");
@@ -517,6 +571,13 @@ clearframe(VkSwapchainKHR sc, VkImage *imgs, float r, float g, float b, char *wh
 	snprintf(buf, sizeof buf, "vkQueuePresentKHR (%s)", what);
 	check(buf, res == VK_SUCCESS || res == VK_SUBOPTIMAL_KHR, "VkResult %d", res);
 	VK(vkWaitForFences(dev, 1, &f, VK_TRUE, 10000000000ULL), "vkWaitForFences");
+	{
+		uint32_t want = 0xff000000u | (uint32_t)(r*255+0.5)<<16 | (uint32_t)(g*255+0.5)<<8 | (uint32_t)(b*255+0.5);
+		uint32_t v = rbmap[(H/2)*W + W/2];
+
+		snprintf(buf, sizeof buf, "wsi: the swapchain image read back by the GPU (%s)", what);
+		check(buf, v == want, "%08x, want %08x", v, want);
+	}
 	vkDestroyFence(dev, f, NULL);
 	vkFreeCommandBuffers(dev, cpool, 1, &cb);
 	/* the semaphores may still be in use by the present: kept */
@@ -576,7 +637,7 @@ wsi(void)
 		.imageColorSpace = fmts[i].colorSpace,
 		.imageExtent = { W, H },
 		.imageArrayLayers = 1,
-		.imageUsage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+		.imageUsage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
 		.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE,
 		.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR,
 		.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
@@ -591,6 +652,7 @@ wsi(void)
 		return;
 	n = 8;
 	VK(vkGetSwapchainImagesKHR(dev, sc, &n, imgs), "vkGetSwapchainImagesKHR");
+	readbackinit();
 
 	clearframe(sc, imgs, 1, 0, 1, "magenta");
 	usleep(200*1000);

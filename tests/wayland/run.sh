@@ -31,8 +31,11 @@ bash "$ROOT/scripts/wayland/build.sh" "$HERE/root/tests"
 # weston's examples (scripts/wayland/weston.sh: simple-shm, simple-egl)
 bash "$ROOT/scripts/wayland/weston.sh" build "$HERE/root/tests" >/dev/null
 cp "$HERE/wlweston.rc" "$HERE/root/tests/wlweston.rc"
-cp "$HERE/restartA.rc" "$HERE/wsysrestart.rc" "$HERE/inwin.rc" "$HERE/root/tests/"
-chmod +x "$HERE/root/tests/wlweston.rc" "$HERE/root/tests/wsysrestart.rc" "$HERE/root/tests/restartA.rc" "$HERE/root/tests/inwin.rc"
+for f in restartA.rc wsysrestart.rc restartdesk.rc restartwin.rc inwin.rc; do
+	cp "$HERE/$f" "$HERE/root/tests/$f"
+	chmod +x "$HERE/root/tests/$f"
+done
+chmod +x "$HERE/root/tests/wlweston.rc"
 cp "$ROOT/amd64/bin/wsys" "$HERE/root/tests/wsys"
 cp "$HERE/wlsys.rc" "$HERE/root/tests/wlsys.rc"
 cp "$HERE/wlvk.rc" "$HERE/root/tests/wlvk.rc"
@@ -65,6 +68,9 @@ if [ "${VKONLY:-0}" = 0 ]; then
 	# a Wayland client outlives its wsys: wlsys makes its window in the next one
 	rs=$($M rc "/tests/wsysrestart.rc" 200) || true
 	echo "$rs"
+	# the same in a window of a wsys (a desktop, as wlrun on a machine)
+	rd=$($M rc "bind -a '#i' /dev; bind -a '#m' /dev; /tests/wsys -x -i /tests/restartdesk.rc >/tmp/wsysD.log >[2=1]; cat /tmp/restartdesk.log" 200) || true
+	echo "$rd" | sed 's/^/desk: /'
 	stop
 	trap - EXIT
 	echo "$out" | grep -q '^wltest: all passed' || { echo "FAIL wltest"; fail=1; }
@@ -78,6 +84,11 @@ if [ "${VKONLY:-0}" = 0 ]; then
 	done
 	[ "$(echo "$rs" | grep -c '^ok simple-shm: it moves')" = 3 ] ||
 		{ echo "FAIL wsys restart: the window drawn and moving in all three wsys"; fail=1; }
+	for w in "wlsys outlives wsys A (exited)" "/srv/wsys.[a-z]* mounted: wsys B" "wlsys outlives wsys B (killed)" "/srv/wsys.[a-z]* mounted: wsys C" "simple-shm gone after the delete in wsys C"; do
+		[ "$(echo "$rd" | grep -c "^ok $w")" -ge 1 ] || { echo "FAIL wsys restart in a window of wsys: $w"; fail=1; }
+	done
+	[ "$(echo "$rd" | grep -c '^ok simple-shm: it moves')" = 3 ] ||
+		{ echo "FAIL wsys restart in a window of wsys: the window drawn and moving in all three wsys"; fail=1; }
 	if command -v xkbcli >/dev/null; then
 		if [ -s "$CLI_DIR/wlsys-keymap.xkb" ] &&
 		   xkbcli compile-keymap --keymap "$CLI_DIR/wlsys-keymap.xkb" >/dev/null 2>"$CLI_DIR/wlsys-keymap.err"; then

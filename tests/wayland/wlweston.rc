@@ -1,17 +1,25 @@
 #!/bin/rc
 # run by wlsys.rc and wlvk.rc in wsys: weston's example client $1 (its title
-# $2) under wlsys, watched from outside by wlwatch (drawn, moving, deleted);
+# $2) under wlsys, watched from outside by wlwatch (drawn, moving, deleted;
+# more options to it after the title: wlwatch's before it);
 # the client must go when its window is deleted (wlsys killed after 5 s
-# otherwise: the client loses its connection)
+# otherwise: the client loses its connection).  wlwatch's lines go to a
+# file of their own, appended to the client's log after it (the client
+# writes its own lines at its own offset)
 rfork e
-/tests/wlsys /tests/$1 >/tmp/$1.log >[2=1] &
+c=$1
+t=$2
+shift 2
+/tests/wlsys /tests/$c >/tmp/$c.log >[2=1] &
 p=$apid
-/tests/wlwatch $2 >>/tmp/$1.log >[2=1]
+/tests/wlwatch $* $t >/tmp/$c.watch >[2=1]
 n=0
 while(test -e /proc/$p && test $n -lt 50){ sleep 0.1; n=`{echo $n+1 | hoc} }
+cat /tmp/$c.watch >>/tmp/$c.log
+rm -f /tmp/$c.watch
 if(test -e /proc/$p){
-	echo $1: still running after the delete >>/tmp/$1.log
+	echo $c: still running after the delete >>/tmp/$c.log
 	echo kill >/proc/$p/ctl
 }
 if not
-	echo $1: gone after the delete >>/tmp/$1.log
+	echo $c: gone after the delete >>/tmp/$c.log

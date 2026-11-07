@@ -2762,19 +2762,10 @@ fn main() {
         eprintln!("wsys: pipe: {e}");
         std::process::exit(1);
     });
-    let srvpath = format!("/srv/{srvname}");
-    let post = Fd::create(&srvpath, OWRITE, 0o600).unwrap_or_else(|e| {
-        eprintln!("wsys: post {srvpath}: {e}");
-        std::process::exit(1);
-    });
-    if let Err(e) = post.write1(p0.0.to_string().as_bytes()) {
-        eprintln!("wsys: post {srvpath}: {e}");
-        std::process::exit(1);
-    }
-    post.leak(); // the entry stays while wsys runs
     // the user's wsys under a name that does not change: the newest one's
     // (a wsys gone left its entry; programs that outlive it, such as wlsys,
-    // find the next one there)
+    // find the next one there); made first, so that whoever waits for the
+    // entry with the pid finds this one ready too
     if alias {
         let apath = format!("/srv/wsys.{user}");
         let _ = p9::remove(&apath);
@@ -2788,6 +2779,16 @@ fn main() {
             Err(e) => eprintln!("wsys: post {apath}: {e}"),
         }
     }
+    let srvpath = format!("/srv/{srvname}");
+    let post = Fd::create(&srvpath, OWRITE, 0o600).unwrap_or_else(|e| {
+        eprintln!("wsys: post {srvpath}: {e}");
+        std::process::exit(1);
+    });
+    if let Err(e) = post.write1(p0.0.to_string().as_bytes()) {
+        eprintln!("wsys: post {srvpath}: {e}");
+        std::process::exit(1);
+    }
+    post.leak(); // the entry stays while wsys runs
     drop(p0);
 
     let (tx, rx) = mpsc::channel();

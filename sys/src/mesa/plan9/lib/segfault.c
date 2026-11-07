@@ -18,11 +18,20 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <unistd.h>
 
 extern void	*_SEGATTACH(int, char*, void*, unsigned long);
 extern int	_SEGDETACH(void*);
+extern int	_CREATE(char*, int, unsigned long);
+extern int	_OPEN(const char*, int);
+extern long	_PREAD(int, void*, long, long long);
+extern long	_PWRITE(int, void*, long, long long);
+extern int	_CLOSE(int);
 
 void	*mesa9_segattach(const char *name, void *at, unsigned long long size);
+void	*mesa9_sharedmem(unsigned long long size, int *fdp);
+void	mesa9_sharedfree(void *p, int fd);
 int	mesa9_segdetach(void *va);
 
 enum { Nseg = 4096 };
@@ -147,4 +156,64 @@ mesa9_segdetach(void *va)
 		}
 	unlock();
 	return _SEGDETACH(va);
+}
+
+/*
+ * size bytes of the program's memory that every proc of it sees at the
+ * same address (what Linux's anonymous files mapped shared are to Mesa,
+ * hasvk's state table): a segment of segment(3) named in #g, at an
+ * address the kernel chooses ("va 0 len"), attached as mesa9_segattach
+ * does, so that a proc that touches it gets it too (an anonymous
+ * "shared" segment would be new memory in each).  *fdp holds its
+ * directory, opened ORCLOSE: the segment goes with mesa9_sharedfree, or
+ * with the program.
+ */
+enum { OREAD9 = 0, OWRITE9 = 1, ORCLOSE9 = 64, DMDIR9 = 0x80000000 };
+
+void*
+mesa9_sharedmem(unsigned long long size, int *fdp)
+{
+	static int n;
+	char name[64], path[96], buf[128], *e;
+	unsigned long long va;
+	int fd, cfd, m;
+	void *p;
+
+	lock();
+	snprintf(name, sizeof name, "mesa.%d.%d", getpid(), n++);
+	unlock();
+	snprintf(path, sizeof path, "#g/%s", name);
+	if((fd = _CREATE(path, OREAD9|ORCLOSE9, DMDIR9|0600)) < 0)
+		return (void*)-1;
+	snprintf(path, sizeof path, "#g/%s/ctl", name);
+	if((cfd = _OPEN(path, OWRITE9)) < 0)
+		goto fail;
+	m = snprintf(buf, sizeof buf, "va 0 %llu", size);
+	if(_PWRITE(cfd, buf, m, 0) != m){
+		_CLOSE(cfd);
+		goto fail;
+	}
+	_CLOSE(cfd);
+	if((cfd = _OPEN(path, OREAD9)) < 0)
+		goto fail;
+	m = _PREAD(cfd, buf, sizeof buf - 1, 0);
+	_CLOSE(cfd);
+	if(m <= 3 || strncmp(buf, "va ", 3) != 0)
+		goto fail;
+	buf[m] = 0;
+	va = strtoull(buf + 3, &e, 0);
+	if((p = mesa9_segattach(name, (void*)(uintptr_t)va, size)) == (void*)-1)
+		goto fail;
+	*fdp = fd;
+	return p;
+fail:
+	_CLOSE(fd);
+	return (void*)-1;
+}
+
+void
+mesa9_sharedfree(void *p, int fd)
+{
+	mesa9_segdetach(p);
+	_CLOSE(fd);
 }

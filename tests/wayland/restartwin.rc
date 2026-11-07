@@ -1,0 +1,7 @@
+#!/bin/rc
+# restartdesk.rc's window: /mnt/wsys is this window; wsys' tree mounted
+# there (as wlrun does), then wsysrestart.rc
+rfork n
+mount -c $wsys /mnt/wsys
+/tests/wsysrestart.rc >/tmp/restartdesk.log >[2=1]
+touch /tmp/restartdesk.done
