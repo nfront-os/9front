@@ -1,0 +1,48 @@
+[
+	{
+		"Name": "wayland-client",
+		"Compat": true,
+		"Cflags": [
+			"-O2",
+			"-Wall",
+			"-fno-strict-aliasing",
+			"-Iplan9",
+			"-Igen",
+			"-Ivendor/src"
+		],
+		"Library": "libwayland-client.a",
+		"Install": "/$ARCH/lib.gcc/ape",
+		"Objtag": "c",
+		"SourceFiles": [
+			"vendor/src/wayland-client.c",
+			"vendor/src/connection.c",
+			"vendor/src/wayland-util.c",
+			"vendor/src/wayland-os.c",
+			"gen/wayland-protocol.c"
+		]
+	},
+	{
+		"Name": "wayland-server",
+		"Compat": true,
+		"Cflags": [
+			"-O2",
+			"-Wall",
+			"-fno-strict-aliasing",
+			"-Iplan9",
+			"-Igen",
+			"-Ivendor/src"
+		],
+		"Library": "libwayland-server.a",
+		"Install": "/$ARCH/lib.gcc/ape",
+		"Objtag": "s",
+		"SourceFiles": [
+			"vendor/src/wayland-server.c",
+			"vendor/src/event-loop.c",
+			"vendor/src/wayland-shm.c",
+			"vendor/src/connection.c",
+			"vendor/src/wayland-util.c",
+			"vendor/src/wayland-os.c",
+			"gen/wayland-protocol.c"
+		]
+	}
+]
