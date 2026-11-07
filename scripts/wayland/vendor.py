@@ -91,7 +91,7 @@ build = [{
     'Library': 'libwayland-client.a',
     'Install': '/$ARCH/lib.gcc/ape',
     'Objtag': 'c',
-    'SourceFiles': files(('client', 'both')) + ['gen/wayland-protocol.c'],
+    'SourceFiles': files(('client', 'both')) + ['gen/wayland-protocol.c', 'gen/xdg-shell-protocol.c'],
 }, {
     'Name': 'wayland-server',
     'Compat': True,
@@ -99,7 +99,7 @@ build = [{
     'Library': 'libwayland-server.a',
     'Install': '/$ARCH/lib.gcc/ape',
     'Objtag': 's',
-    'SourceFiles': files(('server', 'both')) + ['gen/wayland-protocol.c'],
+    'SourceFiles': files(('server', 'both')) + ['gen/wayland-protocol.c', 'gen/xdg-shell-protocol.c'],
 }]
 with open(os.path.join(wl, 'build.json'), 'w') as f:
     json.dump(build, f, indent='\t')
