@@ -144,6 +144,7 @@ struct sigaction {
 	void		(*sa_handler)(int);
 	sigset_t	sa_mask;
 	int		sa_flags;
+	void		(*sa_sigaction)(int, siginfo_t *, void *);
 };
 /* the same layout as APE's (a negative array size otherwise) */
 typedef char __ape_sigaction_layout[
