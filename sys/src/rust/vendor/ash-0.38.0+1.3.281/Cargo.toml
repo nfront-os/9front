@@ -10,6 +10,9 @@
 # See Cargo.toml.orig for the original contents.
 
 [package]
+autotests = false
+autobenches = false
+autoexamples = false
 edition = "2021"
 rust-version = "1.69.0"
 name = "ash"
@@ -64,6 +67,3 @@ loaded = [
     "std",
 ]
 std = []
-
-[lib]
-path = "lib.rs"

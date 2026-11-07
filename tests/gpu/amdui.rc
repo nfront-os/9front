@@ -1,0 +1,18 @@
+#!/bin/rc
+# aux/amdgpu with its screen; ui (ui(4): Masonry's widgets) drawn by vello on
+# wgpu's Vulkan (RADV) in a window of wsys: tests/uiserver's checks
+# (uiserver.rc, its root through VFIO_EXTRA=tests/uiserver/root) with
+# renderer "gpu ..."; the pixels read back from wsys' screen (-O: no overlay
+# plane)
+bind -a '#i' /dev
+bind -a '#m' /dev
+bind -a '#v' /dev
+aux/amdgpu $* >/tmp/amd.log >[2=1]
+sleep 2
+uirenderer=gpu
+bind /tests/ui /bin/ui
+/tests/wsys -O -x -i /tests/uiserver >/tmp/wsys.log >[2=1] </dev/null
+grep -v '/srv/wsys' /tmp/wsys.log
+cat /tmp/ui.log
+grep 'WARN|error|BUG' /tmp/amd.log
+echo TESTEND

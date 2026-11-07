@@ -10,11 +10,15 @@
 # See Cargo.toml.orig for the original contents.
 
 [package]
+autotests = false
+autobenches = false
+autoexamples = false
 edition = "2021"
 rust-version = "1.60"
 name = "foldhash"
 version = "0.1.5"
 authors = ["Orson Peters <orsonpeters@gmail.com>"]
+build = false
 exclude = [
     "benches",
     "tools",
@@ -22,9 +26,6 @@ exclude = [
 ]
 autolib = false
 autobins = false
-autoexamples = false
-autotests = false
-autobenches = false
 description = "A fast, non-cryptographic, minimally DoS-resistant hashing algorithm."
 readme = "README.md"
 keywords = [
@@ -42,6 +43,11 @@ repository = "https://github.com/orlp/foldhash"
 [features]
 default = ["std"]
 std = []
+
+[lib]
+name = "foldhash"
+path = "src/lib.rs"
+bench = false
 
 [dependencies]
 
@@ -68,6 +74,3 @@ version = "1.8"
 
 [profile.release]
 lto = "thin"
-
-[lib]
-path = "lib.rs"

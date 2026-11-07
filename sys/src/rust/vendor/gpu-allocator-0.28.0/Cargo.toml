@@ -10,11 +10,15 @@
 # See Cargo.toml.orig for the original contents.
 
 [package]
+autotests = false
+autobenches = false
+autoexamples = false
 edition = "2021"
 rust-version = "1.71"
 name = "gpu-allocator"
 version = "0.28.0"
 authors = ["Traverse Research <opensource@traverseresearch.nl>"]
+build = false
 include = [
     "/README.md",
     "/LICENSE-*",
@@ -23,9 +27,6 @@ include = [
 ]
 autolib = false
 autobins = false
-autoexamples = false
-autotests = false
-autobenches = false
 description = "Memory allocator for GPU memory in Vulkan and DirectX 12"
 homepage = "https://github.com/Traverse-Research/gpu-allocator"
 documentation = "https://docs.rs/gpu-allocator/"
@@ -65,6 +66,10 @@ visualizer = [
     "dep:egui_extras",
 ]
 vulkan = ["dep:ash"]
+
+[lib]
+name = "gpu_allocator"
+path = "src/lib.rs"
 
 [dependencies.ash]
 version = "0.38"
@@ -155,6 +160,3 @@ features = [
     "Win32_Graphics_Direct3D12",
     "Win32_Graphics_Dxgi_Common",
 ]
-
-[lib]
-path = "lib.rs"

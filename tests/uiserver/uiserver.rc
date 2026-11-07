@@ -6,7 +6,8 @@
 # event, types into the text box (uipeek -k: kbd(3) through /dev/kbdin) and
 # reads its text events; a read of event let go (its process killed: Tflush)
 # leaves ui answering; the window's pixels from wsys' screen (uipeek); a
-# client in C (uiclient: libui) in a window of its own.
+# client in C (uiclient: libui) in a window of its own. renderer says what
+# draws: the processor here (no GPU), the GPU with uirenderer=gpu.
 # Prints ok/FAIL lines and "uiserver: all passed".
 nfail=0
 fn ok { echo ok $* }
@@ -28,6 +29,11 @@ while(! test -e /srv/uitest && test $n -lt 100){ sleep 0.1; n=`{echo $n+1 | hoc}
 if(! test -e /srv/uitest){ fail no /srv/uitest; cat /tmp/ui.log; echo uiserver: failed; exit fail }
 mount /srv/uitest /mnt/ui || { fail mount; exit fail }
 ok ui posted /srv/uitest, mounted
+# what draws the window: cpu without a GPU (VESA), gpu ... with one
+# ($uirenderer: what the caller wants, default cpu)
+if(~ $#uirenderer 0) uirenderer=cpu
+r=`{cat /mnt/ui/renderer}
+check 'renderer: '^$"r $uirenderer $r(1)
 
 # the event log, read from the start (each open sees what comes after it)
 cat /mnt/ui/event >/tmp/ev &

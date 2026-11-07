@@ -12,6 +12,10 @@ members = ["../cmd/ui", "../libui/rust", "../cmd/uidemo", "../../../tests/winit"
 raw-window-handle = { path = "crates/raw-window-handle-0.6.2" }
 winit = { path = "crates/winit-0.30.13" }
 softbuffer = { path = "crates/softbuffer-0.4.8" }
+# Vulkan on plan9 (Mesa's static libvulkan.a, VK_PLAN9_surface): ui on the GPU
+wgpu = { path = "crates/wgpu-28.0.0" }
+wgpu-core = { path = "crates/wgpu-core-28.0.1" }
+wgpu-hal = { path = "crates/wgpu-hal-28.0.1" }
 
 [profile.release]
 debug = true

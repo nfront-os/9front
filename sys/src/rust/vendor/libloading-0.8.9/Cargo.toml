@@ -10,16 +10,17 @@
 # See Cargo.toml.orig for the original contents.
 
 [package]
+autotests = false
+autobenches = false
+autoexamples = false
 edition = "2015"
 rust-version = "1.71.0"
 name = "libloading"
 version = "0.8.9"
 authors = ["Simonas Kazlauskas <libloading@kazlauskas.me>"]
+build = false
 autolib = false
 autobins = false
-autoexamples = false
-autotests = false
-autobenches = false
 description = "Bindings around the platform's dynamic library loading primitives with greatly improved memory safety."
 documentation = "https://docs.rs/libloading/"
 readme = "README.mkd"
@@ -39,6 +40,10 @@ rustdoc-args = [
     "--cfg",
     "libloading_docs",
 ]
+
+[lib]
+name = "libloading"
+path = "src/lib.rs"
 
 [dev-dependencies.libc]
 version = "0.2"
@@ -63,6 +68,3 @@ check-cfg = [
     "cfg(libloading_docs)",
     'cfg(target_os, values("cygwin"))',
 ]
-
-[lib]
-path = "lib.rs"

@@ -14,7 +14,8 @@
 #        MCP=1 scripts/guest/vfio-test.sh [first commands]
 #   MCP=1: the guest runs ../9front-mcp's server instead (mcp-guest.sh) and
 #   keeps running; scripts/guest/mcp.py then works in it
-#   env: FWDIR  the host's amdgpu firmware (/usr/lib/firmware/amdgpu)
+#   env: VFIO_EXTRA  directories copied into the guest's root as well
+#        FWDIR  the host's amdgpu firmware (/usr/lib/firmware/amdgpu)
 #        FW     prefixes of its files: the families of the RDNA 3 cards'
 #               IP blocks (GC 11.0, PSP and SMU 13.0, DCN 3.2, SDMA 6.0,
 #               VCN 4.0); amdgpu picks the versions by IP discovery
@@ -59,6 +60,10 @@ if [ -d "$ROOT/tests/gpu/root/tests" ]; then
 	cp "$ROOT/tests/gpu/root/tests"/* "$X/tests/" 2>/dev/null || true
 fi
 cp "$ROOT"/tests/gpu/amd*.rc "$X/tests/" 2>/dev/null || true
+# more roots on top (VFIO_EXTRA: directories, e.g. tests/uiserver/root for amdui.rc)
+for e in $VFIO_EXTRA; do
+	cp -r "$e"/. "$X/"
+done
 
 # by default: the PCI devices with their BARs (pci -bv), and the first
 # words of the AMD functions' configuration space (vendor 1002)

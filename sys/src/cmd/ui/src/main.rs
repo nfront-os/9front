@@ -4,20 +4,23 @@
 // through files (ui(4)), as acme's windows are: the client writes the scene
 // (ctl), reads what the user did (event); ui keeps the widgets, their state
 // (focus, text being edited, scrolling), lays them out, draws them.  The
-// widgets are Masonry's (linebender), drawn on the processor (vello_cpu)
-// into the window (winit and softbuffer with their plan9 backends): no GPU
-// needed, VESA, arm64 alike.  A client may be on another machine: the
+// widgets are Masonry's (linebender), drawn with the GPU (vello on wgpu's
+// Vulkan: gpu.rs) or, without one, on the processor (vello_cpu into the
+// window through softbuffer; winit and softbuffer with their plan9
+// backends): VESA, arm64 alike.  A client may be on another machine: the
 // files are 9P, posted in /srv.
 //
-// usage: ui [-s srvname]	(default ui.$user.$pid; the name on stdout)
+// usage: ui [-p] [-s srvname]	(default ui.$user.$pid; the name on stdout)
+//	-p: on the processor, also with a GPU
 
 mod fs;
+#[cfg(feature = "gpu")]
+mod gpu;
 mod ninep;
 mod scene;
 
 use std::collections::HashMap;
 use std::num::NonZeroU32;
-use std::rc::Rc;
 use std::sync::{mpsc, Arc};
 
 use masonry::app::{RenderRoot, RenderRootOptions, RenderRootSignal, VisualLayerKind, WindowSizePolicy};
@@ -162,13 +165,80 @@ fn content(sc: &Scene, ids: &mut Ids) -> NewWidget<dyn Widget> {
         .erased()
 }
 
+/// what draws the window
+enum Painter {
+    #[cfg(feature = "gpu")]
+    Gpu(gpu::Gpu),
+    Cpu {
+        surface: softbuffer::Surface<Arc<Window>, Arc<Window>>,
+        renderer: masonry_imaging::vello_cpu::Renderer,
+        rgba: Vec<u8>,
+    },
+}
+
+impl Painter {
+    /// the GPU's, unless -p or there is none; else the processor's
+    #[allow(unused_variables)]
+    fn new(window: &Arc<Window>, cpu: bool) -> (Painter, String) {
+        #[cfg(feature = "gpu")]
+        if !cpu {
+            match gpu::Gpu::new(window.clone()) {
+                Ok(g) => {
+                    let name = format!("gpu {}", g.name);
+                    return (Painter::Gpu(g), name);
+                }
+                Err(e) => eprintln!("ui: no GPU ({e}): on the processor"),
+            }
+        }
+        let ctx = softbuffer::Context::new(window.clone()).expect("softbuffer");
+        let surface = softbuffer::Surface::new(&ctx, window.clone()).expect("softbuffer surface");
+        let renderer = masonry_imaging::vello_cpu::new_headless_renderer().expect("vello_cpu");
+        (Painter::Cpu { surface, renderer, rgba: Vec::new() }, "cpu".into())
+    }
+
+    fn paint(&mut self, mut frame: PreparedFrame<'_>) {
+        match self {
+            #[cfg(feature = "gpu")]
+            Painter::Gpu(g) => {
+                if let Err(e) = g.render(frame) {
+                    eprintln!("ui: render: {e}");
+                }
+            }
+            Painter::Cpu { surface, renderer, rgba } => {
+                let (Some(w), Some(h)) = (NonZeroU32::new(frame.width), NonZeroU32::new(frame.height)) else {
+                    return;
+                };
+                let n = w.get() as usize * h.get() as usize;
+                rgba.resize(n * 4, 0);
+                let target = ImageBufferTarget {
+                    data: rgba,
+                    width: w.get(),
+                    height: h.get(),
+                    bytes_per_row: w.get() as usize * 4,
+                    format: ImageBufferFormat::Rgba8Unorm,
+                };
+                if let Err(e) = renderer.render_source_into(&mut frame, target) {
+                    eprintln!("ui: render: {e}");
+                    return;
+                }
+                if surface.resize(w, h).is_err() {
+                    return;
+                }
+                let Ok(mut buf) = surface.buffer_mut() else { return };
+                for (p, c) in buf.iter_mut().zip(rgba.chunks_exact(4)) {
+                    *p = (c[0] as u32) << 16 | (c[1] as u32) << 8 | c[2] as u32;
+                }
+                let _ = buf.present();
+            }
+        }
+    }
+}
+
 struct Gui {
-    window: Rc<Window>,
-    surface: softbuffer::Surface<Rc<Window>, Rc<Window>>,
+    window: Arc<Window>,
+    painter: Painter,
     root: RenderRoot,
     reducer: WindowEventReducer,
-    renderer: masonry_imaging::vello_cpu::Renderer,
-    rgba: Vec<u8>,
 }
 
 struct App {
@@ -179,6 +249,7 @@ struct App {
     signals: mpsc::Receiver<RenderRootSignal>,
     signal_tx: mpsc::Sender<RenderRootSignal>,
     srv: String,
+    cpu: bool,   // -p: on the processor
     debug: bool, // $UIDEBUG: the window's events and Masonry's signals on stderr
 }
 
@@ -358,28 +429,8 @@ impl App {
             .collect();
         let Some(root) = layers.root_layer() else { return };
         let VisualLayerKind::Scene(base) = &root.kind else { return };
-        let mut frame = PreparedFrame::new(w.get(), h.get(), 1.0, masonry::theme::BACKGROUND_COLOR, base, &overlays);
-        let n = w.get() as usize * h.get() as usize;
-        g.rgba.resize(n * 4, 0);
-        let target = ImageBufferTarget {
-            data: &mut g.rgba,
-            width: w.get(),
-            height: h.get(),
-            bytes_per_row: w.get() as usize * 4,
-            format: ImageBufferFormat::Rgba8Unorm,
-        };
-        if let Err(e) = g.renderer.render_source_into(&mut frame, target) {
-            eprintln!("ui: render: {e}");
-            return;
-        }
-        if g.surface.resize(w, h).is_err() {
-            return;
-        }
-        let Ok(mut buf) = g.surface.buffer_mut() else { return };
-        for (p, c) in buf.iter_mut().zip(g.rgba.chunks_exact(4)) {
-            *p = (c[0] as u32) << 16 | (c[1] as u32) << 8 | c[2] as u32;
-        }
-        let _ = buf.present();
+        let frame = PreparedFrame::new(w.get(), h.get(), 1.0, masonry::theme::BACKGROUND_COLOR, base, &overlays);
+        g.painter.paint(frame);
         // where each node is now, for nodes/id/rect
         self.fs.rects.clear();
         for (id, wid) in &self.ids.widget {
@@ -400,15 +451,15 @@ impl ApplicationHandler<UserEvent> for App {
             return;
         }
         let window = match el.create_window(Window::default_attributes().with_title(self.fs.scene.title.clone())) {
-            Ok(w) => Rc::new(w),
+            Ok(w) => Arc::new(w),
             Err(e) => {
                 eprintln!("ui: window: {e}");
                 el.exit();
                 return;
             }
         };
-        let ctx = softbuffer::Context::new(window.clone()).expect("softbuffer");
-        let surface = softbuffer::Surface::new(&ctx, window.clone()).expect("softbuffer surface");
+        let (painter, renderer) = Painter::new(&window, self.cpu);
+        self.fs.renderer = renderer;
         let size = window.inner_size();
         let tx = self.signal_tx.clone();
         let mut fonts = fonts().into_iter();
@@ -433,9 +484,8 @@ impl ApplicationHandler<UserEvent> for App {
         for b in fonts {
             root.register_fonts(Blob::new(Arc::new(b)));
         }
-        let renderer = masonry_imaging::vello_cpu::new_headless_renderer().expect("vello_cpu");
         self.fs.size = (size.width, size.height);
-        self.gui = Some(Gui { window, surface, root, reducer: WindowEventReducer::default(), renderer, rgba: Vec::new() });
+        self.gui = Some(Gui { window, painter, root, reducer: WindowEventReducer::default() });
         println!("{}", self.srv);
     }
 
@@ -517,19 +567,38 @@ fn reader(fd: Fd, proxy: EventLoopProxy<UserEvent>) {
     let _ = proxy.send_event(UserEvent::Hangup);
 }
 
+/// $UIDEBUG: what wgpu, Masonry, ... log, on stderr
+struct Logger;
+
+impl log::Log for Logger {
+    fn enabled(&self, _: &log::Metadata<'_>) -> bool {
+        true
+    }
+    fn log(&self, r: &log::Record<'_>) {
+        eprintln!("ui: {} {}: {}", r.level(), r.target(), r.args());
+    }
+    fn flush(&self) {}
+}
+
 fn main() {
+    if std::env::var_os("UIDEBUG").is_some() {
+        log::set_logger(&Logger).ok();
+        log::set_max_level(log::LevelFilter::Debug);
+    }
     let args: Vec<String> = std::env::args().collect();
     let user = std::fs::read_to_string("/dev/user").unwrap_or_else(|_| "none".into());
     let mut srv = format!("ui.{}.{}", user.trim(), std::process::id());
+    let mut cpu = false;
     let mut i = 1;
     while i < args.len() {
         match args[i].as_str() {
+            "-p" => cpu = true,
             "-s" if i + 1 < args.len() => {
                 srv = args[i + 1].clone();
                 i += 1;
             }
             _ => {
-                eprintln!("usage: ui [-s srvname]");
+                eprintln!("usage: ui [-p] [-s srvname]");
                 std::process::exit(1);
             }
         }
@@ -570,6 +639,7 @@ fn main() {
         signals,
         signal_tx,
         srv: srv.clone(),
+        cpu,
         debug: std::env::var_os("UIDEBUG").is_some(),
     };
     let r = el.run_app(&mut app);

@@ -4,6 +4,8 @@ ui \- a window of widgets, described through files
 .SH SYNOPSIS
 .B ui
 [
+.B -p
+] [
 .B -s
 .I srvname
 ]
@@ -34,8 +36,12 @@ posts its files in
 .BI ui. user . pid\fR,
 printed on standard output); the entry goes with
 .IR ui .
-Its widgets are Masonry's (linebender), drawn by the processor (vello_cpu):
-no GPU is needed.
+Its widgets are Masonry's (linebender), drawn by vello on the GPU (wgpu's
+Vulkan:
+.IR gpu (4)
+and Mesa) or, without one, by the processor (vello_cpu): no GPU is needed.
+.B -p
+draws on the processor also with a GPU.
 It takes its fonts from
 .BR /lib/font/ttf .
 .SS Files
@@ -63,6 +69,12 @@ The tree in
 language: written to
 .B ctl
 it makes the same scene.
+.TP
+.B renderer
+What draws the window:
+.BI gpu " adapter"
+or
+.BR cpu .
 .TP
 .BI nodes/ id /kind
 The node's kind.
@@ -164,9 +176,15 @@ echo 'new b button
 set b text press me' >/mnt/ui/ctl
 cat /mnt/ui/event	# click b, when it is pressed
 .EE
+.SH ENVIRONMENT
+.TF UIDEBUG
+.TP
+.B UIDEBUG
+The window's events, Masonry's signals and what wgpu logs, on standard error.
+.PD
 .SH SOURCE
 .B /sys/src/cmd/ui
-(Rust; Masonry, winit and softbuffer with their plan9 backends:
+(Rust; Masonry, winit, softbuffer and wgpu with their plan9 backends:
 .BR /sys/src/rust )
 .SH SEE ALSO
 .IR ui (2)

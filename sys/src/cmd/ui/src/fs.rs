@@ -8,6 +8,7 @@
 //			slide id v, enter id ..., close); each open from then on;
 //			a read waits for one (Tflush ends the wait)
 //	tree		read: the scene in ctl's language
+//	renderer	read: what draws the window: gpu adapter, or cpu
 //	nodes/id/kind	the node's kind
 //	nodes/id/props	its properties, "key value" a line; written: set
 //	nodes/id/children
@@ -28,6 +29,7 @@ enum Path {
     Ctl,
     Event,
     Tree,
+    Renderer,
     Nodes,
     Node(String),
     NodeFile(String, &'static str),
@@ -49,6 +51,7 @@ pub struct Fs {
     pub changes: Vec<Change>,
     pub size: (u32, u32),
     pub origin: (i32, i32),
+    pub renderer: String, // "gpu adapter" or "cpu"
     pub rects: HashMap<String, [i32; 4]>, // the widgets' places, as the last frame had them
     uid: String,
     msize: u32,
@@ -67,6 +70,7 @@ impl Fs {
             changes: Vec::new(),
             size: (0, 0),
             origin: (0, 0),
+            renderer: String::new(),
             rects: HashMap::new(),
             uid: uid.to_string(),
             msize: 8192 + ninep::IOHDRSZ,
@@ -88,6 +92,7 @@ impl Fs {
             Path::Ctl => (0, 2),
             Path::Event => (0, 3),
             Path::Tree => (0, 4),
+            Path::Renderer => (0, 6),
             Path::Nodes => (QTDIR, 5),
             Path::Node(id) => (QTDIR, self.num(id)),
             Path::NodeFile(id, f) => (0, self.num(id) + 1 + NODEFILES.iter().position(|x| x == f).unwrap() as u64),
@@ -101,6 +106,7 @@ impl Fs {
             Path::Ctl => "ctl".into(),
             Path::Event => "event".into(),
             Path::Tree => "tree".into(),
+            Path::Renderer => "renderer".into(),
             Path::Nodes => "nodes".into(),
             Path::Node(id) => id.clone(),
             Path::NodeFile(_, f) => f.to_string(),
@@ -137,6 +143,7 @@ impl Fs {
                 "ctl" => Path::Ctl,
                 "event" => Path::Event,
                 "tree" => Path::Tree,
+                "renderer" => Path::Renderer,
                 "nodes" => Path::Nodes,
                 _ => return None,
             },
@@ -152,7 +159,7 @@ impl Fs {
 
     fn children(&self, p: &Path) -> Vec<Path> {
         match p {
-            Path::Root => vec![Path::Ctl, Path::Event, Path::Tree, Path::Nodes],
+            Path::Root => vec![Path::Ctl, Path::Event, Path::Tree, Path::Renderer, Path::Nodes],
             Path::Nodes => self.scene.nodes.keys().map(|k| Path::Node(k.clone())).collect(),
             Path::Node(id) => NODEFILES.iter().map(|f| Path::NodeFile(id.clone(), f)).collect(),
             _ => vec![],
@@ -163,6 +170,7 @@ impl Fs {
         match p {
             Path::Ctl => format!("{} {} {} {}\n", self.origin.0, self.origin.1, self.size.0, self.size.1).into_bytes(),
             Path::Tree => self.scene.dump().into_bytes(),
+            Path::Renderer => format!("{}\n", self.renderer).into_bytes(),
             Path::NodeFile(id, f) => {
                 let Some(n) = self.scene.nodes.get(id) else { return vec![] };
                 match *f {

@@ -10,6 +10,9 @@
 # See Cargo.toml.orig for the original contents.
 
 [package]
+autotests = false
+autobenches = false
+autoexamples = false
 edition = "2021"
 rust-version = "1.64"
 name = "presser"
@@ -45,6 +48,10 @@ rustdoc-args = [
     "docs_build",
 ]
 
+[lib]
+test = true
+doctest = true
+
 [dependencies]
 
 [dev-dependencies]
@@ -52,6 +59,3 @@ rustdoc-args = [
 [features]
 default = ["std"]
 std = []
-
-[lib]
-path = "lib.rs"

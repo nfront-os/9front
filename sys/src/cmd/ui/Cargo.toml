@@ -1,12 +1,14 @@
 # SPDX-License-Identifier: MIT
 # ui: a window of widgets a client describes through files (ui(4)); Masonry's
-# widgets (linebender, Xilem's), drawn on the processor (vello_cpu). Part of
+# widgets (linebender, Xilem's), drawn with the GPU (vello on wgpu's Vulkan:
+# feature gpu) or on the processor (vello_cpu: without a GPU, and without the
+# feature, which links no Vulkan). Part of
 # the workspace in sys/src/rust (its vendor/, its crates with plan9 backends).
 [package]
 name = "ui"
 version = "0.1.0"
 edition = "2024"
-license = "MIT"
+license = "MIT AND Apache-2.0"  # src/gpu.rs: after masonry_winit (Apache-2.0)
 publish = false
 workspace = "../../rust"
 
@@ -15,8 +17,15 @@ workspace = "../../rust"
 # processor's vello_cpu among them), fixed at a revision
 masonry = { git = "https://github.com/linebender/xilem", rev = "dc496876a2f6ff2ce7687bfc8c19bd311bb553dc", default-features = false }
 masonry_imaging = { git = "https://github.com/linebender/xilem", rev = "dc496876a2f6ff2ce7687bfc8c19bd311bb553dc", default-features = false, features = ["imaging_vello_cpu"] }
+wgpu = { version = "28.0.0", default-features = false, features = ["std", "vulkan", "wgsl"], optional = true }
 imaging = "0.0.1"
+log = "0.4"
 ui-events-winit = { version = "0.3.0", default-features = false }
 winit = { version = "0.30.13", default-features = false, features = ["rwh_06"] }
 softbuffer = { version = "0.4.8", default-features = false }
 p9win = { path = "../../rust/plan9/p9win" }
+
+[features]
+default = ["gpu"]
+# vello on wgpu (Vulkan: Mesa's libvulkan.a); the processor when there is no adapter
+gpu = ["dep:wgpu", "masonry_imaging/imaging_vello"]
