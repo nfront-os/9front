@@ -1229,6 +1229,12 @@ no sharing of fences between processes yet.
 .IR I915 :
 no sharing of objects between processes yet.
 .br
+A dma-buf descriptor of Mesa's (plan9/lib/dmabuf.c: a pipe holding its
+token) tells the token only to the first other process that reads it;
+handed on to a second one, it is no dma-buf there (its import fails with
+an error).
+Between more processes the token goes as text.
+.br
 .IR Amdgpu :
 no display yet (outputs, scanout); a freed VRAM object stays visible
 through BAR 0.
