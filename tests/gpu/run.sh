@@ -284,11 +284,36 @@ if [ -r /dev/dri/renderD128 ] && [ -w /dev/dri/renderD128 ] &&
 		cp "$HERE/wsysvktri.rc" "$HERE/root/tests/wsysvktri"
 		cp "$HERE/wsysovl.rc" "$HERE/root/tests/wsysovl"
 		chmod +x "$HERE/root/tests/wsysvk" "$HERE/root/tests/wsysvktri" "$HERE/root/tests/wsysovl"
+		# in a guest of mcp-guest.sh: wsys in the background there, waited
+		# for from here; one not done in 300 s is looked at while it hangs
+		# (ps, the logs' last lines), then the guest goes
 		bootwsys(){
-			CMDWAIT=300 CPU=host MEM=1024 UFS_EXTRA="$HERE/root" \
+			local cli=${CLI_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/9front-cli} g n ok=0
+			local m="python3 $ROOT/scripts/guest/mcp.py"
+			CPU=host MEM=1024 UFS_EXTRA="$HERE/root" \
 			QEMU_EXTRA="-vga none -display egl-headless -device virtio-gpu-gl-pci,blob=true,venus=true,hostmem=256M -object memory-backend-memfd,id=mem1,size=1024M,share=on -machine memory-backend=mem1" \
-			"$ROOT/scripts/guest/boot-cli.sh" 'aux/virtiogpu' "bind -a '#i' /dev" \
-				'/tests/wsys -x -i /tests/wsysvk >/tmp/wsys.log >[2=1]; cat /tmp/wsys.log' > "$TMPD/consolewsys" 2>&1
+				setsid bash "$ROOT/scripts/guest/mcp-guest.sh" 'aux/virtiogpu' > "$cli/gpuwsysguest.log" 2>&1 &
+			g=$!
+			: > "$TMPD/consolewsys"
+			if timeout 660 $m wait 600 >/dev/null; then
+				timeout 60 $m rc "bind -a '#i' /dev; bind -a '#m' /dev; {/tests/wsys -x -i /tests/wsysvk >/tmp/wsys.log >[2=1]; touch /tmp/wsys.done} &" 50 >/dev/null 2>&1
+				for n in $(seq 60); do
+					sleep 5
+					if timeout 60 $m rc "test -e /tmp/wsys.done" 50 >/dev/null 2>&1; then
+						ok=1
+						break
+					fi
+				done
+				if [ $ok = 1 ]; then
+					timeout 60 $m rc "cat /tmp/wsys.log" 50 > "$TMPD/consolewsys" 2>&1
+				else
+					{ echo "wsys: not done in 300 s; what runs, the logs:"
+					  timeout 60 $m rc "ps; for(f in /tmp/wsys.log /tmp/wvk.log /tmp/wvkcopy.log /tmp/eframe.log /tmp/uivk.log) { echo file $f; tail -20 $f }" 50; } > "$TMPD/consolewsys" 2>&1
+				fi
+			fi
+			kill -TERM -- -$g 2>/dev/null || kill $g 2>/dev/null
+			wait $g 2>/dev/null
+			[ $ok = 1 ]
 		}
 		check "boot with virtio-gpu-gl, vktri in a window of wsys" bootwsys
 		tr -d '\r' < "$TMPD/consolewsys" > "$TMPD/logwsys"
