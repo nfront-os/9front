@@ -1,0 +1,25 @@
+[
+	{
+		"Name": "libffi",
+		"Compat": true,
+		"Cflags": [
+			"-O2",
+			"-Wall",
+			"-fno-strict-aliasing",
+			"-Iplan9",
+			"-Ivendor/include",
+			"-Ivendor/src/x86"
+		],
+		"Library": "libffi.a",
+		"Install": "/$ARCH/lib.gcc/ape",
+		"SourceFiles": [
+			"vendor/src/prep_cif.c",
+			"vendor/src/types.c",
+			"vendor/src/raw_api.c",
+			"vendor/src/x86/ffi64.c",
+			"vendor/src/x86/ffiw64.c",
+			"vendor/src/x86/unix64.S",
+			"vendor/src/x86/win64.S"
+		]
+	}
+]

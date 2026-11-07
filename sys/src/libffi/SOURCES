@@ -1,0 +1,12 @@
+# libffi's files 9front builds (sys/src/libffi, scripts/libffi/vendor.py):
+# calls through a described signature (ffi_call: libwayland's dispatch), on
+# amd64 (System V, and ffiw64's Microsoft/EFI convention ffi64.c refers to);
+# no closures (closures.c, tramp.c: executable memory, which 9front's
+# APE does not give).  One a line, under libffi's source tree
+src/prep_cif.c
+src/types.c
+src/raw_api.c
+src/x86/ffi64.c
+src/x86/ffiw64.c
+src/x86/unix64.S
+src/x86/win64.S
