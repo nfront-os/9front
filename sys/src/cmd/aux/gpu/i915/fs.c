@@ -340,6 +340,24 @@ ctxctl(Ctx *c, char **f, int n)
 		e = i915_bo_free(c->lc, atoi(f[1]));
 		return e < 0 ? errstr9(e) : nil;
 	}
+	/* gpu(4)'s export and import: an object between contexts, of any process */
+	if(n == 2 && strcmp(f[0], "export") == 0){
+		char token[64];
+
+		e = i915_bo_export(c->lc, atoi(f[1]), token, sizeof token);
+		if(e < 0)
+			return errstr9(e);
+		setreply(c, "export %s\n", token);
+		return nil;
+	}
+	if(n == 2 && strcmp(f[0], "import") == 0){
+		e = i915_bo_import(c->lc, f[1], &id, seg, sizeof seg, &va, &size);
+		if(e < 0)
+			return errstr9(e);
+		segown(seg, c->uid);
+		setreply(c, "import %d %s %#llux %#llux\n", id, seg, va, size);
+		return nil;
+	}
 	if(n == 2 && strcmp(f[0], "getparam") == 0){
 		int v;
 

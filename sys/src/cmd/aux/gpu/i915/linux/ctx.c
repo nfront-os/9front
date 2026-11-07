@@ -17,6 +17,10 @@
  *				batch last, with an out fence: fence k
  *	free id			GEM_CLOSE, after the object's segment is revoked
  *				in every process (segment(3))
+ *	export id		PRIME_HANDLE_TO_FD: the object as a dma-buf,
+ *				named by a token
+ *	import token		PRIME_FD_TO_HANDLE of that dma-buf: the same
+ *				object, an object of this context (not bound)
  */
 #include <linux/kernel.h>
 #include <linux/slab.h>
@@ -25,6 +29,7 @@
 #include <linux/dma-fence.h>
 #include <linux/mutex.h>
 #include <linux/pci.h>
+#include <linux/random.h>
 #include <linux/vmalloc.h>
 #include <drm/drm_drv.h>
 #include <drm/drm_file.h>
@@ -76,6 +81,8 @@ static const struct file_operations ctx_fops = { .fop_flags = FOP_UNSIGNED_OFFSE
 static struct bo	*newbo(struct gctx *c);
 static u64	chooseaddr(struct gctx *c, u64 size);
 static bool	placeok(struct gctx *c, struct bo *self, u64 gpu, u64 size);
+static int	bomap(struct gctx *c, struct bo *b);
+static void	unexport(struct gctx *c);
 static atomic_t nctx;
 
 static struct drm_device *
@@ -157,6 +164,7 @@ i915_ctx_free(void *v)
 	int i;
 
 	kmsout_scanout(c->filp, 0, 0, 0, 0);	/* its picture off the display */
+	unexport(c);
 	for (i = 0; i < Nfence; i++)
 		if (c->fence[i]) {
 			dma_fence_wait_timeout(c->fence[i], false, 5 * HZ);
@@ -176,36 +184,23 @@ i915_ctx_free(void *v)
 	kfree(c);
 }
 
-/* a new object; its segment's name, address and size for the client */
-int
-i915_bo_new(void *v, u64 size, u64 *gpup, int *id, char *seg, int nseg, u64 *va, u64 *rsize)
+/*
+ * the object of b->handle, its pages pinned while the client may have
+ * them, as an alias segment (segment(3)); 0 or -errno (then nothing of
+ * it is kept but the handle)
+ */
+static int
+bomap(struct gctx *c, struct bo *b)
 {
-	struct gctx *c = v;
-	struct drm_i915_gem_create cr = { .size = size };
 	struct sgt_iter it;
 	struct page **pages, *p;
-	struct bo *b;
 	unsigned int n, i;
-	u64 gpu = *gpup;
 	int r;
 
-	mutex_lock(&c->lock);
-	b = newbo(c);
-	if (!b) {
-		r = -ENOMEM;
-		goto out;
-	}
-	r = ioctl(c, DRM_IOCTL_I915_GEM_CREATE, &cr);
-	if (r)
-		goto out;
-	b->handle = cr.handle;
-	b->size = cr.size;
-	b->obj = i915_gem_object_lookup(c->file, cr.handle);
-	if (!b->obj) {
-		r = -ENOENT;
-		goto close;
-	}
-	/* its pages, pinned while the client may have them */
+	b->obj = i915_gem_object_lookup(c->file, b->handle);
+	if (!b->obj)
+		return -ENOENT;
+	b->size = b->obj->base.size;
 	r = i915_gem_object_pin_pages_unlocked(b->obj);
 	if (r)
 		goto put;
@@ -226,6 +221,39 @@ i915_bo_new(void *v, u64 size, u64 *gpup, int *id, char *seg, int nseg, u64 *va,
 		r = -ENOMEM;
 		goto unpin;
 	}
+	return 0;
+unpin:
+	i915_gem_object_unpin_pages(b->obj);
+put:
+	i915_gem_object_put(b->obj);
+	b->obj = NULL;
+	b->seg[0] = 0;
+	return r;
+}
+
+/* a new object; its segment's name, address and size for the client */
+int
+i915_bo_new(void *v, u64 size, u64 *gpup, int *id, char *seg, int nseg, u64 *va, u64 *rsize)
+{
+	struct gctx *c = v;
+	struct drm_i915_gem_create cr = { .size = size };
+	struct bo *b;
+	u64 gpu = *gpup;
+	int r;
+
+	mutex_lock(&c->lock);
+	b = newbo(c);
+	if (!b) {
+		r = -ENOMEM;
+		goto out;
+	}
+	r = ioctl(c, DRM_IOCTL_I915_GEM_CREATE, &cr);
+	if (r)
+		goto out;
+	b->handle = cr.handle;
+	r = bomap(c, b);
+	if (r)
+		goto close;
 	b->used = true;
 	if (gpu == ~0ULL)	/* the driver's choice: one after the other */
 		gpu = chooseaddr(c, b->size);
@@ -245,7 +273,6 @@ i915_bo_new(void *v, u64 size, u64 *gpup, int *id, char *seg, int nseg, u64 *va,
 	return 0;
 unpin:
 	i915_gem_object_unpin_pages(b->obj);
-put:
 	i915_gem_object_put(b->obj);
 close:
 	{
@@ -257,6 +284,155 @@ close:
 out:
 	mutex_unlock(&c->lock);
 	return r;
+}
+
+/*
+ * export and import (gpu(4)'s ctx ctl): an object between contexts, of
+ * any process, as a dma-buf goes between processes on Linux.  Export
+ * makes the client's object a dma-buf (PRIME) and names it by a token,
+ * 128 random bits (the same for each export of it from the context);
+ * import makes it an object of another context (PRIME again: i915's own
+ * dma-buf is the same object).  The table holds a reference to the
+ * dma-buf's file while the exporting context lives; what was imported
+ * stays with the importer.  The descriptors on the way are the server's
+ * and closed at once.  As aux/amdgpu's (linux/ctx.c there).
+ */
+enum { Nexport = 512 };
+static struct export {
+	struct file	*f;	/* nil: free */
+	struct gctx	*from;
+	char	token[33];
+} exports[Nexport];
+static DEFINE_MUTEX(exportlock);
+
+int
+i915_bo_export(void *v, int id, char *token, int ntoken)
+{
+	struct gctx *c = v;
+	struct drm_prime_handle p = { .flags = DRM_CLOEXEC | DRM_RDWR };
+	struct export *x, *slot;
+	struct file *f;
+	struct bo *b;
+	int r, i;
+
+	mutex_lock(&c->lock);
+	b = findbo(c, id);
+	if (!b) {
+		mutex_unlock(&c->lock);
+		return -ENOENT;
+	}
+	p.handle = b->handle;
+	r = ioctl(c, DRM_IOCTL_PRIME_HANDLE_TO_FD, &p);
+	mutex_unlock(&c->lock);
+	if (r)
+		return r;
+	f = fget(p.fd);	/* a reference of ours */
+	close_fd(p.fd);
+	if (f == NULL)
+		return -EBADF;
+	mutex_lock(&exportlock);
+	slot = NULL;
+	for (i = 0; i < Nexport; i++) {
+		x = &exports[i];
+		if (x->f == f && x->from == c) {	/* exported before: the same token */
+			fput(f);
+			strscpy(token, x->token, ntoken);
+			mutex_unlock(&exportlock);
+			return 0;
+		}
+		if (x->f == NULL && slot == NULL)
+			slot = x;
+	}
+	if (slot == NULL) {
+		mutex_unlock(&exportlock);
+		fput(f);
+		return -ENOSPC;
+	}
+	slot->f = f;
+	slot->from = c;
+	snprintf(slot->token, sizeof(slot->token), "%08x%08x%08x%08x",
+		 get_random_u32(), get_random_u32(), get_random_u32(), get_random_u32());
+	strscpy(token, slot->token, ntoken);
+	mutex_unlock(&exportlock);
+	return 0;
+}
+
+/* the object token names as one of this context's, not bound; as i915_bo_new's reply */
+int
+i915_bo_import(void *v, const char *token, int *id, char *seg, int nseg, u64 *va, u64 *rsize)
+{
+	struct gctx *c = v;
+	struct drm_prime_handle p = { };
+	struct export *x;
+	struct bo *b;
+	int r, i, fd;
+
+	mutex_lock(&exportlock);
+	for (i = 0; i < Nexport; i++) {
+		x = &exports[i];
+		if (x->f != NULL && strcmp(x->token, token) == 0)
+			break;
+	}
+	if (i == Nexport) {
+		mutex_unlock(&exportlock);
+		return -ENOENT;
+	}
+	fd = get_unused_fd_flags(O_CLOEXEC);
+	if (fd < 0) {
+		mutex_unlock(&exportlock);
+		return fd;
+	}
+	get_file(x->f);
+	fd_install(fd, x->f);	/* the descriptor has that reference */
+	mutex_unlock(&exportlock);
+
+	mutex_lock(&c->lock);
+	b = newbo(c);
+	if (!b) {
+		mutex_unlock(&c->lock);
+		close_fd(fd);
+		return -ENOMEM;
+	}
+	p.fd = fd;
+	r = ioctl(c, DRM_IOCTL_PRIME_FD_TO_HANDLE, &p);
+	close_fd(fd);
+	if (r)
+		goto out;
+	b->handle = p.handle;
+	r = bomap(c, b);
+	if (r) {
+		struct drm_gem_close cl = { .handle = b->handle };
+
+		ioctl(c, DRM_IOCTL_GEM_CLOSE, &cl);
+		goto out;
+	}
+	b->used = true;
+	b->gpu = 0;
+	*id = b - c->bo + 1;
+	strscpy(seg, b->seg, nseg);
+	*va = b->va;
+	*rsize = b->size;
+	mutex_unlock(&c->lock);
+	return 0;
+out:
+	memset(b, 0, sizeof(*b));
+	mutex_unlock(&c->lock);
+	return r;
+}
+
+/* the context goes: its exports with it */
+static void
+unexport(struct gctx *c)
+{
+	int i;
+
+	mutex_lock(&exportlock);
+	for (i = 0; i < Nexport; i++)
+		if (exports[i].f != NULL && exports[i].from == c) {
+			fput(exports[i].f);
+			memset(&exports[i], 0, sizeof(exports[i]));
+		}
+	mutex_unlock(&exportlock);
 }
 
 int

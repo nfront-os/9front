@@ -325,7 +325,7 @@ and intelgpu give it when the object is made)
 a context's picture on the display, 0 the screen again
 .TP
 .BR export ", " import
-an object between contexts by token (virtiogpu, amdgpu)
+an object between contexts by token (virtiogpu, amdgpu, i915)
 .TP
 .B submit
 the file a context's work goes to;
@@ -547,7 +547,18 @@ A context's
 .B ctl
 also takes
 .BI getparam " n" ,
-i915's GETPARAM.
+i915's GETPARAM;
+.BI export " id"
+(reply
+.BI export " token" ,
+the object a dma-buf, PRIME, named by 128 random bits, the same for each
+export from the context; good while the context lives) and
+.BI import " token"
+(reply
+.BI import " id seg va size" ,
+the object as one of this context's, not bound, its pages a segment of
+its own), as amdgpu's: so Mesa's dma-bufs go between processes
+(libdrm9's PRIME: the token as a descriptor).
 .B Status
 has the lines of
 .IR intelgpu :
@@ -1237,7 +1248,7 @@ within a context (not between processes); on
 .I virtiogpu
 no sharing of fences between processes yet.
 .IR I915 :
-no sharing of objects between processes yet.
+no sharing of syncobjs between processes yet (objects: export and import).
 .br
 A dma-buf descriptor of Mesa's (plan9/lib/dmabuf.c: a pipe holding its
 token) tells the token only to the first other process that reads it;

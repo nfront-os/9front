@@ -7,7 +7,8 @@
 // the client copies nothing. The context is made when the first such buffer
 // comes, on the first device (/dev/gpu/0): aux/virtiogpu's (venus: a blob,
 // in the device's host visible memory, whose segments stay attached while
-// wsys runs) or aux/amdgpu's (a GEM object, a segment of its own each).
+// wsys runs), aux/amdgpu's (a GEM object, a segment of its own each) or
+// aux/i915's (a GEM object, its pages a segment of its own).
 
 use crate::p9::{Fd, ORDWR, Seg};
 use std::collections::HashMap;
@@ -18,6 +19,7 @@ use std::rc::Rc;
 enum Drv {
     Virtio, // aux/virtiogpu: import gives "res r size", unref lets go
     Amd,    // aux/amdgpu: import gives "import handle size", close lets go
+    Intel,  // aux/i915: import gives "import id seg va size", close lets go
 }
 
 pub struct Gpu {
@@ -111,6 +113,7 @@ impl Gpu {
         let drv = match status.lines().next().unwrap_or("") {
             l if l.starts_with("device virtio-gpu") => Drv::Virtio,
             l if l.starts_with("device amd") => Drv::Amd,
+            l if l.starts_with("device intel") => Drv::Intel,
             l => return Err(io::Error::other(format!("gpu: no buffers of {l:?} yet"))),
         };
         let ctl = Fd::open("/dev/gpu/0/clone", ORDWR)?;
@@ -149,6 +152,9 @@ impl Gpu {
         if self.drv == Drv::Amd {
             return self.importamd(token, size);
         }
+        if self.drv == Drv::Intel {
+            return self.importintel(token, size);
+        }
         // res r size [seg name va]
         let rep = self.req(&format!("import {token}"))?;
         let f: Vec<&str> = rep.split_whitespace().collect();
@@ -176,6 +182,29 @@ impl Gpu {
         }
         m.va = bar.va + off;
         m.len = size;
+        Ok(m)
+    }
+
+    /// aux/i915: import token gives "import id seg va size", the object's pages
+    /// as a segment of their own (in system memory: the processor reads them
+    /// as the GPU wrote them, the LLC keeps both coherent)
+    fn importintel(&mut self, token: &str, size: usize) -> io::Result<GpuMem> {
+        let rep = self.req(&format!("import {token}"))?;
+        let f: Vec<&str> = rep.split_whitespace().collect();
+        let hex = |x: &str| usize::from_str_radix(x.trim_start_matches("0x"), 16).ok();
+        let (Some(&"import"), Some(id), Some(&seg), Some(osize)) =
+            (f.first(), f.get(1).and_then(|x| x.parse::<u32>().ok()), f.get(2), f.get(4).and_then(|x| hex(x)))
+        else {
+            return Err(bad("import", &rep));
+        };
+        let mut m = GpuMem { ctl: self.ctl.clone(), res: id, seg: None, va: 0, len: 0, copy: vec![] };
+        if osize < size {
+            return Err(io::Error::other(format!("gpu: buffer of {osize} bytes, {size} wanted")));
+        }
+        let s = Seg::phys(seg, osize)?;
+        m.va = s.va;
+        m.len = size;
+        m.seg = Some(s);
         Ok(m)
     }
 

@@ -144,6 +144,10 @@ struct Fd {
 	int	sid;
 };
 
+/* plan9/lib/dmabuf.c: an export token as a descriptor, and back */
+extern int	plan9_dmabuf_fd(const char *token);
+extern int	plan9_dmabuf_token(int fd, char *buf, int n);
+
 static pthread_mutex_t lk = PTHREAD_MUTEX_INITIALIZER;
 static Gpu gpus[Maxdev];
 static int ngpu = -1;
@@ -625,31 +629,37 @@ getgem(Dev *d, uint32_t h)
 	return &d->gem[h-1];
 }
 
+/* a free slot of d's objects, its index; -1 */
 static int
-gemcreate(Dev *d, uint64_t size, uint32_t *handle)
+gemslot(Dev *d)
 {
-	char reply[256], *f[6], *p;
-	Gem *g, *ng;
-	int i, n;
+	Gem *ng;
+	int i;
 
 	for(i = 0; i < d->ngem; i++)
 		if(!d->gem[i].used)
-			break;
-	if(i == d->ngem){
-		ng = realloc(d->gem, (d->ngem + 64) * sizeof *ng);
-		if(ng == NULL)
-			return seterr(ENOMEM);
-		memset(ng + d->ngem, 0, 64 * sizeof *ng);
-		d->gem = ng;
-		d->ngem += 64;
-	}
-	if(ctl(d, reply, sizeof reply, "bo %llu 0", (unsigned long long)size) < 0)
-		return -1;
-	/* bo id seg va size gpuaddr */
+			return i;
+	ng = realloc(d->gem, (d->ngem + 64) * sizeof *ng);
+	if(ng == NULL)
+		return seterr(ENOMEM);
+	memset(ng + d->ngem, 0, 64 * sizeof *ng);
+	d->gem = ng;
+	d->ngem += 64;
+	return i;
+}
+
+/* the object of the driver's reply "word id seg va size ..." in slot i: its handle */
+static int
+gemreply(Dev *d, int i, char *reply, char *word, uint32_t *handle)
+{
+	char *f[6], *p;
+	Gem *g;
+	int n;
+
 	n = 0;
 	for(p = strtok(reply, " \n"); p != NULL && n < 6; p = strtok(NULL, " \n"))
 		f[n++] = p;
-	if(n != 6 || strcmp(f[0], "bo") != 0)
+	if(n < 5 || strcmp(f[0], word) != 0)
 		return seterr(ENOMEM);
 	g = &d->gem[i];
 	memset(g, 0, sizeof *g);
@@ -660,6 +670,35 @@ gemcreate(Dev *d, uint64_t size, uint32_t *handle)
 	g->size = strtoull(f[4], NULL, 0);
 	*handle = i+1;
 	return 0;
+}
+
+static int
+gemcreate(Dev *d, uint64_t size, uint32_t *handle)
+{
+	char reply[256];
+	int i;
+
+	if((i = gemslot(d)) < 0)
+		return -1;
+	if(ctl(d, reply, sizeof reply, "bo %llu 0", (unsigned long long)size) < 0)
+		return -1;
+	/* bo id seg va size gpuaddr */
+	return gemreply(d, i, reply, "bo", handle);
+}
+
+/* gpu(4)'s import: another context's exported object as one of d's (not bound) */
+static int
+gemimport(Dev *d, const char *token, uint32_t *handle)
+{
+	char reply[256];
+	int i;
+
+	if((i = gemslot(d)) < 0)
+		return -1;
+	if(ctl(d, reply, sizeof reply, "import %s", token) < 0)
+		return -1;
+	/* import id seg va size */
+	return gemreply(d, i, reply, "import", handle);
 }
 
 static char*
@@ -1287,13 +1326,33 @@ i915ioctl(Dev *d, unsigned long req, void *arg)
 	case DRM_IOCTL_I915_GEM_EXECBUFFER2_WR:
 		return execbuf(d, arg);
 	case DRM_IOCTL_PRIME_HANDLE_TO_FD: {
+		/*
+		 * the driver's export: a token, the descriptor a pipe that
+		 * holds it (plan9/lib/dmabuf.c), which another process (a
+		 * compositor) can import; known here as the object's dma-buf
+		 * too (its sync files).  A driver without export: a dma-buf
+		 * of this process only.
+		 */
 		struct drm_prime_handle *ph = arg;
+		char reply[128], token[64];
 		pthread_mutex_lock(&lk);
-		if(getgem(d, ph->handle) == NULL){
+		if((g = getgem(d, ph->handle)) == NULL){
 			pthread_mutex_unlock(&lk);
 			return seterr(ENOENT);
 		}
-		if((r = newfd(Kdmabuf, d)) < 0){
+		r = -1;
+		if(ctl(d, reply, sizeof reply, "export %d", g->id) == 0 &&
+		   sscanf(reply, "export %63s", token) == 1 && (r = plan9_dmabuf_fd(token)) >= 0){
+			if(r >= Maxfd){
+				close(r);
+				pthread_mutex_unlock(&lk);
+				return seterr(EMFILE);
+			}
+			memset(&fds[r], 0, sizeof fds[r]);
+			fds[r].kind = Kdmabuf;
+			fds[r].dev = d;
+			fds[r].ino = ino(r);
+		}else if((r = newfd(Kdmabuf, d)) < 0){
 			pthread_mutex_unlock(&lk);
 			return -1;
 		}
@@ -1303,16 +1362,23 @@ i915ioctl(Dev *d, unsigned long req, void *arg)
 		return 0;
 	}
 	case DRM_IOCTL_PRIME_FD_TO_HANDLE: {
+		/* one of this process's dma-bufs; else another's, by its token */
 		struct drm_prime_handle *ph = arg;
+		char token[64];
 		Fd *f;
 		pthread_mutex_lock(&lk);
-		if((f = getfd(ph->fd, Kdmabuf)) == NULL || f->dev != d){
+		if((f = getfd(ph->fd, Kdmabuf)) != NULL && f->dev == d){
+			ph->handle = f->handle;
+			pthread_mutex_unlock(&lk);
+			return 0;
+		}
+		if(plan9_dmabuf_token(ph->fd, token, sizeof token) < 0){
 			pthread_mutex_unlock(&lk);
 			return seterr(EINVAL);
 		}
-		ph->handle = f->handle;
+		r = gemimport(d, token, &ph->handle);
 		pthread_mutex_unlock(&lk);
-		return 0;
+		return r;
 	}
 	}
 	return seterr(EINVAL);

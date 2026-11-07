@@ -21,6 +21,8 @@ void	i915_ctx_free(void *c);
 int	i915_bo_new(void *c, u64g size, u64g *gpu, int *id, char *seg, int nseg, u64g *va, u64g *size1);	/* *gpu ~0: the driver chooses */
 int	i915_bo_bind(void *c, int id, u64g gpu);
 int	i915_bo_free(void *c, int id);
+int	i915_bo_export(void *c, int id, char *token, int ntoken);	/* a dma-buf named by token */
+int	i915_bo_import(void *c, const char *token, int *id, char *seg, int nseg, u64g *va, u64g *size);
 int	i915_submit(void *c, int id, unsigned int offset, int engine, u64g *k);	/* engine: 0 rcs, 1 bcs */
 int	i915_fence_wait(void *c, u64g k, int query);	/* 1 done, 0 not, <0 none */
 void	i915_fence_count(void *c, u64g *done, u64g *n, int *failed);
