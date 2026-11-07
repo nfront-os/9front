@@ -31,8 +31,8 @@ bash "$ROOT/scripts/wayland/build.sh" "$HERE/root/tests"
 # weston's examples (scripts/wayland/weston.sh: simple-shm, simple-egl)
 bash "$ROOT/scripts/wayland/weston.sh" build "$HERE/root/tests" >/dev/null
 cp "$HERE/wlweston.rc" "$HERE/root/tests/wlweston.rc"
-cp "$HERE/restartA.rc" "$HERE/wsysrestart.rc" "$HERE/root/tests/"
-chmod +x "$HERE/root/tests/wlweston.rc" "$HERE/root/tests/wsysrestart.rc" "$HERE/root/tests/restartA.rc"
+cp "$HERE/restartA.rc" "$HERE/wsysrestart.rc" "$HERE/inwin.rc" "$HERE/root/tests/"
+chmod +x "$HERE/root/tests/wlweston.rc" "$HERE/root/tests/wsysrestart.rc" "$HERE/root/tests/restartA.rc" "$HERE/root/tests/inwin.rc"
 cp "$ROOT/amd64/bin/wsys" "$HERE/root/tests/wsys"
 cp "$HERE/wlsys.rc" "$HERE/root/tests/wlsys.rc"
 cp "$HERE/wlvk.rc" "$HERE/root/tests/wlvk.rc"
@@ -59,7 +59,7 @@ if [ "${VKONLY:-0}" = 0 ]; then
 	timeout 660 python3 "$ROOT/scripts/guest/mcp.py" wait 600 >/dev/null
 	out=$($M rc '/tests/wltest >[2=1]' 120) || true
 	echo "$out"
-	wl=$($M rc "bind -a '#i' /dev; bind -a '#m' /dev; /tests/wsys -x -i /tests/wlsys.rc >/tmp/wsys.log >[2=1]; cat /tmp/wsys.log /tmp/wlclient.log; sed 's/^/shm: /' /tmp/weston-simple-shm.log" 300) || true
+	wl=$($M rc "bind -a '#i' /dev; bind -a '#m' /dev; /tests/wsys -x -i /tests/wlsys.rc >/tmp/wsys.log >[2=1]; cat /tmp/wsys.log /tmp/wlclient.log; sed 's/^/shm: /' /tmp/weston-simple-shm.log; sed 's/^/inwin: /' /tmp/inwinwatch.log /tmp/inwin.log" 300) || true
 	echo "$wl"
 	$M rc "cat /tmp/keymap.xkb" > "$CLI_DIR/wlsys-keymap.xkb" 2>/dev/null || true
 	# a Wayland client outlives its wsys: wlsys makes its window in the next one
@@ -70,6 +70,9 @@ if [ "${VKONLY:-0}" = 0 ]; then
 	echo "$out" | grep -q '^wltest: all passed' || { echo "FAIL wltest"; fail=1; }
 	echo "$wl" | grep -q '^wlclient: all passed' || { echo "FAIL wlclient"; fail=1; }
 	weston "$wl" shm simple-shm
+	echo "$wl" | grep -q '^inwin: wlwatch simple-shm: all passed' &&
+		echo "ok wlsys started in a window of wsys (it mounts \$wsys)" ||
+		{ echo "FAIL wlsys started in a window of wsys"; echo "$wl" | grep '^inwin:' | head -5; fail=1; }
 	for w in "wlsys outlives wsys A (exited)" "wlsys outlives wsys B (killed)" "simple-shm gone after the delete in wsys C"; do
 		[ "$(echo "$rs" | grep -c "^ok $w")" -ge 1 ] || { echo "FAIL wsys restart: $w"; fail=1; }
 	done

@@ -112,6 +112,18 @@ if [ -x "$VK/vulkaninfo" ]; then
 	done
 	PROTOS+=("$ROOT/scripts/guest/boot/vkproto")
 fi
+# tests/wayland's programs and scripts (its run.sh built them: wlsys,
+# weston's examples, the Wayland tests) as /tests, for rc/bin/wlrun on a
+# machine booted from the CD
+WLT=$ROOT/tests/wayland/root/tests
+if [ -x "$WLT/wlsys" ]; then
+	rm -f "$VIEW/tests"
+	mkdir "$VIEW/tests"
+	for p in "$WLT"/*; do
+		ln -s "$p" "$VIEW/tests/$(basename "$p")"
+	done
+	PROTOS+=("$ROOT/scripts/guest/boot/wlproto")
+fi
 
 rm -rf "$OUT"
 mkdir -p "$OUT"

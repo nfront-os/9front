@@ -1,0 +1,3 @@
+#!/bin/rc
+# wlsys.rc's window: wlsys with weston's simple-shm, started in it
+/tests/wlsys /tests/weston-simple-shm >/tmp/inwin.log >[2=1]

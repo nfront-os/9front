@@ -6,3 +6,9 @@ echo wlsys: exit $status >>/tmp/wlclient.log
 # weston's simple-shm (wl_shm, a memfd with seals)
 if(test -x /tests/weston-simple-shm)
 	/tests/wlweston.rc weston-simple-shm simple-shm
+# wlsys started in a window of wsys, as one does (wlsys(4)'s example): there
+# /mnt/wsys is the window, wlsys mounts $wsys; simple-shm's window watched
+# and deleted from here
+rm -f /tmp/inwin.log
+window -r 400 300 800 600 /tests/inwin.rc
+/tests/wlwatch simple-shm >/tmp/inwinwatch.log >[2=1]

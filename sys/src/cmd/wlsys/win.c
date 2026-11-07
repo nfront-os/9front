@@ -15,10 +15,6 @@
  */
 #include "dat.h"
 
-/* APE's system calls (sys9.h): Plan 9's mount, which POSIX has not */
-extern int _MOUNT(int, int, const char *, int, const char *);
-enum { MREPL = 0 };
-
 int screenw, screenh;
 static uint32_t clock;
 static struct wl_event_source *retry;	/* while wsys is gone */

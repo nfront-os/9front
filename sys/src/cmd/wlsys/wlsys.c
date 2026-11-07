@@ -17,10 +17,6 @@ struct wl_event_loop *loop;
 struct wl_list surfaces;
 int debug;
 
-/* APE's system calls (sys9.h): Plan 9's rfork, which POSIX has not */
-extern int _RFORK(int);
-enum { RFNOTEG = 1<<3 };
-
 static struct wl_list outputs;	/* wl_output resources */
 /*
  * frame callbacks due: done at the next tick, 16 ms after the first came,
@@ -461,6 +457,17 @@ main(int argc, char **argv)
 			usage();
 		}
 	argv += optind;
+	/*
+	 * in a window of wsys /mnt/wsys is that window ($wsys names the
+	 * connection): a name space of wlsys' own with wsys' tree there
+	 */
+	if(access("/mnt/wsys/clone", 0) < 0 && (s = getenv("wsys")) != NULL && *s != 0){
+		int fd;
+
+		if(_RFORK(RFNAMEG) < 0 || (fd = open(s, O_RDWR)) < 0 ||
+		   _MOUNT(fd, -1, "/mnt/wsys", MREPL, "") < 0)
+			fprintf(stderr, "wlsys: mount %s on /mnt/wsys: %s\n", s, strerror(errno));
+	}
 	if(wsysinit() < 0){
 		fprintf(stderr, "wlsys: /mnt/wsys/screen: %s: not in wsys\n", strerror(errno));
 		return 1;

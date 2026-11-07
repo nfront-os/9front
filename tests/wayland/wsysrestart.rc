@@ -12,7 +12,6 @@ fn waitsrv { # pid of the wsys whose srv entry to wait for
 	n=0
 	while(! test -e /srv/wsys.$user.$1 && test $n -lt 100){ sleep 0.1; n=`{echo $n+1 | hoc} }
 }
-fn wsyspids { ps | awk '$NF == "wsys" { print $2 }' }
 fn alive { # what
 	w=`{cat /tmp/wlsys.pid}
 	if(test -e /proc/$w) echo ok wlsys outlives $1
@@ -31,8 +30,9 @@ b=$apid
 waitsrv $b
 mount /srv/wsys.$user /mnt/wsys
 /tests/wlwatch -k simple-shm
-echo killing wsys B: `{wsyspids}
-for(p in `{wsyspids}) echo kill >/proc/$p/ctl
+# all of B's procs, nothing else (its note group: a desktop's wsys stays)
+echo killing wsys B
+echo kill >/proc/$b/notepg
 sleep 1
 unmount /mnt/wsys >[2]/dev/null
 alive 'wsys B (killed)'
@@ -50,5 +50,5 @@ if(test -e /proc/$w){
 	echo kill >/proc/$w/ctl
 }
 if not echo ok simple-shm gone after the delete in wsys C
-for(p in `{wsyspids}) echo kill >/proc/$p/ctl
+echo kill >/proc/$c/notepg
 grep 'wlsys: wsys\|wlsys: /srv' /tmp/restart.log

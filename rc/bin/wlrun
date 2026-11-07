@@ -1,0 +1,68 @@
+#!/bin/rc
+# wlrun: the Wayland tests of tests/wayland on this machine (the laptop,
+# booted from a CD made with them: scripts/guest/stage-dist.sh puts them in
+# /tests), in a window of wsys (desktop=wsys); their output into wl.log on
+# the ESP (FAT) of the USB stick the system booted from, as i915run's
+# (written through: it survives a hang), else in /tmp.  Each part runs in a
+# wsys of its own in this window:
+#	wlsys.rc	wlclient (pixels, a click, keys, a resize, close), weston's
+#			simple-shm
+#	wlvk.rc		GPU buffers by linux-dmabuf, Mesa's Wayland WSI, vkcube
+#			--wsi wayland, GLES on EGL's Wayland platform (wlgl),
+#			weston's simple-egl (with aux/i915 or aux/amdgpu running)
+#	wsysrestart.rc	simple-shm outlives its wsys, twice
+# Each part gets 5 minutes; one that takes longer is killed (its note
+# group) and the processes still running are listed.
+rfork e
+# in a window of wsys /mnt/wsys is that window: wsys' tree there ($wsys)
+if(! test -e /mnt/wsys/clone && ! ~ $#wsys 0){
+	rfork n
+	mount -c $wsys /mnt/wsys
+}
+if(! test -e /mnt/wsys/clone){
+	echo wlrun: run me in a window of wsys
+	exit wsys
+}
+if(! test -x /tests/wlsys){
+	echo 'wlrun: no /tests/wlsys: a CD with the programs of tests/wayland'
+	exit tests
+}
+dir=/tmp
+# (no USB disk: the pattern matches nothing, a null list in rc)
+if(! test -e /srv/gpu.esp && test -d '#σ/usb'){
+	for(d in '#σ/usb'/sdU*/esp)
+		if(! test -e /srv/gpu.esp && test -r $d)
+			dossrv -f $d gpu.esp >/dev/null >[2=1]
+}
+if(test -e /srv/gpu.esp && mount -c /srv/gpu.esp /n/esp)
+	dir=/n/esp
+log=$dir/wl.log
+echo wlrun: the log is $log
+bind -a '#m' /dev
+fn part { # name cmd...
+	name=$1
+	shift
+	echo '====' $name `{date}
+	{ $* >/tmp/wlrun.out >[2=1]; touch /tmp/wlrun.done } &
+	p=$apid
+	n=0
+	while(! test -e /tmp/wlrun.done && test $n -lt 300){ sleep 1; n=`{echo $n+1 | hoc} }
+	if(! test -e /tmp/wlrun.done){
+		echo $name: not done in 5 minutes, running:
+		ps | grep -v ' (listen|Wakeme|Idle) '
+		echo kill >/proc/$p/notepg
+	}
+	rm -f /tmp/wlrun.done
+	cat /tmp/wlrun.out
+	echo $name: $n s
+}
+{
+	echo wlrun on $sysname `{date}
+	cat /dev/gpu/0/status >[2]/dev/null
+	rm -f /tmp/wlclient.log /tmp/weston-simple-shm.log /tmp/wlvk.log /tmp/vkcube.log /tmp/wlgl.log /tmp/weston-simple-egl.log
+	part wlsys rc -c '/tests/wsys -x -i /tests/wlsys.rc; cat /tmp/wlclient.log; sed ''s/^/shm: /'' /tmp/weston-simple-shm.log'
+	part wlvk rc -c '/tests/wsys -x -i /tests/wlvk.rc; cat /tmp/wlvk.log; sed ''s/^/vkcube: /'' /tmp/vkcube.log; sed ''s/^/wlgl: /'' /tmp/wlgl.log; sed ''s/^/egl: /'' /tmp/weston-simple-egl.log'
+	part restart /tests/wsysrestart.rc
+	echo wlrun: done `{date}
+} >$log >[2=1]
+grep '^(FAIL|====|[a-z]+: [0-9]+ s$)|all passed|failed' $log

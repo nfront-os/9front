@@ -20,6 +20,15 @@
 #include <wayland-server.h>
 #include <xdg-shell-server-protocol.h>
 
+/* APE's system calls (its sys9.h): Plan 9's rfork and mount, which POSIX has not */
+extern int _RFORK(int);
+extern int _MOUNT(int, int, const char *, int, const char *);
+enum {
+	RFNAMEG = 1<<0,
+	RFNOTEG = 1<<3,
+	MREPL = 0,
+};
+
 enum {
 	Nslot = 8,	/* wsys' buffers a window */
 	Maxkeys = 64,	/* keys held at once */
