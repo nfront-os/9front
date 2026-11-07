@@ -26,7 +26,8 @@ bufferdestroy(struct wl_resource *r)
 	b = wl_resource_get_user_data(r);
 	buffergone(b);
 	unbuffer(b);
-	poolput(b->pool);
+	if(b->pool != NULL)
+		poolput(b->pool);
 	free(b);
 }
 
@@ -40,6 +41,27 @@ bufferreqdestroy(struct wl_client *c, struct wl_resource *r)
 static const struct wl_buffer_interface bufferimpl = {
 	bufferreqdestroy,
 };
+
+/* a wl_buffer for the client, its fields to be set; nil: no memory (posted) */
+Buffer*
+newbuffer(struct wl_client *c, uint32_t id)
+{
+	Buffer *b;
+
+	if((b = calloc(1, sizeof *b)) == NULL){
+		wl_client_post_no_memory(c);
+		return NULL;
+	}
+	b->res = wl_resource_create(c, &wl_buffer_interface, 1, id);
+	if(b->res == NULL){
+		free(b);
+		wl_client_post_no_memory(c);
+		return NULL;
+	}
+	b->slot = -1;
+	wl_resource_set_implementation(b->res, &bufferimpl, b, bufferdestroy);
+	return b;
+}
 
 Buffer*
 getbuffer(struct wl_resource *r)
@@ -67,16 +89,8 @@ poolcreatebuffer(struct wl_client *c, struct wl_resource *r, uint32_t id,
 			w, h, stride, off, p->size);
 		return;
 	}
-	if((b = calloc(1, sizeof *b)) == NULL){
-		wl_client_post_no_memory(c);
+	if((b = newbuffer(c, id)) == NULL)
 		return;
-	}
-	b->res = wl_resource_create(c, &wl_buffer_interface, 1, id);
-	if(b->res == NULL){
-		free(b);
-		wl_client_post_no_memory(c);
-		return;
-	}
 	b->pool = p;
 	p->ref++;
 	b->off = off;
@@ -84,8 +98,6 @@ poolcreatebuffer(struct wl_client *c, struct wl_resource *r, uint32_t id,
 	b->h = h;
 	b->stride = stride;
 	b->format = format;
-	b->slot = -1;
-	wl_resource_set_implementation(b->res, &bufferimpl, b, bufferdestroy);
 }
 
 static void

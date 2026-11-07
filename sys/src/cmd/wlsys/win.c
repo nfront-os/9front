@@ -282,7 +282,10 @@ slotof(Win *w, Buffer *b)
 		return -1;	/* all of them presented, none released yet */
 	if(w->slot[old] != NULL)
 		unbuffer(w->slot[old]);
-	if(ctlmsg(w, "buffer %d %s %d %d %d %d", old, b->pool->seg, b->w, b->h, b->stride, b->off) < 0)
+	if(b->pool != NULL){
+		if(ctlmsg(w, "buffer %d %s %d %d %d %d", old, b->pool->seg, b->w, b->h, b->stride, b->off) < 0)
+			return -1;
+	}else if(ctlmsg(w, "gpubuffer %d %s %d %d %d", old, b->token, b->w, b->h, b->stride) < 0)
 		return -1;
 	w->slot[old] = b;
 	b->win = w;

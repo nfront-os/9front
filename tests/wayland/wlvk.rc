@@ -1,0 +1,5 @@
+#!/bin/rc
+# run by wsys -x -i (tests/wayland/run.sh, the guest with venus): wlsys with
+# wlvk, a Wayland client whose buffers are GPU buffers (zwp_linux_dmabuf_v1)
+/tests/wlsys -d /tests/wlvk >/tmp/wlvk.log >[2=1]
+echo wlsys: exit $status >>/tmp/wlvk.log

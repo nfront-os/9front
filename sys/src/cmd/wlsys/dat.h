@@ -5,7 +5,8 @@
  * stage 6.5).  Each xdg toplevel is a window of wsys; a wl_shm pool is a
  * segment of segment(3) where the kernel put it (APE's memfd_create), and
  * its buffers go to wsys as they are (buffer n seg w h stride off): no copy
- * here.  Input comes from the window's files: event (the mouse, sizes,
+ * here; a dma-buf (zwp_linux_dmabuf_v1) is a GPU buffer of gpu(4), named
+ * by its export token, which goes to wsys as one (gpubuffer).  Input comes from the window's files: event (the mouse, sizes,
  * focus, released buffers) and kbd (kbd(3) messages: keys down and up).
  */
 #include <stdio.h>
@@ -46,7 +47,8 @@ struct Pool {
 
 struct Buffer {
 	struct wl_resource	*res;
-	Pool	*pool;
+	Pool	*pool;		/* wl_shm's; nil for a dma-buf */
+	char	token[64];	/* a dma-buf's: gpu(4)'s export token */
 	int32_t	off, w, h, stride;
 	uint32_t	format;
 	Win	*win;		/* the window it is announced to, and as which buffer */
@@ -114,7 +116,11 @@ void	sendenter(Surface*);
 
 /* shm.c */
 void	shminit(void);
+Buffer	*newbuffer(struct wl_client*, uint32_t);
 Buffer	*getbuffer(struct wl_resource*);
+
+/* dmabuf.c */
+void	dmabufinit(void);
 
 /* xdg.c */
 void	xdginit(void);

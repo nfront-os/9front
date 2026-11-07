@@ -245,8 +245,11 @@ The blob lives until the last context holding it releases it
 or closing the context); the token goes with it.
 Mesa's venus driver uses them for Vulkan's external memory (dma-buf
 handles, VK_KHR_external_memory_fd): in a process a token takes the shape
-of a file descriptor (plan9/lib/dmabuf.c), between processes it goes as
-text.
+of a file descriptor (plan9/lib/dmabuf.c: a pipe holding the line
+.BI dmabuf " token" ,
+which another process that gets the descriptor reads once, as
+.IR wlsys (4)
+does), between processes it goes as text.
 .TP
 .BI scanout " r w h stride
 show host blob

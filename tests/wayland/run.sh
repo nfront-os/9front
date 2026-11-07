@@ -7,6 +7,9 @@
 # VESA screen: wltest alone, wlclient in wsys -x -i under wlsys (a toplevel's
 # buffers on wsys' screen, a click, keys, a resize, close). The keymap wlsys made
 # of kbdfs' tables is compiled with the host's xkbcommon (xkbcli), if it has one.
+# Then, with libvulkan.a (build.exe, sys/src/mesa) and a host that runs venus
+# (virtio-gpu-gl), wlvk in a second guest: GPU buffers by zwp_linux_dmabuf_v1
+# (VKONLY=1: only that guest; NOVK=1: not it).
 # usage: tests/wayland/run.sh   (needs ../9front-gcc's cross gcc; a build with wsys)
 set -e
 HERE=$(cd "$(dirname "$0")" && pwd)
@@ -22,33 +25,57 @@ bash "$ROOT/scripts/wayland/build.sh" "$HERE/root/tests"
 	-lwayland-client -lffi
 cp "$ROOT/amd64/bin/wsys" "$HERE/root/tests/wsys"
 cp "$HERE/wlsys.rc" "$HERE/root/tests/wlsys.rc"
-chmod +x "$HERE/root/tests/wlsys.rc"
-
-UFS_EXTRA=$HERE/root MEM=1024 KARGS="vgasize=1024x768x32 monitor=vesa mouseport=ps2" \
-	setsid bash "$ROOT/scripts/guest/mcp-guest.sh" 'aux/realemu' 'aux/vga -m vesa -l 1024x768x32' \
-	>"$CLI_DIR/waylandguest.log" 2>&1 &
-guest=$!
-trap 'kill -TERM -- -$guest 2>/dev/null || kill $guest 2>/dev/null; wait $guest 2>/dev/null || true' EXIT
-M="timeout 300 python3 $ROOT/scripts/guest/mcp.py"
-$M wait 600 >/dev/null
-out=$($M rc '/tests/wltest >[2=1]' 120) || true
-echo "$out"
-wl=$($M rc "bind -a '#i' /dev; bind -a '#m' /dev; /tests/wsys -x -i /tests/wlsys.rc >/tmp/wsys.log >[2=1]; cat /tmp/wsys.log /tmp/wlclient.log" 240) || true
-echo "$wl"
-$M rc "cat /tmp/keymap.xkb" > "$CLI_DIR/wlsys-keymap.xkb" 2>/dev/null || true
-kill -TERM -- -$guest 2>/dev/null || kill $guest 2>/dev/null
-wait $guest 2>/dev/null || true
-trap - EXIT
+cp "$HERE/wlvk.rc" "$HERE/root/tests/wlvk.rc"
+chmod +x "$HERE/root/tests/wlsys.rc" "$HERE/root/tests/wlvk.rc"
 fail=0
-echo "$out" | grep -q '^wltest: all passed' || { echo "FAIL wltest"; fail=1; }
-echo "$wl" | grep -q '^wlclient: all passed' || { echo "FAIL wlclient"; fail=1; }
-if command -v xkbcli >/dev/null; then
-	if [ -s "$CLI_DIR/wlsys-keymap.xkb" ] &&
-	   xkbcli compile-keymap --keymap "$CLI_DIR/wlsys-keymap.xkb" >/dev/null 2>"$CLI_DIR/wlsys-keymap.err"; then
-		echo "ok the keymap of wlsys: xkbcommon compiles it"
-	else
-		echo "FAIL the keymap of wlsys: xkbcommon: $(head -3 "$CLI_DIR/wlsys-keymap.err" 2>/dev/null)"; fail=1
+M="timeout 300 python3 $ROOT/scripts/guest/mcp.py"
+stop(){ kill -TERM -- -$guest 2>/dev/null || kill $guest 2>/dev/null; wait $guest 2>/dev/null || true; }
+
+if [ "${VKONLY:-0}" = 0 ]; then
+	UFS_EXTRA=$HERE/root MEM=1024 KARGS="vgasize=1024x768x32 monitor=vesa mouseport=ps2" \
+		setsid bash "$ROOT/scripts/guest/mcp-guest.sh" 'aux/realemu' 'aux/vga -m vesa -l 1024x768x32' \
+		>"$CLI_DIR/waylandguest.log" 2>&1 &
+	guest=$!
+	trap stop EXIT
+	$M wait 600 >/dev/null
+	out=$($M rc '/tests/wltest >[2=1]' 120) || true
+	echo "$out"
+	wl=$($M rc "bind -a '#i' /dev; bind -a '#m' /dev; /tests/wsys -x -i /tests/wlsys.rc >/tmp/wsys.log >[2=1]; cat /tmp/wsys.log /tmp/wlclient.log" 240) || true
+	echo "$wl"
+	$M rc "cat /tmp/keymap.xkb" > "$CLI_DIR/wlsys-keymap.xkb" 2>/dev/null || true
+	stop
+	trap - EXIT
+	echo "$out" | grep -q '^wltest: all passed' || { echo "FAIL wltest"; fail=1; }
+	echo "$wl" | grep -q '^wlclient: all passed' || { echo "FAIL wlclient"; fail=1; }
+	if command -v xkbcli >/dev/null; then
+		if [ -s "$CLI_DIR/wlsys-keymap.xkb" ] &&
+		   xkbcli compile-keymap --keymap "$CLI_DIR/wlsys-keymap.xkb" >/dev/null 2>"$CLI_DIR/wlsys-keymap.err"; then
+			echo "ok the keymap of wlsys: xkbcommon compiles it"
+		else
+			echo "FAIL the keymap of wlsys: xkbcommon: $(head -3 "$CLI_DIR/wlsys-keymap.err" 2>/dev/null)"; fail=1
+		fi
 	fi
+fi
+
+# GPU buffers: wlvk on venus (Mesa's dma-buf fds, wsys' gpubuffer)
+if [ "${NOVK:-0}" = 0 ]; then
+	CC=$CROSS/$TRIPLE-gcc ARCH=amd64 "$ROOT/sys/src/cmd/build/build.exe" -D "$ROOT/sys/src/mesa/build.json" \
+		>"$CLI_DIR/wayland-libvulkan.log" 2>&1 || { tail -20 "$CLI_DIR/wayland-libvulkan.log"; exit 1; }
+	"$CROSS/$TRIPLE-gcc" -std=gnu11 -O2 -Wall -Wno-unused-parameter -c -o "$CLI_DIR/wlvk.o" "$HERE/wlvk.c"
+	"$CROSS/$TRIPLE-g++" -o "$HERE/root/tests/wlvk" "$CLI_DIR/wlvk.o" -Wl,--gc-sections \
+		-lvulkan -ldraw -l9 -lfmt -lutf -lwayland-client -lffi
+	UFS_EXTRA=$HERE/root MEM=1024 CPU=host \
+	QEMU_EXTRA="-vga none -display egl-headless -device virtio-gpu-gl-pci,blob=true,venus=true,hostmem=256M -object memory-backend-memfd,id=mem1,size=1024M,share=on -machine memory-backend=mem1" \
+		setsid bash "$ROOT/scripts/guest/mcp-guest.sh" 'aux/virtiogpu' \
+		>"$CLI_DIR/waylandvkguest.log" 2>&1 &
+	guest=$!
+	trap stop EXIT
+	$M wait 600 >/dev/null
+	vk=$($M rc "bind -a '#i' /dev; bind -a '#m' /dev; /tests/wsys -x -i /tests/wlvk.rc >/tmp/wsys.log >[2=1]; cat /tmp/wsys.log /tmp/wlvk.log" 240) || true
+	echo "$vk"
+	stop
+	trap - EXIT
+	echo "$vk" | grep -q '^wlvk: all passed' || { echo "FAIL wlvk"; fail=1; }
 fi
 [ $fail = 0 ] && { echo "wayland: all passed"; exit 0; }
 echo "wayland: failed"

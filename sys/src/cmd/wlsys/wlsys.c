@@ -463,6 +463,7 @@ main(int argc, char **argv)
 	wl_global_create(display, &wl_compositor_interface, 5, NULL, compbind);
 	wl_global_create(display, &wl_output_interface, 4, NULL, outbind);
 	shminit();
+	dmabufinit();
 	seatinit();
 	xdginit();
 	dprint("%s, screen %dx%d\n", name, screenw, screenh);

@@ -19,7 +19,8 @@
 			"vendor/src/wayland-util.c",
 			"vendor/src/wayland-os.c",
 			"gen/wayland-protocol.c",
-			"gen/xdg-shell-protocol.c"
+			"gen/xdg-shell-protocol.c",
+			"gen/linux-dmabuf-unstable-v1-protocol.c"
 		]
 	},
 	{
@@ -44,7 +45,8 @@
 			"vendor/src/wayland-util.c",
 			"vendor/src/wayland-os.c",
 			"gen/wayland-protocol.c",
-			"gen/xdg-shell-protocol.c"
+			"gen/xdg-shell-protocol.c",
+			"gen/linux-dmabuf-unstable-v1-protocol.c"
 		]
 	}
 ]

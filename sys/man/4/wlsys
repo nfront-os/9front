@@ -57,9 +57,12 @@ It offers
 .BR wl_seat ,
 .B wl_output
 (the screen of
-.IR wsys )
-and
-.BR xdg_wm_base .
+.IR wsys ),
+.B xdg_wm_base
+and, when there is a GPU
+.RB ( /dev/gpu/0 ),
+.B zwp_linux_dmabuf_v1
+(version 3).
 Each xdg toplevel with a buffer is a window of
 .IR wsys ,
 made through its
@@ -111,6 +114,32 @@ longest ago that
 .I wsys
 has released is announced anew.
 .PP
+A dma-buf is a GPU buffer of
+.IR gpu (4),
+named by its export token: Mesa's Vulkan drivers make its descriptor
+the read end of a pipe that holds the line
+.BI dmabuf " token" ,
+which reaches
+.I wlsys
+as the same pipe (APE's
+.BR SCM_RIGHTS ).
+.I Wlsys
+reads the token (the same pipe again is known by its qid) and announces
+the buffer with
+.I wsys 's
+.B gpubuffer
+message;
+.I wsys
+imports the object and reads it where the processor sees it (host
+visible memory).
+One plane at offset 0, linear (or the driver's own modifier, taken as
+linear), formats
+.B argb8888
+and
+.BR xrgb8888 ;
+other buffers fail.
+There are no fences: the client's rendering must be done when it commits.
+.PP
 The pointer is the mouse of
 .IR wsys
 in the window with the focus: buttons 1, 2 and 3 are
@@ -160,14 +189,17 @@ wlsys -s wayland-0 &
 .BR scripts/wayland/build.sh )
 .SH SEE ALSO
 .IR wsys (4),
+.IR gpu (4),
 .IR segment (3),
 .IR kbd (3)
 .SH BUGS
 A first version: one output, no cursor surfaces (the cursor stays
 .IR wsys 's),
-no subsurfaces, no popups, no clipboard, no
-.B linux-dmabuf
-(GPU clients' buffers); scale and transform are taken as 1 and normal.
+no subsurfaces, no popups, no clipboard; dma-bufs without feedback
+(version 4), modifiers or fences
+.RB ( linux-drm-syncobj ),
+and Mesa's own Wayland WSI and EGL platform are not built yet; scale and
+transform are taken as 1 and normal.
 The keymap is not made again when
 .B /dev/kbmap
 changes.
