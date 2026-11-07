@@ -37,6 +37,7 @@ rm -f "$HERE/root/tests/vktest" "$HERE/root/tests/vkdraw" "$HERE/root/tests/vktr
 	"$HERE/root/tests/vkcube" "$HERE/root/tests/vulkaninfo" "$HERE/root/tests/vkspeed" \
 	"$HERE/root/tests/rsvk"
 cross=$(. "$ROOT/scripts/mesa/common.sh"; echo "$CROSS/$TRIPLE-gcc")
+cross_strip=${cross%-gcc}-strip
 if [ -x "$cross" ]; then
 	check "build libvulkan.a (build.exe, sys/src/mesa) and the Vulkan tests" bash "$HERE/build-vktest.sh"
 else
@@ -273,11 +274,18 @@ if [ -r /dev/dri/renderD128 ] && [ -w /dev/dri/renderD128 ] &&
 	if [ -x "$HERE/root/tests/vktri" ] && [ -x "$ROOT/$objtype/bin/wsys" ]; then
 		cp "$ROOT/$objtype/bin/wsys" "$HERE/root/tests/wsys"
 		cp "$HERE/wsysvk.rc" "$HERE/root/tests/wsysvk"
+		# ui (ui(4), Rust: build.exe's step rust) with its fonts
+		rm -f "$HERE/root/tests/ui"
+		if [ -x "$ROOT/$objtype/bin/ui" ]; then
+			"$cross_strip" -o "$HERE/root/tests/ui" "$ROOT/$objtype/bin/ui"
+			mkdir -p "$HERE/root/lib/font/ttf"
+			cp "$ROOT/lib/font/ttf/"*.ttf "$HERE/root/lib/font/ttf/"
+		fi
 		cp "$HERE/wsysvktri.rc" "$HERE/root/tests/wsysvktri"
 		cp "$HERE/wsysovl.rc" "$HERE/root/tests/wsysovl"
 		chmod +x "$HERE/root/tests/wsysvk" "$HERE/root/tests/wsysvktri" "$HERE/root/tests/wsysovl"
 		bootwsys(){
-			CMDWAIT=120 CPU=host MEM=1024 UFS_EXTRA="$HERE/root" \
+			CMDWAIT=300 CPU=host MEM=1024 UFS_EXTRA="$HERE/root" \
 			QEMU_EXTRA="-vga none -display egl-headless -device virtio-gpu-gl-pci,blob=true,venus=true,hostmem=256M -object memory-backend-memfd,id=mem1,size=1024M,share=on -machine memory-backend=mem1" \
 			"$ROOT/scripts/guest/boot-cli.sh" 'aux/virtiogpu' "bind -a '#i' /dev" \
 				'/tests/wsys -x -i /tests/wsysvk >/tmp/wsys.log >[2=1]; cat /tmp/wsys.log' > "$TMPD/consolewsys" 2>&1
@@ -289,6 +297,12 @@ if [ -r /dev/dri/renderD128 ] && [ -w /dev/dri/renderD128 ] &&
 		check "wsys: vktri through GPU buffers, its pixels in the window: all passed" grep -q '^gpu: vktri: all passed' "$TMPD/logwsys"
 		check "wsys: vktri by copy (WSI_PLAN9_COPY=1): all passed" grep -q '^copy: vktri: all passed' "$TMPD/logwsys"
 		grep -E '^(gpu|copy): ok [0-9]+ frames' "$TMPD/logwsys" | sed 's/^/  /'
+		if [ -x "$HERE/root/tests/ui" ]; then
+			check "wsys: ui (ui(4)) draws with the GPU (vello on wgpu)" grep -q '^ui: renderer gpu ' "$TMPD/logwsys"
+			check "wsys: ui laid out its button after a frame" grep -q '^ui: rect [0-9]' "$TMPD/logwsys"
+			check "wsys: ui rendered without errors" bash -c "! grep -q '^ui: log' '$TMPD/logwsys'"
+			grep '^ui: renderer' "$TMPD/logwsys" | sed 's/^/  /'
+		fi
 		if [ -x "$HERE/root/tests/eframetest" ]; then
 			check "wsys: eframetest (egui's eframe) on wgpu's Vulkan, not the processor: all passed" grep -q '^eframe: eframetest: all passed' "$TMPD/logwsys"
 			grep -E '^eframe: ok (wgpu adapter|[0-9]+ frames)' "$TMPD/logwsys" | sed 's/^/  /'

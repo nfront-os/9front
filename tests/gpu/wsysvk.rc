@@ -2,7 +2,8 @@
 # run by wsys -x -i (tests/gpu/run.sh): vktri in a window of wsys, whose
 # frames go to wsys as GPU buffers (gpu(4) export, wsys' gpubuffer), then
 # again by copy (WSI_PLAN9_COPY=1); eframetest (egui's eframe) on wgpu's
-# Vulkan: with a GPU it must not fall back to the processor; the logs at the end
+# Vulkan: with a GPU it must not fall back to the processor; ui (vello on
+# wgpu); the logs at the end
 rm -f /tmp/wvk.log /tmp/wvkcopy.log /tmp/eframe.log
 fn waitexit { # log
 	n=0
@@ -16,6 +17,22 @@ if(test -x /tests/eframetest){
 	window -r 100 100 600 450 'rc -c ''/tests/eframetest -r wgpu >/tmp/eframe.log >[2=1]; echo eframetest: exit $status >>/tmp/eframe.log'''
 	n=0
 	while(! grep -s '^eframetest: exit' /tmp/eframe.log && test $n -lt 900){ sleep 0.1; n=`{echo $n+1 | hoc} }
+}
+# ui (ui(4)) on the GPU: its renderer, a button laid out after a frame
+if(test -x /tests/ui){
+	window -r 100 100 600 450 'rc -c ''/tests/ui -s uivk >/tmp/uivk.log >[2=1]'''
+	n=0
+	while(! test -e /srv/uivk && test $n -lt 100){ sleep 0.1; n=`{echo $n+1 | hoc} }
+	mount /srv/uivk /mnt/ui
+	echo 'new b button
+set b text press me' >/mnt/ui/ctl
+	n=0
+	while(~ `{cat /mnt/ui/nodes/b/rect} () && test $n -lt 300){ sleep 0.1; n=`{echo $n+1 | hoc} }
+	r=`{cat /mnt/ui/renderer}
+	echo ui: renderer $"r
+	echo ui: rect `{cat /mnt/ui/nodes/b/rect}
+	grep 'render' /tmp/uivk.log | sed 's/^/ui: log /'
+	unmount /mnt/ui
 }
 sed 's/^/gpu: /' /tmp/wvk.log
 sed 's/^/copy: /' /tmp/wvkcopy.log
