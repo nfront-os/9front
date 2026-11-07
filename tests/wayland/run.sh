@@ -31,8 +31,8 @@ bash "$ROOT/scripts/wayland/build.sh" "$HERE/root/tests"
 # weston's examples (scripts/wayland/weston.sh: simple-shm, simple-egl)
 bash "$ROOT/scripts/wayland/weston.sh" build "$HERE/root/tests" >/dev/null
 cp "$HERE/wlweston.rc" "$HERE/root/tests/wlweston.rc"
-cp "$HERE/wsysrestart.rc" "$HERE/root/tests/wsysrestart.rc"
-chmod +x "$HERE/root/tests/wlweston.rc" "$HERE/root/tests/wsysrestart.rc"
+cp "$HERE/restartA.rc" "$HERE/wsysrestart.rc" "$HERE/root/tests/"
+chmod +x "$HERE/root/tests/wlweston.rc" "$HERE/root/tests/wsysrestart.rc" "$HERE/root/tests/restartA.rc"
 cp "$ROOT/amd64/bin/wsys" "$HERE/root/tests/wsys"
 cp "$HERE/wlsys.rc" "$HERE/root/tests/wlsys.rc"
 cp "$HERE/wlvk.rc" "$HERE/root/tests/wlvk.rc"
@@ -70,11 +70,11 @@ if [ "${VKONLY:-0}" = 0 ]; then
 	echo "$out" | grep -q '^wltest: all passed' || { echo "FAIL wltest"; fail=1; }
 	echo "$wl" | grep -q '^wlclient: all passed' || { echo "FAIL wlclient"; fail=1; }
 	weston "$wl" shm simple-shm
-	for w in "wlsys outlives wsys A" "simple-shm: a window of wsys with its title" "simple-shm: it moves" "simple-shm gone after the delete in wsys B"; do
+	for w in "wlsys outlives wsys A (exited)" "wlsys outlives wsys B (killed)" "simple-shm gone after the delete in wsys C"; do
 		[ "$(echo "$rs" | grep -c "^ok $w")" -ge 1 ] || { echo "FAIL wsys restart: $w"; fail=1; }
 	done
-	[ "$(echo "$rs" | grep -c '^ok simple-shm: a window of wsys with its title')" = 2 ] ||
-		{ echo "FAIL wsys restart: the window in both wsys"; fail=1; }
+	[ "$(echo "$rs" | grep -c '^ok simple-shm: it moves')" = 3 ] ||
+		{ echo "FAIL wsys restart: the window drawn and moving in all three wsys"; fail=1; }
 	if command -v xkbcli >/dev/null; then
 		if [ -s "$CLI_DIR/wlsys-keymap.xkb" ] &&
 		   xkbcli compile-keymap --keymap "$CLI_DIR/wlsys-keymap.xkb" >/dev/null 2>"$CLI_DIR/wlsys-keymap.err"; then

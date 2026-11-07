@@ -163,12 +163,15 @@ which a new one posts) on
 .BR /mnt/wsys ;
 then it makes each toplevel's window again and shows its buffer there.
 So Wayland programs outlive their window system.
-.I Wlsys
-must not be in a window of the
+For that
+.I wlsys
+starts a note group of its own, as
 .I wsys
-for that (a window deleted, or a
+does: the window it was started in may be deleted, or its
 .I wsys
-that exits, hangs up its processes).
+exit (hanging up the window's processes), and
+.I wlsys
+and its programs stay; nor do they get the window's interrupt (Del).
 .PP
 The pointer is the mouse of
 .IR wsys

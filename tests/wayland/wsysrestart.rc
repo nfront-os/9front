@@ -1,9 +1,10 @@
 #!/bin/rc
-# run by tests/wayland/run.sh (VESA guest), not in wsys: weston's simple-shm
-# under wlsys outlives its wsys. wsys A, the client's window there; A killed
-# (every proc: a crash, no hangup to anyone); wsys B: wlsys mounts it
-# (/srv/wsys.$user) and makes the window again, which draws and moves; then
-# deleted, the client goes.
+# run by tests/wayland/run.sh (VESA guest): weston's simple-shm under wlsys
+# outlives its wsys, twice. wlsys started in a window of wsys A, as one
+# does; A exits (its -i command done: the windows' processes hung up);
+# wsys B: wlsys mounts it (/srv/wsys.$user) and makes the window again,
+# which draws and moves. B killed (every proc: a crash); wsys C: the window
+# again; deleted there, the client goes.
 rfork ne
 bind -a '#i' /dev
 bind -a '#m' /dev
@@ -12,30 +13,42 @@ fn waitsrv { # pid of the wsys whose srv entry to wait for
 	while(! test -e /srv/wsys.$user.$1 && test $n -lt 100){ sleep 0.1; n=`{echo $n+1 | hoc} }
 }
 fn wsyspids { ps | awk '$NF == "wsys" { print $2 }' }
-/tests/wsys >/tmp/wsysA.log >[2=1] &
-a=$apid
-waitsrv $a
-mount /srv/wsys.$user /mnt/wsys
-/tests/wlsys -d /tests/weston-simple-shm >/tmp/restart.log >[2=1] &
-w=$apid
-/tests/wlwatch -k simple-shm
-echo killing wsys A: `{wsyspids}
-for(p in `{wsyspids}) echo kill >/proc/$p/ctl
+fn alive { # what
+	w=`{cat /tmp/wlsys.pid}
+	if(test -e /proc/$w) echo ok wlsys outlives $1
+	if not echo FAIL wlsys gone with $1
+}
+rm -f /tmp/wlsys.pid
+# A: wlsys in its window; A exits when the window's rc is done
+/tests/wsys -x -i /tests/restartA.rc >/tmp/wsysA.log >[2=1]
+grep '^(ok|FAIL|wlwatch) ' /tmp/wsysA.log
 sleep 1
 unmount /mnt/wsys >[2]/dev/null
-if(test -e /proc/$w) echo ok wlsys outlives wsys A
-if not echo FAIL wlsys gone with wsys A
+alive 'wsys A (exited)'
+# B: the window again; then B killed
 /tests/wsys >/tmp/wsysB.log >[2=1] &
 b=$apid
 waitsrv $b
 mount /srv/wsys.$user /mnt/wsys
+/tests/wlwatch -k simple-shm
+echo killing wsys B: `{wsyspids}
+for(p in `{wsyspids}) echo kill >/proc/$p/ctl
+sleep 1
+unmount /mnt/wsys >[2]/dev/null
+alive 'wsys B (killed)'
+# C: the window again, deleted
+/tests/wsys >/tmp/wsysC.log >[2=1] &
+c=$apid
+waitsrv $c
+mount /srv/wsys.$user /mnt/wsys
 /tests/wlwatch simple-shm
+w=`{cat /tmp/wlsys.pid}
 n=0
 while(test -e /proc/$w && test $n -lt 50){ sleep 0.1; n=`{echo $n+1 | hoc} }
 if(test -e /proc/$w){
 	echo FAIL simple-shm still running after the delete
 	echo kill >/proc/$w/ctl
 }
-if not echo ok simple-shm gone after the delete in wsys B
+if not echo ok simple-shm gone after the delete in wsys C
 for(p in `{wsyspids}) echo kill >/proc/$p/ctl
 grep 'wlsys: wsys\|wlsys: /srv' /tmp/restart.log

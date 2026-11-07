@@ -17,6 +17,10 @@ struct wl_event_loop *loop;
 struct wl_list surfaces;
 int debug;
 
+/* APE's system calls (sys9.h): Plan 9's rfork, which POSIX has not */
+extern int _RFORK(int);
+enum { RFNOTEG = 1<<3 };
+
 static struct wl_list outputs;	/* wl_output resources */
 /*
  * frame callbacks due: done at the next tick, 16 ms after the first came,
@@ -461,6 +465,14 @@ main(int argc, char **argv)
 		fprintf(stderr, "wlsys: /mnt/wsys/screen: %s: not in wsys\n", strerror(errno));
 		return 1;
 	}
+	/*
+	 * a note group of its own (as wsys, and servers): the window it was
+	 * started in may go, or its wsys exit, hanging up the window's
+	 * processes; wlsys and its clients stay and find the next wsys
+	 * (win.c: wsyslost)
+	 */
+	if(_RFORK(RFNOTEG) < 0)
+		fprintf(stderr, "wlsys: rfork: %s\n", strerror(errno));
 	if((s = getenv("XDG_RUNTIME_DIR")) == NULL || *s == 0)
 		putenv9("XDG_RUNTIME_DIR", "/tmp");
 	wl_list_init(&surfaces);
