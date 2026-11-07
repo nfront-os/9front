@@ -63,6 +63,7 @@ impl Ui {
         }
         let m = cstr(mtpt)?;
         let none = cstr("")?;
+        // a mount that works closes fd (bind(2))
         let r = unsafe {
             if p9rfork(RFNAMEG) < 0 {
                 -1
@@ -70,9 +71,10 @@ impl Ui {
                 p9mount(fd, -1, m.as_ptr(), MREPL, none.as_ptr())
             }
         };
-        unsafe { p9close(fd) };
         if r < 0 {
-            return Err(err(&format!("mount {mtpt}")));
+            let e = err(&format!("mount {mtpt}"));
+            unsafe { p9close(fd) };
+            return Err(e);
         }
         let ctl = File::options().write(true).open(format!("{mtpt}/ctl"))?;
         let event = File::open(format!("{mtpt}/event"))?;

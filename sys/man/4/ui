@@ -173,6 +173,8 @@ cat /mnt/ui/event	# click b, when it is pressed
 (the files from C),
 .IR uiview (2)
 (from Rust, views of a program's state),
+.IR uigo (2)
+(from Go),
 .IR wsys (4),
 .IR rio (4),
 .IR acme (4)

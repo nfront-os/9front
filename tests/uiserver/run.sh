@@ -2,7 +2,8 @@
 # uiserver: ui (sys/src/cmd/ui, ../9front-ui PLAN stage 5: a window of widgets
 # a client describes through files) in a window of wsys on a VESA screen, a
 # client in rc (tests/uiserver/uiserver.rc) and one in C through libui
-# (uiclient.c) and uitodo (sys/src/cmd/uidemo: Rust, uiview), in a guest of
+# (uiclient.c), uitodo (sys/src/cmd/uidemo: Rust, uiview) and gocount (Go,
+# sys/src/libui/go), in a guest of
 # scripts/guest/mcp-guest.sh.
 # usage: tests/uiserver/run.sh   (needs ../9front-rust's stage-1 rustc, a build: wsys)
 set -e
@@ -22,6 +23,14 @@ mkdir -p "$HERE/root/tests" "$HERE/root/lib/font/ttf"
 for p in ui uitodo; do
 	"$CROSS/$TRIPLE-strip" -o "$HERE/root/tests/$p" "$BUILD/cargo/rust/$T/release/$p"
 done
+# the client in Go, with ../9front-go when it is there (a build cache of its
+# own: the toolchain is rebuilt under the same version)
+GO=${GO:-$ROOT/../9front-go/go/bin/go}
+rm -f "$HERE/root/tests/gocount"
+if [ -x "$GO" ]; then
+	(cd "$ROOT/sys/src/libui/go" && GOOS=plan9 GOARCH=amd64 CGO_ENABLED=0 GOCACHE="$BUILD/gocache" \
+		"$GO" build -o "$HERE/root/tests/gocount" ./cmd/gocount)
+fi
 cp "$ROOT/amd64/bin/wsys" "$ROOT/tests/ui/root/tests/uipeek" "$HERE/root/tests/"
 cp "$ROOT/lib/font/ttf/"*.ttf "$HERE/root/lib/font/ttf/"
 cp "$HERE/uiserver.rc" "$HERE/root/tests/uiserver"

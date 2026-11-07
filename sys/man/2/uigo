@@ -1,0 +1,94 @@
+.TH UIGO 2
+.SH NAME
+uigo \- ui(4) from Go
+.SH SYNOPSIS
+.EX
+import "ui"
+
+func New(title string) (*Ui, error)
+func Open(srv string) (*Ui, error)
+func NewUi(rw io.ReadWriteCloser) (*Ui, error)
+func (u *Ui) Ctl(format string, a ...any) error
+func (u *Ui) Set(id, key, value string) error
+func (u *Ui) Event() (Event, error)
+func (u *Ui) ReadFile(name string) ([]byte, error)
+func (u *Ui) Close() error
+func Quote(v string) string
+
+type Event struct { Kind, ID, Arg string }
+.EE
+.SH DESCRIPTION
+Package
+.B ui
+is a client of
+.IR ui (4)
+in Go, without cgo, as
+.IR ui (2)
+is in C.
+.I New
+starts
+.B /bin/ui
+in a new window
+.RB ( window
+in
+.IR rio (1));
+.I Open
+takes one posted as
+.BI /srv/ srv\fR.
+Either mounts the
+.B /srv
+file on
+.BI /mnt/ srv
+(a directory of mntgen's, nobody else's) and uses the files there: the
+kernel's 9P, whose session others share when they mount the same.
+.I NewUi
+speaks 9P itself, over a connection of the program's own that has no
+kernel's mount behind it: a network one to
+.IR exportfs (4),
+or from another system.
+.PP
+.I Ctl
+writes one transaction,
+.I Set
+one property
+.RI ( Quote
+quotes as
+.IR rc (1)
+does, where a value needs it),
+.I Event
+waits for the next line of
+.B event
+(an error when
+.I ui
+is gone),
+.I ReadFile
+reads any of
+.IR ui 's
+files
+.RB ( tree ,
+.BI nodes/ id /props\fR,
+\&...).
+.SH EXAMPLES
+A window's files given to the network, and a counter in it from there
+.RB ( gocount ,
+in the source):
+.IP
+.EX
+aux/listen1 -t tcp!*!5640 exportfs -r /mnt/ui &
+gocount -d tcp!host!5640
+.EE
+.SH SOURCE
+.B /sys/src/libui/go
+(module
+.BR ui ;
+built with ../9front-go's toolchain)
+.SH SEE ALSO
+.IR ui (4),
+.IR ui (2),
+.IR uiview (2)
+.SH BUGS
+A
+.B /srv
+file must not be given to
+.IR NewUi :
+a second 9P session on it ends the kernel's.

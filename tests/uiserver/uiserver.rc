@@ -200,6 +200,65 @@ if not {
 }
 test -e /proc/$todopid && echo kill >/proc/$todopid/note
 
+# a client in Go (gocount: sys/src/libui/go, the /srv file mounted on
+# /mnt/srvname): two clicks counted (run.sh builds it with
+# ../9front-go when it is there)
+if(test -x /tests/gocount){
+	/tests/gocount -n 2 >/tmp/goc >[2=1] </dev/null &
+	gocpid=$apid
+	waitfor /tmp/goc '^ready'
+	s=`{grep '^ready' /tmp/goc | awk '{print $2}'}
+	if(~ $#s 0 || ! mount /srv/$s /mnt/uig) fail gocount: `{cat /tmp/goc}
+	if not {
+		ok gocount: ready $s
+		sleep 1
+		b=`{at b /mnt/uig}
+		n=0
+		while(! grep -s '^event click b' /tmp/goc && test $n -lt 3){
+			{ m $b(1) $b(2) 0; m $b(1) $b(2) 1; m $b(1) $b(2) 0 } >/dev/mousein
+			sleep 0.5
+			n=`{echo $n+1 | hoc}
+		}
+		{ m $b(1) $b(2) 1; m $b(1) $b(2) 0 } >/dev/mousein
+		waitfor /tmp/goc '^count'
+		c=`{grep '^count' /tmp/goc}
+		check 'gocount: two clicks counted' 'count 2' $"c
+		grep -s '^text count 2$' /tmp/goc && ok 'gocount: its label read back (nodes/l/props)' || fail gocount props: `{cat /tmp/goc}
+		unmount /mnt/uig
+		# over the network: the window's files exported (exportfs on tcp),
+		# a gocount there with 9P of its own (-d), one click
+		mount /srv/$s /mnt/uin
+		aux/listen1 -t tcp!*!5640 /bin/exportfs -r /mnt/uin >[2]/dev/null &
+		lpid=$apid
+		sleep 0.5
+		# the guest's own address (no loopback interface in it)
+		ip=`{grep -v : /net/ipifc/0/local | awk '{print $1}' | sed 1q}
+		/tests/gocount -n 1 -d tcp!$ip!5640 >/tmp/gon >[2=1] </dev/null &
+		gonpid=$apid
+		waitfor /tmp/gon '^ready'
+		if(! grep -s '^ready' /tmp/gon) fail gocount -d: `{cat /tmp/gon}
+		if not {
+			ok gocount -d: `{grep '^ready' /tmp/gon}
+			sleep 0.5
+			b=`{at b /mnt/uin}
+			n=0
+			while(! grep -s '^event click b' /tmp/gon && test $n -lt 3){
+				{ m $b(1) $b(2) 0; m $b(1) $b(2) 1; m $b(1) $b(2) 0 } >/dev/mousein
+				sleep 0.5
+				n=`{echo $n+1 | hoc}
+			}
+			waitfor /tmp/gon '^count'
+			c=`{grep '^count' /tmp/gon}
+			check 'gocount over tcp: one click' 'count 1' $"c
+		}
+		test -e /proc/$gonpid && echo kill >/proc/$gonpid/note
+		echo kill >/proc/$lpid/note
+		unmount /mnt/uin
+	}
+	test -e /proc/$gocpid && echo kill >/proc/$gocpid/note
+}
+if not echo skip gocount: no Go '(../9front-go)'
+
 cat /tmp/ui.log | grep -v '^uitest$'
 if(~ $nfail 0) echo uiserver: all passed
 if not echo uiserver: $nfail failed
