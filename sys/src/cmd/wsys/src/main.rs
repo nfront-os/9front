@@ -80,10 +80,10 @@ const BG: u32 = 0x777777;
 const FOCUSED: u32 = 0x335588;
 const UNFOCUSED: u32 = 0xAAAAAA;
 // the windows' ranges for their clients' segments: slot i is SEGBASE + i*SEGSIZE
-// (slots are given again when free: 0x2000 of them, 32 TB)
-const SEGBASE: usize = 0x5000_0000_0000;
-const SEGSIZE: usize = 0x1_0000_0000;
-const NSLOT: usize = 0x2000;
+// (p9::window_region; slots are given again when free)
+const SEGBASE: usize = p9::window_region().0;
+const SEGSIZE: usize = p9::window_region().1;
+const NSLOT: usize = p9::window_region().2;
 const MAXBUF: u32 = 8;
 const WHITE: u32 = 0xFFFFFF;
 const MINSIZE: i32 = 16; // a window swept smaller stays this big

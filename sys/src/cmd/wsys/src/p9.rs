@@ -144,19 +144,35 @@ pub struct Seg {
     pub len: usize,
 }
 
+/// The end of a process's user addresses (USTKTOP of 9front's mem.h); 0 where
+/// not known here: no regions, no windows.
+#[cfg(target_arch = "x86_64")]
+const USTKTOP: usize = 0x0000_7fff_ffff_f000;
+#[cfg(target_arch = "aarch64")]
+const USTKTOP: usize = (((1usize << 36) - 1) >> 1) - 0xFFFF;
+#[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
+const USTKTOP: usize = 0;
+
 /// The region of addresses the kernel gives segments made with "va 0 len"
 /// (segment(3); 9front's port/portdat.h, SHAREDBASE and SHAREDTOP): unique in
 /// the system, so a client's segment there cannot collide with another's.
 pub const fn shared_region() -> (usize, usize) {
-    #[cfg(target_arch = "x86_64")]
-    const USTKTOP: usize = 0x0000_7fff_ffff_f000;
-    #[cfg(target_arch = "aarch64")]
-    const USTKTOP: usize = (((1usize << 36) - 1) >> 1) - 0xFFFF;
-    #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
-    const USTKTOP: usize = 0; // not known here: no region
     const MB2: usize = 2 * 1024 * 1024 - 1;
     let base = (USTKTOP / 2) & !MB2;
     (base, base + ((USTKTOP / 16) & !MB2))
+}
+
+/// The windows' ranges for their clients' segments: slot i is base + i*size,
+/// (base, size, slots). A quarter of the addresses from 5/8 of USTKTOP on:
+/// above the shared region (it ends at 9/16), below the stacks. amd64: 4 GB
+/// slots from 0x5000_0000_0000; arm64 (32 GB of addresses): 256 MB ones.
+pub const fn window_region() -> (usize, usize, usize) {
+    #[cfg(target_arch = "aarch64")]
+    const SIZE: usize = 0x1000_0000;
+    #[cfg(not(target_arch = "aarch64"))]
+    const SIZE: usize = 0x1_0000_0000;
+    let base = (USTKTOP / 8 * 5 + SIZE - 1) & !(SIZE - 1);
+    (base, SIZE, USTKTOP / 4 / SIZE)
 }
 
 impl Seg {
