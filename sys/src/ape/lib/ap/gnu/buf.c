@@ -263,6 +263,35 @@ ident(int fd, int *type, unsigned int *dev, unsigned long long *path)
 	return 1;
 }
 
+/*
+ * 9front-ng: descriptors made by dup of one another, a group each (0: none):
+ * one channel, whatever the file, so they share a buffer too (libwayland
+ * polls a dup of an fd source and hands its callback the original: wsys'
+ * event file, a mounted one, read through both)
+ */
+static int dupgrp[OPEN_MAX];
+static int dupgen;
+
+/* fd is closed: no longer in its group */
+void
+_dupclose(int fd)
+{
+	if(fd >= 0 && fd < OPEN_MAX)
+		dupgrp[fd] = 0;
+}
+
+/* called with lk: i and fd read the same: dups of one another, or one stream */
+static int
+samefile(int i, int fd, int type, unsigned int dev, unsigned long long path, int isstream)
+{
+	Buf *ob;
+
+	if(dupgrp[fd] != 0 && dupgrp[i] == dupgrp[fd])
+		return 1;
+	ob = (Buf *)_fdinfo[i].buf;
+	return isstream && ob != NULL && ob->type == type && ob->dev == dev && ob->path == path;
+}
+
 /* fd read through a copy proc from now on; -1 if it cannot be */
 int
 _startbuf(int fd)
@@ -290,37 +319,43 @@ _startbuf(int fd)
 	}
 	unlock(&lk);
 	{
-		int type, i, others[OPEN_MAX], nothers;
+		int type, i, others[OPEN_MAX], nothers, isstream;
 		unsigned int dev;
 		unsigned long long path;
 		Buf *ob;
 
-		if(ident(fd, &type, &dev, &path)){
-			/* a buffer of the same stream: this descriptor's too */
-			nothers = 0;
-			lock(&lk);
-			for(i = 0; i < OPEN_MAX; i++){
-				ob = (Buf *)_fdinfo[i].buf;
-				if(i != fd && (_fdinfo[i].flags&FD_BUFFERED) && ob != NULL && ob->ref > 0
-				&& ob->type == type && ob->dev == dev && ob->path == path && !ob->closed){
-					f->buf = (Muxbuf *)ob;
-					f->flags |= FD_BUFFERED;
-					ob->ref++;
-					unlock(&lk);
-					return 0;
-				}
+		type = -1;
+		dev = 0;
+		path = 0;
+		isstream = ident(fd, &type, &dev, &path);
+		/* a buffer of the same file (a dup, the stream): this descriptor's too */
+		lock(&lk);
+		for(i = 0; i < OPEN_MAX; i++){
+			ob = (Buf *)_fdinfo[i].buf;
+			if(i != fd && (_fdinfo[i].flags&FD_BUFFERED) && ob != NULL && ob->ref > 0 && !ob->closed
+			&& samefile(i, fd, type, dev, path, isstream)){
+				f->buf = (Muxbuf *)ob;
+				f->flags |= FD_BUFFERED;
+				ob->ref++;
+				unlock(&lk);
+				return 0;
 			}
-			unlock(&lk);
-			/* other descriptors of it, not buffered yet: they share the new one */
-			for(i = 0; i < OPEN_MAX; i++){
-				int t;
-				unsigned int dv;
-				unsigned long long pa;
+		}
+		unlock(&lk);
+		/* other descriptors of it, not buffered yet: they share the new one */
+		nothers = 0;
+		for(i = 0; i < OPEN_MAX; i++){
+			int t;
+			unsigned int dv;
+			unsigned long long pa;
 
-				if(i != fd && (_fdinfo[i].flags&(FD_ISOPEN|FD_BUFFERED|FD_BUFFEREDX)) == FD_ISOPEN
-				&& ident(i, &t, &dv, &pa) && t == type && dv == dev && pa == path)
-					others[nothers++] = i;
-			}
+			if(i == fd || (_fdinfo[i].flags&(FD_ISOPEN|FD_BUFFERED|FD_BUFFEREDX)) != FD_ISOPEN)
+				continue;
+			if((dupgrp[fd] != 0 && dupgrp[i] == dupgrp[fd])
+			|| (isstream && ident(i, &t, &dv, &pa) && t == type && dv == dev && pa == path))
+				others[nothers++] = i;
+		}
+		if(isstream || nothers > 0){
 			lock(&lk);
 			if(f->flags&FD_BUFFERED){	/* another thread was quicker */
 				unlock(&lk);
@@ -332,7 +367,7 @@ _startbuf(int fd)
 				errno = ENOMEM;
 				return -1;
 			}
-			b->type = type;
+			b->type = isstream ? type : -1;
 			b->dev = dev;
 			b->path = path;
 			b->ref = 1;
@@ -630,8 +665,8 @@ select(int nfds, fd_set *rfds, fd_set *wfds, fd_set *efds, struct timeval *tv)
 }
 
 /*
- * 9front-ng: dup (fcntl F_DUPFD) of a buffered descriptor: the new one reads
- * through the same buffer (was EGREG)
+ * 9front-ng: dup (fcntl F_DUPFD): to is in from's group; when from is
+ * buffered, to reads through the same buffer (was EGREG)
  */
 int
 _dupbuf(int from, int to)
@@ -639,6 +674,11 @@ _dupbuf(int from, int to)
 	Buf *b;
 
 	lock(&lk);
+	if(from >= 0 && from < OPEN_MAX && to >= 0 && to < OPEN_MAX){
+		if(dupgrp[from] == 0)
+			dupgrp[from] = ++dupgen;
+		dupgrp[to] = dupgrp[from];
+	}
 	b = (Buf *)_fdinfo[from].buf;
 	if((_fdinfo[from].flags&FD_BUFFERED) && b != NULL){
 		b->ref++;

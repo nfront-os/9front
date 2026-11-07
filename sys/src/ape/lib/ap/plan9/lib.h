@@ -57,6 +57,7 @@ extern long	_psigblocked;
 extern int	_startbuf(int);
 extern int	_selbuf(int);
 extern void	_closebuf(int);
+extern void	_dupclose(int);
 extern int _readbuf(int, void*, int, int);
 extern void	_detachbuf(void);
 extern void	_finish(int, char *);

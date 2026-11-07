@@ -520,6 +520,13 @@ copynotehandler(void *, char *)
 	return 0;
 }
 
+/* 9front-ng: no groups of dups here (gcc's gnu/buf.c has them) */
+void
+_dupclose(int fd)
+{
+	(void)fd;
+}
+
 /* 9front-ng: a dup of a buffered descriptor cannot share its buffer here (fcntl: EGREG); gcc's gnu/buf.c can */
 int
 _dupbuf(int from, int to)

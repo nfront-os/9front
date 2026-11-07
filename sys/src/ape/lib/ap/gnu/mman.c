@@ -37,6 +37,7 @@ typedef struct Shm Shm;
 static void *shmmap(int, size_t, off_t);
 static int shmunmap(void *);
 static Shm *shmfind(void *);
+static int shmdata(int);
 
 static int
 writeback(Map *m, char *from, size_t n)
@@ -61,6 +62,7 @@ mmap(void *addr, size_t len, int prot, int flags, int fd, off_t off)
 	char *p;
 	size_t done;
 	long r;
+	int rfd;
 
 	(void)addr;
 	if(!(flags & MAP_ANONYMOUS) && (flags & MAP_SHARED) && (p = shmmap(fd, len, off)) != NULL)
@@ -84,9 +86,13 @@ mmap(void *addr, size_t len, int prot, int flags, int fd, off_t off)
 	m->off = off;
 	m->fd = -1;
 	if(!(flags & MAP_ANONYMOUS)){
+		/* a private mapping of a shared memory object: a copy of its bytes */
+		rfd = shmdata(fd);
 		for(done = 0; done < len; done += r){
-			r = pread(fd, p + done, len - done, off + done);
+			r = pread(rfd >= 0 ? rfd : fd, p + done, len - done, off + done);
 			if(r < 0){
+				if(rfd >= 0)
+					close(rfd);
 				free(p);
 				free(m);
 				return MAP_FAILED;
@@ -94,6 +100,8 @@ mmap(void *addr, size_t len, int prot, int flags, int fd, off_t off)
 			if(r == 0)
 				break;	/* beyond the end: zeros */
 		}
+		if(rfd >= 0)
+			close(rfd);
 		if((flags & MAP_SHARED) && (prot & PROT_WRITE)){
 			m->fd = dup(fd);
 			if(m->fd < 0){
@@ -203,7 +211,7 @@ posix_madvise(void *p, size_t len, int advice)
  * shm_unlink.  ftruncate (__shmtruncate) gives it its address and size, on a
  * 64-bit machine 256 MB of addresses (pages only where touched) so that it
  * can grow; mmap(MAP_SHARED) attaches it, munmap of the last such mapping
- * detaches it.
+ * detaches it; a MAP_PRIVATE mapping is a copy of its bytes (its data file).
  */
 #include <fcntl.h>
 #include <stdio.h>
@@ -241,6 +249,18 @@ shmname(int fd, char *name, int n)
 		return 0;
 	snprintf(name, n, "%s", path+3);
 	return 1;
+}
+
+/* its data file, opened for reading, if fd is a segment's; else -1 */
+static int
+shmdata(int fd)
+{
+	char name[128], path[160];
+
+	if(!shmname(fd, name, sizeof name))
+		return -1;
+	snprintf(path, sizeof path, "#g/%s/data", name);
+	return open(path, O_RDONLY);
 }
 
 /* its address and size, if it has them yet */

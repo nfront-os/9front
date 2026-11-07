@@ -4,7 +4,7 @@
  * (tests/guest/run.sh): C99's printf over musl's engine, the wide functions,
  * aligned blocks (plan9/malloc.c), mmap, POSIX additions, pthreads, select and
  * poll on a pipe written by a thread and by a forked child (gnu/buf.c: more
- * than a buffer, the end, close, fork), and exit with a thread and
+ * than a buffer, the end, close, fork; a file's dup polled, the original read), and exit with a thread and
  * a copy proc still running.
  *
  * Output: one "ok name" or "FAIL name: detail" line per check, then
@@ -173,6 +173,14 @@ testshm(void)
 			munmap(q, 4096);
 		close(fd2);
 	}
+	/* 9front-ng: a private mapping is a copy (xkbcommon maps Wayland's keymap so) */
+	q = mmap(NULL, 4096, PROT_READ|PROT_WRITE, MAP_PRIVATE, fd, 8192);
+	check("mmap MAP_PRIVATE of a memfd: a copy of its bytes", q != MAP_FAILED && q != p + 8192 && strcmp(q, "parent") == 0, "%p", q);
+	if(q != MAP_FAILED){
+		strcpy(q, "copy");
+		check("written, the memfd's bytes stay", strcmp(p + 8192, "parent") == 0, NULL);
+		munmap(q, 4096);
+	}
 	munmap(p + 8192, 4096);
 	check("munmap of the last mapping", munmap(p, 1<<20) == 0, NULL);
 	snprintf(path, sizeof path, "#g/ape.memfd.%d.0", getpid());
@@ -199,6 +207,44 @@ testshm(void)
 		close(fd);
 		check("shm_unlink", shm_unlink("/apegnutest") == 0 && shm_open("/apegnutest", O_RDWR, 0) < 0, NULL);
 	}
+}
+
+/*
+ * 9front-ng: a dup of a file (a mounted one: not a stream) polled, the
+ * original read, as libwayland does with its fd sources: both read through
+ * one buffer, in order; another open of the file has its own offset
+ */
+static void
+testdupfile(void)
+{
+	char *path = "/tmp/apegnutest.dup", buf[8];
+	struct pollfd pf;
+	int fd, d2, fd3, n;
+
+	if((fd = open(path, O_RDWR|O_CREAT|O_TRUNC, 0600)) < 0){
+		check("create a file for dup", 0, "%s", strerror(errno));
+		return;
+	}
+	write(fd, "abcdef", 6);
+	close(fd);
+	fd = open(path, O_RDONLY);
+	d2 = dup(fd);
+	pf.fd = d2;
+	pf.events = POLLIN;
+	pf.revents = 0;
+	check("poll of a file's dup: readable", poll(&pf, 1, 2000) == 1 && (pf.revents & POLLIN), "%#x", pf.revents);
+	n = read(fd, buf, 3);
+	check("the original read: the start", n == 3 && memcmp(buf, "abc", 3) == 0, "%d", n);
+	n = read(d2, buf, 3);
+	check("the dup read: the rest", n == 3 && memcmp(buf, "def", 3) == 0, "%d", n);
+	check("then the end", read(fd, buf, 3) == 0, NULL);
+	fd3 = open(path, O_RDONLY);
+	n = read(fd3, buf, 3);
+	check("another open: its own offset", n == 3 && memcmp(buf, "abc", 3) == 0, "%d", n);
+	close(fd3);
+	close(d2);
+	close(fd);
+	unlink(path);
 }
 
 /*
@@ -583,6 +629,7 @@ main(void)
 	testlocals();
 	testselect();
 	testbuf();
+	testdupfile();
 	/* exit goes with a thread and a copy proc still there (run.rc: ps) */
 	pthread_create(&s, NULL, sleeper, NULL);
 	printf("apegnutest: %d ok, %d failed\n", nok, nfail);

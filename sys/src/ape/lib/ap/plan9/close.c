@@ -20,6 +20,7 @@ close(int d)
 				_closebuf(d);
 			f->flags &= ~FD_BUFFERED;
 		}
+		_dupclose(d);	/* 9front-ng: out of its group of dups (gnu/buf.c) */
 		_fdinfo[d].flags = 0;
 		_fdinfo[d].oflags = 0;
 		if(_fdinfo[d].name){

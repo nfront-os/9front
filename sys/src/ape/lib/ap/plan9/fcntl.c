@@ -75,8 +75,8 @@ fcntl(int fd, int cmd, ...)
 					fans->buf = 0;
 					if(cmd == F_DUPFD_CLOEXEC)
 						fans->flags |= FD_CLOEXEC;
-					/* 9front-ng: a buffered one's copy reads through the same buffer (gnu/buf.c) */
-					if((fi->flags&FD_BUFFERED) && _dupbuf(fd, ans) < 0){
+					/* 9front-ng: a dup is in its original's group, a buffered one's reads through the same buffer (gnu/buf.c) */
+					if(_dupbuf(fd, ans) < 0 && (fi->flags&FD_BUFFERED)){
 						_CLOSE(ans);
 						fans->flags = 0;
 						err = EGREG;	/* dup of buffered fd not implemented (kencc's _buf.c) */
