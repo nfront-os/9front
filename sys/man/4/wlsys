@@ -147,6 +147,26 @@ and so does OpenGL on EGL's Wayland platform (zink, whose kopper presents
 through that swapchain; libwayland-egl's
 .BR wl_egl_window ).
 .PP
+When
+.I wsys
+goes (its files hung up, not a window deleted: a crash, or killed), the
+windows go with it, but the clients do not: their buffers are released
+and their frame callbacks done at a frame's pace, and once a second
+.I wlsys
+tries to mount the user's next
+.I wsys
+.RB ( /srv/wsys.$user ,
+which a new one posts) on
+.BR /mnt/wsys ;
+then it makes each toplevel's window again and shows its buffer there.
+So Wayland programs outlive their window system.
+.I Wlsys
+must not be in a window of the
+.I wsys
+for that (a window deleted, or a
+.I wsys
+that exits, hangs up its processes).
+.PP
 The pointer is the mouse of
 .IR wsys
 in the window with the focus: buttons 1, 2 and 3 are

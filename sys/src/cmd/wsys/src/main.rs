@@ -55,7 +55,8 @@
 //
 // usage: wsys [-Ox] [-f font] [-s srvname] [-i cmd]
 //	-f	the font of text windows (default $font, else /lib/font/bit/vga/unicode.font)
-//	-s	post as /srv/srvname (default wsys.$user.$pid)
+//	-s	post as /srv/srvname (default wsys.$user.$pid, and wsys.$user: the newest
+//		wsys of the user, where programs that outlive one find the next)
 //	-i	run cmd (rc) in a name space with /mnt/wsys mounted, $wsys set
 //	-x	exit when cmd exits
 //	-O	no overlay plane: every window's pixels in wsys' screen (tests read them back)
@@ -2728,11 +2729,15 @@ fn main() {
     let user = std::env::var("user").unwrap_or_else(|_| "none".into());
     // with its pid as rio: a wsys that died leaves its entry, another starts all the same
     let mut srvname = format!("wsys.{user}.{}", std::process::id());
+    let mut alias = true; // /srv/wsys.$user too, unless -s names it
     let (mut init, mut exitwith, mut nooverlay) = (None, false, false);
     let mut fontname = std::env::var("font").ok().filter(|f| !f.is_empty()).unwrap_or(DEFFONT.to_string());
     while let Some(a) = args.next() {
         match a.as_str() {
-            "-s" => srvname = args.next().unwrap_or_else(|| usage()),
+            "-s" => {
+                srvname = args.next().unwrap_or_else(|| usage());
+                alias = false;
+            }
             "-i" => init = Some(args.next().unwrap_or_else(|| usage())),
             "-x" => exitwith = true,
             "-O" => nooverlay = true,
@@ -2767,6 +2772,22 @@ fn main() {
         std::process::exit(1);
     }
     post.leak(); // the entry stays while wsys runs
+    // the user's wsys under a name that does not change: the newest one's
+    // (a wsys gone left its entry; programs that outlive it, such as wlsys,
+    // find the next one there)
+    if alias {
+        let apath = format!("/srv/wsys.{user}");
+        let _ = p9::remove(&apath);
+        match Fd::create(&apath, OWRITE, 0o600) {
+            Ok(a) => {
+                if let Err(e) = a.write1(p0.0.to_string().as_bytes()) {
+                    eprintln!("wsys: post {apath}: {e}");
+                }
+                a.leak();
+            }
+            Err(e) => eprintln!("wsys: post {apath}: {e}"),
+        }
+    }
     drop(p0);
 
     let (tx, rx) = mpsc::channel();

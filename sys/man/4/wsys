@@ -39,7 +39,13 @@ posts a 9P connection as
 .BI wsys.$user. pid\fR,
 as
 .IR rio (1)
-does: one that died leaves its entry behind)
+does: one that died leaves its entry behind; then also as
+.BR wsys.$user ,
+replacing what was there: the user's newest
+.IR wsys ,
+where a program that outlived one finds the next, as
+.IR wlsys (4)
+does)
 and serves a tree of windows.
 With
 .BR -i ,

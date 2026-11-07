@@ -7,11 +7,22 @@
  * are sources of the event loop (APE's poll).  A buffer is one of wsys' 8 of
  * the window while it is attached there; when all are taken, the one
  * presented longest ago that wsys has let go of is announced anew.
+ *
+ * When wsys itself goes (its files hung up, not a window deleted), the
+ * windows go with it but the clients and their buffers stay: wlsys mounts
+ * the user's next wsys (/srv/wsys.$user, wsys(4)) once there is one, every
+ * second, and shows each surface's buffer there again.
  */
 #include "dat.h"
 
+/* APE's system calls (sys9.h): Plan 9's mount, which POSIX has not */
+extern int _MOUNT(int, int, const char *, int, const char *);
+enum { MREPL = 0 };
+
 int screenw, screenh;
 static uint32_t clock;
+static struct wl_event_source *retry;	/* while wsys is gone */
+static void wsyslost(void);
 
 static int
 ctlmsg(Win *w, char *fmt, ...)
@@ -143,7 +154,11 @@ onevent(int fd, uint32_t mask, void *data)
 	w = data;
 	n = read(fd, w->evbuf + w->nev, sizeof w->evbuf - 1 - w->nev);
 	if(n <= 0){
-		wingone(w);
+		/* deleted, or wsys gone with all its windows */
+		if(access("/mnt/wsys/screen", 0) < 0)
+			wsyslost();
+		else
+			wingone(w);
 		return 0;
 	}
 	w->nev += n;
@@ -324,8 +339,15 @@ show(Surface *s)
 	if((b = s->buf) == NULL)
 		return;
 	if((w = s->win) == NULL){
-		if((w = mkwin(s, b->w, b->h)) == NULL)
+		/*
+		 * no window (wsys gone, or it made none): the picture is not
+		 * shown, the buffer free again at once, the frame callbacks
+		 * done by the ticker (surfcommit: the client keeps its pace)
+		 */
+		if(retry != NULL || (w = mkwin(s, b->w, b->h)) == NULL){
+			wl_buffer_send_release(b->res);
 			return;
+		}
 		s->win = w;
 		sendenter(s);
 	}
@@ -397,6 +419,90 @@ unshow(Surface *s)
 	close(w->ev);
 	close(w->ctl);
 	free(w);
+}
+
+/* a window wsys took along: its buffers and its frames let go, its files closed */
+static void
+windrop(Win *w)
+{
+	Buffer *b;
+	int i;
+
+	winquiet(w);
+	for(i = 0; i < Nslot; i++){
+		if((b = w->slot[i]) != NULL){
+			b->win = NULL;
+			b->slot = -1;
+			if(w->busy[i])
+				wl_buffer_send_release(b->res);
+		}
+		frames(&w->frames[i], msec());
+	}
+	close(w->kbd);
+	close(w->ev);
+	close(w->ctl);
+	free(w);
+}
+
+/* the user's wsys mounted again, its windows made; -1 if there is none yet */
+static int
+wsysmount(void)
+{
+	char path[128], *user;
+	Surface *s;
+	int fd;
+
+	if((user = getenv("user")) == NULL)
+		user = "none";
+	snprintf(path, sizeof path, "/srv/wsys.%s", user);
+	if((fd = open(path, O_RDWR)) < 0)
+		return -1;
+	if(_MOUNT(fd, -1, "/mnt/wsys", MREPL, "") < 0){
+		close(fd);
+		return -1;
+	}
+	close(fd);
+	if(wsysinit() < 0)
+		return -1;
+	fprintf(stderr, "wlsys: %s mounted again, its windows made\n", path);
+	wl_list_for_each(s, &surfaces, link)
+		if(s->toplevel != NULL && s->buf != NULL)
+			show(s);
+	return 0;
+}
+
+static int
+onretry(void *data)
+{
+	(void)data;
+	if(wsysmount() < 0)
+		wl_event_source_timer_update(retry, 1000);
+	else{
+		wl_event_source_remove(retry);
+		retry = NULL;
+	}
+	return 0;
+}
+
+/*
+ * wsys is gone: every window with it, the clients stay; their buffers
+ * wait for the next wsys (wsysmount, once a second)
+ */
+static void
+wsyslost(void)
+{
+	Surface *s;
+
+	if(retry != NULL)
+		return;
+	fprintf(stderr, "wlsys: wsys gone; its next one is waited for\n");
+	wl_list_for_each(s, &surfaces, link)
+		if(s->win != NULL){
+			windrop(s->win);
+			s->win = NULL;
+		}
+	if((retry = wl_event_loop_add_timer(loop, onretry, NULL)) != NULL)
+		wl_event_source_timer_update(retry, 1000);
 }
 
 /* the screen's size, from wsys' screen file (an image(6) header); 0 if none */

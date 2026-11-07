@@ -5,7 +5,8 @@
 # processes: a wl_shm buffer in shared memory over the socket, the event loop's
 # timer) and wlclient, and runs them in a guest of scripts/guest/mcp-guest.sh on a
 # VESA screen: wltest alone, wlclient in wsys -x -i under wlsys (a toplevel's
-# buffers on wsys' screen, a click, keys, a resize, close). The keymap wlsys made
+# buffers on wsys' screen, a click, keys, a resize, close; weston's simple-shm,
+# which outlives its wsys: wsysrestart.rc). The keymap wlsys made
 # of kbdfs' tables is compiled with the host's xkbcommon (xkbcli), if it has one.
 # Then, with libvulkan.a (build.exe, sys/src/mesa) and a host that runs venus
 # (virtio-gpu-gl), wlvk in a second guest: GPU buffers by zwp_linux_dmabuf_v1,
@@ -30,7 +31,8 @@ bash "$ROOT/scripts/wayland/build.sh" "$HERE/root/tests"
 # weston's examples (scripts/wayland/weston.sh: simple-shm, simple-egl)
 bash "$ROOT/scripts/wayland/weston.sh" build "$HERE/root/tests" >/dev/null
 cp "$HERE/wlweston.rc" "$HERE/root/tests/wlweston.rc"
-chmod +x "$HERE/root/tests/wlweston.rc"
+cp "$HERE/wsysrestart.rc" "$HERE/root/tests/wsysrestart.rc"
+chmod +x "$HERE/root/tests/wlweston.rc" "$HERE/root/tests/wsysrestart.rc"
 cp "$ROOT/amd64/bin/wsys" "$HERE/root/tests/wsys"
 cp "$HERE/wlsys.rc" "$HERE/root/tests/wlsys.rc"
 cp "$HERE/wlvk.rc" "$HERE/root/tests/wlvk.rc"
@@ -60,11 +62,19 @@ if [ "${VKONLY:-0}" = 0 ]; then
 	wl=$($M rc "bind -a '#i' /dev; bind -a '#m' /dev; /tests/wsys -x -i /tests/wlsys.rc >/tmp/wsys.log >[2=1]; cat /tmp/wsys.log /tmp/wlclient.log; sed 's/^/shm: /' /tmp/weston-simple-shm.log" 300) || true
 	echo "$wl"
 	$M rc "cat /tmp/keymap.xkb" > "$CLI_DIR/wlsys-keymap.xkb" 2>/dev/null || true
+	# a Wayland client outlives its wsys: wlsys makes its window in the next one
+	rs=$($M rc "/tests/wsysrestart.rc" 200) || true
+	echo "$rs"
 	stop
 	trap - EXIT
 	echo "$out" | grep -q '^wltest: all passed' || { echo "FAIL wltest"; fail=1; }
 	echo "$wl" | grep -q '^wlclient: all passed' || { echo "FAIL wlclient"; fail=1; }
 	weston "$wl" shm simple-shm
+	for w in "wlsys outlives wsys A" "simple-shm: a window of wsys with its title" "simple-shm: it moves" "simple-shm gone after the delete in wsys B"; do
+		[ "$(echo "$rs" | grep -c "^ok $w")" -ge 1 ] || { echo "FAIL wsys restart: $w"; fail=1; }
+	done
+	[ "$(echo "$rs" | grep -c '^ok simple-shm: a window of wsys with its title')" = 2 ] ||
+		{ echo "FAIL wsys restart: the window in both wsys"; fail=1; }
 	if command -v xkbcli >/dev/null; then
 		if [ -s "$CLI_DIR/wlsys-keymap.xkb" ] &&
 		   xkbcli compile-keymap --keymap "$CLI_DIR/wlsys-keymap.xkb" >/dev/null 2>"$CLI_DIR/wlsys-keymap.err"; then

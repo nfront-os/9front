@@ -1,11 +1,12 @@
 /*
  * SPDX-License-Identifier: MIT
  *
- * wlwatch label: a Wayland client's window of wsys from the outside (weston's
- * examples, wlclients.rc): within 10 s a window labelled label; its pixels,
- * on a grid, not all alike (something drawn); again a second later, some
- * changed (it animates); then deleted through its ctl (the client is told
- * to close).  Prints "ok ..." / "FAIL ..." lines and a summary.
+ * wlwatch [-k] label: a Wayland client's window of wsys from the outside
+ * (weston's examples: wlweston.rc, wsysrestart.rc): within 10 s a window
+ * labelled label; its pixels, on a grid, not all alike (something drawn);
+ * again a second later, some changed (it animates); then deleted through
+ * its ctl (the client is told to close), unless -k keeps it.
+ * Prints "ok ..." / "FAIL ..." lines and a summary.
  */
 #include <stdio.h>
 #include <stdarg.h>
@@ -134,13 +135,14 @@ main(int argc, char **argv)
 {
 	long a[Grid*Grid], b[Grid*Grid];
 	char path[64];
-	int i, n, fd, ok;
+	int i, n, fd, ok, keep;
 
-	if(argc != 2){
-		fprintf(stderr, "usage: wlwatch label\n");
+	keep = argc == 3 && strcmp(argv[1], "-k") == 0;
+	if(argc != 2 + keep){
+		fprintf(stderr, "usage: wlwatch [-k] label\n");
 		return 2;
 	}
-	label = argv[1];
+	label = argv[1 + keep];
 	ok = -1;
 	for(i = 0; i < 100 && (ok = findwin()) < 0; i++)
 		usleep(100*1000);
@@ -162,7 +164,7 @@ main(int argc, char **argv)
 		check("it moves (pixels changed in a second)", n > 0, NULL);
 	}
 	snprintf(path, sizeof path, "/mnt/wsys/%d/ctl", winid);
-	if((fd = open(path, O_WRONLY)) >= 0){
+	if(!keep && (fd = open(path, O_WRONLY)) >= 0){
 		check("delete to the window's ctl", write(fd, "delete", 6) == 6, NULL);
 		close(fd);
 	}
