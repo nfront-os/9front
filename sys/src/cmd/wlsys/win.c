@@ -110,7 +110,7 @@ released(Win *w, int i)
 	w->busy[i] = 0;
 	if((b = w->slot[i]) != NULL)
 		wl_buffer_send_release(b->res);
-	frames(&w->frames[i], msec());
+	later(&w->frames[i]);
 }
 
 static void
@@ -321,7 +321,7 @@ unbuffer(Buffer *b)
 	if(w->busy[b->slot]){
 		/* no release for a buffer gone; the frame done all the same */
 		w->busy[b->slot] = 0;
-		frames(&w->frames[b->slot], msec());
+		later(&w->frames[b->slot]);
 	}
 	b->win = NULL;
 	b->slot = -1;
@@ -342,7 +342,7 @@ show(Surface *s)
 		/*
 		 * no window (wsys gone, or it made none): the picture is not
 		 * shown, the buffer free again at once, the frame callbacks
-		 * done by the ticker (surfcommit: the client keeps its pace)
+		 * done at the next tick (surfcommit: the client keeps its pace)
 		 */
 		if(retry != NULL || (w = mkwin(s, b->w, b->h)) == NULL){
 			wl_buffer_send_release(b->res);
@@ -368,7 +368,7 @@ show(Surface *s)
 	if((i = slotof(w, b)) < 0){
 		/* wsys has all of them: this picture is skipped */
 		wl_buffer_send_release(b->res);
-		frames(&s->pframes, msec());
+		later(&s->pframes);
 		return;
 	}
 	d = s->pdamage;
@@ -386,7 +386,7 @@ show(Surface *s)
 	if(d.y1 > b->h)
 		d.y1 = b->h;
 	if(w->busy[i])
-		frames(&w->frames[i], msec());	/* presented again before released */
+		later(&w->frames[i]);	/* presented again before released */
 	wl_list_insert_list(&w->frames[i], &s->pframes);
 	wl_list_init(&s->pframes);
 	w->age[i] = ++clock;
@@ -436,7 +436,7 @@ windrop(Win *w)
 			if(w->busy[i])
 				wl_buffer_send_release(b->res);
 		}
-		frames(&w->frames[i], msec());
+		later(&w->frames[i]);
 	}
 	close(w->kbd);
 	close(w->ev);

@@ -105,10 +105,13 @@ The formats are
 and
 .B xrgb8888
 (the alpha is ignored).
-A commit presents the damaged part; the buffer is released, and the
-frame callbacks are done, when
+A commit presents the damaged part; the buffer is released when
 .I wsys
-lets go of it.
+lets go of it, and the frame callbacks are done 16 ms after (a
+display's pace: a client that draws on each callback draws some 60
+frames a second, not as fast as
+.I wsys
+copies).
 A window holds eight buffers; when all are taken, the one presented
 longest ago that
 .I wsys

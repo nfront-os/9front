@@ -112,6 +112,7 @@ uint32_t	msec(void);
 void	surfacegone(Surface*);
 void	buffergone(Buffer*);
 void	frames(struct wl_list*, uint32_t);
+void	later(struct wl_list*);
 void	sendenter(Surface*);
 
 /* shm.c */

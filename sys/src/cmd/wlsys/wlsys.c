@@ -18,8 +18,14 @@ struct wl_list surfaces;
 int debug;
 
 static struct wl_list outputs;	/* wl_output resources */
-static struct wl_list tick;	/* frame callbacks of commits without a present */
+/*
+ * frame callbacks due: done at the next tick, 16 ms after the first came,
+ * so that a client draws at a display's pace (wsys lets go of a buffer as
+ * soon as it has copied it), and commits without a present are answered
+ */
+static struct wl_list tick;
 static struct wl_event_source *ticker;
+static int ticking;
 
 void
 dprint(char *fmt, ...)
@@ -71,8 +77,23 @@ static int
 ontick(void *data)
 {
 	(void)data;
+	ticking = 0;
 	frames(&tick, msec());
 	return 0;
+}
+
+/* the callbacks of list done at the next tick */
+void
+later(struct wl_list *list)
+{
+	if(wl_list_empty(list))
+		return;
+	wl_list_insert_list(tick.prev, list);
+	wl_list_init(list);
+	if(!ticking){
+		ticking = 1;
+		wl_event_source_timer_update(ticker, 16);
+	}
 }
 
 /* ---- wl_region: wsys windows are opaque rectangles; regions are not kept ---- */
@@ -207,11 +228,7 @@ surfcommit(struct wl_client *c, struct wl_resource *r)
 	}
 	if(changed && s->toplevel != NULL && s->buf != NULL)
 		show(s);
-	if(!wl_list_empty(&s->pframes)){
-		wl_list_insert_list(&tick, &s->pframes);
-		wl_list_init(&s->pframes);
-		wl_event_source_timer_update(ticker, 16);
-	}
+	later(&s->pframes);
 	s->pdamage = (Rect){0, 0, 0, 0};
 }
 

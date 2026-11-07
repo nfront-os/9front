@@ -7,3 +7,7 @@
  */
 #define PACKAGE "wayland"
 #define PACKAGE_VERSION "1.26.0"
+/* APE has these (gnu/mman.c, gnu/posix.c): libwayland-cursor's images in a
+ * memfd, a segment wlsys can hand to wsys (a file in /tmp it refuses) */
+#define HAVE_MEMFD_CREATE 1
+#define HAVE_POSIX_FALLOCATE 1
