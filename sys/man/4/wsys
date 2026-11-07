@@ -271,7 +271,7 @@ Messages written:
 moves the window; with a new size it keeps showing its picture (white
 beyond it) until a buffer is presented.
 .TP
-.BI buffer " b seg w h stride
+.BI buffer " b seg w h stride \fR[\fPoff\fR]\fP
 announces buffer
 .I b
 (0 to 7): segment
@@ -280,9 +280,18 @@ of
 .I w
 by
 .I h
-pixels.
+pixels,
+.I off
+bytes into it (default 0).
 .I Wsys
-attaches it; it must lie in the window's range.
+attaches it; it must lie in the window's range, or in the region
+where the kernel puts segments made with an address of 0
+.RI ( segment (3)):
+their addresses are unique anyway.
+Several buffers, of one window or more, may be in one segment (a
+Wayland client's pool, see
+.IR wlsys (4));
+it is attached once.
 To reuse an address, unbuffer first.
 .TP
 .BI gpubuffer " b token w h stride
@@ -364,7 +373,8 @@ raises the window and gives it the focus.
 .IB n /event
 Reading blocks until there are events; each is a line:
 .BI m " x y buttons msec
-(the mouse, in the window's coordinates, while it is over the window or a button is held),
+(the mouse, in the window's coordinates, while it is over the window or a button is held,
+and once when it has left it),
 .BI k " rune
 (a key, the rune in hexadecimal),
 .BI r " w h
@@ -443,6 +453,7 @@ A client in C: see
 .SH SEE ALSO
 .IR rio (1),
 .IR rio (4),
+.IR wlsys (4),
 .IR window (1),
 .IR draw (3),
 .IR segment (3)

@@ -17,7 +17,7 @@
 //				cons consctl cursor kbd label mouse screen snarf
 //				text wctl wdir window winid winname
 //	N/ctl			read: id x0 y0 x1 y1 w h base size focus
-//				write: rect x0 y0 x1 y1 | buffer n seg w h stride |
+//				write: rect x0 y0 x1 y1 | buffer n seg w h stride [off] |
 //				unbuffer n | present n [x0 y0 x1 y1] | top |
 //				label text | delete
 //	N/event			read (blocks): lines m x y buttons msec | k hex-rune |
@@ -27,8 +27,10 @@
 // named as winname gives: a draw(3) program draws into it itself, as in rio.
 // A client of wsys's own protocol keeps its pixels in global segments of
 // segment(3) it makes, in the range of addresses ctl gives each window (wsys
-// attaches them at the same address, so they cannot collide in it); buffer n
-// announces one (x8r8g8b8, w x h, stride bytes a line); present n copies a
+// attaches them at the same address, so they cannot collide in it) or where
+// the kernel put them (segment(3)'s "va 0 len": unique anyway); buffer n
+// announces one (x8r8g8b8, w x h, stride bytes a line, off bytes into the
+// segment; several buffers may share one); present n copies a
 // rectangle of it into the window and answers with the event b n: buffer n
 // is free again (a swap chain of the client's).
 //
@@ -68,6 +70,7 @@ use draw::{Display, Rect, XRGB32};
 use ninep::{Dir, Qid, R, T};
 use p9::{Fd, OREAD, ORDWR, OWRITE, Seg};
 use std::collections::{HashMap, VecDeque};
+use std::rc::{Rc, Weak};
 use std::io::Write;
 use std::sync::mpsc;
 use std::thread;
@@ -194,7 +197,7 @@ struct Buf {
 /// where a buffer's pixels are: a segment of the client's, or a GPU buffer it
 /// exported (gpu(4)), imported by wsys
 enum Mem {
-    Seg(Seg),
+    Seg(Rc<Seg>, usize), // and where in it the buffer begins
     Gpu(gpu::GpuMem),
 }
 
@@ -204,7 +207,7 @@ impl Mem {
     /// device's memory can be slow to read twice, write-combined)
     fn rows(&mut self, y0: i32, y1: i32, stride: usize) -> (&[u8], i32) {
         match self {
-            Mem::Seg(s) => (s.bytes(), 0),
+            Mem::Seg(s, off) => (&s.bytes()[*off..], 0),
             Mem::Gpu(g) => (g.read(y0 as usize * stride, (y1 - y0) as usize * stride), y0),
         }
     }
@@ -248,6 +251,7 @@ struct Win {
     want: Option<usize>, // drawtext scrolls so that this offset is shown (look)
     hidden: bool,        // off the screen (button 3's Hide), listed in its menu
     lastb: Option<u32>,  // the buffer presented last (the overlay's: copied when it goes off)
+    inside: bool,        // the mouse was over it, last seen
     nooverlay: bool,     // the driver refused it the overlay: copies until it moves or resizes
     ovsent: Option<bool>, // the last "overlay 0|1" event: whether it may go on the plane
 }
@@ -489,6 +493,7 @@ struct Wsys {
     ovwhy: Option<&'static str>,       // why the last present did not go there (WSYSDEBUG)
     nooverlay: bool,                   // -O
     gpu: Option<gpu::Gpu>, // a context for clients' GPU buffers, made for the first
+    segs: HashMap<usize, Weak<Seg>>, // the clients' segments attached, by address
 }
 
 fn qid(k: Kind) -> Qid {
@@ -1110,7 +1115,7 @@ impl Wsys {
             kbd: VecDeque::new(), kbdopen: 0, mouseopen: 0, mouse: VecDeque::new(), resized: false,
             cursor: vec![], state: 1, textwin: text, scroll: 0, sel: (0, 0), rows: vec![], hidden: false,
             hold: false, want: None, stale: false,
-            scrollr: Rect::default(), shown: (1, 0, 1), lastb: None, nooverlay: false, ovsent: None,
+            scrollr: Rect::default(), shown: (1, 0, 1), lastb: None, inside: false, nooverlay: false, ovsent: None,
         });
         self.z.push(n);
         self.setfocus(Some(n));
@@ -1306,16 +1311,36 @@ impl Wsys {
                 if !(0..MAXBUF as i64).contains(&b) || bw < 1 || bh < 1 || bw > 16384 || bh > 16384 || stride < bw * 4 {
                     return Err("bad buffer".into());
                 }
-                let seg = Seg::attach(name).map_err(|e| format!("buffer {b}: {e}"))?;
+                let off = match a.get(6) {
+                    None => 0,
+                    Some(x) => x.parse::<usize>().map_err(|_| "bad buffer offset")?,
+                };
+                let at = Seg::find(name).map_err(|e| format!("buffer {b}: {e}"))?;
                 let w = self.wins.get_mut(&n).unwrap();
                 let base = SEGBASE + w.slot * SEGSIZE;
-                if seg.va < base || seg.va + seg.len > base + SEGSIZE {
-                    return Err(format!("buffer {b}: segment {name} at {:#x} is outside the window's range", seg.va));
+                let (rbase, rtop) = p9::shared_region();
+                let (va, len) = at;
+                let inwin = va >= base && va + len <= base + SEGSIZE;
+                let inregion = va >= rbase && va + len <= rtop;
+                if !inwin && !inregion {
+                    return Err(format!("buffer {b}: segment {name} at {va:#x} is outside the window's range"));
                 }
-                if (stride * (bh - 1) + bw * 4) as usize > seg.len {
+                if off.checked_add((stride * (bh - 1) + bw * 4) as usize).is_none_or(|e| e > len) {
                     return Err(format!("buffer {b}: segment {name} too small"));
                 }
-                w.bufs.insert(b as u32, Buf { mem: Mem::Seg(seg), w: bw as i32, h: bh as i32, stride: stride as usize });
+                // a segment attached once, however many buffers are in it (a
+                // Wayland client's pool): by its address, unique while attached
+                let seg = match self.segs.get(&va).and_then(Weak::upgrade) {
+                    Some(s) => s,
+                    None => {
+                        let s = Rc::new(Seg::attach(name, at).map_err(|e| format!("buffer {b}: {e}"))?);
+                        self.segs.retain(|_, s| s.strong_count() > 0);
+                        self.segs.insert(va, Rc::downgrade(&s));
+                        s
+                    }
+                };
+                let w = self.wins.get_mut(&n).unwrap();
+                w.bufs.insert(b as u32, Buf { mem: Mem::Seg(seg, off), w: bw as i32, h: bh as i32, stride: stride as usize });
                 Ok(())
             }
             "gpubuffer" => {
@@ -2094,9 +2119,16 @@ impl Wsys {
                 w.scroll = if b & 8 != 0 { w.scroll + 3 } else { w.scroll.saturating_sub(3) };
                 self.drawtext(n);
             }
-            if held || r.contains(x, y) {
+            let inside = r.contains(x, y);
+            if !held && !inside && self.wins[&n].inside {
+                // gone out: once more, so that the client knows (Wayland's leave)
+                self.event(n, format!("m {} {} {} {}", x - r.x0, y - r.y0, b, ms));
+                self.wins.get_mut(&n).unwrap().inside = false;
+            }
+            if held || inside {
                 self.event(n, format!("m {} {} {} {}", x - r.x0, y - r.y0, b, ms));
                 let w = self.wins.get_mut(&n).unwrap();
+                w.inside |= inside;
                 if w.mouseopen > 0 {
                     // a move replaces the last one queued with the same buttons
                     if w.mouse.len() >= MAXMOUSE || w.mouse.back().is_some_and(|m| m.2 == b && w.mouse.len() > 1) {
@@ -2807,6 +2839,7 @@ fn main() {
         nooverlay,
         plumbfd: None,
         gpu: None,
+        segs: HashMap::new(),
         tabstop: std::env::var("tabstop").ok().and_then(|t| t.trim().parse().ok()).filter(|&t: &i32| t > 0).unwrap_or(4),
         // rio's snarf, when wsys runs in a window of rio
         parentsnarf: std::fs::metadata("/dev/snarf").is_ok() && std::fs::metadata("/dev/wctl").is_ok(),

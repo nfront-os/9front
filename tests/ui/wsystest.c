@@ -8,7 +8,9 @@
  * buffers released with b events, focus and stacking by a click
  * (/dev/mousein), a key (/dev/kbdin), a resize that keeps the picture until a
  * new buffer comes, part of a buffer presented, a buffer outside the range
- * refused, a window gone when its clone fid is closed, no segment left in #g.
+ * refused, two buffers in one segment where the kernel put it (segment(3)'s
+ * "va 0 len", as a Wayland client's pool), the mouse leaving a window, a window
+ * gone when its clone fid is closed, no segment left in #g.
  * Prints ok/FAIL lines and "wsystest: all passed".
  */
 #include <u.h>
@@ -25,7 +27,7 @@ enum {
 };
 
 enum {
-	Nbuf = 2,
+	Nbuf = 4,
 	Bufstep = 0x10000000,	/* buffer i at base + i*Bufstep in the window's range */
 };
 
@@ -311,6 +313,66 @@ click(Point p)
 	close(fd);
 }
 
+/* the mouse to p, no button */
+static void
+moveto(Point p)
+{
+	int fd;
+
+	if((fd = open("/dev/mousein", OWRITE)) < 0)
+		fail("open mousein: %r");
+	fprint(fd, "A %d %d 0", p.x, p.y);
+	close(fd);
+}
+
+/*
+ * buffers i and i+1 of w x h in one segment the kernel placed (segment(3),
+ * va 0): i at its start, i+1 a page after the end of i
+ */
+static void
+mkpool(Win *w, int i, int bw, int bh)
+{
+	char *name, path[128], msg[128], buf[128], *f[4];
+	int fd, n, off;
+	void *p;
+
+	name = segname(w, i);
+	off = (bw*bh*4 + 4095) & ~4095;
+	snprint(path, sizeof path, "#g/%s", name);
+	if((fd = create(path, OREAD, DMDIR|0600)) < 0)
+		fail("create %s: %r", path);
+	close(fd);
+	snprint(path, sizeof path, "#g/%s/ctl", name);
+	if((fd = open(path, ORDWR)) < 0 || fprint(fd, "va 0 %d", 2*off) < 0)
+		fail("%s: va 0: %r", path);
+	n = pread(fd, buf, sizeof buf-1, 0);
+	close(fd);
+	if(n <= 0)
+		fail("%s: %r", path);
+	buf[n] = 0;
+	if(tokenize(buf, f, nelem(f)) < 3)
+		fail("%s: %s", path, buf);
+	if((p = segattach(0, name, nil, 0)) == (void*)-1)
+		fail("segattach %s: %r", name);
+	if((uintptr)p >= w->base && (uintptr)p < w->base + w->size)
+		fail("the kernel put %s in the window's range", name);
+	snprint(msg, sizeof msg, "buffer %d %s %d %d %d", i, name, bw, bh, bw*4);
+	if(write(w->ctl, msg, strlen(msg)) != strlen(msg))
+		fail("%s: %r", msg);
+	snprint(msg, sizeof msg, "buffer %d %s %d %d %d %d", i+1, name, bw, bh, bw*4, off);
+	if(write(w->ctl, msg, strlen(msg)) != strlen(msg))
+		fail("%s: %r", msg);
+	snprint(path, sizeof path, "#g/%s", name);
+	if(remove(path) < 0)
+		fail("remove %s: %r", path);
+	w->buf[i].w = w->buf[i+1].w = bw;
+	w->buf[i].h = w->buf[i+1].h = bh;
+	w->buf[i].stride = w->buf[i+1].stride = bw*4;
+	w->buf[i].px = p;
+	w->buf[i+1].px = (u32int*)((char*)p + off);
+	print("ok buffers %d, %d in segment %s at %#p (the kernel's), %d bytes apart\n", i, i+1, f[1], p, off);
+}
+
 /* button b held from p to q, then up */
 static void
 drag(Point p, Point q, int b)
@@ -467,6 +529,17 @@ main(void)
 	if(!a->focus)
 		fail("a has no focus after the click");
 
+	/* the mouse leaves a: one m event more, outside */
+	moveto(P(60, 60));
+	for(;;){
+		l = event(a, 'm');
+		if(tokenize(l, f, nelem(f)) < 4)
+			fail("a's m event: %s", l);
+		if(atoi(f[1]) < 0)
+			break;
+	}
+	print("ok a: m %s %s %s as the mouse left\n", f[1], f[2], f[3]);
+
 	/* a key for a (kbdfs gives it to a reader of cons: wsys) */
 	if((fd = open("/dev/kbdin", OWRITE)) < 0)
 		fail("open kbdin: %r");
@@ -499,6 +572,23 @@ main(void)
 	present(a, 0, &r);
 	want(P(230, 140), Red, "a's right half presented");
 	want(P(120, 140), Yellow, "a's left half as it was");
+
+	/* two buffers in one segment of the kernel's region (a Wayland pool) */
+	mkpool(a, 2, 200, 120);
+	fill(&a->buf[2], Rect(0, 0, 200, 120), Blue);
+	fill(&a->buf[3], Rect(0, 0, 200, 120), Green);
+	present(a, 3, nil);
+	want(P(180, 140), Green, "a's buffer 3, the pool's second");
+	present(a, 2, nil);
+	want(P(180, 140), Blue, "a's buffer 2, the pool's first");
+	ctl(a, "unbuffer 2");
+	present(a, 3, nil);
+	want(P(180, 140), Green, "buffer 3 with 2 gone: the segment stays");
+	ctl(a, "unbuffer 3");
+	segdetach(a->buf[2].px);
+	a->buf[2].px = a->buf[3].px = nil;
+	present(a, 0, nil);
+	want(P(120, 140), Yellow, "a's buffer 0 again");
 
 	/* b gone with its clone fid; its range is given again */
 	close(b->ctl);

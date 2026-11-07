@@ -144,12 +144,28 @@ pub struct Seg {
     pub len: usize,
 }
 
+/// The region of addresses the kernel gives segments made with "va 0 len"
+/// (segment(3); 9front's port/portdat.h, SHAREDBASE and SHAREDTOP): unique in
+/// the system, so a client's segment there cannot collide with another's.
+pub const fn shared_region() -> (usize, usize) {
+    #[cfg(target_arch = "x86_64")]
+    const USTKTOP: usize = 0x0000_7fff_ffff_f000;
+    #[cfg(target_arch = "aarch64")]
+    const USTKTOP: usize = (((1usize << 36) - 1) >> 1) - 0xFFFF;
+    #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
+    const USTKTOP: usize = 0; // not known here: no region
+    const MB2: usize = 2 * 1024 * 1024 - 1;
+    let base = (USTKTOP / 2) & !MB2;
+    (base, base + ((USTKTOP / 16) & !MB2))
+}
+
 impl Seg {
-    pub fn attach(name: &str) -> io::Result<Seg> {
+    /// where segment name is (its ctl: "va 0xaddr 0xlen"), if it is a plain
+    /// shared one
+    pub fn find(name: &str) -> io::Result<(usize, usize)> {
         if name.is_empty() || name.contains('/') {
             return Err(io::Error::other("bad segment name"));
         }
-        // "va 0xaddr 0xlen", as #g/name/ctl gives it
         let ctl = Fd::open(&format!("#g/{name}/ctl"), OREAD)?;
         let mut b = [0u8; 128];
         let n = ctl.read(&mut b)?;
@@ -162,6 +178,11 @@ impl Seg {
         if f.len() > 3 {
             return Err(io::Error::other(format!("segment {name}: not a plain shared segment")));
         }
+        Ok((va, len))
+    }
+
+    /// segment name attached at its address, (va, len) as find gave them
+    pub fn attach(name: &str, (va, len): (usize, usize)) -> io::Result<Seg> {
         let p = unsafe { p9segattach(0, cs(name).as_ptr(), std::ptr::null_mut(), len as c_uint) };
         if p as isize == -1 {
             return Err(err());
