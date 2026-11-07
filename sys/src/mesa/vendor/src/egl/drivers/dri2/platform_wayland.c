@@ -2708,6 +2708,22 @@ dri2_initialize_wayland_drm(_EGLDisplay *disp)
    if (roundtrip(dri2_dpy) < 0)
       goto cleanup;
 
+#ifdef HAVE_PLAN9_PLATFORM
+   /* 9front: no DRM node; zink on the Vulkan devices it finds, kopper
+    * presenting through Vulkan's Wayland WSI (dma-bufs of gpu(4)), as
+    * the plan9 platform does; the formats of linux-dmabuf's events, which
+    * the bind asked for */
+   if (roundtrip(dri2_dpy) < 0)
+      goto cleanup;
+   dri2_dpy->fd_render_gpu = -1;
+   dri2_dpy->fd_display_gpu = -1;
+   disp->Device = _eglFindDevice(-1, true);
+   dri2_dpy->driver_name = strdup("zink");
+   if (dri2_dpy->driver_name == NULL) {
+      _eglError(EGL_BAD_ALLOC, "DRI2: failed to get driver name");
+      goto cleanup;
+   }
+#else
    if (!dri2_initialize_wayland_drm_extensions(dri2_dpy))
       goto cleanup;
 
@@ -2740,6 +2756,7 @@ dri2_initialize_wayland_drm(_EGLDisplay *disp)
       _eglError(EGL_BAD_ALLOC, "DRI2: failed to get driver name");
       goto cleanup;
    }
+#endif
 
    dri2_detect_swrast_kopper(disp);
 
@@ -2749,10 +2766,12 @@ dri2_initialize_wayland_drm(_EGLDisplay *disp)
    if (!dri2_create_screen(disp))
       goto cleanup;
 
+#ifndef HAVE_PLAN9_PLATFORM
    if (!dri2_setup_device(disp, false)) {
       _eglError(EGL_NOT_INITIALIZED, "DRI2: failed to setup EGLDevice");
       goto cleanup;
    }
+#endif
 
    dri2_setup_screen(disp);
 

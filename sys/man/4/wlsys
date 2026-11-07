@@ -142,7 +142,10 @@ There are no fences: the client's rendering must be done when it commits.
 Mesa's Vulkan drivers do so for a
 .B VK_KHR_wayland_surface
 swapchain
-.RI ( gpu (4)).
+.RI ( gpu (4)),
+and so does OpenGL on EGL's Wayland platform (zink, whose kopper presents
+through that swapchain; libwayland-egl's
+.BR wl_egl_window ).
 .PP
 The pointer is the mouse of
 .IR wsys
@@ -202,9 +205,8 @@ A first version: one output, no cursor surfaces (the cursor stays
 no subsurfaces, no popups, no clipboard; dma-bufs without feedback
 (version 4), modifiers or fences
 .RB ( linux-drm-syncobj :
-Mesa's Wayland WSI waits for its blit before it commits); EGL's Wayland
-platform is built but not tried; scale and transform are taken as 1 and
-normal.
+Mesa's Wayland WSI waits for its blit before it commits); scale and
+transform are taken as 1 and normal.
 The keymap is not made again when
 .B /dev/kbmap
 changes.

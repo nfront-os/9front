@@ -9,7 +9,8 @@
 # of kbdfs' tables is compiled with the host's xkbcommon (xkbcli), if it has one.
 # Then, with libvulkan.a (build.exe, sys/src/mesa) and a host that runs venus
 # (virtio-gpu-gl), wlvk in a second guest: GPU buffers by zwp_linux_dmabuf_v1,
-# then a swapchain of Mesa's Wayland WSI
+# then a swapchain of Mesa's Wayland WSI, vkcube --wsi wayland, and GLES on
+# EGL's Wayland platform (wlgl)
 # (VKONLY=1: only that guest; NOVK=1: not it).
 # usage: tests/wayland/run.sh   (needs ../9front-gcc's cross gcc; a build with wsys)
 set -e
@@ -65,6 +66,10 @@ if [ "${NOVK:-0}" = 0 ]; then
 	"$CROSS/$TRIPLE-gcc" -std=gnu11 -O2 -Wall -Wno-unused-parameter -c -o "$CLI_DIR/wlvk.o" "$HERE/wlvk.c"
 	"$CROSS/$TRIPLE-g++" -o "$HERE/root/tests/wlvk" "$CLI_DIR/wlvk.o" -Wl,--gc-sections \
 		-lvulkan -ldraw -l9 -lfmt -lutf -lwayland-client -lffi
+	# wlgl: GLES on EGL's Wayland platform (zink, kopper)
+	"$CROSS/$TRIPLE-gcc" -std=gnu11 -O2 -Wall -Wno-unused-parameter -c -o "$CLI_DIR/wlgl.o" "$HERE/wlgl.c"
+	"$CROSS/$TRIPLE-g++" -o "$HERE/root/tests/wlgl" "$CLI_DIR/wlgl.o" -Wl,--gc-sections \
+		-lvulkan -ldraw -l9 -lfmt -lutf -lwayland-egl -lwayland-client -lffi
 	# vkcube (scripts/mesa/vktools.sh: Wayland too)
 	. "$ROOT/scripts/mesa/common.sh"
 	bash "$ROOT/scripts/mesa/vktools.sh" build >/dev/null
@@ -77,12 +82,13 @@ if [ "${NOVK:-0}" = 0 ]; then
 	trap stop EXIT
 	timeout 660 python3 "$ROOT/scripts/guest/mcp.py" wait 600 >/dev/null
 	t0=$(date +%s)
-	vk=$(timeout 700 python3 "$ROOT/scripts/guest/mcp.py" rc "bind -a '#i' /dev; bind -a '#m' /dev; /tests/wsys -x -i /tests/wlvk.rc >/tmp/wsys.log >[2=1]; cat /tmp/wsys.log /tmp/wlvk.log; sed 's/^/vkcube: /' /tmp/vkcube.log" 660) || true
+	vk=$(timeout 700 python3 "$ROOT/scripts/guest/mcp.py" rc "bind -a '#i' /dev; bind -a '#m' /dev; /tests/wsys -x -i /tests/wlvk.rc >/tmp/wsys.log >[2=1]; cat /tmp/wsys.log /tmp/wlvk.log; sed 's/^/vkcube: /' /tmp/vkcube.log; sed 's/^/wlgl: /' /tmp/wlgl.log" 660) || true
 	echo "wlvk and vkcube: $(($(date +%s) - t0)) s"
 	echo "$vk"
 	stop
 	trap - EXIT
 	echo "$vk" | grep -q '^wlvk: all passed' || { echo "FAIL wlvk"; fail=1; }
+	echo "$vk" | grep -q '^wlgl: wlgl: all passed' || { echo "FAIL wlgl (EGL's Wayland platform)"; fail=1; }
 	# vkcube on Mesa's Wayland WSI: its window, its frames presented, a clean exit
 	frames=$(echo "$vk" | grep -cE '^vkcube: wlsys: ctl [0-9]+: present' || true)
 	if echo "$vk" | grep -qE '^vkcube: wlsys: window [0-9]+ for 500x500' && [ "$frames" -ge 100 ] &&
