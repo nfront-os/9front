@@ -149,7 +149,9 @@ C99 math, then APE) and the tree's /$ARCH/include/ape and
 /sys/include/ape after it (-idirafter), for code that needs the
 compatibility layer, such as Mesa (sys/src/mesa). With -I the tree's
 APE headers would come first where they are not the compiler's own
-directories, as on 9front building a copy of the tree.
+directories, as on 9front building a copy of the tree. Its assembly files
+(.S) get the -I, -D and -U flags of Cflags too (libffi's include
+fficonfig.h); other manifests' assembly only the include structure.
 
 "Noinc" leaves out the standard include path (/$ARCH/include,
 /sys/include and .): the build object brings its own in Cflags, as the

@@ -666,6 +666,11 @@ func compileArgs(b *build) (command string, cArgs, asmArgs []string) {
 		if strings.HasPrefix(flag, "-m") || strings.HasPrefix(flag, "-fzero") || strings.HasPrefix(flag, "-fcommon") || flag == "-fno-pie" {
 			asmArgs = append(asmArgs, flag)
 		}
+		// a ported library's .S (Compat: libffi's) is preprocessed with
+		// the headers and definitions of its C files
+		if b.Compat && (strings.HasPrefix(flag, "-I") || strings.HasPrefix(flag, "-D") || strings.HasPrefix(flag, "-U")) {
+			asmArgs = append(asmArgs, flag)
+		}
 	}
 	return command, cArgs, asmArgs
 }
