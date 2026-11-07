@@ -1,0 +1,5 @@
+#!/bin/rc
+# run by wsys -x -i (tests/wayland/run.sh): wlsys with wlclient, a Wayland
+# client in a window of wsys; wlsys' own lines (-d) go to the same log
+/tests/wlsys -d /tests/wlclient >/tmp/wlclient.log >[2=1]
+echo wlsys: exit $status >>/tmp/wlclient.log

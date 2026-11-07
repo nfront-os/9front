@@ -1,0 +1,179 @@
+.TH WLSYS 4
+.SH NAME
+wlsys \- Wayland server in wsys
+.SH SYNOPSIS
+.B wlsys
+[
+.B -d
+] [
+.B -s
+.I name
+] [
+.I cmd
+[
+.I arg ...
+]
+]
+.SH DESCRIPTION
+.I Wlsys
+lets programs that speak only Wayland run in windows of
+.IR wsys (4).
+It is a client of
+.I wsys
+(it must run where
+.B /mnt/wsys
+is
+.IR wsys 's)
+and a Wayland server: it listens on the socket
+.BI $XDG_RUNTIME_DIR/ name
+(an APE
+.B PF_UNIX
+socket, an entry in
+.BR /srv ;
+default
+.BI wayland- pid\fR,
+.B $XDG_RUNTIME_DIR
+.B /tmp
+when not set) and writes
+.B $WAYLAND_DISPLAY
+(and
+.BR $XDG_RUNTIME_DIR )
+to
+.BR /env ,
+so that programs started after it find it.
+With
+.IR cmd ,
+it runs it (a name without
+.B /
+from
+.BR /bin )
+and exits when it does, with its status.
+.B -d
+prints what it does on standard error.
+.PP
+It offers
+.BR wl_compositor ,
+.BR wl_shm ,
+.BR wl_seat ,
+.B wl_output
+(the screen of
+.IR wsys )
+and
+.BR xdg_wm_base .
+Each xdg toplevel with a buffer is a window of
+.IR wsys ,
+made through its
+.B clone
+file, of the buffer's size and labelled with the toplevel's title;
+.I wsys
+draws its border and moves and sweeps it, as
+.IR rio (1)
+does: a size swept is sent to the client as a configure, and a buffer of
+another size, once the client has acknowledged it, resizes the window.
+Deleting the window in
+.I wsys
+sends the toplevel
+.BR close .
+Maximizing, full screen and minimizing are not offered
+.RB ( wm_capabilities
+is empty); popups are dismissed at once.
+.PP
+A
+.B wl_shm
+pool must be shared memory of APE
+.RB ( memfd_create ,
+.BR shm_open ):
+a segment of
+.IR segment (3)
+whose address the kernel chose.
+.I Wlsys
+keeps its descriptor (the segment stays named in
+.BR #g )
+and announces each buffer to the window with
+.I wsys 's
+.B buffer
+message, the segment by name, the buffer's offset in it:
+.I wsys
+attaches it and reads the pixels where the client wrote them;
+.I wlsys
+does not map the pool.
+The formats are
+.B argb8888
+and
+.B xrgb8888
+(the alpha is ignored).
+A commit presents the damaged part; the buffer is released, and the
+frame callbacks are done, when
+.I wsys
+lets go of it.
+A window holds eight buffers; when all are taken, the one presented
+longest ago that
+.I wsys
+has released is announced anew.
+.PP
+The pointer is the mouse of
+.IR wsys
+in the window with the focus: buttons 1, 2 and 3 are
+.BR BTN_LEFT ,
+.B BTN_MIDDLE
+and
+.BR BTN_RIGHT ,
+the wheel is the vertical axis.
+The keyboard is the window's
+.B kbd
+file: the keys held in
+.IR kbd (3)'s
+.B k
+and
+.B K
+messages, their changes key events, Linux's codes of the keys' scancodes.
+The keymap (XKB) is made of
+.IR kbdfs 's
+tables
+.RB ( /dev/kbmap ,
+read at the start):
+each key's runes with shift, altgr and both are its levels; the keys whose
+runes are shift, control, alt, mod4 and altgr are the modifiers
+Shift, Control, Mod1, Mod4 and Mod5.
+So a client's xkbcommon gives the characters
+.I kbdfs
+would.
+.SH EXAMPLES
+In a window of
+.IR wsys ,
+a Wayland program, and
+.I wlsys
+for it:
+.IP
+.EX
+wlsys weston-simple-shm
+.EE
+.PP
+A server for the programs started later in the window's name space:
+.IP
+.EX
+wlsys -s wayland-0 &
+.EE
+.SH SOURCE
+.B /sys/src/cmd/wlsys
+(C on APE with libwayland-server,
+.BR scripts/wayland/build.sh )
+.SH SEE ALSO
+.IR wsys (4),
+.IR segment (3),
+.IR kbd (3)
+.SH BUGS
+A first version: one output, no cursor surfaces (the cursor stays
+.IR wsys 's),
+no subsurfaces, no popups, no clipboard, no
+.B linux-dmabuf
+(GPU clients' buffers); scale and transform are taken as 1 and normal.
+The keymap is not made again when
+.B /dev/kbmap
+changes.
+The socket's entry in
+.B /srv
+stays when
+.I wlsys
+exits.
+Not part of the system's build yet.
