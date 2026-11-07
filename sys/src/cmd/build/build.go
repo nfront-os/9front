@@ -1057,6 +1057,10 @@ func install(b *build, dolink, doarchive bool) {
 		if b.Whole {
 			r := wholeObject(b)
 			run(b, *shellhack, exec.Command(tools["ld"], append(append(emulation(b), "-r", "-o", r), objs...)...))
+			// what its objects hide stays inside, as in a shared library
+			// (Mesa's private Wayland protocol code: a program's own
+			// libwayland-client.a has the same names)
+			run(b, *shellhack, exec.Command(tools["objcopy"], "--localize-hidden", r))
 			fail(writefile(r+".objs", []byte(strings.Join(objs, "\n")+"\n")))
 			objs = []string{r}
 		}

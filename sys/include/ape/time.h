@@ -82,6 +82,7 @@ extern "C" {
 #define CLOCK_MONOTONIC			1
 #define CLOCK_PROCESS_CPUTIME_ID	2
 #define CLOCK_THREAD_CPUTIME_ID		3
+#define CLOCK_MONOTONIC_RAW		4	/* 9front-ng: CLOCK_MONOTONIC's (never slewed) */
 #define TIME_UTC	1
 extern int	clock_gettime(clockid_t, struct timespec *);
 extern int	clock_getres(clockid_t, struct timespec *);

@@ -5,7 +5,8 @@
  * The clocks are 9front's /dev/bintime (cons(3), port/tod.c): big-endian
  * nanoseconds since the epoch, fastticks, their frequency, and the
  * nanoseconds since boot, which never go back (CLOCK_MONOTONIC; the
- * epoch time moves when the time is set). The file stays open, shared by
+ * epoch time moves when the time is set; never slewed, so it is
+ * CLOCK_MONOTONIC_RAW as well). The file stays open, shared by
  * all procs of the program; pread, so they need no lock.
  */
 #include <errno.h>
@@ -79,6 +80,7 @@ clock_gettime(clockid_t id, struct timespec *ts)
 	switch(id){
 	case CLOCK_REALTIME:
 	case CLOCK_MONOTONIC:
+	case CLOCK_MONOTONIC_RAW:
 		if(readbintime(v) < 0)
 			return -1;
 		nstots(id == CLOCK_REALTIME ? v[0] : v[3], ts);
@@ -103,6 +105,7 @@ clock_getres(clockid_t id, struct timespec *ts)
 	switch(id){
 	case CLOCK_REALTIME:
 	case CLOCK_MONOTONIC:
+	case CLOCK_MONOTONIC_RAW:
 		if(ts == NULL)
 			return 0;
 		/* a tick of the counter they come from, at least 1ns */

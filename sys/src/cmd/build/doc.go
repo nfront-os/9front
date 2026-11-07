@@ -168,7 +168,9 @@ archive to hold this manifest's objects only.
 
 "Whole" makes the "Library" one relocatable object of all its objects
 (ld -r), archived as its only member libx.o: a program that links any
-of it gets all of it, as with meson's link_whole. Mesa's driver tables
+of it gets all of it, as with meson's link_whole; its hidden symbols
+become local (objcopy --localize-hidden), as a shared library keeps
+them. Mesa's driver tables
 refer to their entry points weakly, and a weak reference takes no
 member out of an archive (sys/src/mesa/build.json).  The object's list of
 objects is kept beside it (libx.o.objs): -D makes it again when the
