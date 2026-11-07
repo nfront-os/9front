@@ -1,8 +1,9 @@
 # libwayland's files 9front builds (sys/src/wayland, scripts/wayland/vendor.py),
-# one a line under the release's tree: the two libraries as upstream builds
-# them (the shared part, libwayland-private, in each), and the protocols
-# wayland-scanner makes code for (core: the release's; xdg-shell and
-# linux-dmabuf: wayland-protocols'); the scanner itself runs on the host,
+# one a line under the release's tree: the libraries as upstream builds
+# them (client, server: the shared part, libwayland-private, in each; egl:
+# libwayland-egl, wl_egl_window), and the protocols
+# wayland-scanner makes code for (core: the release's; xdg-shell,
+# linux-dmabuf, xdg-decoration: wayland-protocols'); the scanner itself runs on the host,
 # its output is checked in
 client src/wayland-client.c
 server src/wayland-server.c
@@ -11,6 +12,8 @@ server src/wayland-shm.c
 both src/connection.c
 both src/wayland-util.c
 both src/wayland-os.c
+egl egl/wayland-egl.c
 protocol protocol/wayland.xml
 protocol stable/xdg-shell/xdg-shell.xml
 protocol unstable/linux-dmabuf/linux-dmabuf-unstable-v1.xml
+protocol unstable/xdg-decoration/xdg-decoration-unstable-v1.xml

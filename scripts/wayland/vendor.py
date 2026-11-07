@@ -76,6 +76,9 @@ shutil.copy2(os.path.join(prot, 'COPYING'), os.path.join(gen, 'COPYING.wayland-p
 pub = os.path.join(root, 'sys/include/ape')
 for f in ('wayland-client.h', 'wayland-client-core.h', 'wayland-server.h', 'wayland-server-core.h', 'wayland-util.h'):
     shutil.copy2(os.path.join(tree, 'src', f), os.path.join(pub, f))
+# libwayland-egl's (wl_egl_window for EGL's Wayland platform)
+for f in ('wayland-egl.h', 'wayland-egl-core.h', 'wayland-egl-backend.h'):
+    shutil.copy2(os.path.join(tree, 'egl', f), os.path.join(pub, f))
 shutil.copy2(os.path.join(gen, 'wayland-version.h'), os.path.join(pub, 'wayland-version.h'))
 for name in protos:
     for side in ('client', 'server'):
@@ -100,6 +103,14 @@ build = [{
     'Install': '/$ARCH/lib.gcc/ape',
     'Objtag': 's',
     'SourceFiles': files(('server', 'both')) + ['gen/%s-protocol.c' % n for n in protos],
+}, {
+    'Name': 'wayland-egl',
+    'Compat': True,
+    'Cflags': cflags + ['-Ivendor/egl'],
+    'Library': 'libwayland-egl.a',
+    'Install': '/$ARCH/lib.gcc/ape',
+    'Objtag': 'e',
+    'SourceFiles': files(('egl',)),
 }]
 with open(os.path.join(wl, 'build.json'), 'w') as f:
     json.dump(build, f, indent='\t')

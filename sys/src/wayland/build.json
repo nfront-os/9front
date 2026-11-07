@@ -20,7 +20,8 @@
 			"vendor/src/wayland-os.c",
 			"gen/wayland-protocol.c",
 			"gen/xdg-shell-protocol.c",
-			"gen/linux-dmabuf-unstable-v1-protocol.c"
+			"gen/linux-dmabuf-unstable-v1-protocol.c",
+			"gen/xdg-decoration-unstable-v1-protocol.c"
 		]
 	},
 	{
@@ -46,7 +47,27 @@
 			"vendor/src/wayland-os.c",
 			"gen/wayland-protocol.c",
 			"gen/xdg-shell-protocol.c",
-			"gen/linux-dmabuf-unstable-v1-protocol.c"
+			"gen/linux-dmabuf-unstable-v1-protocol.c",
+			"gen/xdg-decoration-unstable-v1-protocol.c"
+		]
+	},
+	{
+		"Name": "wayland-egl",
+		"Compat": true,
+		"Cflags": [
+			"-O2",
+			"-Wall",
+			"-fno-strict-aliasing",
+			"-Iplan9",
+			"-Igen",
+			"-Ivendor/src",
+			"-Ivendor/egl"
+		],
+		"Library": "libwayland-egl.a",
+		"Install": "/$ARCH/lib.gcc/ape",
+		"Objtag": "e",
+		"SourceFiles": [
+			"vendor/egl/wayland-egl.c"
 		]
 	}
 ]
