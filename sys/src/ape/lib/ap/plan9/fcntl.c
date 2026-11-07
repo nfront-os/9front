@@ -33,13 +33,33 @@ fcntl(int fd, int cmd, ...)
 				break;
 			}
 			oflags = fi->oflags;
-			for(i = (arg>0)? arg : 0; i<OPEN_MAX; i++)
-				if(!(_fdinfo[i].flags&FD_ISOPEN))
-					break;
+			/*
+			 * 9front-ng: a number free in the kernel too: dup(fd, i)
+			 * replaces what i is, and descriptors APE did not open
+			 * (a native program's: Rust's std in one with APE's C)
+			 * are not in _fdinfo; Mesa's dup took a Rust program's
+			 * /srv file. Without a minimum the kernel chooses.
+			 */
+			if(arg <= 0){
+				i = _DUP(fd, -1);
+				if(i >= OPEN_MAX){
+					_CLOSE(i);
+					i = OPEN_MAX;
+				}
+			}else{
+				char buf[2];
+
+				for(i = arg; i<OPEN_MAX; i++)
+					if(!(_fdinfo[i].flags&FD_ISOPEN) && _FD2PATH(i, buf, sizeof buf) < 0)
+						break;
+			}
 			if(i == OPEN_MAX)
 				err = EMFILE;
-			else {
-				ans = _DUP(fd, i);
+			else if(i < 0){
+				_syserrno();
+				err = errno;
+			}else {
+				ans = arg <= 0 ? i : _DUP(fd, i);
 				if(ans != i){
 					if(ans < 0){
 						_syserrno();
