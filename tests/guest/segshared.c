@@ -7,7 +7,8 @@
  * space) attaches them by name at those addresses and sees what this one
  * wrote, and this one what it wrote; segattach's own choice (va 0) lies
  * outside the region; a segment removed and detached everywhere gives
- * its range back.
+ * its range back; a segment given an address of its own in the region is
+ * refused.
  * Prints "ok ..." / "FAIL ..." lines and a summary.
  */
 #include <u.h>
@@ -94,7 +95,7 @@ main(void)
 	enum { Len = 3*1024*1024 };
 	uintptr a, b, c, d;
 	char *pa, *pb, *e;
-	int pid;
+	int pid, fd;
 	Waitmsg *w;
 	void *v;
 
@@ -106,6 +107,24 @@ main(void)
 		ok("two segments, two ranges: %#p %#p", a, b);
 	else
 		fail("ranges overlap: %#p %#p", a, b);
+
+	/* an address of its own in the region: the kernel's to give */
+	remove("#g/segshared.e");
+	if((fd = create("#g/segshared.e", OREAD, DMDIR|0777)) < 0)
+		fail("create #g/segshared.e: %r");
+	else{
+		close(fd);
+		if((fd = open("#g/segshared.e/ctl", ORDWR)) < 0)
+			fail("open #g/segshared.e/ctl: %r");
+		else{
+			if(fprint(fd, "va %#p 4096", b+64*1024*1024) >= 0)
+				fail("va %#p 4096 in the region taken", b+64*1024*1024);
+			else
+				ok("an address of its own in the region refused: %r");
+			close(fd);
+		}
+		rmseg("segshared.e");
+	}
 
 	pa = segattach(0, "segshared.a", nil, 0);
 	pb = segattach(0, "segshared.b", nil, 0);

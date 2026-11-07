@@ -87,7 +87,8 @@ Only the hostowner is allowed to create
 or
 .B sticky
 segments.
-.PPAn
+.PP
+An
 .I address
 of 0 (and no
 .IR type )
@@ -97,7 +98,8 @@ segment of the region has, so that any process can attach any of them
 without a collision; the range is free again once the segment is
 removed and no process has it attached any more.
 .IR Segattach (2)'s
-own choice of an address (0) stays out of that region.
+own choice of an address (0) stays out of that region, and a segment
+given an address of its own in the region is refused.
 .PP
 When the segment is attached using
 .IR segattach,

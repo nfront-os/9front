@@ -1018,6 +1018,12 @@ segmentwrite(Chan *c, void *a, long n, vlong voff)
 			va = va&~(BY2PG-1);
 			if(va == 0 || top > USTKTOP || top <= va)
 				error(Ebadarg);
+			/*
+			 * 9front-ng: the shared region is the kernel's to give
+			 * ("va 0 len"): its addresses stay unique
+			 */
+			if(va < SHAREDTOP && top > SHAREDBASE)
+				error("in the shared region");
 			len = top - va;
 			if(len > SEGMAXSIZE)
 				error(Enovmem);
