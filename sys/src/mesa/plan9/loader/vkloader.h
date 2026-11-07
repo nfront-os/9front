@@ -4,6 +4,7 @@
  * the static Vulkan loader of 9front (see genloader.py)
  */
 #define VK_USE_PLATFORM_PLAN9_9FRONT
+#define VK_USE_PLATFORM_WAYLAND_KHR
 #include <vulkan/vulkan.h>
 #include <vulkan/vk_icd.h>
 #include "vkcmds.h"	/* VKL_NCMD, generated */

@@ -2899,6 +2899,15 @@ wsi_common_queue_present(const struct wsi_device *wsi,
          wsi->WaitForFences(vk_device_to_handle(dev),
                             1, &swapchain->fences[image_index], true, ~0ull);
       }
+#ifdef VK_USE_PLATFORM_PLAN9_9FRONT
+      /* 9front: a dma-buf has no implicit sync, and the compositor reads
+       * it as soon as it hears of it: the blit done first */
+      else if (swapchain->image_info.image_type == WSI_IMAGE_TYPE_DRM &&
+               !swapchain->image_info.explicit_sync) {
+         wsi->WaitForFences(vk_device_to_handle(dev),
+                            1, &swapchain->fences[image_index], true, ~0ull);
+      }
+#endif
 
       const VkPresentRegionKHR *region = NULL;
       if (regions && regions->pRegions)

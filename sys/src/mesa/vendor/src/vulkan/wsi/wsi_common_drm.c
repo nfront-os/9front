@@ -562,6 +562,12 @@ static uint32_t
 prime_select_buffer_memory_type(const struct wsi_device *wsi,
                                 uint32_t type_bits)
 {
+#ifdef VK_USE_PLATFORM_PLAN9_9FRONT
+   /* 9front: the compositor maps the buffer (gpu(4) import, host visible) */
+   return wsi_select_memory_type(wsi, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
+                                 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                                 type_bits);
+#endif
    return wsi_select_memory_type(wsi, 0 /* req_props */,
                                  VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
                                  type_bits);

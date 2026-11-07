@@ -66,12 +66,44 @@ Cflags: -I$P9/drm/include
 Libs: -L$BUILD/plan9 -ldrm
 EOC
 
+# libwayland and libffi as the tree builds them (scripts/wayland/build.sh: in
+# /$objtype/lib.gcc/ape, headers in /sys/include/ape), for the Wayland
+# platform (Vulkan's WSI, EGL); wayland-protocols' XML from its release
+# (sys/src/wayland/VERSION), checked
+WL=$ROOT/sys/src/wayland
+wlv(){ awk -v k="$1" '$1 == k { print $2 }' "$WL/VERSION"; }
+for l in libffi.a libwayland-client.a libwayland-server.a libwayland-egl.a; do
+	[ -f "$ROOT/$objtype/lib.gcc/ape/$l" ] || bash "$ROOT/scripts/wayland/build.sh" "$BUILD/wayland"
+done
+WP=$BUILD/wayland-protocols-$(wlv protocols)
+if [ ! -d "$WP" ]; then
+	t=$ROOT/$(wlv protocols-tar)
+	echo "$(wlv protocols-sha256)  $t" | sha256sum -c --quiet
+	tar xJf "$t" -C "$BUILD"
+fi
+pc(){ # name version libs [requires]
+	printf 'Name: %s\nDescription: %s as 9front builds it (sys/src/wayland, sys/src/libffi)\nVersion: %s\nRequires: %s\nCflags:\nLibs: %s\n' \
+		"$1" "$1" "$2" "$4" "$3" > "$BUILD/plan9/pkgconfig/$1.pc"
+}
+pc libffi "$(awk '$1 == "version" { print $2 }' "$ROOT/sys/src/libffi/VERSION")" -lffi
+pc wayland-client "$(wlv version)" -lwayland-client libffi
+pc wayland-server "$(wlv version)" -lwayland-server libffi
+pc wayland-egl "18.1.0" -lwayland-egl wayland-client
+pc wayland-egl-backend 3 ""
+cat > "$BUILD/plan9/pkgconfig/wayland-protocols.pc" <<EOC
+pkgdatadir=$WP
+Name: wayland-protocols
+Description: Wayland's protocols (XML), release $(wlv protocols)
+Version: $(wlv protocols)
+EOC
+
 q(){ printf "'%s', " "$@"; }
 # -fno-strict-aliasing: Vulkan's pNext chains are read through
 # VkBaseInStructure; with gcc 16's inlining the venus encoder read a
 # struct before its initialisation (vkGetDeviceQueue2: 64 bytes sized,
 # 80 encoded, vn_cs.h assertion)
-args="$(q "-I$P9/include" -DHAVE_ENDIAN_H -DNO_REGEX -fno-strict-aliasing)"
+# plan9_wlweak.h: libwayland-client weakly (a program without Wayland links none)
+args="$(q "-I$P9/include" -DHAVE_ENDIAN_H -DNO_REGEX -fno-strict-aliasing -include "$P9/include/plan9_wlweak.h")"
 links="$(q "-L$BUILD/plan9" -lmesaplan9)"
 cat > "$BUILD/cross.ini" <<EOC
 [binaries]
@@ -99,14 +131,22 @@ cpp_link_args = [${links%, }]
 EOC
 
 DRIVERS=virtio,intel_hasvk,amd
+PLATFORMS=plan9,wayland
 GL="-Dgallium-drivers=zink -Dopengl=true -Degl=enabled -Dgles2=enabled"
+# meson reads the cross file when it sets up the build: another one (other
+# flags; the compilers of $CROSS, this tree as sysroot) wants a new setup
+if [ -f "$BUILD/mesa/build.ninja" ] && ! cmp -s "$BUILD/cross.ini" "$BUILD/mesa/cross.ini.setup"; then
+	meson setup --wipe "$BUILD/mesa" "$SRC" --cross-file "$BUILD/cross.ini"
+	cp "$BUILD/cross.ini" "$BUILD/mesa/cross.ini.setup"
+fi
 if [ ! -f "$BUILD/mesa/build.ninja" ]; then
 	meson setup "$BUILD/mesa" "$SRC" --cross-file "$BUILD/cross.ini" \
-		-Dplatforms=plan9 -Dvulkan-drivers=$DRIVERS $GL \
+		-Dplatforms=$PLATFORMS -Dvulkan-drivers=$DRIVERS $GL \
 		-Dglx=disabled -Dgbm=disabled -Dgles1=disabled \
 		-Dllvm=disabled -Dmesa-clc=system -Dzstd=disabled -Dexpat=disabled -Dxmlconfig=disabled \
 		-Dvalgrind=disabled -Dlibunwind=disabled -Dbuild-tests=false -Dtools= \
 		-Dvulkan-layers= -Ddefault_library=static -Dshader-cache=disabled
+	cp "$BUILD/cross.ini" "$BUILD/mesa/cross.ini.setup"
 elif [ "$(python3 -c 'import json, sys; print(",".join(*[o["value"] for o in json.load(open(sys.argv[1])) if o["name"] == "vulkan-drivers"]))' "$BUILD/mesa/meson-info/intro-buildoptions.json")" != $DRIVERS ]; then
 	# a build made before a driver was added (RADV: 2026-11)
 	meson configure "$BUILD/mesa" -Dvulkan-drivers=$DRIVERS
@@ -115,9 +155,9 @@ if [ "$(python3 -c 'import json, sys; print(",".join(*[o["value"] for o in json.
 	# a build made before zink (2026-11)
 	meson configure "$BUILD/mesa" $GL
 fi
-if [ "$(python3 -c 'import json, sys; print(",".join(*[o["value"] for o in json.load(open(sys.argv[1])) if o["name"] == "platforms"]))' "$BUILD/mesa/meson-info/intro-buildoptions.json")" != plan9 ]; then
-	# a build made before EGL's plan9 platform (2026-11)
-	meson configure "$BUILD/mesa" -Dplatforms=plan9
+if [ "$(python3 -c 'import json, sys; print(",".join(*[o["value"] for o in json.load(open(sys.argv[1])) if o["name"] == "platforms"]))' "$BUILD/mesa/meson-info/intro-buildoptions.json")" != $PLATFORMS ]; then
+	# a build made before EGL's plan9 platform, or Wayland's (2026-11)
+	meson configure "$BUILD/mesa" -Dplatforms=$PLATFORMS
 fi
 if [ "$(python3 -c 'import json, sys; print(*[o["value"] for o in json.load(open(sys.argv[1])) if o["name"] == "mesa-clc"])' "$BUILD/mesa/meson-info/intro-buildoptions.json")" != system ]; then
 	# a build set up before mesa_clc came from the build machine (386's)
@@ -158,6 +198,12 @@ done
 # of all functions into one .text that --gc-sections cannot thin)
 "$CROSS/$TRIPLE-ld" -r --no-warn-execstack -o "$L/mesa.o" \
 	--whole-archive "$BUILD/libvulkan_mesa.a" --no-whole-archive
+# what Mesa hides stays inside, as in the ICDs (its Wayland protocol code:
+# a program's libwayland-client.a has the same names)
+"$CROSS/$TRIPLE-objcopy" --localize-hidden "$L/mesa.o"
+# libwayland-client only weakly (plan9_wlweak.h names what Mesa uses)
+strong=$("$CROSS/$TRIPLE-nm" -u "$L/mesa.o" | awk '$1 == "U" && $2 ~ /^wl_/ { print $2 }')
+[ -z "$strong" ] || { echo "build: Mesa refers to libwayland strongly (plan9_wlweak.h lacks them): $strong" >&2; exit 1; }
 rm -f "$SDK/lib/libvulkan.a"
 "$CROSS/$TRIPLE-ar" rcs "$SDK/lib/libvulkan.a" "$L/vkloader.o" "$L/vkcmds.o" "$L/mesa.o" \
 	"$BUILD"/plan9/*.o

@@ -140,8 +140,10 @@ _eglNativePlatformDetectNativeDisplay(void *nativeDisplay)
 
 #ifdef HAVE_WAYLAND_PLATFORM
       /* wl_display is a wl_proxy, which is a wl_object.
-       * wl_object's first element points to the interfacetype. */
-      if (first_pointer == &wl_display_interface)
+       * wl_object's first element points to the interfacetype.
+       * 9front: libwayland-client is referred to weakly (plan9_wlweak.h),
+       * nil without it, as a display's first word may be. */
+      if (&wl_display_interface != NULL && first_pointer == &wl_display_interface)
          return _EGL_PLATFORM_WAYLAND;
 #endif
 

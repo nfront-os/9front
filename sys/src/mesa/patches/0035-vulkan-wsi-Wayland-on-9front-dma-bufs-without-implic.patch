@@ -1,0 +1,69 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Stefan Hertenberger <erde74@gmail.com>
+Date: Sat, 7 Nov 2026 17:17:07 +0100
+Subject: [PATCH] vulkan/wsi: Wayland on 9front: dma-bufs without implicit
+ sync, read by the compositor with the processor: a blit into a host visible
+ linear buffer, done before the present
+
+---
+ src/vulkan/wsi/wsi_common.c         | 9 +++++++++
+ src/vulkan/wsi/wsi_common_drm.c     | 6 ++++++
+ src/vulkan/wsi/wsi_common_wayland.c | 7 +++++++
+ 3 files changed, 22 insertions(+)
+
+diff --git a/src/vulkan/wsi/wsi_common.c b/src/vulkan/wsi/wsi_common.c
+index 35de858..021cffe 100644
+--- a/src/vulkan/wsi/wsi_common.c
++++ b/src/vulkan/wsi/wsi_common.c
+@@ -2899,6 +2899,15 @@ wsi_common_queue_present(const struct wsi_device *wsi,
+          wsi->WaitForFences(vk_device_to_handle(dev),
+                             1, &swapchain->fences[image_index], true, ~0ull);
+       }
++#ifdef VK_USE_PLATFORM_PLAN9_9FRONT
++      /* 9front: a dma-buf has no implicit sync, and the compositor reads
++       * it as soon as it hears of it: the blit done first */
++      else if (swapchain->image_info.image_type == WSI_IMAGE_TYPE_DRM &&
++               !swapchain->image_info.explicit_sync) {
++         wsi->WaitForFences(vk_device_to_handle(dev),
++                            1, &swapchain->fences[image_index], true, ~0ull);
++      }
++#endif
+ 
+       const VkPresentRegionKHR *region = NULL;
+       if (regions && regions->pRegions)
+diff --git a/src/vulkan/wsi/wsi_common_drm.c b/src/vulkan/wsi/wsi_common_drm.c
+index 024b370..0a66462 100644
+--- a/src/vulkan/wsi/wsi_common_drm.c
++++ b/src/vulkan/wsi/wsi_common_drm.c
+@@ -562,6 +562,12 @@ static uint32_t
+ prime_select_buffer_memory_type(const struct wsi_device *wsi,
+                                 uint32_t type_bits)
+ {
++#ifdef VK_USE_PLATFORM_PLAN9_9FRONT
++   /* 9front: the compositor maps the buffer (gpu(4) import, host visible) */
++   return wsi_select_memory_type(wsi, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
++                                 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
++                                 type_bits);
++#endif
+    return wsi_select_memory_type(wsi, 0 /* req_props */,
+                                  VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                                  type_bits);
+diff --git a/src/vulkan/wsi/wsi_common_wayland.c b/src/vulkan/wsi/wsi_common_wayland.c
+index 33a4059..caca666 100644
+--- a/src/vulkan/wsi/wsi_common_wayland.c
++++ b/src/vulkan/wsi/wsi_common_wayland.c
+@@ -3881,7 +3881,14 @@ wsi_wl_surface_create_swapchain(VkIcdSurfaceBase *icd_surface,
+    } else {
+       drm_image_params = (struct wsi_drm_image_params) {
+          .base.image_type = WSI_IMAGE_TYPE_DRM,
++#ifdef VK_USE_PLATFORM_PLAN9_9FRONT
++         /* 9front: the compositor (wsys) reads the buffers with the
++          * processor, as another GPU would: a blit into a linear buffer
++          * it can map (wsi_common_drm.c) */
++         .same_gpu = false,
++#else
+          .same_gpu = wsi_wl_surface->display->same_gpu,
++#endif
+          .explicit_sync = wsi_wl_use_explicit_sync(wsi_wl_surface->display, wsi_device),
+       };
+       /* Use explicit DRM format modifiers when both the server and the driver

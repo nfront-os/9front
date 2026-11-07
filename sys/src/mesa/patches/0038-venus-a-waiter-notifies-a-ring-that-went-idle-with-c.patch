@@ -1,0 +1,75 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Stefan Hertenberger <erde74@gmail.com>
+Date: Sat, 7 Nov 2026 19:46:58 +0100
+Subject: [PATCH] venus: a waiter notifies a ring that went idle with commands
+ in it again (a lost notify left the ring idle and the waiter waiting for
+ good)
+
+---
+ src/virtio/vulkan/vn_ring.c | 33 +++++++++++++++++++++++++++++++++
+ 1 file changed, 33 insertions(+)
+
+diff --git a/src/virtio/vulkan/vn_ring.c b/src/virtio/vulkan/vn_ring.c
+index bf0edbd..41fae95 100644
+--- a/src/virtio/vulkan/vn_ring.c
++++ b/src/virtio/vulkan/vn_ring.c
+@@ -186,6 +186,35 @@ vn_ring_get_seqno_status(struct vn_ring *ring, uint32_t seqno)
+    return vn_ring_ge_seqno(ring, vn_ring_load_head(ring), seqno);
+ }
+ 
++/*
++ * A renderer idle with commands left in the ring missed its notify (each
++ * submit decides on one from the status it saw, and leaves out those within
++ * the interval after the last: the renderer may go idle sooner than that).
++ * A waiter notifies it again, once a millisecond at most; a notify more is
++ * harmless.
++ */
++static void
++vn_ring_kick_stalled(struct vn_ring *ring, int64_t *next)
++{
++   if (!(vn_ring_load_status(ring) & VK_RING_STATUS_IDLE_BIT_MESA))
++      return;
++   const uint32_t tail =
++      atomic_load_explicit(ring->shared.tail, memory_order_relaxed);
++   if (vn_ring_load_head(ring) == tail)
++      return;
++   const int64_t now = os_time_get_nano();
++   if (now < *next)
++      return;
++   *next = now + VN_RING_IDLE_TIMEOUT_NS;
++
++   uint32_t notify_ring_data[8];
++   struct vn_cs_encoder local_enc = VN_CS_ENCODER_INITIALIZER_LOCAL(
++      notify_ring_data, sizeof(notify_ring_data));
++   vn_encode_vkNotifyRingMESA(&local_enc, 0, ring->id, tail, 0);
++   vn_renderer_submit_simple(ring->instance->renderer, notify_ring_data,
++                             vn_cs_encoder_get_len(&local_enc));
++}
++
+ void
+ vn_ring_wait_seqno(struct vn_ring *ring, uint32_t seqno)
+ {
+@@ -196,11 +225,13 @@ vn_ring_wait_seqno(struct vn_ring *ring, uint32_t seqno)
+                                           ? VN_RELAX_REASON_RING_SEQNO
+                                           : VN_RELAX_REASON_TLS_RING_SEQNO;
+    struct vn_relax_state relax_state = vn_relax_init(ring->instance, reason);
++   int64_t next_kick = os_time_get_nano() + VN_RING_IDLE_TIMEOUT_NS;
+    do {
+       if (vn_ring_get_seqno_status(ring, seqno)) {
+          vn_relax_fini(&relax_state);
+          return;
+       }
++      vn_ring_kick_stalled(ring, &next_kick);
+       vn_relax(&relax_state);
+    } while (true);
+ }
+@@ -243,7 +274,9 @@ vn_ring_wait_space(struct vn_ring *ring, uint32_t size)
+       /* see the reasoning in vn_ring_wait_seqno */
+       struct vn_relax_state relax_state =
+          vn_relax_init(ring->instance, VN_RELAX_REASON_RING_SPACE);
++      int64_t next_kick = os_time_get_nano() + VN_RING_IDLE_TIMEOUT_NS;
+       do {
++         vn_ring_kick_stalled(ring, &next_kick);
+          vn_relax(&relax_state);
+          if (vn_ring_has_space(ring, size, &head)) {
+             vn_relax_fini(&relax_state);

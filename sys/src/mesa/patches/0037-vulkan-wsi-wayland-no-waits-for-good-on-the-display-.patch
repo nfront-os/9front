@@ -1,0 +1,67 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Stefan Hertenberger <erde74@gmail.com>
+Date: Sat, 7 Nov 2026 19:34:32 +0100
+Subject: [PATCH] vulkan/wsi/wayland: no waits for good on the display queue,
+ which two threads may dispatch (venus' async present thread and the
+ application's acquire): present's FIFO wait and acquire's wait for a release
+ in slices of 16 ms, the flag and the images checked again after each
+
+---
+ src/vulkan/wsi/wsi_common_wayland.c | 31 +++++++++++++++++++++++------
+ 1 file changed, 25 insertions(+), 6 deletions(-)
+
+diff --git a/src/vulkan/wsi/wsi_common_wayland.c b/src/vulkan/wsi/wsi_common_wayland.c
+index caca666..6eff412 100644
+--- a/src/vulkan/wsi/wsi_common_wayland.c
++++ b/src/vulkan/wsi/wsi_common_wayland.c
+@@ -3019,16 +3019,27 @@ wsi_wl_swapchain_acquire_next_image_implicit(struct wsi_swapchain *wsi_chain,
+          }
+       }
+ 
+-      /* Try to dispatch potential events. */
++      /* Try to dispatch potential events: for 16 ms at most, as present's
++       * FIFO wait; another thread may dispatch this queue and with it the
++       * release we wait for (venus' async present).
++       */
++      struct timespec now, slice;
++      clock_gettime(CLOCK_MONOTONIC, &now);
++      timespec_add_msec(&slice, &now, 16);
++      if (timespec_after(&slice, &end_time))
++         slice = end_time;
+       int ret = loader_wayland_dispatch(wsi_wl_surface->display->wl_display,
+                                         wsi_wl_surface->display->queue,
+-                                        &end_time);
++                                        &slice);
+       if (ret == -1)
+          return VK_ERROR_OUT_OF_DATE_KHR;
+ 
+       /* Check for timeout. */
+-      if (ret == 0)
+-         return (info->timeout ? VK_TIMEOUT : VK_NOT_READY);
++      if (ret == 0) {
++         clock_gettime(CLOCK_MONOTONIC, &now);
++         if (!timespec_after(&end_time, &now))
++            return (info->timeout ? VK_TIMEOUT : VK_NOT_READY);
++      }
+    }
+ }
+ 
+@@ -3325,8 +3336,16 @@ wsi_wl_swapchain_queue_present(struct wsi_swapchain *wsi_chain,
+    /* For KHR_swapchain_maintenance1. We might have transitioned from FIFO to MAILBOX.
+     * In this case we need to let the FIFO request complete, before presenting MAILBOX. */
+    while (!chain->legacy_fifo_ready) {
+-      int ret = wl_display_dispatch_queue(wsi_wl_surface->display->wl_display,
+-                                          wsi_wl_surface->display->queue);
++      /* Not blocking for good: another thread may dispatch the queue and
++       * with it the frame callback (venus presents on a thread of its own
++       * without implicit fencing, while the application's acquire waits
++       * for a release on this queue); then no event is left for this one
++       * and the flag is only seen again after a timeout.
++       */
++      const struct timespec poll_interval = { 0, 16 * 1000 * 1000 };
++      int ret = wl_display_dispatch_queue_timeout(wsi_wl_surface->display->wl_display,
++                                                  wsi_wl_surface->display->queue,
++                                                  &poll_interval);
+       if (ret < 0)
+          return VK_ERROR_OUT_OF_DATE_KHR;
+ 

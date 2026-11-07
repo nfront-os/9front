@@ -14,12 +14,13 @@
 # the hand-written part: instance and device creation, proc addresses.
 #
 # Commands: those of the vulkan API (not vulkansc), core and every
-# extension without a platform, or with platform plan9.
+# extension without a platform, or with platform plan9 or wayland (Mesa's
+# Wayland WSI: wlsys(4)).
 
 import sys
 import xml.etree.ElementTree as ET
 
-PLATFORMS = {'plan9'}
+PLATFORMS = {'plan9', 'wayland'}
 # written by hand in vkloader.c
 HAND = {
 	'vkGetInstanceProcAddr', 'vkGetDeviceProcAddr',

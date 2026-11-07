@@ -1164,6 +1164,16 @@ the driver with a static loader in front of it, and APE's
 .IR draw (2)
 libraries
 .RB ( -lvulkan " " -ldraw " " -l9 " " -lfmt " " -lutf ).
+Mesa's Wayland platform (VK_KHR_wayland_surface, EGL's) refers to
+libwayland-client weakly: a program that speaks Wayland links
+.B -lwayland-client " " -lffi
+after
+.BR -lvulkan .
+Its buffers are blitted into host visible linear memory, waited for,
+and handed to the compositor as dma-bufs
+.RI ( wlsys (4)).
+What the library hides stays inside it (its symbols are local), as in a
+shared library.
 The loader keeps its dispatch tables in the first word of the
 dispatchable objects, as Khronos' loader does, and has no layers.
 Its functions are

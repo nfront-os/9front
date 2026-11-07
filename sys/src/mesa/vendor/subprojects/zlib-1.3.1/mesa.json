@@ -14,6 +14,8 @@
 			"-DHAVE_ENDIAN_H",
 			"-DNO_REGEX",
 			"-fno-strict-aliasing",
+			"-include",
+			"../../../plan9/include/plan9_wlweak.h",
 			"-fPIC"
 		],
 		"SourceFiles": [

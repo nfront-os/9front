@@ -1716,373 +1716,387 @@ vkl_CreateSharedSwapchainsKHR(VkDevice device, uint32_t swapchainCount, const Vk
 VKAPI_ATTR VkResult VKAPI_CALL vkCreateSharedSwapchainsKHR(VkDevice device, uint32_t swapchainCount, const VkSwapchainCreateInfoKHR* pCreateInfos, const VkAllocationCallbacks* pAllocator, VkSwapchainKHR* pSwapchains) __attribute__((weak, alias("vkl_CreateSharedSwapchainsKHR")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
+vkl_CreateWaylandSurfaceKHR(VkInstance instance, const VkWaylandSurfaceCreateInfoKHR* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkSurfaceKHR* pSurface)
+{
+	return ((PFN_vkCreateWaylandSurfaceKHR)VKL_DISPATCH(instance)->fn[256])(instance, pCreateInfo, pAllocator, pSurface);
+}
+VKAPI_ATTR VkResult VKAPI_CALL vkCreateWaylandSurfaceKHR(VkInstance instance, const VkWaylandSurfaceCreateInfoKHR* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkSurfaceKHR* pSurface) __attribute__((weak, alias("vkl_CreateWaylandSurfaceKHR")));
+
+VKAPI_ATTR VkBool32 VKAPI_CALL
+vkl_GetPhysicalDeviceWaylandPresentationSupportKHR(VkPhysicalDevice physicalDevice, uint32_t queueFamilyIndex, struct wl_display* display)
+{
+	return ((PFN_vkGetPhysicalDeviceWaylandPresentationSupportKHR)VKL_DISPATCH(physicalDevice)->fn[257])(physicalDevice, queueFamilyIndex, display);
+}
+VKAPI_ATTR VkBool32 VKAPI_CALL vkGetPhysicalDeviceWaylandPresentationSupportKHR(VkPhysicalDevice physicalDevice, uint32_t queueFamilyIndex, struct wl_display* display) __attribute__((weak, alias("vkl_GetPhysicalDeviceWaylandPresentationSupportKHR")));
+
+VKAPI_ATTR VkResult VKAPI_CALL
 vkl_CreateDebugReportCallbackEXT(VkInstance instance, const VkDebugReportCallbackCreateInfoEXT* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkDebugReportCallbackEXT* pCallback)
 {
-	return ((PFN_vkCreateDebugReportCallbackEXT)VKL_DISPATCH(instance)->fn[256])(instance, pCreateInfo, pAllocator, pCallback);
+	return ((PFN_vkCreateDebugReportCallbackEXT)VKL_DISPATCH(instance)->fn[258])(instance, pCreateInfo, pAllocator, pCallback);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkCreateDebugReportCallbackEXT(VkInstance instance, const VkDebugReportCallbackCreateInfoEXT* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkDebugReportCallbackEXT* pCallback) __attribute__((weak, alias("vkl_CreateDebugReportCallbackEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_DestroyDebugReportCallbackEXT(VkInstance instance, VkDebugReportCallbackEXT callback, const VkAllocationCallbacks* pAllocator)
 {
-	((PFN_vkDestroyDebugReportCallbackEXT)VKL_DISPATCH(instance)->fn[257])(instance, callback, pAllocator);
+	((PFN_vkDestroyDebugReportCallbackEXT)VKL_DISPATCH(instance)->fn[259])(instance, callback, pAllocator);
 }
 VKAPI_ATTR void VKAPI_CALL vkDestroyDebugReportCallbackEXT(VkInstance instance, VkDebugReportCallbackEXT callback, const VkAllocationCallbacks* pAllocator) __attribute__((weak, alias("vkl_DestroyDebugReportCallbackEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_DebugReportMessageEXT(VkInstance instance, VkDebugReportFlagsEXT flags, VkDebugReportObjectTypeEXT objectType, uint64_t object, size_t location, int32_t messageCode, const char* pLayerPrefix, const char* pMessage)
 {
-	((PFN_vkDebugReportMessageEXT)VKL_DISPATCH(instance)->fn[258])(instance, flags, objectType, object, location, messageCode, pLayerPrefix, pMessage);
+	((PFN_vkDebugReportMessageEXT)VKL_DISPATCH(instance)->fn[260])(instance, flags, objectType, object, location, messageCode, pLayerPrefix, pMessage);
 }
 VKAPI_ATTR void VKAPI_CALL vkDebugReportMessageEXT(VkInstance instance, VkDebugReportFlagsEXT flags, VkDebugReportObjectTypeEXT objectType, uint64_t object, size_t location, int32_t messageCode, const char* pLayerPrefix, const char* pMessage) __attribute__((weak, alias("vkl_DebugReportMessageEXT")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_DebugMarkerSetObjectTagEXT(VkDevice device, const VkDebugMarkerObjectTagInfoEXT* pTagInfo)
 {
-	return ((PFN_vkDebugMarkerSetObjectTagEXT)VKL_DISPATCH(device)->fn[259])(device, pTagInfo);
+	return ((PFN_vkDebugMarkerSetObjectTagEXT)VKL_DISPATCH(device)->fn[261])(device, pTagInfo);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkDebugMarkerSetObjectTagEXT(VkDevice device, const VkDebugMarkerObjectTagInfoEXT* pTagInfo) __attribute__((weak, alias("vkl_DebugMarkerSetObjectTagEXT")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_DebugMarkerSetObjectNameEXT(VkDevice device, const VkDebugMarkerObjectNameInfoEXT* pNameInfo)
 {
-	return ((PFN_vkDebugMarkerSetObjectNameEXT)VKL_DISPATCH(device)->fn[260])(device, pNameInfo);
+	return ((PFN_vkDebugMarkerSetObjectNameEXT)VKL_DISPATCH(device)->fn[262])(device, pNameInfo);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkDebugMarkerSetObjectNameEXT(VkDevice device, const VkDebugMarkerObjectNameInfoEXT* pNameInfo) __attribute__((weak, alias("vkl_DebugMarkerSetObjectNameEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdDebugMarkerBeginEXT(VkCommandBuffer commandBuffer, const VkDebugMarkerMarkerInfoEXT* pMarkerInfo)
 {
-	((PFN_vkCmdDebugMarkerBeginEXT)VKL_DISPATCH(commandBuffer)->fn[261])(commandBuffer, pMarkerInfo);
+	((PFN_vkCmdDebugMarkerBeginEXT)VKL_DISPATCH(commandBuffer)->fn[263])(commandBuffer, pMarkerInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdDebugMarkerBeginEXT(VkCommandBuffer commandBuffer, const VkDebugMarkerMarkerInfoEXT* pMarkerInfo) __attribute__((weak, alias("vkl_CmdDebugMarkerBeginEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdDebugMarkerEndEXT(VkCommandBuffer commandBuffer)
 {
-	((PFN_vkCmdDebugMarkerEndEXT)VKL_DISPATCH(commandBuffer)->fn[262])(commandBuffer);
+	((PFN_vkCmdDebugMarkerEndEXT)VKL_DISPATCH(commandBuffer)->fn[264])(commandBuffer);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdDebugMarkerEndEXT(VkCommandBuffer commandBuffer) __attribute__((weak, alias("vkl_CmdDebugMarkerEndEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdDebugMarkerInsertEXT(VkCommandBuffer commandBuffer, const VkDebugMarkerMarkerInfoEXT* pMarkerInfo)
 {
-	((PFN_vkCmdDebugMarkerInsertEXT)VKL_DISPATCH(commandBuffer)->fn[263])(commandBuffer, pMarkerInfo);
+	((PFN_vkCmdDebugMarkerInsertEXT)VKL_DISPATCH(commandBuffer)->fn[265])(commandBuffer, pMarkerInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdDebugMarkerInsertEXT(VkCommandBuffer commandBuffer, const VkDebugMarkerMarkerInfoEXT* pMarkerInfo) __attribute__((weak, alias("vkl_CmdDebugMarkerInsertEXT")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetPhysicalDeviceVideoCapabilitiesKHR(VkPhysicalDevice physicalDevice, const VkVideoProfileInfoKHR* pVideoProfile, VkVideoCapabilitiesKHR* pCapabilities)
 {
-	return ((PFN_vkGetPhysicalDeviceVideoCapabilitiesKHR)VKL_DISPATCH(physicalDevice)->fn[264])(physicalDevice, pVideoProfile, pCapabilities);
+	return ((PFN_vkGetPhysicalDeviceVideoCapabilitiesKHR)VKL_DISPATCH(physicalDevice)->fn[266])(physicalDevice, pVideoProfile, pCapabilities);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetPhysicalDeviceVideoCapabilitiesKHR(VkPhysicalDevice physicalDevice, const VkVideoProfileInfoKHR* pVideoProfile, VkVideoCapabilitiesKHR* pCapabilities) __attribute__((weak, alias("vkl_GetPhysicalDeviceVideoCapabilitiesKHR")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetPhysicalDeviceVideoFormatPropertiesKHR(VkPhysicalDevice physicalDevice, const VkPhysicalDeviceVideoFormatInfoKHR* pVideoFormatInfo, uint32_t* pVideoFormatPropertyCount, VkVideoFormatPropertiesKHR* pVideoFormatProperties)
 {
-	return ((PFN_vkGetPhysicalDeviceVideoFormatPropertiesKHR)VKL_DISPATCH(physicalDevice)->fn[265])(physicalDevice, pVideoFormatInfo, pVideoFormatPropertyCount, pVideoFormatProperties);
+	return ((PFN_vkGetPhysicalDeviceVideoFormatPropertiesKHR)VKL_DISPATCH(physicalDevice)->fn[267])(physicalDevice, pVideoFormatInfo, pVideoFormatPropertyCount, pVideoFormatProperties);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetPhysicalDeviceVideoFormatPropertiesKHR(VkPhysicalDevice physicalDevice, const VkPhysicalDeviceVideoFormatInfoKHR* pVideoFormatInfo, uint32_t* pVideoFormatPropertyCount, VkVideoFormatPropertiesKHR* pVideoFormatProperties) __attribute__((weak, alias("vkl_GetPhysicalDeviceVideoFormatPropertiesKHR")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_CreateVideoSessionKHR(VkDevice device, const VkVideoSessionCreateInfoKHR* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkVideoSessionKHR* pVideoSession)
 {
-	return ((PFN_vkCreateVideoSessionKHR)VKL_DISPATCH(device)->fn[266])(device, pCreateInfo, pAllocator, pVideoSession);
+	return ((PFN_vkCreateVideoSessionKHR)VKL_DISPATCH(device)->fn[268])(device, pCreateInfo, pAllocator, pVideoSession);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkCreateVideoSessionKHR(VkDevice device, const VkVideoSessionCreateInfoKHR* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkVideoSessionKHR* pVideoSession) __attribute__((weak, alias("vkl_CreateVideoSessionKHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_DestroyVideoSessionKHR(VkDevice device, VkVideoSessionKHR videoSession, const VkAllocationCallbacks* pAllocator)
 {
-	((PFN_vkDestroyVideoSessionKHR)VKL_DISPATCH(device)->fn[267])(device, videoSession, pAllocator);
+	((PFN_vkDestroyVideoSessionKHR)VKL_DISPATCH(device)->fn[269])(device, videoSession, pAllocator);
 }
 VKAPI_ATTR void VKAPI_CALL vkDestroyVideoSessionKHR(VkDevice device, VkVideoSessionKHR videoSession, const VkAllocationCallbacks* pAllocator) __attribute__((weak, alias("vkl_DestroyVideoSessionKHR")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetVideoSessionMemoryRequirementsKHR(VkDevice device, VkVideoSessionKHR videoSession, uint32_t* pMemoryRequirementsCount, VkVideoSessionMemoryRequirementsKHR* pMemoryRequirements)
 {
-	return ((PFN_vkGetVideoSessionMemoryRequirementsKHR)VKL_DISPATCH(device)->fn[268])(device, videoSession, pMemoryRequirementsCount, pMemoryRequirements);
+	return ((PFN_vkGetVideoSessionMemoryRequirementsKHR)VKL_DISPATCH(device)->fn[270])(device, videoSession, pMemoryRequirementsCount, pMemoryRequirements);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetVideoSessionMemoryRequirementsKHR(VkDevice device, VkVideoSessionKHR videoSession, uint32_t* pMemoryRequirementsCount, VkVideoSessionMemoryRequirementsKHR* pMemoryRequirements) __attribute__((weak, alias("vkl_GetVideoSessionMemoryRequirementsKHR")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_BindVideoSessionMemoryKHR(VkDevice device, VkVideoSessionKHR videoSession, uint32_t bindSessionMemoryInfoCount, const VkBindVideoSessionMemoryInfoKHR* pBindSessionMemoryInfos)
 {
-	return ((PFN_vkBindVideoSessionMemoryKHR)VKL_DISPATCH(device)->fn[269])(device, videoSession, bindSessionMemoryInfoCount, pBindSessionMemoryInfos);
+	return ((PFN_vkBindVideoSessionMemoryKHR)VKL_DISPATCH(device)->fn[271])(device, videoSession, bindSessionMemoryInfoCount, pBindSessionMemoryInfos);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkBindVideoSessionMemoryKHR(VkDevice device, VkVideoSessionKHR videoSession, uint32_t bindSessionMemoryInfoCount, const VkBindVideoSessionMemoryInfoKHR* pBindSessionMemoryInfos) __attribute__((weak, alias("vkl_BindVideoSessionMemoryKHR")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_CreateVideoSessionParametersKHR(VkDevice device, const VkVideoSessionParametersCreateInfoKHR* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkVideoSessionParametersKHR* pVideoSessionParameters)
 {
-	return ((PFN_vkCreateVideoSessionParametersKHR)VKL_DISPATCH(device)->fn[270])(device, pCreateInfo, pAllocator, pVideoSessionParameters);
+	return ((PFN_vkCreateVideoSessionParametersKHR)VKL_DISPATCH(device)->fn[272])(device, pCreateInfo, pAllocator, pVideoSessionParameters);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkCreateVideoSessionParametersKHR(VkDevice device, const VkVideoSessionParametersCreateInfoKHR* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkVideoSessionParametersKHR* pVideoSessionParameters) __attribute__((weak, alias("vkl_CreateVideoSessionParametersKHR")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_UpdateVideoSessionParametersKHR(VkDevice device, VkVideoSessionParametersKHR videoSessionParameters, const VkVideoSessionParametersUpdateInfoKHR* pUpdateInfo)
 {
-	return ((PFN_vkUpdateVideoSessionParametersKHR)VKL_DISPATCH(device)->fn[271])(device, videoSessionParameters, pUpdateInfo);
+	return ((PFN_vkUpdateVideoSessionParametersKHR)VKL_DISPATCH(device)->fn[273])(device, videoSessionParameters, pUpdateInfo);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkUpdateVideoSessionParametersKHR(VkDevice device, VkVideoSessionParametersKHR videoSessionParameters, const VkVideoSessionParametersUpdateInfoKHR* pUpdateInfo) __attribute__((weak, alias("vkl_UpdateVideoSessionParametersKHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_DestroyVideoSessionParametersKHR(VkDevice device, VkVideoSessionParametersKHR videoSessionParameters, const VkAllocationCallbacks* pAllocator)
 {
-	((PFN_vkDestroyVideoSessionParametersKHR)VKL_DISPATCH(device)->fn[272])(device, videoSessionParameters, pAllocator);
+	((PFN_vkDestroyVideoSessionParametersKHR)VKL_DISPATCH(device)->fn[274])(device, videoSessionParameters, pAllocator);
 }
 VKAPI_ATTR void VKAPI_CALL vkDestroyVideoSessionParametersKHR(VkDevice device, VkVideoSessionParametersKHR videoSessionParameters, const VkAllocationCallbacks* pAllocator) __attribute__((weak, alias("vkl_DestroyVideoSessionParametersKHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdBeginVideoCodingKHR(VkCommandBuffer commandBuffer, const VkVideoBeginCodingInfoKHR* pBeginInfo)
 {
-	((PFN_vkCmdBeginVideoCodingKHR)VKL_DISPATCH(commandBuffer)->fn[273])(commandBuffer, pBeginInfo);
+	((PFN_vkCmdBeginVideoCodingKHR)VKL_DISPATCH(commandBuffer)->fn[275])(commandBuffer, pBeginInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdBeginVideoCodingKHR(VkCommandBuffer commandBuffer, const VkVideoBeginCodingInfoKHR* pBeginInfo) __attribute__((weak, alias("vkl_CmdBeginVideoCodingKHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdEndVideoCodingKHR(VkCommandBuffer commandBuffer, const VkVideoEndCodingInfoKHR* pEndCodingInfo)
 {
-	((PFN_vkCmdEndVideoCodingKHR)VKL_DISPATCH(commandBuffer)->fn[274])(commandBuffer, pEndCodingInfo);
+	((PFN_vkCmdEndVideoCodingKHR)VKL_DISPATCH(commandBuffer)->fn[276])(commandBuffer, pEndCodingInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdEndVideoCodingKHR(VkCommandBuffer commandBuffer, const VkVideoEndCodingInfoKHR* pEndCodingInfo) __attribute__((weak, alias("vkl_CmdEndVideoCodingKHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdControlVideoCodingKHR(VkCommandBuffer commandBuffer, const VkVideoCodingControlInfoKHR* pCodingControlInfo)
 {
-	((PFN_vkCmdControlVideoCodingKHR)VKL_DISPATCH(commandBuffer)->fn[275])(commandBuffer, pCodingControlInfo);
+	((PFN_vkCmdControlVideoCodingKHR)VKL_DISPATCH(commandBuffer)->fn[277])(commandBuffer, pCodingControlInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdControlVideoCodingKHR(VkCommandBuffer commandBuffer, const VkVideoCodingControlInfoKHR* pCodingControlInfo) __attribute__((weak, alias("vkl_CmdControlVideoCodingKHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdDecodeVideoKHR(VkCommandBuffer commandBuffer, const VkVideoDecodeInfoKHR* pDecodeInfo)
 {
-	((PFN_vkCmdDecodeVideoKHR)VKL_DISPATCH(commandBuffer)->fn[276])(commandBuffer, pDecodeInfo);
+	((PFN_vkCmdDecodeVideoKHR)VKL_DISPATCH(commandBuffer)->fn[278])(commandBuffer, pDecodeInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdDecodeVideoKHR(VkCommandBuffer commandBuffer, const VkVideoDecodeInfoKHR* pDecodeInfo) __attribute__((weak, alias("vkl_CmdDecodeVideoKHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdBindTransformFeedbackBuffersEXT(VkCommandBuffer commandBuffer, uint32_t firstBinding, uint32_t bindingCount, const VkBuffer* pBuffers, const VkDeviceSize* pOffsets, const VkDeviceSize* pSizes)
 {
-	((PFN_vkCmdBindTransformFeedbackBuffersEXT)VKL_DISPATCH(commandBuffer)->fn[277])(commandBuffer, firstBinding, bindingCount, pBuffers, pOffsets, pSizes);
+	((PFN_vkCmdBindTransformFeedbackBuffersEXT)VKL_DISPATCH(commandBuffer)->fn[279])(commandBuffer, firstBinding, bindingCount, pBuffers, pOffsets, pSizes);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdBindTransformFeedbackBuffersEXT(VkCommandBuffer commandBuffer, uint32_t firstBinding, uint32_t bindingCount, const VkBuffer* pBuffers, const VkDeviceSize* pOffsets, const VkDeviceSize* pSizes) __attribute__((weak, alias("vkl_CmdBindTransformFeedbackBuffersEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdBeginTransformFeedbackEXT(VkCommandBuffer commandBuffer, uint32_t firstCounterBuffer, uint32_t counterBufferCount, const VkBuffer* pCounterBuffers, const VkDeviceSize* pCounterBufferOffsets)
 {
-	((PFN_vkCmdBeginTransformFeedbackEXT)VKL_DISPATCH(commandBuffer)->fn[278])(commandBuffer, firstCounterBuffer, counterBufferCount, pCounterBuffers, pCounterBufferOffsets);
+	((PFN_vkCmdBeginTransformFeedbackEXT)VKL_DISPATCH(commandBuffer)->fn[280])(commandBuffer, firstCounterBuffer, counterBufferCount, pCounterBuffers, pCounterBufferOffsets);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdBeginTransformFeedbackEXT(VkCommandBuffer commandBuffer, uint32_t firstCounterBuffer, uint32_t counterBufferCount, const VkBuffer* pCounterBuffers, const VkDeviceSize* pCounterBufferOffsets) __attribute__((weak, alias("vkl_CmdBeginTransformFeedbackEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdEndTransformFeedbackEXT(VkCommandBuffer commandBuffer, uint32_t firstCounterBuffer, uint32_t counterBufferCount, const VkBuffer* pCounterBuffers, const VkDeviceSize* pCounterBufferOffsets)
 {
-	((PFN_vkCmdEndTransformFeedbackEXT)VKL_DISPATCH(commandBuffer)->fn[279])(commandBuffer, firstCounterBuffer, counterBufferCount, pCounterBuffers, pCounterBufferOffsets);
+	((PFN_vkCmdEndTransformFeedbackEXT)VKL_DISPATCH(commandBuffer)->fn[281])(commandBuffer, firstCounterBuffer, counterBufferCount, pCounterBuffers, pCounterBufferOffsets);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdEndTransformFeedbackEXT(VkCommandBuffer commandBuffer, uint32_t firstCounterBuffer, uint32_t counterBufferCount, const VkBuffer* pCounterBuffers, const VkDeviceSize* pCounterBufferOffsets) __attribute__((weak, alias("vkl_CmdEndTransformFeedbackEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdBeginQueryIndexedEXT(VkCommandBuffer commandBuffer, VkQueryPool queryPool, uint32_t query, VkQueryControlFlags flags, uint32_t index)
 {
-	((PFN_vkCmdBeginQueryIndexedEXT)VKL_DISPATCH(commandBuffer)->fn[280])(commandBuffer, queryPool, query, flags, index);
+	((PFN_vkCmdBeginQueryIndexedEXT)VKL_DISPATCH(commandBuffer)->fn[282])(commandBuffer, queryPool, query, flags, index);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdBeginQueryIndexedEXT(VkCommandBuffer commandBuffer, VkQueryPool queryPool, uint32_t query, VkQueryControlFlags flags, uint32_t index) __attribute__((weak, alias("vkl_CmdBeginQueryIndexedEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdEndQueryIndexedEXT(VkCommandBuffer commandBuffer, VkQueryPool queryPool, uint32_t query, uint32_t index)
 {
-	((PFN_vkCmdEndQueryIndexedEXT)VKL_DISPATCH(commandBuffer)->fn[281])(commandBuffer, queryPool, query, index);
+	((PFN_vkCmdEndQueryIndexedEXT)VKL_DISPATCH(commandBuffer)->fn[283])(commandBuffer, queryPool, query, index);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdEndQueryIndexedEXT(VkCommandBuffer commandBuffer, VkQueryPool queryPool, uint32_t query, uint32_t index) __attribute__((weak, alias("vkl_CmdEndQueryIndexedEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdDrawIndirectByteCountEXT(VkCommandBuffer commandBuffer, uint32_t instanceCount, uint32_t firstInstance, VkBuffer counterBuffer, VkDeviceSize counterBufferOffset, uint32_t counterOffset, uint32_t vertexStride)
 {
-	((PFN_vkCmdDrawIndirectByteCountEXT)VKL_DISPATCH(commandBuffer)->fn[282])(commandBuffer, instanceCount, firstInstance, counterBuffer, counterBufferOffset, counterOffset, vertexStride);
+	((PFN_vkCmdDrawIndirectByteCountEXT)VKL_DISPATCH(commandBuffer)->fn[284])(commandBuffer, instanceCount, firstInstance, counterBuffer, counterBufferOffset, counterOffset, vertexStride);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdDrawIndirectByteCountEXT(VkCommandBuffer commandBuffer, uint32_t instanceCount, uint32_t firstInstance, VkBuffer counterBuffer, VkDeviceSize counterBufferOffset, uint32_t counterOffset, uint32_t vertexStride) __attribute__((weak, alias("vkl_CmdDrawIndirectByteCountEXT")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_CreateCuModuleNVX(VkDevice device, const VkCuModuleCreateInfoNVX* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkCuModuleNVX* pModule)
 {
-	return ((PFN_vkCreateCuModuleNVX)VKL_DISPATCH(device)->fn[283])(device, pCreateInfo, pAllocator, pModule);
+	return ((PFN_vkCreateCuModuleNVX)VKL_DISPATCH(device)->fn[285])(device, pCreateInfo, pAllocator, pModule);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkCreateCuModuleNVX(VkDevice device, const VkCuModuleCreateInfoNVX* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkCuModuleNVX* pModule) __attribute__((weak, alias("vkl_CreateCuModuleNVX")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_CreateCuFunctionNVX(VkDevice device, const VkCuFunctionCreateInfoNVX* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkCuFunctionNVX* pFunction)
 {
-	return ((PFN_vkCreateCuFunctionNVX)VKL_DISPATCH(device)->fn[284])(device, pCreateInfo, pAllocator, pFunction);
+	return ((PFN_vkCreateCuFunctionNVX)VKL_DISPATCH(device)->fn[286])(device, pCreateInfo, pAllocator, pFunction);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkCreateCuFunctionNVX(VkDevice device, const VkCuFunctionCreateInfoNVX* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkCuFunctionNVX* pFunction) __attribute__((weak, alias("vkl_CreateCuFunctionNVX")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_DestroyCuModuleNVX(VkDevice device, VkCuModuleNVX module, const VkAllocationCallbacks* pAllocator)
 {
-	((PFN_vkDestroyCuModuleNVX)VKL_DISPATCH(device)->fn[285])(device, module, pAllocator);
+	((PFN_vkDestroyCuModuleNVX)VKL_DISPATCH(device)->fn[287])(device, module, pAllocator);
 }
 VKAPI_ATTR void VKAPI_CALL vkDestroyCuModuleNVX(VkDevice device, VkCuModuleNVX module, const VkAllocationCallbacks* pAllocator) __attribute__((weak, alias("vkl_DestroyCuModuleNVX")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_DestroyCuFunctionNVX(VkDevice device, VkCuFunctionNVX function, const VkAllocationCallbacks* pAllocator)
 {
-	((PFN_vkDestroyCuFunctionNVX)VKL_DISPATCH(device)->fn[286])(device, function, pAllocator);
+	((PFN_vkDestroyCuFunctionNVX)VKL_DISPATCH(device)->fn[288])(device, function, pAllocator);
 }
 VKAPI_ATTR void VKAPI_CALL vkDestroyCuFunctionNVX(VkDevice device, VkCuFunctionNVX function, const VkAllocationCallbacks* pAllocator) __attribute__((weak, alias("vkl_DestroyCuFunctionNVX")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdCuLaunchKernelNVX(VkCommandBuffer commandBuffer, const VkCuLaunchInfoNVX* pLaunchInfo)
 {
-	((PFN_vkCmdCuLaunchKernelNVX)VKL_DISPATCH(commandBuffer)->fn[287])(commandBuffer, pLaunchInfo);
+	((PFN_vkCmdCuLaunchKernelNVX)VKL_DISPATCH(commandBuffer)->fn[289])(commandBuffer, pLaunchInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdCuLaunchKernelNVX(VkCommandBuffer commandBuffer, const VkCuLaunchInfoNVX* pLaunchInfo) __attribute__((weak, alias("vkl_CmdCuLaunchKernelNVX")));
 
 VKAPI_ATTR uint32_t VKAPI_CALL
 vkl_GetImageViewHandleNVX(VkDevice device, const VkImageViewHandleInfoNVX* pInfo)
 {
-	return ((PFN_vkGetImageViewHandleNVX)VKL_DISPATCH(device)->fn[288])(device, pInfo);
+	return ((PFN_vkGetImageViewHandleNVX)VKL_DISPATCH(device)->fn[290])(device, pInfo);
 }
 VKAPI_ATTR uint32_t VKAPI_CALL vkGetImageViewHandleNVX(VkDevice device, const VkImageViewHandleInfoNVX* pInfo) __attribute__((weak, alias("vkl_GetImageViewHandleNVX")));
 
 VKAPI_ATTR uint64_t VKAPI_CALL
 vkl_GetImageViewHandle64NVX(VkDevice device, const VkImageViewHandleInfoNVX* pInfo)
 {
-	return ((PFN_vkGetImageViewHandle64NVX)VKL_DISPATCH(device)->fn[289])(device, pInfo);
+	return ((PFN_vkGetImageViewHandle64NVX)VKL_DISPATCH(device)->fn[291])(device, pInfo);
 }
 VKAPI_ATTR uint64_t VKAPI_CALL vkGetImageViewHandle64NVX(VkDevice device, const VkImageViewHandleInfoNVX* pInfo) __attribute__((weak, alias("vkl_GetImageViewHandle64NVX")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetImageViewAddressNVX(VkDevice device, VkImageView imageView, VkImageViewAddressPropertiesNVX* pProperties)
 {
-	return ((PFN_vkGetImageViewAddressNVX)VKL_DISPATCH(device)->fn[290])(device, imageView, pProperties);
+	return ((PFN_vkGetImageViewAddressNVX)VKL_DISPATCH(device)->fn[292])(device, imageView, pProperties);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetImageViewAddressNVX(VkDevice device, VkImageView imageView, VkImageViewAddressPropertiesNVX* pProperties) __attribute__((weak, alias("vkl_GetImageViewAddressNVX")));
 
 VKAPI_ATTR uint64_t VKAPI_CALL
 vkl_GetDeviceCombinedImageSamplerIndexNVX(VkDevice device, uint64_t imageViewIndex, uint64_t samplerIndex)
 {
-	return ((PFN_vkGetDeviceCombinedImageSamplerIndexNVX)VKL_DISPATCH(device)->fn[291])(device, imageViewIndex, samplerIndex);
+	return ((PFN_vkGetDeviceCombinedImageSamplerIndexNVX)VKL_DISPATCH(device)->fn[293])(device, imageViewIndex, samplerIndex);
 }
 VKAPI_ATTR uint64_t VKAPI_CALL vkGetDeviceCombinedImageSamplerIndexNVX(VkDevice device, uint64_t imageViewIndex, uint64_t samplerIndex) __attribute__((weak, alias("vkl_GetDeviceCombinedImageSamplerIndexNVX")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdDrawIndirectCountAMD(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset, VkBuffer countBuffer, VkDeviceSize countBufferOffset, uint32_t maxDrawCount, uint32_t stride)
 {
-	((PFN_vkCmdDrawIndirectCountAMD)VKL_DISPATCH(commandBuffer)->fn[292])(commandBuffer, buffer, offset, countBuffer, countBufferOffset, maxDrawCount, stride);
+	((PFN_vkCmdDrawIndirectCountAMD)VKL_DISPATCH(commandBuffer)->fn[294])(commandBuffer, buffer, offset, countBuffer, countBufferOffset, maxDrawCount, stride);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdDrawIndirectCountAMD(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset, VkBuffer countBuffer, VkDeviceSize countBufferOffset, uint32_t maxDrawCount, uint32_t stride) __attribute__((weak, alias("vkl_CmdDrawIndirectCountAMD")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdDrawIndexedIndirectCountAMD(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset, VkBuffer countBuffer, VkDeviceSize countBufferOffset, uint32_t maxDrawCount, uint32_t stride)
 {
-	((PFN_vkCmdDrawIndexedIndirectCountAMD)VKL_DISPATCH(commandBuffer)->fn[293])(commandBuffer, buffer, offset, countBuffer, countBufferOffset, maxDrawCount, stride);
+	((PFN_vkCmdDrawIndexedIndirectCountAMD)VKL_DISPATCH(commandBuffer)->fn[295])(commandBuffer, buffer, offset, countBuffer, countBufferOffset, maxDrawCount, stride);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdDrawIndexedIndirectCountAMD(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset, VkBuffer countBuffer, VkDeviceSize countBufferOffset, uint32_t maxDrawCount, uint32_t stride) __attribute__((weak, alias("vkl_CmdDrawIndexedIndirectCountAMD")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetShaderInfoAMD(VkDevice device, VkPipeline pipeline, VkShaderStageFlagBits shaderStage, VkShaderInfoTypeAMD infoType, size_t* pInfoSize, void* pInfo)
 {
-	return ((PFN_vkGetShaderInfoAMD)VKL_DISPATCH(device)->fn[294])(device, pipeline, shaderStage, infoType, pInfoSize, pInfo);
+	return ((PFN_vkGetShaderInfoAMD)VKL_DISPATCH(device)->fn[296])(device, pipeline, shaderStage, infoType, pInfoSize, pInfo);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetShaderInfoAMD(VkDevice device, VkPipeline pipeline, VkShaderStageFlagBits shaderStage, VkShaderInfoTypeAMD infoType, size_t* pInfoSize, void* pInfo) __attribute__((weak, alias("vkl_GetShaderInfoAMD")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdBeginRenderingKHR(VkCommandBuffer commandBuffer, const VkRenderingInfo* pRenderingInfo)
 {
-	((PFN_vkCmdBeginRenderingKHR)VKL_DISPATCH(commandBuffer)->fn[295])(commandBuffer, pRenderingInfo);
+	((PFN_vkCmdBeginRenderingKHR)VKL_DISPATCH(commandBuffer)->fn[297])(commandBuffer, pRenderingInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdBeginRenderingKHR(VkCommandBuffer commandBuffer, const VkRenderingInfo* pRenderingInfo) __attribute__((weak, alias("vkl_CmdBeginRenderingKHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdEndRenderingKHR(VkCommandBuffer commandBuffer)
 {
-	((PFN_vkCmdEndRenderingKHR)VKL_DISPATCH(commandBuffer)->fn[296])(commandBuffer);
+	((PFN_vkCmdEndRenderingKHR)VKL_DISPATCH(commandBuffer)->fn[298])(commandBuffer);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdEndRenderingKHR(VkCommandBuffer commandBuffer) __attribute__((weak, alias("vkl_CmdEndRenderingKHR")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetPhysicalDeviceExternalImageFormatPropertiesNV(VkPhysicalDevice physicalDevice, VkFormat format, VkImageType type, VkImageTiling tiling, VkImageUsageFlags usage, VkImageCreateFlags flags, VkExternalMemoryHandleTypeFlagsNV externalHandleType, VkExternalImageFormatPropertiesNV* pExternalImageFormatProperties)
 {
-	return ((PFN_vkGetPhysicalDeviceExternalImageFormatPropertiesNV)VKL_DISPATCH(physicalDevice)->fn[297])(physicalDevice, format, type, tiling, usage, flags, externalHandleType, pExternalImageFormatProperties);
+	return ((PFN_vkGetPhysicalDeviceExternalImageFormatPropertiesNV)VKL_DISPATCH(physicalDevice)->fn[299])(physicalDevice, format, type, tiling, usage, flags, externalHandleType, pExternalImageFormatProperties);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetPhysicalDeviceExternalImageFormatPropertiesNV(VkPhysicalDevice physicalDevice, VkFormat format, VkImageType type, VkImageTiling tiling, VkImageUsageFlags usage, VkImageCreateFlags flags, VkExternalMemoryHandleTypeFlagsNV externalHandleType, VkExternalImageFormatPropertiesNV* pExternalImageFormatProperties) __attribute__((weak, alias("vkl_GetPhysicalDeviceExternalImageFormatPropertiesNV")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_GetPhysicalDeviceFeatures2KHR(VkPhysicalDevice physicalDevice, VkPhysicalDeviceFeatures2* pFeatures)
 {
-	((PFN_vkGetPhysicalDeviceFeatures2KHR)VKL_DISPATCH(physicalDevice)->fn[298])(physicalDevice, pFeatures);
+	((PFN_vkGetPhysicalDeviceFeatures2KHR)VKL_DISPATCH(physicalDevice)->fn[300])(physicalDevice, pFeatures);
 }
 VKAPI_ATTR void VKAPI_CALL vkGetPhysicalDeviceFeatures2KHR(VkPhysicalDevice physicalDevice, VkPhysicalDeviceFeatures2* pFeatures) __attribute__((weak, alias("vkl_GetPhysicalDeviceFeatures2KHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_GetPhysicalDeviceProperties2KHR(VkPhysicalDevice physicalDevice, VkPhysicalDeviceProperties2* pProperties)
 {
-	((PFN_vkGetPhysicalDeviceProperties2KHR)VKL_DISPATCH(physicalDevice)->fn[299])(physicalDevice, pProperties);
+	((PFN_vkGetPhysicalDeviceProperties2KHR)VKL_DISPATCH(physicalDevice)->fn[301])(physicalDevice, pProperties);
 }
 VKAPI_ATTR void VKAPI_CALL vkGetPhysicalDeviceProperties2KHR(VkPhysicalDevice physicalDevice, VkPhysicalDeviceProperties2* pProperties) __attribute__((weak, alias("vkl_GetPhysicalDeviceProperties2KHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_GetPhysicalDeviceFormatProperties2KHR(VkPhysicalDevice physicalDevice, VkFormat format, VkFormatProperties2* pFormatProperties)
 {
-	((PFN_vkGetPhysicalDeviceFormatProperties2KHR)VKL_DISPATCH(physicalDevice)->fn[300])(physicalDevice, format, pFormatProperties);
+	((PFN_vkGetPhysicalDeviceFormatProperties2KHR)VKL_DISPATCH(physicalDevice)->fn[302])(physicalDevice, format, pFormatProperties);
 }
 VKAPI_ATTR void VKAPI_CALL vkGetPhysicalDeviceFormatProperties2KHR(VkPhysicalDevice physicalDevice, VkFormat format, VkFormatProperties2* pFormatProperties) __attribute__((weak, alias("vkl_GetPhysicalDeviceFormatProperties2KHR")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetPhysicalDeviceImageFormatProperties2KHR(VkPhysicalDevice physicalDevice, const VkPhysicalDeviceImageFormatInfo2* pImageFormatInfo, VkImageFormatProperties2* pImageFormatProperties)
 {
-	return ((PFN_vkGetPhysicalDeviceImageFormatProperties2KHR)VKL_DISPATCH(physicalDevice)->fn[301])(physicalDevice, pImageFormatInfo, pImageFormatProperties);
+	return ((PFN_vkGetPhysicalDeviceImageFormatProperties2KHR)VKL_DISPATCH(physicalDevice)->fn[303])(physicalDevice, pImageFormatInfo, pImageFormatProperties);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetPhysicalDeviceImageFormatProperties2KHR(VkPhysicalDevice physicalDevice, const VkPhysicalDeviceImageFormatInfo2* pImageFormatInfo, VkImageFormatProperties2* pImageFormatProperties) __attribute__((weak, alias("vkl_GetPhysicalDeviceImageFormatProperties2KHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_GetPhysicalDeviceQueueFamilyProperties2KHR(VkPhysicalDevice physicalDevice, uint32_t* pQueueFamilyPropertyCount, VkQueueFamilyProperties2* pQueueFamilyProperties)
 {
-	((PFN_vkGetPhysicalDeviceQueueFamilyProperties2KHR)VKL_DISPATCH(physicalDevice)->fn[302])(physicalDevice, pQueueFamilyPropertyCount, pQueueFamilyProperties);
+	((PFN_vkGetPhysicalDeviceQueueFamilyProperties2KHR)VKL_DISPATCH(physicalDevice)->fn[304])(physicalDevice, pQueueFamilyPropertyCount, pQueueFamilyProperties);
 }
 VKAPI_ATTR void VKAPI_CALL vkGetPhysicalDeviceQueueFamilyProperties2KHR(VkPhysicalDevice physicalDevice, uint32_t* pQueueFamilyPropertyCount, VkQueueFamilyProperties2* pQueueFamilyProperties) __attribute__((weak, alias("vkl_GetPhysicalDeviceQueueFamilyProperties2KHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_GetPhysicalDeviceMemoryProperties2KHR(VkPhysicalDevice physicalDevice, VkPhysicalDeviceMemoryProperties2* pMemoryProperties)
 {
-	((PFN_vkGetPhysicalDeviceMemoryProperties2KHR)VKL_DISPATCH(physicalDevice)->fn[303])(physicalDevice, pMemoryProperties);
+	((PFN_vkGetPhysicalDeviceMemoryProperties2KHR)VKL_DISPATCH(physicalDevice)->fn[305])(physicalDevice, pMemoryProperties);
 }
 VKAPI_ATTR void VKAPI_CALL vkGetPhysicalDeviceMemoryProperties2KHR(VkPhysicalDevice physicalDevice, VkPhysicalDeviceMemoryProperties2* pMemoryProperties) __attribute__((weak, alias("vkl_GetPhysicalDeviceMemoryProperties2KHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_GetPhysicalDeviceSparseImageFormatProperties2KHR(VkPhysicalDevice physicalDevice, const VkPhysicalDeviceSparseImageFormatInfo2* pFormatInfo, uint32_t* pPropertyCount, VkSparseImageFormatProperties2* pProperties)
 {
-	((PFN_vkGetPhysicalDeviceSparseImageFormatProperties2KHR)VKL_DISPATCH(physicalDevice)->fn[304])(physicalDevice, pFormatInfo, pPropertyCount, pProperties);
+	((PFN_vkGetPhysicalDeviceSparseImageFormatProperties2KHR)VKL_DISPATCH(physicalDevice)->fn[306])(physicalDevice, pFormatInfo, pPropertyCount, pProperties);
 }
 VKAPI_ATTR void VKAPI_CALL vkGetPhysicalDeviceSparseImageFormatProperties2KHR(VkPhysicalDevice physicalDevice, const VkPhysicalDeviceSparseImageFormatInfo2* pFormatInfo, uint32_t* pPropertyCount, VkSparseImageFormatProperties2* pProperties) __attribute__((weak, alias("vkl_GetPhysicalDeviceSparseImageFormatProperties2KHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_GetDeviceGroupPeerMemoryFeaturesKHR(VkDevice device, uint32_t heapIndex, uint32_t localDeviceIndex, uint32_t remoteDeviceIndex, VkPeerMemoryFeatureFlags* pPeerMemoryFeatures)
 {
-	((PFN_vkGetDeviceGroupPeerMemoryFeaturesKHR)VKL_DISPATCH(device)->fn[305])(device, heapIndex, localDeviceIndex, remoteDeviceIndex, pPeerMemoryFeatures);
+	((PFN_vkGetDeviceGroupPeerMemoryFeaturesKHR)VKL_DISPATCH(device)->fn[307])(device, heapIndex, localDeviceIndex, remoteDeviceIndex, pPeerMemoryFeatures);
 }
 VKAPI_ATTR void VKAPI_CALL vkGetDeviceGroupPeerMemoryFeaturesKHR(VkDevice device, uint32_t heapIndex, uint32_t localDeviceIndex, uint32_t remoteDeviceIndex, VkPeerMemoryFeatureFlags* pPeerMemoryFeatures) __attribute__((weak, alias("vkl_GetDeviceGroupPeerMemoryFeaturesKHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetDeviceMaskKHR(VkCommandBuffer commandBuffer, uint32_t deviceMask)
 {
-	((PFN_vkCmdSetDeviceMaskKHR)VKL_DISPATCH(commandBuffer)->fn[306])(commandBuffer, deviceMask);
+	((PFN_vkCmdSetDeviceMaskKHR)VKL_DISPATCH(commandBuffer)->fn[308])(commandBuffer, deviceMask);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetDeviceMaskKHR(VkCommandBuffer commandBuffer, uint32_t deviceMask) __attribute__((weak, alias("vkl_CmdSetDeviceMaskKHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdDispatchBaseKHR(VkCommandBuffer commandBuffer, uint32_t baseGroupX, uint32_t baseGroupY, uint32_t baseGroupZ, uint32_t groupCountX, uint32_t groupCountY, uint32_t groupCountZ)
 {
-	((PFN_vkCmdDispatchBaseKHR)VKL_DISPATCH(commandBuffer)->fn[307])(commandBuffer, baseGroupX, baseGroupY, baseGroupZ, groupCountX, groupCountY, groupCountZ);
+	((PFN_vkCmdDispatchBaseKHR)VKL_DISPATCH(commandBuffer)->fn[309])(commandBuffer, baseGroupX, baseGroupY, baseGroupZ, groupCountX, groupCountY, groupCountZ);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdDispatchBaseKHR(VkCommandBuffer commandBuffer, uint32_t baseGroupX, uint32_t baseGroupY, uint32_t baseGroupZ, uint32_t groupCountX, uint32_t groupCountY, uint32_t groupCountZ) __attribute__((weak, alias("vkl_CmdDispatchBaseKHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_TrimCommandPoolKHR(VkDevice device, VkCommandPool commandPool, VkCommandPoolTrimFlags flags)
 {
-	((PFN_vkTrimCommandPoolKHR)VKL_DISPATCH(device)->fn[308])(device, commandPool, flags);
+	((PFN_vkTrimCommandPoolKHR)VKL_DISPATCH(device)->fn[310])(device, commandPool, flags);
 }
 VKAPI_ATTR void VKAPI_CALL vkTrimCommandPoolKHR(VkDevice device, VkCommandPool commandPool, VkCommandPoolTrimFlags flags) __attribute__((weak, alias("vkl_TrimCommandPoolKHR")));
 
@@ -2090,3206 +2104,3206 @@ VKAPI_ATTR VkResult VKAPI_CALL vkl_EnumeratePhysicalDeviceGroupsKHR(VkInstance i
 VKAPI_ATTR void VKAPI_CALL
 vkl_GetPhysicalDeviceExternalBufferPropertiesKHR(VkPhysicalDevice physicalDevice, const VkPhysicalDeviceExternalBufferInfo* pExternalBufferInfo, VkExternalBufferProperties* pExternalBufferProperties)
 {
-	((PFN_vkGetPhysicalDeviceExternalBufferPropertiesKHR)VKL_DISPATCH(physicalDevice)->fn[310])(physicalDevice, pExternalBufferInfo, pExternalBufferProperties);
+	((PFN_vkGetPhysicalDeviceExternalBufferPropertiesKHR)VKL_DISPATCH(physicalDevice)->fn[312])(physicalDevice, pExternalBufferInfo, pExternalBufferProperties);
 }
 VKAPI_ATTR void VKAPI_CALL vkGetPhysicalDeviceExternalBufferPropertiesKHR(VkPhysicalDevice physicalDevice, const VkPhysicalDeviceExternalBufferInfo* pExternalBufferInfo, VkExternalBufferProperties* pExternalBufferProperties) __attribute__((weak, alias("vkl_GetPhysicalDeviceExternalBufferPropertiesKHR")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetMemoryFdKHR(VkDevice device, const VkMemoryGetFdInfoKHR* pGetFdInfo, int* pFd)
 {
-	return ((PFN_vkGetMemoryFdKHR)VKL_DISPATCH(device)->fn[311])(device, pGetFdInfo, pFd);
+	return ((PFN_vkGetMemoryFdKHR)VKL_DISPATCH(device)->fn[313])(device, pGetFdInfo, pFd);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetMemoryFdKHR(VkDevice device, const VkMemoryGetFdInfoKHR* pGetFdInfo, int* pFd) __attribute__((weak, alias("vkl_GetMemoryFdKHR")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetMemoryFdPropertiesKHR(VkDevice device, VkExternalMemoryHandleTypeFlagBits handleType, int fd, VkMemoryFdPropertiesKHR* pMemoryFdProperties)
 {
-	return ((PFN_vkGetMemoryFdPropertiesKHR)VKL_DISPATCH(device)->fn[312])(device, handleType, fd, pMemoryFdProperties);
+	return ((PFN_vkGetMemoryFdPropertiesKHR)VKL_DISPATCH(device)->fn[314])(device, handleType, fd, pMemoryFdProperties);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetMemoryFdPropertiesKHR(VkDevice device, VkExternalMemoryHandleTypeFlagBits handleType, int fd, VkMemoryFdPropertiesKHR* pMemoryFdProperties) __attribute__((weak, alias("vkl_GetMemoryFdPropertiesKHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_GetPhysicalDeviceExternalSemaphorePropertiesKHR(VkPhysicalDevice physicalDevice, const VkPhysicalDeviceExternalSemaphoreInfo* pExternalSemaphoreInfo, VkExternalSemaphoreProperties* pExternalSemaphoreProperties)
 {
-	((PFN_vkGetPhysicalDeviceExternalSemaphorePropertiesKHR)VKL_DISPATCH(physicalDevice)->fn[313])(physicalDevice, pExternalSemaphoreInfo, pExternalSemaphoreProperties);
+	((PFN_vkGetPhysicalDeviceExternalSemaphorePropertiesKHR)VKL_DISPATCH(physicalDevice)->fn[315])(physicalDevice, pExternalSemaphoreInfo, pExternalSemaphoreProperties);
 }
 VKAPI_ATTR void VKAPI_CALL vkGetPhysicalDeviceExternalSemaphorePropertiesKHR(VkPhysicalDevice physicalDevice, const VkPhysicalDeviceExternalSemaphoreInfo* pExternalSemaphoreInfo, VkExternalSemaphoreProperties* pExternalSemaphoreProperties) __attribute__((weak, alias("vkl_GetPhysicalDeviceExternalSemaphorePropertiesKHR")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_ImportSemaphoreFdKHR(VkDevice device, const VkImportSemaphoreFdInfoKHR* pImportSemaphoreFdInfo)
 {
-	return ((PFN_vkImportSemaphoreFdKHR)VKL_DISPATCH(device)->fn[314])(device, pImportSemaphoreFdInfo);
+	return ((PFN_vkImportSemaphoreFdKHR)VKL_DISPATCH(device)->fn[316])(device, pImportSemaphoreFdInfo);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkImportSemaphoreFdKHR(VkDevice device, const VkImportSemaphoreFdInfoKHR* pImportSemaphoreFdInfo) __attribute__((weak, alias("vkl_ImportSemaphoreFdKHR")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetSemaphoreFdKHR(VkDevice device, const VkSemaphoreGetFdInfoKHR* pGetFdInfo, int* pFd)
 {
-	return ((PFN_vkGetSemaphoreFdKHR)VKL_DISPATCH(device)->fn[315])(device, pGetFdInfo, pFd);
+	return ((PFN_vkGetSemaphoreFdKHR)VKL_DISPATCH(device)->fn[317])(device, pGetFdInfo, pFd);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetSemaphoreFdKHR(VkDevice device, const VkSemaphoreGetFdInfoKHR* pGetFdInfo, int* pFd) __attribute__((weak, alias("vkl_GetSemaphoreFdKHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdPushDescriptorSetKHR(VkCommandBuffer commandBuffer, VkPipelineBindPoint pipelineBindPoint, VkPipelineLayout layout, uint32_t set, uint32_t descriptorWriteCount, const VkWriteDescriptorSet* pDescriptorWrites)
 {
-	((PFN_vkCmdPushDescriptorSetKHR)VKL_DISPATCH(commandBuffer)->fn[316])(commandBuffer, pipelineBindPoint, layout, set, descriptorWriteCount, pDescriptorWrites);
+	((PFN_vkCmdPushDescriptorSetKHR)VKL_DISPATCH(commandBuffer)->fn[318])(commandBuffer, pipelineBindPoint, layout, set, descriptorWriteCount, pDescriptorWrites);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdPushDescriptorSetKHR(VkCommandBuffer commandBuffer, VkPipelineBindPoint pipelineBindPoint, VkPipelineLayout layout, uint32_t set, uint32_t descriptorWriteCount, const VkWriteDescriptorSet* pDescriptorWrites) __attribute__((weak, alias("vkl_CmdPushDescriptorSetKHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdPushDescriptorSetWithTemplateKHR(VkCommandBuffer commandBuffer, VkDescriptorUpdateTemplate descriptorUpdateTemplate, VkPipelineLayout layout, uint32_t set, const void* pData)
 {
-	((PFN_vkCmdPushDescriptorSetWithTemplateKHR)VKL_DISPATCH(commandBuffer)->fn[317])(commandBuffer, descriptorUpdateTemplate, layout, set, pData);
+	((PFN_vkCmdPushDescriptorSetWithTemplateKHR)VKL_DISPATCH(commandBuffer)->fn[319])(commandBuffer, descriptorUpdateTemplate, layout, set, pData);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdPushDescriptorSetWithTemplateKHR(VkCommandBuffer commandBuffer, VkDescriptorUpdateTemplate descriptorUpdateTemplate, VkPipelineLayout layout, uint32_t set, const void* pData) __attribute__((weak, alias("vkl_CmdPushDescriptorSetWithTemplateKHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdBeginConditionalRenderingEXT(VkCommandBuffer commandBuffer, const VkConditionalRenderingBeginInfoEXT* pConditionalRenderingBegin)
 {
-	((PFN_vkCmdBeginConditionalRenderingEXT)VKL_DISPATCH(commandBuffer)->fn[318])(commandBuffer, pConditionalRenderingBegin);
+	((PFN_vkCmdBeginConditionalRenderingEXT)VKL_DISPATCH(commandBuffer)->fn[320])(commandBuffer, pConditionalRenderingBegin);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdBeginConditionalRenderingEXT(VkCommandBuffer commandBuffer, const VkConditionalRenderingBeginInfoEXT* pConditionalRenderingBegin) __attribute__((weak, alias("vkl_CmdBeginConditionalRenderingEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdEndConditionalRenderingEXT(VkCommandBuffer commandBuffer)
 {
-	((PFN_vkCmdEndConditionalRenderingEXT)VKL_DISPATCH(commandBuffer)->fn[319])(commandBuffer);
+	((PFN_vkCmdEndConditionalRenderingEXT)VKL_DISPATCH(commandBuffer)->fn[321])(commandBuffer);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdEndConditionalRenderingEXT(VkCommandBuffer commandBuffer) __attribute__((weak, alias("vkl_CmdEndConditionalRenderingEXT")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_CreateDescriptorUpdateTemplateKHR(VkDevice device, const VkDescriptorUpdateTemplateCreateInfo* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkDescriptorUpdateTemplate* pDescriptorUpdateTemplate)
 {
-	return ((PFN_vkCreateDescriptorUpdateTemplateKHR)VKL_DISPATCH(device)->fn[320])(device, pCreateInfo, pAllocator, pDescriptorUpdateTemplate);
+	return ((PFN_vkCreateDescriptorUpdateTemplateKHR)VKL_DISPATCH(device)->fn[322])(device, pCreateInfo, pAllocator, pDescriptorUpdateTemplate);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkCreateDescriptorUpdateTemplateKHR(VkDevice device, const VkDescriptorUpdateTemplateCreateInfo* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkDescriptorUpdateTemplate* pDescriptorUpdateTemplate) __attribute__((weak, alias("vkl_CreateDescriptorUpdateTemplateKHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_DestroyDescriptorUpdateTemplateKHR(VkDevice device, VkDescriptorUpdateTemplate descriptorUpdateTemplate, const VkAllocationCallbacks* pAllocator)
 {
-	((PFN_vkDestroyDescriptorUpdateTemplateKHR)VKL_DISPATCH(device)->fn[321])(device, descriptorUpdateTemplate, pAllocator);
+	((PFN_vkDestroyDescriptorUpdateTemplateKHR)VKL_DISPATCH(device)->fn[323])(device, descriptorUpdateTemplate, pAllocator);
 }
 VKAPI_ATTR void VKAPI_CALL vkDestroyDescriptorUpdateTemplateKHR(VkDevice device, VkDescriptorUpdateTemplate descriptorUpdateTemplate, const VkAllocationCallbacks* pAllocator) __attribute__((weak, alias("vkl_DestroyDescriptorUpdateTemplateKHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_UpdateDescriptorSetWithTemplateKHR(VkDevice device, VkDescriptorSet descriptorSet, VkDescriptorUpdateTemplate descriptorUpdateTemplate, const void* pData)
 {
-	((PFN_vkUpdateDescriptorSetWithTemplateKHR)VKL_DISPATCH(device)->fn[322])(device, descriptorSet, descriptorUpdateTemplate, pData);
+	((PFN_vkUpdateDescriptorSetWithTemplateKHR)VKL_DISPATCH(device)->fn[324])(device, descriptorSet, descriptorUpdateTemplate, pData);
 }
 VKAPI_ATTR void VKAPI_CALL vkUpdateDescriptorSetWithTemplateKHR(VkDevice device, VkDescriptorSet descriptorSet, VkDescriptorUpdateTemplate descriptorUpdateTemplate, const void* pData) __attribute__((weak, alias("vkl_UpdateDescriptorSetWithTemplateKHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetViewportWScalingNV(VkCommandBuffer commandBuffer, uint32_t firstViewport, uint32_t viewportCount, const VkViewportWScalingNV* pViewportWScalings)
 {
-	((PFN_vkCmdSetViewportWScalingNV)VKL_DISPATCH(commandBuffer)->fn[323])(commandBuffer, firstViewport, viewportCount, pViewportWScalings);
+	((PFN_vkCmdSetViewportWScalingNV)VKL_DISPATCH(commandBuffer)->fn[325])(commandBuffer, firstViewport, viewportCount, pViewportWScalings);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetViewportWScalingNV(VkCommandBuffer commandBuffer, uint32_t firstViewport, uint32_t viewportCount, const VkViewportWScalingNV* pViewportWScalings) __attribute__((weak, alias("vkl_CmdSetViewportWScalingNV")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_ReleaseDisplayEXT(VkPhysicalDevice physicalDevice, VkDisplayKHR display)
 {
-	return ((PFN_vkReleaseDisplayEXT)VKL_DISPATCH(physicalDevice)->fn[324])(physicalDevice, display);
+	return ((PFN_vkReleaseDisplayEXT)VKL_DISPATCH(physicalDevice)->fn[326])(physicalDevice, display);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkReleaseDisplayEXT(VkPhysicalDevice physicalDevice, VkDisplayKHR display) __attribute__((weak, alias("vkl_ReleaseDisplayEXT")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetPhysicalDeviceSurfaceCapabilities2EXT(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface, VkSurfaceCapabilities2EXT* pSurfaceCapabilities)
 {
-	return ((PFN_vkGetPhysicalDeviceSurfaceCapabilities2EXT)VKL_DISPATCH(physicalDevice)->fn[325])(physicalDevice, surface, pSurfaceCapabilities);
+	return ((PFN_vkGetPhysicalDeviceSurfaceCapabilities2EXT)VKL_DISPATCH(physicalDevice)->fn[327])(physicalDevice, surface, pSurfaceCapabilities);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetPhysicalDeviceSurfaceCapabilities2EXT(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface, VkSurfaceCapabilities2EXT* pSurfaceCapabilities) __attribute__((weak, alias("vkl_GetPhysicalDeviceSurfaceCapabilities2EXT")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_DisplayPowerControlEXT(VkDevice device, VkDisplayKHR display, const VkDisplayPowerInfoEXT* pDisplayPowerInfo)
 {
-	return ((PFN_vkDisplayPowerControlEXT)VKL_DISPATCH(device)->fn[326])(device, display, pDisplayPowerInfo);
+	return ((PFN_vkDisplayPowerControlEXT)VKL_DISPATCH(device)->fn[328])(device, display, pDisplayPowerInfo);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkDisplayPowerControlEXT(VkDevice device, VkDisplayKHR display, const VkDisplayPowerInfoEXT* pDisplayPowerInfo) __attribute__((weak, alias("vkl_DisplayPowerControlEXT")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_RegisterDeviceEventEXT(VkDevice device, const VkDeviceEventInfoEXT* pDeviceEventInfo, const VkAllocationCallbacks* pAllocator, VkFence* pFence)
 {
-	return ((PFN_vkRegisterDeviceEventEXT)VKL_DISPATCH(device)->fn[327])(device, pDeviceEventInfo, pAllocator, pFence);
+	return ((PFN_vkRegisterDeviceEventEXT)VKL_DISPATCH(device)->fn[329])(device, pDeviceEventInfo, pAllocator, pFence);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkRegisterDeviceEventEXT(VkDevice device, const VkDeviceEventInfoEXT* pDeviceEventInfo, const VkAllocationCallbacks* pAllocator, VkFence* pFence) __attribute__((weak, alias("vkl_RegisterDeviceEventEXT")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_RegisterDisplayEventEXT(VkDevice device, VkDisplayKHR display, const VkDisplayEventInfoEXT* pDisplayEventInfo, const VkAllocationCallbacks* pAllocator, VkFence* pFence)
 {
-	return ((PFN_vkRegisterDisplayEventEXT)VKL_DISPATCH(device)->fn[328])(device, display, pDisplayEventInfo, pAllocator, pFence);
+	return ((PFN_vkRegisterDisplayEventEXT)VKL_DISPATCH(device)->fn[330])(device, display, pDisplayEventInfo, pAllocator, pFence);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkRegisterDisplayEventEXT(VkDevice device, VkDisplayKHR display, const VkDisplayEventInfoEXT* pDisplayEventInfo, const VkAllocationCallbacks* pAllocator, VkFence* pFence) __attribute__((weak, alias("vkl_RegisterDisplayEventEXT")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetSwapchainCounterEXT(VkDevice device, VkSwapchainKHR swapchain, VkSurfaceCounterFlagBitsEXT counter, uint64_t* pCounterValue)
 {
-	return ((PFN_vkGetSwapchainCounterEXT)VKL_DISPATCH(device)->fn[329])(device, swapchain, counter, pCounterValue);
+	return ((PFN_vkGetSwapchainCounterEXT)VKL_DISPATCH(device)->fn[331])(device, swapchain, counter, pCounterValue);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetSwapchainCounterEXT(VkDevice device, VkSwapchainKHR swapchain, VkSurfaceCounterFlagBitsEXT counter, uint64_t* pCounterValue) __attribute__((weak, alias("vkl_GetSwapchainCounterEXT")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetRefreshCycleDurationGOOGLE(VkDevice device, VkSwapchainKHR swapchain, VkRefreshCycleDurationGOOGLE* pDisplayTimingProperties)
 {
-	return ((PFN_vkGetRefreshCycleDurationGOOGLE)VKL_DISPATCH(device)->fn[330])(device, swapchain, pDisplayTimingProperties);
+	return ((PFN_vkGetRefreshCycleDurationGOOGLE)VKL_DISPATCH(device)->fn[332])(device, swapchain, pDisplayTimingProperties);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetRefreshCycleDurationGOOGLE(VkDevice device, VkSwapchainKHR swapchain, VkRefreshCycleDurationGOOGLE* pDisplayTimingProperties) __attribute__((weak, alias("vkl_GetRefreshCycleDurationGOOGLE")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetPastPresentationTimingGOOGLE(VkDevice device, VkSwapchainKHR swapchain, uint32_t* pPresentationTimingCount, VkPastPresentationTimingGOOGLE* pPresentationTimings)
 {
-	return ((PFN_vkGetPastPresentationTimingGOOGLE)VKL_DISPATCH(device)->fn[331])(device, swapchain, pPresentationTimingCount, pPresentationTimings);
+	return ((PFN_vkGetPastPresentationTimingGOOGLE)VKL_DISPATCH(device)->fn[333])(device, swapchain, pPresentationTimingCount, pPresentationTimings);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetPastPresentationTimingGOOGLE(VkDevice device, VkSwapchainKHR swapchain, uint32_t* pPresentationTimingCount, VkPastPresentationTimingGOOGLE* pPresentationTimings) __attribute__((weak, alias("vkl_GetPastPresentationTimingGOOGLE")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetDiscardRectangleEXT(VkCommandBuffer commandBuffer, uint32_t firstDiscardRectangle, uint32_t discardRectangleCount, const VkRect2D* pDiscardRectangles)
 {
-	((PFN_vkCmdSetDiscardRectangleEXT)VKL_DISPATCH(commandBuffer)->fn[332])(commandBuffer, firstDiscardRectangle, discardRectangleCount, pDiscardRectangles);
+	((PFN_vkCmdSetDiscardRectangleEXT)VKL_DISPATCH(commandBuffer)->fn[334])(commandBuffer, firstDiscardRectangle, discardRectangleCount, pDiscardRectangles);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetDiscardRectangleEXT(VkCommandBuffer commandBuffer, uint32_t firstDiscardRectangle, uint32_t discardRectangleCount, const VkRect2D* pDiscardRectangles) __attribute__((weak, alias("vkl_CmdSetDiscardRectangleEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetDiscardRectangleEnableEXT(VkCommandBuffer commandBuffer, VkBool32 discardRectangleEnable)
 {
-	((PFN_vkCmdSetDiscardRectangleEnableEXT)VKL_DISPATCH(commandBuffer)->fn[333])(commandBuffer, discardRectangleEnable);
+	((PFN_vkCmdSetDiscardRectangleEnableEXT)VKL_DISPATCH(commandBuffer)->fn[335])(commandBuffer, discardRectangleEnable);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetDiscardRectangleEnableEXT(VkCommandBuffer commandBuffer, VkBool32 discardRectangleEnable) __attribute__((weak, alias("vkl_CmdSetDiscardRectangleEnableEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetDiscardRectangleModeEXT(VkCommandBuffer commandBuffer, VkDiscardRectangleModeEXT discardRectangleMode)
 {
-	((PFN_vkCmdSetDiscardRectangleModeEXT)VKL_DISPATCH(commandBuffer)->fn[334])(commandBuffer, discardRectangleMode);
+	((PFN_vkCmdSetDiscardRectangleModeEXT)VKL_DISPATCH(commandBuffer)->fn[336])(commandBuffer, discardRectangleMode);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetDiscardRectangleModeEXT(VkCommandBuffer commandBuffer, VkDiscardRectangleModeEXT discardRectangleMode) __attribute__((weak, alias("vkl_CmdSetDiscardRectangleModeEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_SetHdrMetadataEXT(VkDevice device, uint32_t swapchainCount, const VkSwapchainKHR* pSwapchains, const VkHdrMetadataEXT* pMetadata)
 {
-	((PFN_vkSetHdrMetadataEXT)VKL_DISPATCH(device)->fn[335])(device, swapchainCount, pSwapchains, pMetadata);
+	((PFN_vkSetHdrMetadataEXT)VKL_DISPATCH(device)->fn[337])(device, swapchainCount, pSwapchains, pMetadata);
 }
 VKAPI_ATTR void VKAPI_CALL vkSetHdrMetadataEXT(VkDevice device, uint32_t swapchainCount, const VkSwapchainKHR* pSwapchains, const VkHdrMetadataEXT* pMetadata) __attribute__((weak, alias("vkl_SetHdrMetadataEXT")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_CreateRenderPass2KHR(VkDevice device, const VkRenderPassCreateInfo2* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkRenderPass* pRenderPass)
 {
-	return ((PFN_vkCreateRenderPass2KHR)VKL_DISPATCH(device)->fn[336])(device, pCreateInfo, pAllocator, pRenderPass);
+	return ((PFN_vkCreateRenderPass2KHR)VKL_DISPATCH(device)->fn[338])(device, pCreateInfo, pAllocator, pRenderPass);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkCreateRenderPass2KHR(VkDevice device, const VkRenderPassCreateInfo2* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkRenderPass* pRenderPass) __attribute__((weak, alias("vkl_CreateRenderPass2KHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdBeginRenderPass2KHR(VkCommandBuffer commandBuffer, const VkRenderPassBeginInfo* pRenderPassBegin, const VkSubpassBeginInfo* pSubpassBeginInfo)
 {
-	((PFN_vkCmdBeginRenderPass2KHR)VKL_DISPATCH(commandBuffer)->fn[337])(commandBuffer, pRenderPassBegin, pSubpassBeginInfo);
+	((PFN_vkCmdBeginRenderPass2KHR)VKL_DISPATCH(commandBuffer)->fn[339])(commandBuffer, pRenderPassBegin, pSubpassBeginInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdBeginRenderPass2KHR(VkCommandBuffer commandBuffer, const VkRenderPassBeginInfo* pRenderPassBegin, const VkSubpassBeginInfo* pSubpassBeginInfo) __attribute__((weak, alias("vkl_CmdBeginRenderPass2KHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdNextSubpass2KHR(VkCommandBuffer commandBuffer, const VkSubpassBeginInfo* pSubpassBeginInfo, const VkSubpassEndInfo* pSubpassEndInfo)
 {
-	((PFN_vkCmdNextSubpass2KHR)VKL_DISPATCH(commandBuffer)->fn[338])(commandBuffer, pSubpassBeginInfo, pSubpassEndInfo);
+	((PFN_vkCmdNextSubpass2KHR)VKL_DISPATCH(commandBuffer)->fn[340])(commandBuffer, pSubpassBeginInfo, pSubpassEndInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdNextSubpass2KHR(VkCommandBuffer commandBuffer, const VkSubpassBeginInfo* pSubpassBeginInfo, const VkSubpassEndInfo* pSubpassEndInfo) __attribute__((weak, alias("vkl_CmdNextSubpass2KHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdEndRenderPass2KHR(VkCommandBuffer commandBuffer, const VkSubpassEndInfo* pSubpassEndInfo)
 {
-	((PFN_vkCmdEndRenderPass2KHR)VKL_DISPATCH(commandBuffer)->fn[339])(commandBuffer, pSubpassEndInfo);
+	((PFN_vkCmdEndRenderPass2KHR)VKL_DISPATCH(commandBuffer)->fn[341])(commandBuffer, pSubpassEndInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdEndRenderPass2KHR(VkCommandBuffer commandBuffer, const VkSubpassEndInfo* pSubpassEndInfo) __attribute__((weak, alias("vkl_CmdEndRenderPass2KHR")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetSwapchainStatusKHR(VkDevice device, VkSwapchainKHR swapchain)
 {
-	return ((PFN_vkGetSwapchainStatusKHR)VKL_DISPATCH(device)->fn[340])(device, swapchain);
+	return ((PFN_vkGetSwapchainStatusKHR)VKL_DISPATCH(device)->fn[342])(device, swapchain);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetSwapchainStatusKHR(VkDevice device, VkSwapchainKHR swapchain) __attribute__((weak, alias("vkl_GetSwapchainStatusKHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_GetPhysicalDeviceExternalFencePropertiesKHR(VkPhysicalDevice physicalDevice, const VkPhysicalDeviceExternalFenceInfo* pExternalFenceInfo, VkExternalFenceProperties* pExternalFenceProperties)
 {
-	((PFN_vkGetPhysicalDeviceExternalFencePropertiesKHR)VKL_DISPATCH(physicalDevice)->fn[341])(physicalDevice, pExternalFenceInfo, pExternalFenceProperties);
+	((PFN_vkGetPhysicalDeviceExternalFencePropertiesKHR)VKL_DISPATCH(physicalDevice)->fn[343])(physicalDevice, pExternalFenceInfo, pExternalFenceProperties);
 }
 VKAPI_ATTR void VKAPI_CALL vkGetPhysicalDeviceExternalFencePropertiesKHR(VkPhysicalDevice physicalDevice, const VkPhysicalDeviceExternalFenceInfo* pExternalFenceInfo, VkExternalFenceProperties* pExternalFenceProperties) __attribute__((weak, alias("vkl_GetPhysicalDeviceExternalFencePropertiesKHR")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_ImportFenceFdKHR(VkDevice device, const VkImportFenceFdInfoKHR* pImportFenceFdInfo)
 {
-	return ((PFN_vkImportFenceFdKHR)VKL_DISPATCH(device)->fn[342])(device, pImportFenceFdInfo);
+	return ((PFN_vkImportFenceFdKHR)VKL_DISPATCH(device)->fn[344])(device, pImportFenceFdInfo);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkImportFenceFdKHR(VkDevice device, const VkImportFenceFdInfoKHR* pImportFenceFdInfo) __attribute__((weak, alias("vkl_ImportFenceFdKHR")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetFenceFdKHR(VkDevice device, const VkFenceGetFdInfoKHR* pGetFdInfo, int* pFd)
 {
-	return ((PFN_vkGetFenceFdKHR)VKL_DISPATCH(device)->fn[343])(device, pGetFdInfo, pFd);
+	return ((PFN_vkGetFenceFdKHR)VKL_DISPATCH(device)->fn[345])(device, pGetFdInfo, pFd);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetFenceFdKHR(VkDevice device, const VkFenceGetFdInfoKHR* pGetFdInfo, int* pFd) __attribute__((weak, alias("vkl_GetFenceFdKHR")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_EnumeratePhysicalDeviceQueueFamilyPerformanceQueryCountersKHR(VkPhysicalDevice physicalDevice, uint32_t queueFamilyIndex, uint32_t* pCounterCount, VkPerformanceCounterKHR* pCounters, VkPerformanceCounterDescriptionKHR* pCounterDescriptions)
 {
-	return ((PFN_vkEnumeratePhysicalDeviceQueueFamilyPerformanceQueryCountersKHR)VKL_DISPATCH(physicalDevice)->fn[344])(physicalDevice, queueFamilyIndex, pCounterCount, pCounters, pCounterDescriptions);
+	return ((PFN_vkEnumeratePhysicalDeviceQueueFamilyPerformanceQueryCountersKHR)VKL_DISPATCH(physicalDevice)->fn[346])(physicalDevice, queueFamilyIndex, pCounterCount, pCounters, pCounterDescriptions);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkEnumeratePhysicalDeviceQueueFamilyPerformanceQueryCountersKHR(VkPhysicalDevice physicalDevice, uint32_t queueFamilyIndex, uint32_t* pCounterCount, VkPerformanceCounterKHR* pCounters, VkPerformanceCounterDescriptionKHR* pCounterDescriptions) __attribute__((weak, alias("vkl_EnumeratePhysicalDeviceQueueFamilyPerformanceQueryCountersKHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_GetPhysicalDeviceQueueFamilyPerformanceQueryPassesKHR(VkPhysicalDevice physicalDevice, const VkQueryPoolPerformanceCreateInfoKHR* pPerformanceQueryCreateInfo, uint32_t* pNumPasses)
 {
-	((PFN_vkGetPhysicalDeviceQueueFamilyPerformanceQueryPassesKHR)VKL_DISPATCH(physicalDevice)->fn[345])(physicalDevice, pPerformanceQueryCreateInfo, pNumPasses);
+	((PFN_vkGetPhysicalDeviceQueueFamilyPerformanceQueryPassesKHR)VKL_DISPATCH(physicalDevice)->fn[347])(physicalDevice, pPerformanceQueryCreateInfo, pNumPasses);
 }
 VKAPI_ATTR void VKAPI_CALL vkGetPhysicalDeviceQueueFamilyPerformanceQueryPassesKHR(VkPhysicalDevice physicalDevice, const VkQueryPoolPerformanceCreateInfoKHR* pPerformanceQueryCreateInfo, uint32_t* pNumPasses) __attribute__((weak, alias("vkl_GetPhysicalDeviceQueueFamilyPerformanceQueryPassesKHR")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_AcquireProfilingLockKHR(VkDevice device, const VkAcquireProfilingLockInfoKHR* pInfo)
 {
-	return ((PFN_vkAcquireProfilingLockKHR)VKL_DISPATCH(device)->fn[346])(device, pInfo);
+	return ((PFN_vkAcquireProfilingLockKHR)VKL_DISPATCH(device)->fn[348])(device, pInfo);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkAcquireProfilingLockKHR(VkDevice device, const VkAcquireProfilingLockInfoKHR* pInfo) __attribute__((weak, alias("vkl_AcquireProfilingLockKHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_ReleaseProfilingLockKHR(VkDevice device)
 {
-	((PFN_vkReleaseProfilingLockKHR)VKL_DISPATCH(device)->fn[347])(device);
+	((PFN_vkReleaseProfilingLockKHR)VKL_DISPATCH(device)->fn[349])(device);
 }
 VKAPI_ATTR void VKAPI_CALL vkReleaseProfilingLockKHR(VkDevice device) __attribute__((weak, alias("vkl_ReleaseProfilingLockKHR")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetPhysicalDeviceSurfaceCapabilities2KHR(VkPhysicalDevice physicalDevice, const VkPhysicalDeviceSurfaceInfo2KHR* pSurfaceInfo, VkSurfaceCapabilities2KHR* pSurfaceCapabilities)
 {
-	return ((PFN_vkGetPhysicalDeviceSurfaceCapabilities2KHR)VKL_DISPATCH(physicalDevice)->fn[348])(physicalDevice, pSurfaceInfo, pSurfaceCapabilities);
+	return ((PFN_vkGetPhysicalDeviceSurfaceCapabilities2KHR)VKL_DISPATCH(physicalDevice)->fn[350])(physicalDevice, pSurfaceInfo, pSurfaceCapabilities);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetPhysicalDeviceSurfaceCapabilities2KHR(VkPhysicalDevice physicalDevice, const VkPhysicalDeviceSurfaceInfo2KHR* pSurfaceInfo, VkSurfaceCapabilities2KHR* pSurfaceCapabilities) __attribute__((weak, alias("vkl_GetPhysicalDeviceSurfaceCapabilities2KHR")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetPhysicalDeviceSurfaceFormats2KHR(VkPhysicalDevice physicalDevice, const VkPhysicalDeviceSurfaceInfo2KHR* pSurfaceInfo, uint32_t* pSurfaceFormatCount, VkSurfaceFormat2KHR* pSurfaceFormats)
 {
-	return ((PFN_vkGetPhysicalDeviceSurfaceFormats2KHR)VKL_DISPATCH(physicalDevice)->fn[349])(physicalDevice, pSurfaceInfo, pSurfaceFormatCount, pSurfaceFormats);
+	return ((PFN_vkGetPhysicalDeviceSurfaceFormats2KHR)VKL_DISPATCH(physicalDevice)->fn[351])(physicalDevice, pSurfaceInfo, pSurfaceFormatCount, pSurfaceFormats);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetPhysicalDeviceSurfaceFormats2KHR(VkPhysicalDevice physicalDevice, const VkPhysicalDeviceSurfaceInfo2KHR* pSurfaceInfo, uint32_t* pSurfaceFormatCount, VkSurfaceFormat2KHR* pSurfaceFormats) __attribute__((weak, alias("vkl_GetPhysicalDeviceSurfaceFormats2KHR")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetPhysicalDeviceDisplayProperties2KHR(VkPhysicalDevice physicalDevice, uint32_t* pPropertyCount, VkDisplayProperties2KHR* pProperties)
 {
-	return ((PFN_vkGetPhysicalDeviceDisplayProperties2KHR)VKL_DISPATCH(physicalDevice)->fn[350])(physicalDevice, pPropertyCount, pProperties);
+	return ((PFN_vkGetPhysicalDeviceDisplayProperties2KHR)VKL_DISPATCH(physicalDevice)->fn[352])(physicalDevice, pPropertyCount, pProperties);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetPhysicalDeviceDisplayProperties2KHR(VkPhysicalDevice physicalDevice, uint32_t* pPropertyCount, VkDisplayProperties2KHR* pProperties) __attribute__((weak, alias("vkl_GetPhysicalDeviceDisplayProperties2KHR")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetPhysicalDeviceDisplayPlaneProperties2KHR(VkPhysicalDevice physicalDevice, uint32_t* pPropertyCount, VkDisplayPlaneProperties2KHR* pProperties)
 {
-	return ((PFN_vkGetPhysicalDeviceDisplayPlaneProperties2KHR)VKL_DISPATCH(physicalDevice)->fn[351])(physicalDevice, pPropertyCount, pProperties);
+	return ((PFN_vkGetPhysicalDeviceDisplayPlaneProperties2KHR)VKL_DISPATCH(physicalDevice)->fn[353])(physicalDevice, pPropertyCount, pProperties);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetPhysicalDeviceDisplayPlaneProperties2KHR(VkPhysicalDevice physicalDevice, uint32_t* pPropertyCount, VkDisplayPlaneProperties2KHR* pProperties) __attribute__((weak, alias("vkl_GetPhysicalDeviceDisplayPlaneProperties2KHR")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetDisplayModeProperties2KHR(VkPhysicalDevice physicalDevice, VkDisplayKHR display, uint32_t* pPropertyCount, VkDisplayModeProperties2KHR* pProperties)
 {
-	return ((PFN_vkGetDisplayModeProperties2KHR)VKL_DISPATCH(physicalDevice)->fn[352])(physicalDevice, display, pPropertyCount, pProperties);
+	return ((PFN_vkGetDisplayModeProperties2KHR)VKL_DISPATCH(physicalDevice)->fn[354])(physicalDevice, display, pPropertyCount, pProperties);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetDisplayModeProperties2KHR(VkPhysicalDevice physicalDevice, VkDisplayKHR display, uint32_t* pPropertyCount, VkDisplayModeProperties2KHR* pProperties) __attribute__((weak, alias("vkl_GetDisplayModeProperties2KHR")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetDisplayPlaneCapabilities2KHR(VkPhysicalDevice physicalDevice, const VkDisplayPlaneInfo2KHR* pDisplayPlaneInfo, VkDisplayPlaneCapabilities2KHR* pCapabilities)
 {
-	return ((PFN_vkGetDisplayPlaneCapabilities2KHR)VKL_DISPATCH(physicalDevice)->fn[353])(physicalDevice, pDisplayPlaneInfo, pCapabilities);
+	return ((PFN_vkGetDisplayPlaneCapabilities2KHR)VKL_DISPATCH(physicalDevice)->fn[355])(physicalDevice, pDisplayPlaneInfo, pCapabilities);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetDisplayPlaneCapabilities2KHR(VkPhysicalDevice physicalDevice, const VkDisplayPlaneInfo2KHR* pDisplayPlaneInfo, VkDisplayPlaneCapabilities2KHR* pCapabilities) __attribute__((weak, alias("vkl_GetDisplayPlaneCapabilities2KHR")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_SetDebugUtilsObjectNameEXT(VkDevice device, const VkDebugUtilsObjectNameInfoEXT* pNameInfo)
 {
-	return ((PFN_vkSetDebugUtilsObjectNameEXT)VKL_DISPATCH(device)->fn[354])(device, pNameInfo);
+	return ((PFN_vkSetDebugUtilsObjectNameEXT)VKL_DISPATCH(device)->fn[356])(device, pNameInfo);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkSetDebugUtilsObjectNameEXT(VkDevice device, const VkDebugUtilsObjectNameInfoEXT* pNameInfo) __attribute__((weak, alias("vkl_SetDebugUtilsObjectNameEXT")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_SetDebugUtilsObjectTagEXT(VkDevice device, const VkDebugUtilsObjectTagInfoEXT* pTagInfo)
 {
-	return ((PFN_vkSetDebugUtilsObjectTagEXT)VKL_DISPATCH(device)->fn[355])(device, pTagInfo);
+	return ((PFN_vkSetDebugUtilsObjectTagEXT)VKL_DISPATCH(device)->fn[357])(device, pTagInfo);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkSetDebugUtilsObjectTagEXT(VkDevice device, const VkDebugUtilsObjectTagInfoEXT* pTagInfo) __attribute__((weak, alias("vkl_SetDebugUtilsObjectTagEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_QueueBeginDebugUtilsLabelEXT(VkQueue queue, const VkDebugUtilsLabelEXT* pLabelInfo)
 {
-	((PFN_vkQueueBeginDebugUtilsLabelEXT)VKL_DISPATCH(queue)->fn[356])(queue, pLabelInfo);
+	((PFN_vkQueueBeginDebugUtilsLabelEXT)VKL_DISPATCH(queue)->fn[358])(queue, pLabelInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkQueueBeginDebugUtilsLabelEXT(VkQueue queue, const VkDebugUtilsLabelEXT* pLabelInfo) __attribute__((weak, alias("vkl_QueueBeginDebugUtilsLabelEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_QueueEndDebugUtilsLabelEXT(VkQueue queue)
 {
-	((PFN_vkQueueEndDebugUtilsLabelEXT)VKL_DISPATCH(queue)->fn[357])(queue);
+	((PFN_vkQueueEndDebugUtilsLabelEXT)VKL_DISPATCH(queue)->fn[359])(queue);
 }
 VKAPI_ATTR void VKAPI_CALL vkQueueEndDebugUtilsLabelEXT(VkQueue queue) __attribute__((weak, alias("vkl_QueueEndDebugUtilsLabelEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_QueueInsertDebugUtilsLabelEXT(VkQueue queue, const VkDebugUtilsLabelEXT* pLabelInfo)
 {
-	((PFN_vkQueueInsertDebugUtilsLabelEXT)VKL_DISPATCH(queue)->fn[358])(queue, pLabelInfo);
+	((PFN_vkQueueInsertDebugUtilsLabelEXT)VKL_DISPATCH(queue)->fn[360])(queue, pLabelInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkQueueInsertDebugUtilsLabelEXT(VkQueue queue, const VkDebugUtilsLabelEXT* pLabelInfo) __attribute__((weak, alias("vkl_QueueInsertDebugUtilsLabelEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdBeginDebugUtilsLabelEXT(VkCommandBuffer commandBuffer, const VkDebugUtilsLabelEXT* pLabelInfo)
 {
-	((PFN_vkCmdBeginDebugUtilsLabelEXT)VKL_DISPATCH(commandBuffer)->fn[359])(commandBuffer, pLabelInfo);
+	((PFN_vkCmdBeginDebugUtilsLabelEXT)VKL_DISPATCH(commandBuffer)->fn[361])(commandBuffer, pLabelInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdBeginDebugUtilsLabelEXT(VkCommandBuffer commandBuffer, const VkDebugUtilsLabelEXT* pLabelInfo) __attribute__((weak, alias("vkl_CmdBeginDebugUtilsLabelEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdEndDebugUtilsLabelEXT(VkCommandBuffer commandBuffer)
 {
-	((PFN_vkCmdEndDebugUtilsLabelEXT)VKL_DISPATCH(commandBuffer)->fn[360])(commandBuffer);
+	((PFN_vkCmdEndDebugUtilsLabelEXT)VKL_DISPATCH(commandBuffer)->fn[362])(commandBuffer);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdEndDebugUtilsLabelEXT(VkCommandBuffer commandBuffer) __attribute__((weak, alias("vkl_CmdEndDebugUtilsLabelEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdInsertDebugUtilsLabelEXT(VkCommandBuffer commandBuffer, const VkDebugUtilsLabelEXT* pLabelInfo)
 {
-	((PFN_vkCmdInsertDebugUtilsLabelEXT)VKL_DISPATCH(commandBuffer)->fn[361])(commandBuffer, pLabelInfo);
+	((PFN_vkCmdInsertDebugUtilsLabelEXT)VKL_DISPATCH(commandBuffer)->fn[363])(commandBuffer, pLabelInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdInsertDebugUtilsLabelEXT(VkCommandBuffer commandBuffer, const VkDebugUtilsLabelEXT* pLabelInfo) __attribute__((weak, alias("vkl_CmdInsertDebugUtilsLabelEXT")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_CreateDebugUtilsMessengerEXT(VkInstance instance, const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkDebugUtilsMessengerEXT* pMessenger)
 {
-	return ((PFN_vkCreateDebugUtilsMessengerEXT)VKL_DISPATCH(instance)->fn[362])(instance, pCreateInfo, pAllocator, pMessenger);
+	return ((PFN_vkCreateDebugUtilsMessengerEXT)VKL_DISPATCH(instance)->fn[364])(instance, pCreateInfo, pAllocator, pMessenger);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkCreateDebugUtilsMessengerEXT(VkInstance instance, const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkDebugUtilsMessengerEXT* pMessenger) __attribute__((weak, alias("vkl_CreateDebugUtilsMessengerEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT messenger, const VkAllocationCallbacks* pAllocator)
 {
-	((PFN_vkDestroyDebugUtilsMessengerEXT)VKL_DISPATCH(instance)->fn[363])(instance, messenger, pAllocator);
+	((PFN_vkDestroyDebugUtilsMessengerEXT)VKL_DISPATCH(instance)->fn[365])(instance, messenger, pAllocator);
 }
 VKAPI_ATTR void VKAPI_CALL vkDestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT messenger, const VkAllocationCallbacks* pAllocator) __attribute__((weak, alias("vkl_DestroyDebugUtilsMessengerEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_SubmitDebugUtilsMessageEXT(VkInstance instance, VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageTypes, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData)
 {
-	((PFN_vkSubmitDebugUtilsMessageEXT)VKL_DISPATCH(instance)->fn[364])(instance, messageSeverity, messageTypes, pCallbackData);
+	((PFN_vkSubmitDebugUtilsMessageEXT)VKL_DISPATCH(instance)->fn[366])(instance, messageSeverity, messageTypes, pCallbackData);
 }
 VKAPI_ATTR void VKAPI_CALL vkSubmitDebugUtilsMessageEXT(VkInstance instance, VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageTypes, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData) __attribute__((weak, alias("vkl_SubmitDebugUtilsMessageEXT")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_CreateGpaSessionAMD(VkDevice device, const VkGpaSessionCreateInfoAMD* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkGpaSessionAMD* pGpaSession)
 {
-	return ((PFN_vkCreateGpaSessionAMD)VKL_DISPATCH(device)->fn[365])(device, pCreateInfo, pAllocator, pGpaSession);
+	return ((PFN_vkCreateGpaSessionAMD)VKL_DISPATCH(device)->fn[367])(device, pCreateInfo, pAllocator, pGpaSession);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkCreateGpaSessionAMD(VkDevice device, const VkGpaSessionCreateInfoAMD* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkGpaSessionAMD* pGpaSession) __attribute__((weak, alias("vkl_CreateGpaSessionAMD")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_DestroyGpaSessionAMD(VkDevice device, VkGpaSessionAMD gpaSession, const VkAllocationCallbacks* pAllocator)
 {
-	((PFN_vkDestroyGpaSessionAMD)VKL_DISPATCH(device)->fn[366])(device, gpaSession, pAllocator);
+	((PFN_vkDestroyGpaSessionAMD)VKL_DISPATCH(device)->fn[368])(device, gpaSession, pAllocator);
 }
 VKAPI_ATTR void VKAPI_CALL vkDestroyGpaSessionAMD(VkDevice device, VkGpaSessionAMD gpaSession, const VkAllocationCallbacks* pAllocator) __attribute__((weak, alias("vkl_DestroyGpaSessionAMD")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_SetGpaDeviceClockModeAMD(VkDevice device, VkGpaDeviceClockModeInfoAMD* pInfo)
 {
-	return ((PFN_vkSetGpaDeviceClockModeAMD)VKL_DISPATCH(device)->fn[367])(device, pInfo);
+	return ((PFN_vkSetGpaDeviceClockModeAMD)VKL_DISPATCH(device)->fn[369])(device, pInfo);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkSetGpaDeviceClockModeAMD(VkDevice device, VkGpaDeviceClockModeInfoAMD* pInfo) __attribute__((weak, alias("vkl_SetGpaDeviceClockModeAMD")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetGpaDeviceClockInfoAMD(VkDevice device, VkGpaDeviceGetClockInfoAMD* pInfo)
 {
-	return ((PFN_vkGetGpaDeviceClockInfoAMD)VKL_DISPATCH(device)->fn[368])(device, pInfo);
+	return ((PFN_vkGetGpaDeviceClockInfoAMD)VKL_DISPATCH(device)->fn[370])(device, pInfo);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetGpaDeviceClockInfoAMD(VkDevice device, VkGpaDeviceGetClockInfoAMD* pInfo) __attribute__((weak, alias("vkl_GetGpaDeviceClockInfoAMD")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_CmdBeginGpaSessionAMD(VkCommandBuffer commandBuffer, VkGpaSessionAMD gpaSession)
 {
-	return ((PFN_vkCmdBeginGpaSessionAMD)VKL_DISPATCH(commandBuffer)->fn[369])(commandBuffer, gpaSession);
+	return ((PFN_vkCmdBeginGpaSessionAMD)VKL_DISPATCH(commandBuffer)->fn[371])(commandBuffer, gpaSession);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkCmdBeginGpaSessionAMD(VkCommandBuffer commandBuffer, VkGpaSessionAMD gpaSession) __attribute__((weak, alias("vkl_CmdBeginGpaSessionAMD")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_CmdEndGpaSessionAMD(VkCommandBuffer commandBuffer, VkGpaSessionAMD gpaSession)
 {
-	return ((PFN_vkCmdEndGpaSessionAMD)VKL_DISPATCH(commandBuffer)->fn[370])(commandBuffer, gpaSession);
+	return ((PFN_vkCmdEndGpaSessionAMD)VKL_DISPATCH(commandBuffer)->fn[372])(commandBuffer, gpaSession);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkCmdEndGpaSessionAMD(VkCommandBuffer commandBuffer, VkGpaSessionAMD gpaSession) __attribute__((weak, alias("vkl_CmdEndGpaSessionAMD")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_CmdBeginGpaSampleAMD(VkCommandBuffer commandBuffer, VkGpaSessionAMD gpaSession, const VkGpaSampleBeginInfoAMD* pGpaSampleBeginInfo, uint32_t* pSampleID)
 {
-	return ((PFN_vkCmdBeginGpaSampleAMD)VKL_DISPATCH(commandBuffer)->fn[371])(commandBuffer, gpaSession, pGpaSampleBeginInfo, pSampleID);
+	return ((PFN_vkCmdBeginGpaSampleAMD)VKL_DISPATCH(commandBuffer)->fn[373])(commandBuffer, gpaSession, pGpaSampleBeginInfo, pSampleID);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkCmdBeginGpaSampleAMD(VkCommandBuffer commandBuffer, VkGpaSessionAMD gpaSession, const VkGpaSampleBeginInfoAMD* pGpaSampleBeginInfo, uint32_t* pSampleID) __attribute__((weak, alias("vkl_CmdBeginGpaSampleAMD")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdEndGpaSampleAMD(VkCommandBuffer commandBuffer, VkGpaSessionAMD gpaSession, uint32_t sampleID)
 {
-	((PFN_vkCmdEndGpaSampleAMD)VKL_DISPATCH(commandBuffer)->fn[372])(commandBuffer, gpaSession, sampleID);
+	((PFN_vkCmdEndGpaSampleAMD)VKL_DISPATCH(commandBuffer)->fn[374])(commandBuffer, gpaSession, sampleID);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdEndGpaSampleAMD(VkCommandBuffer commandBuffer, VkGpaSessionAMD gpaSession, uint32_t sampleID) __attribute__((weak, alias("vkl_CmdEndGpaSampleAMD")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetGpaSessionStatusAMD(VkDevice device, VkGpaSessionAMD gpaSession)
 {
-	return ((PFN_vkGetGpaSessionStatusAMD)VKL_DISPATCH(device)->fn[373])(device, gpaSession);
+	return ((PFN_vkGetGpaSessionStatusAMD)VKL_DISPATCH(device)->fn[375])(device, gpaSession);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetGpaSessionStatusAMD(VkDevice device, VkGpaSessionAMD gpaSession) __attribute__((weak, alias("vkl_GetGpaSessionStatusAMD")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetGpaSessionResultsAMD(VkDevice device, VkGpaSessionAMD gpaSession, uint32_t sampleID, size_t* pSizeInBytes, void* pData)
 {
-	return ((PFN_vkGetGpaSessionResultsAMD)VKL_DISPATCH(device)->fn[374])(device, gpaSession, sampleID, pSizeInBytes, pData);
+	return ((PFN_vkGetGpaSessionResultsAMD)VKL_DISPATCH(device)->fn[376])(device, gpaSession, sampleID, pSizeInBytes, pData);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetGpaSessionResultsAMD(VkDevice device, VkGpaSessionAMD gpaSession, uint32_t sampleID, size_t* pSizeInBytes, void* pData) __attribute__((weak, alias("vkl_GetGpaSessionResultsAMD")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_ResetGpaSessionAMD(VkDevice device, VkGpaSessionAMD gpaSession)
 {
-	return ((PFN_vkResetGpaSessionAMD)VKL_DISPATCH(device)->fn[375])(device, gpaSession);
+	return ((PFN_vkResetGpaSessionAMD)VKL_DISPATCH(device)->fn[377])(device, gpaSession);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkResetGpaSessionAMD(VkDevice device, VkGpaSessionAMD gpaSession) __attribute__((weak, alias("vkl_ResetGpaSessionAMD")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdCopyGpaSessionResultsAMD(VkCommandBuffer commandBuffer, VkGpaSessionAMD gpaSession)
 {
-	((PFN_vkCmdCopyGpaSessionResultsAMD)VKL_DISPATCH(commandBuffer)->fn[376])(commandBuffer, gpaSession);
+	((PFN_vkCmdCopyGpaSessionResultsAMD)VKL_DISPATCH(commandBuffer)->fn[378])(commandBuffer, gpaSession);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdCopyGpaSessionResultsAMD(VkCommandBuffer commandBuffer, VkGpaSessionAMD gpaSession) __attribute__((weak, alias("vkl_CmdCopyGpaSessionResultsAMD")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_WriteSamplerDescriptorsEXT(VkDevice device, uint32_t samplerCount, const VkSamplerCreateInfo* pSamplers, const VkHostAddressRangeEXT* pDescriptors)
 {
-	return ((PFN_vkWriteSamplerDescriptorsEXT)VKL_DISPATCH(device)->fn[377])(device, samplerCount, pSamplers, pDescriptors);
+	return ((PFN_vkWriteSamplerDescriptorsEXT)VKL_DISPATCH(device)->fn[379])(device, samplerCount, pSamplers, pDescriptors);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkWriteSamplerDescriptorsEXT(VkDevice device, uint32_t samplerCount, const VkSamplerCreateInfo* pSamplers, const VkHostAddressRangeEXT* pDescriptors) __attribute__((weak, alias("vkl_WriteSamplerDescriptorsEXT")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_WriteResourceDescriptorsEXT(VkDevice device, uint32_t resourceCount, const VkResourceDescriptorInfoEXT* pResources, const VkHostAddressRangeEXT* pDescriptors)
 {
-	return ((PFN_vkWriteResourceDescriptorsEXT)VKL_DISPATCH(device)->fn[378])(device, resourceCount, pResources, pDescriptors);
+	return ((PFN_vkWriteResourceDescriptorsEXT)VKL_DISPATCH(device)->fn[380])(device, resourceCount, pResources, pDescriptors);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkWriteResourceDescriptorsEXT(VkDevice device, uint32_t resourceCount, const VkResourceDescriptorInfoEXT* pResources, const VkHostAddressRangeEXT* pDescriptors) __attribute__((weak, alias("vkl_WriteResourceDescriptorsEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdBindSamplerHeapEXT(VkCommandBuffer commandBuffer, const VkBindHeapInfoEXT* pBindInfo)
 {
-	((PFN_vkCmdBindSamplerHeapEXT)VKL_DISPATCH(commandBuffer)->fn[379])(commandBuffer, pBindInfo);
+	((PFN_vkCmdBindSamplerHeapEXT)VKL_DISPATCH(commandBuffer)->fn[381])(commandBuffer, pBindInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdBindSamplerHeapEXT(VkCommandBuffer commandBuffer, const VkBindHeapInfoEXT* pBindInfo) __attribute__((weak, alias("vkl_CmdBindSamplerHeapEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdBindResourceHeapEXT(VkCommandBuffer commandBuffer, const VkBindHeapInfoEXT* pBindInfo)
 {
-	((PFN_vkCmdBindResourceHeapEXT)VKL_DISPATCH(commandBuffer)->fn[380])(commandBuffer, pBindInfo);
+	((PFN_vkCmdBindResourceHeapEXT)VKL_DISPATCH(commandBuffer)->fn[382])(commandBuffer, pBindInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdBindResourceHeapEXT(VkCommandBuffer commandBuffer, const VkBindHeapInfoEXT* pBindInfo) __attribute__((weak, alias("vkl_CmdBindResourceHeapEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdPushDataEXT(VkCommandBuffer commandBuffer, const VkPushDataInfoEXT* pPushDataInfo)
 {
-	((PFN_vkCmdPushDataEXT)VKL_DISPATCH(commandBuffer)->fn[381])(commandBuffer, pPushDataInfo);
+	((PFN_vkCmdPushDataEXT)VKL_DISPATCH(commandBuffer)->fn[383])(commandBuffer, pPushDataInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdPushDataEXT(VkCommandBuffer commandBuffer, const VkPushDataInfoEXT* pPushDataInfo) __attribute__((weak, alias("vkl_CmdPushDataEXT")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetImageOpaqueCaptureDataEXT(VkDevice device, uint32_t imageCount, const VkImage* pImages, VkHostAddressRangeEXT* pDatas)
 {
-	return ((PFN_vkGetImageOpaqueCaptureDataEXT)VKL_DISPATCH(device)->fn[382])(device, imageCount, pImages, pDatas);
+	return ((PFN_vkGetImageOpaqueCaptureDataEXT)VKL_DISPATCH(device)->fn[384])(device, imageCount, pImages, pDatas);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetImageOpaqueCaptureDataEXT(VkDevice device, uint32_t imageCount, const VkImage* pImages, VkHostAddressRangeEXT* pDatas) __attribute__((weak, alias("vkl_GetImageOpaqueCaptureDataEXT")));
 
 VKAPI_ATTR VkDeviceSize VKAPI_CALL
 vkl_GetPhysicalDeviceDescriptorSizeEXT(VkPhysicalDevice physicalDevice, VkDescriptorType descriptorType)
 {
-	return ((PFN_vkGetPhysicalDeviceDescriptorSizeEXT)VKL_DISPATCH(physicalDevice)->fn[383])(physicalDevice, descriptorType);
+	return ((PFN_vkGetPhysicalDeviceDescriptorSizeEXT)VKL_DISPATCH(physicalDevice)->fn[385])(physicalDevice, descriptorType);
 }
 VKAPI_ATTR VkDeviceSize VKAPI_CALL vkGetPhysicalDeviceDescriptorSizeEXT(VkPhysicalDevice physicalDevice, VkDescriptorType descriptorType) __attribute__((weak, alias("vkl_GetPhysicalDeviceDescriptorSizeEXT")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_RegisterCustomBorderColorEXT(VkDevice device, const VkSamplerCustomBorderColorCreateInfoEXT* pBorderColor, VkBool32 requestIndex, uint32_t* pIndex)
 {
-	return ((PFN_vkRegisterCustomBorderColorEXT)VKL_DISPATCH(device)->fn[384])(device, pBorderColor, requestIndex, pIndex);
+	return ((PFN_vkRegisterCustomBorderColorEXT)VKL_DISPATCH(device)->fn[386])(device, pBorderColor, requestIndex, pIndex);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkRegisterCustomBorderColorEXT(VkDevice device, const VkSamplerCustomBorderColorCreateInfoEXT* pBorderColor, VkBool32 requestIndex, uint32_t* pIndex) __attribute__((weak, alias("vkl_RegisterCustomBorderColorEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_UnregisterCustomBorderColorEXT(VkDevice device, uint32_t index)
 {
-	((PFN_vkUnregisterCustomBorderColorEXT)VKL_DISPATCH(device)->fn[385])(device, index);
+	((PFN_vkUnregisterCustomBorderColorEXT)VKL_DISPATCH(device)->fn[387])(device, index);
 }
 VKAPI_ATTR void VKAPI_CALL vkUnregisterCustomBorderColorEXT(VkDevice device, uint32_t index) __attribute__((weak, alias("vkl_UnregisterCustomBorderColorEXT")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetTensorOpaqueCaptureDataARM(VkDevice device, uint32_t tensorCount, const VkTensorARM* pTensors, VkHostAddressRangeEXT* pDatas)
 {
-	return ((PFN_vkGetTensorOpaqueCaptureDataARM)VKL_DISPATCH(device)->fn[386])(device, tensorCount, pTensors, pDatas);
+	return ((PFN_vkGetTensorOpaqueCaptureDataARM)VKL_DISPATCH(device)->fn[388])(device, tensorCount, pTensors, pDatas);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetTensorOpaqueCaptureDataARM(VkDevice device, uint32_t tensorCount, const VkTensorARM* pTensors, VkHostAddressRangeEXT* pDatas) __attribute__((weak, alias("vkl_GetTensorOpaqueCaptureDataARM")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetSampleLocationsEXT(VkCommandBuffer commandBuffer, const VkSampleLocationsInfoEXT* pSampleLocationsInfo)
 {
-	((PFN_vkCmdSetSampleLocationsEXT)VKL_DISPATCH(commandBuffer)->fn[387])(commandBuffer, pSampleLocationsInfo);
+	((PFN_vkCmdSetSampleLocationsEXT)VKL_DISPATCH(commandBuffer)->fn[389])(commandBuffer, pSampleLocationsInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetSampleLocationsEXT(VkCommandBuffer commandBuffer, const VkSampleLocationsInfoEXT* pSampleLocationsInfo) __attribute__((weak, alias("vkl_CmdSetSampleLocationsEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_GetPhysicalDeviceMultisamplePropertiesEXT(VkPhysicalDevice physicalDevice, VkSampleCountFlagBits samples, VkMultisamplePropertiesEXT* pMultisampleProperties)
 {
-	((PFN_vkGetPhysicalDeviceMultisamplePropertiesEXT)VKL_DISPATCH(physicalDevice)->fn[388])(physicalDevice, samples, pMultisampleProperties);
+	((PFN_vkGetPhysicalDeviceMultisamplePropertiesEXT)VKL_DISPATCH(physicalDevice)->fn[390])(physicalDevice, samples, pMultisampleProperties);
 }
 VKAPI_ATTR void VKAPI_CALL vkGetPhysicalDeviceMultisamplePropertiesEXT(VkPhysicalDevice physicalDevice, VkSampleCountFlagBits samples, VkMultisamplePropertiesEXT* pMultisampleProperties) __attribute__((weak, alias("vkl_GetPhysicalDeviceMultisamplePropertiesEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_GetImageMemoryRequirements2KHR(VkDevice device, const VkImageMemoryRequirementsInfo2* pInfo, VkMemoryRequirements2* pMemoryRequirements)
 {
-	((PFN_vkGetImageMemoryRequirements2KHR)VKL_DISPATCH(device)->fn[389])(device, pInfo, pMemoryRequirements);
+	((PFN_vkGetImageMemoryRequirements2KHR)VKL_DISPATCH(device)->fn[391])(device, pInfo, pMemoryRequirements);
 }
 VKAPI_ATTR void VKAPI_CALL vkGetImageMemoryRequirements2KHR(VkDevice device, const VkImageMemoryRequirementsInfo2* pInfo, VkMemoryRequirements2* pMemoryRequirements) __attribute__((weak, alias("vkl_GetImageMemoryRequirements2KHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_GetBufferMemoryRequirements2KHR(VkDevice device, const VkBufferMemoryRequirementsInfo2* pInfo, VkMemoryRequirements2* pMemoryRequirements)
 {
-	((PFN_vkGetBufferMemoryRequirements2KHR)VKL_DISPATCH(device)->fn[390])(device, pInfo, pMemoryRequirements);
+	((PFN_vkGetBufferMemoryRequirements2KHR)VKL_DISPATCH(device)->fn[392])(device, pInfo, pMemoryRequirements);
 }
 VKAPI_ATTR void VKAPI_CALL vkGetBufferMemoryRequirements2KHR(VkDevice device, const VkBufferMemoryRequirementsInfo2* pInfo, VkMemoryRequirements2* pMemoryRequirements) __attribute__((weak, alias("vkl_GetBufferMemoryRequirements2KHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_GetImageSparseMemoryRequirements2KHR(VkDevice device, const VkImageSparseMemoryRequirementsInfo2* pInfo, uint32_t* pSparseMemoryRequirementCount, VkSparseImageMemoryRequirements2* pSparseMemoryRequirements)
 {
-	((PFN_vkGetImageSparseMemoryRequirements2KHR)VKL_DISPATCH(device)->fn[391])(device, pInfo, pSparseMemoryRequirementCount, pSparseMemoryRequirements);
+	((PFN_vkGetImageSparseMemoryRequirements2KHR)VKL_DISPATCH(device)->fn[393])(device, pInfo, pSparseMemoryRequirementCount, pSparseMemoryRequirements);
 }
 VKAPI_ATTR void VKAPI_CALL vkGetImageSparseMemoryRequirements2KHR(VkDevice device, const VkImageSparseMemoryRequirementsInfo2* pInfo, uint32_t* pSparseMemoryRequirementCount, VkSparseImageMemoryRequirements2* pSparseMemoryRequirements) __attribute__((weak, alias("vkl_GetImageSparseMemoryRequirements2KHR")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_CreateAccelerationStructureKHR(VkDevice device, const VkAccelerationStructureCreateInfoKHR* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkAccelerationStructureKHR* pAccelerationStructure)
 {
-	return ((PFN_vkCreateAccelerationStructureKHR)VKL_DISPATCH(device)->fn[392])(device, pCreateInfo, pAllocator, pAccelerationStructure);
+	return ((PFN_vkCreateAccelerationStructureKHR)VKL_DISPATCH(device)->fn[394])(device, pCreateInfo, pAllocator, pAccelerationStructure);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkCreateAccelerationStructureKHR(VkDevice device, const VkAccelerationStructureCreateInfoKHR* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkAccelerationStructureKHR* pAccelerationStructure) __attribute__((weak, alias("vkl_CreateAccelerationStructureKHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_DestroyAccelerationStructureKHR(VkDevice device, VkAccelerationStructureKHR accelerationStructure, const VkAllocationCallbacks* pAllocator)
 {
-	((PFN_vkDestroyAccelerationStructureKHR)VKL_DISPATCH(device)->fn[393])(device, accelerationStructure, pAllocator);
+	((PFN_vkDestroyAccelerationStructureKHR)VKL_DISPATCH(device)->fn[395])(device, accelerationStructure, pAllocator);
 }
 VKAPI_ATTR void VKAPI_CALL vkDestroyAccelerationStructureKHR(VkDevice device, VkAccelerationStructureKHR accelerationStructure, const VkAllocationCallbacks* pAllocator) __attribute__((weak, alias("vkl_DestroyAccelerationStructureKHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdBuildAccelerationStructuresKHR(VkCommandBuffer commandBuffer, uint32_t infoCount, const VkAccelerationStructureBuildGeometryInfoKHR* pInfos, const VkAccelerationStructureBuildRangeInfoKHR* const* ppBuildRangeInfos)
 {
-	((PFN_vkCmdBuildAccelerationStructuresKHR)VKL_DISPATCH(commandBuffer)->fn[394])(commandBuffer, infoCount, pInfos, ppBuildRangeInfos);
+	((PFN_vkCmdBuildAccelerationStructuresKHR)VKL_DISPATCH(commandBuffer)->fn[396])(commandBuffer, infoCount, pInfos, ppBuildRangeInfos);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdBuildAccelerationStructuresKHR(VkCommandBuffer commandBuffer, uint32_t infoCount, const VkAccelerationStructureBuildGeometryInfoKHR* pInfos, const VkAccelerationStructureBuildRangeInfoKHR* const* ppBuildRangeInfos) __attribute__((weak, alias("vkl_CmdBuildAccelerationStructuresKHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdBuildAccelerationStructuresIndirectKHR(VkCommandBuffer commandBuffer, uint32_t infoCount, const VkAccelerationStructureBuildGeometryInfoKHR* pInfos, const VkDeviceAddress* pIndirectDeviceAddresses, const uint32_t* pIndirectStrides, const uint32_t* const* ppMaxPrimitiveCounts)
 {
-	((PFN_vkCmdBuildAccelerationStructuresIndirectKHR)VKL_DISPATCH(commandBuffer)->fn[395])(commandBuffer, infoCount, pInfos, pIndirectDeviceAddresses, pIndirectStrides, ppMaxPrimitiveCounts);
+	((PFN_vkCmdBuildAccelerationStructuresIndirectKHR)VKL_DISPATCH(commandBuffer)->fn[397])(commandBuffer, infoCount, pInfos, pIndirectDeviceAddresses, pIndirectStrides, ppMaxPrimitiveCounts);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdBuildAccelerationStructuresIndirectKHR(VkCommandBuffer commandBuffer, uint32_t infoCount, const VkAccelerationStructureBuildGeometryInfoKHR* pInfos, const VkDeviceAddress* pIndirectDeviceAddresses, const uint32_t* pIndirectStrides, const uint32_t* const* ppMaxPrimitiveCounts) __attribute__((weak, alias("vkl_CmdBuildAccelerationStructuresIndirectKHR")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_BuildAccelerationStructuresKHR(VkDevice device, VkDeferredOperationKHR deferredOperation, uint32_t infoCount, const VkAccelerationStructureBuildGeometryInfoKHR* pInfos, const VkAccelerationStructureBuildRangeInfoKHR* const* ppBuildRangeInfos)
 {
-	return ((PFN_vkBuildAccelerationStructuresKHR)VKL_DISPATCH(device)->fn[396])(device, deferredOperation, infoCount, pInfos, ppBuildRangeInfos);
+	return ((PFN_vkBuildAccelerationStructuresKHR)VKL_DISPATCH(device)->fn[398])(device, deferredOperation, infoCount, pInfos, ppBuildRangeInfos);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkBuildAccelerationStructuresKHR(VkDevice device, VkDeferredOperationKHR deferredOperation, uint32_t infoCount, const VkAccelerationStructureBuildGeometryInfoKHR* pInfos, const VkAccelerationStructureBuildRangeInfoKHR* const* ppBuildRangeInfos) __attribute__((weak, alias("vkl_BuildAccelerationStructuresKHR")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_CopyAccelerationStructureKHR(VkDevice device, VkDeferredOperationKHR deferredOperation, const VkCopyAccelerationStructureInfoKHR* pInfo)
 {
-	return ((PFN_vkCopyAccelerationStructureKHR)VKL_DISPATCH(device)->fn[397])(device, deferredOperation, pInfo);
+	return ((PFN_vkCopyAccelerationStructureKHR)VKL_DISPATCH(device)->fn[399])(device, deferredOperation, pInfo);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkCopyAccelerationStructureKHR(VkDevice device, VkDeferredOperationKHR deferredOperation, const VkCopyAccelerationStructureInfoKHR* pInfo) __attribute__((weak, alias("vkl_CopyAccelerationStructureKHR")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_CopyAccelerationStructureToMemoryKHR(VkDevice device, VkDeferredOperationKHR deferredOperation, const VkCopyAccelerationStructureToMemoryInfoKHR* pInfo)
 {
-	return ((PFN_vkCopyAccelerationStructureToMemoryKHR)VKL_DISPATCH(device)->fn[398])(device, deferredOperation, pInfo);
+	return ((PFN_vkCopyAccelerationStructureToMemoryKHR)VKL_DISPATCH(device)->fn[400])(device, deferredOperation, pInfo);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkCopyAccelerationStructureToMemoryKHR(VkDevice device, VkDeferredOperationKHR deferredOperation, const VkCopyAccelerationStructureToMemoryInfoKHR* pInfo) __attribute__((weak, alias("vkl_CopyAccelerationStructureToMemoryKHR")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_CopyMemoryToAccelerationStructureKHR(VkDevice device, VkDeferredOperationKHR deferredOperation, const VkCopyMemoryToAccelerationStructureInfoKHR* pInfo)
 {
-	return ((PFN_vkCopyMemoryToAccelerationStructureKHR)VKL_DISPATCH(device)->fn[399])(device, deferredOperation, pInfo);
+	return ((PFN_vkCopyMemoryToAccelerationStructureKHR)VKL_DISPATCH(device)->fn[401])(device, deferredOperation, pInfo);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkCopyMemoryToAccelerationStructureKHR(VkDevice device, VkDeferredOperationKHR deferredOperation, const VkCopyMemoryToAccelerationStructureInfoKHR* pInfo) __attribute__((weak, alias("vkl_CopyMemoryToAccelerationStructureKHR")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_WriteAccelerationStructuresPropertiesKHR(VkDevice device, uint32_t accelerationStructureCount, const VkAccelerationStructureKHR* pAccelerationStructures, VkQueryType queryType, size_t dataSize, void* pData, size_t stride)
 {
-	return ((PFN_vkWriteAccelerationStructuresPropertiesKHR)VKL_DISPATCH(device)->fn[400])(device, accelerationStructureCount, pAccelerationStructures, queryType, dataSize, pData, stride);
+	return ((PFN_vkWriteAccelerationStructuresPropertiesKHR)VKL_DISPATCH(device)->fn[402])(device, accelerationStructureCount, pAccelerationStructures, queryType, dataSize, pData, stride);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkWriteAccelerationStructuresPropertiesKHR(VkDevice device, uint32_t accelerationStructureCount, const VkAccelerationStructureKHR* pAccelerationStructures, VkQueryType queryType, size_t dataSize, void* pData, size_t stride) __attribute__((weak, alias("vkl_WriteAccelerationStructuresPropertiesKHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdCopyAccelerationStructureKHR(VkCommandBuffer commandBuffer, const VkCopyAccelerationStructureInfoKHR* pInfo)
 {
-	((PFN_vkCmdCopyAccelerationStructureKHR)VKL_DISPATCH(commandBuffer)->fn[401])(commandBuffer, pInfo);
+	((PFN_vkCmdCopyAccelerationStructureKHR)VKL_DISPATCH(commandBuffer)->fn[403])(commandBuffer, pInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdCopyAccelerationStructureKHR(VkCommandBuffer commandBuffer, const VkCopyAccelerationStructureInfoKHR* pInfo) __attribute__((weak, alias("vkl_CmdCopyAccelerationStructureKHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdCopyAccelerationStructureToMemoryKHR(VkCommandBuffer commandBuffer, const VkCopyAccelerationStructureToMemoryInfoKHR* pInfo)
 {
-	((PFN_vkCmdCopyAccelerationStructureToMemoryKHR)VKL_DISPATCH(commandBuffer)->fn[402])(commandBuffer, pInfo);
+	((PFN_vkCmdCopyAccelerationStructureToMemoryKHR)VKL_DISPATCH(commandBuffer)->fn[404])(commandBuffer, pInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdCopyAccelerationStructureToMemoryKHR(VkCommandBuffer commandBuffer, const VkCopyAccelerationStructureToMemoryInfoKHR* pInfo) __attribute__((weak, alias("vkl_CmdCopyAccelerationStructureToMemoryKHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdCopyMemoryToAccelerationStructureKHR(VkCommandBuffer commandBuffer, const VkCopyMemoryToAccelerationStructureInfoKHR* pInfo)
 {
-	((PFN_vkCmdCopyMemoryToAccelerationStructureKHR)VKL_DISPATCH(commandBuffer)->fn[403])(commandBuffer, pInfo);
+	((PFN_vkCmdCopyMemoryToAccelerationStructureKHR)VKL_DISPATCH(commandBuffer)->fn[405])(commandBuffer, pInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdCopyMemoryToAccelerationStructureKHR(VkCommandBuffer commandBuffer, const VkCopyMemoryToAccelerationStructureInfoKHR* pInfo) __attribute__((weak, alias("vkl_CmdCopyMemoryToAccelerationStructureKHR")));
 
 VKAPI_ATTR VkDeviceAddress VKAPI_CALL
 vkl_GetAccelerationStructureDeviceAddressKHR(VkDevice device, const VkAccelerationStructureDeviceAddressInfoKHR* pInfo)
 {
-	return ((PFN_vkGetAccelerationStructureDeviceAddressKHR)VKL_DISPATCH(device)->fn[404])(device, pInfo);
+	return ((PFN_vkGetAccelerationStructureDeviceAddressKHR)VKL_DISPATCH(device)->fn[406])(device, pInfo);
 }
 VKAPI_ATTR VkDeviceAddress VKAPI_CALL vkGetAccelerationStructureDeviceAddressKHR(VkDevice device, const VkAccelerationStructureDeviceAddressInfoKHR* pInfo) __attribute__((weak, alias("vkl_GetAccelerationStructureDeviceAddressKHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdWriteAccelerationStructuresPropertiesKHR(VkCommandBuffer commandBuffer, uint32_t accelerationStructureCount, const VkAccelerationStructureKHR* pAccelerationStructures, VkQueryType queryType, VkQueryPool queryPool, uint32_t firstQuery)
 {
-	((PFN_vkCmdWriteAccelerationStructuresPropertiesKHR)VKL_DISPATCH(commandBuffer)->fn[405])(commandBuffer, accelerationStructureCount, pAccelerationStructures, queryType, queryPool, firstQuery);
+	((PFN_vkCmdWriteAccelerationStructuresPropertiesKHR)VKL_DISPATCH(commandBuffer)->fn[407])(commandBuffer, accelerationStructureCount, pAccelerationStructures, queryType, queryPool, firstQuery);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdWriteAccelerationStructuresPropertiesKHR(VkCommandBuffer commandBuffer, uint32_t accelerationStructureCount, const VkAccelerationStructureKHR* pAccelerationStructures, VkQueryType queryType, VkQueryPool queryPool, uint32_t firstQuery) __attribute__((weak, alias("vkl_CmdWriteAccelerationStructuresPropertiesKHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_GetDeviceAccelerationStructureCompatibilityKHR(VkDevice device, const VkAccelerationStructureVersionInfoKHR* pVersionInfo, VkAccelerationStructureCompatibilityKHR* pCompatibility)
 {
-	((PFN_vkGetDeviceAccelerationStructureCompatibilityKHR)VKL_DISPATCH(device)->fn[406])(device, pVersionInfo, pCompatibility);
+	((PFN_vkGetDeviceAccelerationStructureCompatibilityKHR)VKL_DISPATCH(device)->fn[408])(device, pVersionInfo, pCompatibility);
 }
 VKAPI_ATTR void VKAPI_CALL vkGetDeviceAccelerationStructureCompatibilityKHR(VkDevice device, const VkAccelerationStructureVersionInfoKHR* pVersionInfo, VkAccelerationStructureCompatibilityKHR* pCompatibility) __attribute__((weak, alias("vkl_GetDeviceAccelerationStructureCompatibilityKHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_GetAccelerationStructureBuildSizesKHR(VkDevice device, VkAccelerationStructureBuildTypeKHR buildType, const VkAccelerationStructureBuildGeometryInfoKHR* pBuildInfo, const uint32_t* pMaxPrimitiveCounts, VkAccelerationStructureBuildSizesInfoKHR* pSizeInfo)
 {
-	((PFN_vkGetAccelerationStructureBuildSizesKHR)VKL_DISPATCH(device)->fn[407])(device, buildType, pBuildInfo, pMaxPrimitiveCounts, pSizeInfo);
+	((PFN_vkGetAccelerationStructureBuildSizesKHR)VKL_DISPATCH(device)->fn[409])(device, buildType, pBuildInfo, pMaxPrimitiveCounts, pSizeInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkGetAccelerationStructureBuildSizesKHR(VkDevice device, VkAccelerationStructureBuildTypeKHR buildType, const VkAccelerationStructureBuildGeometryInfoKHR* pBuildInfo, const uint32_t* pMaxPrimitiveCounts, VkAccelerationStructureBuildSizesInfoKHR* pSizeInfo) __attribute__((weak, alias("vkl_GetAccelerationStructureBuildSizesKHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdTraceRaysKHR(VkCommandBuffer commandBuffer, const VkStridedDeviceAddressRegionKHR* pRaygenShaderBindingTable, const VkStridedDeviceAddressRegionKHR* pMissShaderBindingTable, const VkStridedDeviceAddressRegionKHR* pHitShaderBindingTable, const VkStridedDeviceAddressRegionKHR* pCallableShaderBindingTable, uint32_t width, uint32_t height, uint32_t depth)
 {
-	((PFN_vkCmdTraceRaysKHR)VKL_DISPATCH(commandBuffer)->fn[408])(commandBuffer, pRaygenShaderBindingTable, pMissShaderBindingTable, pHitShaderBindingTable, pCallableShaderBindingTable, width, height, depth);
+	((PFN_vkCmdTraceRaysKHR)VKL_DISPATCH(commandBuffer)->fn[410])(commandBuffer, pRaygenShaderBindingTable, pMissShaderBindingTable, pHitShaderBindingTable, pCallableShaderBindingTable, width, height, depth);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdTraceRaysKHR(VkCommandBuffer commandBuffer, const VkStridedDeviceAddressRegionKHR* pRaygenShaderBindingTable, const VkStridedDeviceAddressRegionKHR* pMissShaderBindingTable, const VkStridedDeviceAddressRegionKHR* pHitShaderBindingTable, const VkStridedDeviceAddressRegionKHR* pCallableShaderBindingTable, uint32_t width, uint32_t height, uint32_t depth) __attribute__((weak, alias("vkl_CmdTraceRaysKHR")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_CreateRayTracingPipelinesKHR(VkDevice device, VkDeferredOperationKHR deferredOperation, VkPipelineCache pipelineCache, uint32_t createInfoCount, const VkRayTracingPipelineCreateInfoKHR* pCreateInfos, const VkAllocationCallbacks* pAllocator, VkPipeline* pPipelines)
 {
-	return ((PFN_vkCreateRayTracingPipelinesKHR)VKL_DISPATCH(device)->fn[409])(device, deferredOperation, pipelineCache, createInfoCount, pCreateInfos, pAllocator, pPipelines);
+	return ((PFN_vkCreateRayTracingPipelinesKHR)VKL_DISPATCH(device)->fn[411])(device, deferredOperation, pipelineCache, createInfoCount, pCreateInfos, pAllocator, pPipelines);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkCreateRayTracingPipelinesKHR(VkDevice device, VkDeferredOperationKHR deferredOperation, VkPipelineCache pipelineCache, uint32_t createInfoCount, const VkRayTracingPipelineCreateInfoKHR* pCreateInfos, const VkAllocationCallbacks* pAllocator, VkPipeline* pPipelines) __attribute__((weak, alias("vkl_CreateRayTracingPipelinesKHR")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetRayTracingShaderGroupHandlesKHR(VkDevice device, VkPipeline pipeline, uint32_t firstGroup, uint32_t groupCount, size_t dataSize, void* pData)
 {
-	return ((PFN_vkGetRayTracingShaderGroupHandlesKHR)VKL_DISPATCH(device)->fn[410])(device, pipeline, firstGroup, groupCount, dataSize, pData);
+	return ((PFN_vkGetRayTracingShaderGroupHandlesKHR)VKL_DISPATCH(device)->fn[412])(device, pipeline, firstGroup, groupCount, dataSize, pData);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetRayTracingShaderGroupHandlesKHR(VkDevice device, VkPipeline pipeline, uint32_t firstGroup, uint32_t groupCount, size_t dataSize, void* pData) __attribute__((weak, alias("vkl_GetRayTracingShaderGroupHandlesKHR")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetRayTracingCaptureReplayShaderGroupHandlesKHR(VkDevice device, VkPipeline pipeline, uint32_t firstGroup, uint32_t groupCount, size_t dataSize, void* pData)
 {
-	return ((PFN_vkGetRayTracingCaptureReplayShaderGroupHandlesKHR)VKL_DISPATCH(device)->fn[411])(device, pipeline, firstGroup, groupCount, dataSize, pData);
+	return ((PFN_vkGetRayTracingCaptureReplayShaderGroupHandlesKHR)VKL_DISPATCH(device)->fn[413])(device, pipeline, firstGroup, groupCount, dataSize, pData);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetRayTracingCaptureReplayShaderGroupHandlesKHR(VkDevice device, VkPipeline pipeline, uint32_t firstGroup, uint32_t groupCount, size_t dataSize, void* pData) __attribute__((weak, alias("vkl_GetRayTracingCaptureReplayShaderGroupHandlesKHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdTraceRaysIndirectKHR(VkCommandBuffer commandBuffer, const VkStridedDeviceAddressRegionKHR* pRaygenShaderBindingTable, const VkStridedDeviceAddressRegionKHR* pMissShaderBindingTable, const VkStridedDeviceAddressRegionKHR* pHitShaderBindingTable, const VkStridedDeviceAddressRegionKHR* pCallableShaderBindingTable, VkDeviceAddress indirectDeviceAddress)
 {
-	((PFN_vkCmdTraceRaysIndirectKHR)VKL_DISPATCH(commandBuffer)->fn[412])(commandBuffer, pRaygenShaderBindingTable, pMissShaderBindingTable, pHitShaderBindingTable, pCallableShaderBindingTable, indirectDeviceAddress);
+	((PFN_vkCmdTraceRaysIndirectKHR)VKL_DISPATCH(commandBuffer)->fn[414])(commandBuffer, pRaygenShaderBindingTable, pMissShaderBindingTable, pHitShaderBindingTable, pCallableShaderBindingTable, indirectDeviceAddress);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdTraceRaysIndirectKHR(VkCommandBuffer commandBuffer, const VkStridedDeviceAddressRegionKHR* pRaygenShaderBindingTable, const VkStridedDeviceAddressRegionKHR* pMissShaderBindingTable, const VkStridedDeviceAddressRegionKHR* pHitShaderBindingTable, const VkStridedDeviceAddressRegionKHR* pCallableShaderBindingTable, VkDeviceAddress indirectDeviceAddress) __attribute__((weak, alias("vkl_CmdTraceRaysIndirectKHR")));
 
 VKAPI_ATTR VkDeviceSize VKAPI_CALL
 vkl_GetRayTracingShaderGroupStackSizeKHR(VkDevice device, VkPipeline pipeline, uint32_t group, VkShaderGroupShaderKHR groupShader)
 {
-	return ((PFN_vkGetRayTracingShaderGroupStackSizeKHR)VKL_DISPATCH(device)->fn[413])(device, pipeline, group, groupShader);
+	return ((PFN_vkGetRayTracingShaderGroupStackSizeKHR)VKL_DISPATCH(device)->fn[415])(device, pipeline, group, groupShader);
 }
 VKAPI_ATTR VkDeviceSize VKAPI_CALL vkGetRayTracingShaderGroupStackSizeKHR(VkDevice device, VkPipeline pipeline, uint32_t group, VkShaderGroupShaderKHR groupShader) __attribute__((weak, alias("vkl_GetRayTracingShaderGroupStackSizeKHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetRayTracingPipelineStackSizeKHR(VkCommandBuffer commandBuffer, uint32_t pipelineStackSize)
 {
-	((PFN_vkCmdSetRayTracingPipelineStackSizeKHR)VKL_DISPATCH(commandBuffer)->fn[414])(commandBuffer, pipelineStackSize);
+	((PFN_vkCmdSetRayTracingPipelineStackSizeKHR)VKL_DISPATCH(commandBuffer)->fn[416])(commandBuffer, pipelineStackSize);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetRayTracingPipelineStackSizeKHR(VkCommandBuffer commandBuffer, uint32_t pipelineStackSize) __attribute__((weak, alias("vkl_CmdSetRayTracingPipelineStackSizeKHR")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_CreateSamplerYcbcrConversionKHR(VkDevice device, const VkSamplerYcbcrConversionCreateInfo* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkSamplerYcbcrConversion* pYcbcrConversion)
 {
-	return ((PFN_vkCreateSamplerYcbcrConversionKHR)VKL_DISPATCH(device)->fn[415])(device, pCreateInfo, pAllocator, pYcbcrConversion);
+	return ((PFN_vkCreateSamplerYcbcrConversionKHR)VKL_DISPATCH(device)->fn[417])(device, pCreateInfo, pAllocator, pYcbcrConversion);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkCreateSamplerYcbcrConversionKHR(VkDevice device, const VkSamplerYcbcrConversionCreateInfo* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkSamplerYcbcrConversion* pYcbcrConversion) __attribute__((weak, alias("vkl_CreateSamplerYcbcrConversionKHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_DestroySamplerYcbcrConversionKHR(VkDevice device, VkSamplerYcbcrConversion ycbcrConversion, const VkAllocationCallbacks* pAllocator)
 {
-	((PFN_vkDestroySamplerYcbcrConversionKHR)VKL_DISPATCH(device)->fn[416])(device, ycbcrConversion, pAllocator);
+	((PFN_vkDestroySamplerYcbcrConversionKHR)VKL_DISPATCH(device)->fn[418])(device, ycbcrConversion, pAllocator);
 }
 VKAPI_ATTR void VKAPI_CALL vkDestroySamplerYcbcrConversionKHR(VkDevice device, VkSamplerYcbcrConversion ycbcrConversion, const VkAllocationCallbacks* pAllocator) __attribute__((weak, alias("vkl_DestroySamplerYcbcrConversionKHR")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_BindBufferMemory2KHR(VkDevice device, uint32_t bindInfoCount, const VkBindBufferMemoryInfo* pBindInfos)
 {
-	return ((PFN_vkBindBufferMemory2KHR)VKL_DISPATCH(device)->fn[417])(device, bindInfoCount, pBindInfos);
+	return ((PFN_vkBindBufferMemory2KHR)VKL_DISPATCH(device)->fn[419])(device, bindInfoCount, pBindInfos);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkBindBufferMemory2KHR(VkDevice device, uint32_t bindInfoCount, const VkBindBufferMemoryInfo* pBindInfos) __attribute__((weak, alias("vkl_BindBufferMemory2KHR")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_BindImageMemory2KHR(VkDevice device, uint32_t bindInfoCount, const VkBindImageMemoryInfo* pBindInfos)
 {
-	return ((PFN_vkBindImageMemory2KHR)VKL_DISPATCH(device)->fn[418])(device, bindInfoCount, pBindInfos);
+	return ((PFN_vkBindImageMemory2KHR)VKL_DISPATCH(device)->fn[420])(device, bindInfoCount, pBindInfos);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkBindImageMemory2KHR(VkDevice device, uint32_t bindInfoCount, const VkBindImageMemoryInfo* pBindInfos) __attribute__((weak, alias("vkl_BindImageMemory2KHR")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetImageDrmFormatModifierPropertiesEXT(VkDevice device, VkImage image, VkImageDrmFormatModifierPropertiesEXT* pProperties)
 {
-	return ((PFN_vkGetImageDrmFormatModifierPropertiesEXT)VKL_DISPATCH(device)->fn[419])(device, image, pProperties);
+	return ((PFN_vkGetImageDrmFormatModifierPropertiesEXT)VKL_DISPATCH(device)->fn[421])(device, image, pProperties);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetImageDrmFormatModifierPropertiesEXT(VkDevice device, VkImage image, VkImageDrmFormatModifierPropertiesEXT* pProperties) __attribute__((weak, alias("vkl_GetImageDrmFormatModifierPropertiesEXT")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_CreateValidationCacheEXT(VkDevice device, const VkValidationCacheCreateInfoEXT* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkValidationCacheEXT* pValidationCache)
 {
-	return ((PFN_vkCreateValidationCacheEXT)VKL_DISPATCH(device)->fn[420])(device, pCreateInfo, pAllocator, pValidationCache);
+	return ((PFN_vkCreateValidationCacheEXT)VKL_DISPATCH(device)->fn[422])(device, pCreateInfo, pAllocator, pValidationCache);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkCreateValidationCacheEXT(VkDevice device, const VkValidationCacheCreateInfoEXT* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkValidationCacheEXT* pValidationCache) __attribute__((weak, alias("vkl_CreateValidationCacheEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_DestroyValidationCacheEXT(VkDevice device, VkValidationCacheEXT validationCache, const VkAllocationCallbacks* pAllocator)
 {
-	((PFN_vkDestroyValidationCacheEXT)VKL_DISPATCH(device)->fn[421])(device, validationCache, pAllocator);
+	((PFN_vkDestroyValidationCacheEXT)VKL_DISPATCH(device)->fn[423])(device, validationCache, pAllocator);
 }
 VKAPI_ATTR void VKAPI_CALL vkDestroyValidationCacheEXT(VkDevice device, VkValidationCacheEXT validationCache, const VkAllocationCallbacks* pAllocator) __attribute__((weak, alias("vkl_DestroyValidationCacheEXT")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_MergeValidationCachesEXT(VkDevice device, VkValidationCacheEXT dstCache, uint32_t srcCacheCount, const VkValidationCacheEXT* pSrcCaches)
 {
-	return ((PFN_vkMergeValidationCachesEXT)VKL_DISPATCH(device)->fn[422])(device, dstCache, srcCacheCount, pSrcCaches);
+	return ((PFN_vkMergeValidationCachesEXT)VKL_DISPATCH(device)->fn[424])(device, dstCache, srcCacheCount, pSrcCaches);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkMergeValidationCachesEXT(VkDevice device, VkValidationCacheEXT dstCache, uint32_t srcCacheCount, const VkValidationCacheEXT* pSrcCaches) __attribute__((weak, alias("vkl_MergeValidationCachesEXT")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetValidationCacheDataEXT(VkDevice device, VkValidationCacheEXT validationCache, size_t* pDataSize, void* pData)
 {
-	return ((PFN_vkGetValidationCacheDataEXT)VKL_DISPATCH(device)->fn[423])(device, validationCache, pDataSize, pData);
+	return ((PFN_vkGetValidationCacheDataEXT)VKL_DISPATCH(device)->fn[425])(device, validationCache, pDataSize, pData);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetValidationCacheDataEXT(VkDevice device, VkValidationCacheEXT validationCache, size_t* pDataSize, void* pData) __attribute__((weak, alias("vkl_GetValidationCacheDataEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdBindShadingRateImageNV(VkCommandBuffer commandBuffer, VkImageView imageView, VkImageLayout imageLayout)
 {
-	((PFN_vkCmdBindShadingRateImageNV)VKL_DISPATCH(commandBuffer)->fn[424])(commandBuffer, imageView, imageLayout);
+	((PFN_vkCmdBindShadingRateImageNV)VKL_DISPATCH(commandBuffer)->fn[426])(commandBuffer, imageView, imageLayout);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdBindShadingRateImageNV(VkCommandBuffer commandBuffer, VkImageView imageView, VkImageLayout imageLayout) __attribute__((weak, alias("vkl_CmdBindShadingRateImageNV")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetViewportShadingRatePaletteNV(VkCommandBuffer commandBuffer, uint32_t firstViewport, uint32_t viewportCount, const VkShadingRatePaletteNV* pShadingRatePalettes)
 {
-	((PFN_vkCmdSetViewportShadingRatePaletteNV)VKL_DISPATCH(commandBuffer)->fn[425])(commandBuffer, firstViewport, viewportCount, pShadingRatePalettes);
+	((PFN_vkCmdSetViewportShadingRatePaletteNV)VKL_DISPATCH(commandBuffer)->fn[427])(commandBuffer, firstViewport, viewportCount, pShadingRatePalettes);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetViewportShadingRatePaletteNV(VkCommandBuffer commandBuffer, uint32_t firstViewport, uint32_t viewportCount, const VkShadingRatePaletteNV* pShadingRatePalettes) __attribute__((weak, alias("vkl_CmdSetViewportShadingRatePaletteNV")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetCoarseSampleOrderNV(VkCommandBuffer commandBuffer, VkCoarseSampleOrderTypeNV sampleOrderType, uint32_t customSampleOrderCount, const VkCoarseSampleOrderCustomNV* pCustomSampleOrders)
 {
-	((PFN_vkCmdSetCoarseSampleOrderNV)VKL_DISPATCH(commandBuffer)->fn[426])(commandBuffer, sampleOrderType, customSampleOrderCount, pCustomSampleOrders);
+	((PFN_vkCmdSetCoarseSampleOrderNV)VKL_DISPATCH(commandBuffer)->fn[428])(commandBuffer, sampleOrderType, customSampleOrderCount, pCustomSampleOrders);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetCoarseSampleOrderNV(VkCommandBuffer commandBuffer, VkCoarseSampleOrderTypeNV sampleOrderType, uint32_t customSampleOrderCount, const VkCoarseSampleOrderCustomNV* pCustomSampleOrders) __attribute__((weak, alias("vkl_CmdSetCoarseSampleOrderNV")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_CreateAccelerationStructureNV(VkDevice device, const VkAccelerationStructureCreateInfoNV* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkAccelerationStructureNV* pAccelerationStructure)
 {
-	return ((PFN_vkCreateAccelerationStructureNV)VKL_DISPATCH(device)->fn[427])(device, pCreateInfo, pAllocator, pAccelerationStructure);
+	return ((PFN_vkCreateAccelerationStructureNV)VKL_DISPATCH(device)->fn[429])(device, pCreateInfo, pAllocator, pAccelerationStructure);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkCreateAccelerationStructureNV(VkDevice device, const VkAccelerationStructureCreateInfoNV* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkAccelerationStructureNV* pAccelerationStructure) __attribute__((weak, alias("vkl_CreateAccelerationStructureNV")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_DestroyAccelerationStructureNV(VkDevice device, VkAccelerationStructureNV accelerationStructure, const VkAllocationCallbacks* pAllocator)
 {
-	((PFN_vkDestroyAccelerationStructureNV)VKL_DISPATCH(device)->fn[428])(device, accelerationStructure, pAllocator);
+	((PFN_vkDestroyAccelerationStructureNV)VKL_DISPATCH(device)->fn[430])(device, accelerationStructure, pAllocator);
 }
 VKAPI_ATTR void VKAPI_CALL vkDestroyAccelerationStructureNV(VkDevice device, VkAccelerationStructureNV accelerationStructure, const VkAllocationCallbacks* pAllocator) __attribute__((weak, alias("vkl_DestroyAccelerationStructureNV")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_GetAccelerationStructureMemoryRequirementsNV(VkDevice device, const VkAccelerationStructureMemoryRequirementsInfoNV* pInfo, VkMemoryRequirements2* pMemoryRequirements)
 {
-	((PFN_vkGetAccelerationStructureMemoryRequirementsNV)VKL_DISPATCH(device)->fn[429])(device, pInfo, pMemoryRequirements);
+	((PFN_vkGetAccelerationStructureMemoryRequirementsNV)VKL_DISPATCH(device)->fn[431])(device, pInfo, pMemoryRequirements);
 }
 VKAPI_ATTR void VKAPI_CALL vkGetAccelerationStructureMemoryRequirementsNV(VkDevice device, const VkAccelerationStructureMemoryRequirementsInfoNV* pInfo, VkMemoryRequirements2* pMemoryRequirements) __attribute__((weak, alias("vkl_GetAccelerationStructureMemoryRequirementsNV")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_BindAccelerationStructureMemoryNV(VkDevice device, uint32_t bindInfoCount, const VkBindAccelerationStructureMemoryInfoNV* pBindInfos)
 {
-	return ((PFN_vkBindAccelerationStructureMemoryNV)VKL_DISPATCH(device)->fn[430])(device, bindInfoCount, pBindInfos);
+	return ((PFN_vkBindAccelerationStructureMemoryNV)VKL_DISPATCH(device)->fn[432])(device, bindInfoCount, pBindInfos);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkBindAccelerationStructureMemoryNV(VkDevice device, uint32_t bindInfoCount, const VkBindAccelerationStructureMemoryInfoNV* pBindInfos) __attribute__((weak, alias("vkl_BindAccelerationStructureMemoryNV")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdBuildAccelerationStructureNV(VkCommandBuffer commandBuffer, const VkAccelerationStructureInfoNV* pInfo, VkBuffer instanceData, VkDeviceSize instanceOffset, VkBool32 update, VkAccelerationStructureNV dst, VkAccelerationStructureNV src, VkBuffer scratch, VkDeviceSize scratchOffset)
 {
-	((PFN_vkCmdBuildAccelerationStructureNV)VKL_DISPATCH(commandBuffer)->fn[431])(commandBuffer, pInfo, instanceData, instanceOffset, update, dst, src, scratch, scratchOffset);
+	((PFN_vkCmdBuildAccelerationStructureNV)VKL_DISPATCH(commandBuffer)->fn[433])(commandBuffer, pInfo, instanceData, instanceOffset, update, dst, src, scratch, scratchOffset);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdBuildAccelerationStructureNV(VkCommandBuffer commandBuffer, const VkAccelerationStructureInfoNV* pInfo, VkBuffer instanceData, VkDeviceSize instanceOffset, VkBool32 update, VkAccelerationStructureNV dst, VkAccelerationStructureNV src, VkBuffer scratch, VkDeviceSize scratchOffset) __attribute__((weak, alias("vkl_CmdBuildAccelerationStructureNV")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdCopyAccelerationStructureNV(VkCommandBuffer commandBuffer, VkAccelerationStructureNV dst, VkAccelerationStructureNV src, VkCopyAccelerationStructureModeKHR mode)
 {
-	((PFN_vkCmdCopyAccelerationStructureNV)VKL_DISPATCH(commandBuffer)->fn[432])(commandBuffer, dst, src, mode);
+	((PFN_vkCmdCopyAccelerationStructureNV)VKL_DISPATCH(commandBuffer)->fn[434])(commandBuffer, dst, src, mode);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdCopyAccelerationStructureNV(VkCommandBuffer commandBuffer, VkAccelerationStructureNV dst, VkAccelerationStructureNV src, VkCopyAccelerationStructureModeKHR mode) __attribute__((weak, alias("vkl_CmdCopyAccelerationStructureNV")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdTraceRaysNV(VkCommandBuffer commandBuffer, VkBuffer raygenShaderBindingTableBuffer, VkDeviceSize raygenShaderBindingOffset, VkBuffer missShaderBindingTableBuffer, VkDeviceSize missShaderBindingOffset, VkDeviceSize missShaderBindingStride, VkBuffer hitShaderBindingTableBuffer, VkDeviceSize hitShaderBindingOffset, VkDeviceSize hitShaderBindingStride, VkBuffer callableShaderBindingTableBuffer, VkDeviceSize callableShaderBindingOffset, VkDeviceSize callableShaderBindingStride, uint32_t width, uint32_t height, uint32_t depth)
 {
-	((PFN_vkCmdTraceRaysNV)VKL_DISPATCH(commandBuffer)->fn[433])(commandBuffer, raygenShaderBindingTableBuffer, raygenShaderBindingOffset, missShaderBindingTableBuffer, missShaderBindingOffset, missShaderBindingStride, hitShaderBindingTableBuffer, hitShaderBindingOffset, hitShaderBindingStride, callableShaderBindingTableBuffer, callableShaderBindingOffset, callableShaderBindingStride, width, height, depth);
+	((PFN_vkCmdTraceRaysNV)VKL_DISPATCH(commandBuffer)->fn[435])(commandBuffer, raygenShaderBindingTableBuffer, raygenShaderBindingOffset, missShaderBindingTableBuffer, missShaderBindingOffset, missShaderBindingStride, hitShaderBindingTableBuffer, hitShaderBindingOffset, hitShaderBindingStride, callableShaderBindingTableBuffer, callableShaderBindingOffset, callableShaderBindingStride, width, height, depth);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdTraceRaysNV(VkCommandBuffer commandBuffer, VkBuffer raygenShaderBindingTableBuffer, VkDeviceSize raygenShaderBindingOffset, VkBuffer missShaderBindingTableBuffer, VkDeviceSize missShaderBindingOffset, VkDeviceSize missShaderBindingStride, VkBuffer hitShaderBindingTableBuffer, VkDeviceSize hitShaderBindingOffset, VkDeviceSize hitShaderBindingStride, VkBuffer callableShaderBindingTableBuffer, VkDeviceSize callableShaderBindingOffset, VkDeviceSize callableShaderBindingStride, uint32_t width, uint32_t height, uint32_t depth) __attribute__((weak, alias("vkl_CmdTraceRaysNV")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_CreateRayTracingPipelinesNV(VkDevice device, VkPipelineCache pipelineCache, uint32_t createInfoCount, const VkRayTracingPipelineCreateInfoNV* pCreateInfos, const VkAllocationCallbacks* pAllocator, VkPipeline* pPipelines)
 {
-	return ((PFN_vkCreateRayTracingPipelinesNV)VKL_DISPATCH(device)->fn[434])(device, pipelineCache, createInfoCount, pCreateInfos, pAllocator, pPipelines);
+	return ((PFN_vkCreateRayTracingPipelinesNV)VKL_DISPATCH(device)->fn[436])(device, pipelineCache, createInfoCount, pCreateInfos, pAllocator, pPipelines);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkCreateRayTracingPipelinesNV(VkDevice device, VkPipelineCache pipelineCache, uint32_t createInfoCount, const VkRayTracingPipelineCreateInfoNV* pCreateInfos, const VkAllocationCallbacks* pAllocator, VkPipeline* pPipelines) __attribute__((weak, alias("vkl_CreateRayTracingPipelinesNV")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetRayTracingShaderGroupHandlesNV(VkDevice device, VkPipeline pipeline, uint32_t firstGroup, uint32_t groupCount, size_t dataSize, void* pData)
 {
-	return ((PFN_vkGetRayTracingShaderGroupHandlesNV)VKL_DISPATCH(device)->fn[435])(device, pipeline, firstGroup, groupCount, dataSize, pData);
+	return ((PFN_vkGetRayTracingShaderGroupHandlesNV)VKL_DISPATCH(device)->fn[437])(device, pipeline, firstGroup, groupCount, dataSize, pData);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetRayTracingShaderGroupHandlesNV(VkDevice device, VkPipeline pipeline, uint32_t firstGroup, uint32_t groupCount, size_t dataSize, void* pData) __attribute__((weak, alias("vkl_GetRayTracingShaderGroupHandlesNV")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetAccelerationStructureHandleNV(VkDevice device, VkAccelerationStructureNV accelerationStructure, size_t dataSize, void* pData)
 {
-	return ((PFN_vkGetAccelerationStructureHandleNV)VKL_DISPATCH(device)->fn[436])(device, accelerationStructure, dataSize, pData);
+	return ((PFN_vkGetAccelerationStructureHandleNV)VKL_DISPATCH(device)->fn[438])(device, accelerationStructure, dataSize, pData);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetAccelerationStructureHandleNV(VkDevice device, VkAccelerationStructureNV accelerationStructure, size_t dataSize, void* pData) __attribute__((weak, alias("vkl_GetAccelerationStructureHandleNV")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdWriteAccelerationStructuresPropertiesNV(VkCommandBuffer commandBuffer, uint32_t accelerationStructureCount, const VkAccelerationStructureNV* pAccelerationStructures, VkQueryType queryType, VkQueryPool queryPool, uint32_t firstQuery)
 {
-	((PFN_vkCmdWriteAccelerationStructuresPropertiesNV)VKL_DISPATCH(commandBuffer)->fn[437])(commandBuffer, accelerationStructureCount, pAccelerationStructures, queryType, queryPool, firstQuery);
+	((PFN_vkCmdWriteAccelerationStructuresPropertiesNV)VKL_DISPATCH(commandBuffer)->fn[439])(commandBuffer, accelerationStructureCount, pAccelerationStructures, queryType, queryPool, firstQuery);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdWriteAccelerationStructuresPropertiesNV(VkCommandBuffer commandBuffer, uint32_t accelerationStructureCount, const VkAccelerationStructureNV* pAccelerationStructures, VkQueryType queryType, VkQueryPool queryPool, uint32_t firstQuery) __attribute__((weak, alias("vkl_CmdWriteAccelerationStructuresPropertiesNV")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_CompileDeferredNV(VkDevice device, VkPipeline pipeline, uint32_t shader)
 {
-	return ((PFN_vkCompileDeferredNV)VKL_DISPATCH(device)->fn[438])(device, pipeline, shader);
+	return ((PFN_vkCompileDeferredNV)VKL_DISPATCH(device)->fn[440])(device, pipeline, shader);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkCompileDeferredNV(VkDevice device, VkPipeline pipeline, uint32_t shader) __attribute__((weak, alias("vkl_CompileDeferredNV")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_GetDescriptorSetLayoutSupportKHR(VkDevice device, const VkDescriptorSetLayoutCreateInfo* pCreateInfo, VkDescriptorSetLayoutSupport* pSupport)
 {
-	((PFN_vkGetDescriptorSetLayoutSupportKHR)VKL_DISPATCH(device)->fn[439])(device, pCreateInfo, pSupport);
+	((PFN_vkGetDescriptorSetLayoutSupportKHR)VKL_DISPATCH(device)->fn[441])(device, pCreateInfo, pSupport);
 }
 VKAPI_ATTR void VKAPI_CALL vkGetDescriptorSetLayoutSupportKHR(VkDevice device, const VkDescriptorSetLayoutCreateInfo* pCreateInfo, VkDescriptorSetLayoutSupport* pSupport) __attribute__((weak, alias("vkl_GetDescriptorSetLayoutSupportKHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdDrawIndirectCountKHR(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset, VkBuffer countBuffer, VkDeviceSize countBufferOffset, uint32_t maxDrawCount, uint32_t stride)
 {
-	((PFN_vkCmdDrawIndirectCountKHR)VKL_DISPATCH(commandBuffer)->fn[440])(commandBuffer, buffer, offset, countBuffer, countBufferOffset, maxDrawCount, stride);
+	((PFN_vkCmdDrawIndirectCountKHR)VKL_DISPATCH(commandBuffer)->fn[442])(commandBuffer, buffer, offset, countBuffer, countBufferOffset, maxDrawCount, stride);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdDrawIndirectCountKHR(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset, VkBuffer countBuffer, VkDeviceSize countBufferOffset, uint32_t maxDrawCount, uint32_t stride) __attribute__((weak, alias("vkl_CmdDrawIndirectCountKHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdDrawIndexedIndirectCountKHR(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset, VkBuffer countBuffer, VkDeviceSize countBufferOffset, uint32_t maxDrawCount, uint32_t stride)
 {
-	((PFN_vkCmdDrawIndexedIndirectCountKHR)VKL_DISPATCH(commandBuffer)->fn[441])(commandBuffer, buffer, offset, countBuffer, countBufferOffset, maxDrawCount, stride);
+	((PFN_vkCmdDrawIndexedIndirectCountKHR)VKL_DISPATCH(commandBuffer)->fn[443])(commandBuffer, buffer, offset, countBuffer, countBufferOffset, maxDrawCount, stride);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdDrawIndexedIndirectCountKHR(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset, VkBuffer countBuffer, VkDeviceSize countBufferOffset, uint32_t maxDrawCount, uint32_t stride) __attribute__((weak, alias("vkl_CmdDrawIndexedIndirectCountKHR")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetMemoryHostPointerPropertiesEXT(VkDevice device, VkExternalMemoryHandleTypeFlagBits handleType, const void* pHostPointer, VkMemoryHostPointerPropertiesEXT* pMemoryHostPointerProperties)
 {
-	return ((PFN_vkGetMemoryHostPointerPropertiesEXT)VKL_DISPATCH(device)->fn[442])(device, handleType, pHostPointer, pMemoryHostPointerProperties);
+	return ((PFN_vkGetMemoryHostPointerPropertiesEXT)VKL_DISPATCH(device)->fn[444])(device, handleType, pHostPointer, pMemoryHostPointerProperties);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetMemoryHostPointerPropertiesEXT(VkDevice device, VkExternalMemoryHandleTypeFlagBits handleType, const void* pHostPointer, VkMemoryHostPointerPropertiesEXT* pMemoryHostPointerProperties) __attribute__((weak, alias("vkl_GetMemoryHostPointerPropertiesEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdWriteBufferMarkerAMD(VkCommandBuffer commandBuffer, VkPipelineStageFlagBits pipelineStage, VkBuffer dstBuffer, VkDeviceSize dstOffset, uint32_t marker)
 {
-	((PFN_vkCmdWriteBufferMarkerAMD)VKL_DISPATCH(commandBuffer)->fn[443])(commandBuffer, pipelineStage, dstBuffer, dstOffset, marker);
+	((PFN_vkCmdWriteBufferMarkerAMD)VKL_DISPATCH(commandBuffer)->fn[445])(commandBuffer, pipelineStage, dstBuffer, dstOffset, marker);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdWriteBufferMarkerAMD(VkCommandBuffer commandBuffer, VkPipelineStageFlagBits pipelineStage, VkBuffer dstBuffer, VkDeviceSize dstOffset, uint32_t marker) __attribute__((weak, alias("vkl_CmdWriteBufferMarkerAMD")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdWriteBufferMarker2AMD(VkCommandBuffer commandBuffer, VkPipelineStageFlags2 stage, VkBuffer dstBuffer, VkDeviceSize dstOffset, uint32_t marker)
 {
-	((PFN_vkCmdWriteBufferMarker2AMD)VKL_DISPATCH(commandBuffer)->fn[444])(commandBuffer, stage, dstBuffer, dstOffset, marker);
+	((PFN_vkCmdWriteBufferMarker2AMD)VKL_DISPATCH(commandBuffer)->fn[446])(commandBuffer, stage, dstBuffer, dstOffset, marker);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdWriteBufferMarker2AMD(VkCommandBuffer commandBuffer, VkPipelineStageFlags2 stage, VkBuffer dstBuffer, VkDeviceSize dstOffset, uint32_t marker) __attribute__((weak, alias("vkl_CmdWriteBufferMarker2AMD")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetPhysicalDeviceCalibrateableTimeDomainsEXT(VkPhysicalDevice physicalDevice, uint32_t* pTimeDomainCount, VkTimeDomainKHR* pTimeDomains)
 {
-	return ((PFN_vkGetPhysicalDeviceCalibrateableTimeDomainsEXT)VKL_DISPATCH(physicalDevice)->fn[445])(physicalDevice, pTimeDomainCount, pTimeDomains);
+	return ((PFN_vkGetPhysicalDeviceCalibrateableTimeDomainsEXT)VKL_DISPATCH(physicalDevice)->fn[447])(physicalDevice, pTimeDomainCount, pTimeDomains);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetPhysicalDeviceCalibrateableTimeDomainsEXT(VkPhysicalDevice physicalDevice, uint32_t* pTimeDomainCount, VkTimeDomainKHR* pTimeDomains) __attribute__((weak, alias("vkl_GetPhysicalDeviceCalibrateableTimeDomainsEXT")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetCalibratedTimestampsEXT(VkDevice device, uint32_t timestampCount, const VkCalibratedTimestampInfoKHR* pTimestampInfos, uint64_t* pTimestamps, uint64_t* pMaxDeviation)
 {
-	return ((PFN_vkGetCalibratedTimestampsEXT)VKL_DISPATCH(device)->fn[446])(device, timestampCount, pTimestampInfos, pTimestamps, pMaxDeviation);
+	return ((PFN_vkGetCalibratedTimestampsEXT)VKL_DISPATCH(device)->fn[448])(device, timestampCount, pTimestampInfos, pTimestamps, pMaxDeviation);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetCalibratedTimestampsEXT(VkDevice device, uint32_t timestampCount, const VkCalibratedTimestampInfoKHR* pTimestampInfos, uint64_t* pTimestamps, uint64_t* pMaxDeviation) __attribute__((weak, alias("vkl_GetCalibratedTimestampsEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdDrawMeshTasksNV(VkCommandBuffer commandBuffer, uint32_t taskCount, uint32_t firstTask)
 {
-	((PFN_vkCmdDrawMeshTasksNV)VKL_DISPATCH(commandBuffer)->fn[447])(commandBuffer, taskCount, firstTask);
+	((PFN_vkCmdDrawMeshTasksNV)VKL_DISPATCH(commandBuffer)->fn[449])(commandBuffer, taskCount, firstTask);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdDrawMeshTasksNV(VkCommandBuffer commandBuffer, uint32_t taskCount, uint32_t firstTask) __attribute__((weak, alias("vkl_CmdDrawMeshTasksNV")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdDrawMeshTasksIndirectNV(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset, uint32_t drawCount, uint32_t stride)
 {
-	((PFN_vkCmdDrawMeshTasksIndirectNV)VKL_DISPATCH(commandBuffer)->fn[448])(commandBuffer, buffer, offset, drawCount, stride);
+	((PFN_vkCmdDrawMeshTasksIndirectNV)VKL_DISPATCH(commandBuffer)->fn[450])(commandBuffer, buffer, offset, drawCount, stride);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdDrawMeshTasksIndirectNV(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset, uint32_t drawCount, uint32_t stride) __attribute__((weak, alias("vkl_CmdDrawMeshTasksIndirectNV")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdDrawMeshTasksIndirectCountNV(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset, VkBuffer countBuffer, VkDeviceSize countBufferOffset, uint32_t maxDrawCount, uint32_t stride)
 {
-	((PFN_vkCmdDrawMeshTasksIndirectCountNV)VKL_DISPATCH(commandBuffer)->fn[449])(commandBuffer, buffer, offset, countBuffer, countBufferOffset, maxDrawCount, stride);
+	((PFN_vkCmdDrawMeshTasksIndirectCountNV)VKL_DISPATCH(commandBuffer)->fn[451])(commandBuffer, buffer, offset, countBuffer, countBufferOffset, maxDrawCount, stride);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdDrawMeshTasksIndirectCountNV(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset, VkBuffer countBuffer, VkDeviceSize countBufferOffset, uint32_t maxDrawCount, uint32_t stride) __attribute__((weak, alias("vkl_CmdDrawMeshTasksIndirectCountNV")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetExclusiveScissorEnableNV(VkCommandBuffer commandBuffer, uint32_t firstExclusiveScissor, uint32_t exclusiveScissorCount, const VkBool32* pExclusiveScissorEnables)
 {
-	((PFN_vkCmdSetExclusiveScissorEnableNV)VKL_DISPATCH(commandBuffer)->fn[450])(commandBuffer, firstExclusiveScissor, exclusiveScissorCount, pExclusiveScissorEnables);
+	((PFN_vkCmdSetExclusiveScissorEnableNV)VKL_DISPATCH(commandBuffer)->fn[452])(commandBuffer, firstExclusiveScissor, exclusiveScissorCount, pExclusiveScissorEnables);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetExclusiveScissorEnableNV(VkCommandBuffer commandBuffer, uint32_t firstExclusiveScissor, uint32_t exclusiveScissorCount, const VkBool32* pExclusiveScissorEnables) __attribute__((weak, alias("vkl_CmdSetExclusiveScissorEnableNV")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetExclusiveScissorNV(VkCommandBuffer commandBuffer, uint32_t firstExclusiveScissor, uint32_t exclusiveScissorCount, const VkRect2D* pExclusiveScissors)
 {
-	((PFN_vkCmdSetExclusiveScissorNV)VKL_DISPATCH(commandBuffer)->fn[451])(commandBuffer, firstExclusiveScissor, exclusiveScissorCount, pExclusiveScissors);
+	((PFN_vkCmdSetExclusiveScissorNV)VKL_DISPATCH(commandBuffer)->fn[453])(commandBuffer, firstExclusiveScissor, exclusiveScissorCount, pExclusiveScissors);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetExclusiveScissorNV(VkCommandBuffer commandBuffer, uint32_t firstExclusiveScissor, uint32_t exclusiveScissorCount, const VkRect2D* pExclusiveScissors) __attribute__((weak, alias("vkl_CmdSetExclusiveScissorNV")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetCheckpointNV(VkCommandBuffer commandBuffer, const void* pCheckpointMarker)
 {
-	((PFN_vkCmdSetCheckpointNV)VKL_DISPATCH(commandBuffer)->fn[452])(commandBuffer, pCheckpointMarker);
+	((PFN_vkCmdSetCheckpointNV)VKL_DISPATCH(commandBuffer)->fn[454])(commandBuffer, pCheckpointMarker);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetCheckpointNV(VkCommandBuffer commandBuffer, const void* pCheckpointMarker) __attribute__((weak, alias("vkl_CmdSetCheckpointNV")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_GetQueueCheckpointDataNV(VkQueue queue, uint32_t* pCheckpointDataCount, VkCheckpointDataNV* pCheckpointData)
 {
-	((PFN_vkGetQueueCheckpointDataNV)VKL_DISPATCH(queue)->fn[453])(queue, pCheckpointDataCount, pCheckpointData);
+	((PFN_vkGetQueueCheckpointDataNV)VKL_DISPATCH(queue)->fn[455])(queue, pCheckpointDataCount, pCheckpointData);
 }
 VKAPI_ATTR void VKAPI_CALL vkGetQueueCheckpointDataNV(VkQueue queue, uint32_t* pCheckpointDataCount, VkCheckpointDataNV* pCheckpointData) __attribute__((weak, alias("vkl_GetQueueCheckpointDataNV")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_GetQueueCheckpointData2NV(VkQueue queue, uint32_t* pCheckpointDataCount, VkCheckpointData2NV* pCheckpointData)
 {
-	((PFN_vkGetQueueCheckpointData2NV)VKL_DISPATCH(queue)->fn[454])(queue, pCheckpointDataCount, pCheckpointData);
+	((PFN_vkGetQueueCheckpointData2NV)VKL_DISPATCH(queue)->fn[456])(queue, pCheckpointDataCount, pCheckpointData);
 }
 VKAPI_ATTR void VKAPI_CALL vkGetQueueCheckpointData2NV(VkQueue queue, uint32_t* pCheckpointDataCount, VkCheckpointData2NV* pCheckpointData) __attribute__((weak, alias("vkl_GetQueueCheckpointData2NV")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetSemaphoreCounterValueKHR(VkDevice device, VkSemaphore semaphore, uint64_t* pValue)
 {
-	return ((PFN_vkGetSemaphoreCounterValueKHR)VKL_DISPATCH(device)->fn[455])(device, semaphore, pValue);
+	return ((PFN_vkGetSemaphoreCounterValueKHR)VKL_DISPATCH(device)->fn[457])(device, semaphore, pValue);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetSemaphoreCounterValueKHR(VkDevice device, VkSemaphore semaphore, uint64_t* pValue) __attribute__((weak, alias("vkl_GetSemaphoreCounterValueKHR")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_WaitSemaphoresKHR(VkDevice device, const VkSemaphoreWaitInfo* pWaitInfo, uint64_t timeout)
 {
-	return ((PFN_vkWaitSemaphoresKHR)VKL_DISPATCH(device)->fn[456])(device, pWaitInfo, timeout);
+	return ((PFN_vkWaitSemaphoresKHR)VKL_DISPATCH(device)->fn[458])(device, pWaitInfo, timeout);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkWaitSemaphoresKHR(VkDevice device, const VkSemaphoreWaitInfo* pWaitInfo, uint64_t timeout) __attribute__((weak, alias("vkl_WaitSemaphoresKHR")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_SignalSemaphoreKHR(VkDevice device, const VkSemaphoreSignalInfo* pSignalInfo)
 {
-	return ((PFN_vkSignalSemaphoreKHR)VKL_DISPATCH(device)->fn[457])(device, pSignalInfo);
+	return ((PFN_vkSignalSemaphoreKHR)VKL_DISPATCH(device)->fn[459])(device, pSignalInfo);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkSignalSemaphoreKHR(VkDevice device, const VkSemaphoreSignalInfo* pSignalInfo) __attribute__((weak, alias("vkl_SignalSemaphoreKHR")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_SetSwapchainPresentTimingQueueSizeEXT(VkDevice device, VkSwapchainKHR swapchain, uint32_t size)
 {
-	return ((PFN_vkSetSwapchainPresentTimingQueueSizeEXT)VKL_DISPATCH(device)->fn[458])(device, swapchain, size);
+	return ((PFN_vkSetSwapchainPresentTimingQueueSizeEXT)VKL_DISPATCH(device)->fn[460])(device, swapchain, size);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkSetSwapchainPresentTimingQueueSizeEXT(VkDevice device, VkSwapchainKHR swapchain, uint32_t size) __attribute__((weak, alias("vkl_SetSwapchainPresentTimingQueueSizeEXT")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetSwapchainTimingPropertiesEXT(VkDevice device, VkSwapchainKHR swapchain, VkSwapchainTimingPropertiesEXT* pSwapchainTimingProperties, uint64_t* pSwapchainTimingPropertiesCounter)
 {
-	return ((PFN_vkGetSwapchainTimingPropertiesEXT)VKL_DISPATCH(device)->fn[459])(device, swapchain, pSwapchainTimingProperties, pSwapchainTimingPropertiesCounter);
+	return ((PFN_vkGetSwapchainTimingPropertiesEXT)VKL_DISPATCH(device)->fn[461])(device, swapchain, pSwapchainTimingProperties, pSwapchainTimingPropertiesCounter);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetSwapchainTimingPropertiesEXT(VkDevice device, VkSwapchainKHR swapchain, VkSwapchainTimingPropertiesEXT* pSwapchainTimingProperties, uint64_t* pSwapchainTimingPropertiesCounter) __attribute__((weak, alias("vkl_GetSwapchainTimingPropertiesEXT")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetSwapchainTimeDomainPropertiesEXT(VkDevice device, VkSwapchainKHR swapchain, VkSwapchainTimeDomainPropertiesEXT* pSwapchainTimeDomainProperties, uint64_t* pTimeDomainsCounter)
 {
-	return ((PFN_vkGetSwapchainTimeDomainPropertiesEXT)VKL_DISPATCH(device)->fn[460])(device, swapchain, pSwapchainTimeDomainProperties, pTimeDomainsCounter);
+	return ((PFN_vkGetSwapchainTimeDomainPropertiesEXT)VKL_DISPATCH(device)->fn[462])(device, swapchain, pSwapchainTimeDomainProperties, pTimeDomainsCounter);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetSwapchainTimeDomainPropertiesEXT(VkDevice device, VkSwapchainKHR swapchain, VkSwapchainTimeDomainPropertiesEXT* pSwapchainTimeDomainProperties, uint64_t* pTimeDomainsCounter) __attribute__((weak, alias("vkl_GetSwapchainTimeDomainPropertiesEXT")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetPastPresentationTimingEXT(VkDevice device, const VkPastPresentationTimingInfoEXT* pPastPresentationTimingInfo, VkPastPresentationTimingPropertiesEXT* pPastPresentationTimingProperties)
 {
-	return ((PFN_vkGetPastPresentationTimingEXT)VKL_DISPATCH(device)->fn[461])(device, pPastPresentationTimingInfo, pPastPresentationTimingProperties);
+	return ((PFN_vkGetPastPresentationTimingEXT)VKL_DISPATCH(device)->fn[463])(device, pPastPresentationTimingInfo, pPastPresentationTimingProperties);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetPastPresentationTimingEXT(VkDevice device, const VkPastPresentationTimingInfoEXT* pPastPresentationTimingInfo, VkPastPresentationTimingPropertiesEXT* pPastPresentationTimingProperties) __attribute__((weak, alias("vkl_GetPastPresentationTimingEXT")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_InitializePerformanceApiINTEL(VkDevice device, const VkInitializePerformanceApiInfoINTEL* pInitializeInfo)
 {
-	return ((PFN_vkInitializePerformanceApiINTEL)VKL_DISPATCH(device)->fn[462])(device, pInitializeInfo);
+	return ((PFN_vkInitializePerformanceApiINTEL)VKL_DISPATCH(device)->fn[464])(device, pInitializeInfo);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkInitializePerformanceApiINTEL(VkDevice device, const VkInitializePerformanceApiInfoINTEL* pInitializeInfo) __attribute__((weak, alias("vkl_InitializePerformanceApiINTEL")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_UninitializePerformanceApiINTEL(VkDevice device)
 {
-	((PFN_vkUninitializePerformanceApiINTEL)VKL_DISPATCH(device)->fn[463])(device);
+	((PFN_vkUninitializePerformanceApiINTEL)VKL_DISPATCH(device)->fn[465])(device);
 }
 VKAPI_ATTR void VKAPI_CALL vkUninitializePerformanceApiINTEL(VkDevice device) __attribute__((weak, alias("vkl_UninitializePerformanceApiINTEL")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_CmdSetPerformanceMarkerINTEL(VkCommandBuffer commandBuffer, const VkPerformanceMarkerInfoINTEL* pMarkerInfo)
 {
-	return ((PFN_vkCmdSetPerformanceMarkerINTEL)VKL_DISPATCH(commandBuffer)->fn[464])(commandBuffer, pMarkerInfo);
+	return ((PFN_vkCmdSetPerformanceMarkerINTEL)VKL_DISPATCH(commandBuffer)->fn[466])(commandBuffer, pMarkerInfo);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkCmdSetPerformanceMarkerINTEL(VkCommandBuffer commandBuffer, const VkPerformanceMarkerInfoINTEL* pMarkerInfo) __attribute__((weak, alias("vkl_CmdSetPerformanceMarkerINTEL")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_CmdSetPerformanceStreamMarkerINTEL(VkCommandBuffer commandBuffer, const VkPerformanceStreamMarkerInfoINTEL* pMarkerInfo)
 {
-	return ((PFN_vkCmdSetPerformanceStreamMarkerINTEL)VKL_DISPATCH(commandBuffer)->fn[465])(commandBuffer, pMarkerInfo);
+	return ((PFN_vkCmdSetPerformanceStreamMarkerINTEL)VKL_DISPATCH(commandBuffer)->fn[467])(commandBuffer, pMarkerInfo);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkCmdSetPerformanceStreamMarkerINTEL(VkCommandBuffer commandBuffer, const VkPerformanceStreamMarkerInfoINTEL* pMarkerInfo) __attribute__((weak, alias("vkl_CmdSetPerformanceStreamMarkerINTEL")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_CmdSetPerformanceOverrideINTEL(VkCommandBuffer commandBuffer, const VkPerformanceOverrideInfoINTEL* pOverrideInfo)
 {
-	return ((PFN_vkCmdSetPerformanceOverrideINTEL)VKL_DISPATCH(commandBuffer)->fn[466])(commandBuffer, pOverrideInfo);
+	return ((PFN_vkCmdSetPerformanceOverrideINTEL)VKL_DISPATCH(commandBuffer)->fn[468])(commandBuffer, pOverrideInfo);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkCmdSetPerformanceOverrideINTEL(VkCommandBuffer commandBuffer, const VkPerformanceOverrideInfoINTEL* pOverrideInfo) __attribute__((weak, alias("vkl_CmdSetPerformanceOverrideINTEL")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_AcquirePerformanceConfigurationINTEL(VkDevice device, const VkPerformanceConfigurationAcquireInfoINTEL* pAcquireInfo, VkPerformanceConfigurationINTEL* pConfiguration)
 {
-	return ((PFN_vkAcquirePerformanceConfigurationINTEL)VKL_DISPATCH(device)->fn[467])(device, pAcquireInfo, pConfiguration);
+	return ((PFN_vkAcquirePerformanceConfigurationINTEL)VKL_DISPATCH(device)->fn[469])(device, pAcquireInfo, pConfiguration);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkAcquirePerformanceConfigurationINTEL(VkDevice device, const VkPerformanceConfigurationAcquireInfoINTEL* pAcquireInfo, VkPerformanceConfigurationINTEL* pConfiguration) __attribute__((weak, alias("vkl_AcquirePerformanceConfigurationINTEL")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_ReleasePerformanceConfigurationINTEL(VkDevice device, VkPerformanceConfigurationINTEL configuration)
 {
-	return ((PFN_vkReleasePerformanceConfigurationINTEL)VKL_DISPATCH(device)->fn[468])(device, configuration);
+	return ((PFN_vkReleasePerformanceConfigurationINTEL)VKL_DISPATCH(device)->fn[470])(device, configuration);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkReleasePerformanceConfigurationINTEL(VkDevice device, VkPerformanceConfigurationINTEL configuration) __attribute__((weak, alias("vkl_ReleasePerformanceConfigurationINTEL")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_QueueSetPerformanceConfigurationINTEL(VkQueue queue, VkPerformanceConfigurationINTEL configuration)
 {
-	return ((PFN_vkQueueSetPerformanceConfigurationINTEL)VKL_DISPATCH(queue)->fn[469])(queue, configuration);
+	return ((PFN_vkQueueSetPerformanceConfigurationINTEL)VKL_DISPATCH(queue)->fn[471])(queue, configuration);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkQueueSetPerformanceConfigurationINTEL(VkQueue queue, VkPerformanceConfigurationINTEL configuration) __attribute__((weak, alias("vkl_QueueSetPerformanceConfigurationINTEL")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetPerformanceParameterINTEL(VkDevice device, VkPerformanceParameterTypeINTEL parameter, VkPerformanceValueINTEL* pValue)
 {
-	return ((PFN_vkGetPerformanceParameterINTEL)VKL_DISPATCH(device)->fn[470])(device, parameter, pValue);
+	return ((PFN_vkGetPerformanceParameterINTEL)VKL_DISPATCH(device)->fn[472])(device, parameter, pValue);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetPerformanceParameterINTEL(VkDevice device, VkPerformanceParameterTypeINTEL parameter, VkPerformanceValueINTEL* pValue) __attribute__((weak, alias("vkl_GetPerformanceParameterINTEL")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_SetLocalDimmingAMD(VkDevice device, VkSwapchainKHR swapChain, VkBool32 localDimmingEnable)
 {
-	((PFN_vkSetLocalDimmingAMD)VKL_DISPATCH(device)->fn[471])(device, swapChain, localDimmingEnable);
+	((PFN_vkSetLocalDimmingAMD)VKL_DISPATCH(device)->fn[473])(device, swapChain, localDimmingEnable);
 }
 VKAPI_ATTR void VKAPI_CALL vkSetLocalDimmingAMD(VkDevice device, VkSwapchainKHR swapChain, VkBool32 localDimmingEnable) __attribute__((weak, alias("vkl_SetLocalDimmingAMD")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetPhysicalDeviceFragmentShadingRatesKHR(VkPhysicalDevice physicalDevice, uint32_t* pFragmentShadingRateCount, VkPhysicalDeviceFragmentShadingRateKHR* pFragmentShadingRates)
 {
-	return ((PFN_vkGetPhysicalDeviceFragmentShadingRatesKHR)VKL_DISPATCH(physicalDevice)->fn[472])(physicalDevice, pFragmentShadingRateCount, pFragmentShadingRates);
+	return ((PFN_vkGetPhysicalDeviceFragmentShadingRatesKHR)VKL_DISPATCH(physicalDevice)->fn[474])(physicalDevice, pFragmentShadingRateCount, pFragmentShadingRates);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetPhysicalDeviceFragmentShadingRatesKHR(VkPhysicalDevice physicalDevice, uint32_t* pFragmentShadingRateCount, VkPhysicalDeviceFragmentShadingRateKHR* pFragmentShadingRates) __attribute__((weak, alias("vkl_GetPhysicalDeviceFragmentShadingRatesKHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetFragmentShadingRateKHR(VkCommandBuffer commandBuffer, const VkExtent2D* pFragmentSize, const VkFragmentShadingRateCombinerOpKHR combinerOps[2])
 {
-	((PFN_vkCmdSetFragmentShadingRateKHR)VKL_DISPATCH(commandBuffer)->fn[473])(commandBuffer, pFragmentSize, combinerOps);
+	((PFN_vkCmdSetFragmentShadingRateKHR)VKL_DISPATCH(commandBuffer)->fn[475])(commandBuffer, pFragmentSize, combinerOps);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetFragmentShadingRateKHR(VkCommandBuffer commandBuffer, const VkExtent2D* pFragmentSize, const VkFragmentShadingRateCombinerOpKHR combinerOps[2]) __attribute__((weak, alias("vkl_CmdSetFragmentShadingRateKHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetRenderingAttachmentLocationsKHR(VkCommandBuffer commandBuffer, const VkRenderingAttachmentLocationInfo* pLocationInfo)
 {
-	((PFN_vkCmdSetRenderingAttachmentLocationsKHR)VKL_DISPATCH(commandBuffer)->fn[474])(commandBuffer, pLocationInfo);
+	((PFN_vkCmdSetRenderingAttachmentLocationsKHR)VKL_DISPATCH(commandBuffer)->fn[476])(commandBuffer, pLocationInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetRenderingAttachmentLocationsKHR(VkCommandBuffer commandBuffer, const VkRenderingAttachmentLocationInfo* pLocationInfo) __attribute__((weak, alias("vkl_CmdSetRenderingAttachmentLocationsKHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetRenderingInputAttachmentIndicesKHR(VkCommandBuffer commandBuffer, const VkRenderingInputAttachmentIndexInfo* pInputAttachmentIndexInfo)
 {
-	((PFN_vkCmdSetRenderingInputAttachmentIndicesKHR)VKL_DISPATCH(commandBuffer)->fn[475])(commandBuffer, pInputAttachmentIndexInfo);
+	((PFN_vkCmdSetRenderingInputAttachmentIndicesKHR)VKL_DISPATCH(commandBuffer)->fn[477])(commandBuffer, pInputAttachmentIndexInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetRenderingInputAttachmentIndicesKHR(VkCommandBuffer commandBuffer, const VkRenderingInputAttachmentIndexInfo* pInputAttachmentIndexInfo) __attribute__((weak, alias("vkl_CmdSetRenderingInputAttachmentIndicesKHR")));
 
 VKAPI_ATTR VkDeviceAddress VKAPI_CALL
 vkl_GetBufferDeviceAddressEXT(VkDevice device, const VkBufferDeviceAddressInfo* pInfo)
 {
-	return ((PFN_vkGetBufferDeviceAddressEXT)VKL_DISPATCH(device)->fn[476])(device, pInfo);
+	return ((PFN_vkGetBufferDeviceAddressEXT)VKL_DISPATCH(device)->fn[478])(device, pInfo);
 }
 VKAPI_ATTR VkDeviceAddress VKAPI_CALL vkGetBufferDeviceAddressEXT(VkDevice device, const VkBufferDeviceAddressInfo* pInfo) __attribute__((weak, alias("vkl_GetBufferDeviceAddressEXT")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetPhysicalDeviceToolPropertiesEXT(VkPhysicalDevice physicalDevice, uint32_t* pToolCount, VkPhysicalDeviceToolProperties* pToolProperties)
 {
-	return ((PFN_vkGetPhysicalDeviceToolPropertiesEXT)VKL_DISPATCH(physicalDevice)->fn[477])(physicalDevice, pToolCount, pToolProperties);
+	return ((PFN_vkGetPhysicalDeviceToolPropertiesEXT)VKL_DISPATCH(physicalDevice)->fn[479])(physicalDevice, pToolCount, pToolProperties);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetPhysicalDeviceToolPropertiesEXT(VkPhysicalDevice physicalDevice, uint32_t* pToolCount, VkPhysicalDeviceToolProperties* pToolProperties) __attribute__((weak, alias("vkl_GetPhysicalDeviceToolPropertiesEXT")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_WaitForPresentKHR(VkDevice device, VkSwapchainKHR swapchain, uint64_t presentId, uint64_t timeout)
 {
-	return ((PFN_vkWaitForPresentKHR)VKL_DISPATCH(device)->fn[478])(device, swapchain, presentId, timeout);
+	return ((PFN_vkWaitForPresentKHR)VKL_DISPATCH(device)->fn[480])(device, swapchain, presentId, timeout);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkWaitForPresentKHR(VkDevice device, VkSwapchainKHR swapchain, uint64_t presentId, uint64_t timeout) __attribute__((weak, alias("vkl_WaitForPresentKHR")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetPhysicalDeviceCooperativeMatrixPropertiesNV(VkPhysicalDevice physicalDevice, uint32_t* pPropertyCount, VkCooperativeMatrixPropertiesNV* pProperties)
 {
-	return ((PFN_vkGetPhysicalDeviceCooperativeMatrixPropertiesNV)VKL_DISPATCH(physicalDevice)->fn[479])(physicalDevice, pPropertyCount, pProperties);
+	return ((PFN_vkGetPhysicalDeviceCooperativeMatrixPropertiesNV)VKL_DISPATCH(physicalDevice)->fn[481])(physicalDevice, pPropertyCount, pProperties);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetPhysicalDeviceCooperativeMatrixPropertiesNV(VkPhysicalDevice physicalDevice, uint32_t* pPropertyCount, VkCooperativeMatrixPropertiesNV* pProperties) __attribute__((weak, alias("vkl_GetPhysicalDeviceCooperativeMatrixPropertiesNV")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetPhysicalDeviceSupportedFramebufferMixedSamplesCombinationsNV(VkPhysicalDevice physicalDevice, uint32_t* pCombinationCount, VkFramebufferMixedSamplesCombinationNV* pCombinations)
 {
-	return ((PFN_vkGetPhysicalDeviceSupportedFramebufferMixedSamplesCombinationsNV)VKL_DISPATCH(physicalDevice)->fn[480])(physicalDevice, pCombinationCount, pCombinations);
+	return ((PFN_vkGetPhysicalDeviceSupportedFramebufferMixedSamplesCombinationsNV)VKL_DISPATCH(physicalDevice)->fn[482])(physicalDevice, pCombinationCount, pCombinations);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetPhysicalDeviceSupportedFramebufferMixedSamplesCombinationsNV(VkPhysicalDevice physicalDevice, uint32_t* pCombinationCount, VkFramebufferMixedSamplesCombinationNV* pCombinations) __attribute__((weak, alias("vkl_GetPhysicalDeviceSupportedFramebufferMixedSamplesCombinationsNV")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_CreateHeadlessSurfaceEXT(VkInstance instance, const VkHeadlessSurfaceCreateInfoEXT* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkSurfaceKHR* pSurface)
 {
-	return ((PFN_vkCreateHeadlessSurfaceEXT)VKL_DISPATCH(instance)->fn[481])(instance, pCreateInfo, pAllocator, pSurface);
+	return ((PFN_vkCreateHeadlessSurfaceEXT)VKL_DISPATCH(instance)->fn[483])(instance, pCreateInfo, pAllocator, pSurface);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkCreateHeadlessSurfaceEXT(VkInstance instance, const VkHeadlessSurfaceCreateInfoEXT* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkSurfaceKHR* pSurface) __attribute__((weak, alias("vkl_CreateHeadlessSurfaceEXT")));
 
 VKAPI_ATTR VkDeviceAddress VKAPI_CALL
 vkl_GetBufferDeviceAddressKHR(VkDevice device, const VkBufferDeviceAddressInfo* pInfo)
 {
-	return ((PFN_vkGetBufferDeviceAddressKHR)VKL_DISPATCH(device)->fn[482])(device, pInfo);
+	return ((PFN_vkGetBufferDeviceAddressKHR)VKL_DISPATCH(device)->fn[484])(device, pInfo);
 }
 VKAPI_ATTR VkDeviceAddress VKAPI_CALL vkGetBufferDeviceAddressKHR(VkDevice device, const VkBufferDeviceAddressInfo* pInfo) __attribute__((weak, alias("vkl_GetBufferDeviceAddressKHR")));
 
 VKAPI_ATTR uint64_t VKAPI_CALL
 vkl_GetBufferOpaqueCaptureAddressKHR(VkDevice device, const VkBufferDeviceAddressInfo* pInfo)
 {
-	return ((PFN_vkGetBufferOpaqueCaptureAddressKHR)VKL_DISPATCH(device)->fn[483])(device, pInfo);
+	return ((PFN_vkGetBufferOpaqueCaptureAddressKHR)VKL_DISPATCH(device)->fn[485])(device, pInfo);
 }
 VKAPI_ATTR uint64_t VKAPI_CALL vkGetBufferOpaqueCaptureAddressKHR(VkDevice device, const VkBufferDeviceAddressInfo* pInfo) __attribute__((weak, alias("vkl_GetBufferOpaqueCaptureAddressKHR")));
 
 VKAPI_ATTR uint64_t VKAPI_CALL
 vkl_GetDeviceMemoryOpaqueCaptureAddressKHR(VkDevice device, const VkDeviceMemoryOpaqueCaptureAddressInfo* pInfo)
 {
-	return ((PFN_vkGetDeviceMemoryOpaqueCaptureAddressKHR)VKL_DISPATCH(device)->fn[484])(device, pInfo);
+	return ((PFN_vkGetDeviceMemoryOpaqueCaptureAddressKHR)VKL_DISPATCH(device)->fn[486])(device, pInfo);
 }
 VKAPI_ATTR uint64_t VKAPI_CALL vkGetDeviceMemoryOpaqueCaptureAddressKHR(VkDevice device, const VkDeviceMemoryOpaqueCaptureAddressInfo* pInfo) __attribute__((weak, alias("vkl_GetDeviceMemoryOpaqueCaptureAddressKHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetLineStippleEXT(VkCommandBuffer commandBuffer, uint32_t lineStippleFactor, uint16_t lineStipplePattern)
 {
-	((PFN_vkCmdSetLineStippleEXT)VKL_DISPATCH(commandBuffer)->fn[485])(commandBuffer, lineStippleFactor, lineStipplePattern);
+	((PFN_vkCmdSetLineStippleEXT)VKL_DISPATCH(commandBuffer)->fn[487])(commandBuffer, lineStippleFactor, lineStipplePattern);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetLineStippleEXT(VkCommandBuffer commandBuffer, uint32_t lineStippleFactor, uint16_t lineStipplePattern) __attribute__((weak, alias("vkl_CmdSetLineStippleEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_ResetQueryPoolEXT(VkDevice device, VkQueryPool queryPool, uint32_t firstQuery, uint32_t queryCount)
 {
-	((PFN_vkResetQueryPoolEXT)VKL_DISPATCH(device)->fn[486])(device, queryPool, firstQuery, queryCount);
+	((PFN_vkResetQueryPoolEXT)VKL_DISPATCH(device)->fn[488])(device, queryPool, firstQuery, queryCount);
 }
 VKAPI_ATTR void VKAPI_CALL vkResetQueryPoolEXT(VkDevice device, VkQueryPool queryPool, uint32_t firstQuery, uint32_t queryCount) __attribute__((weak, alias("vkl_ResetQueryPoolEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetCullModeEXT(VkCommandBuffer commandBuffer, VkCullModeFlags cullMode)
 {
-	((PFN_vkCmdSetCullModeEXT)VKL_DISPATCH(commandBuffer)->fn[487])(commandBuffer, cullMode);
+	((PFN_vkCmdSetCullModeEXT)VKL_DISPATCH(commandBuffer)->fn[489])(commandBuffer, cullMode);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetCullModeEXT(VkCommandBuffer commandBuffer, VkCullModeFlags cullMode) __attribute__((weak, alias("vkl_CmdSetCullModeEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetFrontFaceEXT(VkCommandBuffer commandBuffer, VkFrontFace frontFace)
 {
-	((PFN_vkCmdSetFrontFaceEXT)VKL_DISPATCH(commandBuffer)->fn[488])(commandBuffer, frontFace);
+	((PFN_vkCmdSetFrontFaceEXT)VKL_DISPATCH(commandBuffer)->fn[490])(commandBuffer, frontFace);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetFrontFaceEXT(VkCommandBuffer commandBuffer, VkFrontFace frontFace) __attribute__((weak, alias("vkl_CmdSetFrontFaceEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetPrimitiveTopologyEXT(VkCommandBuffer commandBuffer, VkPrimitiveTopology primitiveTopology)
 {
-	((PFN_vkCmdSetPrimitiveTopologyEXT)VKL_DISPATCH(commandBuffer)->fn[489])(commandBuffer, primitiveTopology);
+	((PFN_vkCmdSetPrimitiveTopologyEXT)VKL_DISPATCH(commandBuffer)->fn[491])(commandBuffer, primitiveTopology);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetPrimitiveTopologyEXT(VkCommandBuffer commandBuffer, VkPrimitiveTopology primitiveTopology) __attribute__((weak, alias("vkl_CmdSetPrimitiveTopologyEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetViewportWithCountEXT(VkCommandBuffer commandBuffer, uint32_t viewportCount, const VkViewport* pViewports)
 {
-	((PFN_vkCmdSetViewportWithCountEXT)VKL_DISPATCH(commandBuffer)->fn[490])(commandBuffer, viewportCount, pViewports);
+	((PFN_vkCmdSetViewportWithCountEXT)VKL_DISPATCH(commandBuffer)->fn[492])(commandBuffer, viewportCount, pViewports);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetViewportWithCountEXT(VkCommandBuffer commandBuffer, uint32_t viewportCount, const VkViewport* pViewports) __attribute__((weak, alias("vkl_CmdSetViewportWithCountEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetScissorWithCountEXT(VkCommandBuffer commandBuffer, uint32_t scissorCount, const VkRect2D* pScissors)
 {
-	((PFN_vkCmdSetScissorWithCountEXT)VKL_DISPATCH(commandBuffer)->fn[491])(commandBuffer, scissorCount, pScissors);
+	((PFN_vkCmdSetScissorWithCountEXT)VKL_DISPATCH(commandBuffer)->fn[493])(commandBuffer, scissorCount, pScissors);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetScissorWithCountEXT(VkCommandBuffer commandBuffer, uint32_t scissorCount, const VkRect2D* pScissors) __attribute__((weak, alias("vkl_CmdSetScissorWithCountEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdBindVertexBuffers2EXT(VkCommandBuffer commandBuffer, uint32_t firstBinding, uint32_t bindingCount, const VkBuffer* pBuffers, const VkDeviceSize* pOffsets, const VkDeviceSize* pSizes, const VkDeviceSize* pStrides)
 {
-	((PFN_vkCmdBindVertexBuffers2EXT)VKL_DISPATCH(commandBuffer)->fn[492])(commandBuffer, firstBinding, bindingCount, pBuffers, pOffsets, pSizes, pStrides);
+	((PFN_vkCmdBindVertexBuffers2EXT)VKL_DISPATCH(commandBuffer)->fn[494])(commandBuffer, firstBinding, bindingCount, pBuffers, pOffsets, pSizes, pStrides);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdBindVertexBuffers2EXT(VkCommandBuffer commandBuffer, uint32_t firstBinding, uint32_t bindingCount, const VkBuffer* pBuffers, const VkDeviceSize* pOffsets, const VkDeviceSize* pSizes, const VkDeviceSize* pStrides) __attribute__((weak, alias("vkl_CmdBindVertexBuffers2EXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetDepthTestEnableEXT(VkCommandBuffer commandBuffer, VkBool32 depthTestEnable)
 {
-	((PFN_vkCmdSetDepthTestEnableEXT)VKL_DISPATCH(commandBuffer)->fn[493])(commandBuffer, depthTestEnable);
+	((PFN_vkCmdSetDepthTestEnableEXT)VKL_DISPATCH(commandBuffer)->fn[495])(commandBuffer, depthTestEnable);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetDepthTestEnableEXT(VkCommandBuffer commandBuffer, VkBool32 depthTestEnable) __attribute__((weak, alias("vkl_CmdSetDepthTestEnableEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetDepthWriteEnableEXT(VkCommandBuffer commandBuffer, VkBool32 depthWriteEnable)
 {
-	((PFN_vkCmdSetDepthWriteEnableEXT)VKL_DISPATCH(commandBuffer)->fn[494])(commandBuffer, depthWriteEnable);
+	((PFN_vkCmdSetDepthWriteEnableEXT)VKL_DISPATCH(commandBuffer)->fn[496])(commandBuffer, depthWriteEnable);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetDepthWriteEnableEXT(VkCommandBuffer commandBuffer, VkBool32 depthWriteEnable) __attribute__((weak, alias("vkl_CmdSetDepthWriteEnableEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetDepthCompareOpEXT(VkCommandBuffer commandBuffer, VkCompareOp depthCompareOp)
 {
-	((PFN_vkCmdSetDepthCompareOpEXT)VKL_DISPATCH(commandBuffer)->fn[495])(commandBuffer, depthCompareOp);
+	((PFN_vkCmdSetDepthCompareOpEXT)VKL_DISPATCH(commandBuffer)->fn[497])(commandBuffer, depthCompareOp);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetDepthCompareOpEXT(VkCommandBuffer commandBuffer, VkCompareOp depthCompareOp) __attribute__((weak, alias("vkl_CmdSetDepthCompareOpEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetDepthBoundsTestEnableEXT(VkCommandBuffer commandBuffer, VkBool32 depthBoundsTestEnable)
 {
-	((PFN_vkCmdSetDepthBoundsTestEnableEXT)VKL_DISPATCH(commandBuffer)->fn[496])(commandBuffer, depthBoundsTestEnable);
+	((PFN_vkCmdSetDepthBoundsTestEnableEXT)VKL_DISPATCH(commandBuffer)->fn[498])(commandBuffer, depthBoundsTestEnable);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetDepthBoundsTestEnableEXT(VkCommandBuffer commandBuffer, VkBool32 depthBoundsTestEnable) __attribute__((weak, alias("vkl_CmdSetDepthBoundsTestEnableEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetStencilTestEnableEXT(VkCommandBuffer commandBuffer, VkBool32 stencilTestEnable)
 {
-	((PFN_vkCmdSetStencilTestEnableEXT)VKL_DISPATCH(commandBuffer)->fn[497])(commandBuffer, stencilTestEnable);
+	((PFN_vkCmdSetStencilTestEnableEXT)VKL_DISPATCH(commandBuffer)->fn[499])(commandBuffer, stencilTestEnable);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetStencilTestEnableEXT(VkCommandBuffer commandBuffer, VkBool32 stencilTestEnable) __attribute__((weak, alias("vkl_CmdSetStencilTestEnableEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetStencilOpEXT(VkCommandBuffer commandBuffer, VkStencilFaceFlags faceMask, VkStencilOp failOp, VkStencilOp passOp, VkStencilOp depthFailOp, VkCompareOp compareOp)
 {
-	((PFN_vkCmdSetStencilOpEXT)VKL_DISPATCH(commandBuffer)->fn[498])(commandBuffer, faceMask, failOp, passOp, depthFailOp, compareOp);
+	((PFN_vkCmdSetStencilOpEXT)VKL_DISPATCH(commandBuffer)->fn[500])(commandBuffer, faceMask, failOp, passOp, depthFailOp, compareOp);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetStencilOpEXT(VkCommandBuffer commandBuffer, VkStencilFaceFlags faceMask, VkStencilOp failOp, VkStencilOp passOp, VkStencilOp depthFailOp, VkCompareOp compareOp) __attribute__((weak, alias("vkl_CmdSetStencilOpEXT")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_CreateDeferredOperationKHR(VkDevice device, const VkAllocationCallbacks* pAllocator, VkDeferredOperationKHR* pDeferredOperation)
 {
-	return ((PFN_vkCreateDeferredOperationKHR)VKL_DISPATCH(device)->fn[499])(device, pAllocator, pDeferredOperation);
+	return ((PFN_vkCreateDeferredOperationKHR)VKL_DISPATCH(device)->fn[501])(device, pAllocator, pDeferredOperation);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkCreateDeferredOperationKHR(VkDevice device, const VkAllocationCallbacks* pAllocator, VkDeferredOperationKHR* pDeferredOperation) __attribute__((weak, alias("vkl_CreateDeferredOperationKHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_DestroyDeferredOperationKHR(VkDevice device, VkDeferredOperationKHR operation, const VkAllocationCallbacks* pAllocator)
 {
-	((PFN_vkDestroyDeferredOperationKHR)VKL_DISPATCH(device)->fn[500])(device, operation, pAllocator);
+	((PFN_vkDestroyDeferredOperationKHR)VKL_DISPATCH(device)->fn[502])(device, operation, pAllocator);
 }
 VKAPI_ATTR void VKAPI_CALL vkDestroyDeferredOperationKHR(VkDevice device, VkDeferredOperationKHR operation, const VkAllocationCallbacks* pAllocator) __attribute__((weak, alias("vkl_DestroyDeferredOperationKHR")));
 
 VKAPI_ATTR uint32_t VKAPI_CALL
 vkl_GetDeferredOperationMaxConcurrencyKHR(VkDevice device, VkDeferredOperationKHR operation)
 {
-	return ((PFN_vkGetDeferredOperationMaxConcurrencyKHR)VKL_DISPATCH(device)->fn[501])(device, operation);
+	return ((PFN_vkGetDeferredOperationMaxConcurrencyKHR)VKL_DISPATCH(device)->fn[503])(device, operation);
 }
 VKAPI_ATTR uint32_t VKAPI_CALL vkGetDeferredOperationMaxConcurrencyKHR(VkDevice device, VkDeferredOperationKHR operation) __attribute__((weak, alias("vkl_GetDeferredOperationMaxConcurrencyKHR")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetDeferredOperationResultKHR(VkDevice device, VkDeferredOperationKHR operation)
 {
-	return ((PFN_vkGetDeferredOperationResultKHR)VKL_DISPATCH(device)->fn[502])(device, operation);
+	return ((PFN_vkGetDeferredOperationResultKHR)VKL_DISPATCH(device)->fn[504])(device, operation);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetDeferredOperationResultKHR(VkDevice device, VkDeferredOperationKHR operation) __attribute__((weak, alias("vkl_GetDeferredOperationResultKHR")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_DeferredOperationJoinKHR(VkDevice device, VkDeferredOperationKHR operation)
 {
-	return ((PFN_vkDeferredOperationJoinKHR)VKL_DISPATCH(device)->fn[503])(device, operation);
+	return ((PFN_vkDeferredOperationJoinKHR)VKL_DISPATCH(device)->fn[505])(device, operation);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkDeferredOperationJoinKHR(VkDevice device, VkDeferredOperationKHR operation) __attribute__((weak, alias("vkl_DeferredOperationJoinKHR")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetPipelineExecutablePropertiesKHR(VkDevice device, const VkPipelineInfoKHR* pPipelineInfo, uint32_t* pExecutableCount, VkPipelineExecutablePropertiesKHR* pProperties)
 {
-	return ((PFN_vkGetPipelineExecutablePropertiesKHR)VKL_DISPATCH(device)->fn[504])(device, pPipelineInfo, pExecutableCount, pProperties);
+	return ((PFN_vkGetPipelineExecutablePropertiesKHR)VKL_DISPATCH(device)->fn[506])(device, pPipelineInfo, pExecutableCount, pProperties);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetPipelineExecutablePropertiesKHR(VkDevice device, const VkPipelineInfoKHR* pPipelineInfo, uint32_t* pExecutableCount, VkPipelineExecutablePropertiesKHR* pProperties) __attribute__((weak, alias("vkl_GetPipelineExecutablePropertiesKHR")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetPipelineExecutableStatisticsKHR(VkDevice device, const VkPipelineExecutableInfoKHR* pExecutableInfo, uint32_t* pStatisticCount, VkPipelineExecutableStatisticKHR* pStatistics)
 {
-	return ((PFN_vkGetPipelineExecutableStatisticsKHR)VKL_DISPATCH(device)->fn[505])(device, pExecutableInfo, pStatisticCount, pStatistics);
+	return ((PFN_vkGetPipelineExecutableStatisticsKHR)VKL_DISPATCH(device)->fn[507])(device, pExecutableInfo, pStatisticCount, pStatistics);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetPipelineExecutableStatisticsKHR(VkDevice device, const VkPipelineExecutableInfoKHR* pExecutableInfo, uint32_t* pStatisticCount, VkPipelineExecutableStatisticKHR* pStatistics) __attribute__((weak, alias("vkl_GetPipelineExecutableStatisticsKHR")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetPipelineExecutableInternalRepresentationsKHR(VkDevice device, const VkPipelineExecutableInfoKHR* pExecutableInfo, uint32_t* pInternalRepresentationCount, VkPipelineExecutableInternalRepresentationKHR* pInternalRepresentations)
 {
-	return ((PFN_vkGetPipelineExecutableInternalRepresentationsKHR)VKL_DISPATCH(device)->fn[506])(device, pExecutableInfo, pInternalRepresentationCount, pInternalRepresentations);
+	return ((PFN_vkGetPipelineExecutableInternalRepresentationsKHR)VKL_DISPATCH(device)->fn[508])(device, pExecutableInfo, pInternalRepresentationCount, pInternalRepresentations);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetPipelineExecutableInternalRepresentationsKHR(VkDevice device, const VkPipelineExecutableInfoKHR* pExecutableInfo, uint32_t* pInternalRepresentationCount, VkPipelineExecutableInternalRepresentationKHR* pInternalRepresentations) __attribute__((weak, alias("vkl_GetPipelineExecutableInternalRepresentationsKHR")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_CopyMemoryToImageEXT(VkDevice device, const VkCopyMemoryToImageInfo* pCopyMemoryToImageInfo)
 {
-	return ((PFN_vkCopyMemoryToImageEXT)VKL_DISPATCH(device)->fn[507])(device, pCopyMemoryToImageInfo);
+	return ((PFN_vkCopyMemoryToImageEXT)VKL_DISPATCH(device)->fn[509])(device, pCopyMemoryToImageInfo);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkCopyMemoryToImageEXT(VkDevice device, const VkCopyMemoryToImageInfo* pCopyMemoryToImageInfo) __attribute__((weak, alias("vkl_CopyMemoryToImageEXT")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_CopyImageToMemoryEXT(VkDevice device, const VkCopyImageToMemoryInfo* pCopyImageToMemoryInfo)
 {
-	return ((PFN_vkCopyImageToMemoryEXT)VKL_DISPATCH(device)->fn[508])(device, pCopyImageToMemoryInfo);
+	return ((PFN_vkCopyImageToMemoryEXT)VKL_DISPATCH(device)->fn[510])(device, pCopyImageToMemoryInfo);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkCopyImageToMemoryEXT(VkDevice device, const VkCopyImageToMemoryInfo* pCopyImageToMemoryInfo) __attribute__((weak, alias("vkl_CopyImageToMemoryEXT")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_CopyImageToImageEXT(VkDevice device, const VkCopyImageToImageInfo* pCopyImageToImageInfo)
 {
-	return ((PFN_vkCopyImageToImageEXT)VKL_DISPATCH(device)->fn[509])(device, pCopyImageToImageInfo);
+	return ((PFN_vkCopyImageToImageEXT)VKL_DISPATCH(device)->fn[511])(device, pCopyImageToImageInfo);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkCopyImageToImageEXT(VkDevice device, const VkCopyImageToImageInfo* pCopyImageToImageInfo) __attribute__((weak, alias("vkl_CopyImageToImageEXT")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_TransitionImageLayoutEXT(VkDevice device, uint32_t transitionCount, const VkHostImageLayoutTransitionInfo* pTransitions)
 {
-	return ((PFN_vkTransitionImageLayoutEXT)VKL_DISPATCH(device)->fn[510])(device, transitionCount, pTransitions);
+	return ((PFN_vkTransitionImageLayoutEXT)VKL_DISPATCH(device)->fn[512])(device, transitionCount, pTransitions);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkTransitionImageLayoutEXT(VkDevice device, uint32_t transitionCount, const VkHostImageLayoutTransitionInfo* pTransitions) __attribute__((weak, alias("vkl_TransitionImageLayoutEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_GetImageSubresourceLayout2EXT(VkDevice device, VkImage image, const VkImageSubresource2* pSubresource, VkSubresourceLayout2* pLayout)
 {
-	((PFN_vkGetImageSubresourceLayout2EXT)VKL_DISPATCH(device)->fn[511])(device, image, pSubresource, pLayout);
+	((PFN_vkGetImageSubresourceLayout2EXT)VKL_DISPATCH(device)->fn[513])(device, image, pSubresource, pLayout);
 }
 VKAPI_ATTR void VKAPI_CALL vkGetImageSubresourceLayout2EXT(VkDevice device, VkImage image, const VkImageSubresource2* pSubresource, VkSubresourceLayout2* pLayout) __attribute__((weak, alias("vkl_GetImageSubresourceLayout2EXT")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_MapMemory2KHR(VkDevice device, const VkMemoryMapInfo* pMemoryMapInfo, void** ppData)
 {
-	return ((PFN_vkMapMemory2KHR)VKL_DISPATCH(device)->fn[512])(device, pMemoryMapInfo, ppData);
+	return ((PFN_vkMapMemory2KHR)VKL_DISPATCH(device)->fn[514])(device, pMemoryMapInfo, ppData);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkMapMemory2KHR(VkDevice device, const VkMemoryMapInfo* pMemoryMapInfo, void** ppData) __attribute__((weak, alias("vkl_MapMemory2KHR")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_UnmapMemory2KHR(VkDevice device, const VkMemoryUnmapInfo* pMemoryUnmapInfo)
 {
-	return ((PFN_vkUnmapMemory2KHR)VKL_DISPATCH(device)->fn[513])(device, pMemoryUnmapInfo);
+	return ((PFN_vkUnmapMemory2KHR)VKL_DISPATCH(device)->fn[515])(device, pMemoryUnmapInfo);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkUnmapMemory2KHR(VkDevice device, const VkMemoryUnmapInfo* pMemoryUnmapInfo) __attribute__((weak, alias("vkl_UnmapMemory2KHR")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_ReleaseSwapchainImagesEXT(VkDevice device, const VkReleaseSwapchainImagesInfoKHR* pReleaseInfo)
 {
-	return ((PFN_vkReleaseSwapchainImagesEXT)VKL_DISPATCH(device)->fn[514])(device, pReleaseInfo);
+	return ((PFN_vkReleaseSwapchainImagesEXT)VKL_DISPATCH(device)->fn[516])(device, pReleaseInfo);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkReleaseSwapchainImagesEXT(VkDevice device, const VkReleaseSwapchainImagesInfoKHR* pReleaseInfo) __attribute__((weak, alias("vkl_ReleaseSwapchainImagesEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_GetGeneratedCommandsMemoryRequirementsNV(VkDevice device, const VkGeneratedCommandsMemoryRequirementsInfoNV* pInfo, VkMemoryRequirements2* pMemoryRequirements)
 {
-	((PFN_vkGetGeneratedCommandsMemoryRequirementsNV)VKL_DISPATCH(device)->fn[515])(device, pInfo, pMemoryRequirements);
+	((PFN_vkGetGeneratedCommandsMemoryRequirementsNV)VKL_DISPATCH(device)->fn[517])(device, pInfo, pMemoryRequirements);
 }
 VKAPI_ATTR void VKAPI_CALL vkGetGeneratedCommandsMemoryRequirementsNV(VkDevice device, const VkGeneratedCommandsMemoryRequirementsInfoNV* pInfo, VkMemoryRequirements2* pMemoryRequirements) __attribute__((weak, alias("vkl_GetGeneratedCommandsMemoryRequirementsNV")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdPreprocessGeneratedCommandsNV(VkCommandBuffer commandBuffer, const VkGeneratedCommandsInfoNV* pGeneratedCommandsInfo)
 {
-	((PFN_vkCmdPreprocessGeneratedCommandsNV)VKL_DISPATCH(commandBuffer)->fn[516])(commandBuffer, pGeneratedCommandsInfo);
+	((PFN_vkCmdPreprocessGeneratedCommandsNV)VKL_DISPATCH(commandBuffer)->fn[518])(commandBuffer, pGeneratedCommandsInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdPreprocessGeneratedCommandsNV(VkCommandBuffer commandBuffer, const VkGeneratedCommandsInfoNV* pGeneratedCommandsInfo) __attribute__((weak, alias("vkl_CmdPreprocessGeneratedCommandsNV")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdExecuteGeneratedCommandsNV(VkCommandBuffer commandBuffer, VkBool32 isPreprocessed, const VkGeneratedCommandsInfoNV* pGeneratedCommandsInfo)
 {
-	((PFN_vkCmdExecuteGeneratedCommandsNV)VKL_DISPATCH(commandBuffer)->fn[517])(commandBuffer, isPreprocessed, pGeneratedCommandsInfo);
+	((PFN_vkCmdExecuteGeneratedCommandsNV)VKL_DISPATCH(commandBuffer)->fn[519])(commandBuffer, isPreprocessed, pGeneratedCommandsInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdExecuteGeneratedCommandsNV(VkCommandBuffer commandBuffer, VkBool32 isPreprocessed, const VkGeneratedCommandsInfoNV* pGeneratedCommandsInfo) __attribute__((weak, alias("vkl_CmdExecuteGeneratedCommandsNV")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdBindPipelineShaderGroupNV(VkCommandBuffer commandBuffer, VkPipelineBindPoint pipelineBindPoint, VkPipeline pipeline, uint32_t groupIndex)
 {
-	((PFN_vkCmdBindPipelineShaderGroupNV)VKL_DISPATCH(commandBuffer)->fn[518])(commandBuffer, pipelineBindPoint, pipeline, groupIndex);
+	((PFN_vkCmdBindPipelineShaderGroupNV)VKL_DISPATCH(commandBuffer)->fn[520])(commandBuffer, pipelineBindPoint, pipeline, groupIndex);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdBindPipelineShaderGroupNV(VkCommandBuffer commandBuffer, VkPipelineBindPoint pipelineBindPoint, VkPipeline pipeline, uint32_t groupIndex) __attribute__((weak, alias("vkl_CmdBindPipelineShaderGroupNV")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_CreateIndirectCommandsLayoutNV(VkDevice device, const VkIndirectCommandsLayoutCreateInfoNV* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkIndirectCommandsLayoutNV* pIndirectCommandsLayout)
 {
-	return ((PFN_vkCreateIndirectCommandsLayoutNV)VKL_DISPATCH(device)->fn[519])(device, pCreateInfo, pAllocator, pIndirectCommandsLayout);
+	return ((PFN_vkCreateIndirectCommandsLayoutNV)VKL_DISPATCH(device)->fn[521])(device, pCreateInfo, pAllocator, pIndirectCommandsLayout);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkCreateIndirectCommandsLayoutNV(VkDevice device, const VkIndirectCommandsLayoutCreateInfoNV* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkIndirectCommandsLayoutNV* pIndirectCommandsLayout) __attribute__((weak, alias("vkl_CreateIndirectCommandsLayoutNV")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_DestroyIndirectCommandsLayoutNV(VkDevice device, VkIndirectCommandsLayoutNV indirectCommandsLayout, const VkAllocationCallbacks* pAllocator)
 {
-	((PFN_vkDestroyIndirectCommandsLayoutNV)VKL_DISPATCH(device)->fn[520])(device, indirectCommandsLayout, pAllocator);
+	((PFN_vkDestroyIndirectCommandsLayoutNV)VKL_DISPATCH(device)->fn[522])(device, indirectCommandsLayout, pAllocator);
 }
 VKAPI_ATTR void VKAPI_CALL vkDestroyIndirectCommandsLayoutNV(VkDevice device, VkIndirectCommandsLayoutNV indirectCommandsLayout, const VkAllocationCallbacks* pAllocator) __attribute__((weak, alias("vkl_DestroyIndirectCommandsLayoutNV")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetDepthBias2EXT(VkCommandBuffer commandBuffer, const VkDepthBiasInfoEXT* pDepthBiasInfo)
 {
-	((PFN_vkCmdSetDepthBias2EXT)VKL_DISPATCH(commandBuffer)->fn[521])(commandBuffer, pDepthBiasInfo);
+	((PFN_vkCmdSetDepthBias2EXT)VKL_DISPATCH(commandBuffer)->fn[523])(commandBuffer, pDepthBiasInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetDepthBias2EXT(VkCommandBuffer commandBuffer, const VkDepthBiasInfoEXT* pDepthBiasInfo) __attribute__((weak, alias("vkl_CmdSetDepthBias2EXT")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_AcquireDrmDisplayEXT(VkPhysicalDevice physicalDevice, int32_t drmFd, VkDisplayKHR display)
 {
-	return ((PFN_vkAcquireDrmDisplayEXT)VKL_DISPATCH(physicalDevice)->fn[522])(physicalDevice, drmFd, display);
+	return ((PFN_vkAcquireDrmDisplayEXT)VKL_DISPATCH(physicalDevice)->fn[524])(physicalDevice, drmFd, display);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkAcquireDrmDisplayEXT(VkPhysicalDevice physicalDevice, int32_t drmFd, VkDisplayKHR display) __attribute__((weak, alias("vkl_AcquireDrmDisplayEXT")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetDrmDisplayEXT(VkPhysicalDevice physicalDevice, int32_t drmFd, uint32_t connectorId, VkDisplayKHR* display)
 {
-	return ((PFN_vkGetDrmDisplayEXT)VKL_DISPATCH(physicalDevice)->fn[523])(physicalDevice, drmFd, connectorId, display);
+	return ((PFN_vkGetDrmDisplayEXT)VKL_DISPATCH(physicalDevice)->fn[525])(physicalDevice, drmFd, connectorId, display);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetDrmDisplayEXT(VkPhysicalDevice physicalDevice, int32_t drmFd, uint32_t connectorId, VkDisplayKHR* display) __attribute__((weak, alias("vkl_GetDrmDisplayEXT")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_CreatePrivateDataSlotEXT(VkDevice device, const VkPrivateDataSlotCreateInfo* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkPrivateDataSlot* pPrivateDataSlot)
 {
-	return ((PFN_vkCreatePrivateDataSlotEXT)VKL_DISPATCH(device)->fn[524])(device, pCreateInfo, pAllocator, pPrivateDataSlot);
+	return ((PFN_vkCreatePrivateDataSlotEXT)VKL_DISPATCH(device)->fn[526])(device, pCreateInfo, pAllocator, pPrivateDataSlot);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkCreatePrivateDataSlotEXT(VkDevice device, const VkPrivateDataSlotCreateInfo* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkPrivateDataSlot* pPrivateDataSlot) __attribute__((weak, alias("vkl_CreatePrivateDataSlotEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_DestroyPrivateDataSlotEXT(VkDevice device, VkPrivateDataSlot privateDataSlot, const VkAllocationCallbacks* pAllocator)
 {
-	((PFN_vkDestroyPrivateDataSlotEXT)VKL_DISPATCH(device)->fn[525])(device, privateDataSlot, pAllocator);
+	((PFN_vkDestroyPrivateDataSlotEXT)VKL_DISPATCH(device)->fn[527])(device, privateDataSlot, pAllocator);
 }
 VKAPI_ATTR void VKAPI_CALL vkDestroyPrivateDataSlotEXT(VkDevice device, VkPrivateDataSlot privateDataSlot, const VkAllocationCallbacks* pAllocator) __attribute__((weak, alias("vkl_DestroyPrivateDataSlotEXT")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_SetPrivateDataEXT(VkDevice device, VkObjectType objectType, uint64_t objectHandle, VkPrivateDataSlot privateDataSlot, uint64_t data)
 {
-	return ((PFN_vkSetPrivateDataEXT)VKL_DISPATCH(device)->fn[526])(device, objectType, objectHandle, privateDataSlot, data);
+	return ((PFN_vkSetPrivateDataEXT)VKL_DISPATCH(device)->fn[528])(device, objectType, objectHandle, privateDataSlot, data);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkSetPrivateDataEXT(VkDevice device, VkObjectType objectType, uint64_t objectHandle, VkPrivateDataSlot privateDataSlot, uint64_t data) __attribute__((weak, alias("vkl_SetPrivateDataEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_GetPrivateDataEXT(VkDevice device, VkObjectType objectType, uint64_t objectHandle, VkPrivateDataSlot privateDataSlot, uint64_t* pData)
 {
-	((PFN_vkGetPrivateDataEXT)VKL_DISPATCH(device)->fn[527])(device, objectType, objectHandle, privateDataSlot, pData);
+	((PFN_vkGetPrivateDataEXT)VKL_DISPATCH(device)->fn[529])(device, objectType, objectHandle, privateDataSlot, pData);
 }
 VKAPI_ATTR void VKAPI_CALL vkGetPrivateDataEXT(VkDevice device, VkObjectType objectType, uint64_t objectHandle, VkPrivateDataSlot privateDataSlot, uint64_t* pData) __attribute__((weak, alias("vkl_GetPrivateDataEXT")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetPhysicalDeviceVideoEncodeQualityLevelPropertiesKHR(VkPhysicalDevice physicalDevice, const VkPhysicalDeviceVideoEncodeQualityLevelInfoKHR* pQualityLevelInfo, VkVideoEncodeQualityLevelPropertiesKHR* pQualityLevelProperties)
 {
-	return ((PFN_vkGetPhysicalDeviceVideoEncodeQualityLevelPropertiesKHR)VKL_DISPATCH(physicalDevice)->fn[528])(physicalDevice, pQualityLevelInfo, pQualityLevelProperties);
+	return ((PFN_vkGetPhysicalDeviceVideoEncodeQualityLevelPropertiesKHR)VKL_DISPATCH(physicalDevice)->fn[530])(physicalDevice, pQualityLevelInfo, pQualityLevelProperties);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetPhysicalDeviceVideoEncodeQualityLevelPropertiesKHR(VkPhysicalDevice physicalDevice, const VkPhysicalDeviceVideoEncodeQualityLevelInfoKHR* pQualityLevelInfo, VkVideoEncodeQualityLevelPropertiesKHR* pQualityLevelProperties) __attribute__((weak, alias("vkl_GetPhysicalDeviceVideoEncodeQualityLevelPropertiesKHR")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetEncodedVideoSessionParametersKHR(VkDevice device, const VkVideoEncodeSessionParametersGetInfoKHR* pVideoSessionParametersInfo, VkVideoEncodeSessionParametersFeedbackInfoKHR* pFeedbackInfo, size_t* pDataSize, void* pData)
 {
-	return ((PFN_vkGetEncodedVideoSessionParametersKHR)VKL_DISPATCH(device)->fn[529])(device, pVideoSessionParametersInfo, pFeedbackInfo, pDataSize, pData);
+	return ((PFN_vkGetEncodedVideoSessionParametersKHR)VKL_DISPATCH(device)->fn[531])(device, pVideoSessionParametersInfo, pFeedbackInfo, pDataSize, pData);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetEncodedVideoSessionParametersKHR(VkDevice device, const VkVideoEncodeSessionParametersGetInfoKHR* pVideoSessionParametersInfo, VkVideoEncodeSessionParametersFeedbackInfoKHR* pFeedbackInfo, size_t* pDataSize, void* pData) __attribute__((weak, alias("vkl_GetEncodedVideoSessionParametersKHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdEncodeVideoKHR(VkCommandBuffer commandBuffer, const VkVideoEncodeInfoKHR* pEncodeInfo)
 {
-	((PFN_vkCmdEncodeVideoKHR)VKL_DISPATCH(commandBuffer)->fn[530])(commandBuffer, pEncodeInfo);
+	((PFN_vkCmdEncodeVideoKHR)VKL_DISPATCH(commandBuffer)->fn[532])(commandBuffer, pEncodeInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdEncodeVideoKHR(VkCommandBuffer commandBuffer, const VkVideoEncodeInfoKHR* pEncodeInfo) __attribute__((weak, alias("vkl_CmdEncodeVideoKHR")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_QueueSetPerfHintQCOM(VkQueue queue, const VkPerfHintInfoQCOM* pPerfHintInfo)
 {
-	return ((PFN_vkQueueSetPerfHintQCOM)VKL_DISPATCH(queue)->fn[531])(queue, pPerfHintInfo);
+	return ((PFN_vkQueueSetPerfHintQCOM)VKL_DISPATCH(queue)->fn[533])(queue, pPerfHintInfo);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkQueueSetPerfHintQCOM(VkQueue queue, const VkPerfHintInfoQCOM* pPerfHintInfo) __attribute__((weak, alias("vkl_QueueSetPerfHintQCOM")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdDispatchTileQCOM(VkCommandBuffer commandBuffer, const VkDispatchTileInfoQCOM* pDispatchTileInfo)
 {
-	((PFN_vkCmdDispatchTileQCOM)VKL_DISPATCH(commandBuffer)->fn[532])(commandBuffer, pDispatchTileInfo);
+	((PFN_vkCmdDispatchTileQCOM)VKL_DISPATCH(commandBuffer)->fn[534])(commandBuffer, pDispatchTileInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdDispatchTileQCOM(VkCommandBuffer commandBuffer, const VkDispatchTileInfoQCOM* pDispatchTileInfo) __attribute__((weak, alias("vkl_CmdDispatchTileQCOM")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdBeginPerTileExecutionQCOM(VkCommandBuffer commandBuffer, const VkPerTileBeginInfoQCOM* pPerTileBeginInfo)
 {
-	((PFN_vkCmdBeginPerTileExecutionQCOM)VKL_DISPATCH(commandBuffer)->fn[533])(commandBuffer, pPerTileBeginInfo);
+	((PFN_vkCmdBeginPerTileExecutionQCOM)VKL_DISPATCH(commandBuffer)->fn[535])(commandBuffer, pPerTileBeginInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdBeginPerTileExecutionQCOM(VkCommandBuffer commandBuffer, const VkPerTileBeginInfoQCOM* pPerTileBeginInfo) __attribute__((weak, alias("vkl_CmdBeginPerTileExecutionQCOM")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdEndPerTileExecutionQCOM(VkCommandBuffer commandBuffer, const VkPerTileEndInfoQCOM* pPerTileEndInfo)
 {
-	((PFN_vkCmdEndPerTileExecutionQCOM)VKL_DISPATCH(commandBuffer)->fn[534])(commandBuffer, pPerTileEndInfo);
+	((PFN_vkCmdEndPerTileExecutionQCOM)VKL_DISPATCH(commandBuffer)->fn[536])(commandBuffer, pPerTileEndInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdEndPerTileExecutionQCOM(VkCommandBuffer commandBuffer, const VkPerTileEndInfoQCOM* pPerTileEndInfo) __attribute__((weak, alias("vkl_CmdEndPerTileExecutionQCOM")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetEvent2KHR(VkCommandBuffer commandBuffer, VkEvent event, const VkDependencyInfo* pDependencyInfo)
 {
-	((PFN_vkCmdSetEvent2KHR)VKL_DISPATCH(commandBuffer)->fn[535])(commandBuffer, event, pDependencyInfo);
+	((PFN_vkCmdSetEvent2KHR)VKL_DISPATCH(commandBuffer)->fn[537])(commandBuffer, event, pDependencyInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetEvent2KHR(VkCommandBuffer commandBuffer, VkEvent event, const VkDependencyInfo* pDependencyInfo) __attribute__((weak, alias("vkl_CmdSetEvent2KHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdResetEvent2KHR(VkCommandBuffer commandBuffer, VkEvent event, VkPipelineStageFlags2 stageMask)
 {
-	((PFN_vkCmdResetEvent2KHR)VKL_DISPATCH(commandBuffer)->fn[536])(commandBuffer, event, stageMask);
+	((PFN_vkCmdResetEvent2KHR)VKL_DISPATCH(commandBuffer)->fn[538])(commandBuffer, event, stageMask);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdResetEvent2KHR(VkCommandBuffer commandBuffer, VkEvent event, VkPipelineStageFlags2 stageMask) __attribute__((weak, alias("vkl_CmdResetEvent2KHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdWaitEvents2KHR(VkCommandBuffer commandBuffer, uint32_t eventCount, const VkEvent* pEvents, const VkDependencyInfo* pDependencyInfos)
 {
-	((PFN_vkCmdWaitEvents2KHR)VKL_DISPATCH(commandBuffer)->fn[537])(commandBuffer, eventCount, pEvents, pDependencyInfos);
+	((PFN_vkCmdWaitEvents2KHR)VKL_DISPATCH(commandBuffer)->fn[539])(commandBuffer, eventCount, pEvents, pDependencyInfos);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdWaitEvents2KHR(VkCommandBuffer commandBuffer, uint32_t eventCount, const VkEvent* pEvents, const VkDependencyInfo* pDependencyInfos) __attribute__((weak, alias("vkl_CmdWaitEvents2KHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdPipelineBarrier2KHR(VkCommandBuffer commandBuffer, const VkDependencyInfo* pDependencyInfo)
 {
-	((PFN_vkCmdPipelineBarrier2KHR)VKL_DISPATCH(commandBuffer)->fn[538])(commandBuffer, pDependencyInfo);
+	((PFN_vkCmdPipelineBarrier2KHR)VKL_DISPATCH(commandBuffer)->fn[540])(commandBuffer, pDependencyInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdPipelineBarrier2KHR(VkCommandBuffer commandBuffer, const VkDependencyInfo* pDependencyInfo) __attribute__((weak, alias("vkl_CmdPipelineBarrier2KHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdWriteTimestamp2KHR(VkCommandBuffer commandBuffer, VkPipelineStageFlags2 stage, VkQueryPool queryPool, uint32_t query)
 {
-	((PFN_vkCmdWriteTimestamp2KHR)VKL_DISPATCH(commandBuffer)->fn[539])(commandBuffer, stage, queryPool, query);
+	((PFN_vkCmdWriteTimestamp2KHR)VKL_DISPATCH(commandBuffer)->fn[541])(commandBuffer, stage, queryPool, query);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdWriteTimestamp2KHR(VkCommandBuffer commandBuffer, VkPipelineStageFlags2 stage, VkQueryPool queryPool, uint32_t query) __attribute__((weak, alias("vkl_CmdWriteTimestamp2KHR")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_QueueSubmit2KHR(VkQueue queue, uint32_t submitCount, const VkSubmitInfo2* pSubmits, VkFence fence)
 {
-	return ((PFN_vkQueueSubmit2KHR)VKL_DISPATCH(queue)->fn[540])(queue, submitCount, pSubmits, fence);
+	return ((PFN_vkQueueSubmit2KHR)VKL_DISPATCH(queue)->fn[542])(queue, submitCount, pSubmits, fence);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkQueueSubmit2KHR(VkQueue queue, uint32_t submitCount, const VkSubmitInfo2* pSubmits, VkFence fence) __attribute__((weak, alias("vkl_QueueSubmit2KHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_GetDescriptorSetLayoutSizeEXT(VkDevice device, VkDescriptorSetLayout layout, VkDeviceSize* pLayoutSizeInBytes)
 {
-	((PFN_vkGetDescriptorSetLayoutSizeEXT)VKL_DISPATCH(device)->fn[541])(device, layout, pLayoutSizeInBytes);
+	((PFN_vkGetDescriptorSetLayoutSizeEXT)VKL_DISPATCH(device)->fn[543])(device, layout, pLayoutSizeInBytes);
 }
 VKAPI_ATTR void VKAPI_CALL vkGetDescriptorSetLayoutSizeEXT(VkDevice device, VkDescriptorSetLayout layout, VkDeviceSize* pLayoutSizeInBytes) __attribute__((weak, alias("vkl_GetDescriptorSetLayoutSizeEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_GetDescriptorSetLayoutBindingOffsetEXT(VkDevice device, VkDescriptorSetLayout layout, uint32_t binding, VkDeviceSize* pOffset)
 {
-	((PFN_vkGetDescriptorSetLayoutBindingOffsetEXT)VKL_DISPATCH(device)->fn[542])(device, layout, binding, pOffset);
+	((PFN_vkGetDescriptorSetLayoutBindingOffsetEXT)VKL_DISPATCH(device)->fn[544])(device, layout, binding, pOffset);
 }
 VKAPI_ATTR void VKAPI_CALL vkGetDescriptorSetLayoutBindingOffsetEXT(VkDevice device, VkDescriptorSetLayout layout, uint32_t binding, VkDeviceSize* pOffset) __attribute__((weak, alias("vkl_GetDescriptorSetLayoutBindingOffsetEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_GetDescriptorEXT(VkDevice device, const VkDescriptorGetInfoEXT* pDescriptorInfo, size_t dataSize, void* pDescriptor)
 {
-	((PFN_vkGetDescriptorEXT)VKL_DISPATCH(device)->fn[543])(device, pDescriptorInfo, dataSize, pDescriptor);
+	((PFN_vkGetDescriptorEXT)VKL_DISPATCH(device)->fn[545])(device, pDescriptorInfo, dataSize, pDescriptor);
 }
 VKAPI_ATTR void VKAPI_CALL vkGetDescriptorEXT(VkDevice device, const VkDescriptorGetInfoEXT* pDescriptorInfo, size_t dataSize, void* pDescriptor) __attribute__((weak, alias("vkl_GetDescriptorEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdBindDescriptorBuffersEXT(VkCommandBuffer commandBuffer, uint32_t bufferCount, const VkDescriptorBufferBindingInfoEXT* pBindingInfos)
 {
-	((PFN_vkCmdBindDescriptorBuffersEXT)VKL_DISPATCH(commandBuffer)->fn[544])(commandBuffer, bufferCount, pBindingInfos);
+	((PFN_vkCmdBindDescriptorBuffersEXT)VKL_DISPATCH(commandBuffer)->fn[546])(commandBuffer, bufferCount, pBindingInfos);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdBindDescriptorBuffersEXT(VkCommandBuffer commandBuffer, uint32_t bufferCount, const VkDescriptorBufferBindingInfoEXT* pBindingInfos) __attribute__((weak, alias("vkl_CmdBindDescriptorBuffersEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetDescriptorBufferOffsetsEXT(VkCommandBuffer commandBuffer, VkPipelineBindPoint pipelineBindPoint, VkPipelineLayout layout, uint32_t firstSet, uint32_t setCount, const uint32_t* pBufferIndices, const VkDeviceSize* pOffsets)
 {
-	((PFN_vkCmdSetDescriptorBufferOffsetsEXT)VKL_DISPATCH(commandBuffer)->fn[545])(commandBuffer, pipelineBindPoint, layout, firstSet, setCount, pBufferIndices, pOffsets);
+	((PFN_vkCmdSetDescriptorBufferOffsetsEXT)VKL_DISPATCH(commandBuffer)->fn[547])(commandBuffer, pipelineBindPoint, layout, firstSet, setCount, pBufferIndices, pOffsets);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetDescriptorBufferOffsetsEXT(VkCommandBuffer commandBuffer, VkPipelineBindPoint pipelineBindPoint, VkPipelineLayout layout, uint32_t firstSet, uint32_t setCount, const uint32_t* pBufferIndices, const VkDeviceSize* pOffsets) __attribute__((weak, alias("vkl_CmdSetDescriptorBufferOffsetsEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdBindDescriptorBufferEmbeddedSamplersEXT(VkCommandBuffer commandBuffer, VkPipelineBindPoint pipelineBindPoint, VkPipelineLayout layout, uint32_t set)
 {
-	((PFN_vkCmdBindDescriptorBufferEmbeddedSamplersEXT)VKL_DISPATCH(commandBuffer)->fn[546])(commandBuffer, pipelineBindPoint, layout, set);
+	((PFN_vkCmdBindDescriptorBufferEmbeddedSamplersEXT)VKL_DISPATCH(commandBuffer)->fn[548])(commandBuffer, pipelineBindPoint, layout, set);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdBindDescriptorBufferEmbeddedSamplersEXT(VkCommandBuffer commandBuffer, VkPipelineBindPoint pipelineBindPoint, VkPipelineLayout layout, uint32_t set) __attribute__((weak, alias("vkl_CmdBindDescriptorBufferEmbeddedSamplersEXT")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetBufferOpaqueCaptureDescriptorDataEXT(VkDevice device, const VkBufferCaptureDescriptorDataInfoEXT* pInfo, void* pData)
 {
-	return ((PFN_vkGetBufferOpaqueCaptureDescriptorDataEXT)VKL_DISPATCH(device)->fn[547])(device, pInfo, pData);
+	return ((PFN_vkGetBufferOpaqueCaptureDescriptorDataEXT)VKL_DISPATCH(device)->fn[549])(device, pInfo, pData);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetBufferOpaqueCaptureDescriptorDataEXT(VkDevice device, const VkBufferCaptureDescriptorDataInfoEXT* pInfo, void* pData) __attribute__((weak, alias("vkl_GetBufferOpaqueCaptureDescriptorDataEXT")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetImageOpaqueCaptureDescriptorDataEXT(VkDevice device, const VkImageCaptureDescriptorDataInfoEXT* pInfo, void* pData)
 {
-	return ((PFN_vkGetImageOpaqueCaptureDescriptorDataEXT)VKL_DISPATCH(device)->fn[548])(device, pInfo, pData);
+	return ((PFN_vkGetImageOpaqueCaptureDescriptorDataEXT)VKL_DISPATCH(device)->fn[550])(device, pInfo, pData);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetImageOpaqueCaptureDescriptorDataEXT(VkDevice device, const VkImageCaptureDescriptorDataInfoEXT* pInfo, void* pData) __attribute__((weak, alias("vkl_GetImageOpaqueCaptureDescriptorDataEXT")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetImageViewOpaqueCaptureDescriptorDataEXT(VkDevice device, const VkImageViewCaptureDescriptorDataInfoEXT* pInfo, void* pData)
 {
-	return ((PFN_vkGetImageViewOpaqueCaptureDescriptorDataEXT)VKL_DISPATCH(device)->fn[549])(device, pInfo, pData);
+	return ((PFN_vkGetImageViewOpaqueCaptureDescriptorDataEXT)VKL_DISPATCH(device)->fn[551])(device, pInfo, pData);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetImageViewOpaqueCaptureDescriptorDataEXT(VkDevice device, const VkImageViewCaptureDescriptorDataInfoEXT* pInfo, void* pData) __attribute__((weak, alias("vkl_GetImageViewOpaqueCaptureDescriptorDataEXT")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetSamplerOpaqueCaptureDescriptorDataEXT(VkDevice device, const VkSamplerCaptureDescriptorDataInfoEXT* pInfo, void* pData)
 {
-	return ((PFN_vkGetSamplerOpaqueCaptureDescriptorDataEXT)VKL_DISPATCH(device)->fn[550])(device, pInfo, pData);
+	return ((PFN_vkGetSamplerOpaqueCaptureDescriptorDataEXT)VKL_DISPATCH(device)->fn[552])(device, pInfo, pData);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetSamplerOpaqueCaptureDescriptorDataEXT(VkDevice device, const VkSamplerCaptureDescriptorDataInfoEXT* pInfo, void* pData) __attribute__((weak, alias("vkl_GetSamplerOpaqueCaptureDescriptorDataEXT")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetAccelerationStructureOpaqueCaptureDescriptorDataEXT(VkDevice device, const VkAccelerationStructureCaptureDescriptorDataInfoEXT* pInfo, void* pData)
 {
-	return ((PFN_vkGetAccelerationStructureOpaqueCaptureDescriptorDataEXT)VKL_DISPATCH(device)->fn[551])(device, pInfo, pData);
+	return ((PFN_vkGetAccelerationStructureOpaqueCaptureDescriptorDataEXT)VKL_DISPATCH(device)->fn[553])(device, pInfo, pData);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetAccelerationStructureOpaqueCaptureDescriptorDataEXT(VkDevice device, const VkAccelerationStructureCaptureDescriptorDataInfoEXT* pInfo, void* pData) __attribute__((weak, alias("vkl_GetAccelerationStructureOpaqueCaptureDescriptorDataEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdBindIndexBuffer3KHR(VkCommandBuffer commandBuffer, const VkBindIndexBuffer3InfoKHR* pInfo)
 {
-	((PFN_vkCmdBindIndexBuffer3KHR)VKL_DISPATCH(commandBuffer)->fn[552])(commandBuffer, pInfo);
+	((PFN_vkCmdBindIndexBuffer3KHR)VKL_DISPATCH(commandBuffer)->fn[554])(commandBuffer, pInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdBindIndexBuffer3KHR(VkCommandBuffer commandBuffer, const VkBindIndexBuffer3InfoKHR* pInfo) __attribute__((weak, alias("vkl_CmdBindIndexBuffer3KHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdBindVertexBuffers3KHR(VkCommandBuffer commandBuffer, uint32_t firstBinding, uint32_t bindingCount, const VkBindVertexBuffer3InfoKHR* pBindingInfos)
 {
-	((PFN_vkCmdBindVertexBuffers3KHR)VKL_DISPATCH(commandBuffer)->fn[553])(commandBuffer, firstBinding, bindingCount, pBindingInfos);
+	((PFN_vkCmdBindVertexBuffers3KHR)VKL_DISPATCH(commandBuffer)->fn[555])(commandBuffer, firstBinding, bindingCount, pBindingInfos);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdBindVertexBuffers3KHR(VkCommandBuffer commandBuffer, uint32_t firstBinding, uint32_t bindingCount, const VkBindVertexBuffer3InfoKHR* pBindingInfos) __attribute__((weak, alias("vkl_CmdBindVertexBuffers3KHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdDrawIndirect2KHR(VkCommandBuffer commandBuffer, const VkDrawIndirect2InfoKHR* pInfo)
 {
-	((PFN_vkCmdDrawIndirect2KHR)VKL_DISPATCH(commandBuffer)->fn[554])(commandBuffer, pInfo);
+	((PFN_vkCmdDrawIndirect2KHR)VKL_DISPATCH(commandBuffer)->fn[556])(commandBuffer, pInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdDrawIndirect2KHR(VkCommandBuffer commandBuffer, const VkDrawIndirect2InfoKHR* pInfo) __attribute__((weak, alias("vkl_CmdDrawIndirect2KHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdDrawIndexedIndirect2KHR(VkCommandBuffer commandBuffer, const VkDrawIndirect2InfoKHR* pInfo)
 {
-	((PFN_vkCmdDrawIndexedIndirect2KHR)VKL_DISPATCH(commandBuffer)->fn[555])(commandBuffer, pInfo);
+	((PFN_vkCmdDrawIndexedIndirect2KHR)VKL_DISPATCH(commandBuffer)->fn[557])(commandBuffer, pInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdDrawIndexedIndirect2KHR(VkCommandBuffer commandBuffer, const VkDrawIndirect2InfoKHR* pInfo) __attribute__((weak, alias("vkl_CmdDrawIndexedIndirect2KHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdDispatchIndirect2KHR(VkCommandBuffer commandBuffer, const VkDispatchIndirect2InfoKHR* pInfo)
 {
-	((PFN_vkCmdDispatchIndirect2KHR)VKL_DISPATCH(commandBuffer)->fn[556])(commandBuffer, pInfo);
+	((PFN_vkCmdDispatchIndirect2KHR)VKL_DISPATCH(commandBuffer)->fn[558])(commandBuffer, pInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdDispatchIndirect2KHR(VkCommandBuffer commandBuffer, const VkDispatchIndirect2InfoKHR* pInfo) __attribute__((weak, alias("vkl_CmdDispatchIndirect2KHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdCopyMemoryKHR(VkCommandBuffer commandBuffer, const VkCopyDeviceMemoryInfoKHR* pCopyMemoryInfo)
 {
-	((PFN_vkCmdCopyMemoryKHR)VKL_DISPATCH(commandBuffer)->fn[557])(commandBuffer, pCopyMemoryInfo);
+	((PFN_vkCmdCopyMemoryKHR)VKL_DISPATCH(commandBuffer)->fn[559])(commandBuffer, pCopyMemoryInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdCopyMemoryKHR(VkCommandBuffer commandBuffer, const VkCopyDeviceMemoryInfoKHR* pCopyMemoryInfo) __attribute__((weak, alias("vkl_CmdCopyMemoryKHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdCopyMemoryToImageKHR(VkCommandBuffer commandBuffer, const VkCopyDeviceMemoryImageInfoKHR* pCopyMemoryInfo)
 {
-	((PFN_vkCmdCopyMemoryToImageKHR)VKL_DISPATCH(commandBuffer)->fn[558])(commandBuffer, pCopyMemoryInfo);
+	((PFN_vkCmdCopyMemoryToImageKHR)VKL_DISPATCH(commandBuffer)->fn[560])(commandBuffer, pCopyMemoryInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdCopyMemoryToImageKHR(VkCommandBuffer commandBuffer, const VkCopyDeviceMemoryImageInfoKHR* pCopyMemoryInfo) __attribute__((weak, alias("vkl_CmdCopyMemoryToImageKHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdCopyImageToMemoryKHR(VkCommandBuffer commandBuffer, const VkCopyDeviceMemoryImageInfoKHR* pCopyMemoryInfo)
 {
-	((PFN_vkCmdCopyImageToMemoryKHR)VKL_DISPATCH(commandBuffer)->fn[559])(commandBuffer, pCopyMemoryInfo);
+	((PFN_vkCmdCopyImageToMemoryKHR)VKL_DISPATCH(commandBuffer)->fn[561])(commandBuffer, pCopyMemoryInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdCopyImageToMemoryKHR(VkCommandBuffer commandBuffer, const VkCopyDeviceMemoryImageInfoKHR* pCopyMemoryInfo) __attribute__((weak, alias("vkl_CmdCopyImageToMemoryKHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdUpdateMemoryKHR(VkCommandBuffer commandBuffer, const VkDeviceAddressRangeKHR* pDstRange, VkAddressCommandFlagsKHR dstFlags, VkDeviceSize dataSize, const void* pData)
 {
-	((PFN_vkCmdUpdateMemoryKHR)VKL_DISPATCH(commandBuffer)->fn[560])(commandBuffer, pDstRange, dstFlags, dataSize, pData);
+	((PFN_vkCmdUpdateMemoryKHR)VKL_DISPATCH(commandBuffer)->fn[562])(commandBuffer, pDstRange, dstFlags, dataSize, pData);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdUpdateMemoryKHR(VkCommandBuffer commandBuffer, const VkDeviceAddressRangeKHR* pDstRange, VkAddressCommandFlagsKHR dstFlags, VkDeviceSize dataSize, const void* pData) __attribute__((weak, alias("vkl_CmdUpdateMemoryKHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdFillMemoryKHR(VkCommandBuffer commandBuffer, const VkDeviceAddressRangeKHR* pDstRange, VkAddressCommandFlagsKHR dstFlags, uint32_t data)
 {
-	((PFN_vkCmdFillMemoryKHR)VKL_DISPATCH(commandBuffer)->fn[561])(commandBuffer, pDstRange, dstFlags, data);
+	((PFN_vkCmdFillMemoryKHR)VKL_DISPATCH(commandBuffer)->fn[563])(commandBuffer, pDstRange, dstFlags, data);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdFillMemoryKHR(VkCommandBuffer commandBuffer, const VkDeviceAddressRangeKHR* pDstRange, VkAddressCommandFlagsKHR dstFlags, uint32_t data) __attribute__((weak, alias("vkl_CmdFillMemoryKHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdCopyQueryPoolResultsToMemoryKHR(VkCommandBuffer commandBuffer, VkQueryPool queryPool, uint32_t firstQuery, uint32_t queryCount, const VkStridedDeviceAddressRangeKHR* pDstRange, VkAddressCommandFlagsKHR dstFlags, VkQueryResultFlags queryResultFlags)
 {
-	((PFN_vkCmdCopyQueryPoolResultsToMemoryKHR)VKL_DISPATCH(commandBuffer)->fn[562])(commandBuffer, queryPool, firstQuery, queryCount, pDstRange, dstFlags, queryResultFlags);
+	((PFN_vkCmdCopyQueryPoolResultsToMemoryKHR)VKL_DISPATCH(commandBuffer)->fn[564])(commandBuffer, queryPool, firstQuery, queryCount, pDstRange, dstFlags, queryResultFlags);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdCopyQueryPoolResultsToMemoryKHR(VkCommandBuffer commandBuffer, VkQueryPool queryPool, uint32_t firstQuery, uint32_t queryCount, const VkStridedDeviceAddressRangeKHR* pDstRange, VkAddressCommandFlagsKHR dstFlags, VkQueryResultFlags queryResultFlags) __attribute__((weak, alias("vkl_CmdCopyQueryPoolResultsToMemoryKHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdDrawIndirectCount2KHR(VkCommandBuffer commandBuffer, const VkDrawIndirectCount2InfoKHR* pInfo)
 {
-	((PFN_vkCmdDrawIndirectCount2KHR)VKL_DISPATCH(commandBuffer)->fn[563])(commandBuffer, pInfo);
+	((PFN_vkCmdDrawIndirectCount2KHR)VKL_DISPATCH(commandBuffer)->fn[565])(commandBuffer, pInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdDrawIndirectCount2KHR(VkCommandBuffer commandBuffer, const VkDrawIndirectCount2InfoKHR* pInfo) __attribute__((weak, alias("vkl_CmdDrawIndirectCount2KHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdDrawIndexedIndirectCount2KHR(VkCommandBuffer commandBuffer, const VkDrawIndirectCount2InfoKHR* pInfo)
 {
-	((PFN_vkCmdDrawIndexedIndirectCount2KHR)VKL_DISPATCH(commandBuffer)->fn[564])(commandBuffer, pInfo);
+	((PFN_vkCmdDrawIndexedIndirectCount2KHR)VKL_DISPATCH(commandBuffer)->fn[566])(commandBuffer, pInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdDrawIndexedIndirectCount2KHR(VkCommandBuffer commandBuffer, const VkDrawIndirectCount2InfoKHR* pInfo) __attribute__((weak, alias("vkl_CmdDrawIndexedIndirectCount2KHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdBeginConditionalRendering2EXT(VkCommandBuffer commandBuffer, const VkConditionalRenderingBeginInfo2EXT* pConditionalRenderingBegin)
 {
-	((PFN_vkCmdBeginConditionalRendering2EXT)VKL_DISPATCH(commandBuffer)->fn[565])(commandBuffer, pConditionalRenderingBegin);
+	((PFN_vkCmdBeginConditionalRendering2EXT)VKL_DISPATCH(commandBuffer)->fn[567])(commandBuffer, pConditionalRenderingBegin);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdBeginConditionalRendering2EXT(VkCommandBuffer commandBuffer, const VkConditionalRenderingBeginInfo2EXT* pConditionalRenderingBegin) __attribute__((weak, alias("vkl_CmdBeginConditionalRendering2EXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdBindTransformFeedbackBuffers2EXT(VkCommandBuffer commandBuffer, uint32_t firstBinding, uint32_t bindingCount, const VkBindTransformFeedbackBuffer2InfoEXT* pBindingInfos)
 {
-	((PFN_vkCmdBindTransformFeedbackBuffers2EXT)VKL_DISPATCH(commandBuffer)->fn[566])(commandBuffer, firstBinding, bindingCount, pBindingInfos);
+	((PFN_vkCmdBindTransformFeedbackBuffers2EXT)VKL_DISPATCH(commandBuffer)->fn[568])(commandBuffer, firstBinding, bindingCount, pBindingInfos);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdBindTransformFeedbackBuffers2EXT(VkCommandBuffer commandBuffer, uint32_t firstBinding, uint32_t bindingCount, const VkBindTransformFeedbackBuffer2InfoEXT* pBindingInfos) __attribute__((weak, alias("vkl_CmdBindTransformFeedbackBuffers2EXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdBeginTransformFeedback2EXT(VkCommandBuffer commandBuffer, uint32_t firstCounterRange, uint32_t counterRangeCount, const VkBindTransformFeedbackBuffer2InfoEXT* pCounterInfos)
 {
-	((PFN_vkCmdBeginTransformFeedback2EXT)VKL_DISPATCH(commandBuffer)->fn[567])(commandBuffer, firstCounterRange, counterRangeCount, pCounterInfos);
+	((PFN_vkCmdBeginTransformFeedback2EXT)VKL_DISPATCH(commandBuffer)->fn[569])(commandBuffer, firstCounterRange, counterRangeCount, pCounterInfos);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdBeginTransformFeedback2EXT(VkCommandBuffer commandBuffer, uint32_t firstCounterRange, uint32_t counterRangeCount, const VkBindTransformFeedbackBuffer2InfoEXT* pCounterInfos) __attribute__((weak, alias("vkl_CmdBeginTransformFeedback2EXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdEndTransformFeedback2EXT(VkCommandBuffer commandBuffer, uint32_t firstCounterRange, uint32_t counterRangeCount, const VkBindTransformFeedbackBuffer2InfoEXT* pCounterInfos)
 {
-	((PFN_vkCmdEndTransformFeedback2EXT)VKL_DISPATCH(commandBuffer)->fn[568])(commandBuffer, firstCounterRange, counterRangeCount, pCounterInfos);
+	((PFN_vkCmdEndTransformFeedback2EXT)VKL_DISPATCH(commandBuffer)->fn[570])(commandBuffer, firstCounterRange, counterRangeCount, pCounterInfos);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdEndTransformFeedback2EXT(VkCommandBuffer commandBuffer, uint32_t firstCounterRange, uint32_t counterRangeCount, const VkBindTransformFeedbackBuffer2InfoEXT* pCounterInfos) __attribute__((weak, alias("vkl_CmdEndTransformFeedback2EXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdDrawIndirectByteCount2EXT(VkCommandBuffer commandBuffer, uint32_t instanceCount, uint32_t firstInstance, const VkBindTransformFeedbackBuffer2InfoEXT* pCounterInfo, uint32_t counterOffset, uint32_t vertexStride)
 {
-	((PFN_vkCmdDrawIndirectByteCount2EXT)VKL_DISPATCH(commandBuffer)->fn[569])(commandBuffer, instanceCount, firstInstance, pCounterInfo, counterOffset, vertexStride);
+	((PFN_vkCmdDrawIndirectByteCount2EXT)VKL_DISPATCH(commandBuffer)->fn[571])(commandBuffer, instanceCount, firstInstance, pCounterInfo, counterOffset, vertexStride);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdDrawIndirectByteCount2EXT(VkCommandBuffer commandBuffer, uint32_t instanceCount, uint32_t firstInstance, const VkBindTransformFeedbackBuffer2InfoEXT* pCounterInfo, uint32_t counterOffset, uint32_t vertexStride) __attribute__((weak, alias("vkl_CmdDrawIndirectByteCount2EXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdDrawMeshTasksIndirect2EXT(VkCommandBuffer commandBuffer, const VkDrawIndirect2InfoKHR* pInfo)
 {
-	((PFN_vkCmdDrawMeshTasksIndirect2EXT)VKL_DISPATCH(commandBuffer)->fn[570])(commandBuffer, pInfo);
+	((PFN_vkCmdDrawMeshTasksIndirect2EXT)VKL_DISPATCH(commandBuffer)->fn[572])(commandBuffer, pInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdDrawMeshTasksIndirect2EXT(VkCommandBuffer commandBuffer, const VkDrawIndirect2InfoKHR* pInfo) __attribute__((weak, alias("vkl_CmdDrawMeshTasksIndirect2EXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdDrawMeshTasksIndirectCount2EXT(VkCommandBuffer commandBuffer, const VkDrawIndirectCount2InfoKHR* pInfo)
 {
-	((PFN_vkCmdDrawMeshTasksIndirectCount2EXT)VKL_DISPATCH(commandBuffer)->fn[571])(commandBuffer, pInfo);
+	((PFN_vkCmdDrawMeshTasksIndirectCount2EXT)VKL_DISPATCH(commandBuffer)->fn[573])(commandBuffer, pInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdDrawMeshTasksIndirectCount2EXT(VkCommandBuffer commandBuffer, const VkDrawIndirectCount2InfoKHR* pInfo) __attribute__((weak, alias("vkl_CmdDrawMeshTasksIndirectCount2EXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdWriteMarkerToMemoryAMD(VkCommandBuffer commandBuffer, const VkMemoryMarkerInfoAMD* pInfo)
 {
-	((PFN_vkCmdWriteMarkerToMemoryAMD)VKL_DISPATCH(commandBuffer)->fn[572])(commandBuffer, pInfo);
+	((PFN_vkCmdWriteMarkerToMemoryAMD)VKL_DISPATCH(commandBuffer)->fn[574])(commandBuffer, pInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdWriteMarkerToMemoryAMD(VkCommandBuffer commandBuffer, const VkMemoryMarkerInfoAMD* pInfo) __attribute__((weak, alias("vkl_CmdWriteMarkerToMemoryAMD")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_CreateAccelerationStructure2KHR(VkDevice device, const VkAccelerationStructureCreateInfo2KHR* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkAccelerationStructureKHR* pAccelerationStructure)
 {
-	return ((PFN_vkCreateAccelerationStructure2KHR)VKL_DISPATCH(device)->fn[573])(device, pCreateInfo, pAllocator, pAccelerationStructure);
+	return ((PFN_vkCreateAccelerationStructure2KHR)VKL_DISPATCH(device)->fn[575])(device, pCreateInfo, pAllocator, pAccelerationStructure);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkCreateAccelerationStructure2KHR(VkDevice device, const VkAccelerationStructureCreateInfo2KHR* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkAccelerationStructureKHR* pAccelerationStructure) __attribute__((weak, alias("vkl_CreateAccelerationStructure2KHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetFragmentShadingRateEnumNV(VkCommandBuffer commandBuffer, VkFragmentShadingRateNV shadingRate, const VkFragmentShadingRateCombinerOpKHR combinerOps[2])
 {
-	((PFN_vkCmdSetFragmentShadingRateEnumNV)VKL_DISPATCH(commandBuffer)->fn[574])(commandBuffer, shadingRate, combinerOps);
+	((PFN_vkCmdSetFragmentShadingRateEnumNV)VKL_DISPATCH(commandBuffer)->fn[576])(commandBuffer, shadingRate, combinerOps);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetFragmentShadingRateEnumNV(VkCommandBuffer commandBuffer, VkFragmentShadingRateNV shadingRate, const VkFragmentShadingRateCombinerOpKHR combinerOps[2]) __attribute__((weak, alias("vkl_CmdSetFragmentShadingRateEnumNV")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdDrawMeshTasksEXT(VkCommandBuffer commandBuffer, uint32_t groupCountX, uint32_t groupCountY, uint32_t groupCountZ)
 {
-	((PFN_vkCmdDrawMeshTasksEXT)VKL_DISPATCH(commandBuffer)->fn[575])(commandBuffer, groupCountX, groupCountY, groupCountZ);
+	((PFN_vkCmdDrawMeshTasksEXT)VKL_DISPATCH(commandBuffer)->fn[577])(commandBuffer, groupCountX, groupCountY, groupCountZ);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdDrawMeshTasksEXT(VkCommandBuffer commandBuffer, uint32_t groupCountX, uint32_t groupCountY, uint32_t groupCountZ) __attribute__((weak, alias("vkl_CmdDrawMeshTasksEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdDrawMeshTasksIndirectEXT(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset, uint32_t drawCount, uint32_t stride)
 {
-	((PFN_vkCmdDrawMeshTasksIndirectEXT)VKL_DISPATCH(commandBuffer)->fn[576])(commandBuffer, buffer, offset, drawCount, stride);
+	((PFN_vkCmdDrawMeshTasksIndirectEXT)VKL_DISPATCH(commandBuffer)->fn[578])(commandBuffer, buffer, offset, drawCount, stride);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdDrawMeshTasksIndirectEXT(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset, uint32_t drawCount, uint32_t stride) __attribute__((weak, alias("vkl_CmdDrawMeshTasksIndirectEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdDrawMeshTasksIndirectCountEXT(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset, VkBuffer countBuffer, VkDeviceSize countBufferOffset, uint32_t maxDrawCount, uint32_t stride)
 {
-	((PFN_vkCmdDrawMeshTasksIndirectCountEXT)VKL_DISPATCH(commandBuffer)->fn[577])(commandBuffer, buffer, offset, countBuffer, countBufferOffset, maxDrawCount, stride);
+	((PFN_vkCmdDrawMeshTasksIndirectCountEXT)VKL_DISPATCH(commandBuffer)->fn[579])(commandBuffer, buffer, offset, countBuffer, countBufferOffset, maxDrawCount, stride);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdDrawMeshTasksIndirectCountEXT(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset, VkBuffer countBuffer, VkDeviceSize countBufferOffset, uint32_t maxDrawCount, uint32_t stride) __attribute__((weak, alias("vkl_CmdDrawMeshTasksIndirectCountEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdCopyBuffer2KHR(VkCommandBuffer commandBuffer, const VkCopyBufferInfo2* pCopyBufferInfo)
 {
-	((PFN_vkCmdCopyBuffer2KHR)VKL_DISPATCH(commandBuffer)->fn[578])(commandBuffer, pCopyBufferInfo);
+	((PFN_vkCmdCopyBuffer2KHR)VKL_DISPATCH(commandBuffer)->fn[580])(commandBuffer, pCopyBufferInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdCopyBuffer2KHR(VkCommandBuffer commandBuffer, const VkCopyBufferInfo2* pCopyBufferInfo) __attribute__((weak, alias("vkl_CmdCopyBuffer2KHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdCopyImage2KHR(VkCommandBuffer commandBuffer, const VkCopyImageInfo2* pCopyImageInfo)
 {
-	((PFN_vkCmdCopyImage2KHR)VKL_DISPATCH(commandBuffer)->fn[579])(commandBuffer, pCopyImageInfo);
+	((PFN_vkCmdCopyImage2KHR)VKL_DISPATCH(commandBuffer)->fn[581])(commandBuffer, pCopyImageInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdCopyImage2KHR(VkCommandBuffer commandBuffer, const VkCopyImageInfo2* pCopyImageInfo) __attribute__((weak, alias("vkl_CmdCopyImage2KHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdCopyBufferToImage2KHR(VkCommandBuffer commandBuffer, const VkCopyBufferToImageInfo2* pCopyBufferToImageInfo)
 {
-	((PFN_vkCmdCopyBufferToImage2KHR)VKL_DISPATCH(commandBuffer)->fn[580])(commandBuffer, pCopyBufferToImageInfo);
+	((PFN_vkCmdCopyBufferToImage2KHR)VKL_DISPATCH(commandBuffer)->fn[582])(commandBuffer, pCopyBufferToImageInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdCopyBufferToImage2KHR(VkCommandBuffer commandBuffer, const VkCopyBufferToImageInfo2* pCopyBufferToImageInfo) __attribute__((weak, alias("vkl_CmdCopyBufferToImage2KHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdCopyImageToBuffer2KHR(VkCommandBuffer commandBuffer, const VkCopyImageToBufferInfo2* pCopyImageToBufferInfo)
 {
-	((PFN_vkCmdCopyImageToBuffer2KHR)VKL_DISPATCH(commandBuffer)->fn[581])(commandBuffer, pCopyImageToBufferInfo);
+	((PFN_vkCmdCopyImageToBuffer2KHR)VKL_DISPATCH(commandBuffer)->fn[583])(commandBuffer, pCopyImageToBufferInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdCopyImageToBuffer2KHR(VkCommandBuffer commandBuffer, const VkCopyImageToBufferInfo2* pCopyImageToBufferInfo) __attribute__((weak, alias("vkl_CmdCopyImageToBuffer2KHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdBlitImage2KHR(VkCommandBuffer commandBuffer, const VkBlitImageInfo2* pBlitImageInfo)
 {
-	((PFN_vkCmdBlitImage2KHR)VKL_DISPATCH(commandBuffer)->fn[582])(commandBuffer, pBlitImageInfo);
+	((PFN_vkCmdBlitImage2KHR)VKL_DISPATCH(commandBuffer)->fn[584])(commandBuffer, pBlitImageInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdBlitImage2KHR(VkCommandBuffer commandBuffer, const VkBlitImageInfo2* pBlitImageInfo) __attribute__((weak, alias("vkl_CmdBlitImage2KHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdResolveImage2KHR(VkCommandBuffer commandBuffer, const VkResolveImageInfo2* pResolveImageInfo)
 {
-	((PFN_vkCmdResolveImage2KHR)VKL_DISPATCH(commandBuffer)->fn[583])(commandBuffer, pResolveImageInfo);
+	((PFN_vkCmdResolveImage2KHR)VKL_DISPATCH(commandBuffer)->fn[585])(commandBuffer, pResolveImageInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdResolveImage2KHR(VkCommandBuffer commandBuffer, const VkResolveImageInfo2* pResolveImageInfo) __attribute__((weak, alias("vkl_CmdResolveImage2KHR")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetDeviceFaultInfoEXT(VkDevice device, VkDeviceFaultCountsEXT* pFaultCounts, VkDeviceFaultInfoEXT* pFaultInfo)
 {
-	return ((PFN_vkGetDeviceFaultInfoEXT)VKL_DISPATCH(device)->fn[584])(device, pFaultCounts, pFaultInfo);
+	return ((PFN_vkGetDeviceFaultInfoEXT)VKL_DISPATCH(device)->fn[586])(device, pFaultCounts, pFaultInfo);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetDeviceFaultInfoEXT(VkDevice device, VkDeviceFaultCountsEXT* pFaultCounts, VkDeviceFaultInfoEXT* pFaultInfo) __attribute__((weak, alias("vkl_GetDeviceFaultInfoEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetVertexInputEXT(VkCommandBuffer commandBuffer, uint32_t vertexBindingDescriptionCount, const VkVertexInputBindingDescription2EXT* pVertexBindingDescriptions, uint32_t vertexAttributeDescriptionCount, const VkVertexInputAttributeDescription2EXT* pVertexAttributeDescriptions)
 {
-	((PFN_vkCmdSetVertexInputEXT)VKL_DISPATCH(commandBuffer)->fn[585])(commandBuffer, vertexBindingDescriptionCount, pVertexBindingDescriptions, vertexAttributeDescriptionCount, pVertexAttributeDescriptions);
+	((PFN_vkCmdSetVertexInputEXT)VKL_DISPATCH(commandBuffer)->fn[587])(commandBuffer, vertexBindingDescriptionCount, pVertexBindingDescriptions, vertexAttributeDescriptionCount, pVertexAttributeDescriptions);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetVertexInputEXT(VkCommandBuffer commandBuffer, uint32_t vertexBindingDescriptionCount, const VkVertexInputBindingDescription2EXT* pVertexBindingDescriptions, uint32_t vertexAttributeDescriptionCount, const VkVertexInputAttributeDescription2EXT* pVertexAttributeDescriptions) __attribute__((weak, alias("vkl_CmdSetVertexInputEXT")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetDeviceSubpassShadingMaxWorkgroupSizeHUAWEI(VkDevice device, VkRenderPass renderpass, VkExtent2D* pMaxWorkgroupSize)
 {
-	return ((PFN_vkGetDeviceSubpassShadingMaxWorkgroupSizeHUAWEI)VKL_DISPATCH(device)->fn[586])(device, renderpass, pMaxWorkgroupSize);
+	return ((PFN_vkGetDeviceSubpassShadingMaxWorkgroupSizeHUAWEI)VKL_DISPATCH(device)->fn[588])(device, renderpass, pMaxWorkgroupSize);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetDeviceSubpassShadingMaxWorkgroupSizeHUAWEI(VkDevice device, VkRenderPass renderpass, VkExtent2D* pMaxWorkgroupSize) __attribute__((weak, alias("vkl_GetDeviceSubpassShadingMaxWorkgroupSizeHUAWEI")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSubpassShadingHUAWEI(VkCommandBuffer commandBuffer)
 {
-	((PFN_vkCmdSubpassShadingHUAWEI)VKL_DISPATCH(commandBuffer)->fn[587])(commandBuffer);
+	((PFN_vkCmdSubpassShadingHUAWEI)VKL_DISPATCH(commandBuffer)->fn[589])(commandBuffer);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSubpassShadingHUAWEI(VkCommandBuffer commandBuffer) __attribute__((weak, alias("vkl_CmdSubpassShadingHUAWEI")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdBindInvocationMaskHUAWEI(VkCommandBuffer commandBuffer, VkImageView imageView, VkImageLayout imageLayout)
 {
-	((PFN_vkCmdBindInvocationMaskHUAWEI)VKL_DISPATCH(commandBuffer)->fn[588])(commandBuffer, imageView, imageLayout);
+	((PFN_vkCmdBindInvocationMaskHUAWEI)VKL_DISPATCH(commandBuffer)->fn[590])(commandBuffer, imageView, imageLayout);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdBindInvocationMaskHUAWEI(VkCommandBuffer commandBuffer, VkImageView imageView, VkImageLayout imageLayout) __attribute__((weak, alias("vkl_CmdBindInvocationMaskHUAWEI")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetMemoryRemoteAddressNV(VkDevice device, const VkMemoryGetRemoteAddressInfoNV* pMemoryGetRemoteAddressInfo, VkRemoteAddressNV* pAddress)
 {
-	return ((PFN_vkGetMemoryRemoteAddressNV)VKL_DISPATCH(device)->fn[589])(device, pMemoryGetRemoteAddressInfo, pAddress);
+	return ((PFN_vkGetMemoryRemoteAddressNV)VKL_DISPATCH(device)->fn[591])(device, pMemoryGetRemoteAddressInfo, pAddress);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetMemoryRemoteAddressNV(VkDevice device, const VkMemoryGetRemoteAddressInfoNV* pMemoryGetRemoteAddressInfo, VkRemoteAddressNV* pAddress) __attribute__((weak, alias("vkl_GetMemoryRemoteAddressNV")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetPipelinePropertiesEXT(VkDevice device, const VkPipelineInfoKHR* pPipelineInfo, VkBaseOutStructure* pPipelineProperties)
 {
-	return ((PFN_vkGetPipelinePropertiesEXT)VKL_DISPATCH(device)->fn[590])(device, pPipelineInfo, pPipelineProperties);
+	return ((PFN_vkGetPipelinePropertiesEXT)VKL_DISPATCH(device)->fn[592])(device, pPipelineInfo, pPipelineProperties);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetPipelinePropertiesEXT(VkDevice device, const VkPipelineInfoKHR* pPipelineInfo, VkBaseOutStructure* pPipelineProperties) __attribute__((weak, alias("vkl_GetPipelinePropertiesEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetPatchControlPointsEXT(VkCommandBuffer commandBuffer, uint32_t patchControlPoints)
 {
-	((PFN_vkCmdSetPatchControlPointsEXT)VKL_DISPATCH(commandBuffer)->fn[591])(commandBuffer, patchControlPoints);
+	((PFN_vkCmdSetPatchControlPointsEXT)VKL_DISPATCH(commandBuffer)->fn[593])(commandBuffer, patchControlPoints);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetPatchControlPointsEXT(VkCommandBuffer commandBuffer, uint32_t patchControlPoints) __attribute__((weak, alias("vkl_CmdSetPatchControlPointsEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetRasterizerDiscardEnableEXT(VkCommandBuffer commandBuffer, VkBool32 rasterizerDiscardEnable)
 {
-	((PFN_vkCmdSetRasterizerDiscardEnableEXT)VKL_DISPATCH(commandBuffer)->fn[592])(commandBuffer, rasterizerDiscardEnable);
+	((PFN_vkCmdSetRasterizerDiscardEnableEXT)VKL_DISPATCH(commandBuffer)->fn[594])(commandBuffer, rasterizerDiscardEnable);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetRasterizerDiscardEnableEXT(VkCommandBuffer commandBuffer, VkBool32 rasterizerDiscardEnable) __attribute__((weak, alias("vkl_CmdSetRasterizerDiscardEnableEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetDepthBiasEnableEXT(VkCommandBuffer commandBuffer, VkBool32 depthBiasEnable)
 {
-	((PFN_vkCmdSetDepthBiasEnableEXT)VKL_DISPATCH(commandBuffer)->fn[593])(commandBuffer, depthBiasEnable);
+	((PFN_vkCmdSetDepthBiasEnableEXT)VKL_DISPATCH(commandBuffer)->fn[595])(commandBuffer, depthBiasEnable);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetDepthBiasEnableEXT(VkCommandBuffer commandBuffer, VkBool32 depthBiasEnable) __attribute__((weak, alias("vkl_CmdSetDepthBiasEnableEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetLogicOpEXT(VkCommandBuffer commandBuffer, VkLogicOp logicOp)
 {
-	((PFN_vkCmdSetLogicOpEXT)VKL_DISPATCH(commandBuffer)->fn[594])(commandBuffer, logicOp);
+	((PFN_vkCmdSetLogicOpEXT)VKL_DISPATCH(commandBuffer)->fn[596])(commandBuffer, logicOp);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetLogicOpEXT(VkCommandBuffer commandBuffer, VkLogicOp logicOp) __attribute__((weak, alias("vkl_CmdSetLogicOpEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetPrimitiveRestartEnableEXT(VkCommandBuffer commandBuffer, VkBool32 primitiveRestartEnable)
 {
-	((PFN_vkCmdSetPrimitiveRestartEnableEXT)VKL_DISPATCH(commandBuffer)->fn[595])(commandBuffer, primitiveRestartEnable);
+	((PFN_vkCmdSetPrimitiveRestartEnableEXT)VKL_DISPATCH(commandBuffer)->fn[597])(commandBuffer, primitiveRestartEnable);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetPrimitiveRestartEnableEXT(VkCommandBuffer commandBuffer, VkBool32 primitiveRestartEnable) __attribute__((weak, alias("vkl_CmdSetPrimitiveRestartEnableEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetColorWriteEnableEXT(VkCommandBuffer commandBuffer, uint32_t attachmentCount, const VkBool32* pColorWriteEnables)
 {
-	((PFN_vkCmdSetColorWriteEnableEXT)VKL_DISPATCH(commandBuffer)->fn[596])(commandBuffer, attachmentCount, pColorWriteEnables);
+	((PFN_vkCmdSetColorWriteEnableEXT)VKL_DISPATCH(commandBuffer)->fn[598])(commandBuffer, attachmentCount, pColorWriteEnables);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetColorWriteEnableEXT(VkCommandBuffer commandBuffer, uint32_t attachmentCount, const VkBool32* pColorWriteEnables) __attribute__((weak, alias("vkl_CmdSetColorWriteEnableEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdTraceRaysIndirect2KHR(VkCommandBuffer commandBuffer, VkDeviceAddress indirectDeviceAddress)
 {
-	((PFN_vkCmdTraceRaysIndirect2KHR)VKL_DISPATCH(commandBuffer)->fn[597])(commandBuffer, indirectDeviceAddress);
+	((PFN_vkCmdTraceRaysIndirect2KHR)VKL_DISPATCH(commandBuffer)->fn[599])(commandBuffer, indirectDeviceAddress);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdTraceRaysIndirect2KHR(VkCommandBuffer commandBuffer, VkDeviceAddress indirectDeviceAddress) __attribute__((weak, alias("vkl_CmdTraceRaysIndirect2KHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdDrawMultiEXT(VkCommandBuffer commandBuffer, uint32_t drawCount, const VkMultiDrawInfoEXT* pVertexInfo, uint32_t instanceCount, uint32_t firstInstance, uint32_t stride)
 {
-	((PFN_vkCmdDrawMultiEXT)VKL_DISPATCH(commandBuffer)->fn[598])(commandBuffer, drawCount, pVertexInfo, instanceCount, firstInstance, stride);
+	((PFN_vkCmdDrawMultiEXT)VKL_DISPATCH(commandBuffer)->fn[600])(commandBuffer, drawCount, pVertexInfo, instanceCount, firstInstance, stride);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdDrawMultiEXT(VkCommandBuffer commandBuffer, uint32_t drawCount, const VkMultiDrawInfoEXT* pVertexInfo, uint32_t instanceCount, uint32_t firstInstance, uint32_t stride) __attribute__((weak, alias("vkl_CmdDrawMultiEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdDrawMultiIndexedEXT(VkCommandBuffer commandBuffer, uint32_t drawCount, const VkMultiDrawIndexedInfoEXT* pIndexInfo, uint32_t instanceCount, uint32_t firstInstance, uint32_t stride, const int32_t* pVertexOffset)
 {
-	((PFN_vkCmdDrawMultiIndexedEXT)VKL_DISPATCH(commandBuffer)->fn[599])(commandBuffer, drawCount, pIndexInfo, instanceCount, firstInstance, stride, pVertexOffset);
+	((PFN_vkCmdDrawMultiIndexedEXT)VKL_DISPATCH(commandBuffer)->fn[601])(commandBuffer, drawCount, pIndexInfo, instanceCount, firstInstance, stride, pVertexOffset);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdDrawMultiIndexedEXT(VkCommandBuffer commandBuffer, uint32_t drawCount, const VkMultiDrawIndexedInfoEXT* pIndexInfo, uint32_t instanceCount, uint32_t firstInstance, uint32_t stride, const int32_t* pVertexOffset) __attribute__((weak, alias("vkl_CmdDrawMultiIndexedEXT")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_CreateMicromapEXT(VkDevice device, const VkMicromapCreateInfoEXT* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkMicromapEXT* pMicromap)
 {
-	return ((PFN_vkCreateMicromapEXT)VKL_DISPATCH(device)->fn[600])(device, pCreateInfo, pAllocator, pMicromap);
+	return ((PFN_vkCreateMicromapEXT)VKL_DISPATCH(device)->fn[602])(device, pCreateInfo, pAllocator, pMicromap);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkCreateMicromapEXT(VkDevice device, const VkMicromapCreateInfoEXT* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkMicromapEXT* pMicromap) __attribute__((weak, alias("vkl_CreateMicromapEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_DestroyMicromapEXT(VkDevice device, VkMicromapEXT micromap, const VkAllocationCallbacks* pAllocator)
 {
-	((PFN_vkDestroyMicromapEXT)VKL_DISPATCH(device)->fn[601])(device, micromap, pAllocator);
+	((PFN_vkDestroyMicromapEXT)VKL_DISPATCH(device)->fn[603])(device, micromap, pAllocator);
 }
 VKAPI_ATTR void VKAPI_CALL vkDestroyMicromapEXT(VkDevice device, VkMicromapEXT micromap, const VkAllocationCallbacks* pAllocator) __attribute__((weak, alias("vkl_DestroyMicromapEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdBuildMicromapsEXT(VkCommandBuffer commandBuffer, uint32_t infoCount, const VkMicromapBuildInfoEXT* pInfos)
 {
-	((PFN_vkCmdBuildMicromapsEXT)VKL_DISPATCH(commandBuffer)->fn[602])(commandBuffer, infoCount, pInfos);
+	((PFN_vkCmdBuildMicromapsEXT)VKL_DISPATCH(commandBuffer)->fn[604])(commandBuffer, infoCount, pInfos);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdBuildMicromapsEXT(VkCommandBuffer commandBuffer, uint32_t infoCount, const VkMicromapBuildInfoEXT* pInfos) __attribute__((weak, alias("vkl_CmdBuildMicromapsEXT")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_BuildMicromapsEXT(VkDevice device, VkDeferredOperationKHR deferredOperation, uint32_t infoCount, const VkMicromapBuildInfoEXT* pInfos)
 {
-	return ((PFN_vkBuildMicromapsEXT)VKL_DISPATCH(device)->fn[603])(device, deferredOperation, infoCount, pInfos);
+	return ((PFN_vkBuildMicromapsEXT)VKL_DISPATCH(device)->fn[605])(device, deferredOperation, infoCount, pInfos);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkBuildMicromapsEXT(VkDevice device, VkDeferredOperationKHR deferredOperation, uint32_t infoCount, const VkMicromapBuildInfoEXT* pInfos) __attribute__((weak, alias("vkl_BuildMicromapsEXT")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_CopyMicromapEXT(VkDevice device, VkDeferredOperationKHR deferredOperation, const VkCopyMicromapInfoEXT* pInfo)
 {
-	return ((PFN_vkCopyMicromapEXT)VKL_DISPATCH(device)->fn[604])(device, deferredOperation, pInfo);
+	return ((PFN_vkCopyMicromapEXT)VKL_DISPATCH(device)->fn[606])(device, deferredOperation, pInfo);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkCopyMicromapEXT(VkDevice device, VkDeferredOperationKHR deferredOperation, const VkCopyMicromapInfoEXT* pInfo) __attribute__((weak, alias("vkl_CopyMicromapEXT")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_CopyMicromapToMemoryEXT(VkDevice device, VkDeferredOperationKHR deferredOperation, const VkCopyMicromapToMemoryInfoEXT* pInfo)
 {
-	return ((PFN_vkCopyMicromapToMemoryEXT)VKL_DISPATCH(device)->fn[605])(device, deferredOperation, pInfo);
+	return ((PFN_vkCopyMicromapToMemoryEXT)VKL_DISPATCH(device)->fn[607])(device, deferredOperation, pInfo);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkCopyMicromapToMemoryEXT(VkDevice device, VkDeferredOperationKHR deferredOperation, const VkCopyMicromapToMemoryInfoEXT* pInfo) __attribute__((weak, alias("vkl_CopyMicromapToMemoryEXT")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_CopyMemoryToMicromapEXT(VkDevice device, VkDeferredOperationKHR deferredOperation, const VkCopyMemoryToMicromapInfoEXT* pInfo)
 {
-	return ((PFN_vkCopyMemoryToMicromapEXT)VKL_DISPATCH(device)->fn[606])(device, deferredOperation, pInfo);
+	return ((PFN_vkCopyMemoryToMicromapEXT)VKL_DISPATCH(device)->fn[608])(device, deferredOperation, pInfo);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkCopyMemoryToMicromapEXT(VkDevice device, VkDeferredOperationKHR deferredOperation, const VkCopyMemoryToMicromapInfoEXT* pInfo) __attribute__((weak, alias("vkl_CopyMemoryToMicromapEXT")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_WriteMicromapsPropertiesEXT(VkDevice device, uint32_t micromapCount, const VkMicromapEXT* pMicromaps, VkQueryType queryType, size_t dataSize, void* pData, size_t stride)
 {
-	return ((PFN_vkWriteMicromapsPropertiesEXT)VKL_DISPATCH(device)->fn[607])(device, micromapCount, pMicromaps, queryType, dataSize, pData, stride);
+	return ((PFN_vkWriteMicromapsPropertiesEXT)VKL_DISPATCH(device)->fn[609])(device, micromapCount, pMicromaps, queryType, dataSize, pData, stride);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkWriteMicromapsPropertiesEXT(VkDevice device, uint32_t micromapCount, const VkMicromapEXT* pMicromaps, VkQueryType queryType, size_t dataSize, void* pData, size_t stride) __attribute__((weak, alias("vkl_WriteMicromapsPropertiesEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdCopyMicromapEXT(VkCommandBuffer commandBuffer, const VkCopyMicromapInfoEXT* pInfo)
 {
-	((PFN_vkCmdCopyMicromapEXT)VKL_DISPATCH(commandBuffer)->fn[608])(commandBuffer, pInfo);
+	((PFN_vkCmdCopyMicromapEXT)VKL_DISPATCH(commandBuffer)->fn[610])(commandBuffer, pInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdCopyMicromapEXT(VkCommandBuffer commandBuffer, const VkCopyMicromapInfoEXT* pInfo) __attribute__((weak, alias("vkl_CmdCopyMicromapEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdCopyMicromapToMemoryEXT(VkCommandBuffer commandBuffer, const VkCopyMicromapToMemoryInfoEXT* pInfo)
 {
-	((PFN_vkCmdCopyMicromapToMemoryEXT)VKL_DISPATCH(commandBuffer)->fn[609])(commandBuffer, pInfo);
+	((PFN_vkCmdCopyMicromapToMemoryEXT)VKL_DISPATCH(commandBuffer)->fn[611])(commandBuffer, pInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdCopyMicromapToMemoryEXT(VkCommandBuffer commandBuffer, const VkCopyMicromapToMemoryInfoEXT* pInfo) __attribute__((weak, alias("vkl_CmdCopyMicromapToMemoryEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdCopyMemoryToMicromapEXT(VkCommandBuffer commandBuffer, const VkCopyMemoryToMicromapInfoEXT* pInfo)
 {
-	((PFN_vkCmdCopyMemoryToMicromapEXT)VKL_DISPATCH(commandBuffer)->fn[610])(commandBuffer, pInfo);
+	((PFN_vkCmdCopyMemoryToMicromapEXT)VKL_DISPATCH(commandBuffer)->fn[612])(commandBuffer, pInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdCopyMemoryToMicromapEXT(VkCommandBuffer commandBuffer, const VkCopyMemoryToMicromapInfoEXT* pInfo) __attribute__((weak, alias("vkl_CmdCopyMemoryToMicromapEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdWriteMicromapsPropertiesEXT(VkCommandBuffer commandBuffer, uint32_t micromapCount, const VkMicromapEXT* pMicromaps, VkQueryType queryType, VkQueryPool queryPool, uint32_t firstQuery)
 {
-	((PFN_vkCmdWriteMicromapsPropertiesEXT)VKL_DISPATCH(commandBuffer)->fn[611])(commandBuffer, micromapCount, pMicromaps, queryType, queryPool, firstQuery);
+	((PFN_vkCmdWriteMicromapsPropertiesEXT)VKL_DISPATCH(commandBuffer)->fn[613])(commandBuffer, micromapCount, pMicromaps, queryType, queryPool, firstQuery);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdWriteMicromapsPropertiesEXT(VkCommandBuffer commandBuffer, uint32_t micromapCount, const VkMicromapEXT* pMicromaps, VkQueryType queryType, VkQueryPool queryPool, uint32_t firstQuery) __attribute__((weak, alias("vkl_CmdWriteMicromapsPropertiesEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_GetDeviceMicromapCompatibilityEXT(VkDevice device, const VkMicromapVersionInfoEXT* pVersionInfo, VkAccelerationStructureCompatibilityKHR* pCompatibility)
 {
-	((PFN_vkGetDeviceMicromapCompatibilityEXT)VKL_DISPATCH(device)->fn[612])(device, pVersionInfo, pCompatibility);
+	((PFN_vkGetDeviceMicromapCompatibilityEXT)VKL_DISPATCH(device)->fn[614])(device, pVersionInfo, pCompatibility);
 }
 VKAPI_ATTR void VKAPI_CALL vkGetDeviceMicromapCompatibilityEXT(VkDevice device, const VkMicromapVersionInfoEXT* pVersionInfo, VkAccelerationStructureCompatibilityKHR* pCompatibility) __attribute__((weak, alias("vkl_GetDeviceMicromapCompatibilityEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_GetMicromapBuildSizesEXT(VkDevice device, VkAccelerationStructureBuildTypeKHR buildType, const VkMicromapBuildInfoEXT* pBuildInfo, VkMicromapBuildSizesInfoEXT* pSizeInfo)
 {
-	((PFN_vkGetMicromapBuildSizesEXT)VKL_DISPATCH(device)->fn[613])(device, buildType, pBuildInfo, pSizeInfo);
+	((PFN_vkGetMicromapBuildSizesEXT)VKL_DISPATCH(device)->fn[615])(device, buildType, pBuildInfo, pSizeInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkGetMicromapBuildSizesEXT(VkDevice device, VkAccelerationStructureBuildTypeKHR buildType, const VkMicromapBuildInfoEXT* pBuildInfo, VkMicromapBuildSizesInfoEXT* pSizeInfo) __attribute__((weak, alias("vkl_GetMicromapBuildSizesEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdDrawClusterHUAWEI(VkCommandBuffer commandBuffer, uint32_t groupCountX, uint32_t groupCountY, uint32_t groupCountZ)
 {
-	((PFN_vkCmdDrawClusterHUAWEI)VKL_DISPATCH(commandBuffer)->fn[614])(commandBuffer, groupCountX, groupCountY, groupCountZ);
+	((PFN_vkCmdDrawClusterHUAWEI)VKL_DISPATCH(commandBuffer)->fn[616])(commandBuffer, groupCountX, groupCountY, groupCountZ);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdDrawClusterHUAWEI(VkCommandBuffer commandBuffer, uint32_t groupCountX, uint32_t groupCountY, uint32_t groupCountZ) __attribute__((weak, alias("vkl_CmdDrawClusterHUAWEI")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdDrawClusterIndirectHUAWEI(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset)
 {
-	((PFN_vkCmdDrawClusterIndirectHUAWEI)VKL_DISPATCH(commandBuffer)->fn[615])(commandBuffer, buffer, offset);
+	((PFN_vkCmdDrawClusterIndirectHUAWEI)VKL_DISPATCH(commandBuffer)->fn[617])(commandBuffer, buffer, offset);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdDrawClusterIndirectHUAWEI(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset) __attribute__((weak, alias("vkl_CmdDrawClusterIndirectHUAWEI")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_SetDeviceMemoryPriorityEXT(VkDevice device, VkDeviceMemory memory, float priority)
 {
-	((PFN_vkSetDeviceMemoryPriorityEXT)VKL_DISPATCH(device)->fn[616])(device, memory, priority);
+	((PFN_vkSetDeviceMemoryPriorityEXT)VKL_DISPATCH(device)->fn[618])(device, memory, priority);
 }
 VKAPI_ATTR void VKAPI_CALL vkSetDeviceMemoryPriorityEXT(VkDevice device, VkDeviceMemory memory, float priority) __attribute__((weak, alias("vkl_SetDeviceMemoryPriorityEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_GetDeviceBufferMemoryRequirementsKHR(VkDevice device, const VkDeviceBufferMemoryRequirements* pInfo, VkMemoryRequirements2* pMemoryRequirements)
 {
-	((PFN_vkGetDeviceBufferMemoryRequirementsKHR)VKL_DISPATCH(device)->fn[617])(device, pInfo, pMemoryRequirements);
+	((PFN_vkGetDeviceBufferMemoryRequirementsKHR)VKL_DISPATCH(device)->fn[619])(device, pInfo, pMemoryRequirements);
 }
 VKAPI_ATTR void VKAPI_CALL vkGetDeviceBufferMemoryRequirementsKHR(VkDevice device, const VkDeviceBufferMemoryRequirements* pInfo, VkMemoryRequirements2* pMemoryRequirements) __attribute__((weak, alias("vkl_GetDeviceBufferMemoryRequirementsKHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_GetDeviceImageMemoryRequirementsKHR(VkDevice device, const VkDeviceImageMemoryRequirements* pInfo, VkMemoryRequirements2* pMemoryRequirements)
 {
-	((PFN_vkGetDeviceImageMemoryRequirementsKHR)VKL_DISPATCH(device)->fn[618])(device, pInfo, pMemoryRequirements);
+	((PFN_vkGetDeviceImageMemoryRequirementsKHR)VKL_DISPATCH(device)->fn[620])(device, pInfo, pMemoryRequirements);
 }
 VKAPI_ATTR void VKAPI_CALL vkGetDeviceImageMemoryRequirementsKHR(VkDevice device, const VkDeviceImageMemoryRequirements* pInfo, VkMemoryRequirements2* pMemoryRequirements) __attribute__((weak, alias("vkl_GetDeviceImageMemoryRequirementsKHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_GetDeviceImageSparseMemoryRequirementsKHR(VkDevice device, const VkDeviceImageMemoryRequirements* pInfo, uint32_t* pSparseMemoryRequirementCount, VkSparseImageMemoryRequirements2* pSparseMemoryRequirements)
 {
-	((PFN_vkGetDeviceImageSparseMemoryRequirementsKHR)VKL_DISPATCH(device)->fn[619])(device, pInfo, pSparseMemoryRequirementCount, pSparseMemoryRequirements);
+	((PFN_vkGetDeviceImageSparseMemoryRequirementsKHR)VKL_DISPATCH(device)->fn[621])(device, pInfo, pSparseMemoryRequirementCount, pSparseMemoryRequirements);
 }
 VKAPI_ATTR void VKAPI_CALL vkGetDeviceImageSparseMemoryRequirementsKHR(VkDevice device, const VkDeviceImageMemoryRequirements* pInfo, uint32_t* pSparseMemoryRequirementCount, VkSparseImageMemoryRequirements2* pSparseMemoryRequirements) __attribute__((weak, alias("vkl_GetDeviceImageSparseMemoryRequirementsKHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetDispatchParametersARM(VkCommandBuffer commandBuffer, const VkDispatchParametersARM* pDispatchParameters)
 {
-	((PFN_vkCmdSetDispatchParametersARM)VKL_DISPATCH(commandBuffer)->fn[620])(commandBuffer, pDispatchParameters);
+	((PFN_vkCmdSetDispatchParametersARM)VKL_DISPATCH(commandBuffer)->fn[622])(commandBuffer, pDispatchParameters);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetDispatchParametersARM(VkCommandBuffer commandBuffer, const VkDispatchParametersARM* pDispatchParameters) __attribute__((weak, alias("vkl_CmdSetDispatchParametersARM")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_GetDescriptorSetLayoutHostMappingInfoVALVE(VkDevice device, const VkDescriptorSetBindingReferenceVALVE* pBindingReference, VkDescriptorSetLayoutHostMappingInfoVALVE* pHostMapping)
 {
-	((PFN_vkGetDescriptorSetLayoutHostMappingInfoVALVE)VKL_DISPATCH(device)->fn[621])(device, pBindingReference, pHostMapping);
+	((PFN_vkGetDescriptorSetLayoutHostMappingInfoVALVE)VKL_DISPATCH(device)->fn[623])(device, pBindingReference, pHostMapping);
 }
 VKAPI_ATTR void VKAPI_CALL vkGetDescriptorSetLayoutHostMappingInfoVALVE(VkDevice device, const VkDescriptorSetBindingReferenceVALVE* pBindingReference, VkDescriptorSetLayoutHostMappingInfoVALVE* pHostMapping) __attribute__((weak, alias("vkl_GetDescriptorSetLayoutHostMappingInfoVALVE")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_GetDescriptorSetHostMappingVALVE(VkDevice device, VkDescriptorSet descriptorSet, void** ppData)
 {
-	((PFN_vkGetDescriptorSetHostMappingVALVE)VKL_DISPATCH(device)->fn[622])(device, descriptorSet, ppData);
+	((PFN_vkGetDescriptorSetHostMappingVALVE)VKL_DISPATCH(device)->fn[624])(device, descriptorSet, ppData);
 }
 VKAPI_ATTR void VKAPI_CALL vkGetDescriptorSetHostMappingVALVE(VkDevice device, VkDescriptorSet descriptorSet, void** ppData) __attribute__((weak, alias("vkl_GetDescriptorSetHostMappingVALVE")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdCopyMemoryIndirectNV(VkCommandBuffer commandBuffer, VkDeviceAddress copyBufferAddress, uint32_t copyCount, uint32_t stride)
 {
-	((PFN_vkCmdCopyMemoryIndirectNV)VKL_DISPATCH(commandBuffer)->fn[623])(commandBuffer, copyBufferAddress, copyCount, stride);
+	((PFN_vkCmdCopyMemoryIndirectNV)VKL_DISPATCH(commandBuffer)->fn[625])(commandBuffer, copyBufferAddress, copyCount, stride);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdCopyMemoryIndirectNV(VkCommandBuffer commandBuffer, VkDeviceAddress copyBufferAddress, uint32_t copyCount, uint32_t stride) __attribute__((weak, alias("vkl_CmdCopyMemoryIndirectNV")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdCopyMemoryToImageIndirectNV(VkCommandBuffer commandBuffer, VkDeviceAddress copyBufferAddress, uint32_t copyCount, uint32_t stride, VkImage dstImage, VkImageLayout dstImageLayout, const VkImageSubresourceLayers* pImageSubresources)
 {
-	((PFN_vkCmdCopyMemoryToImageIndirectNV)VKL_DISPATCH(commandBuffer)->fn[624])(commandBuffer, copyBufferAddress, copyCount, stride, dstImage, dstImageLayout, pImageSubresources);
+	((PFN_vkCmdCopyMemoryToImageIndirectNV)VKL_DISPATCH(commandBuffer)->fn[626])(commandBuffer, copyBufferAddress, copyCount, stride, dstImage, dstImageLayout, pImageSubresources);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdCopyMemoryToImageIndirectNV(VkCommandBuffer commandBuffer, VkDeviceAddress copyBufferAddress, uint32_t copyCount, uint32_t stride, VkImage dstImage, VkImageLayout dstImageLayout, const VkImageSubresourceLayers* pImageSubresources) __attribute__((weak, alias("vkl_CmdCopyMemoryToImageIndirectNV")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdDecompressMemoryNV(VkCommandBuffer commandBuffer, uint32_t decompressRegionCount, const VkDecompressMemoryRegionNV* pDecompressMemoryRegions)
 {
-	((PFN_vkCmdDecompressMemoryNV)VKL_DISPATCH(commandBuffer)->fn[625])(commandBuffer, decompressRegionCount, pDecompressMemoryRegions);
+	((PFN_vkCmdDecompressMemoryNV)VKL_DISPATCH(commandBuffer)->fn[627])(commandBuffer, decompressRegionCount, pDecompressMemoryRegions);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdDecompressMemoryNV(VkCommandBuffer commandBuffer, uint32_t decompressRegionCount, const VkDecompressMemoryRegionNV* pDecompressMemoryRegions) __attribute__((weak, alias("vkl_CmdDecompressMemoryNV")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdDecompressMemoryIndirectCountNV(VkCommandBuffer commandBuffer, VkDeviceAddress indirectCommandsAddress, VkDeviceAddress indirectCommandsCountAddress, uint32_t stride)
 {
-	((PFN_vkCmdDecompressMemoryIndirectCountNV)VKL_DISPATCH(commandBuffer)->fn[626])(commandBuffer, indirectCommandsAddress, indirectCommandsCountAddress, stride);
+	((PFN_vkCmdDecompressMemoryIndirectCountNV)VKL_DISPATCH(commandBuffer)->fn[628])(commandBuffer, indirectCommandsAddress, indirectCommandsCountAddress, stride);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdDecompressMemoryIndirectCountNV(VkCommandBuffer commandBuffer, VkDeviceAddress indirectCommandsAddress, VkDeviceAddress indirectCommandsCountAddress, uint32_t stride) __attribute__((weak, alias("vkl_CmdDecompressMemoryIndirectCountNV")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_GetPipelineIndirectMemoryRequirementsNV(VkDevice device, const VkComputePipelineCreateInfo* pCreateInfo, VkMemoryRequirements2* pMemoryRequirements)
 {
-	((PFN_vkGetPipelineIndirectMemoryRequirementsNV)VKL_DISPATCH(device)->fn[627])(device, pCreateInfo, pMemoryRequirements);
+	((PFN_vkGetPipelineIndirectMemoryRequirementsNV)VKL_DISPATCH(device)->fn[629])(device, pCreateInfo, pMemoryRequirements);
 }
 VKAPI_ATTR void VKAPI_CALL vkGetPipelineIndirectMemoryRequirementsNV(VkDevice device, const VkComputePipelineCreateInfo* pCreateInfo, VkMemoryRequirements2* pMemoryRequirements) __attribute__((weak, alias("vkl_GetPipelineIndirectMemoryRequirementsNV")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdUpdatePipelineIndirectBufferNV(VkCommandBuffer commandBuffer, VkPipelineBindPoint pipelineBindPoint, VkPipeline pipeline)
 {
-	((PFN_vkCmdUpdatePipelineIndirectBufferNV)VKL_DISPATCH(commandBuffer)->fn[628])(commandBuffer, pipelineBindPoint, pipeline);
+	((PFN_vkCmdUpdatePipelineIndirectBufferNV)VKL_DISPATCH(commandBuffer)->fn[630])(commandBuffer, pipelineBindPoint, pipeline);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdUpdatePipelineIndirectBufferNV(VkCommandBuffer commandBuffer, VkPipelineBindPoint pipelineBindPoint, VkPipeline pipeline) __attribute__((weak, alias("vkl_CmdUpdatePipelineIndirectBufferNV")));
 
 VKAPI_ATTR VkDeviceAddress VKAPI_CALL
 vkl_GetPipelineIndirectDeviceAddressNV(VkDevice device, const VkPipelineIndirectDeviceAddressInfoNV* pInfo)
 {
-	return ((PFN_vkGetPipelineIndirectDeviceAddressNV)VKL_DISPATCH(device)->fn[629])(device, pInfo);
+	return ((PFN_vkGetPipelineIndirectDeviceAddressNV)VKL_DISPATCH(device)->fn[631])(device, pInfo);
 }
 VKAPI_ATTR VkDeviceAddress VKAPI_CALL vkGetPipelineIndirectDeviceAddressNV(VkDevice device, const VkPipelineIndirectDeviceAddressInfoNV* pInfo) __attribute__((weak, alias("vkl_GetPipelineIndirectDeviceAddressNV")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetDepthClampEnableEXT(VkCommandBuffer commandBuffer, VkBool32 depthClampEnable)
 {
-	((PFN_vkCmdSetDepthClampEnableEXT)VKL_DISPATCH(commandBuffer)->fn[630])(commandBuffer, depthClampEnable);
+	((PFN_vkCmdSetDepthClampEnableEXT)VKL_DISPATCH(commandBuffer)->fn[632])(commandBuffer, depthClampEnable);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetDepthClampEnableEXT(VkCommandBuffer commandBuffer, VkBool32 depthClampEnable) __attribute__((weak, alias("vkl_CmdSetDepthClampEnableEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetPolygonModeEXT(VkCommandBuffer commandBuffer, VkPolygonMode polygonMode)
 {
-	((PFN_vkCmdSetPolygonModeEXT)VKL_DISPATCH(commandBuffer)->fn[631])(commandBuffer, polygonMode);
+	((PFN_vkCmdSetPolygonModeEXT)VKL_DISPATCH(commandBuffer)->fn[633])(commandBuffer, polygonMode);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetPolygonModeEXT(VkCommandBuffer commandBuffer, VkPolygonMode polygonMode) __attribute__((weak, alias("vkl_CmdSetPolygonModeEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetRasterizationSamplesEXT(VkCommandBuffer commandBuffer, VkSampleCountFlagBits rasterizationSamples)
 {
-	((PFN_vkCmdSetRasterizationSamplesEXT)VKL_DISPATCH(commandBuffer)->fn[632])(commandBuffer, rasterizationSamples);
+	((PFN_vkCmdSetRasterizationSamplesEXT)VKL_DISPATCH(commandBuffer)->fn[634])(commandBuffer, rasterizationSamples);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetRasterizationSamplesEXT(VkCommandBuffer commandBuffer, VkSampleCountFlagBits rasterizationSamples) __attribute__((weak, alias("vkl_CmdSetRasterizationSamplesEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetSampleMaskEXT(VkCommandBuffer commandBuffer, VkSampleCountFlagBits samples, const VkSampleMask* pSampleMask)
 {
-	((PFN_vkCmdSetSampleMaskEXT)VKL_DISPATCH(commandBuffer)->fn[633])(commandBuffer, samples, pSampleMask);
+	((PFN_vkCmdSetSampleMaskEXT)VKL_DISPATCH(commandBuffer)->fn[635])(commandBuffer, samples, pSampleMask);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetSampleMaskEXT(VkCommandBuffer commandBuffer, VkSampleCountFlagBits samples, const VkSampleMask* pSampleMask) __attribute__((weak, alias("vkl_CmdSetSampleMaskEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetAlphaToCoverageEnableEXT(VkCommandBuffer commandBuffer, VkBool32 alphaToCoverageEnable)
 {
-	((PFN_vkCmdSetAlphaToCoverageEnableEXT)VKL_DISPATCH(commandBuffer)->fn[634])(commandBuffer, alphaToCoverageEnable);
+	((PFN_vkCmdSetAlphaToCoverageEnableEXT)VKL_DISPATCH(commandBuffer)->fn[636])(commandBuffer, alphaToCoverageEnable);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetAlphaToCoverageEnableEXT(VkCommandBuffer commandBuffer, VkBool32 alphaToCoverageEnable) __attribute__((weak, alias("vkl_CmdSetAlphaToCoverageEnableEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetAlphaToOneEnableEXT(VkCommandBuffer commandBuffer, VkBool32 alphaToOneEnable)
 {
-	((PFN_vkCmdSetAlphaToOneEnableEXT)VKL_DISPATCH(commandBuffer)->fn[635])(commandBuffer, alphaToOneEnable);
+	((PFN_vkCmdSetAlphaToOneEnableEXT)VKL_DISPATCH(commandBuffer)->fn[637])(commandBuffer, alphaToOneEnable);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetAlphaToOneEnableEXT(VkCommandBuffer commandBuffer, VkBool32 alphaToOneEnable) __attribute__((weak, alias("vkl_CmdSetAlphaToOneEnableEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetLogicOpEnableEXT(VkCommandBuffer commandBuffer, VkBool32 logicOpEnable)
 {
-	((PFN_vkCmdSetLogicOpEnableEXT)VKL_DISPATCH(commandBuffer)->fn[636])(commandBuffer, logicOpEnable);
+	((PFN_vkCmdSetLogicOpEnableEXT)VKL_DISPATCH(commandBuffer)->fn[638])(commandBuffer, logicOpEnable);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetLogicOpEnableEXT(VkCommandBuffer commandBuffer, VkBool32 logicOpEnable) __attribute__((weak, alias("vkl_CmdSetLogicOpEnableEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetColorBlendEnableEXT(VkCommandBuffer commandBuffer, uint32_t firstAttachment, uint32_t attachmentCount, const VkBool32* pColorBlendEnables)
 {
-	((PFN_vkCmdSetColorBlendEnableEXT)VKL_DISPATCH(commandBuffer)->fn[637])(commandBuffer, firstAttachment, attachmentCount, pColorBlendEnables);
+	((PFN_vkCmdSetColorBlendEnableEXT)VKL_DISPATCH(commandBuffer)->fn[639])(commandBuffer, firstAttachment, attachmentCount, pColorBlendEnables);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetColorBlendEnableEXT(VkCommandBuffer commandBuffer, uint32_t firstAttachment, uint32_t attachmentCount, const VkBool32* pColorBlendEnables) __attribute__((weak, alias("vkl_CmdSetColorBlendEnableEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetColorBlendEquationEXT(VkCommandBuffer commandBuffer, uint32_t firstAttachment, uint32_t attachmentCount, const VkColorBlendEquationEXT* pColorBlendEquations)
 {
-	((PFN_vkCmdSetColorBlendEquationEXT)VKL_DISPATCH(commandBuffer)->fn[638])(commandBuffer, firstAttachment, attachmentCount, pColorBlendEquations);
+	((PFN_vkCmdSetColorBlendEquationEXT)VKL_DISPATCH(commandBuffer)->fn[640])(commandBuffer, firstAttachment, attachmentCount, pColorBlendEquations);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetColorBlendEquationEXT(VkCommandBuffer commandBuffer, uint32_t firstAttachment, uint32_t attachmentCount, const VkColorBlendEquationEXT* pColorBlendEquations) __attribute__((weak, alias("vkl_CmdSetColorBlendEquationEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetColorWriteMaskEXT(VkCommandBuffer commandBuffer, uint32_t firstAttachment, uint32_t attachmentCount, const VkColorComponentFlags* pColorWriteMasks)
 {
-	((PFN_vkCmdSetColorWriteMaskEXT)VKL_DISPATCH(commandBuffer)->fn[639])(commandBuffer, firstAttachment, attachmentCount, pColorWriteMasks);
+	((PFN_vkCmdSetColorWriteMaskEXT)VKL_DISPATCH(commandBuffer)->fn[641])(commandBuffer, firstAttachment, attachmentCount, pColorWriteMasks);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetColorWriteMaskEXT(VkCommandBuffer commandBuffer, uint32_t firstAttachment, uint32_t attachmentCount, const VkColorComponentFlags* pColorWriteMasks) __attribute__((weak, alias("vkl_CmdSetColorWriteMaskEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetTessellationDomainOriginEXT(VkCommandBuffer commandBuffer, VkTessellationDomainOrigin domainOrigin)
 {
-	((PFN_vkCmdSetTessellationDomainOriginEXT)VKL_DISPATCH(commandBuffer)->fn[640])(commandBuffer, domainOrigin);
+	((PFN_vkCmdSetTessellationDomainOriginEXT)VKL_DISPATCH(commandBuffer)->fn[642])(commandBuffer, domainOrigin);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetTessellationDomainOriginEXT(VkCommandBuffer commandBuffer, VkTessellationDomainOrigin domainOrigin) __attribute__((weak, alias("vkl_CmdSetTessellationDomainOriginEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetRasterizationStreamEXT(VkCommandBuffer commandBuffer, uint32_t rasterizationStream)
 {
-	((PFN_vkCmdSetRasterizationStreamEXT)VKL_DISPATCH(commandBuffer)->fn[641])(commandBuffer, rasterizationStream);
+	((PFN_vkCmdSetRasterizationStreamEXT)VKL_DISPATCH(commandBuffer)->fn[643])(commandBuffer, rasterizationStream);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetRasterizationStreamEXT(VkCommandBuffer commandBuffer, uint32_t rasterizationStream) __attribute__((weak, alias("vkl_CmdSetRasterizationStreamEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetConservativeRasterizationModeEXT(VkCommandBuffer commandBuffer, VkConservativeRasterizationModeEXT conservativeRasterizationMode)
 {
-	((PFN_vkCmdSetConservativeRasterizationModeEXT)VKL_DISPATCH(commandBuffer)->fn[642])(commandBuffer, conservativeRasterizationMode);
+	((PFN_vkCmdSetConservativeRasterizationModeEXT)VKL_DISPATCH(commandBuffer)->fn[644])(commandBuffer, conservativeRasterizationMode);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetConservativeRasterizationModeEXT(VkCommandBuffer commandBuffer, VkConservativeRasterizationModeEXT conservativeRasterizationMode) __attribute__((weak, alias("vkl_CmdSetConservativeRasterizationModeEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetExtraPrimitiveOverestimationSizeEXT(VkCommandBuffer commandBuffer, float extraPrimitiveOverestimationSize)
 {
-	((PFN_vkCmdSetExtraPrimitiveOverestimationSizeEXT)VKL_DISPATCH(commandBuffer)->fn[643])(commandBuffer, extraPrimitiveOverestimationSize);
+	((PFN_vkCmdSetExtraPrimitiveOverestimationSizeEXT)VKL_DISPATCH(commandBuffer)->fn[645])(commandBuffer, extraPrimitiveOverestimationSize);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetExtraPrimitiveOverestimationSizeEXT(VkCommandBuffer commandBuffer, float extraPrimitiveOverestimationSize) __attribute__((weak, alias("vkl_CmdSetExtraPrimitiveOverestimationSizeEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetDepthClipEnableEXT(VkCommandBuffer commandBuffer, VkBool32 depthClipEnable)
 {
-	((PFN_vkCmdSetDepthClipEnableEXT)VKL_DISPATCH(commandBuffer)->fn[644])(commandBuffer, depthClipEnable);
+	((PFN_vkCmdSetDepthClipEnableEXT)VKL_DISPATCH(commandBuffer)->fn[646])(commandBuffer, depthClipEnable);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetDepthClipEnableEXT(VkCommandBuffer commandBuffer, VkBool32 depthClipEnable) __attribute__((weak, alias("vkl_CmdSetDepthClipEnableEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetSampleLocationsEnableEXT(VkCommandBuffer commandBuffer, VkBool32 sampleLocationsEnable)
 {
-	((PFN_vkCmdSetSampleLocationsEnableEXT)VKL_DISPATCH(commandBuffer)->fn[645])(commandBuffer, sampleLocationsEnable);
+	((PFN_vkCmdSetSampleLocationsEnableEXT)VKL_DISPATCH(commandBuffer)->fn[647])(commandBuffer, sampleLocationsEnable);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetSampleLocationsEnableEXT(VkCommandBuffer commandBuffer, VkBool32 sampleLocationsEnable) __attribute__((weak, alias("vkl_CmdSetSampleLocationsEnableEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetColorBlendAdvancedEXT(VkCommandBuffer commandBuffer, uint32_t firstAttachment, uint32_t attachmentCount, const VkColorBlendAdvancedEXT* pColorBlendAdvanced)
 {
-	((PFN_vkCmdSetColorBlendAdvancedEXT)VKL_DISPATCH(commandBuffer)->fn[646])(commandBuffer, firstAttachment, attachmentCount, pColorBlendAdvanced);
+	((PFN_vkCmdSetColorBlendAdvancedEXT)VKL_DISPATCH(commandBuffer)->fn[648])(commandBuffer, firstAttachment, attachmentCount, pColorBlendAdvanced);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetColorBlendAdvancedEXT(VkCommandBuffer commandBuffer, uint32_t firstAttachment, uint32_t attachmentCount, const VkColorBlendAdvancedEXT* pColorBlendAdvanced) __attribute__((weak, alias("vkl_CmdSetColorBlendAdvancedEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetProvokingVertexModeEXT(VkCommandBuffer commandBuffer, VkProvokingVertexModeEXT provokingVertexMode)
 {
-	((PFN_vkCmdSetProvokingVertexModeEXT)VKL_DISPATCH(commandBuffer)->fn[647])(commandBuffer, provokingVertexMode);
+	((PFN_vkCmdSetProvokingVertexModeEXT)VKL_DISPATCH(commandBuffer)->fn[649])(commandBuffer, provokingVertexMode);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetProvokingVertexModeEXT(VkCommandBuffer commandBuffer, VkProvokingVertexModeEXT provokingVertexMode) __attribute__((weak, alias("vkl_CmdSetProvokingVertexModeEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetLineRasterizationModeEXT(VkCommandBuffer commandBuffer, VkLineRasterizationModeEXT lineRasterizationMode)
 {
-	((PFN_vkCmdSetLineRasterizationModeEXT)VKL_DISPATCH(commandBuffer)->fn[648])(commandBuffer, lineRasterizationMode);
+	((PFN_vkCmdSetLineRasterizationModeEXT)VKL_DISPATCH(commandBuffer)->fn[650])(commandBuffer, lineRasterizationMode);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetLineRasterizationModeEXT(VkCommandBuffer commandBuffer, VkLineRasterizationModeEXT lineRasterizationMode) __attribute__((weak, alias("vkl_CmdSetLineRasterizationModeEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetLineStippleEnableEXT(VkCommandBuffer commandBuffer, VkBool32 stippledLineEnable)
 {
-	((PFN_vkCmdSetLineStippleEnableEXT)VKL_DISPATCH(commandBuffer)->fn[649])(commandBuffer, stippledLineEnable);
+	((PFN_vkCmdSetLineStippleEnableEXT)VKL_DISPATCH(commandBuffer)->fn[651])(commandBuffer, stippledLineEnable);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetLineStippleEnableEXT(VkCommandBuffer commandBuffer, VkBool32 stippledLineEnable) __attribute__((weak, alias("vkl_CmdSetLineStippleEnableEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetDepthClipNegativeOneToOneEXT(VkCommandBuffer commandBuffer, VkBool32 negativeOneToOne)
 {
-	((PFN_vkCmdSetDepthClipNegativeOneToOneEXT)VKL_DISPATCH(commandBuffer)->fn[650])(commandBuffer, negativeOneToOne);
+	((PFN_vkCmdSetDepthClipNegativeOneToOneEXT)VKL_DISPATCH(commandBuffer)->fn[652])(commandBuffer, negativeOneToOne);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetDepthClipNegativeOneToOneEXT(VkCommandBuffer commandBuffer, VkBool32 negativeOneToOne) __attribute__((weak, alias("vkl_CmdSetDepthClipNegativeOneToOneEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetViewportWScalingEnableNV(VkCommandBuffer commandBuffer, VkBool32 viewportWScalingEnable)
 {
-	((PFN_vkCmdSetViewportWScalingEnableNV)VKL_DISPATCH(commandBuffer)->fn[651])(commandBuffer, viewportWScalingEnable);
+	((PFN_vkCmdSetViewportWScalingEnableNV)VKL_DISPATCH(commandBuffer)->fn[653])(commandBuffer, viewportWScalingEnable);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetViewportWScalingEnableNV(VkCommandBuffer commandBuffer, VkBool32 viewportWScalingEnable) __attribute__((weak, alias("vkl_CmdSetViewportWScalingEnableNV")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetViewportSwizzleNV(VkCommandBuffer commandBuffer, uint32_t firstViewport, uint32_t viewportCount, const VkViewportSwizzleNV* pViewportSwizzles)
 {
-	((PFN_vkCmdSetViewportSwizzleNV)VKL_DISPATCH(commandBuffer)->fn[652])(commandBuffer, firstViewport, viewportCount, pViewportSwizzles);
+	((PFN_vkCmdSetViewportSwizzleNV)VKL_DISPATCH(commandBuffer)->fn[654])(commandBuffer, firstViewport, viewportCount, pViewportSwizzles);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetViewportSwizzleNV(VkCommandBuffer commandBuffer, uint32_t firstViewport, uint32_t viewportCount, const VkViewportSwizzleNV* pViewportSwizzles) __attribute__((weak, alias("vkl_CmdSetViewportSwizzleNV")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetCoverageToColorEnableNV(VkCommandBuffer commandBuffer, VkBool32 coverageToColorEnable)
 {
-	((PFN_vkCmdSetCoverageToColorEnableNV)VKL_DISPATCH(commandBuffer)->fn[653])(commandBuffer, coverageToColorEnable);
+	((PFN_vkCmdSetCoverageToColorEnableNV)VKL_DISPATCH(commandBuffer)->fn[655])(commandBuffer, coverageToColorEnable);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetCoverageToColorEnableNV(VkCommandBuffer commandBuffer, VkBool32 coverageToColorEnable) __attribute__((weak, alias("vkl_CmdSetCoverageToColorEnableNV")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetCoverageToColorLocationNV(VkCommandBuffer commandBuffer, uint32_t coverageToColorLocation)
 {
-	((PFN_vkCmdSetCoverageToColorLocationNV)VKL_DISPATCH(commandBuffer)->fn[654])(commandBuffer, coverageToColorLocation);
+	((PFN_vkCmdSetCoverageToColorLocationNV)VKL_DISPATCH(commandBuffer)->fn[656])(commandBuffer, coverageToColorLocation);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetCoverageToColorLocationNV(VkCommandBuffer commandBuffer, uint32_t coverageToColorLocation) __attribute__((weak, alias("vkl_CmdSetCoverageToColorLocationNV")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetCoverageModulationModeNV(VkCommandBuffer commandBuffer, VkCoverageModulationModeNV coverageModulationMode)
 {
-	((PFN_vkCmdSetCoverageModulationModeNV)VKL_DISPATCH(commandBuffer)->fn[655])(commandBuffer, coverageModulationMode);
+	((PFN_vkCmdSetCoverageModulationModeNV)VKL_DISPATCH(commandBuffer)->fn[657])(commandBuffer, coverageModulationMode);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetCoverageModulationModeNV(VkCommandBuffer commandBuffer, VkCoverageModulationModeNV coverageModulationMode) __attribute__((weak, alias("vkl_CmdSetCoverageModulationModeNV")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetCoverageModulationTableEnableNV(VkCommandBuffer commandBuffer, VkBool32 coverageModulationTableEnable)
 {
-	((PFN_vkCmdSetCoverageModulationTableEnableNV)VKL_DISPATCH(commandBuffer)->fn[656])(commandBuffer, coverageModulationTableEnable);
+	((PFN_vkCmdSetCoverageModulationTableEnableNV)VKL_DISPATCH(commandBuffer)->fn[658])(commandBuffer, coverageModulationTableEnable);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetCoverageModulationTableEnableNV(VkCommandBuffer commandBuffer, VkBool32 coverageModulationTableEnable) __attribute__((weak, alias("vkl_CmdSetCoverageModulationTableEnableNV")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetCoverageModulationTableNV(VkCommandBuffer commandBuffer, uint32_t coverageModulationTableCount, const float* pCoverageModulationTable)
 {
-	((PFN_vkCmdSetCoverageModulationTableNV)VKL_DISPATCH(commandBuffer)->fn[657])(commandBuffer, coverageModulationTableCount, pCoverageModulationTable);
+	((PFN_vkCmdSetCoverageModulationTableNV)VKL_DISPATCH(commandBuffer)->fn[659])(commandBuffer, coverageModulationTableCount, pCoverageModulationTable);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetCoverageModulationTableNV(VkCommandBuffer commandBuffer, uint32_t coverageModulationTableCount, const float* pCoverageModulationTable) __attribute__((weak, alias("vkl_CmdSetCoverageModulationTableNV")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetShadingRateImageEnableNV(VkCommandBuffer commandBuffer, VkBool32 shadingRateImageEnable)
 {
-	((PFN_vkCmdSetShadingRateImageEnableNV)VKL_DISPATCH(commandBuffer)->fn[658])(commandBuffer, shadingRateImageEnable);
+	((PFN_vkCmdSetShadingRateImageEnableNV)VKL_DISPATCH(commandBuffer)->fn[660])(commandBuffer, shadingRateImageEnable);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetShadingRateImageEnableNV(VkCommandBuffer commandBuffer, VkBool32 shadingRateImageEnable) __attribute__((weak, alias("vkl_CmdSetShadingRateImageEnableNV")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetRepresentativeFragmentTestEnableNV(VkCommandBuffer commandBuffer, VkBool32 representativeFragmentTestEnable)
 {
-	((PFN_vkCmdSetRepresentativeFragmentTestEnableNV)VKL_DISPATCH(commandBuffer)->fn[659])(commandBuffer, representativeFragmentTestEnable);
+	((PFN_vkCmdSetRepresentativeFragmentTestEnableNV)VKL_DISPATCH(commandBuffer)->fn[661])(commandBuffer, representativeFragmentTestEnable);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetRepresentativeFragmentTestEnableNV(VkCommandBuffer commandBuffer, VkBool32 representativeFragmentTestEnable) __attribute__((weak, alias("vkl_CmdSetRepresentativeFragmentTestEnableNV")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetCoverageReductionModeNV(VkCommandBuffer commandBuffer, VkCoverageReductionModeNV coverageReductionMode)
 {
-	((PFN_vkCmdSetCoverageReductionModeNV)VKL_DISPATCH(commandBuffer)->fn[660])(commandBuffer, coverageReductionMode);
+	((PFN_vkCmdSetCoverageReductionModeNV)VKL_DISPATCH(commandBuffer)->fn[662])(commandBuffer, coverageReductionMode);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetCoverageReductionModeNV(VkCommandBuffer commandBuffer, VkCoverageReductionModeNV coverageReductionMode) __attribute__((weak, alias("vkl_CmdSetCoverageReductionModeNV")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_CreateTensorARM(VkDevice device, const VkTensorCreateInfoARM* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkTensorARM* pTensor)
 {
-	return ((PFN_vkCreateTensorARM)VKL_DISPATCH(device)->fn[661])(device, pCreateInfo, pAllocator, pTensor);
+	return ((PFN_vkCreateTensorARM)VKL_DISPATCH(device)->fn[663])(device, pCreateInfo, pAllocator, pTensor);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkCreateTensorARM(VkDevice device, const VkTensorCreateInfoARM* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkTensorARM* pTensor) __attribute__((weak, alias("vkl_CreateTensorARM")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_DestroyTensorARM(VkDevice device, VkTensorARM tensor, const VkAllocationCallbacks* pAllocator)
 {
-	((PFN_vkDestroyTensorARM)VKL_DISPATCH(device)->fn[662])(device, tensor, pAllocator);
+	((PFN_vkDestroyTensorARM)VKL_DISPATCH(device)->fn[664])(device, tensor, pAllocator);
 }
 VKAPI_ATTR void VKAPI_CALL vkDestroyTensorARM(VkDevice device, VkTensorARM tensor, const VkAllocationCallbacks* pAllocator) __attribute__((weak, alias("vkl_DestroyTensorARM")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_CreateTensorViewARM(VkDevice device, const VkTensorViewCreateInfoARM* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkTensorViewARM* pView)
 {
-	return ((PFN_vkCreateTensorViewARM)VKL_DISPATCH(device)->fn[663])(device, pCreateInfo, pAllocator, pView);
+	return ((PFN_vkCreateTensorViewARM)VKL_DISPATCH(device)->fn[665])(device, pCreateInfo, pAllocator, pView);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkCreateTensorViewARM(VkDevice device, const VkTensorViewCreateInfoARM* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkTensorViewARM* pView) __attribute__((weak, alias("vkl_CreateTensorViewARM")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_DestroyTensorViewARM(VkDevice device, VkTensorViewARM tensorView, const VkAllocationCallbacks* pAllocator)
 {
-	((PFN_vkDestroyTensorViewARM)VKL_DISPATCH(device)->fn[664])(device, tensorView, pAllocator);
+	((PFN_vkDestroyTensorViewARM)VKL_DISPATCH(device)->fn[666])(device, tensorView, pAllocator);
 }
 VKAPI_ATTR void VKAPI_CALL vkDestroyTensorViewARM(VkDevice device, VkTensorViewARM tensorView, const VkAllocationCallbacks* pAllocator) __attribute__((weak, alias("vkl_DestroyTensorViewARM")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_GetTensorMemoryRequirementsARM(VkDevice device, const VkTensorMemoryRequirementsInfoARM* pInfo, VkMemoryRequirements2* pMemoryRequirements)
 {
-	((PFN_vkGetTensorMemoryRequirementsARM)VKL_DISPATCH(device)->fn[665])(device, pInfo, pMemoryRequirements);
+	((PFN_vkGetTensorMemoryRequirementsARM)VKL_DISPATCH(device)->fn[667])(device, pInfo, pMemoryRequirements);
 }
 VKAPI_ATTR void VKAPI_CALL vkGetTensorMemoryRequirementsARM(VkDevice device, const VkTensorMemoryRequirementsInfoARM* pInfo, VkMemoryRequirements2* pMemoryRequirements) __attribute__((weak, alias("vkl_GetTensorMemoryRequirementsARM")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_BindTensorMemoryARM(VkDevice device, uint32_t bindInfoCount, const VkBindTensorMemoryInfoARM* pBindInfos)
 {
-	return ((PFN_vkBindTensorMemoryARM)VKL_DISPATCH(device)->fn[666])(device, bindInfoCount, pBindInfos);
+	return ((PFN_vkBindTensorMemoryARM)VKL_DISPATCH(device)->fn[668])(device, bindInfoCount, pBindInfos);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkBindTensorMemoryARM(VkDevice device, uint32_t bindInfoCount, const VkBindTensorMemoryInfoARM* pBindInfos) __attribute__((weak, alias("vkl_BindTensorMemoryARM")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_GetDeviceTensorMemoryRequirementsARM(VkDevice device, const VkDeviceTensorMemoryRequirementsARM* pInfo, VkMemoryRequirements2* pMemoryRequirements)
 {
-	((PFN_vkGetDeviceTensorMemoryRequirementsARM)VKL_DISPATCH(device)->fn[667])(device, pInfo, pMemoryRequirements);
+	((PFN_vkGetDeviceTensorMemoryRequirementsARM)VKL_DISPATCH(device)->fn[669])(device, pInfo, pMemoryRequirements);
 }
 VKAPI_ATTR void VKAPI_CALL vkGetDeviceTensorMemoryRequirementsARM(VkDevice device, const VkDeviceTensorMemoryRequirementsARM* pInfo, VkMemoryRequirements2* pMemoryRequirements) __attribute__((weak, alias("vkl_GetDeviceTensorMemoryRequirementsARM")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdCopyTensorARM(VkCommandBuffer commandBuffer, const VkCopyTensorInfoARM* pCopyTensorInfo)
 {
-	((PFN_vkCmdCopyTensorARM)VKL_DISPATCH(commandBuffer)->fn[668])(commandBuffer, pCopyTensorInfo);
+	((PFN_vkCmdCopyTensorARM)VKL_DISPATCH(commandBuffer)->fn[670])(commandBuffer, pCopyTensorInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdCopyTensorARM(VkCommandBuffer commandBuffer, const VkCopyTensorInfoARM* pCopyTensorInfo) __attribute__((weak, alias("vkl_CmdCopyTensorARM")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_GetPhysicalDeviceExternalTensorPropertiesARM(VkPhysicalDevice physicalDevice, const VkPhysicalDeviceExternalTensorInfoARM* pExternalTensorInfo, VkExternalTensorPropertiesARM* pExternalTensorProperties)
 {
-	((PFN_vkGetPhysicalDeviceExternalTensorPropertiesARM)VKL_DISPATCH(physicalDevice)->fn[669])(physicalDevice, pExternalTensorInfo, pExternalTensorProperties);
+	((PFN_vkGetPhysicalDeviceExternalTensorPropertiesARM)VKL_DISPATCH(physicalDevice)->fn[671])(physicalDevice, pExternalTensorInfo, pExternalTensorProperties);
 }
 VKAPI_ATTR void VKAPI_CALL vkGetPhysicalDeviceExternalTensorPropertiesARM(VkPhysicalDevice physicalDevice, const VkPhysicalDeviceExternalTensorInfoARM* pExternalTensorInfo, VkExternalTensorPropertiesARM* pExternalTensorProperties) __attribute__((weak, alias("vkl_GetPhysicalDeviceExternalTensorPropertiesARM")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetTensorOpaqueCaptureDescriptorDataARM(VkDevice device, const VkTensorCaptureDescriptorDataInfoARM* pInfo, void* pData)
 {
-	return ((PFN_vkGetTensorOpaqueCaptureDescriptorDataARM)VKL_DISPATCH(device)->fn[670])(device, pInfo, pData);
+	return ((PFN_vkGetTensorOpaqueCaptureDescriptorDataARM)VKL_DISPATCH(device)->fn[672])(device, pInfo, pData);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetTensorOpaqueCaptureDescriptorDataARM(VkDevice device, const VkTensorCaptureDescriptorDataInfoARM* pInfo, void* pData) __attribute__((weak, alias("vkl_GetTensorOpaqueCaptureDescriptorDataARM")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetTensorViewOpaqueCaptureDescriptorDataARM(VkDevice device, const VkTensorViewCaptureDescriptorDataInfoARM* pInfo, void* pData)
 {
-	return ((PFN_vkGetTensorViewOpaqueCaptureDescriptorDataARM)VKL_DISPATCH(device)->fn[671])(device, pInfo, pData);
+	return ((PFN_vkGetTensorViewOpaqueCaptureDescriptorDataARM)VKL_DISPATCH(device)->fn[673])(device, pInfo, pData);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetTensorViewOpaqueCaptureDescriptorDataARM(VkDevice device, const VkTensorViewCaptureDescriptorDataInfoARM* pInfo, void* pData) __attribute__((weak, alias("vkl_GetTensorViewOpaqueCaptureDescriptorDataARM")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_GetShaderModuleIdentifierEXT(VkDevice device, VkShaderModule shaderModule, VkShaderModuleIdentifierEXT* pIdentifier)
 {
-	((PFN_vkGetShaderModuleIdentifierEXT)VKL_DISPATCH(device)->fn[672])(device, shaderModule, pIdentifier);
+	((PFN_vkGetShaderModuleIdentifierEXT)VKL_DISPATCH(device)->fn[674])(device, shaderModule, pIdentifier);
 }
 VKAPI_ATTR void VKAPI_CALL vkGetShaderModuleIdentifierEXT(VkDevice device, VkShaderModule shaderModule, VkShaderModuleIdentifierEXT* pIdentifier) __attribute__((weak, alias("vkl_GetShaderModuleIdentifierEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_GetShaderModuleCreateInfoIdentifierEXT(VkDevice device, const VkShaderModuleCreateInfo* pCreateInfo, VkShaderModuleIdentifierEXT* pIdentifier)
 {
-	((PFN_vkGetShaderModuleCreateInfoIdentifierEXT)VKL_DISPATCH(device)->fn[673])(device, pCreateInfo, pIdentifier);
+	((PFN_vkGetShaderModuleCreateInfoIdentifierEXT)VKL_DISPATCH(device)->fn[675])(device, pCreateInfo, pIdentifier);
 }
 VKAPI_ATTR void VKAPI_CALL vkGetShaderModuleCreateInfoIdentifierEXT(VkDevice device, const VkShaderModuleCreateInfo* pCreateInfo, VkShaderModuleIdentifierEXT* pIdentifier) __attribute__((weak, alias("vkl_GetShaderModuleCreateInfoIdentifierEXT")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetPhysicalDeviceOpticalFlowImageFormatsNV(VkPhysicalDevice physicalDevice, const VkOpticalFlowImageFormatInfoNV* pOpticalFlowImageFormatInfo, uint32_t* pFormatCount, VkOpticalFlowImageFormatPropertiesNV* pImageFormatProperties)
 {
-	return ((PFN_vkGetPhysicalDeviceOpticalFlowImageFormatsNV)VKL_DISPATCH(physicalDevice)->fn[674])(physicalDevice, pOpticalFlowImageFormatInfo, pFormatCount, pImageFormatProperties);
+	return ((PFN_vkGetPhysicalDeviceOpticalFlowImageFormatsNV)VKL_DISPATCH(physicalDevice)->fn[676])(physicalDevice, pOpticalFlowImageFormatInfo, pFormatCount, pImageFormatProperties);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetPhysicalDeviceOpticalFlowImageFormatsNV(VkPhysicalDevice physicalDevice, const VkOpticalFlowImageFormatInfoNV* pOpticalFlowImageFormatInfo, uint32_t* pFormatCount, VkOpticalFlowImageFormatPropertiesNV* pImageFormatProperties) __attribute__((weak, alias("vkl_GetPhysicalDeviceOpticalFlowImageFormatsNV")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_CreateOpticalFlowSessionNV(VkDevice device, const VkOpticalFlowSessionCreateInfoNV* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkOpticalFlowSessionNV* pSession)
 {
-	return ((PFN_vkCreateOpticalFlowSessionNV)VKL_DISPATCH(device)->fn[675])(device, pCreateInfo, pAllocator, pSession);
+	return ((PFN_vkCreateOpticalFlowSessionNV)VKL_DISPATCH(device)->fn[677])(device, pCreateInfo, pAllocator, pSession);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkCreateOpticalFlowSessionNV(VkDevice device, const VkOpticalFlowSessionCreateInfoNV* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkOpticalFlowSessionNV* pSession) __attribute__((weak, alias("vkl_CreateOpticalFlowSessionNV")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_DestroyOpticalFlowSessionNV(VkDevice device, VkOpticalFlowSessionNV session, const VkAllocationCallbacks* pAllocator)
 {
-	((PFN_vkDestroyOpticalFlowSessionNV)VKL_DISPATCH(device)->fn[676])(device, session, pAllocator);
+	((PFN_vkDestroyOpticalFlowSessionNV)VKL_DISPATCH(device)->fn[678])(device, session, pAllocator);
 }
 VKAPI_ATTR void VKAPI_CALL vkDestroyOpticalFlowSessionNV(VkDevice device, VkOpticalFlowSessionNV session, const VkAllocationCallbacks* pAllocator) __attribute__((weak, alias("vkl_DestroyOpticalFlowSessionNV")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_BindOpticalFlowSessionImageNV(VkDevice device, VkOpticalFlowSessionNV session, VkOpticalFlowSessionBindingPointNV bindingPoint, VkImageView view, VkImageLayout layout)
 {
-	return ((PFN_vkBindOpticalFlowSessionImageNV)VKL_DISPATCH(device)->fn[677])(device, session, bindingPoint, view, layout);
+	return ((PFN_vkBindOpticalFlowSessionImageNV)VKL_DISPATCH(device)->fn[679])(device, session, bindingPoint, view, layout);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkBindOpticalFlowSessionImageNV(VkDevice device, VkOpticalFlowSessionNV session, VkOpticalFlowSessionBindingPointNV bindingPoint, VkImageView view, VkImageLayout layout) __attribute__((weak, alias("vkl_BindOpticalFlowSessionImageNV")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdOpticalFlowExecuteNV(VkCommandBuffer commandBuffer, VkOpticalFlowSessionNV session, const VkOpticalFlowExecuteInfoNV* pExecuteInfo)
 {
-	((PFN_vkCmdOpticalFlowExecuteNV)VKL_DISPATCH(commandBuffer)->fn[678])(commandBuffer, session, pExecuteInfo);
+	((PFN_vkCmdOpticalFlowExecuteNV)VKL_DISPATCH(commandBuffer)->fn[680])(commandBuffer, session, pExecuteInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdOpticalFlowExecuteNV(VkCommandBuffer commandBuffer, VkOpticalFlowSessionNV session, const VkOpticalFlowExecuteInfoNV* pExecuteInfo) __attribute__((weak, alias("vkl_CmdOpticalFlowExecuteNV")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdBindIndexBuffer2KHR(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset, VkDeviceSize size, VkIndexType indexType)
 {
-	((PFN_vkCmdBindIndexBuffer2KHR)VKL_DISPATCH(commandBuffer)->fn[679])(commandBuffer, buffer, offset, size, indexType);
+	((PFN_vkCmdBindIndexBuffer2KHR)VKL_DISPATCH(commandBuffer)->fn[681])(commandBuffer, buffer, offset, size, indexType);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdBindIndexBuffer2KHR(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset, VkDeviceSize size, VkIndexType indexType) __attribute__((weak, alias("vkl_CmdBindIndexBuffer2KHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_GetRenderingAreaGranularityKHR(VkDevice device, const VkRenderingAreaInfo* pRenderingAreaInfo, VkExtent2D* pGranularity)
 {
-	((PFN_vkGetRenderingAreaGranularityKHR)VKL_DISPATCH(device)->fn[680])(device, pRenderingAreaInfo, pGranularity);
+	((PFN_vkGetRenderingAreaGranularityKHR)VKL_DISPATCH(device)->fn[682])(device, pRenderingAreaInfo, pGranularity);
 }
 VKAPI_ATTR void VKAPI_CALL vkGetRenderingAreaGranularityKHR(VkDevice device, const VkRenderingAreaInfo* pRenderingAreaInfo, VkExtent2D* pGranularity) __attribute__((weak, alias("vkl_GetRenderingAreaGranularityKHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_GetDeviceImageSubresourceLayoutKHR(VkDevice device, const VkDeviceImageSubresourceInfo* pInfo, VkSubresourceLayout2* pLayout)
 {
-	((PFN_vkGetDeviceImageSubresourceLayoutKHR)VKL_DISPATCH(device)->fn[681])(device, pInfo, pLayout);
+	((PFN_vkGetDeviceImageSubresourceLayoutKHR)VKL_DISPATCH(device)->fn[683])(device, pInfo, pLayout);
 }
 VKAPI_ATTR void VKAPI_CALL vkGetDeviceImageSubresourceLayoutKHR(VkDevice device, const VkDeviceImageSubresourceInfo* pInfo, VkSubresourceLayout2* pLayout) __attribute__((weak, alias("vkl_GetDeviceImageSubresourceLayoutKHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_GetImageSubresourceLayout2KHR(VkDevice device, VkImage image, const VkImageSubresource2* pSubresource, VkSubresourceLayout2* pLayout)
 {
-	((PFN_vkGetImageSubresourceLayout2KHR)VKL_DISPATCH(device)->fn[682])(device, image, pSubresource, pLayout);
+	((PFN_vkGetImageSubresourceLayout2KHR)VKL_DISPATCH(device)->fn[684])(device, image, pSubresource, pLayout);
 }
 VKAPI_ATTR void VKAPI_CALL vkGetImageSubresourceLayout2KHR(VkDevice device, VkImage image, const VkImageSubresource2* pSubresource, VkSubresourceLayout2* pLayout) __attribute__((weak, alias("vkl_GetImageSubresourceLayout2KHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_AntiLagUpdateAMD(VkDevice device, const VkAntiLagDataAMD* pData)
 {
-	((PFN_vkAntiLagUpdateAMD)VKL_DISPATCH(device)->fn[683])(device, pData);
+	((PFN_vkAntiLagUpdateAMD)VKL_DISPATCH(device)->fn[685])(device, pData);
 }
 VKAPI_ATTR void VKAPI_CALL vkAntiLagUpdateAMD(VkDevice device, const VkAntiLagDataAMD* pData) __attribute__((weak, alias("vkl_AntiLagUpdateAMD")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_WaitForPresent2KHR(VkDevice device, VkSwapchainKHR swapchain, const VkPresentWait2InfoKHR* pPresentWait2Info)
 {
-	return ((PFN_vkWaitForPresent2KHR)VKL_DISPATCH(device)->fn[684])(device, swapchain, pPresentWait2Info);
+	return ((PFN_vkWaitForPresent2KHR)VKL_DISPATCH(device)->fn[686])(device, swapchain, pPresentWait2Info);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkWaitForPresent2KHR(VkDevice device, VkSwapchainKHR swapchain, const VkPresentWait2InfoKHR* pPresentWait2Info) __attribute__((weak, alias("vkl_WaitForPresent2KHR")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_CreateShadersEXT(VkDevice device, uint32_t createInfoCount, const VkShaderCreateInfoEXT* pCreateInfos, const VkAllocationCallbacks* pAllocator, VkShaderEXT* pShaders)
 {
-	return ((PFN_vkCreateShadersEXT)VKL_DISPATCH(device)->fn[685])(device, createInfoCount, pCreateInfos, pAllocator, pShaders);
+	return ((PFN_vkCreateShadersEXT)VKL_DISPATCH(device)->fn[687])(device, createInfoCount, pCreateInfos, pAllocator, pShaders);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkCreateShadersEXT(VkDevice device, uint32_t createInfoCount, const VkShaderCreateInfoEXT* pCreateInfos, const VkAllocationCallbacks* pAllocator, VkShaderEXT* pShaders) __attribute__((weak, alias("vkl_CreateShadersEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_DestroyShaderEXT(VkDevice device, VkShaderEXT shader, const VkAllocationCallbacks* pAllocator)
 {
-	((PFN_vkDestroyShaderEXT)VKL_DISPATCH(device)->fn[686])(device, shader, pAllocator);
+	((PFN_vkDestroyShaderEXT)VKL_DISPATCH(device)->fn[688])(device, shader, pAllocator);
 }
 VKAPI_ATTR void VKAPI_CALL vkDestroyShaderEXT(VkDevice device, VkShaderEXT shader, const VkAllocationCallbacks* pAllocator) __attribute__((weak, alias("vkl_DestroyShaderEXT")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetShaderBinaryDataEXT(VkDevice device, VkShaderEXT shader, size_t* pDataSize, void* pData)
 {
-	return ((PFN_vkGetShaderBinaryDataEXT)VKL_DISPATCH(device)->fn[687])(device, shader, pDataSize, pData);
+	return ((PFN_vkGetShaderBinaryDataEXT)VKL_DISPATCH(device)->fn[689])(device, shader, pDataSize, pData);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetShaderBinaryDataEXT(VkDevice device, VkShaderEXT shader, size_t* pDataSize, void* pData) __attribute__((weak, alias("vkl_GetShaderBinaryDataEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdBindShadersEXT(VkCommandBuffer commandBuffer, uint32_t stageCount, const VkShaderStageFlagBits* pStages, const VkShaderEXT* pShaders)
 {
-	((PFN_vkCmdBindShadersEXT)VKL_DISPATCH(commandBuffer)->fn[688])(commandBuffer, stageCount, pStages, pShaders);
+	((PFN_vkCmdBindShadersEXT)VKL_DISPATCH(commandBuffer)->fn[690])(commandBuffer, stageCount, pStages, pShaders);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdBindShadersEXT(VkCommandBuffer commandBuffer, uint32_t stageCount, const VkShaderStageFlagBits* pStages, const VkShaderEXT* pShaders) __attribute__((weak, alias("vkl_CmdBindShadersEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetDepthClampRangeEXT(VkCommandBuffer commandBuffer, VkDepthClampModeEXT depthClampMode, const VkDepthClampRangeEXT* pDepthClampRange)
 {
-	((PFN_vkCmdSetDepthClampRangeEXT)VKL_DISPATCH(commandBuffer)->fn[689])(commandBuffer, depthClampMode, pDepthClampRange);
+	((PFN_vkCmdSetDepthClampRangeEXT)VKL_DISPATCH(commandBuffer)->fn[691])(commandBuffer, depthClampMode, pDepthClampRange);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetDepthClampRangeEXT(VkCommandBuffer commandBuffer, VkDepthClampModeEXT depthClampMode, const VkDepthClampRangeEXT* pDepthClampRange) __attribute__((weak, alias("vkl_CmdSetDepthClampRangeEXT")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_CreatePipelineBinariesKHR(VkDevice device, const VkPipelineBinaryCreateInfoKHR* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkPipelineBinaryHandlesInfoKHR* pBinaries)
 {
-	return ((PFN_vkCreatePipelineBinariesKHR)VKL_DISPATCH(device)->fn[690])(device, pCreateInfo, pAllocator, pBinaries);
+	return ((PFN_vkCreatePipelineBinariesKHR)VKL_DISPATCH(device)->fn[692])(device, pCreateInfo, pAllocator, pBinaries);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkCreatePipelineBinariesKHR(VkDevice device, const VkPipelineBinaryCreateInfoKHR* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkPipelineBinaryHandlesInfoKHR* pBinaries) __attribute__((weak, alias("vkl_CreatePipelineBinariesKHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_DestroyPipelineBinaryKHR(VkDevice device, VkPipelineBinaryKHR pipelineBinary, const VkAllocationCallbacks* pAllocator)
 {
-	((PFN_vkDestroyPipelineBinaryKHR)VKL_DISPATCH(device)->fn[691])(device, pipelineBinary, pAllocator);
+	((PFN_vkDestroyPipelineBinaryKHR)VKL_DISPATCH(device)->fn[693])(device, pipelineBinary, pAllocator);
 }
 VKAPI_ATTR void VKAPI_CALL vkDestroyPipelineBinaryKHR(VkDevice device, VkPipelineBinaryKHR pipelineBinary, const VkAllocationCallbacks* pAllocator) __attribute__((weak, alias("vkl_DestroyPipelineBinaryKHR")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetPipelineKeyKHR(VkDevice device, const VkPipelineCreateInfoKHR* pPipelineCreateInfo, VkPipelineBinaryKeyKHR* pPipelineKey)
 {
-	return ((PFN_vkGetPipelineKeyKHR)VKL_DISPATCH(device)->fn[692])(device, pPipelineCreateInfo, pPipelineKey);
+	return ((PFN_vkGetPipelineKeyKHR)VKL_DISPATCH(device)->fn[694])(device, pPipelineCreateInfo, pPipelineKey);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetPipelineKeyKHR(VkDevice device, const VkPipelineCreateInfoKHR* pPipelineCreateInfo, VkPipelineBinaryKeyKHR* pPipelineKey) __attribute__((weak, alias("vkl_GetPipelineKeyKHR")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetPipelineBinaryDataKHR(VkDevice device, const VkPipelineBinaryDataInfoKHR* pInfo, VkPipelineBinaryKeyKHR* pPipelineBinaryKey, size_t* pPipelineBinaryDataSize, void* pPipelineBinaryData)
 {
-	return ((PFN_vkGetPipelineBinaryDataKHR)VKL_DISPATCH(device)->fn[693])(device, pInfo, pPipelineBinaryKey, pPipelineBinaryDataSize, pPipelineBinaryData);
+	return ((PFN_vkGetPipelineBinaryDataKHR)VKL_DISPATCH(device)->fn[695])(device, pInfo, pPipelineBinaryKey, pPipelineBinaryDataSize, pPipelineBinaryData);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetPipelineBinaryDataKHR(VkDevice device, const VkPipelineBinaryDataInfoKHR* pInfo, VkPipelineBinaryKeyKHR* pPipelineBinaryKey, size_t* pPipelineBinaryDataSize, void* pPipelineBinaryData) __attribute__((weak, alias("vkl_GetPipelineBinaryDataKHR")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_ReleaseCapturedPipelineDataKHR(VkDevice device, const VkReleaseCapturedPipelineDataInfoKHR* pInfo, const VkAllocationCallbacks* pAllocator)
 {
-	return ((PFN_vkReleaseCapturedPipelineDataKHR)VKL_DISPATCH(device)->fn[694])(device, pInfo, pAllocator);
+	return ((PFN_vkReleaseCapturedPipelineDataKHR)VKL_DISPATCH(device)->fn[696])(device, pInfo, pAllocator);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkReleaseCapturedPipelineDataKHR(VkDevice device, const VkReleaseCapturedPipelineDataInfoKHR* pInfo, const VkAllocationCallbacks* pAllocator) __attribute__((weak, alias("vkl_ReleaseCapturedPipelineDataKHR")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetFramebufferTilePropertiesQCOM(VkDevice device, VkFramebuffer framebuffer, uint32_t* pPropertiesCount, VkTilePropertiesQCOM* pProperties)
 {
-	return ((PFN_vkGetFramebufferTilePropertiesQCOM)VKL_DISPATCH(device)->fn[695])(device, framebuffer, pPropertiesCount, pProperties);
+	return ((PFN_vkGetFramebufferTilePropertiesQCOM)VKL_DISPATCH(device)->fn[697])(device, framebuffer, pPropertiesCount, pProperties);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetFramebufferTilePropertiesQCOM(VkDevice device, VkFramebuffer framebuffer, uint32_t* pPropertiesCount, VkTilePropertiesQCOM* pProperties) __attribute__((weak, alias("vkl_GetFramebufferTilePropertiesQCOM")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetDynamicRenderingTilePropertiesQCOM(VkDevice device, const VkRenderingInfo* pRenderingInfo, VkTilePropertiesQCOM* pProperties)
 {
-	return ((PFN_vkGetDynamicRenderingTilePropertiesQCOM)VKL_DISPATCH(device)->fn[696])(device, pRenderingInfo, pProperties);
+	return ((PFN_vkGetDynamicRenderingTilePropertiesQCOM)VKL_DISPATCH(device)->fn[698])(device, pRenderingInfo, pProperties);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetDynamicRenderingTilePropertiesQCOM(VkDevice device, const VkRenderingInfo* pRenderingInfo, VkTilePropertiesQCOM* pProperties) __attribute__((weak, alias("vkl_GetDynamicRenderingTilePropertiesQCOM")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_ReleaseSwapchainImagesKHR(VkDevice device, const VkReleaseSwapchainImagesInfoKHR* pReleaseInfo)
 {
-	return ((PFN_vkReleaseSwapchainImagesKHR)VKL_DISPATCH(device)->fn[697])(device, pReleaseInfo);
+	return ((PFN_vkReleaseSwapchainImagesKHR)VKL_DISPATCH(device)->fn[699])(device, pReleaseInfo);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkReleaseSwapchainImagesKHR(VkDevice device, const VkReleaseSwapchainImagesInfoKHR* pReleaseInfo) __attribute__((weak, alias("vkl_ReleaseSwapchainImagesKHR")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetPhysicalDeviceCooperativeVectorPropertiesNV(VkPhysicalDevice physicalDevice, uint32_t* pPropertyCount, VkCooperativeVectorPropertiesNV* pProperties)
 {
-	return ((PFN_vkGetPhysicalDeviceCooperativeVectorPropertiesNV)VKL_DISPATCH(physicalDevice)->fn[698])(physicalDevice, pPropertyCount, pProperties);
+	return ((PFN_vkGetPhysicalDeviceCooperativeVectorPropertiesNV)VKL_DISPATCH(physicalDevice)->fn[700])(physicalDevice, pPropertyCount, pProperties);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetPhysicalDeviceCooperativeVectorPropertiesNV(VkPhysicalDevice physicalDevice, uint32_t* pPropertyCount, VkCooperativeVectorPropertiesNV* pProperties) __attribute__((weak, alias("vkl_GetPhysicalDeviceCooperativeVectorPropertiesNV")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_ConvertCooperativeVectorMatrixNV(VkDevice device, const VkConvertCooperativeVectorMatrixInfoNV* pInfo)
 {
-	return ((PFN_vkConvertCooperativeVectorMatrixNV)VKL_DISPATCH(device)->fn[699])(device, pInfo);
+	return ((PFN_vkConvertCooperativeVectorMatrixNV)VKL_DISPATCH(device)->fn[701])(device, pInfo);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkConvertCooperativeVectorMatrixNV(VkDevice device, const VkConvertCooperativeVectorMatrixInfoNV* pInfo) __attribute__((weak, alias("vkl_ConvertCooperativeVectorMatrixNV")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdConvertCooperativeVectorMatrixNV(VkCommandBuffer commandBuffer, uint32_t infoCount, const VkConvertCooperativeVectorMatrixInfoNV* pInfos)
 {
-	((PFN_vkCmdConvertCooperativeVectorMatrixNV)VKL_DISPATCH(commandBuffer)->fn[700])(commandBuffer, infoCount, pInfos);
+	((PFN_vkCmdConvertCooperativeVectorMatrixNV)VKL_DISPATCH(commandBuffer)->fn[702])(commandBuffer, infoCount, pInfos);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdConvertCooperativeVectorMatrixNV(VkCommandBuffer commandBuffer, uint32_t infoCount, const VkConvertCooperativeVectorMatrixInfoNV* pInfos) __attribute__((weak, alias("vkl_CmdConvertCooperativeVectorMatrixNV")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_SetLatencySleepModeNV(VkDevice device, VkSwapchainKHR swapchain, const VkLatencySleepModeInfoNV* pSleepModeInfo)
 {
-	return ((PFN_vkSetLatencySleepModeNV)VKL_DISPATCH(device)->fn[701])(device, swapchain, pSleepModeInfo);
+	return ((PFN_vkSetLatencySleepModeNV)VKL_DISPATCH(device)->fn[703])(device, swapchain, pSleepModeInfo);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkSetLatencySleepModeNV(VkDevice device, VkSwapchainKHR swapchain, const VkLatencySleepModeInfoNV* pSleepModeInfo) __attribute__((weak, alias("vkl_SetLatencySleepModeNV")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_LatencySleepNV(VkDevice device, VkSwapchainKHR swapchain, const VkLatencySleepInfoNV* pSleepInfo)
 {
-	return ((PFN_vkLatencySleepNV)VKL_DISPATCH(device)->fn[702])(device, swapchain, pSleepInfo);
+	return ((PFN_vkLatencySleepNV)VKL_DISPATCH(device)->fn[704])(device, swapchain, pSleepInfo);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkLatencySleepNV(VkDevice device, VkSwapchainKHR swapchain, const VkLatencySleepInfoNV* pSleepInfo) __attribute__((weak, alias("vkl_LatencySleepNV")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_SetLatencyMarkerNV(VkDevice device, VkSwapchainKHR swapchain, const VkSetLatencyMarkerInfoNV* pLatencyMarkerInfo)
 {
-	((PFN_vkSetLatencyMarkerNV)VKL_DISPATCH(device)->fn[703])(device, swapchain, pLatencyMarkerInfo);
+	((PFN_vkSetLatencyMarkerNV)VKL_DISPATCH(device)->fn[705])(device, swapchain, pLatencyMarkerInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkSetLatencyMarkerNV(VkDevice device, VkSwapchainKHR swapchain, const VkSetLatencyMarkerInfoNV* pLatencyMarkerInfo) __attribute__((weak, alias("vkl_SetLatencyMarkerNV")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_GetLatencyTimingsNV(VkDevice device, VkSwapchainKHR swapchain, VkGetLatencyMarkerInfoNV* pLatencyMarkerInfo)
 {
-	((PFN_vkGetLatencyTimingsNV)VKL_DISPATCH(device)->fn[704])(device, swapchain, pLatencyMarkerInfo);
+	((PFN_vkGetLatencyTimingsNV)VKL_DISPATCH(device)->fn[706])(device, swapchain, pLatencyMarkerInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkGetLatencyTimingsNV(VkDevice device, VkSwapchainKHR swapchain, VkGetLatencyMarkerInfoNV* pLatencyMarkerInfo) __attribute__((weak, alias("vkl_GetLatencyTimingsNV")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_QueueNotifyOutOfBandNV(VkQueue queue, const VkOutOfBandQueueTypeInfoNV* pQueueTypeInfo)
 {
-	((PFN_vkQueueNotifyOutOfBandNV)VKL_DISPATCH(queue)->fn[705])(queue, pQueueTypeInfo);
+	((PFN_vkQueueNotifyOutOfBandNV)VKL_DISPATCH(queue)->fn[707])(queue, pQueueTypeInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkQueueNotifyOutOfBandNV(VkQueue queue, const VkOutOfBandQueueTypeInfoNV* pQueueTypeInfo) __attribute__((weak, alias("vkl_QueueNotifyOutOfBandNV")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetPhysicalDeviceCooperativeMatrixPropertiesKHR(VkPhysicalDevice physicalDevice, uint32_t* pPropertyCount, VkCooperativeMatrixPropertiesKHR* pProperties)
 {
-	return ((PFN_vkGetPhysicalDeviceCooperativeMatrixPropertiesKHR)VKL_DISPATCH(physicalDevice)->fn[706])(physicalDevice, pPropertyCount, pProperties);
+	return ((PFN_vkGetPhysicalDeviceCooperativeMatrixPropertiesKHR)VKL_DISPATCH(physicalDevice)->fn[708])(physicalDevice, pPropertyCount, pProperties);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetPhysicalDeviceCooperativeMatrixPropertiesKHR(VkPhysicalDevice physicalDevice, uint32_t* pPropertyCount, VkCooperativeMatrixPropertiesKHR* pProperties) __attribute__((weak, alias("vkl_GetPhysicalDeviceCooperativeMatrixPropertiesKHR")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_CreateDataGraphPipelinesARM(VkDevice device, VkDeferredOperationKHR deferredOperation, VkPipelineCache pipelineCache, uint32_t createInfoCount, const VkDataGraphPipelineCreateInfoARM* pCreateInfos, const VkAllocationCallbacks* pAllocator, VkPipeline* pPipelines)
 {
-	return ((PFN_vkCreateDataGraphPipelinesARM)VKL_DISPATCH(device)->fn[707])(device, deferredOperation, pipelineCache, createInfoCount, pCreateInfos, pAllocator, pPipelines);
+	return ((PFN_vkCreateDataGraphPipelinesARM)VKL_DISPATCH(device)->fn[709])(device, deferredOperation, pipelineCache, createInfoCount, pCreateInfos, pAllocator, pPipelines);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkCreateDataGraphPipelinesARM(VkDevice device, VkDeferredOperationKHR deferredOperation, VkPipelineCache pipelineCache, uint32_t createInfoCount, const VkDataGraphPipelineCreateInfoARM* pCreateInfos, const VkAllocationCallbacks* pAllocator, VkPipeline* pPipelines) __attribute__((weak, alias("vkl_CreateDataGraphPipelinesARM")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_CreateDataGraphPipelineSessionARM(VkDevice device, const VkDataGraphPipelineSessionCreateInfoARM* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkDataGraphPipelineSessionARM* pSession)
 {
-	return ((PFN_vkCreateDataGraphPipelineSessionARM)VKL_DISPATCH(device)->fn[708])(device, pCreateInfo, pAllocator, pSession);
+	return ((PFN_vkCreateDataGraphPipelineSessionARM)VKL_DISPATCH(device)->fn[710])(device, pCreateInfo, pAllocator, pSession);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkCreateDataGraphPipelineSessionARM(VkDevice device, const VkDataGraphPipelineSessionCreateInfoARM* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkDataGraphPipelineSessionARM* pSession) __attribute__((weak, alias("vkl_CreateDataGraphPipelineSessionARM")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetDataGraphPipelineSessionBindPointRequirementsARM(VkDevice device, const VkDataGraphPipelineSessionBindPointRequirementsInfoARM* pInfo, uint32_t* pBindPointRequirementCount, VkDataGraphPipelineSessionBindPointRequirementARM* pBindPointRequirements)
 {
-	return ((PFN_vkGetDataGraphPipelineSessionBindPointRequirementsARM)VKL_DISPATCH(device)->fn[709])(device, pInfo, pBindPointRequirementCount, pBindPointRequirements);
+	return ((PFN_vkGetDataGraphPipelineSessionBindPointRequirementsARM)VKL_DISPATCH(device)->fn[711])(device, pInfo, pBindPointRequirementCount, pBindPointRequirements);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetDataGraphPipelineSessionBindPointRequirementsARM(VkDevice device, const VkDataGraphPipelineSessionBindPointRequirementsInfoARM* pInfo, uint32_t* pBindPointRequirementCount, VkDataGraphPipelineSessionBindPointRequirementARM* pBindPointRequirements) __attribute__((weak, alias("vkl_GetDataGraphPipelineSessionBindPointRequirementsARM")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_GetDataGraphPipelineSessionMemoryRequirementsARM(VkDevice device, const VkDataGraphPipelineSessionMemoryRequirementsInfoARM* pInfo, VkMemoryRequirements2* pMemoryRequirements)
 {
-	((PFN_vkGetDataGraphPipelineSessionMemoryRequirementsARM)VKL_DISPATCH(device)->fn[710])(device, pInfo, pMemoryRequirements);
+	((PFN_vkGetDataGraphPipelineSessionMemoryRequirementsARM)VKL_DISPATCH(device)->fn[712])(device, pInfo, pMemoryRequirements);
 }
 VKAPI_ATTR void VKAPI_CALL vkGetDataGraphPipelineSessionMemoryRequirementsARM(VkDevice device, const VkDataGraphPipelineSessionMemoryRequirementsInfoARM* pInfo, VkMemoryRequirements2* pMemoryRequirements) __attribute__((weak, alias("vkl_GetDataGraphPipelineSessionMemoryRequirementsARM")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_BindDataGraphPipelineSessionMemoryARM(VkDevice device, uint32_t bindInfoCount, const VkBindDataGraphPipelineSessionMemoryInfoARM* pBindInfos)
 {
-	return ((PFN_vkBindDataGraphPipelineSessionMemoryARM)VKL_DISPATCH(device)->fn[711])(device, bindInfoCount, pBindInfos);
+	return ((PFN_vkBindDataGraphPipelineSessionMemoryARM)VKL_DISPATCH(device)->fn[713])(device, bindInfoCount, pBindInfos);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkBindDataGraphPipelineSessionMemoryARM(VkDevice device, uint32_t bindInfoCount, const VkBindDataGraphPipelineSessionMemoryInfoARM* pBindInfos) __attribute__((weak, alias("vkl_BindDataGraphPipelineSessionMemoryARM")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_DestroyDataGraphPipelineSessionARM(VkDevice device, VkDataGraphPipelineSessionARM session, const VkAllocationCallbacks* pAllocator)
 {
-	((PFN_vkDestroyDataGraphPipelineSessionARM)VKL_DISPATCH(device)->fn[712])(device, session, pAllocator);
+	((PFN_vkDestroyDataGraphPipelineSessionARM)VKL_DISPATCH(device)->fn[714])(device, session, pAllocator);
 }
 VKAPI_ATTR void VKAPI_CALL vkDestroyDataGraphPipelineSessionARM(VkDevice device, VkDataGraphPipelineSessionARM session, const VkAllocationCallbacks* pAllocator) __attribute__((weak, alias("vkl_DestroyDataGraphPipelineSessionARM")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdDispatchDataGraphARM(VkCommandBuffer commandBuffer, VkDataGraphPipelineSessionARM session, const VkDataGraphPipelineDispatchInfoARM* pInfo)
 {
-	((PFN_vkCmdDispatchDataGraphARM)VKL_DISPATCH(commandBuffer)->fn[713])(commandBuffer, session, pInfo);
+	((PFN_vkCmdDispatchDataGraphARM)VKL_DISPATCH(commandBuffer)->fn[715])(commandBuffer, session, pInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdDispatchDataGraphARM(VkCommandBuffer commandBuffer, VkDataGraphPipelineSessionARM session, const VkDataGraphPipelineDispatchInfoARM* pInfo) __attribute__((weak, alias("vkl_CmdDispatchDataGraphARM")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetDataGraphPipelineAvailablePropertiesARM(VkDevice device, const VkDataGraphPipelineInfoARM* pPipelineInfo, uint32_t* pPropertiesCount, VkDataGraphPipelinePropertyARM* pProperties)
 {
-	return ((PFN_vkGetDataGraphPipelineAvailablePropertiesARM)VKL_DISPATCH(device)->fn[714])(device, pPipelineInfo, pPropertiesCount, pProperties);
+	return ((PFN_vkGetDataGraphPipelineAvailablePropertiesARM)VKL_DISPATCH(device)->fn[716])(device, pPipelineInfo, pPropertiesCount, pProperties);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetDataGraphPipelineAvailablePropertiesARM(VkDevice device, const VkDataGraphPipelineInfoARM* pPipelineInfo, uint32_t* pPropertiesCount, VkDataGraphPipelinePropertyARM* pProperties) __attribute__((weak, alias("vkl_GetDataGraphPipelineAvailablePropertiesARM")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetDataGraphPipelinePropertiesARM(VkDevice device, const VkDataGraphPipelineInfoARM* pPipelineInfo, uint32_t propertiesCount, VkDataGraphPipelinePropertyQueryResultARM* pProperties)
 {
-	return ((PFN_vkGetDataGraphPipelinePropertiesARM)VKL_DISPATCH(device)->fn[715])(device, pPipelineInfo, propertiesCount, pProperties);
+	return ((PFN_vkGetDataGraphPipelinePropertiesARM)VKL_DISPATCH(device)->fn[717])(device, pPipelineInfo, propertiesCount, pProperties);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetDataGraphPipelinePropertiesARM(VkDevice device, const VkDataGraphPipelineInfoARM* pPipelineInfo, uint32_t propertiesCount, VkDataGraphPipelinePropertyQueryResultARM* pProperties) __attribute__((weak, alias("vkl_GetDataGraphPipelinePropertiesARM")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetPhysicalDeviceQueueFamilyDataGraphPropertiesARM(VkPhysicalDevice physicalDevice, uint32_t queueFamilyIndex, uint32_t* pQueueFamilyDataGraphPropertyCount, VkQueueFamilyDataGraphPropertiesARM* pQueueFamilyDataGraphProperties)
 {
-	return ((PFN_vkGetPhysicalDeviceQueueFamilyDataGraphPropertiesARM)VKL_DISPATCH(physicalDevice)->fn[716])(physicalDevice, queueFamilyIndex, pQueueFamilyDataGraphPropertyCount, pQueueFamilyDataGraphProperties);
+	return ((PFN_vkGetPhysicalDeviceQueueFamilyDataGraphPropertiesARM)VKL_DISPATCH(physicalDevice)->fn[718])(physicalDevice, queueFamilyIndex, pQueueFamilyDataGraphPropertyCount, pQueueFamilyDataGraphProperties);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetPhysicalDeviceQueueFamilyDataGraphPropertiesARM(VkPhysicalDevice physicalDevice, uint32_t queueFamilyIndex, uint32_t* pQueueFamilyDataGraphPropertyCount, VkQueueFamilyDataGraphPropertiesARM* pQueueFamilyDataGraphProperties) __attribute__((weak, alias("vkl_GetPhysicalDeviceQueueFamilyDataGraphPropertiesARM")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_GetPhysicalDeviceQueueFamilyDataGraphProcessingEnginePropertiesARM(VkPhysicalDevice physicalDevice, const VkPhysicalDeviceQueueFamilyDataGraphProcessingEngineInfoARM* pQueueFamilyDataGraphProcessingEngineInfo, VkQueueFamilyDataGraphProcessingEnginePropertiesARM* pQueueFamilyDataGraphProcessingEngineProperties)
 {
-	((PFN_vkGetPhysicalDeviceQueueFamilyDataGraphProcessingEnginePropertiesARM)VKL_DISPATCH(physicalDevice)->fn[717])(physicalDevice, pQueueFamilyDataGraphProcessingEngineInfo, pQueueFamilyDataGraphProcessingEngineProperties);
+	((PFN_vkGetPhysicalDeviceQueueFamilyDataGraphProcessingEnginePropertiesARM)VKL_DISPATCH(physicalDevice)->fn[719])(physicalDevice, pQueueFamilyDataGraphProcessingEngineInfo, pQueueFamilyDataGraphProcessingEngineProperties);
 }
 VKAPI_ATTR void VKAPI_CALL vkGetPhysicalDeviceQueueFamilyDataGraphProcessingEnginePropertiesARM(VkPhysicalDevice physicalDevice, const VkPhysicalDeviceQueueFamilyDataGraphProcessingEngineInfoARM* pQueueFamilyDataGraphProcessingEngineInfo, VkQueueFamilyDataGraphProcessingEnginePropertiesARM* pQueueFamilyDataGraphProcessingEngineProperties) __attribute__((weak, alias("vkl_GetPhysicalDeviceQueueFamilyDataGraphProcessingEnginePropertiesARM")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetPhysicalDeviceQueueFamilyDataGraphEngineOperationPropertiesARM(VkPhysicalDevice physicalDevice, uint32_t queueFamilyIndex, const VkQueueFamilyDataGraphPropertiesARM* pQueueFamilyDataGraphProperties, VkBaseOutStructure* pProperties)
 {
-	return ((PFN_vkGetPhysicalDeviceQueueFamilyDataGraphEngineOperationPropertiesARM)VKL_DISPATCH(physicalDevice)->fn[718])(physicalDevice, queueFamilyIndex, pQueueFamilyDataGraphProperties, pProperties);
+	return ((PFN_vkGetPhysicalDeviceQueueFamilyDataGraphEngineOperationPropertiesARM)VKL_DISPATCH(physicalDevice)->fn[720])(physicalDevice, queueFamilyIndex, pQueueFamilyDataGraphProperties, pProperties);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetPhysicalDeviceQueueFamilyDataGraphEngineOperationPropertiesARM(VkPhysicalDevice physicalDevice, uint32_t queueFamilyIndex, const VkQueueFamilyDataGraphPropertiesARM* pQueueFamilyDataGraphProperties, VkBaseOutStructure* pProperties) __attribute__((weak, alias("vkl_GetPhysicalDeviceQueueFamilyDataGraphEngineOperationPropertiesARM")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetAttachmentFeedbackLoopEnableEXT(VkCommandBuffer commandBuffer, VkImageAspectFlags aspectMask)
 {
-	((PFN_vkCmdSetAttachmentFeedbackLoopEnableEXT)VKL_DISPATCH(commandBuffer)->fn[719])(commandBuffer, aspectMask);
+	((PFN_vkCmdSetAttachmentFeedbackLoopEnableEXT)VKL_DISPATCH(commandBuffer)->fn[721])(commandBuffer, aspectMask);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetAttachmentFeedbackLoopEnableEXT(VkCommandBuffer commandBuffer, VkImageAspectFlags aspectMask) __attribute__((weak, alias("vkl_CmdSetAttachmentFeedbackLoopEnableEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetLineStippleKHR(VkCommandBuffer commandBuffer, uint32_t lineStippleFactor, uint16_t lineStipplePattern)
 {
-	((PFN_vkCmdSetLineStippleKHR)VKL_DISPATCH(commandBuffer)->fn[720])(commandBuffer, lineStippleFactor, lineStipplePattern);
+	((PFN_vkCmdSetLineStippleKHR)VKL_DISPATCH(commandBuffer)->fn[722])(commandBuffer, lineStippleFactor, lineStipplePattern);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetLineStippleKHR(VkCommandBuffer commandBuffer, uint32_t lineStippleFactor, uint16_t lineStipplePattern) __attribute__((weak, alias("vkl_CmdSetLineStippleKHR")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetPhysicalDeviceCalibrateableTimeDomainsKHR(VkPhysicalDevice physicalDevice, uint32_t* pTimeDomainCount, VkTimeDomainKHR* pTimeDomains)
 {
-	return ((PFN_vkGetPhysicalDeviceCalibrateableTimeDomainsKHR)VKL_DISPATCH(physicalDevice)->fn[721])(physicalDevice, pTimeDomainCount, pTimeDomains);
+	return ((PFN_vkGetPhysicalDeviceCalibrateableTimeDomainsKHR)VKL_DISPATCH(physicalDevice)->fn[723])(physicalDevice, pTimeDomainCount, pTimeDomains);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetPhysicalDeviceCalibrateableTimeDomainsKHR(VkPhysicalDevice physicalDevice, uint32_t* pTimeDomainCount, VkTimeDomainKHR* pTimeDomains) __attribute__((weak, alias("vkl_GetPhysicalDeviceCalibrateableTimeDomainsKHR")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetCalibratedTimestampsKHR(VkDevice device, uint32_t timestampCount, const VkCalibratedTimestampInfoKHR* pTimestampInfos, uint64_t* pTimestamps, uint64_t* pMaxDeviation)
 {
-	return ((PFN_vkGetCalibratedTimestampsKHR)VKL_DISPATCH(device)->fn[722])(device, timestampCount, pTimestampInfos, pTimestamps, pMaxDeviation);
+	return ((PFN_vkGetCalibratedTimestampsKHR)VKL_DISPATCH(device)->fn[724])(device, timestampCount, pTimestampInfos, pTimestamps, pMaxDeviation);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetCalibratedTimestampsKHR(VkDevice device, uint32_t timestampCount, const VkCalibratedTimestampInfoKHR* pTimestampInfos, uint64_t* pTimestamps, uint64_t* pMaxDeviation) __attribute__((weak, alias("vkl_GetCalibratedTimestampsKHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdBindDescriptorSets2KHR(VkCommandBuffer commandBuffer, const VkBindDescriptorSetsInfo* pBindDescriptorSetsInfo)
 {
-	((PFN_vkCmdBindDescriptorSets2KHR)VKL_DISPATCH(commandBuffer)->fn[723])(commandBuffer, pBindDescriptorSetsInfo);
+	((PFN_vkCmdBindDescriptorSets2KHR)VKL_DISPATCH(commandBuffer)->fn[725])(commandBuffer, pBindDescriptorSetsInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdBindDescriptorSets2KHR(VkCommandBuffer commandBuffer, const VkBindDescriptorSetsInfo* pBindDescriptorSetsInfo) __attribute__((weak, alias("vkl_CmdBindDescriptorSets2KHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdPushConstants2KHR(VkCommandBuffer commandBuffer, const VkPushConstantsInfo* pPushConstantsInfo)
 {
-	((PFN_vkCmdPushConstants2KHR)VKL_DISPATCH(commandBuffer)->fn[724])(commandBuffer, pPushConstantsInfo);
+	((PFN_vkCmdPushConstants2KHR)VKL_DISPATCH(commandBuffer)->fn[726])(commandBuffer, pPushConstantsInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdPushConstants2KHR(VkCommandBuffer commandBuffer, const VkPushConstantsInfo* pPushConstantsInfo) __attribute__((weak, alias("vkl_CmdPushConstants2KHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdPushDescriptorSet2KHR(VkCommandBuffer commandBuffer, const VkPushDescriptorSetInfo* pPushDescriptorSetInfo)
 {
-	((PFN_vkCmdPushDescriptorSet2KHR)VKL_DISPATCH(commandBuffer)->fn[725])(commandBuffer, pPushDescriptorSetInfo);
+	((PFN_vkCmdPushDescriptorSet2KHR)VKL_DISPATCH(commandBuffer)->fn[727])(commandBuffer, pPushDescriptorSetInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdPushDescriptorSet2KHR(VkCommandBuffer commandBuffer, const VkPushDescriptorSetInfo* pPushDescriptorSetInfo) __attribute__((weak, alias("vkl_CmdPushDescriptorSet2KHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdPushDescriptorSetWithTemplate2KHR(VkCommandBuffer commandBuffer, const VkPushDescriptorSetWithTemplateInfo* pPushDescriptorSetWithTemplateInfo)
 {
-	((PFN_vkCmdPushDescriptorSetWithTemplate2KHR)VKL_DISPATCH(commandBuffer)->fn[726])(commandBuffer, pPushDescriptorSetWithTemplateInfo);
+	((PFN_vkCmdPushDescriptorSetWithTemplate2KHR)VKL_DISPATCH(commandBuffer)->fn[728])(commandBuffer, pPushDescriptorSetWithTemplateInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdPushDescriptorSetWithTemplate2KHR(VkCommandBuffer commandBuffer, const VkPushDescriptorSetWithTemplateInfo* pPushDescriptorSetWithTemplateInfo) __attribute__((weak, alias("vkl_CmdPushDescriptorSetWithTemplate2KHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetDescriptorBufferOffsets2EXT(VkCommandBuffer commandBuffer, const VkSetDescriptorBufferOffsetsInfoEXT* pSetDescriptorBufferOffsetsInfo)
 {
-	((PFN_vkCmdSetDescriptorBufferOffsets2EXT)VKL_DISPATCH(commandBuffer)->fn[727])(commandBuffer, pSetDescriptorBufferOffsetsInfo);
+	((PFN_vkCmdSetDescriptorBufferOffsets2EXT)VKL_DISPATCH(commandBuffer)->fn[729])(commandBuffer, pSetDescriptorBufferOffsetsInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetDescriptorBufferOffsets2EXT(VkCommandBuffer commandBuffer, const VkSetDescriptorBufferOffsetsInfoEXT* pSetDescriptorBufferOffsetsInfo) __attribute__((weak, alias("vkl_CmdSetDescriptorBufferOffsets2EXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdBindDescriptorBufferEmbeddedSamplers2EXT(VkCommandBuffer commandBuffer, const VkBindDescriptorBufferEmbeddedSamplersInfoEXT* pBindDescriptorBufferEmbeddedSamplersInfo)
 {
-	((PFN_vkCmdBindDescriptorBufferEmbeddedSamplers2EXT)VKL_DISPATCH(commandBuffer)->fn[728])(commandBuffer, pBindDescriptorBufferEmbeddedSamplersInfo);
+	((PFN_vkCmdBindDescriptorBufferEmbeddedSamplers2EXT)VKL_DISPATCH(commandBuffer)->fn[730])(commandBuffer, pBindDescriptorBufferEmbeddedSamplersInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdBindDescriptorBufferEmbeddedSamplers2EXT(VkCommandBuffer commandBuffer, const VkBindDescriptorBufferEmbeddedSamplersInfoEXT* pBindDescriptorBufferEmbeddedSamplersInfo) __attribute__((weak, alias("vkl_CmdBindDescriptorBufferEmbeddedSamplers2EXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdBindTileMemoryQCOM(VkCommandBuffer commandBuffer, const VkTileMemoryBindInfoQCOM* pTileMemoryBindInfo)
 {
-	((PFN_vkCmdBindTileMemoryQCOM)VKL_DISPATCH(commandBuffer)->fn[729])(commandBuffer, pTileMemoryBindInfo);
+	((PFN_vkCmdBindTileMemoryQCOM)VKL_DISPATCH(commandBuffer)->fn[731])(commandBuffer, pTileMemoryBindInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdBindTileMemoryQCOM(VkCommandBuffer commandBuffer, const VkTileMemoryBindInfoQCOM* pTileMemoryBindInfo) __attribute__((weak, alias("vkl_CmdBindTileMemoryQCOM")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdCopyMemoryIndirectKHR(VkCommandBuffer commandBuffer, const VkCopyMemoryIndirectInfoKHR* pCopyMemoryIndirectInfo)
 {
-	((PFN_vkCmdCopyMemoryIndirectKHR)VKL_DISPATCH(commandBuffer)->fn[730])(commandBuffer, pCopyMemoryIndirectInfo);
+	((PFN_vkCmdCopyMemoryIndirectKHR)VKL_DISPATCH(commandBuffer)->fn[732])(commandBuffer, pCopyMemoryIndirectInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdCopyMemoryIndirectKHR(VkCommandBuffer commandBuffer, const VkCopyMemoryIndirectInfoKHR* pCopyMemoryIndirectInfo) __attribute__((weak, alias("vkl_CmdCopyMemoryIndirectKHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdCopyMemoryToImageIndirectKHR(VkCommandBuffer commandBuffer, const VkCopyMemoryToImageIndirectInfoKHR* pCopyMemoryToImageIndirectInfo)
 {
-	((PFN_vkCmdCopyMemoryToImageIndirectKHR)VKL_DISPATCH(commandBuffer)->fn[731])(commandBuffer, pCopyMemoryToImageIndirectInfo);
+	((PFN_vkCmdCopyMemoryToImageIndirectKHR)VKL_DISPATCH(commandBuffer)->fn[733])(commandBuffer, pCopyMemoryToImageIndirectInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdCopyMemoryToImageIndirectKHR(VkCommandBuffer commandBuffer, const VkCopyMemoryToImageIndirectInfoKHR* pCopyMemoryToImageIndirectInfo) __attribute__((weak, alias("vkl_CmdCopyMemoryToImageIndirectKHR")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdDecompressMemoryEXT(VkCommandBuffer commandBuffer, const VkDecompressMemoryInfoEXT* pDecompressMemoryInfoEXT)
 {
-	((PFN_vkCmdDecompressMemoryEXT)VKL_DISPATCH(commandBuffer)->fn[732])(commandBuffer, pDecompressMemoryInfoEXT);
+	((PFN_vkCmdDecompressMemoryEXT)VKL_DISPATCH(commandBuffer)->fn[734])(commandBuffer, pDecompressMemoryInfoEXT);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdDecompressMemoryEXT(VkCommandBuffer commandBuffer, const VkDecompressMemoryInfoEXT* pDecompressMemoryInfoEXT) __attribute__((weak, alias("vkl_CmdDecompressMemoryEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdDecompressMemoryIndirectCountEXT(VkCommandBuffer commandBuffer, VkMemoryDecompressionMethodFlagsEXT decompressionMethod, VkDeviceAddress indirectCommandsAddress, VkDeviceAddress indirectCommandsCountAddress, uint32_t maxDecompressionCount, uint32_t stride)
 {
-	((PFN_vkCmdDecompressMemoryIndirectCountEXT)VKL_DISPATCH(commandBuffer)->fn[733])(commandBuffer, decompressionMethod, indirectCommandsAddress, indirectCommandsCountAddress, maxDecompressionCount, stride);
+	((PFN_vkCmdDecompressMemoryIndirectCountEXT)VKL_DISPATCH(commandBuffer)->fn[735])(commandBuffer, decompressionMethod, indirectCommandsAddress, indirectCommandsCountAddress, maxDecompressionCount, stride);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdDecompressMemoryIndirectCountEXT(VkCommandBuffer commandBuffer, VkMemoryDecompressionMethodFlagsEXT decompressionMethod, VkDeviceAddress indirectCommandsAddress, VkDeviceAddress indirectCommandsCountAddress, uint32_t maxDecompressionCount, uint32_t stride) __attribute__((weak, alias("vkl_CmdDecompressMemoryIndirectCountEXT")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_CreateExternalComputeQueueNV(VkDevice device, const VkExternalComputeQueueCreateInfoNV* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkExternalComputeQueueNV* pExternalQueue)
 {
-	return ((PFN_vkCreateExternalComputeQueueNV)VKL_DISPATCH(device)->fn[734])(device, pCreateInfo, pAllocator, pExternalQueue);
+	return ((PFN_vkCreateExternalComputeQueueNV)VKL_DISPATCH(device)->fn[736])(device, pCreateInfo, pAllocator, pExternalQueue);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkCreateExternalComputeQueueNV(VkDevice device, const VkExternalComputeQueueCreateInfoNV* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkExternalComputeQueueNV* pExternalQueue) __attribute__((weak, alias("vkl_CreateExternalComputeQueueNV")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_DestroyExternalComputeQueueNV(VkDevice device, VkExternalComputeQueueNV externalQueue, const VkAllocationCallbacks* pAllocator)
 {
-	((PFN_vkDestroyExternalComputeQueueNV)VKL_DISPATCH(device)->fn[735])(device, externalQueue, pAllocator);
+	((PFN_vkDestroyExternalComputeQueueNV)VKL_DISPATCH(device)->fn[737])(device, externalQueue, pAllocator);
 }
 VKAPI_ATTR void VKAPI_CALL vkDestroyExternalComputeQueueNV(VkDevice device, VkExternalComputeQueueNV externalQueue, const VkAllocationCallbacks* pAllocator) __attribute__((weak, alias("vkl_DestroyExternalComputeQueueNV")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_GetExternalComputeQueueDataNV(VkExternalComputeQueueNV externalQueue, VkExternalComputeQueueDataParamsNV* params, void* pData)
 {
-	((PFN_vkGetExternalComputeQueueDataNV)vkl_global(736))(externalQueue, params, pData);
+	((PFN_vkGetExternalComputeQueueDataNV)vkl_global(738))(externalQueue, params, pData);
 }
 VKAPI_ATTR void VKAPI_CALL vkGetExternalComputeQueueDataNV(VkExternalComputeQueueNV externalQueue, VkExternalComputeQueueDataParamsNV* params, void* pData) __attribute__((weak, alias("vkl_GetExternalComputeQueueDataNV")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_GetClusterAccelerationStructureBuildSizesNV(VkDevice device, const VkClusterAccelerationStructureInputInfoNV* pInfo, VkAccelerationStructureBuildSizesInfoKHR* pSizeInfo)
 {
-	((PFN_vkGetClusterAccelerationStructureBuildSizesNV)VKL_DISPATCH(device)->fn[737])(device, pInfo, pSizeInfo);
+	((PFN_vkGetClusterAccelerationStructureBuildSizesNV)VKL_DISPATCH(device)->fn[739])(device, pInfo, pSizeInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkGetClusterAccelerationStructureBuildSizesNV(VkDevice device, const VkClusterAccelerationStructureInputInfoNV* pInfo, VkAccelerationStructureBuildSizesInfoKHR* pSizeInfo) __attribute__((weak, alias("vkl_GetClusterAccelerationStructureBuildSizesNV")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdBuildClusterAccelerationStructureIndirectNV(VkCommandBuffer commandBuffer, const VkClusterAccelerationStructureCommandsInfoNV* pCommandInfos)
 {
-	((PFN_vkCmdBuildClusterAccelerationStructureIndirectNV)VKL_DISPATCH(commandBuffer)->fn[738])(commandBuffer, pCommandInfos);
+	((PFN_vkCmdBuildClusterAccelerationStructureIndirectNV)VKL_DISPATCH(commandBuffer)->fn[740])(commandBuffer, pCommandInfos);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdBuildClusterAccelerationStructureIndirectNV(VkCommandBuffer commandBuffer, const VkClusterAccelerationStructureCommandsInfoNV* pCommandInfos) __attribute__((weak, alias("vkl_CmdBuildClusterAccelerationStructureIndirectNV")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_GetPartitionedAccelerationStructuresBuildSizesNV(VkDevice device, const VkPartitionedAccelerationStructureInstancesInputNV* pInfo, VkAccelerationStructureBuildSizesInfoKHR* pSizeInfo)
 {
-	((PFN_vkGetPartitionedAccelerationStructuresBuildSizesNV)VKL_DISPATCH(device)->fn[739])(device, pInfo, pSizeInfo);
+	((PFN_vkGetPartitionedAccelerationStructuresBuildSizesNV)VKL_DISPATCH(device)->fn[741])(device, pInfo, pSizeInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkGetPartitionedAccelerationStructuresBuildSizesNV(VkDevice device, const VkPartitionedAccelerationStructureInstancesInputNV* pInfo, VkAccelerationStructureBuildSizesInfoKHR* pSizeInfo) __attribute__((weak, alias("vkl_GetPartitionedAccelerationStructuresBuildSizesNV")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdBuildPartitionedAccelerationStructuresNV(VkCommandBuffer commandBuffer, const VkBuildPartitionedAccelerationStructureInfoNV* pBuildInfo)
 {
-	((PFN_vkCmdBuildPartitionedAccelerationStructuresNV)VKL_DISPATCH(commandBuffer)->fn[740])(commandBuffer, pBuildInfo);
+	((PFN_vkCmdBuildPartitionedAccelerationStructuresNV)VKL_DISPATCH(commandBuffer)->fn[742])(commandBuffer, pBuildInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdBuildPartitionedAccelerationStructuresNV(VkCommandBuffer commandBuffer, const VkBuildPartitionedAccelerationStructureInfoNV* pBuildInfo) __attribute__((weak, alias("vkl_CmdBuildPartitionedAccelerationStructuresNV")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_GetGeneratedCommandsMemoryRequirementsEXT(VkDevice device, const VkGeneratedCommandsMemoryRequirementsInfoEXT* pInfo, VkMemoryRequirements2* pMemoryRequirements)
 {
-	((PFN_vkGetGeneratedCommandsMemoryRequirementsEXT)VKL_DISPATCH(device)->fn[741])(device, pInfo, pMemoryRequirements);
+	((PFN_vkGetGeneratedCommandsMemoryRequirementsEXT)VKL_DISPATCH(device)->fn[743])(device, pInfo, pMemoryRequirements);
 }
 VKAPI_ATTR void VKAPI_CALL vkGetGeneratedCommandsMemoryRequirementsEXT(VkDevice device, const VkGeneratedCommandsMemoryRequirementsInfoEXT* pInfo, VkMemoryRequirements2* pMemoryRequirements) __attribute__((weak, alias("vkl_GetGeneratedCommandsMemoryRequirementsEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdPreprocessGeneratedCommandsEXT(VkCommandBuffer commandBuffer, const VkGeneratedCommandsInfoEXT* pGeneratedCommandsInfo, VkCommandBuffer stateCommandBuffer)
 {
-	((PFN_vkCmdPreprocessGeneratedCommandsEXT)VKL_DISPATCH(commandBuffer)->fn[742])(commandBuffer, pGeneratedCommandsInfo, stateCommandBuffer);
+	((PFN_vkCmdPreprocessGeneratedCommandsEXT)VKL_DISPATCH(commandBuffer)->fn[744])(commandBuffer, pGeneratedCommandsInfo, stateCommandBuffer);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdPreprocessGeneratedCommandsEXT(VkCommandBuffer commandBuffer, const VkGeneratedCommandsInfoEXT* pGeneratedCommandsInfo, VkCommandBuffer stateCommandBuffer) __attribute__((weak, alias("vkl_CmdPreprocessGeneratedCommandsEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdExecuteGeneratedCommandsEXT(VkCommandBuffer commandBuffer, VkBool32 isPreprocessed, const VkGeneratedCommandsInfoEXT* pGeneratedCommandsInfo)
 {
-	((PFN_vkCmdExecuteGeneratedCommandsEXT)VKL_DISPATCH(commandBuffer)->fn[743])(commandBuffer, isPreprocessed, pGeneratedCommandsInfo);
+	((PFN_vkCmdExecuteGeneratedCommandsEXT)VKL_DISPATCH(commandBuffer)->fn[745])(commandBuffer, isPreprocessed, pGeneratedCommandsInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdExecuteGeneratedCommandsEXT(VkCommandBuffer commandBuffer, VkBool32 isPreprocessed, const VkGeneratedCommandsInfoEXT* pGeneratedCommandsInfo) __attribute__((weak, alias("vkl_CmdExecuteGeneratedCommandsEXT")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_CreateIndirectCommandsLayoutEXT(VkDevice device, const VkIndirectCommandsLayoutCreateInfoEXT* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkIndirectCommandsLayoutEXT* pIndirectCommandsLayout)
 {
-	return ((PFN_vkCreateIndirectCommandsLayoutEXT)VKL_DISPATCH(device)->fn[744])(device, pCreateInfo, pAllocator, pIndirectCommandsLayout);
+	return ((PFN_vkCreateIndirectCommandsLayoutEXT)VKL_DISPATCH(device)->fn[746])(device, pCreateInfo, pAllocator, pIndirectCommandsLayout);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkCreateIndirectCommandsLayoutEXT(VkDevice device, const VkIndirectCommandsLayoutCreateInfoEXT* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkIndirectCommandsLayoutEXT* pIndirectCommandsLayout) __attribute__((weak, alias("vkl_CreateIndirectCommandsLayoutEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_DestroyIndirectCommandsLayoutEXT(VkDevice device, VkIndirectCommandsLayoutEXT indirectCommandsLayout, const VkAllocationCallbacks* pAllocator)
 {
-	((PFN_vkDestroyIndirectCommandsLayoutEXT)VKL_DISPATCH(device)->fn[745])(device, indirectCommandsLayout, pAllocator);
+	((PFN_vkDestroyIndirectCommandsLayoutEXT)VKL_DISPATCH(device)->fn[747])(device, indirectCommandsLayout, pAllocator);
 }
 VKAPI_ATTR void VKAPI_CALL vkDestroyIndirectCommandsLayoutEXT(VkDevice device, VkIndirectCommandsLayoutEXT indirectCommandsLayout, const VkAllocationCallbacks* pAllocator) __attribute__((weak, alias("vkl_DestroyIndirectCommandsLayoutEXT")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_CreateIndirectExecutionSetEXT(VkDevice device, const VkIndirectExecutionSetCreateInfoEXT* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkIndirectExecutionSetEXT* pIndirectExecutionSet)
 {
-	return ((PFN_vkCreateIndirectExecutionSetEXT)VKL_DISPATCH(device)->fn[746])(device, pCreateInfo, pAllocator, pIndirectExecutionSet);
+	return ((PFN_vkCreateIndirectExecutionSetEXT)VKL_DISPATCH(device)->fn[748])(device, pCreateInfo, pAllocator, pIndirectExecutionSet);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkCreateIndirectExecutionSetEXT(VkDevice device, const VkIndirectExecutionSetCreateInfoEXT* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkIndirectExecutionSetEXT* pIndirectExecutionSet) __attribute__((weak, alias("vkl_CreateIndirectExecutionSetEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_DestroyIndirectExecutionSetEXT(VkDevice device, VkIndirectExecutionSetEXT indirectExecutionSet, const VkAllocationCallbacks* pAllocator)
 {
-	((PFN_vkDestroyIndirectExecutionSetEXT)VKL_DISPATCH(device)->fn[747])(device, indirectExecutionSet, pAllocator);
+	((PFN_vkDestroyIndirectExecutionSetEXT)VKL_DISPATCH(device)->fn[749])(device, indirectExecutionSet, pAllocator);
 }
 VKAPI_ATTR void VKAPI_CALL vkDestroyIndirectExecutionSetEXT(VkDevice device, VkIndirectExecutionSetEXT indirectExecutionSet, const VkAllocationCallbacks* pAllocator) __attribute__((weak, alias("vkl_DestroyIndirectExecutionSetEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_UpdateIndirectExecutionSetPipelineEXT(VkDevice device, VkIndirectExecutionSetEXT indirectExecutionSet, uint32_t executionSetWriteCount, const VkWriteIndirectExecutionSetPipelineEXT* pExecutionSetWrites)
 {
-	((PFN_vkUpdateIndirectExecutionSetPipelineEXT)VKL_DISPATCH(device)->fn[748])(device, indirectExecutionSet, executionSetWriteCount, pExecutionSetWrites);
+	((PFN_vkUpdateIndirectExecutionSetPipelineEXT)VKL_DISPATCH(device)->fn[750])(device, indirectExecutionSet, executionSetWriteCount, pExecutionSetWrites);
 }
 VKAPI_ATTR void VKAPI_CALL vkUpdateIndirectExecutionSetPipelineEXT(VkDevice device, VkIndirectExecutionSetEXT indirectExecutionSet, uint32_t executionSetWriteCount, const VkWriteIndirectExecutionSetPipelineEXT* pExecutionSetWrites) __attribute__((weak, alias("vkl_UpdateIndirectExecutionSetPipelineEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_UpdateIndirectExecutionSetShaderEXT(VkDevice device, VkIndirectExecutionSetEXT indirectExecutionSet, uint32_t executionSetWriteCount, const VkWriteIndirectExecutionSetShaderEXT* pExecutionSetWrites)
 {
-	((PFN_vkUpdateIndirectExecutionSetShaderEXT)VKL_DISPATCH(device)->fn[749])(device, indirectExecutionSet, executionSetWriteCount, pExecutionSetWrites);
+	((PFN_vkUpdateIndirectExecutionSetShaderEXT)VKL_DISPATCH(device)->fn[751])(device, indirectExecutionSet, executionSetWriteCount, pExecutionSetWrites);
 }
 VKAPI_ATTR void VKAPI_CALL vkUpdateIndirectExecutionSetShaderEXT(VkDevice device, VkIndirectExecutionSetEXT indirectExecutionSet, uint32_t executionSetWriteCount, const VkWriteIndirectExecutionSetShaderEXT* pExecutionSetWrites) __attribute__((weak, alias("vkl_UpdateIndirectExecutionSetShaderEXT")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetDeviceFaultReportsKHR(VkDevice device, uint64_t timeout, uint32_t* pFaultCounts, VkDeviceFaultInfoKHR* pFaultInfo)
 {
-	return ((PFN_vkGetDeviceFaultReportsKHR)VKL_DISPATCH(device)->fn[750])(device, timeout, pFaultCounts, pFaultInfo);
+	return ((PFN_vkGetDeviceFaultReportsKHR)VKL_DISPATCH(device)->fn[752])(device, timeout, pFaultCounts, pFaultInfo);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetDeviceFaultReportsKHR(VkDevice device, uint64_t timeout, uint32_t* pFaultCounts, VkDeviceFaultInfoKHR* pFaultInfo) __attribute__((weak, alias("vkl_GetDeviceFaultReportsKHR")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetDeviceFaultDebugInfoKHR(VkDevice device, VkDeviceFaultDebugInfoKHR* pDebugInfo)
 {
-	return ((PFN_vkGetDeviceFaultDebugInfoKHR)VKL_DISPATCH(device)->fn[751])(device, pDebugInfo);
+	return ((PFN_vkGetDeviceFaultDebugInfoKHR)VKL_DISPATCH(device)->fn[753])(device, pDebugInfo);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetDeviceFaultDebugInfoKHR(VkDevice device, VkDeviceFaultDebugInfoKHR* pDebugInfo) __attribute__((weak, alias("vkl_GetDeviceFaultDebugInfoKHR")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetPhysicalDeviceCooperativeMatrixFlexibleDimensionsPropertiesNV(VkPhysicalDevice physicalDevice, uint32_t* pPropertyCount, VkCooperativeMatrixFlexibleDimensionsPropertiesNV* pProperties)
 {
-	return ((PFN_vkGetPhysicalDeviceCooperativeMatrixFlexibleDimensionsPropertiesNV)VKL_DISPATCH(physicalDevice)->fn[752])(physicalDevice, pPropertyCount, pProperties);
+	return ((PFN_vkGetPhysicalDeviceCooperativeMatrixFlexibleDimensionsPropertiesNV)VKL_DISPATCH(physicalDevice)->fn[754])(physicalDevice, pPropertyCount, pProperties);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetPhysicalDeviceCooperativeMatrixFlexibleDimensionsPropertiesNV(VkPhysicalDevice physicalDevice, uint32_t* pPropertyCount, VkCooperativeMatrixFlexibleDimensionsPropertiesNV* pProperties) __attribute__((weak, alias("vkl_GetPhysicalDeviceCooperativeMatrixFlexibleDimensionsPropertiesNV")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_EnumeratePhysicalDeviceQueueFamilyPerformanceCountersByRegionARM(VkPhysicalDevice physicalDevice, uint32_t queueFamilyIndex, uint32_t* pCounterCount, VkPerformanceCounterARM* pCounters, VkPerformanceCounterDescriptionARM* pCounterDescriptions)
 {
-	return ((PFN_vkEnumeratePhysicalDeviceQueueFamilyPerformanceCountersByRegionARM)VKL_DISPATCH(physicalDevice)->fn[753])(physicalDevice, queueFamilyIndex, pCounterCount, pCounters, pCounterDescriptions);
+	return ((PFN_vkEnumeratePhysicalDeviceQueueFamilyPerformanceCountersByRegionARM)VKL_DISPATCH(physicalDevice)->fn[755])(physicalDevice, queueFamilyIndex, pCounterCount, pCounters, pCounterDescriptions);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkEnumeratePhysicalDeviceQueueFamilyPerformanceCountersByRegionARM(VkPhysicalDevice physicalDevice, uint32_t queueFamilyIndex, uint32_t* pCounterCount, VkPerformanceCounterARM* pCounters, VkPerformanceCounterDescriptionARM* pCounterDescriptions) __attribute__((weak, alias("vkl_EnumeratePhysicalDeviceQueueFamilyPerformanceCountersByRegionARM")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_EnumeratePhysicalDeviceShaderInstrumentationMetricsARM(VkPhysicalDevice physicalDevice, uint32_t* pDescriptionCount, VkShaderInstrumentationMetricDescriptionARM* pDescriptions)
 {
-	return ((PFN_vkEnumeratePhysicalDeviceShaderInstrumentationMetricsARM)VKL_DISPATCH(physicalDevice)->fn[754])(physicalDevice, pDescriptionCount, pDescriptions);
+	return ((PFN_vkEnumeratePhysicalDeviceShaderInstrumentationMetricsARM)VKL_DISPATCH(physicalDevice)->fn[756])(physicalDevice, pDescriptionCount, pDescriptions);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkEnumeratePhysicalDeviceShaderInstrumentationMetricsARM(VkPhysicalDevice physicalDevice, uint32_t* pDescriptionCount, VkShaderInstrumentationMetricDescriptionARM* pDescriptions) __attribute__((weak, alias("vkl_EnumeratePhysicalDeviceShaderInstrumentationMetricsARM")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_CreateShaderInstrumentationARM(VkDevice device, const VkShaderInstrumentationCreateInfoARM* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkShaderInstrumentationARM* pInstrumentation)
 {
-	return ((PFN_vkCreateShaderInstrumentationARM)VKL_DISPATCH(device)->fn[755])(device, pCreateInfo, pAllocator, pInstrumentation);
+	return ((PFN_vkCreateShaderInstrumentationARM)VKL_DISPATCH(device)->fn[757])(device, pCreateInfo, pAllocator, pInstrumentation);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkCreateShaderInstrumentationARM(VkDevice device, const VkShaderInstrumentationCreateInfoARM* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkShaderInstrumentationARM* pInstrumentation) __attribute__((weak, alias("vkl_CreateShaderInstrumentationARM")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_DestroyShaderInstrumentationARM(VkDevice device, VkShaderInstrumentationARM instrumentation, const VkAllocationCallbacks* pAllocator)
 {
-	((PFN_vkDestroyShaderInstrumentationARM)VKL_DISPATCH(device)->fn[756])(device, instrumentation, pAllocator);
+	((PFN_vkDestroyShaderInstrumentationARM)VKL_DISPATCH(device)->fn[758])(device, instrumentation, pAllocator);
 }
 VKAPI_ATTR void VKAPI_CALL vkDestroyShaderInstrumentationARM(VkDevice device, VkShaderInstrumentationARM instrumentation, const VkAllocationCallbacks* pAllocator) __attribute__((weak, alias("vkl_DestroyShaderInstrumentationARM")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdBeginShaderInstrumentationARM(VkCommandBuffer commandBuffer, VkShaderInstrumentationARM instrumentation)
 {
-	((PFN_vkCmdBeginShaderInstrumentationARM)VKL_DISPATCH(commandBuffer)->fn[757])(commandBuffer, instrumentation);
+	((PFN_vkCmdBeginShaderInstrumentationARM)VKL_DISPATCH(commandBuffer)->fn[759])(commandBuffer, instrumentation);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdBeginShaderInstrumentationARM(VkCommandBuffer commandBuffer, VkShaderInstrumentationARM instrumentation) __attribute__((weak, alias("vkl_CmdBeginShaderInstrumentationARM")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdEndShaderInstrumentationARM(VkCommandBuffer commandBuffer)
 {
-	((PFN_vkCmdEndShaderInstrumentationARM)VKL_DISPATCH(commandBuffer)->fn[758])(commandBuffer);
+	((PFN_vkCmdEndShaderInstrumentationARM)VKL_DISPATCH(commandBuffer)->fn[760])(commandBuffer);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdEndShaderInstrumentationARM(VkCommandBuffer commandBuffer) __attribute__((weak, alias("vkl_CmdEndShaderInstrumentationARM")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetShaderInstrumentationValuesARM(VkDevice device, VkShaderInstrumentationARM instrumentation, uint32_t* pMetricBlockCount, void* pMetricValues, VkShaderInstrumentationValuesFlagsARM flags)
 {
-	return ((PFN_vkGetShaderInstrumentationValuesARM)VKL_DISPATCH(device)->fn[759])(device, instrumentation, pMetricBlockCount, pMetricValues, flags);
+	return ((PFN_vkGetShaderInstrumentationValuesARM)VKL_DISPATCH(device)->fn[761])(device, instrumentation, pMetricBlockCount, pMetricValues, flags);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetShaderInstrumentationValuesARM(VkDevice device, VkShaderInstrumentationARM instrumentation, uint32_t* pMetricBlockCount, void* pMetricValues, VkShaderInstrumentationValuesFlagsARM flags) __attribute__((weak, alias("vkl_GetShaderInstrumentationValuesARM")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_ClearShaderInstrumentationMetricsARM(VkDevice device, VkShaderInstrumentationARM instrumentation)
 {
-	((PFN_vkClearShaderInstrumentationMetricsARM)VKL_DISPATCH(device)->fn[760])(device, instrumentation);
+	((PFN_vkClearShaderInstrumentationMetricsARM)VKL_DISPATCH(device)->fn[762])(device, instrumentation);
 }
 VKAPI_ATTR void VKAPI_CALL vkClearShaderInstrumentationMetricsARM(VkDevice device, VkShaderInstrumentationARM instrumentation) __attribute__((weak, alias("vkl_ClearShaderInstrumentationMetricsARM")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdEndRendering2EXT(VkCommandBuffer commandBuffer, const VkRenderingEndInfoKHR* pRenderingEndInfo)
 {
-	((PFN_vkCmdEndRendering2EXT)VKL_DISPATCH(commandBuffer)->fn[761])(commandBuffer, pRenderingEndInfo);
+	((PFN_vkCmdEndRendering2EXT)VKL_DISPATCH(commandBuffer)->fn[763])(commandBuffer, pRenderingEndInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdEndRendering2EXT(VkCommandBuffer commandBuffer, const VkRenderingEndInfoKHR* pRenderingEndInfo) __attribute__((weak, alias("vkl_CmdEndRendering2EXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdBeginCustomResolveEXT(VkCommandBuffer commandBuffer, const VkBeginCustomResolveInfoEXT* pBeginCustomResolveInfo)
 {
-	((PFN_vkCmdBeginCustomResolveEXT)VKL_DISPATCH(commandBuffer)->fn[762])(commandBuffer, pBeginCustomResolveInfo);
+	((PFN_vkCmdBeginCustomResolveEXT)VKL_DISPATCH(commandBuffer)->fn[764])(commandBuffer, pBeginCustomResolveInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdBeginCustomResolveEXT(VkCommandBuffer commandBuffer, const VkBeginCustomResolveInfoEXT* pBeginCustomResolveInfo) __attribute__((weak, alias("vkl_CmdBeginCustomResolveEXT")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdEndRendering2KHR(VkCommandBuffer commandBuffer, const VkRenderingEndInfoKHR* pRenderingEndInfo)
 {
-	((PFN_vkCmdEndRendering2KHR)VKL_DISPATCH(commandBuffer)->fn[763])(commandBuffer, pRenderingEndInfo);
+	((PFN_vkCmdEndRendering2KHR)VKL_DISPATCH(commandBuffer)->fn[765])(commandBuffer, pRenderingEndInfo);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdEndRendering2KHR(VkCommandBuffer commandBuffer, const VkRenderingEndInfoKHR* pRenderingEndInfo) __attribute__((weak, alias("vkl_CmdEndRendering2KHR")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_GetPhysicalDeviceQueueFamilyDataGraphOpticalFlowImageFormatsARM(VkPhysicalDevice physicalDevice, uint32_t queueFamilyIndex, const VkQueueFamilyDataGraphPropertiesARM* pQueueFamilyDataGraphProperties, const VkDataGraphOpticalFlowImageFormatInfoARM* pOpticalFlowImageFormatInfo, uint32_t* pFormatCount, VkDataGraphOpticalFlowImageFormatPropertiesARM* pImageFormatProperties)
 {
-	return ((PFN_vkGetPhysicalDeviceQueueFamilyDataGraphOpticalFlowImageFormatsARM)VKL_DISPATCH(physicalDevice)->fn[764])(physicalDevice, queueFamilyIndex, pQueueFamilyDataGraphProperties, pOpticalFlowImageFormatInfo, pFormatCount, pImageFormatProperties);
+	return ((PFN_vkGetPhysicalDeviceQueueFamilyDataGraphOpticalFlowImageFormatsARM)VKL_DISPATCH(physicalDevice)->fn[766])(physicalDevice, queueFamilyIndex, pQueueFamilyDataGraphProperties, pOpticalFlowImageFormatInfo, pFormatCount, pImageFormatProperties);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetPhysicalDeviceQueueFamilyDataGraphOpticalFlowImageFormatsARM(VkPhysicalDevice physicalDevice, uint32_t queueFamilyIndex, const VkQueueFamilyDataGraphPropertiesARM* pQueueFamilyDataGraphProperties, const VkDataGraphOpticalFlowImageFormatInfoARM* pOpticalFlowImageFormatInfo, uint32_t* pFormatCount, VkDataGraphOpticalFlowImageFormatPropertiesARM* pImageFormatProperties) __attribute__((weak, alias("vkl_GetPhysicalDeviceQueueFamilyDataGraphOpticalFlowImageFormatsARM")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetComputeOccupancyPriorityNV(VkCommandBuffer commandBuffer, const VkComputeOccupancyPriorityParametersNV* pParameters)
 {
-	((PFN_vkCmdSetComputeOccupancyPriorityNV)VKL_DISPATCH(commandBuffer)->fn[765])(commandBuffer, pParameters);
+	((PFN_vkCmdSetComputeOccupancyPriorityNV)VKL_DISPATCH(commandBuffer)->fn[767])(commandBuffer, pParameters);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetComputeOccupancyPriorityNV(VkCommandBuffer commandBuffer, const VkComputeOccupancyPriorityParametersNV* pParameters) __attribute__((weak, alias("vkl_CmdSetComputeOccupancyPriorityNV")));
 
 VKAPI_ATTR void VKAPI_CALL
 vkl_CmdSetPrimitiveRestartIndexEXT(VkCommandBuffer commandBuffer, uint32_t primitiveRestartIndex)
 {
-	((PFN_vkCmdSetPrimitiveRestartIndexEXT)VKL_DISPATCH(commandBuffer)->fn[766])(commandBuffer, primitiveRestartIndex);
+	((PFN_vkCmdSetPrimitiveRestartIndexEXT)VKL_DISPATCH(commandBuffer)->fn[768])(commandBuffer, primitiveRestartIndex);
 }
 VKAPI_ATTR void VKAPI_CALL vkCmdSetPrimitiveRestartIndexEXT(VkCommandBuffer commandBuffer, uint32_t primitiveRestartIndex) __attribute__((weak, alias("vkl_CmdSetPrimitiveRestartIndexEXT")));
 
 VKAPI_ATTR VkResult VKAPI_CALL
 vkl_CreatePlan9SurfacePLAN9(VkInstance instance, const VkPlan9SurfaceCreateInfoPLAN9* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkSurfaceKHR* pSurface)
 {
-	return ((PFN_vkCreatePlan9SurfacePLAN9)VKL_DISPATCH(instance)->fn[767])(instance, pCreateInfo, pAllocator, pSurface);
+	return ((PFN_vkCreatePlan9SurfacePLAN9)VKL_DISPATCH(instance)->fn[769])(instance, pCreateInfo, pAllocator, pSurface);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkCreatePlan9SurfacePLAN9(VkInstance instance, const VkPlan9SurfaceCreateInfoPLAN9* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkSurfaceKHR* pSurface) __attribute__((weak, alias("vkl_CreatePlan9SurfacePLAN9")));
 
@@ -5550,6 +5564,8 @@ const char *const vkl_names[VKL_NCMD] = {
 	"vkGetDisplayPlaneCapabilitiesKHR",
 	"vkCreateDisplayPlaneSurfaceKHR",
 	"vkCreateSharedSwapchainsKHR",
+	"vkCreateWaylandSurfaceKHR",
+	"vkGetPhysicalDeviceWaylandPresentationSupportKHR",
 	"vkCreateDebugReportCallbackEXT",
 	"vkDestroyDebugReportCallbackEXT",
 	"vkDebugReportMessageEXT",
@@ -6321,6 +6337,8 @@ const unsigned char vkl_level[VKL_NCMD] = {
 	1,	/* vkGetDisplayPlaneCapabilitiesKHR */
 	1,	/* vkCreateDisplayPlaneSurfaceKHR */
 	2,	/* vkCreateSharedSwapchainsKHR */
+	1,	/* vkCreateWaylandSurfaceKHR */
+	1,	/* vkGetPhysicalDeviceWaylandPresentationSupportKHR */
 	1,	/* vkCreateDebugReportCallbackEXT */
 	1,	/* vkDestroyDebugReportCallbackEXT */
 	1,	/* vkDebugReportMessageEXT */
@@ -6837,474 +6855,475 @@ const unsigned char vkl_level[VKL_NCMD] = {
 
 /* sorted, for vkl_lookup */
 const unsigned short vkl_sorted[VKL_NCMD] = {
-	522,
+	524,
 	247,
 	242,
-	467,
-	346,
+	469,
+	348,
 	55,
 	97,
 	21,
-	683,
+	685,
 	57,
-	430,
+	432,
 	28,
 	138,
-	417,
-	711,
+	419,
+	713,
 	29,
 	139,
-	418,
-	677,
-	666,
-	269,
-	396,
-	603,
-	760,
-	565,
-	318,
+	420,
+	679,
+	668,
+	271,
+	398,
+	605,
 	762,
-	359,
+	567,
+	320,
+	764,
+	361,
+	373,
 	371,
-	369,
-	533,
+	535,
 	67,
-	280,
+	282,
 	134,
 	175,
-	337,
+	339,
 	198,
-	295,
-	757,
-	567,
-	278,
-	273,
-	728,
+	297,
+	759,
+	569,
+	280,
+	275,
+	730,
+	548,
 	546,
-	544,
 	101,
 	225,
-	723,
+	725,
 	124,
 	230,
-	679,
-	552,
-	588,
+	681,
+	554,
+	590,
 	100,
-	518,
-	380,
-	379,
-	688,
-	424,
-	729,
-	566,
-	277,
+	520,
+	382,
+	381,
+	690,
+	426,
+	731,
+	568,
+	279,
 	125,
 	205,
-	492,
-	553,
+	494,
+	555,
 	130,
 	196,
-	582,
-	431,
-	395,
-	394,
-	738,
-	602,
+	584,
+	433,
+	397,
+	396,
 	740,
+	604,
+	742,
 	132,
 	102,
 	131,
-	275,
-	700,
-	401,
-	432,
-	402,
+	277,
+	702,
+	403,
+	434,
+	404,
 	60,
 	186,
-	578,
+	580,
 	62,
 	188,
-	580,
-	376,
+	582,
+	378,
 	61,
 	187,
-	579,
+	581,
 	63,
 	189,
-	581,
-	559,
-	730,
-	623,
-	557,
-	403,
-	731,
-	624,
-	558,
-	610,
-	608,
-	609,
-	71,
-	562,
-	668,
-	287,
-	261,
-	262,
-	263,
-	276,
+	583,
+	561,
 	732,
+	625,
+	559,
+	405,
 	733,
 	626,
-	625,
+	560,
+	612,
+	610,
+	611,
+	71,
+	564,
+	670,
+	289,
+	263,
+	264,
+	265,
+	278,
+	734,
+	735,
+	628,
+	627,
 	103,
 	158,
-	307,
-	713,
+	309,
+	715,
 	104,
-	556,
-	532,
+	558,
+	534,
 	126,
-	614,
-	615,
+	616,
+	617,
 	127,
 	129,
-	555,
+	557,
 	173,
-	564,
-	293,
-	441,
+	566,
+	295,
+	443,
 	128,
-	554,
-	569,
-	282,
-	172,
-	563,
-	292,
-	440,
-	575,
-	570,
+	556,
 	571,
+	284,
+	172,
+	565,
+	294,
+	442,
 	577,
+	572,
+	573,
+	579,
+	451,
+	578,
+	450,
 	449,
-	576,
-	448,
-	447,
-	598,
-	599,
-	530,
-	319,
-	360,
+	600,
+	601,
+	532,
+	321,
+	362,
+	374,
 	372,
-	370,
-	534,
+	536,
 	68,
-	281,
+	283,
 	136,
 	177,
-	339,
+	341,
 	199,
-	761,
 	763,
-	296,
-	758,
-	568,
-	279,
-	274,
+	765,
+	298,
+	760,
+	570,
+	281,
+	276,
 	72,
-	743,
-	517,
+	745,
+	519,
 	65,
-	561,
-	361,
+	563,
+	363,
 	135,
 	176,
-	338,
-	678,
+	340,
+	680,
 	66,
 	183,
-	538,
-	742,
-	516,
+	540,
+	744,
+	518,
 	108,
 	226,
-	724,
-	381,
+	726,
+	383,
 	223,
 	227,
-	725,
-	316,
+	727,
+	318,
 	224,
 	228,
-	726,
-	317,
+	728,
+	319,
 	106,
 	194,
-	536,
+	538,
 	69,
 	133,
 	197,
-	583,
-	634,
-	635,
-	719,
-	119,
-	452,
-	426,
-	646,
+	585,
+	636,
 	637,
-	638,
-	596,
+	721,
+	119,
+	454,
+	428,
+	648,
 	639,
-	765,
-	642,
+	640,
+	598,
+	641,
+	767,
+	644,
+	657,
+	658,
+	659,
+	662,
 	655,
 	656,
-	657,
-	660,
-	653,
-	654,
 	200,
-	487,
+	489,
 	118,
-	521,
+	523,
 	213,
-	593,
+	595,
 	120,
 	209,
-	496,
-	630,
-	689,
-	644,
-	650,
+	498,
+	632,
+	691,
+	646,
+	652,
 	208,
-	495,
+	497,
 	206,
-	493,
+	495,
 	207,
-	494,
-	727,
-	545,
+	496,
+	729,
+	547,
 	141,
-	306,
-	332,
-	333,
+	308,
 	334,
-	620,
+	335,
+	336,
+	622,
 	105,
 	193,
-	535,
-	450,
-	451,
-	643,
-	574,
-	473,
-	201,
-	488,
-	648,
-	229,
-	485,
-	649,
-	720,
-	117,
-	594,
-	636,
-	591,
-	464,
-	466,
-	465,
-	631,
-	214,
-	595,
-	766,
-	202,
-	489,
-	647,
-	632,
-	641,
-	212,
-	592,
-	414,
-	232,
-	474,
-	233,
-	475,
-	659,
-	387,
+	537,
+	452,
+	453,
 	645,
+	576,
+	475,
+	201,
+	490,
+	650,
+	229,
+	487,
+	651,
+	722,
+	117,
+	596,
+	638,
+	593,
+	466,
+	468,
+	467,
 	633,
+	214,
+	597,
+	768,
+	202,
+	491,
+	649,
+	634,
+	643,
+	212,
+	594,
+	416,
+	232,
+	476,
+	233,
+	477,
+	661,
+	389,
+	647,
+	635,
 	116,
 	204,
-	491,
-	658,
+	493,
+	660,
 	121,
 	211,
-	498,
+	500,
 	123,
 	210,
-	497,
+	499,
 	122,
-	640,
-	585,
-	115,
-	425,
-	652,
-	651,
-	323,
-	203,
-	490,
+	642,
 	587,
-	597,
-	412,
-	408,
-	433,
+	115,
+	427,
+	654,
+	653,
+	325,
+	203,
+	492,
+	589,
+	599,
+	414,
+	410,
+	435,
 	64,
-	560,
-	628,
+	562,
+	630,
 	107,
 	195,
-	537,
-	405,
-	437,
-	444,
-	443,
-	572,
-	611,
+	539,
+	407,
+	439,
+	446,
+	445,
+	574,
+	613,
 	70,
 	184,
-	539,
-	438,
-	699,
-	397,
-	398,
-	221,
-	509,
-	220,
-	508,
+	541,
+	440,
+	701,
 	399,
+	400,
+	221,
+	511,
+	220,
+	510,
+	401,
 	219,
-	507,
+	509,
+	608,
 	606,
-	604,
-	605,
-	573,
-	392,
-	427,
+	607,
+	575,
+	394,
+	429,
 	45,
 	78,
 	52,
 	86,
-	284,
-	283,
-	708,
-	707,
-	256,
-	362,
-	499,
+	286,
+	285,
+	710,
+	709,
+	258,
+	364,
+	501,
 	94,
 	92,
 	159,
-	320,
+	322,
 	11,
 	252,
 	254,
 	73,
-	734,
+	736,
 	35,
 	110,
-	365,
+	367,
 	109,
-	481,
+	483,
 	47,
 	50,
-	744,
-	519,
 	746,
+	521,
+	748,
 	0,
-	600,
-	675,
-	690,
+	602,
+	677,
+	692,
 	82,
 	88,
-	767,
+	769,
 	179,
-	524,
+	526,
 	42,
-	409,
-	434,
+	411,
+	436,
 	112,
 	174,
-	336,
+	338,
 	90,
 	163,
-	415,
+	417,
 	40,
-	755,
+	757,
 	80,
-	685,
+	687,
 	255,
 	239,
-	661,
 	663,
-	420,
-	266,
-	270,
+	665,
+	422,
+	268,
+	272,
+	256,
+	262,
+	261,
 	260,
-	259,
-	258,
-	503,
-	393,
-	428,
+	505,
+	395,
+	430,
 	46,
 	79,
 	53,
-	286,
-	285,
-	712,
-	257,
-	363,
-	500,
+	288,
+	287,
+	714,
+	259,
+	365,
+	502,
 	95,
 	93,
 	160,
-	321,
+	323,
 	12,
 	74,
-	735,
+	737,
 	36,
 	111,
-	366,
+	368,
 	48,
 	51,
-	745,
-	520,
 	747,
+	522,
+	749,
 	1,
-	601,
-	676,
+	603,
+	678,
 	87,
-	691,
+	693,
 	83,
 	89,
 	180,
-	525,
+	527,
 	43,
 	113,
 	91,
 	164,
-	416,
+	418,
 	41,
-	686,
-	756,
+	688,
+	758,
 	81,
 	234,
 	240,
-	662,
 	664,
-	421,
-	267,
-	272,
+	666,
+	423,
+	269,
+	274,
 	20,
-	326,
+	328,
 	58,
 	14,
 	16,
@@ -7312,299 +7331,300 @@ const unsigned short vkl_sorted[VKL_NCMD] = {
 	15,
 	137,
 	142,
-	309,
-	753,
-	344,
-	754,
+	311,
+	755,
+	346,
+	756,
 	2,
 	25,
 	56,
 	98,
 	22,
-	407,
-	404,
-	436,
-	429,
-	551,
+	409,
+	406,
+	438,
+	431,
+	553,
 	169,
-	476,
-	482,
+	478,
+	484,
 	30,
 	144,
-	390,
+	392,
 	170,
-	483,
-	547,
-	446,
-	722,
-	737,
-	714,
-	715,
-	709,
-	710,
-	501,
-	502,
+	485,
+	549,
+	448,
+	724,
+	739,
+	716,
+	717,
+	711,
+	712,
+	503,
+	504,
+	545,
+	624,
+	544,
+	623,
 	543,
-	622,
-	542,
-	621,
-	541,
 	162,
-	439,
-	406,
+	441,
+	408,
 	190,
-	617,
-	291,
-	751,
-	584,
-	750,
+	619,
+	293,
+	753,
+	586,
+	752,
 	140,
-	305,
+	307,
 	244,
 	245,
 	191,
-	618,
+	620,
 	192,
-	619,
+	621,
 	217,
-	681,
+	683,
 	27,
 	171,
-	484,
-	612,
+	486,
+	614,
 	10,
 	17,
 	154,
-	586,
-	667,
-	352,
+	588,
+	669,
+	354,
 	251,
-	353,
+	355,
 	253,
 	250,
-	523,
-	696,
-	529,
+	525,
+	698,
+	531,
 	75,
-	736,
-	343,
+	738,
+	345,
 	38,
-	695,
-	741,
-	515,
-	368,
-	374,
-	373,
-	419,
+	697,
+	743,
+	517,
+	370,
+	376,
+	375,
+	421,
 	31,
 	143,
-	389,
-	382,
-	548,
+	391,
+	384,
+	550,
 	32,
 	145,
-	391,
+	393,
 	49,
 	218,
-	511,
-	682,
+	513,
+	684,
+	292,
+	291,
 	290,
-	289,
-	288,
-	549,
+	551,
 	9,
-	704,
-	311,
-	312,
-	442,
-	589,
-	613,
-	739,
-	461,
-	331,
-	470,
-	445,
-	721,
-	752,
 	706,
-	479,
-	698,
-	383,
-	351,
+	313,
+	314,
+	444,
+	591,
+	615,
+	741,
+	463,
+	333,
+	472,
+	447,
+	723,
+	754,
+	708,
+	481,
+	700,
+	385,
+	353,
 	249,
-	350,
+	352,
 	248,
 	155,
-	310,
+	312,
 	156,
-	341,
-	297,
+	343,
+	299,
 	157,
-	313,
-	669,
+	315,
+	671,
 	3,
 	146,
-	298,
+	300,
 	4,
 	148,
-	300,
-	472,
+	302,
+	474,
 	5,
 	149,
-	301,
+	303,
 	8,
 	151,
-	303,
-	388,
-	674,
+	305,
+	390,
+	676,
 	246,
 	6,
 	147,
-	299,
+	301,
+	720,
+	766,
+	719,
 	718,
-	764,
-	717,
-	716,
-	345,
+	347,
 	7,
 	150,
-	302,
+	304,
 	33,
 	152,
-	304,
-	480,
-	325,
-	348,
+	306,
+	482,
+	327,
+	350,
 	236,
-	349,
+	351,
 	237,
 	238,
 	235,
 	178,
-	477,
-	264,
-	528,
-	265,
-	693,
+	479,
+	266,
+	530,
+	267,
+	257,
+	695,
 	84,
+	508,
 	506,
-	504,
-	505,
+	507,
+	631,
 	629,
-	627,
-	692,
-	590,
+	694,
+	592,
 	182,
-	527,
+	529,
 	44,
-	454,
-	453,
-	411,
-	410,
-	435,
+	456,
+	455,
 	413,
-	330,
+	412,
+	437,
+	415,
+	332,
 	114,
 	231,
-	680,
-	550,
+	682,
+	552,
 	166,
-	455,
-	315,
-	687,
-	294,
-	759,
-	673,
-	672,
-	329,
+	457,
+	317,
+	689,
+	296,
+	761,
+	675,
+	674,
+	331,
 	241,
-	340,
-	460,
-	459,
-	665,
-	386,
-	670,
-	671,
-	423,
-	268,
 	342,
-	314,
 	462,
+	461,
+	667,
+	388,
+	672,
+	673,
+	425,
+	270,
+	344,
+	316,
+	464,
 	26,
-	702,
+	704,
 	23,
 	215,
-	512,
+	514,
 	85,
-	422,
-	356,
-	34,
-	357,
+	424,
 	358,
-	705,
+	34,
+	359,
+	360,
+	707,
 	243,
-	531,
-	469,
+	533,
+	471,
 	18,
 	185,
-	540,
+	542,
 	19,
-	384,
-	327,
-	328,
-	694,
-	324,
-	468,
-	347,
-	514,
-	697,
+	386,
+	329,
+	330,
+	696,
+	326,
+	470,
+	349,
+	516,
+	699,
 	59,
 	54,
 	96,
 	77,
 	37,
-	375,
+	377,
 	165,
-	486,
-	354,
-	355,
-	616,
+	488,
+	356,
+	357,
+	618,
 	76,
-	367,
-	335,
+	369,
+	337,
+	705,
 	703,
-	701,
-	471,
+	473,
 	181,
-	526,
-	458,
+	528,
+	460,
 	168,
-	457,
-	364,
+	459,
+	366,
 	222,
-	510,
+	512,
 	153,
-	308,
-	463,
+	310,
+	465,
 	24,
 	216,
-	513,
-	385,
+	515,
+	387,
 	161,
-	322,
+	324,
 	99,
-	748,
-	749,
-	271,
+	750,
+	751,
+	273,
 	39,
-	684,
-	478,
+	686,
+	480,
 	167,
-	456,
-	400,
-	607,
-	378,
-	377,
+	458,
+	402,
+	609,
+	380,
+	379,
 };
 
 PFN_vkVoidFunction const vkl_tramp[VKL_NCMD] = {
@@ -7864,6 +7884,8 @@ PFN_vkVoidFunction const vkl_tramp[VKL_NCMD] = {
 	(PFN_vkVoidFunction)vkl_GetDisplayPlaneCapabilitiesKHR,
 	(PFN_vkVoidFunction)vkl_CreateDisplayPlaneSurfaceKHR,
 	(PFN_vkVoidFunction)vkl_CreateSharedSwapchainsKHR,
+	(PFN_vkVoidFunction)vkl_CreateWaylandSurfaceKHR,
+	(PFN_vkVoidFunction)vkl_GetPhysicalDeviceWaylandPresentationSupportKHR,
 	(PFN_vkVoidFunction)vkl_CreateDebugReportCallbackEXT,
 	(PFN_vkVoidFunction)vkl_DestroyDebugReportCallbackEXT,
 	(PFN_vkVoidFunction)vkl_DebugReportMessageEXT,

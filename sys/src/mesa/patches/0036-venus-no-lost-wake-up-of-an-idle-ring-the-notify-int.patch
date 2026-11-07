@@ -1,0 +1,41 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Stefan Hertenberger <erde74@gmail.com>
+Date: Sat, 7 Nov 2026 18:34:38 +0100
+Subject: [PATCH] venus: no lost wake-up of an idle ring: the notify interval
+ counted from before the tail's store, half the idle timeout (a renderer that
+ saw the tail before the clock was read went idle while further submits
+ skipped their notify)
+
+---
+ src/virtio/vulkan/vn_ring.c | 11 +++++++++--
+ 1 file changed, 9 insertions(+), 2 deletions(-)
+
+diff --git a/src/virtio/vulkan/vn_ring.c b/src/virtio/vulkan/vn_ring.c
+index 2d75f05..bf0edbd 100644
+--- a/src/virtio/vulkan/vn_ring.c
++++ b/src/virtio/vulkan/vn_ring.c
+@@ -461,6 +461,12 @@ vn_ring_submit_internal(struct vn_ring *ring,
+       vn_ring_write_buffer(ring, buf->base, buf->committed_size);
+    }
+ 
++   /* the earliest the renderer may see the new tail: an idle ring it wakes
++    * stays awake from then for its idle timeout at least (taken after the
++    * store, a renderer that saw the tail before, or a vCPU stopped between
++    * the two, would leave a window in which it goes idle unnotified)
++    */
++   const int64_t stored = os_time_get_nano();
+    vn_ring_store_tail(ring);
+    const VkRingStatusFlagsMESA status = vn_ring_load_status(ring);
+    if (status & VK_RING_STATUS_FATAL_BIT_MESA) {
+@@ -482,8 +488,9 @@ vn_ring_submit_internal(struct vn_ring *ring,
+    if (status & VK_RING_STATUS_IDLE_BIT_MESA) {
+       const int64_t now = os_time_get_nano();
+       if (os_time_timeout(ring->last_notify, ring->next_notify, now)) {
+-         ring->last_notify = now;
+-         ring->next_notify = now + VN_RING_IDLE_TIMEOUT_NS;
++         /* half the idle timeout: the renderer's clock is not ours */
++         ring->last_notify = stored;
++         ring->next_notify = stored + VN_RING_IDLE_TIMEOUT_NS / 2;
+          return true;
+       }
+    }

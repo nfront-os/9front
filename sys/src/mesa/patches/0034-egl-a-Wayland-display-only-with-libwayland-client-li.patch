@@ -1,0 +1,27 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Stefan Hertenberger <erde74@gmail.com>
+Date: Sat, 7 Nov 2026 17:15:27 +0100
+Subject: [PATCH] egl: a Wayland display only with libwayland-client linked
+ (9front refers to it weakly)
+
+---
+ src/egl/main/egldisplay.c | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/src/egl/main/egldisplay.c b/src/egl/main/egldisplay.c
+index 163e359..bb69381 100644
+--- a/src/egl/main/egldisplay.c
++++ b/src/egl/main/egldisplay.c
+@@ -140,8 +140,10 @@ _eglNativePlatformDetectNativeDisplay(void *nativeDisplay)
+ 
+ #ifdef HAVE_WAYLAND_PLATFORM
+       /* wl_display is a wl_proxy, which is a wl_object.
+-       * wl_object's first element points to the interfacetype. */
+-      if (first_pointer == &wl_display_interface)
++       * wl_object's first element points to the interfacetype.
++       * 9front: libwayland-client is referred to weakly (plan9_wlweak.h),
++       * nil without it, as a display's first word may be. */
++      if (&wl_display_interface != NULL && first_pointer == &wl_display_interface)
+          return _EGL_PLATFORM_WAYLAND;
+ #endif
+ 

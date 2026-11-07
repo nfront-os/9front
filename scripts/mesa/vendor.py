@@ -141,6 +141,12 @@ def flags(cmd, srcdir):
 		if w in ('-o', '-MQ', '-MF'):
 			i += 1
 			continue
+		if w == '-include':
+			# a header of the tree read first (plan9/include/plan9_wlweak.h)
+			t = here(os.path.realpath(os.path.join(MESA, words[i])))
+			i += 1
+			out += ['-include', os.path.relpath(t, srcdir)]
+			continue
 		if w in ('-c', '-MD', '-Winvalid-pch', '-fdiagnostics-color=always', '-pipe') or not w.startswith('-'):
 			continue
 		if w.startswith('-I'):

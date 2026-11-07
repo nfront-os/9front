@@ -186,6 +186,35 @@ vn_ring_get_seqno_status(struct vn_ring *ring, uint32_t seqno)
    return vn_ring_ge_seqno(ring, vn_ring_load_head(ring), seqno);
 }
 
+/*
+ * A renderer idle with commands left in the ring missed its notify (each
+ * submit decides on one from the status it saw, and leaves out those within
+ * the interval after the last: the renderer may go idle sooner than that).
+ * A waiter notifies it again, once a millisecond at most; a notify more is
+ * harmless.
+ */
+static void
+vn_ring_kick_stalled(struct vn_ring *ring, int64_t *next)
+{
+   if (!(vn_ring_load_status(ring) & VK_RING_STATUS_IDLE_BIT_MESA))
+      return;
+   const uint32_t tail =
+      atomic_load_explicit(ring->shared.tail, memory_order_relaxed);
+   if (vn_ring_load_head(ring) == tail)
+      return;
+   const int64_t now = os_time_get_nano();
+   if (now < *next)
+      return;
+   *next = now + VN_RING_IDLE_TIMEOUT_NS;
+
+   uint32_t notify_ring_data[8];
+   struct vn_cs_encoder local_enc = VN_CS_ENCODER_INITIALIZER_LOCAL(
+      notify_ring_data, sizeof(notify_ring_data));
+   vn_encode_vkNotifyRingMESA(&local_enc, 0, ring->id, tail, 0);
+   vn_renderer_submit_simple(ring->instance->renderer, notify_ring_data,
+                             vn_cs_encoder_get_len(&local_enc));
+}
+
 void
 vn_ring_wait_seqno(struct vn_ring *ring, uint32_t seqno)
 {
@@ -196,11 +225,13 @@ vn_ring_wait_seqno(struct vn_ring *ring, uint32_t seqno)
                                           ? VN_RELAX_REASON_RING_SEQNO
                                           : VN_RELAX_REASON_TLS_RING_SEQNO;
    struct vn_relax_state relax_state = vn_relax_init(ring->instance, reason);
+   int64_t next_kick = os_time_get_nano() + VN_RING_IDLE_TIMEOUT_NS;
    do {
       if (vn_ring_get_seqno_status(ring, seqno)) {
          vn_relax_fini(&relax_state);
          return;
       }
+      vn_ring_kick_stalled(ring, &next_kick);
       vn_relax(&relax_state);
    } while (true);
 }
@@ -243,7 +274,9 @@ vn_ring_wait_space(struct vn_ring *ring, uint32_t size)
       /* see the reasoning in vn_ring_wait_seqno */
       struct vn_relax_state relax_state =
          vn_relax_init(ring->instance, VN_RELAX_REASON_RING_SPACE);
+      int64_t next_kick = os_time_get_nano() + VN_RING_IDLE_TIMEOUT_NS;
       do {
+         vn_ring_kick_stalled(ring, &next_kick);
          vn_relax(&relax_state);
          if (vn_ring_has_space(ring, size, &head)) {
             vn_relax_fini(&relax_state);
@@ -461,6 +494,12 @@ vn_ring_submit_internal(struct vn_ring *ring,
       vn_ring_write_buffer(ring, buf->base, buf->committed_size);
    }
 
+   /* the earliest the renderer may see the new tail: an idle ring it wakes
+    * stays awake from then for its idle timeout at least (taken after the
+    * store, a renderer that saw the tail before, or a vCPU stopped between
+    * the two, would leave a window in which it goes idle unnotified)
+    */
+   const int64_t stored = os_time_get_nano();
    vn_ring_store_tail(ring);
    const VkRingStatusFlagsMESA status = vn_ring_load_status(ring);
    if (status & VK_RING_STATUS_FATAL_BIT_MESA) {
@@ -482,8 +521,9 @@ vn_ring_submit_internal(struct vn_ring *ring,
    if (status & VK_RING_STATUS_IDLE_BIT_MESA) {
       const int64_t now = os_time_get_nano();
       if (os_time_timeout(ring->last_notify, ring->next_notify, now)) {
-         ring->last_notify = now;
-         ring->next_notify = now + VN_RING_IDLE_TIMEOUT_NS;
+         /* half the idle timeout: the renderer's clock is not ours */
+         ring->last_notify = stored;
+         ring->next_notify = stored + VN_RING_IDLE_TIMEOUT_NS / 2;
          return true;
       }
    }
