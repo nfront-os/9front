@@ -116,6 +116,89 @@ testmmap(void)
 	remove("/tmp/apegnutest");
 }
 
+/*
+ * 9front-ng: shared memory objects (memfd_create, shm_open): segments at an
+ * address the kernel chooses, the same memory in every process; a child
+ * that detaches what fork gave it and maps the descriptor again sees the
+ * parent's bytes and writes some back; memfd's segment goes with its last
+ * descriptor
+ */
+static void
+testshm(void)
+{
+	char *p, *q, path[64];
+	int fd, fd2, st;
+	pid_t pid;
+
+	fd = memfd_create("apegnutest", MFD_CLOEXEC);
+	check("memfd_create", fd >= 0, "%s", strerror(errno));
+	if(fd < 0)
+		return;
+	check("mmap of a memfd before ftruncate fails", mmap(NULL, 4096, PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0) == MAP_FAILED, NULL);
+	check("ftruncate a memfd", ftruncate(fd, 1<<20) == 0, "%s", strerror(errno));
+	p = mmap(NULL, 1<<20, PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
+	check("mmap MAP_SHARED of a memfd", p != MAP_FAILED, "%s", strerror(errno));
+	if(p == MAP_FAILED){
+		close(fd);
+		return;
+	}
+	q = mmap(NULL, 4096, PROT_READ|PROT_WRITE, MAP_SHARED, fd, 8192);
+	check("a second mmap: the same memory at an offset", q == p + 8192, "%p %p", p, q);
+	strcpy(p + 8192, "parent");
+	check("ftruncate larger, within what it reserved", ftruncate(fd, 2<<20) == 0, "%s", strerror(errno));
+	switch(pid = fork()){
+	case -1:
+		check("fork", 0, "%s", strerror(errno));
+		break;
+	case 0:
+		munmap(q, 4096);
+		munmap(p, 1<<20);
+		p = mmap(NULL, 2<<20, PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
+		if(p == MAP_FAILED || strcmp(p + 8192, "parent") != 0)
+			_exit(1);
+		strcpy(p + (1<<20) + 5, "child");
+		_exit(0);
+	default:
+		waitpid(pid, &st, 0);
+		check("another mapping in the child sees the parent's bytes", WIFEXITED(st) && WEXITSTATUS(st) == 0, "%#x", st);
+		check("the child's write seen here", strcmp(p + (1<<20) + 5, "child") == 0, NULL);
+	}
+	fd2 = dup(fd);
+	if(fd2 >= 0){
+		q = mmap(NULL, 4096, PROT_READ, MAP_SHARED, fd2, 0);
+		check("mmap of a dup: the same segment", q == p, "%p %p", p, q);
+		if(q != MAP_FAILED)
+			munmap(q, 4096);
+		close(fd2);
+	}
+	munmap(p + 8192, 4096);
+	check("munmap of the last mapping", munmap(p, 1<<20) == 0, NULL);
+	snprintf(path, sizeof path, "#g/ape.memfd.%d.0", getpid());
+	check("the memfd's segment in #g while open", access(path, 0) == 0, "%s", path);
+	close(fd);
+	check("gone with the last descriptor", access(path, 0) < 0, "%s", path);
+
+	fd = shm_open("/apegnutest", O_RDWR|O_CREAT|O_EXCL, 0600);
+	check("shm_open O_CREAT", fd >= 0, "%s", strerror(errno));
+	if(fd >= 0){
+		check("shm_open O_EXCL of an existing one: EEXIST", shm_open("/apegnutest", O_RDWR|O_CREAT|O_EXCL, 0600) < 0 && errno == EEXIST, NULL);
+		ftruncate(fd, 4096);
+		p = mmap(NULL, 4096, PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
+		if(p != MAP_FAILED)
+			strcpy(p, "named");
+		fd2 = shm_open("/apegnutest", O_RDWR, 0);
+		q = fd2 >= 0 ? mmap(NULL, 4096, PROT_READ, MAP_SHARED, fd2, 0) : MAP_FAILED;
+		check("shm_open by name: the same memory", p != MAP_FAILED && q == p && strcmp(q, "named") == 0, NULL);
+		if(q != MAP_FAILED)
+			munmap(q, 4096);
+		if(p != MAP_FAILED)
+			munmap(p, 4096);
+		close(fd2);
+		close(fd);
+		check("shm_unlink", shm_unlink("/apegnutest") == 0 && shm_open("/apegnutest", O_RDWR, 0) < 0, NULL);
+	}
+}
+
 static void
 testposix(void)
 {
@@ -386,6 +469,7 @@ main(void)
 	teststdio();
 	testalloc();
 	testmmap();
+	testshm();
 	testposix();
 	testthreads();
 	testlocals();

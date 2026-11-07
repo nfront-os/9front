@@ -45,9 +45,12 @@ extern int msync(void *, size_t, int);
 extern int mprotect(void *, size_t, int);
 extern int madvise(void *, size_t, int);
 extern int posix_madvise(void *, size_t, int);
-/* shared memory objects: files in /tmp (ORC's JIT, which a Rust program does not run) */
+/* shared memory objects: segments, the same memory in every process (segment(3)) */
 extern int shm_open(const char *, int, mode_t);
 extern int shm_unlink(const char *);
+#define MFD_CLOEXEC	1
+#define MFD_ALLOW_SEALING	2
+extern int memfd_create(const char *, unsigned int);
 #ifdef __cplusplus
 }
 #endif
