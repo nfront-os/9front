@@ -51,6 +51,7 @@ OFILES=\
 	snprintf.$O\
 	sopenr.$O\
 	sopenw.$O\
+	memstream.$O\
 	sprintf.$O\
 	sscanf.$O\
 	stdio.$O\

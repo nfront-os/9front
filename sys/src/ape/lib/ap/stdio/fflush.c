@@ -11,6 +11,7 @@ int fflush(FILE *f){
 				error=EOF;
 		return error;
 	}
+	if(f->flags&MEMSTR) return _IO_memsync(f);	/* 9front-ng: open_memstream */
 	if(f->flags&STRING) return EOF;
 	switch(f->state){
 	default:	/* OPEN RDWR EOF RD */

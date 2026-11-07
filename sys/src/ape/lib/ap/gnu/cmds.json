@@ -20,6 +20,8 @@
 			"c99stdio.c",
 			"c99time.c",
 			"dlfcn.c",
+			"epoll.c",
+			"flock.c",
 			"getpagesize.c",
 			"hwcap.c",
 			"inttypes.c",

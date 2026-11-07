@@ -73,10 +73,26 @@ extern int raise(int);
 #ifdef _POSIX_SOURCE
 
 typedef long sigset_t;
+/* 9front-ng: POSIX's, here for every compiler (was gcc's only) */
+typedef struct __siginfo {
+	int	si_signo;
+	int	si_code;
+	int	si_pid;
+	int	si_uid;
+	void	*si_addr;
+	int	si_status;
+} siginfo_t;
+#define SA_ONSTACK	0x08000000
+#define SA_RESETHAND	0x80000000
+#define SA_NODEFER	0x40000000
+#define SA_SIGINFO	0x00000004
+
 struct sigaction {
 	void		(*sa_handler)();
 	sigset_t	sa_mask;
 	int		sa_flags;
+	/* 9front-ng: with SA_SIGINFO (plan9/signal.c: si_signo, si_addr from the note) */
+	void		(*sa_sigaction)(int, siginfo_t *, void *);
 };
 /* values for sa_flags */
 #define SA_NOCLDSTOP	1
@@ -139,28 +155,15 @@ extern int	sigaction(int, const struct sigaction *, struct sigaction *);
 #endif
 #endif
 /* POSIX's pthread_sigmask (ap/gnu/pthread.c): the proc's mask, APE's
- * sigprocmask. siginfo_t and the flags of POSIX's sigaction, for code that
- * names them (LLVM): APE delivers no siginfo. */
+ * sigprocmask. siginfo_t and the flags of POSIX's sigaction (LLVM's names);
+ * 9front-ng: a handler with SA_SIGINFO gets si_signo and, for a fault,
+ * si_addr (plan9/signal.c), its third argument is the Ureg. */
 #ifdef __cplusplus
 extern "C" {
 #endif
 extern int	pthread_sigmask(int, const sigset_t *, sigset_t *);
 #ifdef __cplusplus
 }
-#endif
-#ifndef SA_SIGINFO
-typedef struct {
-	int	si_signo;
-	int	si_code;
-	int	si_pid;
-	int	si_uid;
-	void	*si_addr;
-	int	si_status;
-} siginfo_t;
-#define SA_ONSTACK	0x08000000
-#define SA_RESETHAND	0x80000000
-#define SA_NODEFER	0x40000000
-#define SA_SIGINFO	0x00000004
 #endif
 #endif
 #endif /* __SIGNAL_H */

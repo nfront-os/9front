@@ -4,6 +4,7 @@
 #include <errno.h>
 #include <string.h>
 #include <setjmp.h>
+#include <stdlib.h>
 
 extern sigset_t	_psigblocked;
 
@@ -40,6 +41,26 @@ static struct {
 #define NSIGTAB ((sizeof sigtab)/(sizeof (sigtab[0])))
 
 void	(*_sighdlr[MAXSIG+1])(int, char*, Ureg*); /* 0 initialized: SIG_DFL */
+
+/*
+ * 9front-ng: sigaction's SA_SIGINFO handlers: the signal's APE handler is
+ * siginfotramp, which gives them si_signo and, from a fault's note
+ * ("sys: trap: fault read addr=0x..."), si_addr
+ */
+static void	(*sigaction3[MAXSIG+1])(int, siginfo_t*, void*);
+
+static void
+siginfotramp(int sig, char *msg, Ureg *u)
+{
+	siginfo_t si;
+	char *a;
+
+	memset(&si, 0, sizeof si);
+	si.si_signo = sig;
+	if(msg != 0 && (a = strstr(msg, "addr=")) != 0)
+		si.si_addr = (void*)strtoull(a+5, 0, 0);
+	(*sigaction3[sig])(sig, &si, u);
+}
 
 void
 (*signal(int sig, void (*func)(int, char*, Ureg*)))(int, char*, Ureg*)
@@ -83,9 +104,19 @@ sigaction(int sig, const struct sigaction *act, struct sigaction *oact)	/* GCC p
 		oact->sa_handler = _sighdlr[sig];
 		oact->sa_mask = _psigblocked;
 		oact->sa_flags = 0;
+		oact->sa_sigaction = 0;
+		if(_sighdlr[sig] == siginfotramp){
+			oact->sa_handler = 0;
+			oact->sa_sigaction = sigaction3[sig];
+			oact->sa_flags = SA_SIGINFO;
+		}
 	}
 	if(act){
-		_sighdlr[sig] = act->sa_handler;
+		if((act->sa_flags & SA_SIGINFO) && act->sa_sigaction != 0){
+			sigaction3[sig] = act->sa_sigaction;
+			_sighdlr[sig] = siginfotramp;
+		}else
+			_sighdlr[sig] = act->sa_handler;
 	}
 	return 0;
 }

@@ -26,6 +26,9 @@ struct pollfd {
 #define POLLWRBAND	0x200
 
 extern int poll(struct pollfd *, nfds_t, int);
+/* 9front-ng (gnu/epoll.c): poll with a timespec; the signal mask is not applied */
+struct timespec;
+extern int ppoll(struct pollfd *, nfds_t, const struct timespec *, const void *);
 
 #ifdef __cplusplus
 }

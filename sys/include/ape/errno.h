@@ -110,6 +110,7 @@ extern int *_errnoloc;
 #endif
 #ifndef ENODATA
 #define ENODATA		1106	/* 9front next generation: Mesa's RADV (amdgpu's lost contexts) */
+#define EPROTO		1107	/* 9front-ng: libwayland (a protocol error) */
 #endif
 #endif
 #endif

@@ -116,8 +116,8 @@ _sock_data(int cfd, char *net, int domain, int stype, int protocol, Rock **rp)
 	return fd;
 }
 
-int
-socket(int domain, int stype, int protocol)
+static int
+socket1(int domain, int stype, int protocol)
 {
 	Rock *r;
 	int cfd, fd, n;
@@ -167,6 +167,21 @@ socket(int domain, int stype, int protocol)
 		errno = EPROTONOSUPPORT;
 		return -1;
 	}
+}
+
+/*
+ * 9front-ng: Linux's SOCK_CLOEXEC and SOCK_NONBLOCK in the type (libwayland's
+ * sockets); no wait is taken but not done (a pipe's read waits)
+ */
+int
+socket(int domain, int stype, int protocol)
+{
+	int fd;
+
+	fd = socket1(domain, stype & ~(SOCK_CLOEXEC|SOCK_NONBLOCK), protocol);
+	if(fd >= 0 && (stype & SOCK_CLOEXEC))
+		fcntl(fd, F_SETFD, FD_CLOEXEC);
+	return fd;
 }
 
 int

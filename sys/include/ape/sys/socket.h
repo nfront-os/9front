@@ -41,6 +41,9 @@ typedef unsigned short sa_family_t;
 /*
  * Types
  */
+/* 9front-ng: or'd into socket's type (Linux): close on exec, no wait (taken, ignored) */
+#define	SOCK_CLOEXEC	02000000
+#define	SOCK_NONBLOCK	04000
 #define	SOCK_STREAM	1		/* stream socket */
 #define	SOCK_DGRAM	2		/* datagram socket */
 #define	SOCK_RAW	3		/* raw-protocol interface */
@@ -72,6 +75,13 @@ typedef unsigned short sa_family_t;
 #define SO_SNDTIMEO	0x1005		/* send timeout */
 #define SO_RCVTIMEO	0x1006		/* receive timeout */
 #define	SO_ERROR	0x1007		/* get error status and clear */
+#define	SO_PEERCRED	0x1011		/* 9front-ng: struct ucred of a PF_UNIX peer (pid 0: not known) */
+
+struct ucred {
+	int	pid;
+	int	uid;
+	int	gid;
+};
 #define	SO_TYPE		0x1008		/* get socket type */
 
 /*
@@ -145,6 +155,8 @@ struct sockproto {
  */
 #define	PF_UNSPEC	AF_UNSPEC
 #define	PF_UNIX		AF_UNIX
+#define	AF_LOCAL	AF_UNIX		/* 9front-ng: POSIX's name for it */
+#define	PF_LOCAL	PF_UNIX
 #define	PF_INET		AF_INET
 #define	PF_IMPLINK	AF_IMPLINK
 #define	PF_PUP		AF_PUP
@@ -215,7 +227,7 @@ struct cmsghdr {
 #define	MSG_DONTROUTE	0x4		/* send without using routing tables */
 #define	MSG_CTRUNC	0x8		/* recvmsg: not all of the ancillary data fit */
 #define	MSG_TRUNC	0x20
-#define	MSG_DONTWAIT	0x40		/* taken, ignored: a pipe read waits */
+#define	MSG_DONTWAIT	0x40		/* recvmsg: EAGAIN when no message is there */
 #define	MSG_NOSIGNAL	0x4000		/* taken: no SIGPIPE from sendmsg */
 #define	MSG_CMSG_CLOEXEC	0x40000000	/* received descriptors close on exec */
 
@@ -231,10 +243,10 @@ extern int setsockopt(int, int, int, void *, int);
 extern int listen(int, int);
 extern int recv(int, void *, int, int);
 extern int recvfrom(int, void *, int, int, void *, int *);
-extern int recvmsg(int, struct msghdr *, int);
+extern long recvmsg(int, struct msghdr *, int);	/* 9front-ng: ssize_t, as POSIX */
 extern int send(int, void *, int, int);
 extern int sendto(int, void *, int, int, void *, int);
-extern int sendmsg(int, struct msghdr *, int);
+extern long sendmsg(int, const struct msghdr *, int);
 extern int shutdown(int, int);
 extern int socket(int, int, int);
 extern int socketpair(int, int, int, int *);

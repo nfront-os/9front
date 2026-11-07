@@ -10,6 +10,8 @@
 
 #define OFL (O_ACCMODE|O_NONBLOCK|O_APPEND)
 
+extern int _dupbuf(int, int);
+
 int
 fcntl(int fd, int cmd, ...)
 {
@@ -27,9 +29,10 @@ fcntl(int fd, int cmd, ...)
 	if(fd<0 || fd>=OPEN_MAX || !(fi->flags&FD_ISOPEN))
 		err = EBADF;
 	else switch(cmd){
+		case F_DUPFD_CLOEXEC:	/* 9front-ng: below, then FD_CLOEXEC */
 		case F_DUPFD:
-			if(fi->flags&(FD_BUFFERED|FD_BUFFEREDX)){
-				err = EGREG;	/* dup of buffered fd not implemented */
+			if(fi->flags&FD_BUFFEREDX){
+				err = EGREG;	/* dup of buffered fd not implemented (kencc's _buf.c) */
 				break;
 			}
 			oflags = fi->oflags;
@@ -68,7 +71,16 @@ fcntl(int fd, int cmd, ...)
 						err = EBADF;
 				}else{
 					fans = &_fdinfo[ans];
-					fans->flags = fi->flags&~FD_CLOEXEC;
+					fans->flags = fi->flags&~(FD_CLOEXEC|FD_BUFFERED);
+					fans->buf = 0;
+					if(cmd == F_DUPFD_CLOEXEC)
+						fans->flags |= FD_CLOEXEC;
+					/* 9front-ng: a buffered one's copy reads through the same buffer (gnu/buf.c) */
+					if((fi->flags&FD_BUFFERED) && _dupbuf(fd, ans) < 0){
+						_CLOSE(ans);
+						fans->flags = 0;
+						err = EGREG;	/* dup of buffered fd not implemented (kencc's _buf.c) */
+					}
 					fans->oflags = oflags;
 					fans->uid = fi->uid;
 					fans->gid = fi->gid;
@@ -93,7 +105,7 @@ fcntl(int fd, int cmd, ...)
 			err = EINVAL;
 			break;
 		default:
-			/* 9front-ng: an unknown command is an error (POSIX); it returned 0 (Mesa's F_DUPFD_CLOEXEC: stdin as the new descriptor) */
+			/* 9front-ng: an unknown command is an error (POSIX); it returned 0 (Mesa's F_DUPFD_CLOEXEC, before there was one: stdin as the new descriptor) */
 			err = EINVAL;
 			break;
 		}

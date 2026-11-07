@@ -12,6 +12,8 @@ OFILES=\
 	c99stdio.$O\
 	c99time.$O\
 	dlfcn.$O\
+	epoll.$O\
+	flock.$O\
 	getpagesize.$O\
 	hwcap.$O\
 	inttypes.$O\

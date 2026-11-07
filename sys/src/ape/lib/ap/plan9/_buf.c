@@ -519,4 +519,13 @@ copynotehandler(void *, char *)
 	_NOTED(1);
 	return 0;
 }
+
+/* 9front-ng: a dup of a buffered descriptor cannot share its buffer here (fcntl: EGREG); gcc's gnu/buf.c can */
+int
+_dupbuf(int from, int to)
+{
+	(void)from;
+	(void)to;
+	return -1;
+}
 #endif

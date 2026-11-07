@@ -9,6 +9,8 @@ int fclose(FILE *f){
 	if(!f) return EOF;
 	if(f->state==CLOSED) return EOF;
 	if(fflush(f)==EOF) error=EOF;
+	if(f->flags&MEMSTR)
+		f->flags&=~BALLOC;	/* 9front-ng: open_memstream's buffer is the caller's now */
 	if(f->flags&BALLOC){
 		if((p = f->buf)!=0){
 			f->buf = 0;

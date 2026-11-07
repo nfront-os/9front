@@ -139,6 +139,17 @@ __apecompat_getsockopt(int fd, int level, int opt, void *val, int *len)
 	case SO_RCVBUF:
 		*(int *)val = 65536;
 		break;
+	case SO_PEERCRED:
+		/* 9front-ng: a PF_UNIX peer: the same machine and user; its pid not known */
+		if(*len < (int)sizeof(struct ucred)){
+			errno = EINVAL;
+			return -1;
+		}
+		((struct ucred *)val)->pid = 0;
+		((struct ucred *)val)->uid = getuid();
+		((struct ucred *)val)->gid = getgid();
+		*len = sizeof(struct ucred);
+		return 0;
 	default:
 		errno = ENOPROTOOPT;
 		return -1;

@@ -27,6 +27,7 @@
 #define	LINEBUF	2	/* is stream line buffered? */
 #define	STRING	4	/* output to string, instead of file */
 #define APPEND	8	/* append mode output */
+#define	MEMSTR	16	/* 9front-ng: open_memstream's: a STRING whose buffer goes to the caller */
 /*
  * States
  */
@@ -42,4 +43,5 @@ int _IO_setvbuf(FILE *);
 FILE *_IO_sopenr(const char*);
 FILE *_IO_sopenw(void);
 char *_IO_sclose(FILE *);
+int _IO_memsync(FILE *);
 FILE *_IO_newfile(void);

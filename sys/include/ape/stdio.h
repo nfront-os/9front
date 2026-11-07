@@ -157,6 +157,7 @@ extern FILE _IO_stream[FOPEN_MAX];
 #ifdef _POSIX_SOURCE
 extern int fileno(FILE *);
 extern FILE* fdopen(int, const char*);
+extern FILE *open_memstream(char **, size_t *);	/* 9front-ng: POSIX.1-2008 */
 extern char *ctermid(char *);
 #endif
 

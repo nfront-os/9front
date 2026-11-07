@@ -61,6 +61,7 @@
 			"snprintf.c",
 			"sopenr.c",
 			"sopenw.c",
+			"memstream.c",
 			"sprintf.c",
 			"sscanf.c",
 			"stdio.c",

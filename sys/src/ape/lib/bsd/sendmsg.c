@@ -11,7 +11,8 @@
  * it there and removes it.  recvmsg reads the header alone, then no more
  * of the data than the caller takes: the rest stays in the pipe (counted
  * in the socket's rock), so select and poll still see it.  Data written
- * with write is read as it is (no header).
+ * with write is read as it is (no header).  MSG_DONTWAIT: EAGAIN when no
+ * message is there (through APE's read buffer).
  */
 
 /* posix */
@@ -38,6 +39,8 @@ enum {
 };
 
 static const char magic[8] = "APEmsg\0\1";
+
+extern int _startbuf(int);	/* libap (gnu/buf.c): fd read through a copy proc */
 static int nsent;
 
 static void
@@ -76,8 +79,8 @@ post(char *name, int fd)
 	return 0;
 }
 
-int
-sendmsg(int fd, struct msghdr *msg, int flags)
+long
+sendmsg(int fd, const struct msghdr *msg, int flags)
 {
 	unsigned char *buf, *p;
 	struct cmsghdr *c;
@@ -175,7 +178,7 @@ scatter(int fd, struct msghdr *msg, int n)
 	return n;
 }
 
-int
+long
 recvmsg(int fd, struct msghdr *msg, int flags)
 {
 	unsigned char hdr[Hdr], names[Maxfd*Name];
@@ -198,7 +201,21 @@ recvmsg(int fd, struct msghdr *msg, int flags)
 	nf = 0;
 	if(r == NULL || r->rest == 0){
 		/* a new message: its header, or plain data */
-		n = read(fd, hdr, Hdr);
+		if(flags & MSG_DONTWAIT){
+			int fl;
+
+			/*
+			 * no wait (libwayland reads until EAGAIN): through APE's
+			 * read buffer (poll's), which knows whether data is there
+			 */
+			if(_startbuf(fd) < 0)
+				return -1;
+			fl = fcntl(fd, F_GETFL);
+			fcntl(fd, F_SETFL, fl|O_NONBLOCK);
+			n = read(fd, hdr, Hdr);
+			fcntl(fd, F_SETFL, fl);
+		}else
+			n = read(fd, hdr, Hdr);
 		if(n <= 0){
 			msg->msg_controllen = 0;
 			return n;
