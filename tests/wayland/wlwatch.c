@@ -181,7 +181,19 @@ main(int argc, char **argv)
 		return 1;
 	}
 	printf("wlwatch %s: window %d, %dx%d\n", label, winid, wx1 - wx0, wy1 - wy0);
-	usleep(500*1000);
+	/* its first frame: up to 5 s (simple-egl on zink compiles its shaders first) */
+	n = 0;
+	for(m = 0; m < 50; m++){
+		usleep(100*1000);
+		if(sample(a) < 0)
+			break;
+		for(n = 0, i = 1; i < Grid*Grid; i++)
+			n += a[i] != a[0];
+		if(n > 0)
+			break;
+	}
+	if(m == 50 && n == 0)
+		printf("wlwatch %s: one colour for 5 s\n", label);
 	if(sample(a) < 0 || (sleep(1), sample(b)) < 0)
 		check("the screen read", 0, NULL);
 	else{
