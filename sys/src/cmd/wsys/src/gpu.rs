@@ -128,10 +128,11 @@ impl Gpu {
     }
 
     /// the context's ctl, for a fid of another thread's (the overlay's: it waits for the
-    /// display); only aux/amdgpu shows a client's window on an overlay plane
+    /// display); aux/amdgpu and aux/i915 show a client's window on an overlay plane
+    /// (gpu(4) overlay; virtio-gpu has none)
     pub fn overlay_ctl(&self) -> Option<String> {
         match (self.drv, self.ctx) {
-            (Drv::Amd, Some(n)) => Some(format!("/dev/gpu/0/ctx/{n}/ctl")),
+            (Drv::Amd | Drv::Intel, Some(n)) => Some(format!("/dev/gpu/0/ctx/{n}/ctl")),
             _ => None,
         }
     }

@@ -871,6 +871,10 @@ stays with the importer.
 lets go of an object the client made through ioctls or imported (GEM_CLOSE,
 its view unmapped first).
 .BI overlay " handle x y w h stride
+(aux/amdgpu, aux/i915; on i915
+.I handle
+is the object's id, the object in system memory shown as it is, on a
+sprite plane)
 shows the client's object (XRGB8888,
 .I w
 by
@@ -1066,6 +1070,9 @@ mount -a /srv/gpu.0.\fIname\fP /dev
 A context is its creator's: its files are the creator's alone (0600),
 and so are the segments the driver makes for it (objects,
 maps: their owner the creator, mode 0600).
+.I Virtiogpu
+has no srv file per user, but its contexts' files are their creator's
+(0600) too.
 The display is the hostowner's: only it may write the driver's
 .BR ctl ,
 an output's
@@ -1215,6 +1222,11 @@ and
 .I vulkaninfo
 are ported this way.
 .SH SOURCE
+.B /sys/src/cmd/aux/gpu/gpufs.c
+(the file server's part every driver shares),
+.B gpukms.c
+(i915's and amdgpu's: outputs, display, users)
+.br
 .B /sys/src/cmd/aux/gpu/i915
 .br
 .B /sys/src/cmd/aux/gpu/amdgpu
