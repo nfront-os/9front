@@ -7,7 +7,9 @@
  *			w: bme on|off, fb <bytes>, irq ack, bar <n> cached
  *	#G/N/irq	read blocks until the device interrupts
  *	#G/N/dirty	read blocks until /dev/draw changed the
- *			framebuffer; returns "x0 y0 x1 y1"
+ *			framebuffer; returns "x0 y0 x1 y1": what changed
+ *			since this open file's last read (each reader its
+ *			own: the driver's copy to the card, a compositor's)
  *	#G/N/cursor	read blocks until the cursor (vga hwgc gpu)
  *			changed; returns "x y on gen ox oy clrset":
  *			the point it is at, shown or not, its image's
@@ -41,6 +43,7 @@ enum {
 	Qcursor,
 
 	Maxgpu	= 4,
+	Maxdirty	= 4,	/* readers of #G/N/dirty at once */
 
 	Intdis	= 1<<10,	/* PciPCR: interrupt disable */
 	Intsts	= 1<<3,		/* PciPSR: interrupt status */
@@ -51,6 +54,7 @@ enum {
 #define QID(g, t)	(((g)<<4)|(t))
 
 typedef struct Gpu Gpu;
+typedef struct Dirty Dirty;
 struct Gpu
 {
 	QLock;
@@ -69,9 +73,7 @@ struct Gpu
 	ulong	nirq;
 
 	Lock	dirtylock;
-	Rendez	dirtyr;
-	int	isdirty;
-	int	dirty[4];
+	Dirty	*dirty[Maxdirty];	/* the open dirty files */
 
 	Lock	curlock;	/* ilock: the mouse's interrupt moves it */
 	Rendez	curr;
@@ -94,6 +96,13 @@ struct Gpu
 enum {
 	Asls	= 0xFC,		/* Intel graphics: ASL storage, the OpRegion's address */
 	Opsize	= 8*1024,	/* the OpRegion (Linux's OPREGION_SIZE) */
+};
+
+/* an open #G/N/dirty: what changed since its last read */
+struct Dirty {
+	Rendez	rend;
+	int	isdirty;
+	int	r[4];
 };
 
 static Gpu gpus[Maxgpu];
@@ -245,9 +254,27 @@ gpuopen(Chan *c, int omode)
 {
 	Gpu *g;
 	char name[KNAMELEN];
-	int msi;
+	int msi, i;
+	Dirty *d;
 
 	c = devopen(c, omode, nil, 0, gpugen);
+	if(TYPE(c->qid) == Qdirty){
+		g = &gpus[GPU(c->qid)];
+		d = smalloc(sizeof *d);
+		lock(&g->dirtylock);
+		for(i = 0; i < Maxdirty; i++)
+			if(g->dirty[i] == nil){
+				g->dirty[i] = d;
+				break;
+			}
+		unlock(&g->dirtylock);
+		if(i == Maxdirty){
+			free(d);
+			c->flag &= ~COPEN;
+			error(Einuse);
+		}
+		c->aux = d;
+	}
 	if(TYPE(c->qid) == Qirq){
 		g = &gpus[GPU(c->qid)];
 		qlock(g);
@@ -268,8 +295,22 @@ gpuopen(Chan *c, int omode)
 }
 
 static void
-gpuclose(Chan*)
+gpuclose(Chan *c)
 {
+	Gpu *g;
+	Dirty *d;
+	int i;
+
+	if((c->flag & COPEN) == 0 || TYPE(c->qid) != Qdirty || (d = c->aux) == nil)
+		return;
+	g = &gpus[GPU(c->qid)];
+	lock(&g->dirtylock);
+	for(i = 0; i < Maxdirty; i++)
+		if(g->dirty[i] == d)
+			g->dirty[i] = nil;
+	unlock(&g->dirtylock);
+	c->aux = nil;
+	free(d);
 }
 
 static int
@@ -281,7 +322,7 @@ irqpending(void *a)
 static int
 isdirty(void *a)
 {
-	return ((Gpu*)a)->isdirty;
+	return ((Dirty*)a)->isdirty;
 }
 
 static int
@@ -338,6 +379,7 @@ gpuread(Chan *c, void *a, long n, vlong off)
 	char buf[64];
 	int r[4];
 	ulong cnt;
+	Dirty *d;
 
 	if(c->qid.type & QTDIR)
 		return devdirread(c, a, n, nil, 0, gpugen);
@@ -354,10 +396,11 @@ gpuread(Chan *c, void *a, long n, vlong off)
 		snprint(buf, sizeof buf, "%lud\n", cnt);
 		return readstr(0, a, n, buf);
 	case Qdirty:
-		sleep(&g->dirtyr, isdirty, g);
+		d = c->aux;
+		sleep(&d->rend, isdirty, d);
 		lock(&g->dirtylock);
-		memmove(r, g->dirty, sizeof r);
-		g->isdirty = 0;
+		memmove(r, d->r, sizeof r);
+		d->isdirty = 0;
 		unlock(&g->dirtylock);
 		snprint(buf, sizeof buf, "%d %d %d %d\n", r[0], r[1], r[2], r[3]);
 		return readstr(0, a, n, buf);
@@ -529,24 +572,30 @@ void
 gpudirty(int x0, int y0, int x1, int y1)
 {
 	Gpu *g;
+	Dirty *d;
+	int i;
 
 	if((g = screengpu) == nil)
 		return;
 	lock(&g->dirtylock);
-	if(!g->isdirty){
-		g->dirty[0] = x0;
-		g->dirty[1] = y0;
-		g->dirty[2] = x1;
-		g->dirty[3] = y1;
-		g->isdirty = 1;
-	} else {
-		if(x0 < g->dirty[0]) g->dirty[0] = x0;
-		if(y0 < g->dirty[1]) g->dirty[1] = y0;
-		if(x1 > g->dirty[2]) g->dirty[2] = x1;
-		if(y1 > g->dirty[3]) g->dirty[3] = y1;
+	for(i = 0; i < Maxdirty; i++){
+		if((d = g->dirty[i]) == nil)
+			continue;
+		if(!d->isdirty){
+			d->r[0] = x0;
+			d->r[1] = y0;
+			d->r[2] = x1;
+			d->r[3] = y1;
+			d->isdirty = 1;
+		} else {
+			if(x0 < d->r[0]) d->r[0] = x0;
+			if(y0 < d->r[1]) d->r[1] = y0;
+			if(x1 > d->r[2]) d->r[2] = x1;
+			if(y1 > d->r[3]) d->r[3] = y1;
+		}
+		wakeup(&d->rend);
 	}
 	unlock(&g->dirtylock);
-	wakeup(&g->dirtyr);
 }
 
 /*

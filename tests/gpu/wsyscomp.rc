@@ -1,0 +1,35 @@
+#!/bin/rc
+# run by wsys -g -x -i (tests/gpu/run.sh): the screen composed on the GPU
+# (wsys(4) -g): two vktri at once in windows of wsys, their frames GPU
+# buffers wsys copies on the GPU into its frames (no processor copy), each
+# checking its pixels in the screen as composed (/dev/screen); then one
+# partly covered by a window of wsys' own: there the window, not vktri
+rm -f /tmp/wca.log /tmp/wcb.log /tmp/wcc.log
+fn waitexit { # log
+	n=0
+	while(! grep -s '^wsysvk: exit' $1 && test $n -lt 600){ sleep 0.1; n=`{echo $n+1 | hoc} }
+}
+# a pixel of /mnt/wsys/screen as rrggbb (image(6): 60 bytes of header)
+fn peek { # x y
+	hdr=`{dd -if /mnt/wsys/screen -bs 60 -count 1 >[2]/dev/null}
+	off=`{echo 60+'('$2-$hdr(3)')*('$hdr(4)-$hdr(2)')*4+('$1-$hdr(2)')*4' | hoc}
+	px=`{dd -if /mnt/wsys/screen -bs 4 -iseek `{echo $off/4 | hoc} -count 1 >[2]/dev/null | xd -1x | sed 1q}
+	echo $px(4)^$px(3)^$px(2)
+}
+window -r 20 20 500 380 /tests/wsysvktri /tmp/wca.log comp
+window -r 520 20 1000 380 /tests/wsysvktri /tmp/wcb.log comp
+waitexit /tmp/wca.log
+waitexit /tmp/wcb.log
+# covered: vktri 6 s, a text window over its top left (none of vktri's points)
+window -r 20 20 500 380 /tests/wsysvktri /tmp/wcc.log comp 6
+sleep 2
+window -r 0 0 180 140 rc
+sleep 2
+# vktri's window: 20,20 inside the border (4): its pixel 40,40 is under the
+# text window, 240,90 (its middle, the triangle's top half) is not
+echo covered: `{peek 64 64}
+echo uncovered: `{peek 264 174}
+waitexit /tmp/wcc.log
+sed 's/^/a: /' /tmp/wca.log
+sed 's/^/b: /' /tmp/wcb.log
+sed 's/^/c: /' /tmp/wcc.log

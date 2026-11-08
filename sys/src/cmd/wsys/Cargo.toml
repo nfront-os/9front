@@ -1,12 +1,21 @@
 # SPDX-License-Identifier: MIT
-# wsys: the window system of ../9front-ui (PLAN.md stage 3), first prototype:
-# windows as a 9P file tree, their pixels in shared segments, composed by the
-# processor through draw(3). Only std: no crates.
+# wsys: the window system of ../9front-ui (PLAN.md stages 3 and 4): windows as
+# a 9P file tree, their pixels in shared segments or GPU buffers, composed by
+# the processor through draw(3), or with -g on the GPU (feature gpu: ash on
+# Mesa's libvulkan.a; without it no Vulkan is linked). Part of the workspace in
+# sys/src/rust (its vendor/).
 [package]
 name = "wsys"
 version = "0.1.0"
 edition = "2024"
 publish = false
+workspace = "../../rust"
 
-[profile.release]
-debug = true
+[dependencies]
+# without "loaded" (dlopen, which 9front lacks) and "linked" (its build script
+# needs a target_family): the entry is libvulkan.a's vkGetInstanceProcAddr
+ash = { version = "0.38", default-features = false, features = ["std", "debug"], optional = true }
+
+[features]
+default = ["gpu"]
+gpu = ["dep:ash"]

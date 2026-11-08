@@ -61,6 +61,39 @@
 //	-x	exit when cmd exits
 //	-O	no overlay plane: every window's pixels in wsys' screen (tests read them back)
 
+#[cfg(feature = "gpu")]
+mod comp;
+// without the feature (no Vulkan linked) -g says so
+#[cfg(not(feature = "gpu"))]
+mod comp {
+    pub type Key = (u32, u32);
+    #[derive(Clone, PartialEq)]
+    pub struct Shown {
+        pub key: Key,
+        pub at: (i32, i32),
+        pub rects: Vec<crate::draw::Rect>,
+    }
+    pub enum Done {
+        Composed(Vec<Key>),
+        Failed(String),
+    }
+    pub struct Comp;
+    impl Comp {
+        pub fn start(_: Box<dyn Fn(Done) + Send>) -> Result<Comp, String> {
+            Err("built without the GPU (feature gpu)".into())
+        }
+        pub fn import(&self, _: Key, _: &str, _: i32, _: i32, _: usize) -> Result<(), String> {
+            Err("no GPU".into())
+        }
+        pub fn forget(&self, _: Key) {}
+        pub fn scene(&self, _: Vec<Shown>) -> bool {
+            false
+        }
+        pub fn snapshot(&self, _: crate::draw::Rect) -> Result<Vec<u8>, String> {
+            Err("no GPU".into())
+        }
+    }
+}
 mod draw;
 mod font;
 mod gpu;
@@ -111,6 +144,8 @@ enum Ev {
     WinExit(u32), // the process wsys started in a window
     // the overlay's thread did a request: a present (its write's tag, unless off) or off
     Overlay { win: u32, b: u32, tag: Option<u16>, count: u32, err: Option<String> },
+    // the GPU's thread (-g): a frame on its way, or it is gone
+    Comp(comp::Done),
 }
 
 /// a request for the overlay's thread: its own fid of wsys' GPU context, as the
@@ -193,6 +228,7 @@ struct Buf {
     w: i32,
     h: i32,
     stride: usize,
+    comp: bool, // imported by the GPU's thread too (-g): it composes it
 }
 
 /// where a buffer's pixels are: a segment of the client's, or a GPU buffer it
@@ -255,6 +291,10 @@ struct Win {
     inside: bool,        // the mouse was over it, last seen
     nooverlay: bool,     // the driver refused it the overlay: copies until it moves or resizes
     ovsent: Option<bool>, // the last "overlay 0|1" event: whether it may go on the plane
+    // -g: the buffer presented last, composed by the GPU, and the one a frame on
+    // its way shows (held: the client gets it back when another is shown)
+    shownb: Option<u32>,
+    held: Option<u32>,
 }
 
 /// a line of a text window as drawn: each rune's x, width and offset, and the
@@ -289,6 +329,23 @@ enum Op3 {
     Move,
     Delete,
     Hide,
+}
+
+/// what of r is not in o: up to four rectangles (above, below, left, right of it)
+fn subtract(r: &Rect, o: &Rect) -> Vec<Rect> {
+    let i = r.clip(o);
+    if i.empty() {
+        return vec![*r];
+    }
+    [
+        Rect::new(r.x0, r.y0, r.x1, i.y0),
+        Rect::new(r.x0, i.y1, r.x1, r.y1),
+        Rect::new(r.x0, i.y0, i.x0, i.y1),
+        Rect::new(i.x1, i.y0, r.x1, i.y1),
+    ]
+    .into_iter()
+    .filter(|x| !x.empty())
+    .collect()
 }
 
 /// cursor(3) while a command waits: a cross (offset, clr, set: 16x16 bits)
@@ -495,6 +552,10 @@ struct Wsys {
     nooverlay: bool,                   // -O
     gpu: Option<gpu::Gpu>, // a context for clients' GPU buffers, made for the first
     segs: HashMap<usize, Weak<Seg>>, // the clients' segments attached, by address
+    comp: Option<comp::Comp>, // -g: the GPU composes the screen
+    compscene: Vec<comp::Shown>, // what it was told last
+    compdirty: bool,             // a buffer presented since: a frame
+    sweepr: Option<Rect>,        // the sweep's outline (over the GPU windows)
 }
 
 fn qid(k: Kind) -> Qid {
@@ -765,7 +826,15 @@ impl Wsys {
                                 Kind::File(n, F::Window) => (self.wins[&n].layer, self.wins[&n].r.inset(-BORDER)),
                                 _ => (self.d.screen, self.d.r),
                             };
-                            match self.snapshot(id, r) {
+                            // -g: the screen as the GPU composed it (the GPU windows are
+                            // not in devdraw's); a window's is what is seen of it
+                            let gpuwin = matches!(k, Kind::File(n, F::Window) if self.wins[&n].shownb.is_some());
+                            let snap = if self.comp.is_some() && (gpuwin || !matches!(k, Kind::File(_, F::Window))) {
+                                self.compsnapshot(r)
+                            } else {
+                                self.snapshot(id, r)
+                            };
+                            match snap {
                                 Ok(b) => self.fids.get_mut(&fid).unwrap().snap = Some(b),
                                 Err(err) => return e(&err.to_string()),
                             }
@@ -953,6 +1022,16 @@ impl Wsys {
         Ok(b)
     }
 
+    /// image(6) of rectangle r of the screen as the GPU composes it
+    fn compsnapshot(&mut self, r: Rect) -> std::io::Result<Vec<u8>> {
+        self.compsync();
+        let px = self.comp.as_ref().unwrap().snapshot(r).map_err(std::io::Error::other)?;
+        let r = r.clip(&self.d.r);
+        let mut b = format!("{:>11} {:11} {:11} {:11} {:11} ", draw::chanstr(XRGB32), r.x0, r.y0, r.x1, r.y1).into_bytes();
+        b.extend(px);
+        Ok(b)
+    }
+
     fn ctltext(&self, n: u32) -> String {
         let w = &self.wins[&n];
         format!(
@@ -1116,7 +1195,7 @@ impl Wsys {
             kbd: VecDeque::new(), kbdopen: 0, mouseopen: 0, mouse: VecDeque::new(), resized: false,
             cursor: vec![], state: 1, textwin: text, scroll: 0, sel: (0, 0), rows: vec![], hidden: false,
             hold: false, want: None, stale: false,
-            scrollr: Rect::default(), shown: (1, 0, 1), lastb: None, inside: false, nooverlay: false, ovsent: None,
+            scrollr: Rect::default(), shown: (1, 0, 1), lastb: None, inside: false, nooverlay: false, ovsent: None, shownb: None, held: None,
         });
         self.z.push(n);
         self.setfocus(Some(n));
@@ -1128,6 +1207,13 @@ impl Wsys {
     /// window n goes; hangup: its note group gets the note (a delete by wctl)
     fn delwin(&mut self, n: u32, hangup: bool) {
         let Some(w) = self.wins.remove(&n) else { return };
+        if let Some(c) = &self.comp {
+            for (&b, buf) in &w.bufs {
+                if buf.comp {
+                    c.forget((n, b));
+                }
+            }
+        }
         if hangup {
             if let Some(pid) = w.pid {
                 postnote(pid, "hangup");
@@ -1341,7 +1427,7 @@ impl Wsys {
                     }
                 };
                 let w = self.wins.get_mut(&n).unwrap();
-                w.bufs.insert(b as u32, Buf { mem: Mem::Seg(seg, off), w: bw as i32, h: bh as i32, stride: stride as usize });
+                w.bufs.insert(b as u32, Buf { mem: Mem::Seg(seg, off), w: bw as i32, h: bh as i32, stride: stride as usize, comp: false });
                 Ok(())
             }
             "gpubuffer" => {
@@ -1358,18 +1444,41 @@ impl Wsys {
                 }
                 let size = (stride * (bh - 1) + bw * 4) as usize;
                 let mem = self.gpu.as_mut().unwrap().import(token, size).map_err(|e| format!("gpubuffer {b}: {e}"))?;
+                self.unbuffer(n, b as u32);
+                // -g: the GPU's thread imports it too and composes it; else (or if it
+                // cannot) wsys copies it with the processor
+                let comp = match &self.comp {
+                    Some(c) => c
+                        .import((n, b as u32), token, bw as i32, bh as i32, stride as usize)
+                        .inspect_err(|e| eprintln!("wsys: window {n}: gpubuffer {b}: the GPU composes it not: {e}"))
+                        .is_ok(),
+                    None => false,
+                };
                 let w = self.wins.get_mut(&n).unwrap();
-                w.bufs.insert(b as u32, Buf { mem: Mem::Gpu(mem), w: bw as i32, h: bh as i32, stride: stride as usize });
+                w.bufs.insert(b as u32, Buf { mem: Mem::Gpu(mem), w: bw as i32, h: bh as i32, stride: stride as usize, comp });
                 Ok(())
             }
             "unbuffer" => {
                 let b = *nums.first().ok_or("usage: unbuffer n")? as u32;
-                self.wins.get_mut(&n).unwrap().bufs.remove(&b).ok_or("no such buffer")?;
+                if !self.wins[&n].bufs.contains_key(&b) {
+                    return Err("no such buffer".into());
+                }
+                self.unbuffer(n, b);
                 Ok(())
             }
             "present" => {
                 let b = *nums.first().ok_or("usage: present n [x0 y0 x1 y1]")? as u32;
                 let r = if nums.len() == 5 { Some(Rect::new(nums[1], nums[2], nums[3], nums[4])) } else { None };
+                let w = self.wins.get_mut(&n).unwrap();
+                if w.bufs.get(&b).is_some_and(|x| x.comp) {
+                    // the GPU composes it from now on (the next frame); the client
+                    // gets back the one shown before when that frame is on its way
+                    w.shownb = Some(b);
+                    w.lastb = Some(b);
+                    self.compdirty = true;
+                    return Ok(());
+                }
+                self.uncompose(n);
                 self.copybuf(n, b, r)?;
                 self.wins.get_mut(&n).unwrap().lastb = Some(b);
                 // copied: the client may write it again
@@ -1396,6 +1505,123 @@ impl Wsys {
                 Ok(())
             }
             _ => Err(format!("unknown ctl message: {cmd}")),
+        }
+    }
+
+    /// buffer b of window n gone (unbuffer, a new one of the same number)
+    fn unbuffer(&mut self, n: u32, b: u32) {
+        let Some(w) = self.wins.get_mut(&n) else { return };
+        let Some(buf) = w.bufs.remove(&b) else { return };
+        if buf.comp {
+            if w.shownb == Some(b) {
+                w.shownb = None;
+                self.compdirty = true;
+            }
+            if w.held == Some(b) {
+                w.held = None;
+            }
+            if let Some(c) = &self.comp {
+                c.forget((n, b));
+            }
+        }
+    }
+
+    /// window n no longer composed by the GPU (its client presents a buffer wsys
+    /// copies): the one held goes back to it
+    fn uncompose(&mut self, n: u32) {
+        let Some(w) = self.wins.get_mut(&n) else { return };
+        if w.shownb.take().is_some() {
+            self.compdirty = true;
+        }
+        if let Some(h) = w.held.take() {
+            self.event(n, format!("b {h}"));
+        }
+    }
+
+    /// what the GPU composes now (-g): the windows with a GPU buffer presented,
+    /// bottom to top, each where it is not covered by a window above it or by
+    /// wsys' menu and sweep; told to the GPU's thread when it changed or a
+    /// buffer was presented
+    fn compsync(&mut self) {
+        if self.comp.is_none() {
+            return;
+        }
+        let mut scene = vec![];
+        for (i, &n) in self.z.iter().enumerate() {
+            let w = &self.wins[&n];
+            let Some(b) = w.shownb else { continue };
+            if w.hidden {
+                continue;
+            }
+            let Some(buf) = w.bufs.get(&b) else { continue };
+            let mine = Rect::new(w.r.x0, w.r.y0, w.r.x0 + buf.w.min(w.r.dx()), w.r.y0 + buf.h.min(w.r.dy())).clip(&self.d.r);
+            let mut rects = if mine.empty() { vec![] } else { vec![mine] };
+            let mut over: Vec<Rect> = self.z[i + 1..].iter().map(|o| &self.wins[o]).filter(|o| !o.hidden).map(|o| o.r.inset(-BORDER)).collect();
+            if let Some(m) = &self.menu {
+                over.push(m.r);
+            }
+            if let Some(r) = self.sweepr {
+                let f = r.inset(-BORDER);
+                over.extend([
+                    Rect::new(f.x0, f.y0, f.x1, r.y0),
+                    Rect::new(f.x0, r.y1, f.x1, f.y1),
+                    Rect::new(f.x0, r.y0, r.x0, r.y1),
+                    Rect::new(r.x1, r.y0, f.x1, r.y1),
+                ]);
+            }
+            for o in over {
+                rects = rects.iter().flat_map(|r| subtract(r, &o)).collect();
+            }
+            scene.push(comp::Shown { key: (n, b), at: (w.r.x0, w.r.y0), rects });
+        }
+        if scene == self.compscene && !self.compdirty {
+            return;
+        }
+        self.compdirty = false;
+        self.compscene = scene.clone();
+        if !self.comp.as_ref().unwrap().scene(scene) {
+            self.compfailed("its thread is gone".into());
+        }
+    }
+
+    /// a frame with these buffers is on its way: each window's buffer shown
+    /// before goes back to its client
+    fn composed(&mut self, keys: Vec<comp::Key>) {
+        for (n, b) in keys {
+            let Some(w) = self.wins.get_mut(&n) else { continue };
+            if w.shownb != Some(b) {
+                continue;
+            }
+            match w.held.replace(b) {
+                Some(h) if h != b => self.event(n, format!("b {h}")),
+                // presented again while shown: back at once (as when copied)
+                Some(_) => self.event(n, format!("b {b}")),
+                None => {}
+            }
+        }
+    }
+
+    /// the GPU's thread is gone: the processor copies the buffers again
+    fn compfailed(&mut self, e: String) {
+        eprintln!("wsys: the GPU composes no longer: {e}");
+        self.comp = None;
+        self.compscene.clear();
+        let ids: Vec<u32> = self.wins.keys().copied().collect();
+        for n in ids {
+            let w = self.wins.get_mut(&n).unwrap();
+            for b in w.bufs.values_mut() {
+                b.comp = false;
+            }
+            let (shown, held) = (w.shownb.take(), w.held.take());
+            if let Some(b) = shown {
+                let _ = self.copybuf(n, b, None);
+                if held.is_some_and(|h| h != b) {
+                    self.event(n, format!("b {}", held.unwrap()));
+                }
+                self.event(n, format!("b {b}"));
+            } else if let Some(h) = held {
+                self.event(n, format!("b {h}"));
+            }
         }
     }
 
@@ -1471,6 +1697,7 @@ impl Wsys {
 
     /// the frame of r on top of all (a sweep in progress): four thin windows
     fn outline(&mut self, r: Option<Rect>) {
+        self.sweepr = r;
         let res = (|| -> std::io::Result<()> {
             for l in std::mem::take(&mut self.sweep) {
                 self.d.free(l)?;
@@ -1600,6 +1827,7 @@ impl Wsys {
         let Some(w) = self.wins.get(&n) else { return Some("no window") };
         let why = [
             (self.nooverlay, "-O"),
+            (self.comp.is_some(), "the GPU composes the screen (-g)"),
             (self.gpu.as_ref().and_then(|g| g.overlay_ctl()).is_none(), "the driver has no overlay"),
             (self.z.last() != Some(&n), "not on top"),
             (w.hidden, "hidden"),
@@ -2720,7 +2948,7 @@ fn kbdreader(tx: mpsc::Sender<Ev>) {
 }
 
 fn usage() -> ! {
-    eprintln!("usage: wsys [-Ox] [-f font] [-s srvname] [-i cmd]");
+    eprintln!("usage: wsys [-Ogx] [-f font] [-s srvname] [-i cmd]");
     std::process::exit(1);
 }
 
@@ -2730,7 +2958,7 @@ fn main() {
     // with its pid as rio: a wsys that died leaves its entry, another starts all the same
     let mut srvname = format!("wsys.{user}.{}", std::process::id());
     let mut alias = true; // /srv/wsys.$user too, unless -s names it
-    let (mut init, mut exitwith, mut nooverlay) = (None, false, false);
+    let (mut init, mut exitwith, mut nooverlay, mut gpucomp) = (None, false, false, false);
     let mut fontname = std::env::var("font").ok().filter(|f| !f.is_empty()).unwrap_or(DEFFONT.to_string());
     while let Some(a) = args.next() {
         match a.as_str() {
@@ -2741,6 +2969,7 @@ fn main() {
             "-i" => init = Some(args.next().unwrap_or_else(|| usage())),
             "-x" => exitwith = true,
             "-O" => nooverlay = true,
+            "-g" => gpucomp = true,
             "-f" => fontname = args.next().unwrap_or_else(|| usage()),
             _ => usage(),
         }
@@ -2862,6 +3091,10 @@ fn main() {
         plumbfd: None,
         gpu: None,
         segs: HashMap::new(),
+        comp: None,
+        compscene: vec![],
+        compdirty: false,
+        sweepr: None,
         tabstop: std::env::var("tabstop").ok().and_then(|t| t.trim().parse().ok()).filter(|&t: &i32| t > 0).unwrap_or(4),
         // rio's snarf, when wsys runs in a window of rio
         parentsnarf: std::fs::metadata("/dev/snarf").is_ok() && std::fs::metadata("/dev/wctl").is_ok(),
@@ -2898,6 +3131,30 @@ fn main() {
         Err(e) => {
             eprintln!("wsys: screen: {e}");
             std::process::exit(1);
+        }
+    }
+    // -g: the GPU composes the screen, if wsys has it all (not in a window: the
+    // frames would go into the window wsys draws into) and Vulkan can show it
+    if gpucomp {
+        let winname = std::fs::read_to_string("/dev/winname").unwrap_or_default();
+        let why = if !winname.starts_with("noborder.screen.") {
+            Some(format!("not the whole screen ({winname})"))
+        } else if ws.d.chan != XRGB32 {
+            Some(format!("the screen is {}, not x8r8g8b8", draw::chanstr(ws.d.chan)))
+        } else {
+            let tx = tx.clone();
+            match comp::Comp::start(Box::new(move |d| {
+                let _ = tx.send(Ev::Comp(d));
+            })) {
+                Ok(c) => {
+                    ws.comp = Some(c);
+                    None
+                }
+                Err(e) => Some(e),
+            }
+        };
+        if let Some(why) = why {
+            eprintln!("wsys: -g: the processor composes: {why}");
         }
     }
     if exitwith {
@@ -2968,6 +3225,12 @@ fn main() {
                 }
             }
             Ev::Overlay { win, b, tag, count, err } => ws.overlay_done(win, b, tag, count, err),
+            Ev::Comp(comp::Done::Composed(keys)) => ws.composed(keys),
+            Ev::Comp(comp::Done::Failed(e)) => {
+                if ws.comp.is_some() {
+                    ws.compfailed(e);
+                }
+            }
             Ev::ChildExit(s) => {
                 if exitwith && quit.is_none() {
                     if !s.is_empty() {
@@ -2982,8 +3245,10 @@ fn main() {
                 }
             }
         }
-        // after whatever changed: the window on the overlay plane may have to leave it
+        // after whatever changed: the window on the overlay plane may have to leave it;
+        // with -g, what the GPU composes
         ws.ovcheck();
+        ws.compsync();
     }
     let _ = p9::remove(&srvpath);
     // the windows let go of their clients' segments; their processes hang up

@@ -138,6 +138,11 @@ and every flush of the screen is collected here.
 A read blocks until something changed and returns the bounding
 rectangle as
 .IB "x0 y0 x1 y1" .
+Each open file collects for itself (up to four at once): the driver's
+copy to the card and a compositor
+.RI ( wsys (4)
+.BR -g )
+each get every change.
 The driver copies that part to the display.
 .SH EXAMPLES
 What the driver does to show the screen:

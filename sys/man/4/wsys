@@ -4,7 +4,7 @@ wsys \- window system, prototype (processor backend), rio(4)'s files
 .SH SYNOPSIS
 .B wsys
 [
-.B -Ox
+.B -Ogx
 ] [
 .B -f
 .I font
@@ -66,6 +66,34 @@ does;
 uses no overlay plane (see
 .B gpubuffer
 below).
+.PP
+.B -g
+composes the screen on the GPU (Vulkan, Mesa's
+.BR libvulkan.a ):
+a swapchain on the whole screen goes to the display (gpu(4)
+.BR scanout ),
+each frame from what
+.IR draw (3)
+changed on the screen (gpu(3)'s
+.BR dirty ,
+copied from its framebuffer by the processor) and, over it, the windows'
+GPU buffers where they are seen, copied by the GPU (the processor copies
+none of their pixels; no overlay plane then).
+A presented GPU buffer stays
+.IR wsys 's
+while it is shown: the client gets the one shown before back
+.RB ( "b \fIn\fP" )
+when a frame with the new one is on its way, at the display's rate.
+.B /mnt/wsys/screen
+and a GPU window's
+.B window
+are then read back from a frame; such a window's own image in
+.IR draw (3)
+does not have the client's pixels.
+Only on the whole screen (not in a window), with an x8r8g8b8 screen;
+otherwise, if Vulkan does not start, or when its thread fails,
+the processor composes as without
+.BR -g .
 .PP
 A window's pixels are not sent through the files: they are in global
 segments of
@@ -464,7 +492,7 @@ A client in C: see
 .IR draw (3),
 .IR segment (3)
 .SH BUGS
-A prototype: no labels shown, no Vulkan backend yet; button 2's menu has no
+A prototype: no labels shown; button 2's menu has no
 .BR scroll ;
 .B /dev/screen
 and
@@ -482,9 +510,24 @@ GPU buffers: those of
 .I virtiogpu
 (venus) and
 .I amdgpu
-(RADV) so far, and
+(RADV) and
+.I i915
+(hasvk) so far; without
+.B -g
 .I wsys
 copies them to the screen with the processor.
+With
+.BR -g ,
+draw(3)'s changes are still copied by the processor (into a buffer the
+GPU reads), and a client presenting the buffer shown again gets it back
+at once, while it is still read each frame.
+Programs that read the screen through
+.IR draw (3)
+(rather than
+.BR /mnt/wsys/screen )
+do not see the GPU windows, and a cursor drawn by
+.IR draw (3)
+(vga hwgc soft) is hidden by them; the GPU drivers' cursor plane is not.
 Each buffer is a segment of
 .IR wsys 's
 own as well; a process has room for some 250
