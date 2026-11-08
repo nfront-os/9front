@@ -1,0 +1,79 @@
+#!/bin/rc
+# comprun: wsys(4) -g on this machine (the laptop, desktop=wsys and
+# wsysflags=-g in plan9.ini): in windows of the desktop's wsys, two vktri
+# at once, then one partly covered by a text window; vktri checks its
+# pixels in /dev/screen (the screen as wsys composes it), the covered
+# corner and the middle are read from /mnt/wsys/screen.  The log into
+# comp.log on the ESP (FAT) of the USB stick the system booted from, as
+# wlrun's, else in /tmp.  Needs /amd64/vk/vktri (the CD has it), or
+# the vktri given.
+rfork e
+if(! test -e /mnt/wsys/clone && ! ~ $#wsys 0){
+	rfork n
+	mount -c $wsys /mnt/wsys
+}
+if(! test -e /mnt/wsys/clone){
+	echo comprun: run me in a window of wsys
+	exit wsys
+}
+vktri=/amd64/vk/vktri
+if(! ~ $#* 0)
+	vktri=$1
+if(! test -x $vktri){
+	echo comprun: no $vktri
+	exit vktri
+}
+dir=/tmp
+if(! test -e /srv/gpu.esp && test -d '#σ/usb'){
+	for(d in '#σ/usb'/sdU*/esp)
+		if(! test -e /srv/gpu.esp && test -r $d)
+			dossrv -f $d gpu.esp >/dev/null >[2=1]
+}
+if(test -e /srv/gpu.esp && mount -c /srv/gpu.esp /n/esp)
+	dir=/n/esp
+log=$dir/comp.log
+echo comprun: the log is $log
+bind -a '#m' /dev
+# vktri in a window: the script the windows run (log secs vktri)
+cat >/tmp/compvk.rc <<'!'
+#!/bin/rc
+screenpeek=/dev/screen WSI_PLAN9_STATS=1 $3 $2 >$1 >[2=1]
+echo comprun: exit $status >>$1
+!
+chmod +x /tmp/compvk.rc
+fn waitexit { # log
+	n=0
+	while(! grep -s '^comprun: exit' $1 >[2]/dev/null && test $n -lt 600){ sleep 0.1; n=`{echo $n+1 | hoc} }
+}
+# a pixel of /mnt/wsys/screen as rrggbb (image(6): 60 bytes of header)
+fn peek { # x y
+	hdr=`{dd -if /mnt/wsys/screen -bs 60 -count 1 >[2]/dev/null}
+	off=`{echo 60+'('$2-$hdr(3)')*('$hdr(4)-$hdr(2)')*4+('$1-$hdr(2)')*4' | hoc}
+	px=`{dd -if /mnt/wsys/screen -bs 4 -iseek `{echo $off/4 | hoc} -count 1 >[2]/dev/null | xd -1x | sed 1q}
+	echo $px(4)^$px(3)^$px(2)
+}
+{
+	echo comprun on $sysname `{date} wsysflags $wsysflags
+	cat /dev/gpu/0/status >[2]/dev/null | sed 1q
+	rm -f /tmp/compa.log /tmp/compb.log /tmp/compc.log
+	window -r 100 100 580 460 /tmp/compvk.rc /tmp/compa.log 3 $vktri
+	window -r 600 100 1080 460 /tmp/compvk.rc /tmp/compb.log 3 $vktri
+	waitexit /tmp/compa.log
+	waitexit /tmp/compb.log
+	window -r 100 100 580 460 /tmp/compvk.rc /tmp/compc.log 8 $vktri
+	sleep 3
+	window -r 80 80 260 220 rc
+	sleep 2
+	# vktri's content from 104,104 (the border 4): 144,144 under the text
+	# window, its middle (the triangle's) 340,250 not
+	echo covered: `{peek 144 144}
+	echo uncovered: `{peek 340 250}
+	waitexit /tmp/compc.log
+	for(f in a b c){
+		sed 's/^/'$f': /' /tmp/comp$f.log | grep -v ' per frame '
+		grep ' per frame ' /tmp/comp$f.log | sed 3q | sed 's/^/'$f': /'
+	}
+	cat /dev/gpu/0/status >[2]/dev/null | grep -i 'error\|hang' 
+	echo comprun: done `{date}
+} >$log >[2=1]
+grep '^(FAIL|[abc]: vktri:|covered|uncovered|comprun)' $log

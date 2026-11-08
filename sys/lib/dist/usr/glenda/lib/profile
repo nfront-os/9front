@@ -14,9 +14,10 @@ case terminal
 	prompt=('term% ' '	')
 	fn term%{ $* }
 	# ui branch: desktop=wsys (plan9.ini) starts wsys(4), the window
-	# system of ../9front-ui, instead of rio; riostart serves both
+	# system of ../9front-ui, instead of rio, with the options in
+	# wsysflags (-g: the GPU composes); riostart serves both
 	if(~ $desktop wsys && test -x /bin/wsys)
-		wsys -i riostart
+		wsys $wsysflags -i riostart
 	if not
 		rio -i riostart
 case cpu

@@ -477,6 +477,15 @@ makes the terminal's profile start
 .B wsys -i riostart
 instead of
 .IR rio .
+.B wsysflags=-g
+adds
+.BR -g ;
+.B comprun
+in one of its windows then checks the composition (two
+.B vktri
+at once, one partly covered) and logs to
+.B comp.log
+on the boot stick's ESP.
 .PP
 A client in C: see
 .BR /tests/ui/wsystest.c .
