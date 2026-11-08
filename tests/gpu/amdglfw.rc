@@ -14,7 +14,7 @@ n=0
 while(! grep -s '^glfw: exit' /tmp/glfw.log && test $n -lt 600){ sleep 0.1; n=`{echo $n+1 | hoc} }
 cat /tmp/glfw.log
 .
-/tests/wsys -x -i 'rc /tmp/glfwwin.rc' >/tmp/wsys.log >[2=1]
+/tests/wsys -p -x -i 'rc /tmp/glfwwin.rc' >/tmp/wsys.log >[2=1]
 cat /tmp/wsys.log
 grep 'WARN|error|fault|BUG' /tmp/amd.log
 echo TESTEND

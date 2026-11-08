@@ -1,5 +1,5 @@
 #!/bin/rc
-# run by wsys -g -x -i (tests/gpu/run.sh): the screen composed on the GPU
+# run by wsys -x -i (tests/gpu/run.sh; amdcomp.rc: -g): the screen composed on the GPU
 # (wsys(4) -g): two vktri at once in windows of wsys, their frames GPU
 # buffers wsys copies on the GPU into its frames (no processor copy), each
 # checking its pixels in the screen as composed (/dev/screen); then one

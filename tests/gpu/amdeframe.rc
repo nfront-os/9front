@@ -14,7 +14,7 @@ n=0
 while(! grep -s '^eframetest: exit' /tmp/eframe.log && test $n -lt 900){ sleep 0.1; n=`{echo $n+1 | hoc} }
 cat /tmp/eframe.log
 .
-/tests/wsys -O -x -i 'rc /tmp/eframewin.rc' >/tmp/wsys.log >[2=1]
+/tests/wsys -p -O -x -i 'rc /tmp/eframewin.rc' >/tmp/wsys.log >[2=1]
 cat /tmp/wsys.log
 grep 'WARN|error|BUG' /tmp/amd.log
 echo TESTEND

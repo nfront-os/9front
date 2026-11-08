@@ -8,13 +8,13 @@ bind -a '#i' /dev
 bind -a '#v' /dev
 aux/amdgpu $* >/tmp/amd.log >[2=1]
 sleep 2
-/tests/wsys -O -x -i 'rc /tests/amdsdlwin.rc' >/tmp/wsys.log >[2=1]
+/tests/wsys -p -O -x -i 'rc /tests/amdsdlwin.rc' >/tmp/wsys.log >[2=1]
 cat /tmp/wsys.log
-WSYSDEBUG=overlay /tests/wsys -x -i 'rc /tests/amdsdlwin.rc overlay' >/tmp/wsys.log >[2=1]
+WSYSDEBUG=overlay /tests/wsys -p -x -i 'rc /tests/amdsdlwin.rc overlay' >/tmp/wsys.log >[2=1]
 cat /tmp/wsys.log
-/tests/wsys -O -x -i 'rc /tests/amdsdlwin.rc - sdlgl' >/tmp/wsys.log >[2=1]
+/tests/wsys -p -O -x -i 'rc /tests/amdsdlwin.rc - sdlgl' >/tmp/wsys.log >[2=1]
 cat /tmp/wsys.log
-WSYSDEBUG=overlay /tests/wsys -x -i 'rc /tests/amdsdlwin.rc overlay sdlgl' >/tmp/wsys.log >[2=1]
+WSYSDEBUG=overlay /tests/wsys -p -x -i 'rc /tests/amdsdlwin.rc overlay sdlgl' >/tmp/wsys.log >[2=1]
 cat /tmp/wsys.log
 grep 'WARN|error|fault|BUG' /tmp/amd.log
 echo TESTEND

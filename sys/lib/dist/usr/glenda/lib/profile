@@ -15,7 +15,7 @@ case terminal
 	fn term%{ $* }
 	# ui branch: desktop=wsys (plan9.ini) starts wsys(4), the window
 	# system of ../9front-ui, instead of rio, with the options in
-	# wsysflags (-g: the GPU composes); riostart serves both
+	# wsysflags (-p: the processor composes, not the GPU); riostart serves both
 	# (with wsysflags, what wsys says goes to wsysboot.log on the boot
 	# stick's ESP, if gpustart served it: a line at a time, esplog)
 	# (a chain of if not: each refers to the if just before it)

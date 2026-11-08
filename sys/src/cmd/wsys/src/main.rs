@@ -53,7 +53,10 @@
 // A window lives while its files are open (or the clone fid that made it).
 // Processes wsys starts (-i, wctl's new) get note groups of their own.
 //
-// usage: wsys [-Ox] [-f font] [-s srvname] [-i cmd]
+// usage: wsys [-gpOx] [-f font] [-s srvname] [-i cmd]
+//	-g	the GPU composes the screen (the default, where it can): why not if it cannot,
+//		and what it does
+//	-p	the processor composes the screen
 //	-f	the font of text windows (default $font, else /lib/font/bit/vga/unicode.font)
 //	-s	post as /srv/srvname (default wsys.$user.$pid, and wsys.$user: the newest
 //		wsys of the user, where programs that outlive one find the next)
@@ -79,7 +82,7 @@ mod comp {
     }
     pub struct Comp;
     impl Comp {
-        pub fn start(_: Box<dyn Fn(Done) + Send>) -> Result<Comp, String> {
+        pub fn start(_: Box<dyn Fn(Done) + Send>, _: bool) -> Result<Comp, String> {
             Err("built without the GPU (feature gpu)".into())
         }
         pub fn import(&self, _: Key, _: &str, _: i32, _: i32, _: usize) -> Result<(), String> {
@@ -3052,7 +3055,7 @@ fn kbdreader(tx: mpsc::Sender<Ev>) {
 }
 
 fn usage() -> ! {
-    eprintln!("usage: wsys [-Ogx] [-f font] [-s srvname] [-i cmd]");
+    eprintln!("usage: wsys [-gpOx] [-f font] [-s srvname] [-i cmd]");
     std::process::exit(1);
 }
 
@@ -3062,7 +3065,8 @@ fn main() {
     // with its pid as rio: a wsys that died leaves its entry, another starts all the same
     let mut srvname = format!("wsys.{user}.{}", std::process::id());
     let mut alias = true; // /srv/wsys.$user too, unless -s names it
-    let (mut init, mut exitwith, mut nooverlay, mut gpucomp) = (None, false, false, false);
+    // gpucomp: None the GPU where it can, quietly; Some(true) -g; Some(false) -p
+    let (mut init, mut exitwith, mut nooverlay, mut gpucomp) = (None, false, false, None);
     let mut fontname = std::env::var("font").ok().filter(|f| !f.is_empty()).unwrap_or(DEFFONT.to_string());
     while let Some(a) = args.next() {
         match a.as_str() {
@@ -3073,7 +3077,8 @@ fn main() {
             "-i" => init = Some(args.next().unwrap_or_else(|| usage())),
             "-x" => exitwith = true,
             "-O" => nooverlay = true,
-            "-g" => gpucomp = true,
+            "-g" => gpucomp = Some(true),
+            "-p" => gpucomp = Some(false),
             "-f" => fontname = args.next().unwrap_or_else(|| usage()),
             _ => usage(),
         }
@@ -3238,9 +3243,11 @@ fn main() {
             std::process::exit(1);
         }
     }
-    // -g: the GPU composes the screen, if wsys has it all (not in a window: the
-    // frames would go into the window wsys draws into) and Vulkan can show it
-    if gpucomp {
+    // the GPU composes the screen (unless -p), if wsys has it all (not in a window:
+    // the frames would go into the window wsys draws into) and Vulkan can show it;
+    // -g says why not and what it does
+    if gpucomp != Some(false) {
+        let verbose = gpucomp == Some(true) || std::env::var("WSYSDEBUG").is_ok_and(|v| v.contains("comp"));
         let winname = std::fs::read_to_string("/dev/winname").unwrap_or_default();
         let why = if !winname.starts_with("noborder.screen.") {
             Some(format!("not the whole screen ({winname})"))
@@ -3248,9 +3255,12 @@ fn main() {
             Some(format!("the screen is {}, not x8r8g8b8", draw::chanstr(ws.d.chan)))
         } else {
             let tx = tx.clone();
-            match comp::Comp::start(Box::new(move |d| {
-                let _ = tx.send(Ev::Comp(d));
-            })) {
+            match comp::Comp::start(
+                Box::new(move |d| {
+                    let _ = tx.send(Ev::Comp(d));
+                }),
+                verbose,
+            ) {
                 Ok(c) => {
                     ws.comp = Some(c);
                     None
@@ -3258,7 +3268,7 @@ fn main() {
                 Err(e) => Some(e),
             }
         };
-        if let Some(why) = why {
+        if let Some(why) = why.filter(|_| verbose) {
             eprintln!("wsys: -g: the processor composes: {why}");
         }
     }

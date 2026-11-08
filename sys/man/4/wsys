@@ -4,7 +4,7 @@ wsys \- window system, prototype (processor backend), rio(4)'s files
 .SH SYNOPSIS
 .B wsys
 [
-.B -Ogx
+.B -gpOx
 ] [
 .B -f
 .I font
@@ -67,7 +67,8 @@ uses no overlay plane (see
 .B gpubuffer
 below).
 .PP
-.B -g
+Where it can,
+.I wsys
 composes the screen on the GPU (Vulkan, Mesa's
 .BR libvulkan.a ):
 a swapchain on the whole screen goes to the display (gpu(4)
@@ -90,11 +91,17 @@ and a GPU window's
 are then read back from a frame; such a window's own image in
 .IR draw (3)
 does not have the client's pixels.
-Only on the whole screen (not in a window), with an x8r8g8b8 screen;
+Only on the whole screen (not in a window), with an x8r8g8b8 screen, a
+GPU's driver drawing it (gpu(3)'s framebuffer; not under VESA);
 otherwise, if Vulkan does not start, when its thread fails, or when
 the display refuses its frames (the WSI would copy them into the
-screen they are composed from), the processor composes as without
-.BR -g .
+screen they are composed from), the processor composes.
+.B -p
+makes the processor compose (and the overlay plane is used, below);
+.B -g
+asks for the GPU and says why not when it cannot, and what it does
+(as does
+.BR WSYSDEBUG=comp ).
 .PP
 A window's pixels are not sent through the files: they are in global
 segments of
@@ -383,9 +390,7 @@ screen (tests that read the pixels back);
 .B WSYSDEBUG=overlay
 writes why a window's present does not go on the plane,
 .B WSYSDEBUG=release
-each frame composed with
-.B -g
-and each buffer given back.
+each frame composed on the GPU and each buffer given back.
 .TP
 .BI unbuffer " b
 .I wsys
@@ -402,8 +407,7 @@ is done with the buffer it sends the event
 .BI b " bR:"
 the client may write it again.
 With two or more buffers the client draws the next picture meanwhile.
-A buffer the display shows (with
-.BR -g ,
+A buffer the display shows (composed on the GPU,
 or on the overlay plane) stays
 .IR wsys 's
 until another one of the window is shown, at the display's rate, also
@@ -497,9 +501,12 @@ instead of
 .IR rio .
 .B wsysflags=-g
 adds
-.BR -g ;
+.B -g
+(and logs what wsys says to
+.B wsysboot.log
+on the boot stick's ESP);
 .B comprun
-in one of its windows then checks the composition (two
+in one of its windows checks the composition (two
 .B vktri
 at once, one partly covered) and logs to
 .B comp.log
@@ -520,11 +527,7 @@ A client in C: see
 .IR segment (3)
 .SH BUGS
 A prototype: no labels shown; button 2's menu has no
-.BR scroll ;
-.B /dev/screen
-and
-.B window
-images are not served.
+.BR scroll .
 .I Wsys
 must be allowed to attach the clients' segments: the same user, or the
 host owner.
@@ -539,13 +542,10 @@ GPU buffers: those of
 .I amdgpu
 (RADV) and
 .I i915
-(hasvk) so far; without
-.B -g
+(hasvk) so far; when the processor composes,
 .I wsys
-copies them to the screen with the processor.
-With
-.BR -g ,
-draw(3)'s changes are still copied by the processor (into a buffer the
+copies them to the screen.
+On the GPU, draw(3)'s changes are still copied by the processor (into a buffer the
 GPU reads), and a client presenting the buffer shown again gets it back
 at once, while it is still read each frame.
 Programs that read the screen through

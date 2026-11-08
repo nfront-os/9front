@@ -291,7 +291,7 @@ if [ -r /dev/dri/renderD128 ] && [ -w /dev/dri/renderD128 ] &&
 		# (ps, the logs' last lines), then the guest goes
 		bootwsys(){ # [wsys' options and -i script; its log in $TMPD/consolewsys]
 			local cli=${CLI_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/9front-cli} g n ok=0
-			local cmd=${1:-/tests/wsys -x -i /tests/wsysvk}
+			local cmd=${1:-/tests/wsys -p -x -i /tests/wsysvk}
 			local m="python3 $ROOT/scripts/guest/mcp.py"
 			CPU=host MEM=1024 UFS_EXTRA="$HERE/root" \
 			QEMU_EXTRA="-vga none -display egl-headless -device virtio-gpu-gl-pci,blob=true,venus=true,hostmem=256M -object memory-backend-memfd,id=mem1,size=1024M,share=on -machine memory-backend=mem1" \
@@ -336,19 +336,20 @@ if [ -r /dev/dri/renderD128 ] && [ -w /dev/dri/renderD128 ] &&
 			check "wsys: eframetest (egui's eframe) on wgpu's Vulkan, not the processor: all passed" grep -q '^eframe: eframetest: all passed' "$TMPD/logwsys"
 			grep -E '^eframe: ok (wgpu adapter|[0-9]+ frames)' "$TMPD/logwsys" | sed 's/^/  /'
 		fi
-		# wsys -g: the screen composed on the GPU (wsyscomp.rc)
-		check "boot with virtio-gpu-gl, wsys -g (the GPU composes)" bootwsys "WSI_PLAN9_STATS=1 /tests/wsys -g -x -i /tests/wsyscomp"
+		# the screen composed on the GPU, wsys' default (-g says so; here
+		# WSYSDEBUG=comp, so that the default is what runs) (wsyscomp.rc)
+		check "boot with virtio-gpu-gl, wsys (the GPU composes by default)" bootwsys "WSI_PLAN9_STATS=1 WSYSDEBUG=comp /tests/wsys -x -i /tests/wsyscomp"
 		tr -d '\r' < "$TMPD/consolewsys" > "$TMPD/logcomp"
 		cp "$TMPD/logcomp" "$HERE/console-wsyscomp.log"
-		check "wsys -g: composing on the GPU" grep -q '^wsys: composing on the GPU' "$TMPD/logcomp"
-		check "wsys -g: its frames go to the display (scanout)" grep -q '^wsi plan9: (window): scanout' "$TMPD/logcomp"
+		check "wsys, GPU: composing on the GPU" grep -q '^wsys: composing on the GPU' "$TMPD/logcomp"
+		check "wsys, GPU: its frames go to the display (scanout)" grep -q '^wsi plan9: (window): scanout' "$TMPD/logcomp"
 		for w in a b c; do
-			check "wsys -g: vktri $w through GPU buffers, its pixels as composed: all passed" grep -q "^$w: vktri: all passed" "$TMPD/logcomp"
+			check "wsys, GPU: vktri $w through GPU buffers, its pixels as composed: all passed" grep -q "^$w: vktri: all passed" "$TMPD/logcomp"
 		done
-		check "wsys -g: the GPU composes the buffers (none refused)" bash -c "! grep -q 'the GPU composes it not\|composes no longer' '$TMPD/logcomp'"
-		check "wsys -g: wsys gives every buffer back (b n; the WSI took none back after 2 s)" bash -c "! grep -q 'wsys kept buffer' '$TMPD/logcomp'"
-		check "wsys -g: vktri seen where nothing covers it" grep -q '^uncovered: ff0000' "$TMPD/logcomp"
-		check "wsys -g: the window over it, not vktri, where it covers it" bash -c "grep '^covered: ' '$TMPD/logcomp' | grep -vq ' \(ff0000\|000066\)\$'"
+		check "wsys, GPU: the GPU composes the buffers (none refused)" bash -c "! grep -q 'the GPU composes it not\|composes no longer' '$TMPD/logcomp'"
+		check "wsys, GPU: wsys gives every buffer back (b n; the WSI took none back after 2 s)" bash -c "! grep -q 'wsys kept buffer' '$TMPD/logcomp'"
+		check "wsys, GPU: vktri seen where nothing covers it" grep -q '^uncovered: ff0000' "$TMPD/logcomp"
+		check "wsys, GPU: the window over it, not vktri, where it covers it" bash -c "grep '^covered: ' '$TMPD/logcomp' | grep -vq ' \(ff0000\|000066\)\$'"
 		grep -E '^(covered|uncovered): |^[abc]: ok [0-9]+ frames' "$TMPD/logcomp" | sed 's/^/  /'
 	else
 		skip "wsys with GPU buffers" "no vktri or no $objtype/bin/wsys"

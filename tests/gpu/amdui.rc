@@ -11,7 +11,7 @@ aux/amdgpu $* >/tmp/amd.log >[2=1]
 sleep 2
 uirenderer=gpu
 bind /tests/ui /bin/ui
-/tests/wsys -O -x -i /tests/uiserver >/tmp/wsys.log >[2=1] </dev/null
+/tests/wsys -p -O -x -i /tests/uiserver >/tmp/wsys.log >[2=1] </dev/null
 grep -v '/srv/wsys' /tmp/wsys.log
 cat /tmp/ui.log
 grep 'WARN|error|BUG' /tmp/amd.log

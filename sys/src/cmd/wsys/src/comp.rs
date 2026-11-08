@@ -103,11 +103,25 @@ pub struct Comp {
     tx: mpsc::Sender<Job>,
 }
 
+// what goes well said too (wsys -g asked for the GPU; by default only what fails:
+// a desktop's messages go to the console, which draws over the screen)
+static VERBOSE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+macro_rules! say {
+    ($($a:tt)*) => {
+        if VERBOSE.load(std::sync::atomic::Ordering::Relaxed) {
+            eprintln!($($a)*);
+        }
+    };
+}
+
 impl Comp {
     /// the thread for the screen of size w x h, telling done what it did; an
     /// error if Vulkan, the swapchain on the screen or the framebuffer are not
-    /// there (wsys then composes with the processor)
-    pub fn start(done: Box<dyn Fn(Done) + Send>) -> Result<Comp, String> {
+    /// there (wsys then composes with the processor); verbose: what goes well
+    /// is said too
+    pub fn start(done: Box<dyn Fn(Done) + Send>, verbose: bool) -> Result<Comp, String> {
+        VERBOSE.store(verbose, std::sync::atomic::Ordering::Relaxed);
         if std::env::var("WSI_PLAN9_COPY").is_ok_and(|v| v.trim() != "0" && !v.trim().is_empty()) {
             // the frames would go through draw(3), onto the screen they are made of
             return Err("WSI_PLAN9_COPY: not on the display".into());
@@ -348,7 +362,7 @@ impl Vkc {
             checked: false,
         };
         c.mkswapchain()?;
-        eprintln!(
+        say!(
             "wsys: composing on the GPU: {}, {}x{}, {} images",
             props.device_name_as_c_str().unwrap_or(c"?").to_string_lossy(),
             c.w,
@@ -748,7 +762,7 @@ impl Vkc {
                 }
             }
             if bad.is_empty() {
-                eprintln!("wsys: composing on the GPU: the first frame is devdraw's screen ({n} points)");
+                say!("wsys: composing on the GPU: the first frame is devdraw's screen ({n} points)");
                 return Ok(());
             }
         }
@@ -810,7 +824,7 @@ impl Vkc {
                         }
                     }
                     if self.frames % 3600 == 0 {
-                        eprintln!("wsys: composing on the GPU: {} frames, {} GPU buffers", self.frames, self.imps.len());
+                        say!("wsys: composing on the GPU: {} frames, {} GPU buffers", self.frames, self.imps.len());
                     }
                 }
                 Err(e) => {
