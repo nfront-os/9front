@@ -16,7 +16,14 @@ case terminal
 	# ui branch: desktop=wsys (plan9.ini) starts wsys(4), the window
 	# system of ../9front-ui, instead of rio, with the options in
 	# wsysflags (-g: the GPU composes); riostart serves both
-	if(~ $desktop wsys && test -x /bin/wsys)
+	# (with wsysflags, what wsys says goes to wsysboot.log on the boot
+	# stick's ESP, if gpustart served it: a line at a time, esplog)
+	# (a chain of if not: each refers to the if just before it)
+	if(~ $desktop wsys && test -x /bin/wsys && ! ~ $#wsysflags 0 && test -e /srv/gpu.esp && mount -c /srv/gpu.esp /n/esp >[2]/dev/null){
+		echo '# wsys' $wsysflags `{date} >>/n/esp/wsysboot.log
+		wsys $wsysflags -i riostart >[2=1] | esplog /n/esp/wsysboot.log
+	}
+	if not if(~ $desktop wsys && test -x /bin/wsys)
 		wsys $wsysflags -i riostart
 	if not
 		rio -i riostart

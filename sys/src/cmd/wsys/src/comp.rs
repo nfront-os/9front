@@ -252,6 +252,7 @@ struct Vkc {
     imps: HashMap<Key, Imp>,
     scene: Vec<Shown>,
     frames: u64,
+    checked: bool, // the first frame read back and compared with devdraw's screen
 }
 
 impl Vkc {
@@ -344,6 +345,7 @@ impl Vkc {
             imps: HashMap::new(),
             scene: vec![],
             frames: 0,
+            checked: false,
         };
         c.mkswapchain()?;
         eprintln!(
@@ -709,6 +711,47 @@ impl Vkc {
         }
     }
 
+    /// the first frame read back: as devdraw's screen (the copy the GPU read)
+    /// where no GPU window is; else the frames show something else: back to
+    /// the processor, which shows the screen as it is
+    fn selfcheck(&mut self) -> Result<(), String> {
+        let all = Rect::new(0, 0, self.w, self.h);
+        let mut bad = vec![];
+        for _ in 0..3 {
+            // all of devdraw's screen as it is now (its changes may not have come
+            // through the dirty reader yet), then compared with it at once
+            self.fbdamage = Some(all);
+            let px = self.frame(Some(all))?.unwrap_or_default();
+            // what the GPU read: devdraw's screen as copied for the frame
+            let Some(st) = &self.staging else { return Err("no staging".into()) };
+            bad.clear();
+            let mut n = 0;
+            for i in 0..8 {
+                for j in 0..8 {
+                    let (x, y) = (self.w * (2 * j + 1) / 16, self.h * (2 * i + 1) / 16);
+                    if self.scene.iter().any(|s| s.rects.iter().any(|r| r.contains(x, y))) {
+                        continue;
+                    }
+                    let o = (y as usize * self.w as usize + x as usize) * 4;
+                    if o + 4 > px.len() || o + 4 > st.size {
+                        continue;
+                    }
+                    let got = u32::from_le_bytes(px[o..o + 4].try_into().unwrap()) & 0xFFFFFF;
+                    let want = unsafe { std::ptr::read_volatile(st.ptr.add(o) as *const u32) } & 0xFFFFFF;
+                    n += 1;
+                    if got != want {
+                        bad.push(format!("{x},{y} {got:06x} not {want:06x}"));
+                    }
+                }
+            }
+            if bad.is_empty() {
+                eprintln!("wsys: composing on the GPU: the first frame is devdraw's screen ({n} points)");
+                return Ok(());
+            }
+        }
+        Err(format!("the first frame is not devdraw's screen: {}", bad.iter().take(6).cloned().collect::<Vec<_>>().join(", ")))
+    }
+
     fn run(&mut self, rx: mpsc::Receiver<Job>, done: &dyn Fn(Done)) -> String {
         loop {
             // wait for something, then take whatever else came meanwhile
@@ -757,6 +800,15 @@ impl Vkc {
                         }
                     }
                     done(Done::Composed(self.scene.iter().map(|s| s.key).collect()));
+                    if !self.checked {
+                        self.checked = true;
+                        if let Err(e) = self.selfcheck() {
+                            return e;
+                        }
+                    }
+                    if self.frames % 3600 == 0 {
+                        eprintln!("wsys: composing on the GPU: {} frames, {} GPU buffers", self.frames, self.imps.len());
+                    }
                 }
                 Err(e) => {
                     for (_, reply) in snaps {
