@@ -13,6 +13,8 @@
 //	nodes/id/props	its properties, "key value" a line; written: set
 //	nodes/id/children
 //	nodes/id/rect	where it is in the window: x0 y0 x1 y1 (after the last frame)
+//	nodes/id/image	an image node's picture, written (PNG or image(6)), taken
+//			when the file is closed; read: its width and height
 //
 // A synchronous server (one thread: ui's), as wsys' is.
 
@@ -40,6 +42,7 @@ struct Fid {
     open: bool,
     data: Option<Vec<u8>>, // what an open file reads: taken at open
     events: VecDeque<String>,
+    picture: Option<Vec<u8>>, // nodes/id/image: what was written, decoded when closed
 }
 
 pub struct Fs {
@@ -57,7 +60,7 @@ pub struct Fs {
     msize: u32,
 }
 
-const NODEFILES: [&str; 4] = ["kind", "props", "children", "rect"];
+const NODEFILES: [&str; 5] = ["kind", "props", "children", "rect", "image"];
 
 impl Fs {
     pub fn new(uid: &str) -> Fs {
@@ -180,6 +183,10 @@ impl Fs {
                         Some(r) => format!("{} {} {} {}\n", r[0], r[1], r[2], r[3]),
                         None => String::new(),
                     },
+                    "image" => match self.scene.images.get(id) {
+                        Some(p) => format!("{} {}\n", p.width, p.height),
+                        None => String::new(),
+                    },
                     _ => n.children.iter().map(|c| format!("{c}\n")).collect(),
                 }
                 .into_bytes()
@@ -247,7 +254,7 @@ impl Fs {
             T::Auth => r("ui: no authentication"),
             T::Attach { fid, .. } => {
                 let q = self.qid(&Path::Root);
-                self.fids.insert(fid, Fid { path: Path::Root, open: false, data: None, events: VecDeque::new() });
+                self.fids.insert(fid, Fid { path: Path::Root, open: false, data: None, events: VecDeque::new(), picture: None });
                 vec![R::new(105, tag).qid(q).done()]
             }
             T::Flush { oldtag } => {
@@ -275,7 +282,7 @@ impl Fs {
                     return r("file does not exist");
                 }
                 if qids.len() == names.len() {
-                    self.fids.insert(newfid, Fid { path: p, open: false, data: None, events: VecDeque::new() });
+                    self.fids.insert(newfid, Fid { path: p, open: false, data: None, events: VecDeque::new(), picture: None });
                 }
                 let mut rr = R::new(111, tag).u16(qids.len() as u16);
                 for q in qids {
@@ -290,7 +297,7 @@ impl Fs {
                     return r("file does not exist");
                 }
                 let write = mode & 3 != 0;
-                let writable = matches!(p, Path::Ctl | Path::NodeFile(_, "props"));
+                let writable = matches!(p, Path::Ctl | Path::NodeFile(_, "props") | Path::NodeFile(_, "image"));
                 if write && !writable {
                     return r("permission denied");
                 }
@@ -299,6 +306,9 @@ impl Fs {
                 let f = self.fids.get_mut(&fid).unwrap();
                 f.open = true;
                 f.data = data;
+                if write && matches!(p, Path::NodeFile(_, "image")) {
+                    f.picture = Some(Vec::new());
+                }
                 vec![R::new(113, tag).qid(q).u32(8192).done()]
             }
             T::Create => r("ui: no creating files"),
@@ -342,8 +352,20 @@ impl Fs {
                     }
                 }
             }
-            T::Write { fid, data, .. } => {
-                let Some(f) = self.fids.get(&fid) else { return r("unknown fid") };
+            T::Write { fid, offset, data } => {
+                let Some(f) = self.fids.get_mut(&fid) else { return r("unknown fid") };
+                if let Some(pic) = f.picture.as_mut() {
+                    // at its offset; the picture taken when the file is closed
+                    let o = offset as usize;
+                    if o > 64 << 20 {
+                        return r("picture too big");
+                    }
+                    if pic.len() < o + data.len() {
+                        pic.resize(o + data.len(), 0);
+                    }
+                    pic[o..o + data.len()].copy_from_slice(&data);
+                    return vec![R::new(119, tag).u32(data.len() as u32).done()];
+                }
                 let text = String::from_utf8_lossy(&data).into_owned();
                 let cmds = match &f.path {
                     Path::Ctl => text,
@@ -365,8 +387,19 @@ impl Fs {
                 }
             }
             T::Clunk { fid } => {
-                self.fids.remove(&fid);
+                let f = self.fids.remove(&fid);
                 self.pending.retain(|p| p.1 != fid);
+                // an image node's picture, written: decoded now
+                if let Some(Fid { path: Path::NodeFile(id, _), picture: Some(b), .. }) = f {
+                    match crate::image::decode(&b) {
+                        Ok(p) if self.scene.nodes.contains_key(&id) => {
+                            self.scene.images.insert(id.clone(), std::sync::Arc::new(p));
+                            self.changes.push(Change { props: vec![id], ..Default::default() });
+                        }
+                        Ok(_) => return r("node gone"),
+                        Err(e) => return r(&e),
+                    }
+                }
                 vec![R::new(121, tag).done()]
             }
             T::Remove { fid } => {

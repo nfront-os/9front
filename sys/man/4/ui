@@ -18,8 +18,9 @@ runs in a window of
 or
 .IR rio (1)
 and shows there what a client describes: a tree of widgets (rows, columns,
-labels, buttons, text boxes, check boxes, progress bars, sliders, scrolled
-and sized boxes).
+labels, buttons, text boxes, check boxes, switches, menus, progress bars,
+sliders, spinners, dividers, images, grids, long lists, scrolled and sized
+boxes).
 The client writes the tree and reads what the user did; the widgets, their
 state (focus, the text being edited, scrolling) and their layout stay in
 .IR ui ,
@@ -58,8 +59,10 @@ Read: what the user did, a line each, from the open on:
 .BI text " id text"
 (a text box changed),
 .BI enter " id text" ,
-.BI check " id " 0 \fR|\fP 1\fR,
+.BI check " id " 0 \fR|\fP 1
+(a check box, a switch),
 .BI slide " id value" ,
+.BI select " id index option" ,
 .BR close .
 A read waits for one; a flush (an interrupt) ends the wait.
 .TP
@@ -91,7 +94,14 @@ for each line.
 .BI nodes/ id /rect
 Where it is in the window,
 .I x0 y0 x1 y1
-(as the last frame had it).
+(as the last frame had it; empty without a widget, as a long list's children
+not shown).
+.TP
+.BI nodes/ id /image
+An image node's picture: written, PNG or
+.IR image (6)
+(compressed or not, any channels), shown when the file is closed (a picture
+it cannot read: the close's error); read, its width and height.
 .PD
 .SS Ctl's language
 .TF "move id parent [index]"
@@ -114,7 +124,29 @@ A node of a kind:
 (any number of children in a column that scrolls; only those it shows have
 widgets, so a list of thousands costs what a screenful does; the others have
 no
-.BR rect );
+.BR rect ),
+.B grid
+(its children row by row in
+.B columns
+columns, default 2: a table),
+.B image
+(its picture written to
+.IB nodes/ id /image ),
+.B select
+(a menu:
+.B options
+separated by
+.BR | ,
+the
+.B selected
+one's index),
+.BR switch ,
+.B divider
+(across a column;
+.B axis
+.B vertical
+in a row),
+.BR spinner ;
 in
 .I parent
 (default

@@ -16,6 +16,7 @@
 mod fs;
 #[cfg(feature = "gpu")]
 mod gpu;
+mod image;
 mod ninep;
 mod scene;
 
@@ -31,8 +32,10 @@ use masonry::properties::types::CrossAxisAlignment;
 use masonry::layout::Length;
 use masonry::widgets::{
     Button, ButtonPress, Checkbox, CheckboxToggled, Flex, Label, Portal, ProgressBar, SizedBox, Slider,
-    SliderMoved, TextAction, TextArea, TextInput, VirtualScroll, VirtualScrollAction,
+    SliderMoved, TextAction, TextArea, TextInput, VirtualScroll, VirtualScrollAction, Image, Selector,
+    SelectionChanged, Switch, SwitchToggled, Divider, Spinner, Grid, GridParams, GridTrackSize,
 };
+use masonry::peniko::{ImageAlphaType, ImageBrush, ImageData, ImageFormat};
 use masonry_imaging::{Layer as ImagingLayer, PreparedFrame};
 use imaging::render::{ImageBufferFormat, ImageBufferTarget, ImageRenderer};
 use p9win::sys::{Fd, OREAD};
@@ -102,6 +105,35 @@ impl Ids {
     }
 }
 
+/// an image node's picture (nodes/id/image), none: a pixel one can see through
+fn picture(sc: &Scene, id: &str) -> ImageBrush {
+    let (w, h, px) = match sc.images.get(id) {
+        Some(p) => (p.width, p.height, p.rgba.clone()),
+        None => (1, 1, vec![0, 0, 0, 0]),
+    };
+    ImageBrush::from(ImageData {
+        data: Blob::from(px),
+        format: ImageFormat::Rgba8,
+        alpha_type: ImageAlphaType::Alpha,
+        width: w,
+        height: h,
+    })
+}
+
+/// a select's options: options a|b|c
+fn options(n: &scene::Node) -> Vec<String> {
+    n.prop("options").unwrap_or("").split('|').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect()
+}
+
+/// a grid's columns (default 2), and where its child i goes: row by row
+fn gridcols(n: &scene::Node) -> usize {
+    n.num("columns").map(|c| c as usize).filter(|c| *c > 0 && *c <= 64).unwrap_or(2)
+}
+
+fn gridpos(i: usize, cols: usize) -> GridParams {
+    GridParams::new().with_pos((i % cols) as u16, (i / cols) as u16)
+}
+
 fn len(v: Option<f64>) -> Option<Length> {
     v.filter(|x| *x >= 0.0).map(Length::px)
 }
@@ -158,6 +190,25 @@ fn build(sc: &Scene, id: &str, ids: &mut Ids) -> NewWidget<dyn Widget> {
                 None => NewWidget::new(Flex::column()).erased(),
             };
             NewWidget::new(Portal::new(inner)).erased()
+        }
+        Kind::Image => NewWidget::new(Image::new(picture(sc, id))).erased(),
+        Kind::Select => {
+            let opts = options(n);
+            let sel = n.num("selected").map(|v| v as usize).unwrap_or(0).min(opts.len().saturating_sub(1));
+            NewWidget::new(Selector::new(opts).with_selected_option(sel)).erased()
+        }
+        Kind::Switch => NewWidget::new(Switch::new(n.prop("checked") == Some("1"))).erased(),
+        Kind::Divider => NewWidget::new(if n.prop("axis") == Some("vertical") { Divider::vertical() } else { Divider::horizontal() }).erased(),
+        Kind::Spinner => NewWidget::new(Spinner::new()).erased(),
+        Kind::Grid => {
+            let cols = gridcols(n);
+            let rows = n.children.len().div_ceil(cols).max(1);
+            let mut g = Grid::with_dimensions(cols, rows);
+            for (i, c) in n.children.iter().enumerate() {
+                g = g.with(build(sc, c, ids), gridpos(i, cols));
+            }
+            ids.shown.insert(id.to_string(), n.children.clone());
+            NewWidget::new(g).erased()
         }
         Kind::List => {
             // no children yet: VirtualScroll asks for those it shows (fetch)
@@ -280,6 +331,25 @@ fn sync(root: &mut RenderRoot, sc: &Scene, ids: &mut Ids, created: &BTreeSet<Str
                         Flex::insert(&mut f, j, child, flex(sc, c));
                     }
                 }
+            }
+            Kind::Grid => {
+                let mut gr = w.downcast::<Grid>();
+                for i in (0..old.len()).rev() {
+                    if !ko[i] {
+                        Grid::remove(&mut gr, i);
+                    }
+                }
+                let cols = gridcols(n);
+                for (j, c) in new.iter().enumerate() {
+                    if kn[j] {
+                        Grid::set_params(&mut gr, j, gridpos(j, cols));
+                    } else {
+                        let child = build(sc, c, ids);
+                        Grid::insert(&mut gr, j, child, gridpos(j, cols));
+                    }
+                }
+                Grid::set_columns(&mut gr, vec![GridTrackSize::FRACTION; cols]);
+                Grid::set_rows(&mut gr, vec![GridTrackSize::FRACTION; new.len().div_ceil(cols).max(1)]);
             }
             Kind::Scroll => {
                 if !kn.first().copied().unwrap_or(old.is_empty()) {
@@ -513,7 +583,25 @@ impl App {
                             }
                         }
                     }
-                    Kind::Scroll | Kind::List => {}
+                    Kind::Image => Image::set_image_data(&mut w.downcast::<Image>(), picture(&self.fs.scene, &id)),
+                    Kind::Select => {
+                        let mut sl = w.downcast::<Selector>();
+                        let opts = options(&n);
+                        let sel = n.num("selected").map(|v| v as usize).unwrap_or(0).min(opts.len().saturating_sub(1));
+                        Selector::set_options(&mut sl, opts);
+                        Selector::select_option(&mut sl, sel);
+                    }
+                    Kind::Switch => Switch::set_on(&mut w.downcast::<Switch>(), n.prop("checked") == Some("1")),
+                    Kind::Grid => {
+                        let mut gr = w.downcast::<Grid>();
+                        let cols = gridcols(&n);
+                        for j in 0..n.children.len() {
+                            Grid::set_params(&mut gr, j, gridpos(j, cols));
+                        }
+                        Grid::set_columns(&mut gr, vec![GridTrackSize::FRACTION; cols]);
+                        Grid::set_rows(&mut gr, vec![GridTrackSize::FRACTION; n.children.len().div_ceil(cols).max(1)]);
+                    }
+                    Kind::Scroll | Kind::List | Kind::Divider | Kind::Spinner => {}
                 });
             }
         }
@@ -605,6 +693,17 @@ impl App {
                 g.root.edit_widget(w, |mut w| Checkbox::set_checked(&mut w.downcast::<Checkbox>(), on));
             }
             self.event(format!("check {id} {}", on as u8));
+        } else if a.is::<SwitchToggled>() {
+            let on = a.downcast::<SwitchToggled>().unwrap().0;
+            set(&mut self.fs, "checked", if on { "1" } else { "0" }.to_string());
+            if let (Some(g), Some(&w)) = (self.gui.as_mut(), self.ids.widget.get(&id)) {
+                g.root.edit_widget(w, |mut w| Switch::set_on(&mut w.downcast::<Switch>(), on));
+            }
+            self.event(format!("check {id} {}", on as u8));
+        } else if a.is::<SelectionChanged>() {
+            let c = a.downcast::<SelectionChanged>().unwrap();
+            set(&mut self.fs, "selected", format!("{}", c.index));
+            self.event(format!("select {id} {} {}", c.index, c.selected_content));
         } else if a.is::<SliderMoved>() {
             let v = a.downcast::<SliderMoved>().unwrap().value;
             set(&mut self.fs, "value", format!("{v}"));

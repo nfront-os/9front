@@ -13,6 +13,9 @@
 //
 // kinds: column row label button textbox checkbox progress slider scroll box
 // list (a column that scrolls, widgets only for the children seen: long lists)
+// image (its picture written to nodes/id/image: PNG or image(6)) select (a
+// menu: options a|b|c, selected index) switch divider spinner grid (columns
+// n: its children row by row, a table)
 // keys: text, placeholder (textbox), checked (checkbox: 0 1), value
 // (progress: 0..1, none; slider), min max step (slider), width height (box),
 // flex (a child's share of its row or column), gap (between a row's or
@@ -21,6 +24,9 @@
 // The tree file gives the scene back in the same language.
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::sync::Arc;
+
+use crate::image::Picture;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Kind {
@@ -35,6 +41,12 @@ pub enum Kind {
     Scroll,
     Box,
     List,
+    Image,
+    Select,
+    Switch,
+    Divider,
+    Spinner,
+    Grid,
 }
 
 impl Kind {
@@ -51,6 +63,12 @@ impl Kind {
             "scroll" => Kind::Scroll,
             "box" => Kind::Box,
             "list" => Kind::List,
+            "image" => Kind::Image,
+            "select" => Kind::Select,
+            "switch" => Kind::Switch,
+            "divider" => Kind::Divider,
+            "spinner" => Kind::Spinner,
+            "grid" => Kind::Grid,
             _ => return None,
         })
     }
@@ -68,13 +86,19 @@ impl Kind {
             Kind::Scroll => "scroll",
             Kind::Box => "box",
             Kind::List => "list",
+            Kind::Image => "image",
+            Kind::Select => "select",
+            Kind::Switch => "switch",
+            Kind::Divider => "divider",
+            Kind::Spinner => "spinner",
+            Kind::Grid => "grid",
         }
     }
 
     /// how many children it takes
     pub fn holds(self) -> usize {
         match self {
-            Kind::Column | Kind::Row | Kind::List => usize::MAX,
+            Kind::Column | Kind::Row | Kind::List | Kind::Grid => usize::MAX,
             Kind::Scroll | Kind::Box => 1,
             _ => 0,
         }
@@ -111,10 +135,11 @@ pub struct Change {
     pub title: Option<String>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Scene {
     pub nodes: BTreeMap<String, Node>,
     pub title: String,
+    pub images: BTreeMap<String, Arc<Picture>>, // image nodes' pictures (nodes/id/image)
 }
 
 pub const ROOT: &str = "root";
@@ -132,7 +157,7 @@ impl Scene {
             ROOT.to_string(),
             Node { kind: Kind::Column, props: BTreeMap::new(), children: Vec::new(), parent: None },
         );
-        Scene { nodes, title: "ui".to_string() }
+        Scene { nodes, title: "ui".to_string(), images: BTreeMap::new() }
     }
 
     /// a write of ctl: all its lines or none (an error names the line)
@@ -267,6 +292,7 @@ impl Scene {
     }
 
     fn remove(&mut self, id: &str) {
+        self.images.remove(id);
         if let Some(n) = self.nodes.remove(id) {
             for c in n.children {
                 self.remove(&c);

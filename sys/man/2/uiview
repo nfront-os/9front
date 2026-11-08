@@ -44,6 +44,12 @@ gets each change;
 the text when enter is pressed;
 .BI .placeholder( p )\fR),
 .BI checkbox( "text, checked, f" ) ,
+.BI switch( "on, f" ) ,
+.BI select( "options, selected, f" )
+.RI ( f
+gets the index picked),
+.BI divider( vertical ) ,
+.BI spinner() ,
 .BI slider( "min, max, value, f" ) ,
 .BI progress( done )
 .RB ( None :
@@ -53,6 +59,8 @@ and those holding others:
 .BI row( children ) ,
 .BI list( children )
 (a column that scrolls, widgets only for the children seen: long lists),
+.BI grid( columns ", " children )
+(row by row, a table),
 .BI scroll( child ) ,
 .BI sized( child )
 with

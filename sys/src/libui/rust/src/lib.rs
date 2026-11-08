@@ -352,15 +352,44 @@ pub fn slider<S: 'static, A: 'static>(
         .on("slide", move |s, a| f(s, a.trim().parse().unwrap_or(0.0)))
 }
 
+/// a switch, on or off; f gets each change the user makes
+pub fn switch<S: 'static, A: 'static>(on: bool, f: impl Fn(&mut S, bool) -> A + 'static) -> Widget<S, A> {
+    Widget::new("switch").prop("checked", if on { 1 } else { 0 }).on("check", move |s, a| f(s, a.trim() == "1"))
+}
+
+/// a menu of options, the one at selected chosen; f gets the index the user picks
+pub fn select<S: 'static, A: 'static>(
+    options: &[&str],
+    selected: usize,
+    f: impl Fn(&mut S, usize) -> A + 'static,
+) -> Widget<S, A> {
+    Widget::new("select")
+        .prop("options", options.join("|"))
+        .prop("selected", selected)
+        .on("select", move |s, a| f(s, a.split_whitespace().next().and_then(|i| i.parse().ok()).unwrap_or(0)))
+}
+
+/// a line between widgets (vertical: in a row)
+pub fn divider<S, A>(vertical: bool) -> Widget<S, A> {
+    let d = Widget::new("divider");
+    if vertical { d.prop("axis", "vertical") } else { d }
+}
+
+/// something is being done
+pub fn spinner<S, A>() -> Widget<S, A> {
+    Widget::new("spinner")
+}
+
 /// what the user's change made of a property: ui has it already
 fn learn(known: &mut Known, ev: &Event) {
-    let key = match ev.kind.as_str() {
-        "text" | "enter" => "text",
-        "check" => "checked",
-        "slide" => "value",
+    let (key, v) = match ev.kind.as_str() {
+        "text" | "enter" => ("text", ev.arg.clone()),
+        "check" => ("checked", ev.arg.clone()),
+        "slide" => ("value", ev.arg.clone()),
+        "select" => ("selected", ev.arg.split_whitespace().next().unwrap_or("0").to_string()),
         _ => return,
     };
-    known.0.insert(key, ev.arg.clone());
+    known.0.insert(key, v);
 }
 
 impl<S, A> ViewMarker for Widget<S, A> {}
@@ -459,6 +488,13 @@ pub fn column<S, A, Seq: UiSeq<S, A>>(seq: Seq) -> Container<Seq, S, A> {
 
 pub fn row<S, A, Seq: UiSeq<S, A>>(seq: Seq) -> Container<Seq, S, A> {
     container("row", seq)
+}
+
+/// children in a grid of columns, row by row (a table)
+pub fn grid<S, A, Seq: UiSeq<S, A>>(columns: usize, seq: Seq) -> Container<Seq, S, A> {
+    let mut c = container("grid", seq);
+    c.props.push(("columns", columns.to_string()));
+    c
 }
 
 /// children in a column that scrolls, widgets only for those seen (long lists)

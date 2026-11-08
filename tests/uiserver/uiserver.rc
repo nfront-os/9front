@@ -157,6 +157,54 @@ del l7' >/mnt/ui/ctl
 sleep 0.5
 check 'list: one made, one deleted' 1000 `{cat /mnt/ui/nodes/l/children | wc -l}
 
+# more kinds: an image (its picture written to nodes/id/image: image(6), crop's
+# compressed form,
+# wsys' screen), a menu, a switch, a divider, a spinner, a grid of 3 columns
+echo clear >/mnt/ui/ctl
+echo 'new img image
+new sel select
+set sel options red|green|blue
+set sel selected 1
+new sw switch
+new dv divider
+new sp spinner
+new g grid
+set g columns 3' >/mnt/ui/ctl
+for(i in 0 1 2 3 4 5)
+	echo 'new g'$i' label g
+set g'$i' text cell '$i >/mnt/ui/ctl
+crop -r 0 0 40 30 /mnt/wsys/screen >/mnt/ui/nodes/img/image || fail image written: $status
+sleep 1
+wh=`{cat /mnt/ui/nodes/img/image}
+check 'image: its picture, 40 by 30' '40 30' $"wh
+# the same as PNG (topng), into another
+echo 'new img2 image' >/mnt/ui/ctl
+crop -r 0 0 24 16 /mnt/wsys/screen | topng >/mnt/ui/nodes/img2/image || fail png written: $status
+wh=`{cat /mnt/ui/nodes/img2/image}
+check 'image: a PNG, 24 by 16' '24 16' $"wh
+for(n in img sel sw dv sp g)
+	if(! hasrect $n) fail $n: no widget
+ok 'image, select, switch, divider, spinner, grid: widgets'
+r0=`{cat /mnt/ui/nodes/g0/rect}
+r3=`{cat /mnt/ui/nodes/g3/rect}
+r1=`{cat /mnt/ui/nodes/g1/rect}
+if(~ $r3(1) $r0(1) && test $r3(2) -gt $r0(2) && test $r1(1) -gt $r0(1))
+	ok 'grid: cell 3 below cell 0, cell 1 right of it'
+if not fail grid: g0 $r0, g1 $r1, g3 $r3
+check 'select: the scene has its option' 1 `{grep '^selected ' /mnt/ui/nodes/sel/props | awk '{print $2}'}
+# the switch clicked: check sw 1
+o=`{cat /mnt/ui/ctl}
+w=`{cat /mnt/ui/nodes/sw/rect}
+x=`{echo $o(1)+'('$w(1)+$w(3)')'/2 | hoc}
+y=`{echo $o(2)+'('$w(2)+$w(4)')'/2 | hoc}
+cat /mnt/ui/event >/tmp/ev3 &
+evpid3=$apid
+sleep 0.3
+{ m $x $y 0; m $x $y 1; m $x $y 0 } >/dev/mousein
+waitfor /tmp/ev3 '^check sw 1$'
+grep -s '^check sw 1$' /tmp/ev3 && ok 'switch: clicked, check sw 1' || fail switch: `{cat /tmp/ev3}
+echo kill >/proc/$evpid3/note
+
 # the window deleted: wsys ends ui with a note (as rio); its /srv/uitest goes
 # with it (ORCLOSE), a read of event ends
 cat /mnt/ui/event >/tmp/ev2 &
