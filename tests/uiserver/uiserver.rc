@@ -227,6 +227,26 @@ red=`{inside st ff0000}
 if(test $blue -gt 200 && ~ $red 0) ok 'look: changed in place to blue,' $blue pixels
 if not fail look: blue $blue red $red
 
+# animate: a box's width from 20 to 200 in a second, a frame at a time in ui
+# (the scene has 200 at once)
+echo clear >/mnt/ui/ctl
+echo 'new bx box
+set bx background #00ff00
+set bx height 20
+set bx width 20
+set bx animate 1000' >/mnt/ui/ctl
+sleep 0.5
+fn width { r=`{cat /mnt/ui/nodes/$1/rect}; echo `{echo $r(3)-$r(1) | hoc} }
+w0=`{width bx}
+echo 'set bx width 200' >/mnt/ui/ctl
+sleep 0.4
+w1=`{width bx}
+grep -s '^width 200$' /mnt/ui/nodes/bx/props && ok 'animate: the scene has the new width at once' || fail animate props: `{cat /mnt/ui/nodes/bx/props}
+sleep 1.1
+w2=`{width bx}
+if(~ $w0 20 && test $w1 -gt 25 && test $w1 -lt 195 && ~ $w2 200) ok 'animate: width' $w0 then $w1 then $w2
+if not fail animate: width $w0 then $w1 then $w2
+
 # the window deleted: wsys ends ui with a note (as rio); its /srv/uitest goes
 # with it (ORCLOSE), a read of event ends
 cat /mnt/ui/event >/tmp/ev2 &

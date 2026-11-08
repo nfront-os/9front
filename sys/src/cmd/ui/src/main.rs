@@ -483,6 +483,12 @@ fn content(sc: &Scene, ids: &mut Ids) -> NewWidget<dyn Widget> {
         .erased()
 }
 
+/// how far an animation is, eased (slow at both ends)
+fn ease(a: &Anim) -> f64 {
+    let t = (a.start.elapsed().as_secs_f64() / a.secs).clamp(0.0, 1.0);
+    t * t * (3.0 - 2.0 * t)
+}
+
 /// what draws the window
 enum Painter {
     #[cfg(feature = "gpu")]
@@ -559,7 +565,38 @@ struct Gui {
     reducer: WindowEventReducer,
 }
 
+/// a property moving to its new value (animate), from as shown when it changed
+struct Anim {
+    from: f64,
+    to: f64,
+    start: std::time::Instant,
+    secs: f64,
+}
+
+/// the properties a kind animates (a node's animate: milliseconds)
+fn animated(kind: Kind) -> &'static [&'static str] {
+    match kind {
+        Kind::Progress | Kind::Slider => &["value"],
+        Kind::Box => &["width", "height"],
+        _ => &[],
+    }
+}
+
+/// a property of a widget there, as the animation has it now
+fn setnum(w: WidgetMut<'_, dyn Widget>, kind: Kind, key: &str, v: f64) {
+    let mut w = w;
+    match (kind, key) {
+        (Kind::Progress, _) => ProgressBar::set_progress(&mut w.downcast::<ProgressBar>(), Some(v.clamp(0.0, 1.0))),
+        (Kind::Slider, _) => Slider::set_value(&mut w.downcast::<Slider>(), v),
+        (Kind::Box, "width") => SizedBox::set_width(&mut w.downcast::<SizedBox>(), Length::px(v.max(0.0))),
+        (Kind::Box, _) => SizedBox::set_height(&mut w.downcast::<SizedBox>(), Length::px(v.max(0.0))),
+        _ => {}
+    }
+}
+
 struct App {
+    anims: HashMap<(String, &'static str), Anim>,
+    shownv: HashMap<(String, &'static str), f64>, // the animated properties as the widgets show them
     fs: Fs,
     out: Arc<Fd>, // to the clients
     gui: Option<Gui>,
@@ -605,6 +642,18 @@ impl App {
             sync(&mut g.root, &self.fs.scene, &mut self.ids, &created);
         }
         {
+            // what the new nodes show: where their animations start from
+            for id in &created {
+                if let Some(n) = self.fs.scene.nodes.get(id) {
+                    for k in animated(n.kind) {
+                        if let Some(v) = n.num(k) {
+                            self.shownv.insert((id.clone(), *k), v);
+                        }
+                    }
+                }
+            }
+            self.shownv.retain(|(id, _), _| self.fs.scene.nodes.contains_key(id));
+            self.anims.retain(|(id, _), _| self.fs.scene.nodes.contains_key(id));
             for id in props {
                 if created.contains(&id) {
                     continue;
@@ -612,7 +661,25 @@ impl App {
                 let Some(n) = self.fs.scene.nodes.get(&id) else { continue };
                 let Some(&wid) = self.ids.widget.get(&id) else { continue };
                 let text = n.prop("text").unwrap_or("").to_string();
-                let (kind, n) = (n.kind, n.clone());
+                let (kind, mut n) = (n.kind, n.clone());
+                // animate: an animated property goes there from where it is shown,
+                // a frame at a time (tick); the widget keeps that for now
+                let ms = n.num("animate").filter(|m| *m > 0.0);
+                for k in animated(kind) {
+                    let Some(to) = n.num(k) else { continue };
+                    let key = (id.clone(), *k);
+                    let now = self.anims.get(&key).map(|a| a.from + (a.to - a.from) * ease(a)).or(self.shownv.get(&key).copied());
+                    match (ms, now) {
+                        (Some(ms), Some(from)) if from != to => {
+                            self.anims.insert(key, Anim { from, to, start: std::time::Instant::now(), secs: ms / 1000.0 });
+                            n.props.insert(k.to_string(), format!("{from}"));
+                        }
+                        _ => {
+                            self.anims.remove(&key);
+                            self.shownv.insert(key, to);
+                        }
+                    }
+                }
                 g.root.edit_widget(wid, |mut w| {
                     restyle(&mut w, &n);
                     match kind {
@@ -813,7 +880,31 @@ impl App {
         }
     }
 
+    /// the animations a frame on; the done ones end where they were going
+    fn tick(&mut self) {
+        let Some(g) = self.gui.as_mut() else { return };
+        let mut done = Vec::new();
+        for ((id, k), a) in &self.anims {
+            let (Some(n), Some(&wid)) = (self.fs.scene.nodes.get(id), self.ids.widget.get(id)) else {
+                done.push((id.clone(), *k));
+                continue;
+            };
+            let t = a.start.elapsed().as_secs_f64() / a.secs;
+            let v = if t >= 1.0 { a.to } else { a.from + (a.to - a.from) * ease(a) };
+            let kind = n.kind;
+            g.root.edit_widget(wid, |w| setnum(w, kind, k, v));
+            self.shownv.insert((id.clone(), *k), v);
+            if t >= 1.0 {
+                done.push((id.clone(), *k));
+            }
+        }
+        for d in done {
+            self.anims.remove(&d);
+        }
+    }
+
     fn redraw(&mut self) {
+        self.tick();
         let Some(g) = self.gui.as_mut() else { return };
         let size = g.window.inner_size();
         let (Some(w), Some(h)) = (NonZeroU32::new(size.width), NonZeroU32::new(size.height)) else {
@@ -834,6 +925,10 @@ impl App {
         let VisualLayerKind::Scene(base) = &root.kind else { return };
         let frame = PreparedFrame::new(w.get(), h.get(), 1.0, masonry::theme::BACKGROUND_COLOR, base, &overlays);
         g.painter.paint(frame);
+        // animations under way: the next frame
+        if !self.anims.is_empty() {
+            g.window.request_redraw();
+        }
         // where each node is now, for nodes/id/rect
         self.fs.rects.clear();
         for (id, wid) in &self.ids.widget {
@@ -1035,6 +1130,8 @@ fn main() {
     std::thread::spawn(move || reader(input, proxy));
     let (signal_tx, signals) = mpsc::channel();
     let mut app = App {
+        anims: HashMap::new(),
+        shownv: HashMap::new(),
         fs: Fs::new(user.trim()),
         out: Arc::new(ours),
         gui: None,

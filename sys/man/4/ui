@@ -203,6 +203,19 @@ or
 (pixels),
 .B color
 (a label's text, a divider's line).
+.B animate
+.I ms
+makes a progress bar's or slider's
+.BR value ,
+a box's
+.B width
+and
+.B height
+go to a new one in
+.I ms
+milliseconds, slow at both ends, a frame at a time in
+.I ui
+(the client writes the new value once, also over the network; the tree has it at once).
 .TP
 .BI del " id
 The node and what is under it.
