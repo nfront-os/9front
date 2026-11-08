@@ -239,7 +239,17 @@ for _ in $(seq 300); do
 	sleep 0.1
 done
 [ -n "$pts" ] || die "no QEMU serial pty (log: $CLI_DIR/qemu.log)"
-stty -F "$pts" raw -echo
+# QEMU gone at once (seen now and then right after another guest): how
+sleep 0.2
+if ! running || ! stty -F "$pts" raw -echo 2>/dev/null; then
+	wait $qemupid 2>/dev/null
+	st=$?
+	echo "boot-cli: QEMU ended at the start (status $st); its log:" >&2
+	cat "$CLI_DIR/qemu.log" >&2
+	echo "boot-cli: QEMUs still running:" >&2
+	ps -eo pid,etime,args | grep '[q]emu-system' >&2
+	die "QEMU did not start"
+fi
 # empty now, not in the background job: the prompt checks below must
 # not see the previous boot's log
 : > "$CLI_DIR/console.log"
