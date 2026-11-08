@@ -31,7 +31,7 @@ use xilem_core::{
 #[cfg(target_os = "plan9")]
 mod conn;
 #[cfg(target_os = "plan9")]
-pub use conn::{Ui, run, run_on};
+pub use conn::{Proxy, Ui, run, run_on, run_on_with, run_with};
 
 /// what the views write and whom events go to, shared by the nodes (a
 /// replaced node writes where its successor goes)

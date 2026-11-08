@@ -20,7 +20,7 @@ T=x86_64-unknown-plan9
 mkdir -p "$HERE/root/tests" "$HERE/root/lib/font/ttf"
 (cd "$ROOT/tests/ui" && env PLAN9="$ROOT" ARCH=amd64 CC=gcc "$ROOT/sys/src/cmd/build/build.exe" build.json >/dev/null)
 (cd "$HERE" && env PLAN9="$ROOT" ARCH=amd64 CC=gcc "$ROOT/sys/src/cmd/build/build.exe" build.json >/dev/null)
-for p in ui uitodo; do
+for p in ui uitodo uitick; do
 	"$CROSS/$TRIPLE-strip" -o "$HERE/root/tests/$p" "$BUILD/cargo/rust/$T/release/$p"
 done
 # the client in Go, with ../9front-go when it is there (a build cache of its

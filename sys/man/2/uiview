@@ -114,6 +114,23 @@ holds what views build; tests on the host use it without
 and
 .B Cx::take
 for the transaction made.
+.SS Work elsewhere
+.B run_with
+.RB ( run_on_with )
+gives
+.I start
+a
+.B Proxy
+of the state first: its
+.BI update( f )
+runs
+.I f
+on the state in the program's loop, from any thread (background work), and
+the views follow as after an event (false when the window is gone);
+.BI every( "period, f" )
+does so every
+.I period
+(a timer). The events are read on a thread of their own.
 .SH SOURCE
 .B /sys/src/libui/rust
 (a member of the workspace in

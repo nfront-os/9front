@@ -299,6 +299,38 @@ if not {
 	echo kill >/proc/$uitevpid/note
 	unmount /mnt/uit
 }
+# uitick (uiview's Proxy::every): a count a timer advances, no input; the
+# button stops it
+/tests/uitick >/tmp/uitick.log >[2=1] </dev/null &
+tickpid=$apid
+s=/srv/ui.glenda.$tickpid.0
+n=0
+while(! test -e $s && test $n -lt 100){ sleep 0.1; n=`{echo $n+1 | hoc} }
+if(! test -e $s || ! mount $s /mnt/uit) fail uitick: no $s: `{cat /tmp/uitick.log}
+if not {
+	fn tick { grep '^set [^ ]* text tick ' /mnt/uit/tree | awk '{print $5}' }
+	waitfor /mnt/uit/tree 'text tick'
+	a=`{tick}
+	sleep 1
+	b=`{tick}
+	if(test $b -gt $a) ok 'uitick: the timer counts without input:' $a then $b
+	if not fail uitick: $a then $b
+	stop=`{tnode button 1}
+	# the first click may only make the window current
+	click $stop
+	sleep 0.5
+	if(! grep -s 'text start$' /mnt/uit/tree){ click $stop; sleep 0.5 }
+	if(grep -s 'text start$' /mnt/uit/tree){
+		a=`{tick}
+		sleep 1
+		b=`{tick}
+		check 'uitick: stopped' $a $b
+	}
+	if not fail uitick: not stopped: `{grep text /mnt/uit/tree}
+	unmount /mnt/uit
+}
+test -e /proc/$tickpid && echo kill >/proc/$tickpid/note
+
 test -e /proc/$todopid && echo kill >/proc/$todopid/note
 
 # a client in Go (gocount: sys/src/libui/go, the /srv file mounted on

@@ -7,6 +7,7 @@
 use std::ffi::{CString, c_char, c_int};
 use std::fs::File;
 use std::io::{self, Read, Write};
+use std::sync::{Arc, mpsc};
 use std::time::{Duration, Instant};
 
 use xilem_core::{MessageResult, View};
@@ -48,8 +49,29 @@ pub struct Ui {
     pub srv: String,
     pub mtpt: String,
     ctl: File,
+    events: Option<Events>, // taken by run_on_with's reader
+}
+
+/// a ui's event file, read a line at a time
+struct Events {
     event: File,
     buf: Vec<u8>,
+}
+
+impl Events {
+    fn next(&mut self) -> Option<String> {
+        loop {
+            if let Some(i) = self.buf.iter().position(|&c| c == b'\n') {
+                let line: Vec<u8> = self.buf.drain(..=i).collect();
+                return Some(String::from_utf8_lossy(&line[..i]).into_owned());
+            }
+            let mut b = [0u8; 8192];
+            match self.event.read(&mut b) {
+                Ok(0) | Err(_) => return None,
+                Ok(n) => self.buf.extend_from_slice(&b[..n]),
+            }
+        }
+    }
 }
 
 impl Ui {
@@ -78,7 +100,7 @@ impl Ui {
         }
         let ctl = File::options().write(true).open(format!("{mtpt}/ctl"))?;
         let event = File::open(format!("{mtpt}/event"))?;
-        Ok(Ui { srv: srv.into(), mtpt: mtpt.into(), ctl, event, buf: Vec::new() })
+        Ok(Ui { srv: srv.into(), mtpt: mtpt.into(), ctl, events: Some(Events { event, buf: Vec::new() }) })
     }
 
     /// ui in a new window, titled
@@ -113,17 +135,50 @@ impl Ui {
 
     /// the next line of event, waiting for it; None when ui is gone
     pub fn event(&mut self) -> Option<String> {
-        loop {
-            if let Some(i) = self.buf.iter().position(|&c| c == b'\n') {
-                let line: Vec<u8> = self.buf.drain(..=i).collect();
-                return Some(String::from_utf8_lossy(&line[..i]).into_owned());
+        self.events.as_mut()?.next()
+    }
+}
+
+/// what comes to the program's loop: what the user did, or a change of the
+/// state from elsewhere (a Proxy's)
+enum Msg<S> {
+    Event(String),
+    Gone,
+    Call(Box<dyn FnOnce(&mut S) + Send>),
+}
+
+/// Changes of the program's state from other threads (background work,
+/// timers): each runs in the program's loop, and the views follow, as after an
+/// event.
+pub struct Proxy<S> {
+    tx: mpsc::Sender<Msg<S>>,
+}
+
+impl<S> Clone for Proxy<S> {
+    fn clone(&self) -> Self {
+        Proxy { tx: self.tx.clone() }
+    }
+}
+
+impl<S: 'static> Proxy<S> {
+    /// f changes the state; false when the window is gone
+    pub fn update(&self, f: impl FnOnce(&mut S) + Send + 'static) -> bool {
+        self.tx.send(Msg::Call(Box::new(f))).is_ok()
+    }
+
+    /// f every period, from a thread of its own, while the window lasts
+    pub fn every(&self, period: Duration, f: impl Fn(&mut S) + Send + Sync + 'static) {
+        let p = self.clone();
+        let f = Arc::new(f);
+        std::thread::spawn(move || {
+            loop {
+                std::thread::sleep(period);
+                let f = f.clone();
+                if !p.update(move |s| f(s)) {
+                    break;
+                }
             }
-            let mut b = [0u8; 8192];
-            match self.event.read(&mut b) {
-                Ok(0) | Err(_) => return None,
-                Ok(n) => self.buf.extend_from_slice(&b[..n]),
-            }
-        }
+        });
     }
 }
 
@@ -145,7 +200,33 @@ where
 }
 
 /// as run, in a ui's window already there
-pub fn run_on<S: 'static, V>(mut ui: Ui, mut state: S, mut app: impl FnMut(&mut S) -> V) -> io::Result<()>
+pub fn run_on<S: 'static, V>(ui: Ui, state: S, app: impl FnMut(&mut S) -> V) -> io::Result<()>
+where
+    V: View<S, (), Cx, Element = Node>,
+{
+    run_on_with(ui, state, |_| {}, app)
+}
+
+/// as run; start gets a Proxy first, for background work and timers
+pub fn run_with<S: 'static, V>(
+    title: &str,
+    state: S,
+    start: impl FnOnce(Proxy<S>),
+    app: impl FnMut(&mut S) -> V,
+) -> io::Result<()>
+where
+    V: View<S, (), Cx, Element = Node>,
+{
+    run_on_with(Ui::new(title)?, state, start, app)
+}
+
+/// as run_on, with a Proxy for start
+pub fn run_on_with<S: 'static, V>(
+    mut ui: Ui,
+    mut state: S,
+    start: impl FnOnce(Proxy<S>),
+    mut app: impl FnMut(&mut S) -> V,
+) -> io::Result<()>
 where
     V: View<S, (), Cx, Element = Node>,
 {
@@ -154,14 +235,33 @@ where
     let (mut root, mut vs) = view.build(&mut cx, &mut state);
     let t = cx.take();
     ui.ctl(&format!("clear\n{t}"))?;
-    while let Some(line) = ui.event() {
-        if line == "close" {
-            break;
+    // the events on a thread of their own, into the loop with the Proxies' changes
+    let (tx, rx) = mpsc::channel::<Msg<S>>();
+    let mut events = ui.events.take().ok_or_else(|| io::Error::other("the ui's events are read already"))?;
+    let etx = tx.clone();
+    std::thread::spawn(move || {
+        while let Some(line) = events.next() {
+            if etx.send(Msg::Event(line)).is_err() {
+                return;
+            }
         }
-        let Some(ev) = Event::parse(&line) else { continue };
-        match cx.message(&view, &mut vs, &mut root, &mut state, ev) {
-            MessageResult::Stale | MessageResult::Nop => continue,
-            MessageResult::Action(()) | MessageResult::RequestRebuild => {}
+        let _ = etx.send(Msg::Gone);
+    });
+    start(Proxy { tx });
+    while let Ok(m) = rx.recv() {
+        match m {
+            Msg::Gone => break,
+            Msg::Call(f) => f(&mut state),
+            Msg::Event(line) => {
+                if line == "close" {
+                    break;
+                }
+                let Some(ev) = Event::parse(&line) else { continue };
+                match cx.message(&view, &mut vs, &mut root, &mut state, ev) {
+                    MessageResult::Stale | MessageResult::Nop => continue,
+                    MessageResult::Action(()) | MessageResult::RequestRebuild => {}
+                }
+            }
         }
         let next = app(&mut state);
         cx.rebuild(&next, &view, &mut vs, &mut root, &mut state);
