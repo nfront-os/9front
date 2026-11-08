@@ -35,6 +35,15 @@ if [ -n "$ws" ]; then
 	pkg=(-p "$(sed -n 's/^name *= *"\(.*\)"/\1/p' "$dir/Cargo.toml" | head -1)")
 	dir=$(cd "$dir/$ws" && pwd)
 fi
+# cargo does not know the C libraries it links (libvulkan.a, APE's, lib9's):
+# a program older than one of them goes (release/p and the deps/p-hash it is
+# a link of: cargo looks at that one), so that cargo links it again
+for p in "$@"; do
+	rel=$BUILD/cargo/${name//\//_}/$T/release
+	if [ -e "$rel/$p" ] && [ -n "$(find "$ROOT/$objtype/lib.gcc" -name '*.a' -newer "$rel/$p" -print -quit 2>/dev/null)" ]; then
+		rm -f "$rel/$p" "$rel/deps/$p"-*
+	fi
+done
 (cd "$dir" &&
  env RUSTC="$RUSTC" CARGO_TARGET_DIR="$BUILD/cargo/${name//\//_}" \
 	"CARGO_TARGET_${V}_LINKER=$CROSS/$TRIPLE-gcc" \

@@ -22,6 +22,17 @@ ws=`{sed -n 's/^workspace *= *"(.*)"/\1/p' $PLAN9/$dir/Cargo.toml}
 pkg=()
 if(! ~ $#ws 0)
 	pkg=(-p `{sed -n 's/^name *= *"(.*)"/\1/p' $PLAN9/$dir/Cargo.toml | sed 1q})
+# cargo does not know the C libraries it links (libvulkan.a, APE's, lib9's):
+# a program older than one of them goes (release/p and the deps/p-hash it is
+# a link of: cargo looks at that one), so that cargo links it again
+for(p in $*){
+	bin=$target/release/$p
+	if(test -e $bin){
+		for(a in `{walk -f $PLAN9/$objtype/lib.gcc | grep '\.a$'})
+			if(test -e $bin && test $a -nt $bin)
+				rm -f $bin $target/release/deps/$p-*
+	}
+}
 @{
 	cd $PLAN9/$dir || die no $dir
 	if(! ~ $#ws 0)

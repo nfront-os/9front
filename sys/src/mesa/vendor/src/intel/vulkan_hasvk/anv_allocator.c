@@ -1894,7 +1894,18 @@ anv_device_import_bo(struct anv_device *device,
 
       __sync_fetch_and_add(&bo->refcount, 1);
    } else {
+#if DETECT_OS_PLAN9
+      /*
+       * 9front: a dma-buf fd is the pipe of a gpu(4) token, which has no
+       * size to seek to; the driver gave it with the import (libdrm9)
+       */
+      extern uint64_t plan9_gem_size(int, uint32_t);
+      off_t size = plan9_gem_size(device->fd, gem_handle);
+      if (size == 0)
+         size = (off_t)-1;
+#else
       off_t size = lseek(fd, 0, SEEK_END);
+#endif
       if (size == (off_t)-1) {
          anv_gem_close(device, gem_handle);
          pthread_mutex_unlock(&cache->mutex);

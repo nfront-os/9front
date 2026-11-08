@@ -1,0 +1,37 @@
+From d077066c8672b6ef5b8ab65fd2a9ed48834be2e2 Mon Sep 17 00:00:00 2001
+From: Stefan Hertenberger <erde74@gmail.com>
+Date: Sun, 8 Nov 2026 11:22:36 +0100
+Subject: [PATCH] hasvk: on 9front an imported dma-buf's size from libdrm9 (the
+ driver's import gave it): the fd is the pipe of a gpu(4) token, lseek finds
+ no size (wsys -g could not import hasvk's buffers)
+
+---
+ src/intel/vulkan_hasvk/anv_allocator.c | 11 +++++++++++
+ 1 file changed, 11 insertions(+)
+
+diff --git a/src/intel/vulkan_hasvk/anv_allocator.c b/src/intel/vulkan_hasvk/anv_allocator.c
+index 2ea024c..d0b1753 100644
+--- a/src/intel/vulkan_hasvk/anv_allocator.c
++++ b/src/intel/vulkan_hasvk/anv_allocator.c
+@@ -1894,7 +1894,18 @@ anv_device_import_bo(struct anv_device *device,
+ 
+       __sync_fetch_and_add(&bo->refcount, 1);
+    } else {
++#if DETECT_OS_PLAN9
++      /*
++       * 9front: a dma-buf fd is the pipe of a gpu(4) token, which has no
++       * size to seek to; the driver gave it with the import (libdrm9)
++       */
++      extern uint64_t plan9_gem_size(int, uint32_t);
++      off_t size = plan9_gem_size(device->fd, gem_handle);
++      if (size == 0)
++         size = (off_t)-1;
++#else
+       off_t size = lseek(fd, 0, SEEK_END);
++#endif
+       if (size == (off_t)-1) {
+          anv_gem_close(device, gem_handle);
+          pthread_mutex_unlock(&cache->mutex);
+-- 
+2.56.0
+

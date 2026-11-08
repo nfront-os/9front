@@ -701,6 +701,26 @@ gemimport(Dev *d, const char *token, uint32_t *handle)
 	return gemreply(d, i, reply, "import", handle);
 }
 
+/*
+ * the size of GEM object handle of the context behind fd, 0 if there is
+ * none: hasvk asks lseek of a dma-buf for an imported object's size, which
+ * the pipe of a token has not (Mesa patch 0041); the driver's import gave it
+ */
+uint64_t
+plan9_gem_size(int fd, uint32_t handle)
+{
+	uint64_t size;
+	Dev *d;
+	Gem *g;
+
+	size = 0;
+	pthread_mutex_lock(&lk);
+	if((d = getdev(fd)) != NULL && (g = getgem(d, handle)) != NULL)
+		size = g->size;
+	pthread_mutex_unlock(&lk);
+	return size;
+}
+
 static char*
 gemmap(Gem *g)
 {
