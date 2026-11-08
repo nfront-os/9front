@@ -20,7 +20,8 @@
 // (progress: 0..1, none; slider), min max step (slider), width height (box),
 // flex (a child's share of its row or column), gap (between a row's or
 // column's children, else the theme's), align (column, row: start center end,
-// across: start the default).
+// across: start the default); any kind's look: background border (colours,
+// #rrggbb or #rrggbbaa) borderwidth radius padding (pixels) color (text).
 // The tree file gives the scene back in the same language.
 
 use std::collections::{BTreeMap, BTreeSet};

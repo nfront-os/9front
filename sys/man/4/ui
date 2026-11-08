@@ -187,6 +187,22 @@ and
 .BR center ,
 .BR end :
 across a row or column).
+.IP
+And for a node of any kind its look (else the theme's):
+.B background
+and
+.B border
+(colours,
+.BI # rrggbb
+or
+.BI # rrggbbaaR),
+.BR borderwidth ,
+.B radius
+(of the corners) and
+.B padding
+(pixels),
+.B color
+(a label's text, a divider's line).
 .TP
 .BI del " id
 The node and what is under it.

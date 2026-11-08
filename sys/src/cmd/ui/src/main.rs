@@ -27,7 +27,9 @@ use std::sync::{mpsc, Arc};
 use masonry::app::{RenderRoot, RenderRootOptions, RenderRootSignal, VisualLayerKind, WindowSizePolicy};
 use masonry::core::{CollectionWidget, ErasedAction, NewWidget, TextEvent, Widget, WidgetId, WindowEvent};
 use masonry::peniko::Blob;
-use masonry::properties::{Gap, Padding};
+use masonry::properties::{Background, BorderColor, BorderWidth, ContentColor, CornerRadius, Gap, Padding};
+use masonry::core::{PropertySet, WidgetMut};
+use masonry::peniko::color::{AlphaColor, Srgb};
 use masonry::properties::types::CrossAxisAlignment;
 use masonry::layout::Length;
 use masonry::widgets::{
@@ -134,6 +136,93 @@ fn gridpos(i: usize, cols: usize) -> GridParams {
     GridParams::new().with_pos((i % cols) as u16, (i / cols) as u16)
 }
 
+/// a colour: #rrggbb or #rrggbbaa
+fn colour(s: &str) -> Option<AlphaColor<Srgb>> {
+    let h = s.trim().strip_prefix('#')?;
+    if !(h.len() == 6 || h.len() == 8) || !h.bytes().all(|c| c.is_ascii_hexdigit()) {
+        return None;
+    }
+    let b = |i: usize| u8::from_str_radix(&h[i..i + 2], 16).unwrap_or(0);
+    Some(AlphaColor::from_rgba8(b(0), b(2), b(4), if h.len() == 8 { b(6) } else { 255 }))
+}
+
+/// a node's look, any kind: background, border (colour), borderwidth, radius,
+/// padding (pixels), color (a label's text, a divider's line)
+fn styles(n: &scene::Node) -> PropertySet {
+    let mut p = PropertySet::new();
+    if let Some(c) = n.prop("background").and_then(colour) {
+        p = p.with(Background::Color(c));
+    }
+    if let Some(c) = n.prop("border").and_then(colour) {
+        p = p.with(BorderColor { color: c });
+    }
+    if let Some(w) = len(n.num("borderwidth")) {
+        p = p.with(BorderWidth::all(w));
+    }
+    if let Some(r) = len(n.num("radius")) {
+        p = p.with(CornerRadius::all(r));
+    }
+    if let Some(x) = len(n.num("padding")) {
+        p = p.with(Padding::all(x));
+    }
+    if let Some(c) = n.prop("color").and_then(colour) {
+        p = p.with(ContentColor::new(c));
+    }
+    p
+}
+
+/// the look of a widget there already, as the node's keys say now (a key gone: the theme's)
+fn restyle(w: &mut WidgetMut<'_, dyn Widget>, n: &scene::Node) {
+    match n.prop("background").and_then(colour) {
+        Some(c) => {
+            w.insert_prop(Background::Color(c));
+        }
+        None => {
+            w.remove_prop::<Background>();
+        }
+    }
+    match n.prop("border").and_then(colour) {
+        Some(c) => {
+            w.insert_prop(BorderColor { color: c });
+        }
+        None => {
+            w.remove_prop::<BorderColor>();
+        }
+    }
+    match len(n.num("borderwidth")) {
+        Some(x) => {
+            w.insert_prop(BorderWidth::all(x));
+        }
+        None => {
+            w.remove_prop::<BorderWidth>();
+        }
+    }
+    match len(n.num("radius")) {
+        Some(x) => {
+            w.insert_prop(CornerRadius::all(x));
+        }
+        None => {
+            w.remove_prop::<CornerRadius>();
+        }
+    }
+    match len(n.num("padding")) {
+        Some(x) => {
+            w.insert_prop(Padding::all(x));
+        }
+        None => {
+            w.remove_prop::<Padding>();
+        }
+    }
+    match n.prop("color").and_then(colour) {
+        Some(c) => {
+            w.insert_prop(ContentColor::new(c));
+        }
+        None => {
+            w.remove_prop::<ContentColor>();
+        }
+    }
+}
+
 fn len(v: Option<f64>) -> Option<Length> {
     v.filter(|x| *x >= 0.0).map(Length::px)
 }
@@ -231,6 +320,7 @@ fn build(sc: &Scene, id: &str, ids: &mut Ids) -> NewWidget<dyn Widget> {
             NewWidget::new(b).erased()
         }
     };
+    let w = w.with_props(styles(n));
     ids.node.insert(w.id(), id.to_string());
     ids.widget.insert(id.to_string(), w.id());
     w
@@ -523,7 +613,9 @@ impl App {
                 let Some(&wid) = self.ids.widget.get(&id) else { continue };
                 let text = n.prop("text").unwrap_or("").to_string();
                 let (kind, n) = (n.kind, n.clone());
-                g.root.edit_widget(wid, |mut w| match kind {
+                g.root.edit_widget(wid, |mut w| {
+                    restyle(&mut w, &n);
+                    match kind {
                     Kind::Label => Label::set_text(&mut w.downcast::<Label>(), text),
                     Kind::Button => {
                         let mut b = w.downcast::<Button>();
@@ -602,6 +694,7 @@ impl App {
                         Grid::set_rows(&mut gr, vec![GridTrackSize::FRACTION; n.children.len().div_ceil(cols).max(1)]);
                     }
                     Kind::Scroll | Kind::List | Kind::Divider | Kind::Spinner => {}
+                    }
                 });
             }
         }

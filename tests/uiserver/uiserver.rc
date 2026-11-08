@@ -205,6 +205,28 @@ waitfor /tmp/ev3 '^check sw 1$'
 grep -s '^check sw 1$' /tmp/ev3 && ok 'switch: clicked, check sw 1' || fail switch: `{cat /tmp/ev3}
 echo kill >/proc/$evpid3/note
 
+# a node's look: a label's background red, then blue in place (its widget stays)
+echo clear >/mnt/ui/ctl
+echo 'new st label
+set st text styled
+set st padding 10
+set st background #ff0000
+set st radius 0' >/mnt/ui/ctl
+sleep 1
+fn inside { # node colour: how many of its pixels on the screen are it
+	box=`{echo `{cat /mnt/ui/ctl} `{cat /mnt/ui/nodes/$1/rect} | awk '{printf "%d,%d,%d,%d\n", $1+$5, $2+$6, $1+$7, $2+$8}'}
+	/tests/uipeek -n $box $2
+}
+red=`{inside st ff0000}
+if(test $red -gt 200) ok 'look: background red,' $red pixels
+if not fail look: red $red, rect `{cat /mnt/ui/nodes/st/rect}
+echo 'set st background #0000ff' >/mnt/ui/ctl
+sleep 1
+blue=`{inside st 0000ff}
+red=`{inside st ff0000}
+if(test $blue -gt 200 && ~ $red 0) ok 'look: changed in place to blue,' $blue pixels
+if not fail look: blue $blue red $red
+
 # the window deleted: wsys ends ui with a note (as rio); its /srv/uitest goes
 # with it (ORCLOSE), a read of event ends
 cat /mnt/ui/event >/tmp/ev2 &
