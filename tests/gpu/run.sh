@@ -324,6 +324,7 @@ if [ -r /dev/dri/renderD128 ] && [ -w /dev/dri/renderD128 ] &&
 		check "wsys: the WSI hands vktri's frames to wsys as GPU buffers" grep -q '^gpu: wsi plan9: wsys has the buffers' "$TMPD/logwsys"
 		check "wsys: vktri through GPU buffers, its pixels in the window: all passed" grep -q '^gpu: vktri: all passed' "$TMPD/logwsys"
 		check "wsys: vktri by copy (WSI_PLAN9_COPY=1): all passed" grep -q '^copy: vktri: all passed' "$TMPD/logwsys"
+		check "wsys: wsys gives every buffer back (b n; the WSI took none back after 2 s)" bash -c "! grep -q 'wsys kept buffer' '$TMPD/logwsys'"
 		grep -E '^(gpu|copy): ok [0-9]+ frames' "$TMPD/logwsys" | sed 's/^/  /'
 		if [ -x "$HERE/root/tests/ui" ]; then
 			check "wsys: ui (ui(4)) draws with the GPU (vello on wgpu)" grep -q '^ui: renderer gpu ' "$TMPD/logwsys"
@@ -345,6 +346,7 @@ if [ -r /dev/dri/renderD128 ] && [ -w /dev/dri/renderD128 ] &&
 			check "wsys -g: vktri $w through GPU buffers, its pixels as composed: all passed" grep -q "^$w: vktri: all passed" "$TMPD/logcomp"
 		done
 		check "wsys -g: the GPU composes the buffers (none refused)" bash -c "! grep -q 'the GPU composes it not\|composes no longer' '$TMPD/logcomp'"
+		check "wsys -g: wsys gives every buffer back (b n; the WSI took none back after 2 s)" bash -c "! grep -q 'wsys kept buffer' '$TMPD/logcomp'"
 		check "wsys -g: vktri seen where nothing covers it" grep -q '^uncovered: ff0000' "$TMPD/logcomp"
 		check "wsys -g: the window over it, not vktri, where it covers it" bash -c "grep '^covered: ' '$TMPD/logcomp' | grep -vq ' \(ff0000\|000066\)\$'"
 		grep -E '^(covered|uncovered): |^[abc]: ok [0-9]+ frames' "$TMPD/logcomp" | sed 's/^/  /'

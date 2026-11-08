@@ -379,7 +379,11 @@ keeps every window on
 .IR wsys 's
 screen (tests that read the pixels back);
 .B WSYSDEBUG=overlay
-writes why a window's present does not go on the plane.
+writes why a window's present does not go on the plane,
+.B WSYSDEBUG=release
+each frame composed with
+.B -g
+and each buffer given back.
 .TP
 .BI unbuffer " b
 .I wsys
@@ -396,6 +400,17 @@ is done with the buffer it sends the event
 .BI b " bR:"
 the client may write it again.
 With two or more buffers the client draws the next picture meanwhile.
+A buffer the display shows (with
+.BR -g ,
+or on the overlay plane) stays
+.IR wsys 's
+until another one of the window is shown, at the display's rate, also
+while the window is hidden; Mesa's plan9 WSI gives the program an image
+again only on its
+.BR b ,
+so that Vulkan programs draw no faster than the display shows (an image
+not back within 2 seconds it takes back, with a message); its swapchains
+have three images then (one shown, one on its way, one being drawn).
 .TP
 .B top
 raises the window and gives it the focus.

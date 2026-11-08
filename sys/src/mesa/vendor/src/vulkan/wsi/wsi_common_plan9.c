@@ -106,7 +106,8 @@ plan9_scanout(VkIcdSurfacePlan9 *s, struct wsi_device *wsi_device)
 /*
  * The images the WSI holds itself while the app acquires: the one being
  * presented (venus presents on a thread of its own, the image is the
- * WSI's until the present is done) and, with scanout, the one on the
+ * WSI's until the present is done) and, with scanout or in a window of
+ * wsys (which keeps the one it shows: wsys(4)'s b), the one on the
  * display.  minImageCount is one more, so that an app holding all the
  * spec lets it (imageCount - minImageCount) still finds one free: venus
  * holds the swapchain's lock while acquire waits, the present that would
@@ -115,7 +116,17 @@ plan9_scanout(VkIcdSurfacePlan9 *s, struct wsi_device *wsi_device)
 static uint32_t
 plan9_min_images(VkIcdSurfacePlan9 *s, struct wsi_device *wsi_device)
 {
-   return plan9_scanout(s, wsi_device) ? 3 : 2;
+   const char *copy = getenv("WSI_PLAN9_COPY");
+   int fd;
+
+   if (plan9_scanout(s, wsi_device))
+      return 3;
+   /* in wsys (as plan9_create_swapchain decides) */
+   if (!(copy && atoi(copy)) && !wsi_device->sw && (fd = plan9win_wsys(s->windowName)) >= 0) {
+      plan9win_wsysclose(fd);
+      return 3;
+   }
+   return 2;
 }
 
 static VkResult
@@ -298,6 +309,8 @@ wsi_plan9_surface_get_present_rectangles(VkIcdSurfaceBase *surface,
 struct wsi_plan9_image {
    struct wsi_image base;
    bool busy;  /* acquired by the app, being presented or on the display (lock) */
+   bool inwsys;      /* presented to wsys, until its event "b n" gives it back (lock) */
+   int64_t inwsys_at; /* since when */
 };
 
 struct wsi_plan9_swapchain {
@@ -363,8 +376,110 @@ plan9_free(struct wsi_plan9_swapchain *chain, uint32_t i)
 {
    mtx_lock(&chain->lock);
    chain->images[i].busy = false;
+   chain->images[i].inwsys = false;
    cnd_broadcast(&chain->freed);
    mtx_unlock(&chain->lock);
+}
+
+/*
+ * The swapchains whose images wsys has, by the half of wsys' numbers they
+ * have (wsys_half): its events give them back ("b n": wsys no longer reads
+ * buffer n, a frame with a newer one is on the display).  Lock order:
+ * wsys_chains_lock, then a chain's lock.
+ */
+static mtx_t wsys_chains_lock;
+static int wsys_debug = -1;	/* WSI_PLAN9_DEBUG=1: wsys' events and the images' way */
+
+static bool
+wsysdebug(void)
+{
+   if (wsys_debug < 0) {
+      const char *d = getenv("WSI_PLAN9_DEBUG");
+      wsys_debug = d != NULL && atoi(d) != 0;
+   }
+   return wsys_debug;
+}
+static struct wsi_plan9_swapchain *wsys_chains[2];
+static once_flag wsys_chains_once = ONCE_FLAG_INIT;
+
+static void
+wsys_chains_init(void)
+{
+   mtx_init(&wsys_chains_lock, mtx_plain);
+}
+
+/* every image chain gave wsys back (wsys gone, or the copy from now on); chain->lock held */
+static void
+wsys_giveback(struct wsi_plan9_swapchain *chain)
+{
+   for (uint32_t i = 0; i < chain->base.image_count; i++) {
+      if (chain->images[i].inwsys) {
+         chain->images[i].inwsys = false;
+         chain->images[i].busy = false;
+      }
+   }
+   cnd_broadcast(&chain->freed);
+}
+
+/* wsys' event "b n" */
+static void
+wsys_released(uint32_t n)
+{
+   uint32_t h = n / (Wsysbufs / 2), i = n % (Wsysbufs / 2);
+
+   if (h >= 2)
+      return;
+   call_once(&wsys_chains_once, wsys_chains_init);
+   mtx_lock(&wsys_chains_lock);
+   struct wsi_plan9_swapchain *chain = wsys_chains[h];
+   if (wsysdebug())
+      fprintf(stderr, "wsi plan9: b %u: %s%s\n", n, chain ? "" : "no swapchain",
+              chain && i < chain->base.image_count && !chain->images[i].inwsys ? "not wsys'" : "");
+   if (chain != NULL && i < chain->base.image_count) {
+      mtx_lock(&chain->lock);
+      if (chain->images[i].inwsys) {
+         chain->images[i].inwsys = false;
+         chain->images[i].busy = false;
+         cnd_broadcast(&chain->freed);
+      }
+      mtx_unlock(&chain->lock);
+   }
+   mtx_unlock(&wsys_chains_lock);
+}
+
+/* wsys' events are gone (wsys, or the window): nothing comes back any more */
+static void
+wsys_gone(void)
+{
+   call_once(&wsys_chains_once, wsys_chains_init);
+   mtx_lock(&wsys_chains_lock);
+   for (int h = 0; h < 2; h++) {
+      if (wsys_chains[h] != NULL) {
+         mtx_lock(&wsys_chains[h]->lock);
+         wsys_giveback(wsys_chains[h]);
+         mtx_unlock(&wsys_chains[h]->lock);
+      }
+   }
+   mtx_unlock(&wsys_chains_lock);
+}
+
+/*
+ * an image wsys kept for 2 s: taken back (a lost event, a stuck wsys: the
+ * app would wait for ever); chain->lock held
+ */
+static void
+wsys_overdue(struct wsi_plan9_swapchain *chain)
+{
+   int64_t now = os_time_get_nano();
+
+   for (uint32_t i = 0; i < chain->base.image_count; i++) {
+      struct wsi_plan9_image *im = &chain->images[i];
+      if (im->inwsys && now - im->inwsys_at > 2000000000LL) {
+         fprintf(stderr, "wsi plan9: wsys kept buffer %u for 2 s: taken back\n", chain->bufbase + i);
+         im->inwsys = false;
+         im->busy = false;
+      }
+   }
 }
 
 static VkResult
@@ -401,6 +516,8 @@ wsi_plan9_swapchain_acquire_next_image(struct wsi_swapchain *wsi_chain,
       for (uint32_t n = 0; n < chain->base.image_count; n++) {
          uint32_t i = (chain->next + n) % chain->base.image_count;
          if (!chain->images[i].busy) {
+            if (chain->wsys >= 0 && wsysdebug())
+               fprintf(stderr, "wsi plan9: acquired %u\n", chain->bufbase + i);
             chain->images[i].busy = true;
             chain->next = (i + 1) % chain->base.image_count;
             mtx_unlock(&chain->lock);
@@ -409,11 +526,20 @@ wsi_plan9_swapchain_acquire_next_image(struct wsi_swapchain *wsi_chain,
          }
       }
 
-      /* none free: until a present or a release frees one */
+      /* none free: until a present, a release or wsys frees one */
       if (info->timeout == UINT64_MAX) {
-         cnd_wait(&chain->freed, &chain->lock);
+         wsys_overdue(chain);
+         struct timespec t;
+         timespec_get(&t, TIME_UTC);	/* cnd_timedwait's clock */
+         t.tv_nsec += 100 * 1000 * 1000;
+         if (t.tv_nsec >= 1000000000) {
+            t.tv_sec++;
+            t.tv_nsec -= 1000000000;
+         }
+         cnd_timedwait(&chain->freed, &chain->lock, &t);
          continue;
       }
+      wsys_overdue(chain);
       struct timespec current_time;
       clock_gettime(CLOCK_MONOTONIC, &current_time);
       if (timespec_after(&current_time, &end_time)) {
@@ -447,14 +573,17 @@ wsys_events(void *arg)
    (void)arg;
    if ((fd = plan9win_wsysevents()) < 0)
       return NULL;
-   while ((n = read(fd, buf, sizeof buf - 1)) > 0) {
+   while ((n = plan9win_wsysread(fd, buf, sizeof buf - 1)) > 0) {
       buf[n] = 0;
       for (char *l = buf; l != NULL && *l; l = strchr(l, '\n') ? strchr(l, '\n') + 1 : NULL) {
          if (strncmp(l, "overlay ", 8) == 0)
             p_atomic_set(&wsys_overlay, atoi(l + 8) != 0);
+         else if (l[0] == 'b' && l[1] == ' ')
+            wsys_released(strtoul(l + 2, NULL, 10));
       }
    }
-   close(fd);
+   plan9win_wsysclose(fd);
+   wsys_gone();
    return NULL;
 }
 
@@ -479,8 +608,17 @@ wsys_off(struct wsi_plan9_swapchain *chain)
       snprintf(msg, sizeof msg, "unbuffer %u", chain->bufbase + i);
       plan9win_wsysctl(chain->wsys, msg);
    }
-   close(chain->wsys);
+   plan9win_wsysclose(chain->wsys);
    chain->wsys = -1;
+   call_once(&wsys_chains_once, wsys_chains_init);
+   mtx_lock(&wsys_chains_lock);
+   for (int h = 0; h < 2; h++)
+      if (wsys_chains[h] == chain)
+         wsys_chains[h] = NULL;
+   mtx_lock(&chain->lock);
+   wsys_giveback(chain);
+   mtx_unlock(&chain->lock);
+   mtx_unlock(&wsys_chains_lock);
 }
 
 /* each image's host visible buffer to wsys by its token; false: none */
@@ -571,8 +709,14 @@ wsi_plan9_swapchain_queue_present(struct wsi_swapchain *wsi_chain,
 
       t[1] = t[2] = os_time_get_nano();
       snprintf(msg, sizeof msg, "present %u", chain->bufbase + image_index);
+      /* wsys' until it gives it back (b n, maybe before the write returns) */
+      mtx_lock(&chain->lock);
+      chain->images[image_index].inwsys = true;
+      chain->images[image_index].inwsys_at = t[1];
+      mtx_unlock(&chain->lock);
+      if (wsysdebug())
+         fprintf(stderr, "wsi plan9: %s\n", msg);
       if (plan9win_wsysctl(chain->wsys, msg) == 0) {
-         plan9_free(chain, image_index);
          /* wsys' word changed: another kind of images (VRAM for the plane, or not) */
          int ov = p_atomic_read(&wsys_overlay);
          if (ov >= 0 && (ov == 1) != chain->overlay && chain->status == VK_SUCCESS) {
@@ -592,6 +736,10 @@ wsi_plan9_swapchain_queue_present(struct wsi_swapchain *wsi_chain,
          }
          goto Shown;
       }
+      /* refused: the image is the present's again (wsys does not give it back) */
+      mtx_lock(&chain->lock);
+      chain->images[image_index].inwsys = false;
+      mtx_unlock(&chain->lock);
       if (chain->overlay) {
          /* images in VRAM, no view: no copy either; the app makes new ones */
          plan9_free(chain, image_index);
@@ -806,6 +954,13 @@ wsi_plan9_surface_create_swapchain(VkIcdSurfaceBase *icd_surface,
    /* wsys takes the buffers, or the copy after all */
    if (chain->wsys >= 0 && !wsys_buffers(chain))
       wsys_off(chain);
+   if (chain->wsys >= 0) {
+      /* its events give the images back from now on */
+      call_once(&wsys_chains_once, wsys_chains_init);
+      mtx_lock(&wsys_chains_lock);
+      wsys_chains[chain->bufbase / (Wsysbufs / 2)] = chain;
+      mtx_unlock(&wsys_chains_lock);
+   }
    if (chain->stats && wsys >= 0)
       fprintf(stderr, "wsi plan9: %s\n", chain->wsys >= 0 ? chain->overlay ? "wsys has the buffers, in VRAM for its overlay plane" :
               "wsys has the buffers" : "wsys refused, copying");
@@ -830,7 +985,7 @@ fail_destroy_images:
    mtx_destroy(&chain->lock);
 fail_free_chain:
    if (chain->wsys >= 0)
-      close(chain->wsys);
+      plan9win_wsysclose(chain->wsys);
    vk_free(pAllocator, chain);
    return result;
 }

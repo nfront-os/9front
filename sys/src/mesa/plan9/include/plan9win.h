@@ -31,7 +31,10 @@ extern int plan9win_wsys(const char *name);
 
 /* a request to wsys' ctl; -1 if refused */
 extern int plan9win_wsysctl(int fd, const char *msg);
-extern int plan9win_wsysevents(void);	/* the window's event file in wsys (overlay 0|1) */
+extern int plan9win_wsysevents(void);	/* the window's event file in wsys (overlay 0|1, b n) */
+/* the system's descriptors of these two, not APE's */
+extern int plan9win_wsysread(int fd, char *buf, int n);
+extern void plan9win_wsysclose(int fd);
 
 #ifdef __cplusplus
 }

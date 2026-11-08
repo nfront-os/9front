@@ -205,6 +205,23 @@ plan9win_wsysevents(void)
 	return open("/dev/event", OREAD|OCEXEC);
 }
 
+/*
+ * the descriptors of plan9win_wsys and plan9win_wsysevents are the
+ * system's, not APE's (whose read and close refuse them, EBADF): read
+ * and close them here
+ */
+int
+plan9win_wsysread(int fd, char *buf, int n)
+{
+	return read(fd, buf, n);
+}
+
+void
+plan9win_wsysclose(int fd)
+{
+	close(fd);
+}
+
 int
 plan9win_wsysctl(int fd, const char *msg)
 {

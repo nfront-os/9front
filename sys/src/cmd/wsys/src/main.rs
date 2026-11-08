@@ -295,6 +295,12 @@ struct Win {
     // its way shows (held: the client gets it back when another is shown)
     shownb: Option<u32>,
     held: Option<u32>,
+    // the GPU buffers presented since the one held, oldest first (shownb last): a
+    // frame with one of them on the display gives back the ones before it
+    queued: Vec<u32>,
+    // on the overlay plane: the buffer shown there (variant b: the display reads
+    // the client's own), back to the client when another one is shown
+    ovheld: Option<u32>,
 }
 
 /// a line of a text window as drawn: each rune's x, width and offset, and the
@@ -555,6 +561,7 @@ struct Wsys {
     comp: Option<comp::Comp>, // -g: the GPU composes the screen
     compscene: Vec<comp::Shown>, // what it was told last
     compdirty: bool,             // a buffer presented since: a frame
+    compgone: Vec<(u32, u32)>,   // buffers out of the scene: back when the next frame is composed
     sweepr: Option<Rect>,        // the sweep's outline (over the GPU windows)
 }
 
@@ -1145,6 +1152,10 @@ impl Wsys {
     }
 
     fn event(&mut self, n: u32, line: String) {
+        // WSYSDEBUG=release: each buffer given back
+        if line.starts_with("b ") && std::env::var("WSYSDEBUG").is_ok_and(|v| v.contains("release")) {
+            eprintln!("wsys: window {n}: {line}");
+        }
         let Some(w) = self.wins.get_mut(&n) else { return };
         if w.events.len() >= MAXEVENTS {
             w.events.pop_front();
@@ -1195,7 +1206,7 @@ impl Wsys {
             kbd: VecDeque::new(), kbdopen: 0, mouseopen: 0, mouse: VecDeque::new(), resized: false,
             cursor: vec![], state: 1, textwin: text, scroll: 0, sel: (0, 0), rows: vec![], hidden: false,
             hold: false, want: None, stale: false,
-            scrollr: Rect::default(), shown: (1, 0, 1), lastb: None, inside: false, nooverlay: false, ovsent: None, shownb: None, held: None,
+            scrollr: Rect::default(), shown: (1, 0, 1), lastb: None, inside: false, nooverlay: false, ovsent: None, shownb: None, held: None, queued: vec![], ovheld: None,
         });
         self.z.push(n);
         self.setfocus(Some(n));
@@ -1472,7 +1483,13 @@ impl Wsys {
                 let w = self.wins.get_mut(&n).unwrap();
                 if w.bufs.get(&b).is_some_and(|x| x.comp) {
                     // the GPU composes it from now on (the next frame); the client
-                    // gets back the one shown before when that frame is on its way
+                    // gets back the ones shown or presented before when that frame
+                    // is on the display
+                    if w.held == Some(b) {
+                        w.held = None; // presented again while shown: shown again
+                    }
+                    w.queued.retain(|&q| q != b);
+                    w.queued.push(b);
                     w.shownb = Some(b);
                     w.lastb = Some(b);
                     self.compdirty = true;
@@ -1483,6 +1500,9 @@ impl Wsys {
                 self.wins.get_mut(&n).unwrap().lastb = Some(b);
                 // copied: the client may write it again
                 self.event(n, format!("b {b}"));
+                if self.ov != Some(n) {
+                    self.ovletgo(n); // off the plane (ovcheck turned it off)
+                }
                 Ok(())
             }
             "rect" => {
@@ -1512,6 +1532,9 @@ impl Wsys {
     fn unbuffer(&mut self, n: u32, b: u32) {
         let Some(w) = self.wins.get_mut(&n) else { return };
         let Some(buf) = w.bufs.remove(&b) else { return };
+        if w.ovheld == Some(b) {
+            w.ovheld = None;
+        }
         if buf.comp {
             if w.shownb == Some(b) {
                 w.shownb = None;
@@ -1520,6 +1543,8 @@ impl Wsys {
             if w.held == Some(b) {
                 w.held = None;
             }
+            w.queued.retain(|&q| q != b);
+            self.compgone.retain(|&k| k != (n, b));
             if let Some(c) = &self.comp {
                 c.forget((n, b));
             }
@@ -1533,8 +1558,11 @@ impl Wsys {
         if w.shownb.take().is_some() {
             self.compdirty = true;
         }
-        if let Some(h) = w.held.take() {
-            self.event(n, format!("b {h}"));
+        // a frame on its way may still read them: back with the next one
+        let gone: Vec<u32> = w.held.take().into_iter().chain(w.queued.drain(..)).collect();
+        if !gone.is_empty() {
+            self.compdirty = true;
+            self.compgone.extend(gone.into_iter().map(|b| (n, b)));
         }
     }
 
@@ -1550,10 +1578,13 @@ impl Wsys {
         for (i, &n) in self.z.iter().enumerate() {
             let w = &self.wins[&n];
             let Some(b) = w.shownb else { continue };
+            let Some(buf) = w.bufs.get(&b) else { continue };
             if w.hidden {
+                // nothing of it seen, but its frames go back at the display's rate
+                // (else its client would wait for ever)
+                scene.push(comp::Shown { key: (n, b), at: (w.r.x0, w.r.y0), rects: vec![] });
                 continue;
             }
-            let Some(buf) = w.bufs.get(&b) else { continue };
             let mine = Rect::new(w.r.x0, w.r.y0, w.r.x0 + buf.w.min(w.r.dx()), w.r.y0 + buf.h.min(w.r.dy())).clip(&self.d.r);
             let mut rects = if mine.empty() { vec![] } else { vec![mine] };
             let mut over: Vec<Rect> = self.z[i + 1..].iter().map(|o| &self.wins[o]).filter(|o| !o.hidden).map(|o| o.r.inset(-BORDER)).collect();
@@ -1587,16 +1618,25 @@ impl Wsys {
     /// a frame with these buffers is on its way: each window's buffer shown
     /// before goes back to its client
     fn composed(&mut self, keys: Vec<comp::Key>) {
+        if std::env::var("WSYSDEBUG").is_ok_and(|v| v.contains("release")) {
+            eprintln!("wsys: composed {keys:?}");
+        }
+        for (n, b) in std::mem::take(&mut self.compgone) {
+            self.event(n, format!("b {b}"));
+        }
         for (n, b) in keys {
             let Some(w) = self.wins.get_mut(&n) else { continue };
-            if w.shownb != Some(b) {
-                continue;
+            let Some(i) = w.queued.iter().position(|&q| q == b) else { continue };
+            // b is on the display: the one shown before and those presented before
+            // b (no frame showed them) go back
+            let mut back: Vec<u32> = w.queued.drain(..=i).filter(|&q| q != b).collect();
+            if let Some(h) = w.held.replace(b) {
+                if h != b {
+                    back.push(h);
+                }
             }
-            match w.held.replace(b) {
-                Some(h) if h != b => self.event(n, format!("b {h}")),
-                // presented again while shown: back at once (as when copied)
-                Some(_) => self.event(n, format!("b {b}")),
-                None => {}
+            for q in back {
+                self.event(n, format!("b {q}"));
             }
         }
     }
@@ -1612,16 +1652,20 @@ impl Wsys {
             for b in w.bufs.values_mut() {
                 b.comp = false;
             }
-            let (shown, held) = (w.shownb.take(), w.held.take());
+            let shown = w.shownb.take();
+            let mut back: Vec<u32> = w.held.take().into_iter().chain(w.queued.drain(..)).collect();
             if let Some(b) = shown {
                 let _ = self.copybuf(n, b, None);
-                if held.is_some_and(|h| h != b) {
-                    self.event(n, format!("b {}", held.unwrap()));
+                if !back.contains(&b) {
+                    back.push(b);
                 }
-                self.event(n, format!("b {b}"));
-            } else if let Some(h) = held {
-                self.event(n, format!("b {h}"));
             }
+            for b in back {
+                self.event(n, format!("b {b}"));
+            }
+        }
+        for (n, b) in std::mem::take(&mut self.compgone) {
+            self.event(n, format!("b {b}"));
         }
     }
 
@@ -1902,18 +1946,34 @@ impl Wsys {
             if self.ov == Some(win) {
                 self.ov = None;
             }
-            self.copybuf(win, b, None)
+            let r = self.copybuf(win, b, None);
+            if r.is_ok() {
+                self.event(win, format!("b {b}"));
+            }
+            self.ovletgo(win);
+            r
         } else {
+            // on the plane: the client's again when the next one is shown there
+            let w = self.wins.get_mut(&win).unwrap();
+            match w.ovheld.replace(b) {
+                Some(h) if h != b => self.event(win, format!("b {h}")),
+                _ => {}
+            }
             Ok(())
         };
-        if r.is_ok() {
-            self.event(win, format!("b {b}"));
-        }
         if answer {
             self.send(match r {
                 Ok(()) => R::new(119, tag).u32(count).done(),
                 Err(e) => ninep::error(tag, &e),
             });
+        }
+    }
+
+    /// the buffer window n had on the overlay plane back to its client (the
+    /// plane shows it no longer)
+    fn ovletgo(&mut self, n: u32) {
+        if let Some(h) = self.wins.get_mut(&n).and_then(|w| w.ovheld.take()) {
+            self.event(n, format!("b {h}"));
         }
     }
 
@@ -1946,6 +2006,7 @@ impl Wsys {
                 let _ = self.copybuf(n, b, None);
             }
         }
+        self.ovletgo(n);
     }
 
     /// what window n shows, all of it or rectangle r (window coordinates), from
@@ -3094,6 +3155,7 @@ fn main() {
         comp: None,
         compscene: vec![],
         compdirty: false,
+        compgone: vec![],
         sweepr: None,
         tabstop: std::env::var("tabstop").ok().and_then(|t| t.trim().parse().ok()).filter(|&t: &i32| t > 0).unwrap_or(4),
         // rio's snarf, when wsys runs in a window of rio
