@@ -85,6 +85,8 @@ static struct drm_mode_modeinfo shown_mode;	/* its mode there */
  * then it is shown (kmsout_overlay_show)
  */
 static u32 ovplane[Ncrtc];
+static u32 primary[Ncrtc];		/* each CRTC's primary plane (atomic commits) */
+static bool atomic;			/* the driver takes atomic commits (DRM_CLIENT_CAP_ATOMIC) */
 static struct file *ov_by;		/* the client's file, NULL: none */
 static u32 ov_handle[2], ov_fb[2];	/* ours, in VRAM */
 static u32 ov_w, ov_h, ov_pitch;
@@ -283,18 +285,26 @@ findmode(struct out *o, u32 w, u32 h, u32 hz, struct drm_mode_modeinfo *m, bool 
 }
 
 /*
- * the overlay planes (GETPLANERESOURCES lists only them: we did not ask
- * for universal planes), the first for each CRTC that takes XRGB8888
+ * the overlay planes, the first for each CRTC that takes XRGB8888, and
+ * each CRTC's primary plane (with atomic commits GETPLANERESOURCES lists
+ * every plane: their type from the kernel's own)
  */
 static void
 findplanes(void)
 {
 	struct drm_mode_get_plane_res pr = { };
 	struct drm_mode_get_plane gp;
-	u32 ids[16], fmts[64];
+	struct drm_device *dev = kmsdev();
+	struct drm_plane *pl;
+	struct drm_crtc *c;
+	u32 ids[32], fmts[64];
 	unsigned int i, j, k;
 
 	memset(ovplane, 0, sizeof(ovplane));
+	memset(primary, 0, sizeof(primary));
+	for (k = 0; k < (unsigned)ncrtc; k++)
+		if ((c = drm_crtc_find(dev, NULL, crtcs[k])) != NULL && c->primary)
+			primary[k] = c->primary->base.id;
 	pr.plane_id_ptr = (u64)(uintptr_t)ids;
 	pr.count_planes = ARRAY_SIZE(ids);
 	if (kioctl(kms, DRM_IOCTL_MODE_GETPLANERESOURCES, &pr))
@@ -305,6 +315,8 @@ findplanes(void)
 		gp.format_type_ptr = (u64)(uintptr_t)fmts;
 		gp.count_format_types = ARRAY_SIZE(fmts);
 		if (kioctl(kms, DRM_IOCTL_MODE_GETPLANE, &gp))
+			continue;
+		if ((pl = drm_plane_find(dev, NULL, ids[i])) == NULL || pl->type != DRM_PLANE_TYPE_OVERLAY)
 			continue;
 		for (j = 0; j < min_t(u32, gp.count_format_types, ARRAY_SIZE(fmts)); j++)
 			if (fmts[j] == DRM_FORMAT_XRGB8888)
@@ -323,12 +335,17 @@ kmsout_init(struct file *f, const struct kmsout_ops *o)
 	struct drm_mode_card_res res = { };
 	struct drm_connector_list_iter it;
 	struct drm_connector *c;
+	struct drm_set_client_cap cap = { .capability = DRM_CLIENT_CAP_ATOMIC, .value = 1 };
 	struct drm_device *dev;
 	int r;
 
 	kms = f;
 	ops = o;
 	shown_out = -1;
+	/* one commit a CRTC and vblank with every plane that changed (flips, the overlay) */
+	atomic = kioctl(kms, DRM_IOCTL_SET_CLIENT_CAP, &cap) == 0;
+	if (!atomic)
+		pr_warn("kmsout: no atomic commits: page flips, no overlay plane\n");
 	res.crtc_id_ptr = (u64)(uintptr_t)crtcs;
 	res.count_crtcs = Ncrtc;
 	r = kioctl(kms, DRM_IOCTL_MODE_GETRESOURCES, &res);
@@ -336,6 +353,8 @@ kmsout_init(struct file *f, const struct kmsout_ops *o)
 		return r;
 	ncrtc = min_t(int, res.count_crtcs, Ncrtc);
 	findplanes();
+	if (!atomic)
+		memset(ovplane, 0, sizeof(ovplane));
 	dev = kmsdev();
 	nout = 0;
 	drm_connector_list_iter_begin(dev, &it);
@@ -1090,67 +1109,264 @@ kmsout_screenfb(u32 *fb, u32 *w, u32 *h, u32 *pitch)
 }
 
 /*
- * Flips not done yet: the display shows the fbs it had until their events
- * come (a flip waits for the fences of its object: an external one's
- * rendering), so those are removed only then (flipgone); a framebuffer
+ * Commits: one at a time on each CRTC, with an event (DRM_MODE_PAGE_FLIP_EVENT),
+ * and on each one commit a vblank with every plane that changed: the
+ * primary plane's framebuffer (a client's picture, the screen again) and
+ * the overlay plane (a window on it).  What comes while one is on its way
+ * is latched and goes with its event, together (the GPU composing the
+ * screen and a window on the overlay plane: two commits would take two
+ * vblanks, both at half the rate).  Each waits for the commit that took
+ * its change, without kmslock (so that the next change can be latched
+ * meanwhile).  The display shows the framebuffers it had until the event
+ * (a commit waits for the fences of its objects: an external one's
+ * rendering), so those taken off are removed only then (gone); one
  * removed while on the display turns its plane off (a black screen).
- * kmslock held.
+ * Without atomic commits (DRM_CLIENT_CAP_ATOMIC) a page flip does the
+ * primary plane's change, and there is no overlay plane.
  */
-enum { Ngone = 8 };
-static int flipping;		/* flip events still to come */
-static u32 flipgone[Ngone];	/* fbs to remove when they came */
+enum { Ngone = 16 };
+static struct {
+	bool	busy;		/* a commit on its way */
+	u64	sent, done;	/* its sequence number, the last one done */
+	unsigned long	at;	/* jiffies when it went */
+	u64	errseq;		/* the one that failed last, and how */
+	int	err;
+	u64	next;		/* the latched changes' number, 0: none */
+	u32	pfb;		/* latched: the primary plane's fb, 0 none */
+	bool	ov, ovon;	/* latched: the overlay plane, on or off */
+	u32	ofb;
+	int	ox, oy;
+	u32	ow, oh;
+} cs[Ncrtc];
+static u64 seqgen;
+static struct { u32 fb; u64 need[Ncrtc]; } gone[Ngone];
 static int ngone;
-static unsigned long flipat;	/* jiffies of the flips */
+static bool reading;		/* one reads the events, the others wait for it */
+static u64 nread;		/* events read: the others look again */
+static DECLARE_WAIT_QUEUE_HEAD(kmsq);
 
-/* flip events within timeout; 0 when none is left to come, -ETIMEDOUT */
 static int
-flipwait(long timeout)
+crtcindex(u32 crtc)
+{
+	int k;
+
+	for (k = 0; k < ncrtc; k++)
+		if (crtcs[k] == crtc)
+			return k;
+	return -1;
+}
+
+/* the framebuffers whose commits are done removed; kmslock held */
+static void
+gonedone(void)
+{
+	int i, k;
+
+	for (i = 0; i < ngone; ) {
+		for (k = 0; k < ncrtc; k++)
+			if (cs[k].done < gone[i].need[k])
+				break;
+		if (k < ncrtc) {
+			i++;
+			continue;
+		}
+		kioctl(kms, DRM_IOCTL_MODE_RMFB, &gone[i].fb);
+		gone[i] = gone[--ngone];
+	}
+}
+
+/* CRTC k's latched changes as one commit on its way; kmslock held */
+static void
+submit(int k)
+{
+	struct drm_mode_config *mc = &kmsdev()->mode_config;
+	u32 objs[2], counts[2], props[12];
+	u64 vals[12];
+	struct drm_mode_atomic a = { };
+	struct drm_mode_crtc_page_flip f = { };
+	int no = 0, np = 0, r;
+
+	if (!cs[k].next)
+		return;
+	cs[k].sent = cs[k].next;
+	cs[k].next = 0;
+	if (cs[k].pfb && primary[k]) {
+		objs[no] = primary[k];
+		counts[no++] = 1;
+		props[np] = mc->prop_fb_id->base.id;
+		vals[np++] = cs[k].pfb;
+	}
+	if (cs[k].ov && ovplane[k]) {
+		int n = np;
+
+		objs[no] = ovplane[k];
+		props[np] = mc->prop_fb_id->base.id;
+		vals[np++] = cs[k].ovon ? cs[k].ofb : 0;
+		props[np] = mc->prop_crtc_id->base.id;
+		vals[np++] = cs[k].ovon ? crtcs[k] : 0;
+		if (cs[k].ovon) {
+			props[np] = mc->prop_src_x->base.id;
+			vals[np++] = 0;
+			props[np] = mc->prop_src_y->base.id;
+			vals[np++] = 0;
+			props[np] = mc->prop_src_w->base.id;
+			vals[np++] = (u64)cs[k].ow << 16;
+			props[np] = mc->prop_src_h->base.id;
+			vals[np++] = (u64)cs[k].oh << 16;
+			props[np] = mc->prop_crtc_x->base.id;
+			vals[np++] = (u64)(s64)cs[k].ox;
+			props[np] = mc->prop_crtc_y->base.id;
+			vals[np++] = (u64)(s64)cs[k].oy;
+			props[np] = mc->prop_crtc_w->base.id;
+			vals[np++] = cs[k].ow;
+			props[np] = mc->prop_crtc_h->base.id;
+			vals[np++] = cs[k].oh;
+		}
+		counts[no++] = np - n;
+	}
+	cs[k].pfb = 0;
+	cs[k].ov = false;
+	if (no == 0) {
+		cs[k].done = cs[k].sent;	/* nothing to change */
+		wake_up_all(&kmsq);
+		return;
+	}
+	if (atomic) {
+		a.flags = DRM_MODE_ATOMIC_NONBLOCK | DRM_MODE_PAGE_FLIP_EVENT;
+		a.count_objs = no;
+		a.objs_ptr = (u64)(uintptr_t)objs;
+		a.count_props_ptr = (u64)(uintptr_t)counts;
+		a.props_ptr = (u64)(uintptr_t)props;
+		a.prop_values_ptr = (u64)(uintptr_t)vals;
+		a.user_data = k;
+		r = kioctl(kms, DRM_IOCTL_MODE_ATOMIC, &a);
+	} else {
+		f.crtc_id = crtcs[k];
+		f.fb_id = vals[0];
+		f.flags = DRM_MODE_PAGE_FLIP_EVENT;
+		f.user_data = k;
+		r = kioctl(kms, DRM_IOCTL_MODE_PAGE_FLIP, &f);
+	}
+	if (r) {
+		cs[k].errseq = cs[k].sent;
+		cs[k].err = r;
+		cs[k].done = cs[k].sent;
+		wake_up_all(&kmsq);
+		return;
+	}
+	cs[k].busy = true;
+	cs[k].at = jiffies;
+}
+
+/* CRTC k's commit came (its event): the latched changes go now; kmslock held */
+static void
+commitdone(int k)
+{
+	if (k < 0 || k >= ncrtc || !cs[k].busy)
+		return;
+	cs[k].busy = false;
+	cs[k].done = cs[k].sent;
+	gonedone();
+	submit(k);
+	wake_up_all(&kmsq);
+}
+
+/*
+ * the changes latched for CRTC k go in a commit: now if none is on its
+ * way, else with its event; its number.  One on its way for two seconds
+ * did not come (the event lost): the next goes all the same.  kmslock held.
+ */
+static u64
+commit(int k)
+{
+	if (!cs[k].next)
+		cs[k].next = ++seqgen;
+	if (cs[k].busy && time_after(jiffies, cs[k].at + 2*HZ)) {
+		pr_err("kmsout: crtc %u: no event of commit %llu for %u ms: the next goes\n",
+		    crtcs[k], cs[k].sent, jiffies_to_msecs(jiffies - cs[k].at));
+		cs[k].busy = false;
+		cs[k].done = cs[k].sent;
+		gonedone();
+	}
+	if (!cs[k].busy) {
+		u64 seq = cs[k].next;
+
+		submit(k);
+		return seq;
+	}
+	return cs[k].next;
+}
+
+/*
+ * until CRTC k's commit seq is done (timeout jiffies; -ETIMEDOUT): the
+ * events read, without kmslock meanwhile, by one waiter for all; its
+ * error.  kmslock held.
+ */
+static int
+kmswait(int k, u64 seq, long timeout)
 {
 	struct drm_file *fp = kms->private_data;
+	unsigned long end = jiffies + timeout;
 	char ev[1024];
 	loff_t pos;
-	long t;
-	int k, rr;
+	long t, left;
+	u64 seen;
+	int i, rr;
 
-	while (flipping > 0) {
-		t = wait_event_interruptible_timeout(fp->event_wait, !list_empty(&fp->event_list), timeout);
-		if (t <= 0)
-			return t < 0 ? t : -ETIMEDOUT;
-		pos = 0;
-		rr = drm_read(kms, (char __user *)ev, sizeof(ev), &pos);
-		if (rr < 0)
-			return rr;
-		for (k = 0; k + (int)sizeof(struct drm_event) <= rr; ) {
-			struct drm_event *e = (struct drm_event *)(ev + k);
+	while (cs[k].done < seq) {
+		left = (long)(end - jiffies);
+		if (left <= 0)
+			return -ETIMEDOUT;
+		if (reading) {
+			seen = nread;
+			mutex_unlock(&kmslock);
+			wait_event_timeout(kmsq, READ_ONCE(nread) != seen, left);
+			mutex_lock(&kmslock);
+			continue;
+		}
+		reading = true;
+		mutex_unlock(&kmslock);
+		t = wait_event_interruptible_timeout(fp->event_wait, !list_empty(&fp->event_list), left);
+		rr = 0;
+		if (t > 0) {
+			pos = 0;
+			rr = drm_read(kms, (char __user *)ev, sizeof(ev), &pos);
+		}
+		mutex_lock(&kmslock);
+		reading = false;
+		for (i = 0; i + (int)sizeof(struct drm_event) <= rr; ) {
+			struct drm_event *e = (struct drm_event *)(ev + i);
 
 			if (e->length < sizeof(*e))
 				break;
-			if (e->type == DRM_EVENT_FLIP_COMPLETE && flipping > 0)
-				flipping--;
-			k += e->length;
+			if (e->type == DRM_EVENT_FLIP_COMPLETE && e->length >= sizeof(struct drm_event_vblank))
+				commitdone((int)((struct drm_event_vblank *)e)->user_data);
+			i += e->length;
 		}
+		WRITE_ONCE(nread, nread + 1);
+		wake_up_all(&kmsq);
+		if (t < 0)
+			return t;
 	}
-	while (ngone > 0)
-		kioctl(kms, DRM_IOCTL_MODE_RMFB, &flipgone[--ngone]);
-	return 0;
+	return cs[k].errseq == seq ? cs[k].err : 0;
 }
 
-/* the fb off the display (or never on it): removed now, or when the flips are done */
-static void
-fbgone(u32 fb)
+/* every commit done (a second; -EBUSY), before a modeset; kmslock held */
+static int
+kmsidle(void)
 {
-	if (!fb)
-		return;
-	if (flipping > 0 && ngone == Ngone && flipwait(HZ) < 0) {
-		pr_err("kmsout: flips not done for %u ms: their old framebuffers go\n",
-			jiffies_to_msecs(jiffies - flipat));
-		flipping = 0;
-		flipwait(0);
-	}
-	if (flipping > 0)
-		flipgone[ngone++] = fb;
-	else
-		kioctl(kms, DRM_IOCTL_MODE_RMFB, &fb);
+	int k, r;
+
+	for (k = 0; k < ncrtc; k++)
+		if (cs[k].next || cs[k].busy) {
+			r = kmswait(k, cs[k].next ? commit(k) : cs[k].sent, HZ);
+			if (r == -ETIMEDOUT) {
+				pr_info("kmsout: crtc %u: commit not done after %u ms: busy\n", crtcs[k],
+				    jiffies_to_msecs(jiffies - cs[k].at));
+				return -EBUSY;
+			}
+		}
+	return 0;
 }
 
 /* for the log: whether the display still waits for the GPU to write fb */
@@ -1173,59 +1389,74 @@ fbfences(u32 fb)
 	return s;
 }
 
-/* the flips before done (a second more), -EBUSY */
-static int
-flipsdone(u32 fb)
+/* the fb off the display (or never on it): removed now, or when the commits on their way are done */
+static void
+fbgone(u32 fb)
 {
-	int r;
+	int k;
+	bool wait = false;
 
-	if (flipping == 0)
-		return 0;
-	r = flipwait(HZ);
-	pr_info("kmsout: the flip before fb %u done after %u ms%s\n", fb,
-		jiffies_to_msecs(jiffies - flipat), r ? ": not yet, busy" : "");
-	return r ? -EBUSY : 0;
+	if (!fb)
+		return;
+	if (ngone == Ngone) {
+		pr_err("kmsout: %d framebuffers wait for commits: those go\n", Ngone);
+		kmsidle();
+		gonedone();
+		if (ngone == Ngone) {
+			while (ngone > 0)
+				kioctl(kms, DRM_IOCTL_MODE_RMFB, &gone[--ngone].fb);
+		}
+	}
+	for (k = 0; k < ncrtc; k++) {
+		gone[ngone].need[k] = cs[k].next ? cs[k].next : cs[k].busy ? cs[k].sent : 0;
+		if (gone[ngone].need[k] > cs[k].done)
+			wait = true;
+	}
+	if (!wait) {
+		kioctl(kms, DRM_IOCTL_MODE_RMFB, &fb);
+		return;
+	}
+	gone[ngone++].fb = fb;
 }
 
 /*
- * page flips of the outputs that are on (or of output only) to fb, and
- * the wait until the display shows them (an event each, a second: kmslock
- * is held).  One not done by then is still to come: the next flip, and
- * kmsout_scanout, wait for it first (a second more; -EBUSY if it does not
- * come, the flip would fail so).  A flip the CRTC's state refuses ("requires full
- * modeset", -EINVAL) is a SETCRTC instead.
+ * the outputs that are on (or output only) to fb on their primary plane,
+ * and the wait until the display shows it (a second: one not done by then
+ * is still to come, the next goes after it).  A change the CRTC's state
+ * refuses ("requires full modeset", -EINVAL) is a SETCRTC instead.
+ * kmslock held, let go of while waiting.
  */
 static int
 flip(int only, u32 fb)
 {
-	struct drm_mode_crtc_page_flip f;
-	int i, n = 0, r = 0, rr;
+	u64 seq[Nout];
+	int i, k, r = 0, rr;
 
-	if ((r = flipsdone(fb)) < 0)
-		return r;
 	for (i = 0; i < nout; i++) {
 		struct out *o = &outs[i];
 
-		if (!o->on || !o->crtc || (only >= 0 && i != only))
+		seq[i] = 0;
+		if (!o->on || !o->crtc || (only >= 0 && i != only) || (k = crtcindex(o->crtc)) < 0)
 			continue;
-		memset(&f, 0, sizeof(f));
-		f.crtc_id = o->crtc;
-		f.fb_id = fb;
-		f.flags = DRM_MODE_PAGE_FLIP_EVENT;
-		rr = kioctl(kms, DRM_IOCTL_MODE_PAGE_FLIP, &f);
-		if (rr == -EINVAL)
+		cs[k].pfb = fb;
+		seq[i] = commit(k);
+	}
+	for (i = 0; i < nout; i++) {
+		struct out *o = &outs[i];
+
+		if (!seq[i] || (k = crtcindex(o->crtc)) < 0)
+			continue;
+		rr = kmswait(k, seq[i], HZ);
+		if (rr == -ETIMEDOUT) {
+			pr_err("kmsout: no flip event for fb %u within a second: still to come; %s\n",
+				fb, fbfences(fb));
+			rr = 0;
+		} else if (rr == -EINVAL)
 			rr = only >= 0 ? setcrtc(o->crtc, fb, 0, 0, &shown_mode, o->conn)
 			    : setcrtc(o->crtc, fb, o->x, o->y, &o->mode, o->conn);
-		else if (rr == 0)
-			n++;
 		if (rr && !r)
 			r = rr;
 	}
-	flipping = n;
-	flipat = jiffies;
-	if (flipwait(HZ) == -ETIMEDOUT)
-		pr_err("kmsout: no flip event for fb %u within a second: still to come; %s\n",
-			fb, fbfences(fb));
 	return r;
 }
 
@@ -1258,6 +1489,7 @@ back(void)
 	if (shown_out < 0)
 		return flip(-1, scr_fb);
 	o = &outs[shown_out];
+	kmsidle();	/* a modeset after the commits on their way */
 	return setcrtc(o->crtc, scr_fb, o->x, o->y, &o->mode, o->conn);
 }
 
@@ -1277,8 +1509,6 @@ kmsout_scanout(struct file *from, u32 handle, u32 w, u32 h, u32 stride)
 	if (!kms || !scr_fb)
 		return -ENODEV;
 	mutex_lock(&kmslock);
-	if ((r = flipsdone(shown_fb)) < 0)
-		goto out;
 	old = shown_fb;
 	if (handle == 0) {
 		if (from && from != shown_by) {
@@ -1315,7 +1545,7 @@ kmsout_scanout(struct file *from, u32 handle, u32 w, u32 h, u32 stride)
 		r = flip(-1, fb.fb_id);
 	else if (old && shown_out == o)
 		r = flip(o, fb.fb_id);	/* the output shows the client's at 0 0 already */
-	else
+	else if ((r = kmsidle()) == 0)
 		r = setcrtc(outs[o].crtc, fb.fb_id, 0, 0, &m, outs[o].conn);
 	if (r) {
 		if (old) {
@@ -1373,9 +1603,10 @@ ovdfree(u32 keep)
 static int
 ovplace(u32 fb, int x, int y)
 {
-	struct drm_mode_set_plane sp = { };
 	struct out *o = NULL;
-	int i, k, r;
+	int i, k, ko;
+	u64 seq;
+	int r;
 
 	for (i = 0; i < nout; i++) {
 		struct out *p = &outs[i];
@@ -1391,23 +1622,24 @@ ovplace(u32 fb, int x, int y)
 			break;
 	if (!o || k == ncrtc || !ovplane[k] || (shown_fb && shown_out >= 0 && &outs[shown_out] == o))
 		return -ERANGE;
-	if (ov_plane && (ov_plane != ovplane[k] || ov_crtc != o->crtc)) {
+	if (ov_plane && ov_crtc != o->crtc && (ko = crtcindex(ov_crtc)) >= 0) {
 		/* the window went to another output: off on the old one */
-		sp.plane_id = ov_plane;
-		sp.crtc_id = ov_crtc;
-		kioctl(kms, DRM_IOCTL_MODE_SETPLANE, &sp);
-		memset(&sp, 0, sizeof(sp));
+		cs[ko].ov = true;
+		cs[ko].ovon = false;
+		commit(ko);
 	}
-	sp.plane_id = ovplane[k];
-	sp.crtc_id = o->crtc;
-	sp.fb_id = fb;
-	sp.crtc_x = x - o->x;
-	sp.crtc_y = y - o->y;
-	sp.crtc_w = ov_w;
-	sp.crtc_h = ov_h;
-	sp.src_w = ov_w << 16;
-	sp.src_h = ov_h << 16;
-	r = kioctl(kms, DRM_IOCTL_MODE_SETPLANE, &sp);
+	/* in the commit of the CRTC's next vblank, with its primary plane's change */
+	cs[k].ov = true;
+	cs[k].ovon = true;
+	cs[k].ofb = fb;
+	cs[k].ox = x - o->x;
+	cs[k].oy = y - o->y;
+	cs[k].ow = ov_w;
+	cs[k].oh = ov_h;
+	seq = commit(k);
+	r = kmswait(k, seq, HZ);
+	if (r == -ETIMEDOUT)
+		r = 0;	/* still to come */
 	if (r == 0) {
 		ov_plane = ovplane[k];
 		ov_crtc = o->crtc;
@@ -1422,8 +1654,10 @@ static void
 ovfree(void)
 {
 	struct drm_mode_set_plane sp = { };
-	int i;
+	int i, k;
 
+	for (k = 0; k < ncrtc; k++)
+		cs[k].ov = false;	/* latched, not sent: it goes off all the same */
 	if (ov_plane) {
 		sp.plane_id = ov_plane;
 		sp.crtc_id = ov_crtc;
