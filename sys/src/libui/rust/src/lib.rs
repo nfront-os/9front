@@ -461,6 +461,11 @@ pub fn row<S, A, Seq: UiSeq<S, A>>(seq: Seq) -> Container<Seq, S, A> {
     container("row", seq)
 }
 
+/// children in a column that scrolls, widgets only for those seen (long lists)
+pub fn list<S, A, Seq: UiSeq<S, A>>(seq: Seq) -> Container<Seq, S, A> {
+    container("list", seq)
+}
+
 /// one child, scrolled
 pub fn scroll<S: 'static, A, V: UiView<S, A>>(child: V) -> Container<V, S, A> {
     container("scroll", child)

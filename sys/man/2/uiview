@@ -51,6 +51,8 @@ not known),
 and those holding others:
 .BI column( children ) ,
 .BI row( children ) ,
+.BI list( children )
+(a column that scrolls, widgets only for the children seen: long lists),
 .BI scroll( child ) ,
 .BI sized( child )
 with

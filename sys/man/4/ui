@@ -109,7 +109,13 @@ A node of a kind:
 .B scroll
 (one child),
 .B box
-(one child or none); in
+(one child or none),
+.B list
+(any number of children in a column that scrolls; only those it shows have
+widgets, so a list of thousands costs what a screenful does; the others have
+no
+.BR rect );
+in
 .I parent
 (default
 .BR root ,

@@ -12,6 +12,7 @@
 //	clear				all but root
 //
 // kinds: column row label button textbox checkbox progress slider scroll box
+// list (a column that scrolls, widgets only for the children seen: long lists)
 // keys: text, placeholder (textbox), checked (checkbox: 0 1), value
 // (progress: 0..1, none; slider), min max step (slider), width height (box),
 // flex (a child's share of its row or column), gap (between a row's or
@@ -33,6 +34,7 @@ pub enum Kind {
     Slider,
     Scroll,
     Box,
+    List,
 }
 
 impl Kind {
@@ -48,6 +50,7 @@ impl Kind {
             "slider" => Kind::Slider,
             "scroll" => Kind::Scroll,
             "box" => Kind::Box,
+            "list" => Kind::List,
             _ => return None,
         })
     }
@@ -64,13 +67,14 @@ impl Kind {
             Kind::Slider => "slider",
             Kind::Scroll => "scroll",
             Kind::Box => "box",
+            Kind::List => "list",
         }
     }
 
     /// how many children it takes
     pub fn holds(self) -> usize {
         match self {
-            Kind::Column | Kind::Row => usize::MAX,
+            Kind::Column | Kind::Row | Kind::List => usize::MAX,
             Kind::Scroll | Kind::Box => 1,
             _ => 0,
         }

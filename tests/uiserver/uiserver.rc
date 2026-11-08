@@ -123,6 +123,40 @@ echo kill >/proc/$evpid/note
 sleep 0.3
 echo 'set p value 1' >/mnt/ui/ctl && grep -s '^set p value 1$' /mnt/ui/tree && ok 'ui answers after a flushed read' || fail ui after a flushed read
 
+# a long list: a thousand labels, widgets only for those it shows (their rect)
+echo clear >/mnt/ui/ctl
+echo 'new l list
+set l flex 1' >/mnt/ui/ctl
+for(i in `{seq 0 999})
+	echo 'new l'$i' label l
+set l'$i' text item '$i >/mnt/ui/ctl
+sleep 1
+check 'list: a thousand children' 1000 `{cat /mnt/ui/nodes/l/children | wc -l}
+fn hasrect { ! ~ `{cat /mnt/ui/nodes/$1/rect} '' } # (stat gives the files no length)
+fn shown { # how many of the list's children have a widget (a rect)
+	n=0
+	for(i in `{seq 0 999})
+		if(hasrect l$i) n=`{echo $n+1 | hoc}
+	echo $n
+}
+s=`{shown}
+if(hasrect l0 && ! hasrect l999 && test $s -gt 5 && test $s -lt 100)
+	ok 'list: widgets only for those seen:' $s of 1000
+if not fail list: $s widgets, l0 `{cat /mnt/ui/nodes/l0/rect}, l999 `{cat /mnt/ui/nodes/l999/rect}
+# scrolled on (the wheel over it): the first ones' widgets go, later ones' come
+{ for(i in `{seq 1 60}){ echo A 350 300 16; echo A 350 300 0 } } >/dev/mousein
+sleep 1
+s=`{shown}
+if(! hasrect l0 && test $s -gt 5 && test $s -lt 100)
+	ok 'list: scrolled, the first ones without widgets, others with:' $s
+if not fail list scrolled: $s widgets, l0 `{cat /mnt/ui/nodes/l0/rect}
+# a node made in the list's middle and one deleted: the list stays as long
+echo 'new lx label l 5
+set lx text inserted
+del l7' >/mnt/ui/ctl
+sleep 0.5
+check 'list: one made, one deleted' 1000 `{cat /mnt/ui/nodes/l/children | wc -l}
+
 # the window deleted: wsys ends ui with a note (as rio); its /srv/uitest goes
 # with it (ORCLOSE), a read of event ends
 cat /mnt/ui/event >/tmp/ev2 &

@@ -31,7 +31,7 @@ use masonry::properties::types::CrossAxisAlignment;
 use masonry::layout::Length;
 use masonry::widgets::{
     Button, ButtonPress, Checkbox, CheckboxToggled, Flex, Label, Portal, ProgressBar, SizedBox, Slider,
-    SliderMoved, TextAction, TextArea, TextInput,
+    SliderMoved, TextAction, TextArea, TextInput, VirtualScroll, VirtualScrollAction,
 };
 use masonry_imaging::{Layer as ImagingLayer, PreparedFrame};
 use imaging::render::{ImageBufferFormat, ImageBufferTarget, ImageRenderer};
@@ -77,6 +77,29 @@ struct Ids {
     node: HashMap<WidgetId, String>,
     widget: HashMap<String, WidgetId>,
     shown: HashMap<String, Vec<String>>,
+    // a list's children that have widgets: by index, the node and its widget
+    active: HashMap<String, std::collections::BTreeMap<usize, (String, WidgetId)>>,
+}
+
+impl Ids {
+    /// node id's widget wid gone, and the widgets under it (the scene's nodes
+    /// below it), unless the node has another widget meanwhile (moved)
+    fn forget(&mut self, sc: &Scene, id: &str, wid: WidgetId) {
+        if self.widget.get(id) != Some(&wid) {
+            return;
+        }
+        let mut todo = vec![id.to_string()];
+        while let Some(n) = todo.pop() {
+            if let Some(w) = self.widget.remove(&n) {
+                self.node.retain(|k, v| *k != w && *v != n);
+            }
+            self.shown.remove(&n);
+            self.active.remove(&n);
+            if let Some(node) = sc.nodes.get(&n) {
+                todo.extend(node.children.iter().cloned());
+            }
+        }
+    }
 }
 
 fn len(v: Option<f64>) -> Option<Length> {
@@ -135,6 +158,12 @@ fn build(sc: &Scene, id: &str, ids: &mut Ids) -> NewWidget<dyn Widget> {
                 None => NewWidget::new(Flex::column()).erased(),
             };
             NewWidget::new(Portal::new(inner)).erased()
+        }
+        Kind::List => {
+            // no children yet: VirtualScroll asks for those it shows (fetch)
+            ids.shown.insert(id.to_string(), n.children.clone());
+            ids.active.insert(id.to_string(), Default::default());
+            NewWidget::new(VirtualScroll::new(0, n.children.len())).erased()
         }
         Kind::Box => {
             ids.shown.insert(id.to_string(), n.children.clone());
@@ -206,6 +235,33 @@ fn sync(root: &mut RenderRoot, sc: &Scene, ids: &mut Ids, created: &BTreeSet<Str
         let (Some(n), Some(&wid)) = (sc.nodes.get(&p), ids.widget.get(&p)) else { continue };
         let old = ids.shown.get(&p).cloned().unwrap_or_default();
         let new = n.children.clone();
+        if n.kind == Kind::List {
+            // its children with widgets: those whose place has another node made again
+            let act = ids.active.get(&p).cloned().unwrap_or_default();
+            root.edit_widget(wid, |mut w| {
+                let mut v = w.downcast::<VirtualScroll>();
+                for (idx, (node, cw)) in act {
+                    let now = new.get(idx);
+                    if now == Some(&node) && !created.contains(&node) {
+                        todo.push(node);
+                        continue;
+                    }
+                    VirtualScroll::remove_child(&mut v, idx);
+                    ids.forget(sc, &node, cw);
+                    let a = ids.active.entry(p.clone()).or_default();
+                    a.remove(&idx);
+                    if let Some(c) = now {
+                        let child = build(sc, c, ids);
+                        let cid = child.id();
+                        VirtualScroll::add_child(&mut v, idx, child);
+                        ids.active.entry(p.clone()).or_default().insert(idx, (c.clone(), cid));
+                    }
+                }
+                VirtualScroll::set_len(&mut v, new.len());
+            });
+            ids.shown.insert(p, new);
+            continue;
+        }
         let (ko, kn) = keep(&old, &new, created);
         let kind = n.kind;
         root.edit_widget(wid, |mut w| match kind {
@@ -457,7 +513,7 @@ impl App {
                             }
                         }
                     }
-                    Kind::Scroll => {}
+                    Kind::Scroll | Kind::List => {}
                 });
             }
         }
@@ -496,8 +552,44 @@ impl App {
         }
     }
 
+    /// a list's widget wants widgets for the children it is to show, no longer
+    /// for others (scrolled)
+    fn fetch(&mut self, id: &str, wid: WidgetId, a: ErasedAction) {
+        let Ok(a) = a.downcast::<VirtualScrollAction>() else { return };
+        let VirtualScrollAction::Fetch(f) = *a else { return };
+        let Some(g) = self.gui.as_mut() else { return };
+        let (sc, ids) = (&self.fs.scene, &mut self.ids);
+        let Some(n) = sc.nodes.get(id) else { return };
+        let children = n.children.clone();
+        g.root.edit_widget(wid, |mut w| {
+            let mut v = w.downcast::<VirtualScroll>();
+            VirtualScroll::will_handle_action(&mut v, &f);
+            let act = ids.active.get(id).cloned().unwrap_or_default();
+            for (idx, (node, cw)) in act {
+                if !f.target().contains(&idx) {
+                    VirtualScroll::remove_child(&mut v, idx);
+                    ids.forget(sc, &node, cw);
+                    ids.active.entry(id.to_string()).or_default().remove(&idx);
+                }
+            }
+            for idx in f.target().clone() {
+                let have = ids.active.get(id).is_some_and(|a| a.contains_key(&idx));
+                if let (false, Some(c)) = (have, children.get(idx)) {
+                    let child = build(sc, c, ids);
+                    let cid = child.id();
+                    VirtualScroll::add_child(&mut v, idx, child);
+                    ids.active.entry(id.to_string()).or_default().insert(idx, (c.clone(), cid));
+                }
+            }
+        });
+    }
+
     fn action(&mut self, a: ErasedAction, wid: WidgetId) {
         let Some(id) = self.ids.node.get(&wid).cloned() else { return };
+        if a.is::<VirtualScrollAction>() {
+            self.fetch(&id, wid, a);
+            return;
+        }
         let set = |fs: &mut Fs, k: &str, v: String| {
             if let Some(n) = fs.scene.nodes.get_mut(&id) {
                 n.props.insert(k.to_string(), v);
