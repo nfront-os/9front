@@ -222,9 +222,17 @@ impl Gpu {
         }
         // in VRAM not in one piece where BAR 0 shows it (the WSI's images for the overlay
         // plane, variant b): no view for the processor, the display shows it
-        let Ok(rep) = self.req(&format!("map {h}")) else {
+        if !self.mapamd(&mut m, size)? {
             m.len = size;
-            return Ok(m);
+        }
+        Ok(m)
+    }
+
+    /// aux/amdgpu: map handle gives "map handle seg va size", a segment of the
+    /// object's own; false: the driver gives the processor no view of it
+    fn mapamd(&self, m: &mut GpuMem, size: usize) -> io::Result<bool> {
+        let Ok(rep) = self.req(&format!("map {}", m.res)) else {
+            return Ok(false);
         };
         let f: Vec<&str> = rep.split_whitespace().collect();
         let hex = |x: &str| usize::from_str_radix(x.trim_start_matches("0x"), 16).ok();
@@ -238,6 +246,28 @@ impl Gpu {
         m.va = seg.va;
         m.len = size;
         m.seg = Some(seg);
+        Ok(true)
+    }
+
+    /// a copy of b made now where the processor sees it (aux/amdgpu's readback: the
+    /// copy engine copies an object in VRAM wsys cannot map into a new one in GTT);
+    /// let go of when dropped
+    pub fn readback(&self, b: &GpuMem) -> io::Result<GpuMem> {
+        if self.drv != Drv::Amd {
+            return Err(io::Error::other("gpu: no readback but aux/amdgpu's"));
+        }
+        let rep = self.req(&format!("readback {}", b.res))?;
+        let f: Vec<&str> = rep.split_whitespace().collect();
+        let (Some(&"readback"), Some(h), Some(osize)) = (f.first(), f.get(1).and_then(|x| x.parse::<u32>().ok()), f.get(2).and_then(|x| x.parse::<usize>().ok())) else {
+            return Err(bad("readback", &rep));
+        };
+        let mut m = GpuMem { ctl: self.ctl.clone(), res: h, seg: None, va: 0, len: 0, copy: vec![] };
+        if osize < b.len {
+            return Err(bad("readback: smaller than the buffer", &rep));
+        }
+        if !self.mapamd(&mut m, b.len)? {
+            return Err(io::Error::other("gpu: readback: no view of the copy"));
+        }
         Ok(m)
     }
 }

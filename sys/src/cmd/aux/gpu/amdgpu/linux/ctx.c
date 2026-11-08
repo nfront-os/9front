@@ -597,24 +597,81 @@ amdgpu_scanout_gem(void *v, u32 handle, unsigned int w, unsigned int h, unsigned
 }
 
 /*
+ * an object pinned where it is now and its address for the copy engine; in
+ * GTT through the GART
+ */
+static int
+pincopy(struct amdgpu_bo *bo, u64 *addr)
+{
+	int r;
+
+	r = amdgpu_bo_reserve(bo, false);
+	if (r)
+		return r;
+	r = amdgpu_bo_pin(bo, amdgpu_mem_type_to_domain(bo->tbo.resource->mem_type));
+	if (r == 0 && bo->tbo.resource->mem_type == TTM_PL_TT) {
+		r = amdgpu_ttm_alloc_gart(&bo->tbo);
+		if (r)
+			amdgpu_bo_unpin(bo);
+	}
+	if (r == 0)
+		*addr = amdgpu_bo_gpu_offset(bo);
+	amdgpu_bo_unreserve(bo);
+	return r;
+}
+
+static void
+unpincopy(struct amdgpu_bo *bo)
+{
+	if (amdgpu_bo_reserve(bo, true) == 0) {
+		amdgpu_bo_unpin(bo);
+		amdgpu_bo_unreserve(bo);
+	}
+}
+
+/* size bytes of src to dst by the GPU's copy engine (amdgpu's TTM buffer functions, SDMA), waited for */
+static int
+gpucopy(struct amdgpu_bo *src, struct amdgpu_bo *dst, u64 size)
+{
+	struct amdgpu_device *adev = amdgpu_ttm_adev(src->tbo.bdev);
+	struct dma_fence *fence = NULL;
+	u64 saddr, daddr;
+	int r;
+
+	if ((r = pincopy(src, &saddr)) != 0)
+		return r;
+	if ((r = pincopy(dst, &daddr)) != 0) {
+		unpincopy(src);
+		return r;
+	}
+	/* as amdgpu_benchmark: the default entity's lock around the copy */
+	mutex_lock(&adev->mman.default_entity.lock);
+	r = amdgpu_copy_buffer(adev, &adev->mman.default_entity, saddr, daddr, size,
+	    NULL, &fence, false, 0);
+	mutex_unlock(&adev->mman.default_entity.lock);
+	if (r == 0) {
+		dma_fence_wait(fence, false);
+		dma_fence_put(fence);
+	}
+	unpincopy(dst);
+	unpincopy(src);
+	return r;
+}
+
+/*
  * ctl "overlay handle x y w h stride": the client's object (its window's
  * picture, XRGB8888, stride bytes a row, the window at x y on the screen)
  * on an overlay plane.  In VRAM (variant b) the plane shows it as it is;
- * else (GTT, where wsys reads it: variant a) the GPU's copy engine (amdgpu's
- * TTM buffer functions, SDMA) copies it into an object of the display's in
- * VRAM, which the plane then shows (kmsout.c).  Returns when the display shows it.  handle
- * 0: off.
+ * else (GTT, where wsys reads it: variant a) the GPU's copy engine copies
+ * it into an object of the display's in VRAM, which the plane then shows
+ * (kmsout.c).  Returns when the display shows it.  handle 0: off.
  */
 int
 amdgpu_overlay(void *v, u32 handle, int x, int y, u32 w, u32 h, u32 stride)
 {
 	struct gctx *c = v;
 	struct drm_gem_object *sobj, *dobj;
-	struct amdgpu_bo *src, *dst;
-	struct amdgpu_device *adev;
-	struct dma_fence *fence = NULL;
 	struct file *kmsf;
-	u64 saddr, daddr;
 	u32 dh;
 	int r;
 
@@ -625,9 +682,8 @@ amdgpu_overlay(void *v, u32 handle, int x, int y, u32 w, u32 h, u32 stride)
 	/* in VRAM already (variant b, the WSI's images for the plane): shown as it is */
 	if ((sobj = drm_gem_object_lookup(c->file, handle)) == NULL)
 		return -ENOENT;
-	src = gem_to_amdgpu_bo(sobj);
-	r = src->tbo.resource && src->tbo.resource->mem_type == TTM_PL_VRAM &&
-	    (src->preferred_domains & AMDGPU_GEM_DOMAIN_VRAM);
+	r = gem_to_amdgpu_bo(sobj)->tbo.resource && gem_to_amdgpu_bo(sobj)->tbo.resource->mem_type == TTM_PL_VRAM &&
+	    (gem_to_amdgpu_bo(sobj)->preferred_domains & AMDGPU_GEM_DOMAIN_VRAM);
 	drm_gem_object_put(sobj);
 	if (r)
 		return kmsout_overlay_direct(c->filp, handle, w, h, stride, x, y);
@@ -640,46 +696,46 @@ amdgpu_overlay(void *v, u32 handle, int x, int y, u32 w, u32 h, u32 stride)
 		drm_gem_object_put(sobj);
 		return -ENOENT;
 	}
-	src = gem_to_amdgpu_bo(sobj);
-	dst = gem_to_amdgpu_bo(dobj);
-	adev = amdgpu_ttm_adev(src->tbo.bdev);
-	if (sobj->size < (u64)stride * h || dobj->size < (u64)stride * h) {
+	if (sobj->size < (u64)stride * h || dobj->size < (u64)stride * h)
 		r = -EINVAL;
-		goto put;
-	}
-	/* where it is now, pinned there while the copy reads it; in GTT through the GART */
-	r = amdgpu_bo_reserve(src, false);
-	if (r)
-		goto put;
-	r = amdgpu_bo_pin(src, amdgpu_mem_type_to_domain(src->tbo.resource->mem_type));
-	if (r == 0 && src->tbo.resource->mem_type == TTM_PL_TT) {
-		r = amdgpu_ttm_alloc_gart(&src->tbo);
-		if (r)
-			amdgpu_bo_unpin(src);
-	}
-	if (r == 0)
-		saddr = amdgpu_bo_gpu_offset(src);
-	amdgpu_bo_unreserve(src);
-	if (r)
-		goto put;
-	daddr = amdgpu_bo_gpu_offset(dst);	/* pinned in VRAM (screen_alloc) */
-	/* as amdgpu_benchmark: the default entity's lock around the copy */
-	mutex_lock(&adev->mman.default_entity.lock);
-	r = amdgpu_copy_buffer(adev, &adev->mman.default_entity, saddr, daddr, stride * h,
-	    NULL, &fence, false, 0);
-	mutex_unlock(&adev->mman.default_entity.lock);
-	if (r == 0) {
-		dma_fence_wait(fence, false);
-		dma_fence_put(fence);
-	}
-	if (amdgpu_bo_reserve(src, true) == 0) {
-		amdgpu_bo_unpin(src);
-		amdgpu_bo_unreserve(src);
-	}
+	else
+		r = gpucopy(gem_to_amdgpu_bo(sobj), gem_to_amdgpu_bo(dobj), (u64)stride * h);
 	if (r == 0)
 		r = kmsout_overlay_show(c->filp, x, y);
-put:
 	drm_gem_object_put(dobj);
+	drm_gem_object_put(sobj);
+	return r;
+}
+
+/*
+ * ctl "readback handle": a copy of the object made now, by the copy
+ * engine, in a new object in GTT the processor maps (map); for objects it
+ * cannot see itself (NO_CPU_ACCESS: the WSI's images in VRAM for the
+ * overlay plane), so that wsys' screen has what the plane shows.  The new
+ * handle and its size; close lets go of it.
+ */
+int
+amdgpu_readback(void *v, u32 handle, u32 *nh, u64 *size)
+{
+	struct gctx *c = v;
+	struct drm_gem_object *sobj, *dobj;
+	struct amdgpu_device *adev;
+	int r;
+
+	if ((sobj = drm_gem_object_lookup(c->file, handle)) == NULL)
+		return -ENOENT;
+	adev = amdgpu_ttm_adev(gem_to_amdgpu_bo(sobj)->tbo.bdev);
+	*size = amdgpu_bo_size(gem_to_amdgpu_bo(sobj));
+	r = amdgpu_gem_object_create(adev, *size, PAGE_SIZE, AMDGPU_GEM_DOMAIN_GTT, 0,
+	    ttm_bo_type_device, NULL, &dobj, 0);
+	if (r) {
+		drm_gem_object_put(sobj);
+		return r;
+	}
+	r = gpucopy(gem_to_amdgpu_bo(sobj), gem_to_amdgpu_bo(dobj), *size);
+	if (r == 0)
+		r = drm_gem_handle_create(c->file, dobj, nh);
+	drm_gem_object_put(dobj);	/* the handle holds it */
 	drm_gem_object_put(sobj);
 	return r;
 }

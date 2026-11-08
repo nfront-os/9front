@@ -2,14 +2,15 @@
 # vktri in its window of wsys for 3 seconds (or $3), the log to $1; with
 # copy: the frames through draw(3) as before (WSI_PLAN9_COPY=1); with comp
 # (wsys -g) its pixels read from /dev/screen, the screen as the GPU composes
-# it (devdraw's window has not got them)
+# it (devdraw's window has not got them); with screen the same without -g (on
+# the overlay plane: what the plane shows, in wsys' screen)
 log=$1
 secs=3
 if(! ~ $#* 0 1 2)
 	secs=$3
 if(~ $2 copy)
 	WSI_PLAN9_COPY=1
-if(~ $2 comp)
+if(~ $2 comp screen)
 	screenpeek=/dev/screen
 if(~ $2 norebuild)
 	VKTRI_NOREBUILD=1	# as many apps: VK_SUBOPTIMAL_KHR ignored

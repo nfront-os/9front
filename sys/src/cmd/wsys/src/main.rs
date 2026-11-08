@@ -1026,7 +1026,50 @@ impl Wsys {
         let chan = self.d.chan;
         let mut b = format!("{:>11} {:11} {:11} {:11} {:11} ", draw::chanstr(chan), r.x0, r.y0, r.x1, r.y1).into_bytes();
         b.extend(self.d.unload(id, &r, draw::chandepth(chan))?);
+        self.ovpaste(&mut b, r);
         Ok(b)
+    }
+
+    /// the window on the overlay plane into snapshot b of rectangle r: the display
+    /// shows its buffer over the screen, devdraw's screen has not got it.  A buffer
+    /// the processor cannot see (in VRAM for the plane, variant b) is copied where
+    /// it can first (gpu(4) readback)
+    fn ovpaste(&mut self, b: &mut [u8], r: Rect) {
+        let Some(n) = self.ov else { return };
+        let Some(w) = self.wins.get(&n) else { return };
+        let Some(buf) = w.ovheld.and_then(|h| w.bufs.get(&h)) else { return };
+        let Mem::Gpu(g) = &buf.mem else { return };
+        let i = r.clip(&w.r);
+        if self.d.chan != XRGB32 || i.empty() {
+            return;
+        }
+        let (o, stride) = ((w.r.x0, w.r.y0), buf.stride);
+        let mut copy = None;
+        if !g.mapped() {
+            match self.gpu.as_ref().map(|gpu| gpu.readback(g)) {
+                Some(Ok(c)) => copy = Some(c),
+                Some(Err(e)) => {
+                    eprintln!("wsys: window {n}: the overlay's pixels: {e}");
+                    return;
+                }
+                None => return,
+            }
+        }
+        let n = self.wins.get_mut(&n).unwrap();
+        let h = n.ovheld.unwrap();
+        let Mem::Gpu(g) = &mut n.bufs.get_mut(&h).unwrap().mem else { return };
+        let src = copy.as_mut().unwrap_or(g);
+        let (y0, y1) = (i.y0 - o.1, i.y1 - o.1);
+        let px = src.read(y0 as usize * stride, (y1 - y0) as usize * stride);
+        let hdr = b.len() - (r.dx() * r.dy()) as usize * 4;
+        let row = (i.dx() * 4) as usize;
+        for y in i.y0..i.y1 {
+            let s = (y - i.y0) as usize * stride + (i.x0 - o.0) as usize * 4;
+            let d = hdr + (((y - r.y0) * r.dx() + (i.x0 - r.x0)) * 4) as usize;
+            if s + row <= px.len() && d + row <= b.len() {
+                b[d..d + row].copy_from_slice(&px[s..s + row]);
+            }
+        }
     }
 
     /// image(6) of rectangle r of the screen as the GPU composes it

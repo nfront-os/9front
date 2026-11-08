@@ -743,6 +743,23 @@ fswrite(Req *r)
 				e = errstr9(x);
 			break;
 		}
+		if(n == 2 && strcmp(f[0], "readback") == 0){
+			/* readback handle: waits for the copy engine, other requests go on */
+			uint h;
+			u64g size;
+
+			srvrelease(r->srv);
+			x = amdgpu_readback(fa->ctx->lc, strtoul(f[1], nil, 0), &h, &size);
+			srvacquire(r->srv);
+			if(x < 0){
+				e = errstr9(x);
+				break;
+			}
+			fsetreply(fa, "readback %ud %llud\n", h, size);
+			fa->rend = r->ifcall.offset + r->ifcall.count;
+			fa->rbase = -1;
+			break;
+		}
 		if((n == 2 || n == 5) && strcmp(f[0], "scanout") == 0 || n == 5 && strcmp(f[0], "scanoutgem") == 0){
 			/* the display is the hostowner's (the console's) */
 			if(!iseve9p(r->fid->uid)){

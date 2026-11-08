@@ -36,3 +36,11 @@ n=0
 while(! grep -s '^wsysvk: exit' /tmp/wvo.log && test $n -lt 600){ sleep 0.1; n=`{echo $n+1 | hoc} }
 grep 'wsys says|out of date|changed size|exit' /tmp/wvo.log | sed 's/^/norebuild: /'
 
+# on the overlay plane uncovered, its pixels read from wsys' screen
+# (/dev/screen): devdraw's screen has not got them, wsys puts in what the
+# plane shows (its buffer in VRAM through gpu(4) readback)
+rm -f /tmp/wvo.log
+window -r 100 100 740 580 /tests/wsysvktri /tmp/wvo.log screen
+n=0
+while(! grep -s '^wsysvk: exit' /tmp/wvo.log && test $n -lt 600){ sleep 0.1; n=`{echo $n+1 | hoc} }
+grep 'wsys says|frames|screen at|passed|FAIL|exit' /tmp/wvo.log | sed 's/^/screen: /'

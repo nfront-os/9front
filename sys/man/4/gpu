@@ -890,6 +890,14 @@ output has the window wholly or a context's picture is on the display
 One client at a time;
 .B overlay off
 ends it, as does the end of the context or a new layout of the outputs.
+.BI readback " handle
+(aux/amdgpu) copies the object, by the GPU's copy engine, into a new
+object in GTT and replies
+.BI readback " handle size" :
+a copy the processor maps
+.RB ( map ),
+of an object it cannot see itself (the images in VRAM the overlay plane
+shows); close lets go of it.
 .BI syncexport " handle
 and
 .BI syncimport " token

@@ -257,7 +257,9 @@ of where
 .I wsys
 draws (as
 .IR rio 's;
-its header has the rectangle).
+its header has the rectangle), with what the overlay plane shows over it
+(a window's buffer in VRAM through gpu(4)'s
+.BR readback ).
 .TP
 .IB n /cons ", " consctl ", " cursor ", " kbd ", " label ", " mouse ", " screen ", " snarf ", " text ", " wctl ", " wdir ", " window ", " winid ", " winname
 as in

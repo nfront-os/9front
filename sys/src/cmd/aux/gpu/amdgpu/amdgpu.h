@@ -54,4 +54,6 @@ int	amdgpu_kms_start(void);
 int	amdgpu_scanout(void *c, int id, unsigned int w, unsigned int h, unsigned int stride);	/* id 0: off again */
 /* a client's object on an overlay plane at x y (linux/ctx.c: a GPU copy into VRAM); handle 0: off */
 int	amdgpu_overlay(void *c, unsigned int handle, int x, int y, unsigned int w, unsigned int h, unsigned int stride);
+/* a copy of an object the processor cannot see, in a new GTT object (linux/ctx.c) */
+int	amdgpu_readback(void *c, unsigned int handle, unsigned int *nh, u64g *size);
 int	amdgpu_scanout_gem(void *c, unsigned int handle, unsigned int w, unsigned int h, unsigned int stride);	/* a client's GEM object */
