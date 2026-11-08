@@ -14,11 +14,12 @@
 // kinds: column row label button textbox checkbox progress slider scroll box
 // keys: text, placeholder (textbox), checked (checkbox: 0 1), value
 // (progress: 0..1, none; slider), min max step (slider), width height (box),
-// flex (a child's share of its row or column), gap, align (column, row: start
-// center end, across: start the default).
+// flex (a child's share of its row or column), gap (between a row's or
+// column's children, else the theme's), align (column, row: start center end,
+// across: start the default).
 // The tree file gives the scene back in the same language.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Kind {
@@ -94,11 +95,14 @@ impl Node {
     }
 }
 
-/// what a transaction changed: the widgets to make again (structure), or
-/// only properties of existing ones
+/// what a transaction changed: the tree's shape (structure: the widgets of
+/// the rows, columns, boxes and scrolls whose children changed are made to
+/// match, the others stay), the nodes made (new, also when an id was there
+/// before), or only properties of existing ones
 #[derive(Default, Debug)]
 pub struct Change {
     pub structure: bool,
+    pub created: BTreeSet<String>,
     pub props: Vec<String>, // ids whose properties changed
     pub title: Option<String>,
 }
@@ -168,6 +172,7 @@ impl Scene {
                 );
                 self.attach(id, parent, index)?;
                 ch.structure = true;
+                ch.created.insert(id.to_string());
             }
             "set" => {
                 let (id, rest) = split1(rest);
@@ -177,8 +182,8 @@ impl Scene {
                 }
                 let n = self.nodes.get_mut(id).ok_or_else(|| format!("no node {id}"))?;
                 n.props.insert(key.to_string(), unquote(value));
-                if key == "flex" || key == "gap" || key == "align" {
-                    ch.structure = true; // of the row or column it is in
+                if key == "flex" {
+                    ch.structure = true; // the row's or column's share of it
                 }
                 ch.props.push(id.to_string());
             }

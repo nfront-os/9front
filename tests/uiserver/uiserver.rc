@@ -105,6 +105,19 @@ waitfor /tmp/ev '^text f hi$'
 grep -s '^text f hi$' /tmp/ev && ok 'event: text f hi' || fail no text event: `{grep '^text' /tmp/ev}
 grep -s '^text hi$' /mnt/ui/nodes/f/props && ok 'the typed text in nodes/f/props' || fail nodes/f/props: `{cat /mnt/ui/nodes/f/props}
 
+# the tree's shape changed (a node made, then deleted): the other widgets stay,
+# the text box with its focus and text (before, all were made again)
+echo 'new extra label' >/mnt/ui/ctl
+sleep 0.3
+/tests/uipeek -k '!'
+waitfor /tmp/ev '^text f hi!$'
+grep -s '^text f hi!$' /tmp/ev && ok 'a node made: the text box keeps its focus and text' || fail after new: `{grep '^text' /tmp/ev}
+echo 'del extra' >/mnt/ui/ctl
+sleep 0.3
+/tests/uipeek -k '?'
+waitfor /tmp/ev '^text f hi!\?$'
+grep -s '^text f hi!\?$' /tmp/ev && ok 'a node deleted: the text box keeps its focus and text' || fail after del: `{grep '^text' /tmp/ev}
+
 # a read of event let go (its process killed: the kernel's Tflush): ui answers on
 echo kill >/proc/$evpid/note
 sleep 0.3

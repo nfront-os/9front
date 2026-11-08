@@ -19,14 +19,14 @@ mod gpu;
 mod ninep;
 mod scene;
 
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::num::NonZeroU32;
 use std::sync::{mpsc, Arc};
 
 use masonry::app::{RenderRoot, RenderRootOptions, RenderRootSignal, VisualLayerKind, WindowSizePolicy};
-use masonry::core::{ErasedAction, NewWidget, TextEvent, Widget, WidgetId, WindowEvent};
+use masonry::core::{CollectionWidget, ErasedAction, NewWidget, TextEvent, Widget, WidgetId, WindowEvent};
 use masonry::peniko::Blob;
-use masonry::properties::Padding;
+use masonry::properties::{Gap, Padding};
 use masonry::properties::types::CrossAxisAlignment;
 use masonry::layout::Length;
 use masonry::widgets::{
@@ -70,11 +70,13 @@ fn fonts() -> Vec<Vec<u8>> {
     v
 }
 
-/// the scene's widgets: which node a widget is, which widget a node
+/// the scene's widgets: which node a widget is, which widget a node, the
+/// children a row's, column's, scroll's or box's widget has (sync)
 #[derive(Default)]
 struct Ids {
     node: HashMap<WidgetId, String>,
     widget: HashMap<String, WidgetId>,
+    shown: HashMap<String, Vec<String>>,
 }
 
 fn len(v: Option<f64>) -> Option<Length> {
@@ -93,20 +95,16 @@ fn build(sc: &Scene, id: &str, ids: &mut Ids) -> NewWidget<dyn Widget> {
                 Some("end") => CrossAxisAlignment::End,
                 _ => CrossAxisAlignment::Start,
             });
-            let gap = n.num("gap");
-            for (i, c) in n.children.iter().enumerate() {
-                if i > 0 {
-                    if let Some(g) = len(gap) {
-                        f = f.with_fixed_spacer(g);
-                    }
-                }
+            for c in &n.children {
                 let child = build(sc, c, ids);
-                f = match sc.nodes[c].num("flex") {
-                    Some(fl) if fl > 0.0 => f.with(child, fl),
-                    _ => f.with_fixed(child),
-                };
+                f = f.with(child, flex(sc, c));
             }
-            NewWidget::new(f).erased()
+            ids.shown.insert(id.to_string(), n.children.clone());
+            // gap: between the children (Masonry's Gap), else the theme's
+            match len(n.num("gap")) {
+                Some(g) => NewWidget::new(f).with_props(Gap::new(g)).erased(),
+                None => NewWidget::new(f).erased(),
+            }
         }
         Kind::Label => NewWidget::new(Label::new(text)).erased(),
         Kind::Button => NewWidget::new(Button::with_text(text)).erased(),
@@ -131,6 +129,7 @@ fn build(sc: &Scene, id: &str, ids: &mut Ids) -> NewWidget<dyn Widget> {
             NewWidget::new(s).erased()
         }
         Kind::Scroll => {
+            ids.shown.insert(id.to_string(), n.children.clone());
             let inner = match n.children.first() {
                 Some(c) => build(sc, c, ids),
                 None => NewWidget::new(Flex::column()).erased(),
@@ -138,6 +137,7 @@ fn build(sc: &Scene, id: &str, ids: &mut Ids) -> NewWidget<dyn Widget> {
             NewWidget::new(Portal::new(inner)).erased()
         }
         Kind::Box => {
+            ids.shown.insert(id.to_string(), n.children.clone());
             let mut b = match n.children.first() {
                 Some(c) => SizedBox::new(build(sc, c, ids)),
                 None => SizedBox::empty(),
@@ -154,6 +154,108 @@ fn build(sc: &Scene, id: &str, ids: &mut Ids) -> NewWidget<dyn Widget> {
     ids.node.insert(w.id(), id.to_string());
     ids.widget.insert(id.to_string(), w.id());
     w
+}
+
+/// a child's share of its row or column (0: as big as it is)
+fn flex(sc: &Scene, id: &str) -> f64 {
+    sc.nodes[id].num("flex").filter(|f| *f > 0.0).unwrap_or(0.0)
+}
+
+/// which of new keep their widgets: in the order of old, the most of them
+/// (a longest common subsequence), none of those made anew (created); for each
+/// of old and of new whether it is one of them
+fn keep(old: &[String], new: &[String], created: &BTreeSet<String>) -> (Vec<bool>, Vec<bool>) {
+    let (n, m) = (old.len(), new.len());
+    let mut t = vec![vec![0u32; m + 1]; n + 1];
+    for i in (0..n).rev() {
+        for j in (0..m).rev() {
+            t[i][j] = if old[i] == new[j] && !created.contains(&new[j]) {
+                t[i + 1][j + 1] + 1
+            } else {
+                t[i + 1][j].max(t[i][j + 1])
+            };
+        }
+    }
+    let (mut ko, mut kn) = (vec![false; n], vec![false; m]);
+    let (mut i, mut j) = (0, 0);
+    while i < n && j < m {
+        if old[i] == new[j] && !created.contains(&new[j]) {
+            ko[i] = true;
+            kn[j] = true;
+            i += 1;
+            j += 1;
+        } else if t[i + 1][j] >= t[i][j + 1] {
+            i += 1;
+        } else {
+            j += 1;
+        }
+    }
+    (ko, kn)
+}
+
+/*
+ * The widgets made to match the scene after its shape changed: from the root
+ * down, each row's, column's, scroll's and box's children compared with those
+ * its widget has; those that stay keep their widgets, and so their state (the
+ * focus, the text being edited, a scroll's place), the others go, the new
+ * ones are made (a node moved is made again in its new place).
+ */
+fn sync(root: &mut RenderRoot, sc: &Scene, ids: &mut Ids, created: &BTreeSet<String>) {
+    let mut todo = vec![ROOT.to_string()];
+    while let Some(p) = todo.pop() {
+        let (Some(n), Some(&wid)) = (sc.nodes.get(&p), ids.widget.get(&p)) else { continue };
+        let old = ids.shown.get(&p).cloned().unwrap_or_default();
+        let new = n.children.clone();
+        let (ko, kn) = keep(&old, &new, created);
+        let kind = n.kind;
+        root.edit_widget(wid, |mut w| match kind {
+            Kind::Column | Kind::Row => {
+                let mut f = w.downcast::<Flex>();
+                for i in (0..old.len()).rev() {
+                    if !ko[i] {
+                        Flex::remove(&mut f, i);
+                    }
+                }
+                for (j, c) in new.iter().enumerate() {
+                    if kn[j] {
+                        Flex::set_params(&mut f, j, flex(sc, c));
+                    } else {
+                        let child = build(sc, c, ids);
+                        Flex::insert(&mut f, j, child, flex(sc, c));
+                    }
+                }
+            }
+            Kind::Scroll => {
+                if !kn.first().copied().unwrap_or(old.is_empty()) {
+                    let inner = match new.first() {
+                        Some(c) => build(sc, c, ids),
+                        None => NewWidget::new(Flex::column()).erased(),
+                    };
+                    Portal::set_child(&mut w.downcast::<Portal<dyn Widget>>(), inner);
+                }
+            }
+            Kind::Box => {
+                if !kn.first().copied().unwrap_or(old.is_empty()) {
+                    let mut b = w.downcast::<SizedBox>();
+                    match new.first() {
+                        Some(c) => SizedBox::set_child(&mut b, build(sc, c, ids)),
+                        None => SizedBox::remove_child(&mut b),
+                    }
+                }
+            }
+            _ => {}
+        });
+        ids.shown.insert(p, new.clone());
+        for (j, c) in new.iter().enumerate() {
+            if kn[j] {
+                todo.push(c.clone());
+            }
+        }
+    }
+    // the nodes gone: their widgets with them
+    ids.widget.retain(|id, _| sc.nodes.contains_key(id));
+    ids.shown.retain(|id, _| sc.nodes.contains_key(id));
+    ids.node.retain(|_, id| sc.nodes.contains_key(id));
 }
 
 /// the root's contents: the scene, with some room around it
@@ -271,18 +373,26 @@ impl App {
     fn apply_changes(&mut self) {
         let changes = std::mem::take(&mut self.fs.changes);
         let Some(g) = self.gui.as_mut() else { return };
-        let mut rebuild = false;
+        let mut structure = false;
+        let mut created = BTreeSet::new();
+        let mut props = Vec::new();
         for ch in changes {
             if let Some(t) = &ch.title {
                 g.window.set_title(t);
             }
-            if ch.structure {
-                rebuild = true;
-            }
-            if rebuild {
-                continue;
-            }
-            for id in ch.props {
+            structure |= ch.structure;
+            created.extend(ch.created);
+            props.extend(ch.props);
+        }
+        // the shape first: the nodes made have their properties already
+        if structure {
+            sync(&mut g.root, &self.fs.scene, &mut self.ids, &created);
+        }
+        {
+            for id in props {
+                if created.contains(&id) {
+                    continue;
+                }
                 let Some(n) = self.fs.scene.nodes.get(&id) else { continue };
                 let Some(&wid) = self.ids.widget.get(&id) else { continue };
                 let text = n.prop("text").unwrap_or("").to_string();
@@ -331,16 +441,25 @@ impl App {
                             SizedBox::set_height(&mut b, y);
                         }
                     }
-                    Kind::Column | Kind::Row | Kind::Scroll => {}
+                    Kind::Column | Kind::Row => {
+                        let mut f = w.downcast::<Flex>();
+                        Flex::set_cross_axis_alignment(&mut f, match n.prop("align") {
+                            Some("center") => CrossAxisAlignment::Center,
+                            Some("end") => CrossAxisAlignment::End,
+                            _ => CrossAxisAlignment::Start,
+                        });
+                        match len(n.num("gap")) {
+                            Some(g) => {
+                                f.insert_prop(Gap::new(g));
+                            }
+                            None => {
+                                f.remove_prop::<Gap>();
+                            }
+                        }
+                    }
+                    Kind::Scroll => {}
                 });
             }
-        }
-        if rebuild {
-            let c = content(&self.fs.scene, &mut self.ids);
-            g.root.edit_base_layer(|mut root| {
-                let mut b = root.downcast::<SizedBox>();
-                SizedBox::set_child(&mut b, c);
-            });
         }
         g.window.request_redraw();
     }

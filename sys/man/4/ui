@@ -142,6 +142,7 @@ slider),
 .B flex
 (a child's share of its row or column),
 .B gap
+(between a row's or column's children, in pixels; else the theme's)
 and
 .B align
 .RB ( start ,
@@ -205,5 +206,5 @@ with a note: the clients' reads of
 .B event
 end without
 .BR close .
-A change of the tree's shape makes all widgets again (the focus is lost);
-properties change the widgets in place.
+A node moved is made again in its new place (its widgets' state, such
+as the focus, goes).
