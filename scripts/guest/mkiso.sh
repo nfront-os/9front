@@ -37,7 +37,9 @@ bash "$ROOT/scripts/guest/stage-dist.sh" "$CLI_DIR/src9"
 echo "make the CD in the guest"
 DSK=$CLI_DIR/mkiso.raw
 rm -f "$DSK"
-truncate -s 2G "$DSK"
+# the guest writes the CD here (sparse: only what it writes takes room);
+# 4 GB: with GPU programs (wsys, ui: libvulkan.a) it is past 2 GB
+truncate -s 4G "$DSK"
 mkdir -p "$TMP/extra/rc/bin"
 cp "$ROOT/scripts/guest/boot/mkiso.rc" "$TMP/extra/rc/bin/mkiso"
 if [ -n "$PLAN9INI" ]; then
