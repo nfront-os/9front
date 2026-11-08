@@ -27,6 +27,7 @@
 #include <fcall.h>
 #include <thread.h>
 #include <9p.h>
+#include "../gpufs.c"
 
 enum {
 	/* virtio pci capability types */
@@ -142,7 +143,7 @@ enum {
 	Ctxva = 0x40000000,
 	Ctxvastep = 0x200000,
 	Ctxsegsz = 0x100000,
-	Nctx = 64,
+	Nvctx = 64,
 	Blobva = 0x50000000,
 	Blobvaend = 0x7f000000,
 
@@ -152,10 +153,9 @@ enum {
 typedef struct Cap Cap;
 typedef struct Mode Mode;
 typedef struct Slot Slot;
-typedef struct Ctx Ctx;
+typedef struct Vctx Vctx;
 typedef struct Res Res;
 typedef struct Hold Hold;
-typedef struct Fidaux Fidaux;
 typedef struct Hole Hole;
 
 struct Cap
@@ -177,7 +177,7 @@ struct Slot
 	int	busy;
 	int	done;
 	int	async;	/* nobody waits: freed on completion */
-	Ctx	*ctx;
+	Vctx	*ctx;
 	uvlong	fence;
 };
 
@@ -211,7 +211,7 @@ struct Hold
 	int	mapped;
 };
 
-struct Ctx
+struct Vctx
 {
 	int	id;		/* virtio ctx_id */
 	int	ref;		/* open fids */
@@ -227,13 +227,6 @@ struct Ctx
 	Hold	*holds;
 	char	*reply;
 	File	*dir, *ctl, *submit, *fence;
-};
-
-struct Fidaux
-{
-	Ctx	*ctx;
-	uvlong	fence;		/* fence file: the fence asked for */
-	int	query;		/* answer at once instead of waiting */
 };
 
 struct Hole
@@ -277,16 +270,15 @@ static QLock cmdlock;		/* display state */
 static Mode disp;		/* what the host wants */
 static Mode cur;		/* what we have set */
 static int scanres;
-static Ctx *scanctx;		/* a client's blob is the scanout (ctx scanout) */
+static Vctx *scanctx;		/* a client's blob is the scanout (ctx scanout) */
 static int scanblob;
 static uvlong fbpa;
 static ulong fbsize;
 static uchar edid[1024];
 static int edidlen;
 
-static QLock ctxlock;
-static Ctx *ctxs[Nctx];
-static File *ctxdir, *capdir;
+static Vctx *vctxs[Nvctx];	/* under gpufs.c's ctxlock */
+static File *capdir;
 static Hole *holes;
 static uintptr blobva = Blobva;
 
@@ -685,7 +677,7 @@ reapused(void)
 {
 	uchar *used, *e;
 	Slot *sl;
-	Ctx *c;
+	Vctx *c;
 	int s;
 
 	used = dma + Oused;
@@ -1144,7 +1136,7 @@ shmfreecount(uvlong *all, uvlong *big)
 }
 
 static char*
-ctxreply(Ctx *c, char *fmt, ...)
+ctxreply(Vctx *c, char *fmt, ...)
 {
 	va_list arg;
 
@@ -1158,7 +1150,7 @@ ctxreply(Ctx *c, char *fmt, ...)
 static Res *exported;		/* by token */
 
 static Hold*
-findhold(Ctx *c, int id)
+findhold(Vctx *c, int id)
 {
 	Hold *h;
 
@@ -1169,7 +1161,7 @@ findhold(Ctx *c, int id)
 }
 
 static Res*
-findres(Ctx *c, int id)
+findres(Vctx *c, int id)
 {
 	Hold *h;
 
@@ -1179,7 +1171,7 @@ findres(Ctx *c, int id)
 }
 
 static void
-hold(Ctx *c, Res *r)
+hold(Vctx *c, Res *r)
 {
 	Hold *h;
 
@@ -1192,7 +1184,7 @@ hold(Ctx *c, Res *r)
 
 /* the reply that names a resource to a context */
 static char*
-resreply(Ctx *c, Res *r)
+resreply(Vctx *c, Res *r)
 {
 	if(r->seg[0])
 		return ctxreply(c, "res %d %llud seg %s %#p\n", r->id, r->size, r->seg, r->segva);
@@ -1200,7 +1192,7 @@ resreply(Ctx *c, Res *r)
 }
 
 static char*
-ctxinit(Ctx *c, int capset, char *name)
+ctxinit(Vctx *c, int capset, char *name)
 {
 	uchar rq[Hdrsz+72], *p;
 	int n;
@@ -1227,7 +1219,7 @@ ctxinit(Ctx *c, int capset, char *name)
 }
 
 static char*
-ctxattach(Ctx *c, int id, int attach)
+ctxattach(Vctx *c, int id, int attach)
 {
 	uchar rq[Hdrsz+8], *p;
 
@@ -1241,7 +1233,7 @@ ctxattach(Ctx *c, int id, int attach)
 
 /* called with ctxlock held */
 static char*
-blobcreate(Ctx *c, int mem, int flags, uvlong blobid, uvlong size)
+blobcreate(Vctx *c, int mem, int flags, uvlong blobid, uvlong size)
 {
 	uchar rq[Hdrsz+48], *p;
 	Res *r;
@@ -1299,7 +1291,7 @@ blobcreate(Ctx *c, int mem, int flags, uvlong blobid, uvlong size)
 }
 
 static char*
-blobmap(Ctx *c, int id)
+blobmap(Vctx *c, int id)
 {
 	uchar rq[Hdrsz+16], rs[Hdrsz+8], *p;
 	Hold *hd;
@@ -1396,7 +1388,7 @@ scanoutfb(void)
  * shows the blob as it is then (a swapchain present)
  */
 static char*
-blobscanout(Ctx *c, int id, int w, int h, int stride)
+blobscanout(Vctx *c, int id, int w, int h, int stride)
 {
 	uchar rq[Hdrsz+72], *p;
 	Res *r;
@@ -1450,7 +1442,7 @@ Out:
 }
 
 static char*
-resunref(Ctx *c, int id)
+resunref(Vctx *c, int id)
 {
 	uchar rq[Hdrsz+8], *p;
 	Hold *hd, **l;
@@ -1502,7 +1494,7 @@ resunref(Ctx *c, int id)
  * guess as a capability should be
  */
 static char*
-resexport(Ctx *c, int id)
+resexport(Vctx *c, int id)
 {
 	Res *r;
 
@@ -1519,7 +1511,7 @@ resexport(Ctx *c, int id)
 
 /* import: the resource a token names, held by this context too */
 static char*
-resimport(Ctx *c, char *token)
+resimport(Vctx *c, char *token)
 {
 	Res *r;
 	char *e;
@@ -1542,7 +1534,7 @@ resimport(Ctx *c, char *token)
 
 /* called with qlk held */
 static int
-fencedone(Ctx *c, uvlong k)
+fencedone(Vctx *c, uvlong k)
 {
 	if(k <= c->donefence)
 		return 1;
@@ -1553,7 +1545,7 @@ fencedone(Ctx *c, uvlong k)
 
 /* SUBMIT_3D of len bytes at off in the context's segment, on a ring */
 static char*
-submit(Ctx *c, ulong off, ulong len, int ring, uvlong *fence)
+submit(Vctx *c, ulong off, ulong len, int ring, uvlong *fence)
 {
 	uchar *p;
 	int s;
@@ -1588,7 +1580,7 @@ submit(Ctx *c, ulong off, ulong len, int ring, uvlong *fence)
 }
 
 static void
-fencewait(Ctx *c, uvlong k)
+fencewait(Vctx *c, uvlong k)
 {
 	qlock(&qlk);
 	while(!fencedone(c, k))
@@ -1597,63 +1589,28 @@ fencewait(Ctx *c, uvlong k)
 }
 
 /*
- * file server
+ * file server: gpu(4)'s files as every driver serves them (../gpufs.c),
+ * the capability sets (caps/id), the output Virtual-1, and virtio-gpu's
+ * words of a context
  */
 enum {
-	Xctl,
-	Xstatus,
-	Xmodes,
-	Xmode,
-	Xedid,
-	Xclone,
-	Xcap,
-	Xctxctl,
-	Xctxsubmit,
-	Xctxfence,
-
-	Xcapbase = 0x100,	/* Xcap: aux is Xcapbase + capset index */
-	Xctxbase = 0x1000,	/* ctx files: aux is Xctxbase*(1+ctx)+X */
+	Xcap = Xdrv,	/* caps/id: aux is Xcap | capset index<<8 */
 };
 
-static Srv fs;
 static int capid[16], capver[16], capsize[16];
 
-static int
-ftype(File *f)
+/* a context for the client (gpufs' ctxnew, under its ctxlock): its id is virtio's ctx_id */
+static void*
+ctxnew(char *uid, int *id, char **reply)
 {
-	uintptr a;
-
-	a = (uintptr)f->aux;
-	if(a >= Xctxbase)
-		return a % Xctxbase;
-	if(a >= Xcapbase)
-		return Xcap;
-	return a;
-}
-
-static Ctx*
-fctx(File *f)
-{
-	uintptr a;
-
-	a = (uintptr)f->aux;
-	if(a < Xctxbase)
-		return nil;
-	return ctxs[a/Xctxbase - 1];
-}
-
-static Ctx*
-newctx(void)
-{
-	char name[16];
-	Ctx *c;
+	Vctx *c;
 	int i;
-	char *user;
 
-	for(i = 0; i < Nctx; i++)
-		if(ctxs[i] == nil)
+	USED(uid);
+	for(i = 0; i < Nvctx; i++)
+		if(vctxs[i] == nil)
 			break;
-	if(i == Nctx){
+	if(i == Nvctx){
 		werrstr("too many contexts");
 		return nil;
 	}
@@ -1667,22 +1624,18 @@ newctx(void)
 		free(c);
 		return nil;
 	}
-	ctxs[i] = c;
-	user = getuser();
-	snprint(name, sizeof name, "%d", c->id);
-	c->dir = createfile(ctxdir, name, user, DMDIR|0555, nil);
-	c->ctl = createfile(c->dir, "ctl", user, 0660, (void*)(uintptr)(Xctxbase*(i+1)+Xctxctl));
-	c->submit = createfile(c->dir, "submit", user, 0220, (void*)(uintptr)(Xctxbase*(i+1)+Xctxsubmit));
-	c->fence = createfile(c->dir, "fence", user, 0660, (void*)(uintptr)(Xctxbase*(i+1)+Xctxfence));
-	ctxreply(c, "ctx %d seg %s %#p %#ux\n", c->id, c->seg, c->segva, Ctxsegsz);
+	vctxs[i] = c;
+	*id = c->id;
+	*reply = smprint("ctx %d seg %s %#p %#ux\n", c->id, c->seg, c->segva, Ctxsegsz);
 	return c;
 }
 
 /* last fid gone: wait for its work, destroy it on the device */
 static void
-freectx(Ctx *c)
+ctxfree(void *lc)
 {
 	uchar rq[Hdrsz];
+	Vctx *c = lc;
 
 	qlock(&qlk);
 	while(c->donefence < c->nfence)	/* all of them, on every ring */
@@ -1698,16 +1651,8 @@ freectx(Ctx *c)
 		ctxhdr(rq, Ctxdestroy, c->id);
 		simplecmd(rq, sizeof rq);
 	}
-	removefile(c->ctl);
-	removefile(c->submit);
-	removefile(c->fence);
-	removefile(c->dir);
-	closefile(c->ctl);
-	closefile(c->submit);
-	closefile(c->fence);
-	closefile(c->dir);
 	rmseg(c->seg);
-	ctxs[c->id-1] = nil;
+	vctxs[c->id-1] = nil;
 	free(c->reply);
 	free(c);
 }
@@ -1744,14 +1689,25 @@ statusstr(void)
 		free(s);
 		s = t;
 	}
-	for(i = 0; i < nelem(ctxs); i++)
-		if(ctxs[i] != nil){
-			t = smprint("%sctx %d capset %d fence %llud/%llud%s\n", s, ctxs[i]->id,
-				ctxs[i]->capset, ctxs[i]->donefence, ctxs[i]->nfence,
-				ctxs[i]->failed ? " failed" : "");
+	for(i = 0; i < nelem(vctxs); i++)
+		if(vctxs[i] != nil){
+			t = smprint("%sctx %d capset %d fence %llud/%llud%s\n", s, vctxs[i]->id,
+				vctxs[i]->capset, vctxs[i]->donefence, vctxs[i]->nfence,
+				vctxs[i]->failed ? " failed" : "");
 			free(s);
 			s = t;
 		}
+	return s;
+}
+
+static char*
+status(void)
+{
+	char *s;
+
+	qlock(&ctxlock);
+	s = statusstr();
+	qunlock(&ctxlock);
 	return s;
 }
 
@@ -1772,144 +1728,25 @@ modesstr(void)
 	return s;
 }
 
-static void
-fsopen(Req *r)
+/* the mode WxH; nil or the error */
+static char*
+mode(char *spec)
 {
-	Fidaux *fa;
-	Ctx *c;
+	char *e;
+	int w, h;
 
-	switch(ftype(r->fid->file)){
-	case Xclone:
-		qlock(&ctxlock);
-		if((c = newctx()) == nil){
-			qunlock(&ctxlock);
-			responderror(r);
-			return;
-		}
-		closefile(r->fid->file);
-		r->fid->file = c->ctl;
-		incref(c->ctl);
-		r->ofcall.qid = c->ctl->qid;
-		c->ref++;
-		qunlock(&ctxlock);
-		break;
-	case Xctxctl:
-	case Xctxsubmit:
-	case Xctxfence:
-		qlock(&ctxlock);
-		if((c = fctx(r->fid->file)) == nil){
-			qunlock(&ctxlock);
-			respond(r, "context gone");
-			return;
-		}
-		c->ref++;
-		qunlock(&ctxlock);
-		break;
-	default:
-		respond(r, nil);
-		return;
-	}
-	fa = emalloc9p(sizeof *fa);
-	memset(fa, 0, sizeof *fa);
-	fa->ctx = c;
-	r->fid->aux = fa;
-	respond(r, nil);
-}
-
-static void
-fsdestroyfid(Fid *f)
-{
-	Fidaux *fa;
-	Ctx *c;
-
-	if((fa = f->aux) == nil)
-		return;
-	f->aux = nil;
-	c = fa->ctx;
-	free(fa);
-	qlock(&ctxlock);
-	if(--c->ref == 0)
-		freectx(c);
-	qunlock(&ctxlock);
-}
-
-static void
-fsread(Req *r)
-{
-	Fidaux *fa;
-	Ctx *c;
-	char *s;
-	uchar *data;
-	int i, n;
-
-	fa = r->fid->aux;
-	switch(ftype(r->fid->file)){
-	case Xctl:
-	case Xmode:
-		qlock(&cmdlock);
-		s = modestr();
-		qunlock(&cmdlock);
-		break;
-	case Xstatus:
-		qlock(&ctxlock);
-		s = statusstr();
-		qunlock(&ctxlock);
-		break;
-	case Xmodes:
-		s = modesstr();
-		break;
-	case Xedid:
-		readbuf(r, edid, edidlen);
-		respond(r, nil);
-		return;
-	case Xcap:
-		i = (uintptr)r->fid->file->aux - Xcapbase;
-		if((data = getcapset(capid[i], capver[i], capsize[i], &n)) == nil){
-			responderror(r);
-			return;
-		}
-		readbuf(r, data, n);
-		free(data);
-		respond(r, nil);
-		return;
-	case Xctxctl:
-		c = fa->ctx;
-		qlock(&ctxlock);
-		s = estrdup9p(c->reply != nil ? c->reply : "");
-		qunlock(&ctxlock);
-		break;
-	case Xctxfence:
-		c = fa->ctx;
-		r->ifcall.offset = 0;
-		if(fa->fence == 0){
-			s = smprint("%llud %llud%s\n", c->donefence, c->nfence, c->failed ? " failed" : "");
-			break;
-		}
-		if(fa->fence > c->nfence){
-			respond(r, "no such fence");
-			return;
-		}
-		if(!fa->query){
-			srvrelease(r->srv);
-			fencewait(c, fa->fence);
-			srvacquire(r->srv);
-		}
-		qlock(&qlk);
-		n = fencedone(c, fa->fence);
-		qunlock(&qlk);
-		s = smprint("%llud %s%s\n", fa->fence, n ? "done" : "busy", c->failed ? " failed" : "");
-		break;
-	default:
-		respond(r, "bug");
-		return;
-	}
-	readstr(r, s);
-	free(s);
-	respond(r, nil);
+	w = strtol(spec, &e, 10);
+	if(*e != 'x')
+		return "usage: WxH";
+	h = strtol(e+1, nil, 10);
+	qlock(&cmdlock);
+	e = setmode(w, h);
+	qunlock(&cmdlock);
+	return e;
 }
 
 static char*
-ctxctl(Ctx *c, char **f, int n)
+vctxctl(Vctx *c, char **f, int n)
 {
 	char *e;
 	int i;
@@ -1954,104 +1791,130 @@ ctxctl(Ctx *c, char **f, int n)
 	return "unknown ctl message";
 }
 
-static void
-fswrite(Req *r)
+/* the context's words (under gpufs' ctxlock); their reply (ctxreply) the fid's */
+static char*
+ctxctl(Gfid *fa, char **f, int n)
 {
-	char buf[256], *f[8], *e;
-	Fidaux *fa;
-	uvlong fence;
-	int n, w, h;
+	Vctx *c = fa->ctx->lc;
+	char *e;
 
-	n = r->ifcall.count;
-	if(n >= sizeof buf)
-		n = sizeof buf-1;
-	memmove(buf, r->ifcall.data, n);
-	buf[n] = 0;
-	n = tokenize(buf, f, nelem(f));
-	fa = r->fid->aux;
-	switch(ftype(r->fid->file)){
-	case Xctl:
-		if(n != 2 || strcmp(f[0], "mode") != 0){
-			respond(r, "usage: mode WxH");
-			return;
-		}
-		f[0] = f[1];
-		/* wet floor */
-	case Xmode:
-		if(n < 1){
-			respond(r, "usage: WxH");
-			return;
-		}
-		w = strtol(f[0], &e, 10);
-		if(*e != 'x'){
-			respond(r, "usage: WxH");
-			return;
-		}
-		h = strtol(e+1, nil, 10);
-		qlock(&cmdlock);
-		e = setmode(w, h);
-		qunlock(&cmdlock);
-		break;
-	case Xctxctl:
-		if(n < 1){
-			respond(r, "empty ctl message");
-			return;
-		}
-		qlock(&ctxlock);
-		e = ctxctl(fa->ctx, f, n);
-		qunlock(&ctxlock);
-		break;
-	case Xctxsubmit:
-		if(n != 2 && n != 3){
-			respond(r, "usage: offset length [ring]");
-			return;
-		}
-		e = submit(fa->ctx, strtoul(f[0], nil, 0), strtoul(f[1], nil, 0),
-			n == 3 ? atoi(f[2]) : 0, &fence);
-		break;
-	case Xctxfence:
-		if(n == 1){
-			fa->query = 0;
-			fa->fence = strtoull(f[0], nil, 0);
-		} else if(n == 2 && (strcmp(f[0], "wait") == 0 || strcmp(f[0], "query") == 0)){
-			fa->query = f[0][0] == 'q';
-			fa->fence = strtoull(f[1], nil, 0);
-		} else {
-			respond(r, "usage: [wait|query] fence");
-			return;
-		}
-		e = nil;
-		break;
-	default:
-		e = "permission denied";
+	e = vctxctl(c, f, n);
+	if(e == nil && c->reply != nil){
+		free(fa->reply);
+		fa->reply = c->reply;
+		c->reply = nil;
 	}
-	if(e != nil){
-		respond(r, e);
-		return;
-	}
-	r->ofcall.count = r->ifcall.count;
-	respond(r, nil);
+	return e;
+}
+
+static char*
+ctxsubmit(Gfid *fa, char **f, int n)
+{
+	uvlong fence;
+
+	if(n != 2 && n != 3)
+		return "usage: offset length [ring]";
+	return submit(fa->ctx->lc, strtoul(f[0], nil, 0), strtoul(f[1], nil, 0),
+		n == 3 ? atoi(f[2]) : 0, &fence);
 }
 
 static void
-mktree(void)
+fencecount(void *lc, uvlong *done, uvlong *n, int *failed)
 {
-	File *gpu, *n, *outs, *o;
-	char *user, name[16];
+	Vctx *c = lc;
+
+	*done = c->donefence;
+	*n = c->nfence;
+	*failed = c->failed;
+}
+
+static int
+fencewait1(void *lc, uvlong k, int query)
+{
+	Vctx *c = lc;
+	int n;
+
+	if(k > c->nfence)
+		return -1;
+	if(!query)
+		fencewait(c, k);
+	qlock(&qlk);
+	n = fencedone(c, k);
+	qunlock(&qlk);
+	return n;
+}
+
+static char*
+ctlread(void)
+{
+	char *s;
+
+	qlock(&cmdlock);
+	s = modestr();
+	qunlock(&cmdlock);
+	return s;
+}
+
+static char*
+ctlwrite(Req*, char **f, int n)
+{
+	if(n != 2 || strcmp(f[0], "mode") != 0)
+		return "usage: mode WxH";
+	return mode(f[1]);
+}
+
+static int
+outputs(char **names, int max)
+{
+	if(max < 1)
+		return 0;
+	names[0] = "Virtual-1";
+	return 1;
+}
+
+static char*
+outread(Req *r, char*, int kind)
+{
+	char *s;
+
+	switch(kind){
+	case Xoutedid:
+		readbuf(r, edid, edidlen);
+		return nil;
+	case Xoutmodes:
+		s = modesstr();
+		break;
+	case Xoutmode:
+		s = ctlread();
+		break;
+	default:
+		return "no backlight";
+	}
+	readstr(r, s);
+	free(s);
+	return nil;
+}
+
+static char*
+outwrite(Req*, char*, int kind, char *s)
+{
+	char *f[2];
+
+	if(kind != Xoutmode)
+		return "no backlight";
+	if(tokenize(s, f, nelem(f)) < 1)
+		return "usage: WxH";
+	return mode(f[0]);
+}
+
+/* caps/id: the capability sets */
+static void
+tree(File *dir, char *user)
+{
+	char name[16];
 	int i, nc;
 
-	user = getuser();
-	fs.tree = alloctree(user, user, DMDIR|0555, nil);
-	gpu = createfile(fs.tree->root, "gpu", user, DMDIR|0555, nil);
-	n = createfile(gpu, "0", user, DMDIR|0555, nil);
-	createfile(n, "ctl", user, 0664, (void*)Xctl);
-	createfile(n, "status", user, 0444, (void*)Xstatus);
-	outs = createfile(n, "outputs", user, DMDIR|0555, nil);
-	o = createfile(outs, "Virtual-1", user, DMDIR|0555, nil);
-	createfile(o, "modes", user, 0444, (void*)Xmodes);
-	createfile(o, "mode", user, 0664, (void*)Xmode);
-	createfile(o, "edid", user, 0444, (void*)Xedid);
-	capdir = createfile(n, "caps", user, DMDIR|0555, nil);
+	capdir = createfile(dir, "caps", user, DMDIR|0555, nil);
 	nc = ncapsets();
 	if(nc > nelem(capid))
 		nc = nelem(capid);
@@ -2060,13 +1923,47 @@ mktree(void)
 			continue;
 		DBG(2, "capset %d: id %d version %d size %d\n", i, capid[i], capver[i], capsize[i]);
 		snprint(name, sizeof name, "%d", capid[i]);
-		createfile(capdir, name, user, 0444, (void*)(uintptr)(Xcapbase+i));
-	}
-	if(features & (Fvirgl|Fctxinit)){
-		createfile(n, "clone", user, 0666, (void*)Xclone);
-		ctxdir = createfile(n, "ctx", user, DMDIR|0555, nil);
+		createfile(capdir, name, user, 0444, (void*)(uintptr)(i<<8 | Xcap));
 	}
 }
+
+static int
+fsdrvread(Req *r)
+{
+	uchar *data;
+	int i, n;
+
+	if(KIND(r->fid->file) != Xcap)
+		return 0;
+	i = CTXN(r->fid->file);
+	if((data = getcapset(capid[i], capver[i], capsize[i], &n)) == nil){
+		responderror(r);
+		return 1;
+	}
+	readbuf(r, data, n);
+	free(data);
+	respond(r, nil);
+	return 1;
+}
+
+static Gpudrv drv = {
+	ctxnew,
+	ctxfree,
+	ctxctl,
+	ctxsubmit,
+	fencecount,
+	fencewait1,
+	status,
+	ctlread,
+	ctlwrite,
+	outputs,
+	nil,
+	outread,
+	outwrite,
+	tree,
+	fsdrvread,
+	nil,
+};
 
 static void
 usage(void)
@@ -2153,11 +2050,7 @@ main(int argc, char **argv)
 		exits(nil);
 	}
 
-	fs.open = fsopen;
-	fs.read = fsread;
-	fs.write = fswrite;
-	fs.destroyfid = fsdestroyfid;
-	mktree();
+	gpufsinit(features & (Fvirgl|Fctxinit));
 	postmountsrv(&fs, srvname, "/dev", MAFTER);
 	exits(nil);
 }

@@ -555,6 +555,34 @@ i915_scanout(void *v, int id, unsigned int w, unsigned int h, unsigned int strid
 	return kmsout_scanout(c->filp, handle, w, h, stride);
 }
 
+/*
+ * ctl "overlay id x y w h stride": the context's object id (a window's
+ * picture, XRGB8888, linear, stride bytes a row) on an overlay plane
+ * (a sprite plane), at x y of the screen, as it is: in system memory
+ * the display reads it (the WSI's external objects bypass the LLC,
+ * Mesa patch 0042); returns when the display shows it.  id 0: off.
+ */
+int
+i915_overlay(void *v, int id, int x, int y, unsigned int w, unsigned int h, unsigned int stride)
+{
+	struct gctx *c = v;
+	struct bo *b;
+	u32 handle;
+
+	if (id == 0) {
+		kmsout_overlay_off(c->filp);
+		return 0;
+	}
+	mutex_lock(&c->lock);
+	if ((b = findbo(c, id)) == NULL) {
+		mutex_unlock(&c->lock);
+		return -ENOENT;
+	}
+	handle = b->handle;
+	mutex_unlock(&c->lock);
+	return kmsout_overlay_direct(c->filp, handle, w, h, stride, x, y);
+}
+
 /* the firmware's plane in the context: its object, address, geometry */
 int
 i915_map_plane(void *v, int *id, u64 *gpu, unsigned int *w, unsigned int *h, unsigned int *stride, unsigned int *bpp)
