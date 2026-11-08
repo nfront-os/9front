@@ -720,6 +720,10 @@ wsi_plan9_surface_create_swapchain(VkIcdSurfaceBase *icd_surface,
       chain->base.image_info.select_blit_dst_memory_type = wsi_plan9_select_scanout_memory_type;
       chain->base.image_info.create_mem = wsi_plan9_create_scanout_mem;
    }
+   /* the display reads memory, not the GPU's cache (Intel's LLC): the copy
+    * an external object, which the driver writes past the cache */
+   else if (scanout && wsi_device->plan9_scanout_external)
+      chain->base.image_info.create_mem = wsi_plan9_create_scanout_mem;
    /* the images as without wsys, if the driver cannot make them exportable */
    VkResult (*plain_mem)(const struct wsi_swapchain *, const struct wsi_image_info *,
                          struct wsi_image *) = chain->base.image_info.create_mem;

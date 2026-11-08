@@ -212,6 +212,13 @@ struct wsi_device {
     * there (device local and host visible) instead of in cached memory
     */
    bool plan9_scanout_device_local;
+   /*
+    * 9front: with scanout, the copy the display shows exportable, an
+    * external object of the driver's (Intel: hasvk writes external objects
+    * past the LLC, which the display does not see; an internal one showed
+    * stale cache lines, thin stripes, until they were written back)
+    */
+   bool plan9_scanout_external;
 
 #define WSI_CB(cb) PFN_vk##cb cb
    WSI_CB(AllocateMemory);

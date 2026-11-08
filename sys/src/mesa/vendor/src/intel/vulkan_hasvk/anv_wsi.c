@@ -80,6 +80,8 @@ anv_init_wsi(struct anv_physical_device *physical_device)
    physical_device->wsi_device.supports_modifiers = true;
 #if DETECT_OS_PLAN9
    physical_device->wsi_device.plan9_scanout = anv_plan9_scanout;
+   /* the display reads memory, not the LLC: external objects (MOCS past it) */
+   physical_device->wsi_device.plan9_scanout_external = true;
 #endif
 
    physical_device->vk.wsi_device = &physical_device->wsi_device;

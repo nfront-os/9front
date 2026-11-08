@@ -1,0 +1,47 @@
+From 4df5d791730aa18955608763d9ee32c3633af63c Mon Sep 17 00:00:00 2001
+From: Stefan Hertenberger <erde74@gmail.com>
+Date: Sun, 8 Nov 2026 12:00:26 +0100
+Subject: [PATCH] hasvk, wsi: on 9front the copy the display shows (scanout) an
+ external object: hasvk writes those past the LLC, which the display does not
+ read (an internal one showed stale cache lines as thin stripes until they
+ were written back)
+
+---
+ src/intel/vulkan_hasvk/anv_wsi.c | 2 ++
+ src/vulkan/wsi/wsi_common.h      | 7 +++++++
+ 2 files changed, 9 insertions(+)
+
+diff --git a/src/intel/vulkan_hasvk/anv_wsi.c b/src/intel/vulkan_hasvk/anv_wsi.c
+index 5f2c3b7..4d07684 100644
+--- a/src/intel/vulkan_hasvk/anv_wsi.c
++++ b/src/intel/vulkan_hasvk/anv_wsi.c
+@@ -80,6 +80,8 @@ anv_init_wsi(struct anv_physical_device *physical_device)
+    physical_device->wsi_device.supports_modifiers = true;
+ #if DETECT_OS_PLAN9
+    physical_device->wsi_device.plan9_scanout = anv_plan9_scanout;
++   /* the display reads memory, not the LLC: external objects (MOCS past it) */
++   physical_device->wsi_device.plan9_scanout_external = true;
+ #endif
+ 
+    physical_device->vk.wsi_device = &physical_device->wsi_device;
+diff --git a/src/vulkan/wsi/wsi_common.h b/src/vulkan/wsi/wsi_common.h
+index a4ff249..7548387 100644
+--- a/src/vulkan/wsi/wsi_common.h
++++ b/src/vulkan/wsi/wsi_common.h
+@@ -212,6 +212,13 @@ struct wsi_device {
+     * there (device local and host visible) instead of in cached memory
+     */
+    bool plan9_scanout_device_local;
++   /*
++    * 9front: with scanout, the copy the display shows exportable, an
++    * external object of the driver's (Intel: hasvk writes external objects
++    * past the LLC, which the display does not see; an internal one showed
++    * stale cache lines, thin stripes, until they were written back)
++    */
++   bool plan9_scanout_external;
+ 
+ #define WSI_CB(cb) PFN_vk##cb cb
+    WSI_CB(AllocateMemory);
+-- 
+2.56.0
+
