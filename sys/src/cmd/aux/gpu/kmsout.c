@@ -44,6 +44,7 @@
 #include <drm/drm_framebuffer.h>
 #include <drm/drm_modeset_lock.h>
 #include <linux/iosys-map.h>
+#include <linux/dma-resv.h>
 #include "kmsout.h"
 
 enum {
@@ -1089,21 +1090,119 @@ kmsout_screenfb(u32 *fb, u32 *w, u32 *h, u32 *pitch)
 }
 
 /*
+ * Flips not done yet: the display shows the fbs it had until their events
+ * come (a flip waits for the fences of its object: an external one's
+ * rendering), so those are removed only then (flipgone); a framebuffer
+ * removed while on the display turns its plane off (a black screen).
+ * kmslock held.
+ */
+enum { Ngone = 8 };
+static int flipping;		/* flip events still to come */
+static u32 flipgone[Ngone];	/* fbs to remove when they came */
+static int ngone;
+static unsigned long flipat;	/* jiffies of the flips */
+
+/* flip events within timeout; 0 when none is left to come, -ETIMEDOUT */
+static int
+flipwait(long timeout)
+{
+	struct drm_file *fp = kms->private_data;
+	char ev[1024];
+	loff_t pos;
+	long t;
+	int k, rr;
+
+	while (flipping > 0) {
+		t = wait_event_interruptible_timeout(fp->event_wait, !list_empty(&fp->event_list), timeout);
+		if (t <= 0)
+			return t < 0 ? t : -ETIMEDOUT;
+		pos = 0;
+		rr = drm_read(kms, (char __user *)ev, sizeof(ev), &pos);
+		if (rr < 0)
+			return rr;
+		for (k = 0; k + (int)sizeof(struct drm_event) <= rr; ) {
+			struct drm_event *e = (struct drm_event *)(ev + k);
+
+			if (e->length < sizeof(*e))
+				break;
+			if (e->type == DRM_EVENT_FLIP_COMPLETE && flipping > 0)
+				flipping--;
+			k += e->length;
+		}
+	}
+	while (ngone > 0)
+		kioctl(kms, DRM_IOCTL_MODE_RMFB, &flipgone[--ngone]);
+	return 0;
+}
+
+/* the fb off the display (or never on it): removed now, or when the flips are done */
+static void
+fbgone(u32 fb)
+{
+	if (!fb)
+		return;
+	if (flipping > 0 && ngone == Ngone && flipwait(HZ) < 0) {
+		pr_err("kmsout: flips not done for %u ms: their old framebuffers go\n",
+			jiffies_to_msecs(jiffies - flipat));
+		flipping = 0;
+		flipwait(0);
+	}
+	if (flipping > 0)
+		flipgone[ngone++] = fb;
+	else
+		kioctl(kms, DRM_IOCTL_MODE_RMFB, &fb);
+}
+
+/* for the log: whether the display still waits for the GPU to write fb */
+static const char *
+fbfences(u32 fb)
+{
+	struct drm_device *dev = kmsdev();
+	struct drm_framebuffer *f;
+	const char *s;
+
+	if (!dev || !(f = drm_framebuffer_lookup(dev, kms->private_data, fb)))
+		return "no framebuffer";
+	if (!f->obj[0])
+		s = "no object";
+	else if (dma_resv_test_signaled(f->obj[0]->resv, DMA_RESV_USAGE_WRITE))
+		s = "its object written (fences signalled): the display is slow";
+	else
+		s = "its object still being written (a fence not signalled)";
+	drm_framebuffer_put(f);
+	return s;
+}
+
+/* the flips before done (a second more), -EBUSY */
+static int
+flipsdone(u32 fb)
+{
+	int r;
+
+	if (flipping == 0)
+		return 0;
+	r = flipwait(HZ);
+	pr_info("kmsout: the flip before fb %u done after %u ms%s\n", fb,
+		jiffies_to_msecs(jiffies - flipat), r ? ": not yet, busy" : "");
+	return r ? -EBUSY : 0;
+}
+
+/*
  * page flips of the outputs that are on (or of output only) to fb, and
- * the wait until the display shows them (an event each, a second at
- * most: kmslock is held); a flip the CRTC's state refuses ("requires
- * full modeset", -EINVAL) is a SETCRTC instead
+ * the wait until the display shows them (an event each, a second: kmslock
+ * is held).  One not done by then is still to come: the next flip, and
+ * kmsout_scanout, wait for it first (a second more; -EBUSY if it does not
+ * come, the flip would fail so).  A flip the CRTC's state refuses ("requires full
+ * modeset", -EINVAL) is a SETCRTC instead.
  */
 static int
 flip(int only, u32 fb)
 {
-	struct drm_file *fp = kms->private_data;
 	struct drm_mode_crtc_page_flip f;
-	char ev[1024];
-	loff_t pos;
-	long t;
-	int i, n = 0, r = 0, k, rr;
+	int i, n = 0, r = 0, rr;
 
+	if ((r = flipsdone(fb)) < 0)
+		return r;
 	for (i = 0; i < nout; i++) {
 		struct out *o = &outs[i];
 
@@ -1122,26 +1221,11 @@ flip(int only, u32 fb)
 		if (rr && !r)
 			r = rr;
 	}
-	while (n > 0) {
-		t = wait_event_interruptible_timeout(fp->event_wait, !list_empty(&fp->event_list), HZ);
-		if (t <= 0) {
-			pr_err("kmsout: no flip event for fb %u within a second (%ld)\n", fb, t);
-			return t < 0 ? t : -ETIMEDOUT;
-		}
-		pos = 0;
-		rr = drm_read(kms, (char __user *)ev, sizeof(ev), &pos);
-		if (rr < 0)
-			return rr;
-		for (k = 0; k + (int)sizeof(struct drm_event) <= rr; ) {
-			struct drm_event *e = (struct drm_event *)(ev + k);
-
-			if (e->length < sizeof(*e))
-				break;
-			if (e->type == DRM_EVENT_FLIP_COMPLETE)
-				n--;
-			k += e->length;
-		}
-	}
+	flipping = n;
+	flipat = jiffies;
+	if (flipwait(HZ) == -ETIMEDOUT)
+		pr_err("kmsout: no flip event for fb %u within a second: still to come; %s\n",
+			fb, fbfences(fb));
 	return r;
 }
 
@@ -1193,6 +1277,8 @@ kmsout_scanout(struct file *from, u32 handle, u32 w, u32 h, u32 stride)
 	if (!kms || !scr_fb)
 		return -ENODEV;
 	mutex_lock(&kmslock);
+	if ((r = flipsdone(shown_fb)) < 0)
+		goto out;
 	old = shown_fb;
 	if (handle == 0) {
 		if (from && from != shown_by) {
@@ -1232,11 +1318,11 @@ kmsout_scanout(struct file *from, u32 handle, u32 w, u32 h, u32 stride)
 	else
 		r = setcrtc(outs[o].crtc, fb.fb_id, 0, 0, &m, outs[o].conn);
 	if (r) {
-		kioctl(kms, DRM_IOCTL_MODE_RMFB, &fb.fb_id);
 		if (old) {
 			back();
-			kioctl(kms, DRM_IOCTL_MODE_RMFB, &old);
+			fbgone(old);
 		}
+		fbgone(fb.fb_id);	/* refused: not on the display, or still on it, if a flip is to come */
 		shown_fb = 0;
 		shown_by = NULL;
 		shown_out = -1;
@@ -1250,7 +1336,7 @@ kmsout_scanout(struct file *from, u32 handle, u32 w, u32 h, u32 stride)
 rm:
 	/* the picture before is no longer on the display */
 	if (old && old != shown_fb)
-		kioctl(kms, DRM_IOCTL_MODE_RMFB, &old);
+		fbgone(old);
 out:
 	mutex_unlock(&kmslock);
 	return r;

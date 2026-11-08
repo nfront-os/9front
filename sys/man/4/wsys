@@ -91,8 +91,9 @@ are then read back from a frame; such a window's own image in
 .IR draw (3)
 does not have the client's pixels.
 Only on the whole screen (not in a window), with an x8r8g8b8 screen;
-otherwise, if Vulkan does not start, or when its thread fails,
-the processor composes as without
+otherwise, if Vulkan does not start, when its thread fails, or when
+the display refuses its frames (the WSI would copy them into the
+screen they are composed from), the processor composes as without
 .BR -g .
 .PP
 A window's pixels are not sent through the files: they are in global

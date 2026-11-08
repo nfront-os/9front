@@ -692,7 +692,10 @@ impl Vkc {
             let idxs = [idx as u32];
             let pi = vk::PresentInfoKHR::default().wait_semaphores(&signals).swapchains(&scs).image_indices(&idxs);
             match self.swapchain.queue_present(self.q, &pi) {
-                Ok(_) => {}
+                Ok(false) => {}
+                // the display refused the frame (the WSI copies it into devdraw's
+                // screen, which this composes again): the processor's way
+                Ok(true) => return Err("the display refused the frames (scanout): the WSI copies them".into()),
                 Err(vk::Result::ERROR_OUT_OF_DATE_KHR) => {
                     // the screen changed size: the next frame makes the swapchain again
                     self.mkswapchain()?;

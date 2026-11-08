@@ -549,6 +549,10 @@ wsi_plan9_swapchain_queue_present(struct wsi_swapchain *wsi_chain,
          fprintf(stderr, "wsi plan9: scanout refused, copying from now on\n");
       chain->scanout = false;
       chain->shown = -1;
+      /* not as it should be: a new swapchain tries the display again (and
+       * wsys -g, whose frames would come back to it in the copy, stops) */
+      if (chain->status == VK_SUCCESS)
+         chain->status = VK_SUBOPTIMAL_KHR;
    }
 
    /* in wsys: it reads the buffer itself */
