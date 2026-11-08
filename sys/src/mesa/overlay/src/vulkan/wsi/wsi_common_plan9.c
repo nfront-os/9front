@@ -84,12 +84,22 @@ static const VkPresentModeKHR present_modes[] = {
  * the whole screen without rio: the frames go to the display (gpu(4)
  * scanout) unless WSI_PLAN9_COPY=1 (tests read them back through draw(3))
  */
+/*
+ * scanouts the display refused: after the first a new swapchain tries
+ * again (VK_SUBOPTIMAL_KHR), after the second the process copies, and
+ * says nothing (an app that makes a new swapchain on VK_SUBOPTIMAL_KHR
+ * would make one a frame)
+ */
+enum { Maxrefused = 2 };
+static int scanout_refused;
+
 static bool
 plan9_scanout(VkIcdSurfacePlan9 *s, struct wsi_device *wsi_device)
 {
    const char *copy = getenv("WSI_PLAN9_COPY");
 
    return wsi_device->plan9_scanout != NULL && !(copy && atoi(copy)) &&
+          p_atomic_read(&scanout_refused) < Maxrefused &&
           plan9win_isscreen(s->windowName);
 }
 
@@ -551,7 +561,7 @@ wsi_plan9_swapchain_queue_present(struct wsi_swapchain *wsi_chain,
       chain->shown = -1;
       /* not as it should be: a new swapchain tries the display again (and
        * wsys -g, whose frames would come back to it in the copy, stops) */
-      if (chain->status == VK_SUCCESS)
+      if (p_atomic_inc_return(&scanout_refused) < Maxrefused && chain->status == VK_SUCCESS)
          chain->status = VK_SUBOPTIMAL_KHR;
    }
 
