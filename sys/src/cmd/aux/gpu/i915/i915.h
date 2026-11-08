@@ -34,6 +34,7 @@ void	i915_freestr(char *s);
 
 /* the display (linux/kms.c, linux/ctx.c) */
 int	i915_kms_start(void);
+void	i915_shutdown(void);	/* the device left as at a reboot (Linux's shutdown) */
 /* the outputs and the screen: kmsout.h */
 int	i915_scanout(void *c, int id, unsigned int w, unsigned int h, unsigned int stride);
 int	i915_map_plane(void *c, int *id, u64g *gpu, unsigned int *w, unsigned int *h, unsigned int *stride, unsigned int *bpp);

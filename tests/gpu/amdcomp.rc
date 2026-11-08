@@ -1,0 +1,14 @@
+#!/bin/rc
+# aux/amdgpu with its screen; wsys -g (the GPU composes the screen, RADV):
+# two vktri at once, one partly covered (wsyscomp.rc); what wsys and the
+# driver said
+bind -a '#i' /dev
+bind -a '#v' /dev
+bind -a '#m' /dev
+aux/amdgpu $* >/tmp/amd.log >[2=1]
+sleep 2
+WSI_PLAN9_STATS=1 /tests/wsys -g -x -i /tests/wsyscomp >/tmp/wsys.log >[2=1]
+grep -v ' per frame ' /tmp/wsys.log
+grep ' per frame ' /tmp/wsys.log | sed 6q
+grep 'WARN|error|fault|BUG' /tmp/amd.log
+echo TESTEND

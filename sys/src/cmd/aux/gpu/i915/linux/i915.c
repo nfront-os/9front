@@ -103,6 +103,41 @@ vmap_selftest(void)
 }
 
 /*
+ * nth_page by frame (i915 joins frames that follow each other into one
+ * scatterlist entry): within the page's chunk, past its end (8 MB), far
+ * beyond; the page n frames on, with an address if it is the pool's
+ * (the laptop's aux/i915 died flushing a scanout object's pages: page + n
+ * ran past the chunk's array)
+ */
+static int
+nthpage_selftest(void)
+{
+	static const unsigned long ns[] = { 1, 7, 2047, 2048, 2049, 4096, 65536 };
+	struct page *p, *q;
+	unsigned long n, pfn;
+	int i, ok, bad;
+
+	p = alloc_page(GFP_KERNEL | __GFP_ZERO);
+	if (!p)
+		return -ENOMEM;
+	bad = 0;
+	for (i = 0; i < ARRAY_SIZE(ns); i++) {
+		n = ns[i];
+		pfn = page_to_pfn(p) + n;
+		q = nth_page(p, n);
+		ok = q != NULL && page_to_pfn(q) == pfn && (!page_is_ram(pfn) || page_address(q) != NULL);
+		if (!ok) {
+			pr_info("selftest: nth_page(%#lx, %lu): %#lx, not frame %#lx: FAIL\n",
+				page_to_pfn(p), n, q ? page_to_pfn(q) : 0, pfn);
+			bad++;
+		}
+	}
+	pr_info("selftest: nth_page by frame, past the chunk: %s\n", bad ? "FAIL" : "ok");
+	put_page(p);
+	return bad ? -EIO : 0;
+}
+
+/*
  * -T: what the firmware says about the machine: DMI (SMBIOS) strings,
  * the GPU's ACPI node (by its _ADR); with tables, the node's _ADR must
  * be the device's PCI address
@@ -165,6 +200,9 @@ i915_kpitest(void)
 	if (t.seen != 0x915915)
 		return -EIO;
 	r = vmap_selftest();
+	if (r)
+		return r;
+	r = nthpage_selftest();
 	if (r)
 		return r;
 	r = firmware_selftest();

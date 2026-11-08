@@ -71,6 +71,7 @@ kpitest(){
 	return 1
 }
 check "LinuxKPI selftests (aux/i915 -T: segments, vmap, Linux's dma-buf selftests)" kpitest
+check "LinuxKPI: nth_page by frame, past the end of a chunk" grep -q 'selftest: nth_page by frame, past the chunk: ok' "$TMPD/kpitest.log"
 check "DMI from SMBIOS (#P/smbios): QEMU's strings" grep -q 'selftest: dmi: sys vendor "9front", product "gputest", bios "testbios" "1.2"' "$TMPD/kpitest.log"
 check "ACPI: the GPU's node by _ADR (aux/acpi's aml)" grep -qE 'selftest: acpi: GPU 0000:00:0[0-9a-f]\.0 is .*, _ADR 0x[0-9a-f]+: ok' "$TMPD/kpitest.log"
 check "one AML interpreter: a second aux/acpi mounts the first" bash -c "grep -q 'aux/acpi: runs already: /srv/acpi mounted on /dev' '$TMPD/kpitest.log' && grep -q '^/dev/pmctl' '$TMPD/kpitest.log'"

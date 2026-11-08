@@ -22,6 +22,7 @@
 #include <drm/drm_connector.h>
 #include <drm/drm_mode.h>
 #include "i915_drv.h"
+#include "i915_driver.h"
 #include "gem/i915_gem_object.h"
 #include "gem/i915_gem_stolen.h"
 #include "gem/i915_gem_domain.h"
@@ -49,6 +50,21 @@ i915dev(void)
 	struct pci_dev *p = kpi_pci_gpu(NULL);
 
 	return p ? pci_get_drvdata(p) : NULL;
+}
+
+/*
+ * the device as Linux leaves it at a reboot (i915_pci_shutdown): the
+ * display off, interrupts off, the GT idle, so that the next system (a
+ * warm reboot into another one) finds it as after the firmware; for the
+ * end of aux/i915 (fshalt's note, a fatal fault)
+ */
+void
+i915_shutdown(void)
+{
+	struct drm_i915_private *i915 = i915dev();
+
+	if (i915)
+		i915_driver_shutdown(i915);
 }
 
 static int

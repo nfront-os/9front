@@ -78,6 +78,29 @@ watchdog(void *a)
 	}
 }
 
+/*
+ * the end of aux/i915: the device left as Linux leaves it at a reboot
+ * (i915_shutdown), once, by whichever proc gets there first; within 5
+ * seconds (its alarm: a crashed proc may hold locks the shutdown waits
+ * for), then every proc goes.  Without it a warm reboot found the GPU as
+ * the driver died (a laptop's Linux showed nothing until switched off).
+ */
+static long shuttingdown;
+static int probed;	/* i915 has the device (not in -T, -M, -L) */
+
+static void
+shutdown(char *why)
+{
+	if(ainc(&shuttingdown) == 1 && probed){
+		fprint(2, "i915: %s: shutting the device down\n", why);
+		alarm(5000);
+		i915_shutdown();
+		alarm(0);
+		fprint(2, "i915: shut down\n");
+	}
+	threadexitsall(why);
+}
+
 static int
 trapnote(void *v, char *note)
 {
@@ -89,6 +112,12 @@ trapnote(void *v, char *note)
 		threaddump();
 		return 1;
 	}
+	/* fshalt: the system halts or reboots */
+	if(strcmp(note, "shutdown") == 0)
+		shutdown("shutdown");
+	/* the shutdown took too long: this proc goes as the note would have it */
+	if(strcmp(note, "alarm") == 0 && shuttingdown)
+		return 0;
 	if(strncmp(note, "sys:", 4) != 0)
 		return 0;
 	if(p9_fault(note))
@@ -103,6 +132,9 @@ trapnote(void *v, char *note)
 		bp = (uvlong*)bp[0];
 	}
 	fprint(2, "\n");
+	/* a fault of the driver's own: the device left as at a reboot first */
+	if(strncmp(note, "sys: trap:", 10) == 0 && !shuttingdown)
+		shutdown(note);
 	return 0;
 }
 
@@ -220,6 +252,7 @@ threadmain(int argc, char **argv)
 	}
 	if(r < 0)
 		sysfatal("i915: error %d", -r);
+	probed = 1;
 	if(!nodisplay && (r = i915_kms_start()) < 0){
 		fprint(2, "i915: no display: error %d\n", -r);
 		nodisplay = 1;

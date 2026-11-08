@@ -28,6 +28,14 @@ unmount /mnt/consoles >[2]/dev/null
 kill consolefs | rc			# don't compete with /mnt/consoles
 sleep 1
 
+# 9front-ng: aux/i915 leaves the GPU as Linux does at a reboot (display and
+# GT off, i915_driver_shutdown), so that the next system finds it as after
+# the firmware (a warm reboot into Linux found it as the driver had it)
+for(p in `{ps | awk '$NF == "i915" {print $2}' | sed 1q}){
+	echo shutdown >/proc/$p/note
+	sleep 2
+}
+
 c=`{ls /srv/cwfs*cmd >[2]/dev/null}
 h=`{ls /srv/hjfs*cmd >[2]/dev/null}
 e=`{ls /srv/ext4*cmd >[2]/dev/null}
