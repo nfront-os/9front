@@ -885,8 +885,11 @@ framebuffer of it, kept for a swapchain's few images); one in GTT the
 GPU copies into an object of the display's in VRAM, and it stays where
 the processor reads it.
 Returns when the display shows it (its next vblank); refused when no
-output has the window wholly or a context's picture is on the display
-.RB ( scanout ).
+output has the window wholly or a context's picture in a mode of its own
+is on that output
+.RB ( scanout );
+over a picture of the screen's size (laid out as the screen: a window
+system composing on the GPU) the plane shows the window as over the screen.
 One client at a time;
 .B overlay off
 ends it, as does the end of the context or a new layout of the outputs.

@@ -132,6 +132,17 @@ event(Win *w, char *l)
 	case 'f':
 		focus(w, atoi(l+1));
 		break;
+	case 's':
+		/*
+		 * on the display (composed on the GPU, on the overlay plane,
+		 * copied): the frame callbacks of its commit are done now,
+		 * while wsys keeps the buffer until another one is shown
+		 * (the client waits for them before its next commit)
+		 */
+		i = atoi(l+1);
+		if(i >= 0 && i < Nslot)
+			later(&w->frames[i]);
+		break;
 	case 'b':
 		i = atoi(l+1);
 		released(w, i);

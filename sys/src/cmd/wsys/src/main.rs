@@ -1082,6 +1082,7 @@ impl Wsys {
         let r = r.clip(&self.d.r);
         let mut b = format!("{:>11} {:11} {:11} {:11} {:11} ", draw::chanstr(XRGB32), r.x0, r.y0, r.x1, r.y1).into_bytes();
         b.extend(px);
+        self.ovpaste(&mut b, r);
         Ok(b)
     }
 
@@ -1526,25 +1527,14 @@ impl Wsys {
             "present" => {
                 let b = *nums.first().ok_or("usage: present n [x0 y0 x1 y1]")? as u32;
                 let r = if nums.len() == 5 { Some(Rect::new(nums[1], nums[2], nums[3], nums[4])) } else { None };
-                let w = self.wins.get_mut(&n).unwrap();
-                if w.bufs.get(&b).is_some_and(|x| x.comp) {
-                    // the GPU composes it from now on (the next frame); the client
-                    // gets back the ones shown or presented before when that frame
-                    // is on the display
-                    if w.held == Some(b) {
-                        w.held = None; // presented again while shown: shown again
-                    }
-                    w.queued.retain(|&q| q != b);
-                    w.queued.push(b);
-                    w.shownb = Some(b);
-                    w.lastb = Some(b);
-                    self.compdirty = true;
+                if self.compshow(n, b) {
                     return Ok(());
                 }
                 self.uncompose(n);
                 self.copybuf(n, b, r)?;
                 self.wins.get_mut(&n).unwrap().lastb = Some(b);
-                // copied: the client may write it again
+                // copied: shown, and the client may write it again
+                self.event(n, format!("s {b}"));
                 self.event(n, format!("b {b}"));
                 if self.ov != Some(n) {
                     self.ovletgo(n); // off the plane (ovcheck turned it off)
@@ -1572,6 +1562,25 @@ impl Wsys {
             }
             _ => Err(format!("unknown ctl message: {cmd}")),
         }
+    }
+
+    /// window n's buffer b composed by the GPU from now on (the next frame), if it
+    /// can be; the client gets back the ones shown or presented before when that
+    /// frame is on the display
+    fn compshow(&mut self, n: u32, b: u32) -> bool {
+        let Some(w) = self.wins.get_mut(&n) else { return false };
+        if self.comp.is_none() || !w.bufs.get(&b).is_some_and(|x| x.comp) {
+            return false;
+        }
+        if w.held == Some(b) {
+            w.held = None; // presented again while shown: shown again
+        }
+        w.queued.retain(|&q| q != b);
+        w.queued.push(b);
+        w.shownb = Some(b);
+        w.lastb = Some(b);
+        self.compdirty = true;
+        true
     }
 
     /// buffer b of window n gone (unbuffer, a new one of the same number)
@@ -1625,6 +1634,9 @@ impl Wsys {
             let w = &self.wins[&n];
             let Some(b) = w.shownb else { continue };
             let Some(buf) = w.bufs.get(&b) else { continue };
+            if self.ov == Some(n) {
+                continue; // on the overlay plane, over the frames
+            }
             if w.hidden {
                 // nothing of it seen, but its frames go back at the display's rate
                 // (else its client would wait for ever)
@@ -1681,6 +1693,9 @@ impl Wsys {
                     back.push(h);
                 }
             }
+            // on the display: the time for the client's next picture (Wayland's frame
+            // callbacks, wlsys), while wsys keeps b until another one is shown
+            self.event(n, format!("s {b}"));
             for q in back {
                 self.event(n, format!("b {q}"));
             }
@@ -1917,7 +1932,6 @@ impl Wsys {
         let Some(w) = self.wins.get(&n) else { return Some("no window") };
         let why = [
             (self.nooverlay, "-O"),
-            (self.comp.is_some(), "the GPU composes the screen (-g)"),
             (self.gpu.as_ref().and_then(|g| g.overlay_ctl()).is_none(), "the driver has no overlay"),
             (self.z.last() != Some(&n), "not on top"),
             (w.hidden, "hidden"),
@@ -1975,6 +1989,9 @@ impl Wsys {
         self.ovtags.push(tag);
         self.ov = Some(n);
         self.wins.get_mut(&n).unwrap().lastb = Some(b);
+        // the GPU composing the screen: the plane shows the window over its frames,
+        // which leave it out (the buffers it composed go back with the next one)
+        self.uncompose(n);
         true
     }
 
@@ -1992,14 +2009,30 @@ impl Wsys {
             if self.ov == Some(win) {
                 self.ov = None;
             }
-            let r = self.copybuf(win, b, None);
-            if r.is_ok() {
-                self.event(win, format!("b {b}"));
-            }
+            // the GPU composes it, else the processor copies it
+            let r = if self.compshow(win, b) {
+                Ok(())
+            } else {
+                let r = self.copybuf(win, b, None);
+                if r.is_ok() {
+                    self.event(win, format!("s {b}"));
+                    self.event(win, format!("b {b}"));
+                }
+                r
+            };
             self.ovletgo(win);
             r
+        } else if self.ov != Some(win) {
+            // shown, but off the plane meanwhile (ovcheck): composed by the GPU now,
+            // or the client's again
+            let w = &self.wins[&win];
+            if w.shownb != Some(b) && w.held != Some(b) && !w.queued.contains(&b) {
+                self.event(win, format!("b {b}"));
+            }
+            Ok(())
         } else {
             // on the plane: the client's again when the next one is shown there
+            self.event(win, format!("s {b}"));
             let w = self.wins.get_mut(&win).unwrap();
             match w.ovheld.replace(b) {
                 Some(h) if h != b => self.event(win, format!("b {h}")),
@@ -2049,7 +2082,15 @@ impl Wsys {
         }
         if let Some(b) = lastb {
             if self.wins.contains_key(&n) {
-                let _ = self.copybuf(n, b, None);
+                if self.compshow(n, b) {
+                    // the GPU composes what the plane showed: its buffer stays wsys'
+                    let w = self.wins.get_mut(&n).unwrap();
+                    if w.ovheld == Some(b) {
+                        w.ovheld = None;
+                    }
+                } else {
+                    let _ = self.copybuf(n, b, None);
+                }
             }
         }
         self.ovletgo(n);

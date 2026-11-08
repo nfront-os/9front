@@ -79,7 +79,8 @@ changed on the screen (gpu(3)'s
 .BR dirty ,
 copied from its framebuffer by the processor) and, over it, the windows'
 GPU buffers where they are seen, copied by the GPU (the processor copies
-none of their pixels; no overlay plane then).
+none of their pixels; the window on the overlay plane, below, is left out:
+the plane shows it over the frames).
 A presented GPU buffer stays
 .IR wsys 's
 while it is shown: the client gets the one shown before back
@@ -97,7 +98,7 @@ otherwise, if Vulkan does not start, when its thread fails, or when
 the display refuses its frames (the WSI would copy them into the
 screen they are composed from), the processor composes.
 .B -p
-makes the processor compose (and the overlay plane is used, below);
+makes the processor compose;
 .B -g
 asks for the GPU and says why not when it cannot, and what it does
 (as does
@@ -370,7 +371,8 @@ by a thread of its own, so that
 .I wsys
 answers its other clients meanwhile.
 When the window may no longer be there, the plane goes off and the last
-presented buffer is copied into the window.
+presented buffer is composed by the GPU again, or copied into the window
+by the processor.
 To a window with GPU buffers
 .I wsys
 sends the event
@@ -380,9 +382,8 @@ when it may go on the plane and
 when no longer: Mesa's plan9 WSI then makes its swapchain's buffers in
 VRAM, which the plane shows as they are (no copy at all), or again where
 .I wsys
-reads them; a buffer in VRAM
-.I wsys
-cannot read, it shows nothing new until the client's next buffers come.
+reads them; a buffer in VRAM the processor cannot read the GPU composes all the same;
+copying, it shows nothing new until the client's next buffers come.
 .B -O
 keeps every window on
 .IR wsys 's
@@ -437,10 +438,20 @@ and once when it has left it),
 (a new size),
 .BI f " focus
 (1: the window got the focus, 0: lost it),
+.BI s " b
+(buffer
+.I b
+is on the display, composed, on the overlay plane or copied: the time for
+the next picture, as Wayland's frame callbacks;
+.I wsys
+may keep it until another one is shown),
 .BI b " b
 (buffer
 .I b
-released).
+released),
+.BI overlay " 0|1
+(whether its buffers may go on the overlay plane).
+Programs skip events they do not know.
 .PP
 .I Wsys
 composes on the processor through

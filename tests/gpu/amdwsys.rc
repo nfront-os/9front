@@ -2,7 +2,7 @@
 # aux/amdgpu with its screen; vktri in a window of wsys, its frames as GPU
 # buffers (RADV's export, wsys' import), then by copy (wsysvk.rc), its pixels
 # read back from wsys' screen (-O: no overlay plane); then on the overlay plane
-# (wsysovl.rc)
+# (wsysovl.rc), by the processor and with the GPU composing
 bind -a '#i' /dev
 bind -a '#v' /dev
 aux/amdgpu $* >/tmp/amd.log >[2=1]
@@ -11,5 +11,8 @@ sleep 2
 cat /tmp/wsys.log
 WSYSDEBUG=overlay /tests/wsys -p -x -i /tests/wsysovl >/tmp/wsys.log >[2=1]
 cat /tmp/wsys.log
+# the same with the GPU composing the screen (the default): the plane over its frames
+WSYSDEBUG=overlay,comp /tests/wsys -x -i '/tests/wsysovl comp' >/tmp/wsys.log >[2=1]
+sed 's/^/comp: /' /tmp/wsys.log
 grep 'WARN|error|fault|BUG' /tmp/amd.log
 echo TESTEND

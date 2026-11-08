@@ -1,5 +1,6 @@
 #!/bin/rc
-# run by wsys -x -i (amdwsys.rc): vktri in a window of wsys on the overlay plane
+# run by wsys -x -i (amdwsys.rc; wsysovl comp: wsys composing on the GPU): vktri
+# in a window of wsys on the overlay plane
 # (gpu(4) overlay): wsys copies nothing, the display shows the GPU buffer; the
 # driver's status while it runs, the frames (the display's rate: FIFO at the
 # plane's vblank); what wsys said about the overlay.  The WSI starts with
@@ -7,8 +8,13 @@
 # in VRAM when wsys says "overlay 1" (shown as they are: variant b), and
 # buffers wsys reads again when another window covers it ("overlay 0"):
 # then vktri's pixels are in wsys' screen again
+# comp (wsys composing on the GPU): vktri's pixels from /dev/screen, devdraw's
+# window has not got them
+peek=()
+if(~ $1 comp)
+	peek=screen
 rm -f /tmp/wvo.log
-window -r 100 100 740 580 /tests/wsysvktri /tmp/wvo.log
+window -r 100 100 740 580 /tests/wsysvktri /tmp/wvo.log $peek
 sleep 2
 grep '^overlay' /dev/gpu/0/status | sed 's/^/during: /'
 # wsys goes on while the display waits (the overlay's thread): 50 requests' time

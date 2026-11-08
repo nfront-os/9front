@@ -1366,7 +1366,9 @@ ovdfree(u32 keep)
  * fb on the overlay plane of the output whose part of the screen has the
  * window (ov_w x ov_h at x y) wholly; waits for the vblank.  -ERANGE: no
  * output has it all, no overlay plane on its CRTC, or a client's picture
- * is on that output (scanout).  kmslock held.
+ * in a mode of its own is on that output (scanout); over one laid out as
+ * the screen (shown_out -1: wsys composing on the GPU) the plane shows the
+ * window as over the screen.  kmslock held.
  */
 static int
 ovplace(u32 fb, int x, int y)
@@ -1387,7 +1389,7 @@ ovplace(u32 fb, int x, int y)
 	for (k = 0; o && k < ncrtc; k++)
 		if (crtcs[k] == o->crtc)
 			break;
-	if (!o || k == ncrtc || !ovplane[k] || (shown_fb && (shown_out < 0 || &outs[shown_out] == o)))
+	if (!o || k == ncrtc || !ovplane[k] || (shown_fb && shown_out >= 0 && &outs[shown_out] == o))
 		return -ERANGE;
 	if (ov_plane && (ov_plane != ovplane[k] || ov_crtc != o->crtc)) {
 		/* the window went to another output: off on the old one */
