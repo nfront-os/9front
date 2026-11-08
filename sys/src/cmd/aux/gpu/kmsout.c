@@ -45,6 +45,7 @@
 #include <drm/drm_modeset_lock.h>
 #include <linux/iosys-map.h>
 #include <linux/dma-resv.h>
+#include <linux/ktime.h>
 #include "kmsout.h"
 
 enum {
@@ -1117,7 +1118,16 @@ kmsout_screenfb(u32 *fb, u32 *w, u32 *h, u32 *pitch)
  * screen and a window on the overlay plane: two commits would take two
  * vblanks, both at half the rate).  Each waits for the commit that took
  * its change, without kmslock (so that the next change can be latched
- * meanwhile).  The display shows the framebuffers it had until the event
+ * meanwhile).  After an event the latched changes wait until shortly
+ * before the next vblank (due, Margin ms before it): each client sends
+ * its next change some time after its commit is done (wsys composing,
+ * the client of the overlay drawing), so that without the wait the
+ * commits would take the clients' changes in turn, one each, every
+ * client at half the rate; then what came meanwhile goes together (a
+ * frame clock, as Linux' compositors have).  They go at once when every
+ * plane that changed in the last frames (Active) has its change latched:
+ * the timed wait is not precise on 9front (milliseconds late), and the
+ * changes of all who send are what it waits for.  The display shows the framebuffers it had until the event
  * (a commit waits for the fences of its objects: an external one's
  * rendering), so those taken off are removed only then (gone); one
  * removed while on the display turns its plane off (a black screen).
@@ -1129,6 +1139,7 @@ static struct {
 	bool	busy;		/* a commit on its way */
 	u64	sent, done;	/* its sequence number, the last one done */
 	unsigned long	at;	/* jiffies when it went */
+	unsigned long	due;	/* jiffies when the latched changes may go */
 	u64	errseq;		/* the one that failed last, and how */
 	int	err;
 	u64	next;		/* the latched changes' number, 0: none */
@@ -1137,12 +1148,16 @@ static struct {
 	u32	ofb;
 	int	ox, oy;
 	u32	ow, oh;
+	unsigned long	seen[2];	/* jiffies when the primary plane's, the overlay's change came last */
 } cs[Ncrtc];
+enum { Active = 40 };	/* ms: a plane whose change came in them changes each frame */
 static u64 seqgen;
+static u64 ncommit, nboth, nlate, ndone, msdone, nprim, nover, nempty;	/* for the status: commits, with both planes, latched until due */
 static struct { u32 fb; u64 need[Ncrtc]; } gone[Ngone];
 static int ngone;
 static bool reading;		/* one reads the events, the others wait for it */
 static u64 nread;		/* events read: the others look again */
+static u64 nlatch;		/* changes latched: the reader looks again when they are due */
 static DECLARE_WAIT_QUEUE_HEAD(kmsq);
 
 static int
@@ -1226,6 +1241,15 @@ submit(int k)
 	}
 	cs[k].pfb = 0;
 	cs[k].ov = false;
+	ncommit++;
+	if (no == 2)
+		nboth++;
+	if (no == 0)
+		nempty++;
+	else if (objs[0] == primary[k])
+		nprim++;
+	if (no > 0 && objs[no-1] == ovplane[k])
+		nover++;
 	if (no == 0) {
 		cs[k].done = cs[k].sent;	/* nothing to change */
 		wake_up_all(&kmsq);
@@ -1258,17 +1282,87 @@ submit(int k)
 	cs[k].at = jiffies;
 }
 
-/* CRTC k's commit came (its event): the latched changes go now; kmslock held */
+enum { Margin = 5000 };	/* µs before the vblank a commit goes (amdgpu's commit work, the fences) */
+
+/*
+ * from now until the latched changes are due: the next vblank of the
+ * output on CRTC k (a frame after the one at vbl, µs of ktime_get, the
+ * event's time) less Margin; at least a jiffy
+ */
+static unsigned long
+untilnext(int k, s64 vbl)
+{
+	int i, refresh = 60;	/* not hz: msecs_to_jiffies uses the KPI's */
+	s64 frame, lag, us;
+
+	for (i = 0; i < nout; i++)
+		if (outs[i].on && outs[i].crtc == crtcs[k] && outs[i].mode.vrefresh > 0)
+			refresh = outs[i].mode.vrefresh;
+	frame = 1000000 / refresh;
+	lag = ktime_to_us(ktime_get()) - vbl;
+	if (lag < 0 || lag > frame)
+		lag = 0;	/* no time, or not this frame's */
+	us = frame - Margin - lag;
+	return msecs_to_jiffies(us > 1000 ? us / 1000 : 1);
+}
+
+/* CRTC k's commit came (its event, at vbl): the latched changes go shortly before the next vblank; kmslock held */
 static void
-commitdone(int k)
+commitdone(int k, s64 vbl)
 {
 	if (k < 0 || k >= ncrtc || !cs[k].busy)
 		return;
 	cs[k].busy = false;
 	cs[k].done = cs[k].sent;
+	ndone++;
+	msdone += jiffies_to_msecs(jiffies - cs[k].at);
+	cs[k].due = jiffies + untilnext(k, vbl);
 	gonedone();
-	submit(k);
 	wake_up_all(&kmsq);
+}
+
+/*
+ * whether CRTC k's latched changes may go before they are due: every
+ * plane changed in the last Active ms has its change latched
+ */
+static bool
+allin(int k)
+{
+	unsigned long now = jiffies;
+	bool in[2] = { cs[k].pfb != 0, cs[k].ov };
+	int i;
+
+	for (i = 0; i < 2; i++)
+		if (!in[i] && cs[k].seen[i] && time_before(now, cs[k].seen[i] + msecs_to_jiffies(Active)))
+			return false;
+	return true;
+}
+
+/* the latched changes that are due, or all in, go; kmslock held */
+static void
+submitdue(void)
+{
+	int k;
+
+	for (k = 0; k < ncrtc; k++)
+		if (cs[k].next && !cs[k].busy && (time_after_eq(jiffies, cs[k].due) || allin(k)))
+			submit(k);
+}
+
+/* jiffies until latched changes are due (0: now), or until end */
+static long
+untildue(unsigned long end)
+{
+	long left = (long)(end - jiffies), d;
+	int k;
+
+	for (k = 0; k < ncrtc; k++)
+		if (cs[k].next && !cs[k].busy) {
+			d = (long)(cs[k].due - jiffies);
+			if (d < left)
+				left = d;
+		}
+	return left < 0 ? 0 : left;
 }
 
 /*
@@ -1281,6 +1375,10 @@ commit(int k)
 {
 	if (!cs[k].next)
 		cs[k].next = ++seqgen;
+	if (cs[k].pfb)
+		cs[k].seen[0] = jiffies;
+	if (cs[k].ov)
+		cs[k].seen[1] = jiffies;
 	if (cs[k].busy && time_after(jiffies, cs[k].at + 2*HZ)) {
 		pr_err("kmsout: crtc %u: no event of commit %llu for %u ms: the next goes\n",
 		    crtcs[k], cs[k].sent, jiffies_to_msecs(jiffies - cs[k].at));
@@ -1288,13 +1386,17 @@ commit(int k)
 		cs[k].done = cs[k].sent;
 		gonedone();
 	}
-	if (!cs[k].busy) {
+	if (!cs[k].busy && (time_after_eq(jiffies, cs[k].due) || allin(k))) {
 		u64 seq = cs[k].next;
 
 		submit(k);
 		return seq;
 	}
-	return cs[k].next;
+	nlate++;
+	/* the reader waits for an event: it sends this when due */
+	WRITE_ONCE(nlatch, nlatch + 1);
+	wake_up_all(&((struct drm_file *)kms->private_data)->event_wait);
+	return cs[k].next;	/* with the event, or when due */
 }
 
 /*
@@ -1310,10 +1412,13 @@ kmswait(int k, u64 seq, long timeout)
 	char ev[1024];
 	loff_t pos;
 	long t, left;
-	u64 seen;
+	u64 seen, latched;
 	int i, rr;
 
 	while (cs[k].done < seq) {
+		submitdue();
+		if (cs[k].done >= seq)
+			break;
 		left = (long)(end - jiffies);
 		if (left <= 0)
 			return -ETIMEDOUT;
@@ -1325,10 +1430,13 @@ kmswait(int k, u64 seq, long timeout)
 			continue;
 		}
 		reading = true;
+		left = untildue(end);	/* the reader sends what becomes due */
+		latched = nlatch;
 		mutex_unlock(&kmslock);
-		t = wait_event_interruptible_timeout(fp->event_wait, !list_empty(&fp->event_list), left);
+		t = left > 0 ? wait_event_interruptible_timeout(fp->event_wait,
+		    !list_empty(&fp->event_list) || READ_ONCE(nlatch) != latched, left) : 0;
 		rr = 0;
-		if (t > 0) {
+		if (t > 0 && !list_empty(&fp->event_list)) {
 			pos = 0;
 			rr = drm_read(kms, (char __user *)ev, sizeof(ev), &pos);
 		}
@@ -1339,8 +1447,11 @@ kmswait(int k, u64 seq, long timeout)
 
 			if (e->length < sizeof(*e))
 				break;
-			if (e->type == DRM_EVENT_FLIP_COMPLETE && e->length >= sizeof(struct drm_event_vblank))
-				commitdone((int)((struct drm_event_vblank *)e)->user_data);
+			if (e->type == DRM_EVENT_FLIP_COMPLETE && e->length >= sizeof(struct drm_event_vblank)) {
+				struct drm_event_vblank *v = (struct drm_event_vblank *)e;
+
+				commitdone((int)v->user_data, (s64)v->tv_sec * 1000000 + v->tv_usec);
+			}
 			i += e->length;
 		}
 		WRITE_ONCE(nread, nread + 1);
@@ -1860,9 +1971,11 @@ ovstate(void)
 		if (ovplane[k])
 			n++;
 	if (!ov_plane)
-		return kasprintf(GFP_KERNEL, "overlay planes %d, none shown\n", n);
-	return kasprintf(GFP_KERNEL, "overlay planes %d, plane %u crtc %u: %ux%u at %d %d, %s\n",
-	    n, ov_plane, ov_crtc, ov_w, ov_h, ov_x, ov_y, ovd_fb ? "the client's object" : "copied");
+		return kasprintf(GFP_KERNEL, "overlay planes %d, none shown\ncommits %llu (primary %llu, overlay %llu, empty %llu), %llu with two planes, %llu latched, %llu ms to the event; primary planes %u %u\n",
+		    n, ncommit, nprim, nover, nempty, nboth, nlate, ndone ? msdone / ndone : 0, primary[0], primary[1]);
+	return kasprintf(GFP_KERNEL, "overlay planes %d, plane %u crtc %u: %ux%u at %d %d, %s\ncommits %llu (primary %llu, overlay %llu, empty %llu), %llu with two planes, %llu latched, %llu ms to the event\n",
+	    n, ov_plane, ov_crtc, ov_w, ov_h, ov_x, ov_y, ovd_fb ? "the client's object" : "copied", ncommit, nprim, nover, nempty, nboth, nlate,
+	    ndone ? msdone / ndone : 0);
 }
 
 /* "plane ..." for the device's ctl: the screen */

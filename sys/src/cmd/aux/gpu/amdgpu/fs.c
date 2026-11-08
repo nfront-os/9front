@@ -63,8 +63,12 @@ static char *srvname9;	/* serve's: /srv/srvname, /srv/srvname.user */
 
 /*
  * the display's requests go to DC, whose bandwidth calculation needs more
- * stack than lib9p's procs have (32 KB): a proc of its own does them
+ * stack than lib9p's procs have (32 KB): procs of their own do them, a few,
+ * so that a scanout and an overlay of different clients meet in kmsout
+ * and go in one commit (one proc took them in turn: two vblanks, both at
+ * half the rate); kmsout and DRM lock what they share
  */
+enum { Nkmsproc = 4 };
 typedef struct Kreq Kreq;
 struct Kreq {
 	void	*lc;
@@ -76,6 +80,7 @@ struct Kreq {
 	Channel	*done;
 };
 static Channel *kmsc;
+static RWLock kmsrw;	/* a context goes (wlock) when no display request runs (rlock) */
 
 static void
 kmsproc(void*)
@@ -84,14 +89,21 @@ kmsproc(void*)
 
 	for(;;){
 		k = recvp(kmsc);
-		if(k->free)
+		if(k->free){
+			wlock(&kmsrw);
 			amdgpu_ctx_free(k->lc);
-		else if(k->overlay)
+			wunlock(&kmsrw);
+			sendul(k->done, 1);
+			continue;
+		}
+		rlock(&kmsrw);
+		if(k->overlay)
 			k->r = amdgpu_overlay(k->lc, k->id, k->x, k->y, k->w, k->h, k->stride);
 		else if(k->gem)
 			k->r = amdgpu_scanout_gem(k->lc, k->id, k->w, k->h, k->stride);
 		else
 			k->r = amdgpu_scanout(k->lc, k->id, k->w, k->h, k->stride);
+		runlock(&kmsrw);
 		sendul(k->done, 1);
 	}
 }
@@ -869,7 +881,8 @@ serve(char *srvname)
 	fs.aux = estrdup9p(getuser());	/* /srv/srvname is the hostowner's */
 	srvname9 = estrdup9p(srvname);
 	kmsc = chancreate(sizeof(void*), 0);
-	proccreate(kmsproc, nil, 1024*1024);
+	for(i = 0; i < Nkmsproc; i++)
+		proccreate(kmsproc, nil, 1024*1024);
 	reqc = chancreate(sizeof(void*), 0);
 	for(i = 0; i < Nreqproc; i++)
 		proccreate(reqproc, nil, 1024*1024);
