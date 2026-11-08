@@ -548,7 +548,6 @@ A client in C: see
 .IR draw (3),
 .IR segment (3)
 .SH BUGS
-A prototype: no labels shown.
 .I Wsys
 must be allowed to attach the clients' segments: the same user, or the
 host owner.
