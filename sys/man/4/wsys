@@ -229,10 +229,21 @@ to the plumber of
 name space, as
 .IR rio ),
 .B look
-(the next place with the selected text)
-and
+(the next place with the selected text),
 .B send
-(the selection, else the snarf buffer, typed as a line).
+(the selection, else the snarf buffer, typed as a line) and
+.B scroll
+or
+.B noscroll
+(as
+.IR rio 's:
+whether output goes to the end while the window shows text further back;
+off at the start, there the text shown stays; also
+.B scroll
+and
+.B noscroll
+on the window's
+.BR wctl ).
 Esc toggles
 .IR rio 's
 hold mode (also
@@ -537,8 +548,7 @@ A client in C: see
 .IR draw (3),
 .IR segment (3)
 .SH BUGS
-A prototype: no labels shown; button 2's menu has no
-.BR scroll .
+A prototype: no labels shown.
 .I Wsys
 must be allowed to attach the clients' segments: the same user, or the
 host owner.

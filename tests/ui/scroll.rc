@@ -88,4 +88,23 @@ sleep 0.3
 t=`{thumb}
 ~ $t(2) ffffff || fail button 2 at the bottom did not go to the end: $t
 echo ok button 2: to the end, $t
+
+# noscroll (rio's default): looking back, output that comes leaves the view
+key 'sleep 2; echo late'; nl
+{ m 110 300 1; sleep 1.2; m 110 300 0 } >/dev/mousein
+wait1 grep -s '^late$' /mnt/wsys/$id/text || fail no late output
+sleep 0.5
+t=`{thumb}
+~ $"t 'ffffff 999999' || fail noscroll: output moved the view: $t
+echo ok noscroll: looking back, the view stays, $t
+
+# button 2's scroll: output goes to the end even when looking back
+menu 6
+key 'sleep 2; echo later'; nl
+{ m 110 300 1; sleep 1.2; m 110 300 0 } >/dev/mousein
+wait1 grep -s '^later$' /mnt/wsys/$id/text || fail no later output
+sleep 0.5
+t=`{thumb}
+~ $t(2) ffffff || fail scroll: output did not go to the end: $t
+echo ok scroll: output to the end, $t
 echo scroll: all passed

@@ -283,6 +283,7 @@ struct Win {
     state: u64,      // bumped when wctl's answer changes
     textwin: bool,   // made by new: shows its text while no program has its mouse
     scroll: usize,   // a text window: lines back from the end
+    scrolling: bool, // output scrolls to the end even when looking back (button 2's scroll, as rio's)
     scrollr: Rect,   // its scroll bar
     shown: (usize, usize, usize), // lines laid out, the first shown, how many fit
     sel: (usize, usize), // the selection: byte offsets in text, then line
@@ -1251,7 +1252,7 @@ impl Wsys {
             label: String::new(), wdir: o.cd.clone().unwrap_or_default(), text: String::new(), partial: vec![],
             events: VecDeque::new(), raw: false, line: String::new(), cons: VecDeque::new(), eof: false,
             kbd: VecDeque::new(), kbdopen: 0, mouseopen: 0, mouse: VecDeque::new(), resized: false,
-            cursor: vec![], state: 1, textwin: text, scroll: 0, sel: (0, 0), rows: vec![], hidden: false,
+            cursor: vec![], state: 1, textwin: text, scroll: 0, scrolling: false, sel: (0, 0), rows: vec![], hidden: false,
             hold: false, want: None, stale: false,
             scrollr: Rect::default(), shown: (1, 0, 1), lastb: None, inside: false, nooverlay: false, ovsent: None, shownb: None, held: None, queued: vec![], ovheld: None,
         });
@@ -1401,7 +1402,10 @@ impl Wsys {
                 self.hide(n, false);
                 Ok(())
             }
-            "scroll" | "noscroll" => Ok(()),
+            "scroll" | "noscroll" => {
+                self.setscrolling(n, cmd == "scroll");
+                Ok(())
+            }
             _ => Err(format!("unknown wctl message: {cmd}")),
         }
     }
@@ -2476,7 +2480,9 @@ impl Wsys {
                         return;
                     }
                     if b == 2 {
-                        let items = MENU2.iter().map(|s| s.to_string()).collect();
+                        // as rio's: scroll, or noscroll when on
+                        let sc = if self.wins[&n].scrolling { "noscroll" } else { "scroll" };
+                        let items = MENU2.iter().map(|s| s.to_string()).chain([sc.to_string()]).collect();
                         self.openmenu(Some(n), 2, items, vec![], x, y);
                         self.buttons = b;
                         return;
@@ -2776,8 +2782,32 @@ impl Wsys {
             w.sel = (shift(w.sel.0), shift(w.sel.1));
         }
         Self::trim(w);
-        w.scroll = 0;
+        // at the end, or scroll: the end shown; looking back (noscroll, as rio's): the
+        // same text stays where it was, the lines that came below it
+        if w.scrolling || w.scroll == 0 {
+            w.scroll = 0;
+            self.drawtext(n);
+            return;
+        }
+        let before = w.shown.0;
         self.drawtext(n);
+        if let Some(w) = self.wins.get_mut(&n) {
+            let added = w.shown.0.saturating_sub(before);
+            if added > 0 {
+                w.scroll += added;
+                self.drawtext(n);
+            }
+        }
+    }
+
+    /// button 2's scroll and noscroll, wctl's: whether output goes to the end
+    fn setscrolling(&mut self, n: u32, on: bool) {
+        let Some(w) = self.wins.get_mut(&n) else { return };
+        w.scrolling = on;
+        if on {
+            w.scroll = 0;
+            self.drawtext(n);
+        }
     }
 
     /// the snarf buffer from rio's, when wsys runs in rio
@@ -2872,6 +2902,7 @@ impl Wsys {
                 self.putsnarf();
                 self.typeline(n, &s);
             }
+            "scroll" | "noscroll" => self.setscrolling(n, cmd == "scroll"),
             _ => {}
         }
         self.drawtext(n);
