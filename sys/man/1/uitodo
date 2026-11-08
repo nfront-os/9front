@@ -1,6 +1,6 @@
 .TH UITODO 1
 .SH NAME
-uitodo, uicount \- programs on ui(4)
+uitodo, uicount, uitick \- programs on ui(4)
 .SH SYNOPSIS
 .B uitodo
 [
@@ -9,8 +9,10 @@ uitodo, uicount \- programs on ui(4)
 ]
 .PP
 .B uicount
+.PP
+.B uitick
 .SH DESCRIPTION
-Both run in a new window of
+They run in a new window of
 .IR ui (4),
 written in Rust with
 .IR uiview (2).
@@ -32,6 +34,14 @@ or
 .PP
 .I Uicount
 counts: a number and buttons to add one, take one, and start again.
+.PP
+.I Uitick
+counts ten times a second by itself (a timer:
+.BR Proxy 's
+.B every
+in
+.IR uiview (2));
+a button stops and starts it.
 .PP
 The windows' files are those of
 .IR ui (4):
