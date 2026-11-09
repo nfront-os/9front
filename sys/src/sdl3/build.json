@@ -72,6 +72,8 @@
 			"vendor/src/filesystem/SDL_filesystem.c",
 			"vendor/src/filesystem/posix/SDL_sysfsops.c",
 			"vendor/src/filesystem/unix/SDL_sysfilesystem.c",
+			"vendor/src/gpu/SDL_gpu.c",
+			"vendor/src/gpu/vulkan/SDL_gpu_vulkan.c",
 			"vendor/src/haptic/SDL_haptic.c",
 			"vendor/src/haptic/dummy/SDL_syshaptic.c",
 			"vendor/src/hidapi/SDL_hidapi.c",

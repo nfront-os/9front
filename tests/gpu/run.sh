@@ -332,6 +332,10 @@ if [ -r /dev/dri/renderD128 ] && [ -w /dev/dri/renderD128 ] &&
 			check "wsys: ui rendered without errors" bash -c "! grep -q '^ui: log' '$TMPD/logwsys'"
 			grep '^ui: renderer' "$TMPD/logwsys" | sed 's/^/  /'
 		fi
+		for p in sdlvk sdlgpu; do
+			[ -x "$HERE/root/tests/$p" ] && check "wsys: $p (SDL3 on Vulkan) in a window: all passed" grep -q "^$p: $p: all passed" "$TMPD/logwsys"
+		done
+		grep -E '^sdlgpu: (ok|FAIL)' "$TMPD/logwsys" | sed 's/^/  /'
 		if [ -x "$HERE/root/tests/eframetest" ]; then
 			check "wsys: eframetest (egui's eframe) on wgpu's Vulkan, not the processor: all passed" grep -q '^eframe: eframetest: all passed' "$TMPD/logwsys"
 			grep -E '^eframe: ok (wgpu adapter|[0-9]+ frames)' "$TMPD/logwsys" | sed 's/^/  /'

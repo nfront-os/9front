@@ -34,4 +34,8 @@ the headers in `/sys/include/ape/SDL3`. Programs are APE programs:
   `scripts/sdl3/vendor.sh` from the release (`VERSION`; its tarball in
   ../9front-ui/src) with the overlay over it; `build.json` too.
 
-Not yet: joysticks, more than one window, SDL's GPU API.
+SDL's GPU API (`SDL_gpu`, its Vulkan backend: `SDL_GPU_VULKAN` in the build config,
+`src/gpu` in `SOURCES`) over the same Vulkan: `tests/sdl/sdlgpu.c` (a render pass
+clearing the window), in tests/gpu on venus.
+
+Not yet: joysticks, more than one window.

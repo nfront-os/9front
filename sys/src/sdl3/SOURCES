@@ -52,6 +52,8 @@ src/events/imKStoUCS.c
 src/filesystem/SDL_filesystem.c
 src/filesystem/posix/SDL_sysfsops.c
 src/filesystem/unix/SDL_sysfilesystem.c
+src/gpu/SDL_gpu.c
+src/gpu/vulkan/SDL_gpu_vulkan.c
 src/haptic/SDL_haptic.c
 src/haptic/dummy/SDL_syshaptic.c
 src/hidapi/SDL_hidapi.c

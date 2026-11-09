@@ -255,7 +255,7 @@
 /* Allow disabling of major subsystems */
 /* #undef SDL_AUDIO_DISABLED */
 /* #undef SDL_VIDEO_DISABLED */
-#define SDL_GPU_DISABLED 1
+/* #undef SDL_GPU_DISABLED */	/* 9front: SDL's GPU API on Vulkan */
 /* #undef SDL_RENDER_DISABLED */
 #define SDL_CAMERA_DISABLED 1
 #define SDL_JOYSTICK_DISABLED 1
@@ -490,7 +490,7 @@
 /* Enable GPU support */
 /* #undef SDL_GPU_D3D11 */
 /* #undef SDL_GPU_D3D12 */
-/* #undef SDL_GPU_VULKAN */
+#define SDL_GPU_VULKAN 1	/* 9front: SDL_gpu's Vulkan backend, over SDL_VIDEO_VULKAN */
 /* #undef SDL_GPU_METAL */
 
 /* #undef SDL_GPU_PRIVATE */

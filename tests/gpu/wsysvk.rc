@@ -18,6 +18,13 @@ if(test -x /tests/eframetest){
 	n=0
 	while(! grep -s '^eframetest: exit' /tmp/eframe.log && test $n -lt 900){ sleep 0.1; n=`{echo $n+1 | hoc} }
 }
+# SDL3 on Vulkan: its renderer (sdlvk), its GPU API (sdlgpu)
+rm -f /tmp/sdlvk.log /tmp/sdlgpu.log
+for(p in sdlvk sdlgpu) if(test -x /tests/$p){
+	window -r 100 100 500 400 'rc -c ''/tests/'$p' 60 >/tmp/'$p'.log >[2=1]; echo '$p': exit $status >>/tmp/'$p'.log'''
+	n=0
+	while(! grep -s '^'$p': exit' /tmp/$p.log && test $n -lt 600){ sleep 0.1; n=`{echo $n+1 | hoc} }
+}
 # ui (ui(4)) on the GPU: its renderer, a button laid out after a frame
 if(test -x /tests/ui){
 	window -r 100 100 600 450 'rc -c ''/tests/ui -s uivk >/tmp/uivk.log >[2=1]'''
@@ -38,3 +45,5 @@ sed 's/^/gpu: /' /tmp/wvk.log
 sed 's/^/copy: /' /tmp/wvkcopy.log
 if(test -e /tmp/eframe.log)
 	sed 's/^/eframe: /' /tmp/eframe.log
+for(p in sdlvk sdlgpu) if(test -e /tmp/$p.log)
+	sed 's/^/'$p': /' /tmp/$p.log

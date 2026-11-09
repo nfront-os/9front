@@ -38,6 +38,9 @@ if [ -f "$ROOT/$objtype/lib.gcc/ape/libSDL3.a" ]; then
 	# sdlgl: SDL3's OpenGL (EGL's plan9 platform); SDL refers to EGL weakly too
 	"$CROSS/$TRIPLE-gcc" -std=gnu11 -O2 -Wall -c -o "$O/sdlgl.o" "$ROOT/tests/sdl/sdlgl.c"
 	"$CROSS/$TRIPLE-g++" -o "$HERE/root/tests/sdlgl" "$O/sdlgl.o" -Wl,-u,eglGetDisplay -lSDL3 $libs -lm
+	# sdlgpu: SDL3's GPU API (SDL_gpu on Vulkan)
+	"$CROSS/$TRIPLE-gcc" -std=gnu11 -O2 -Wall -c -o "$O/sdlgpu.o" "$ROOT/tests/sdl/sdlgpu.c"
+	"$CROSS/$TRIPLE-g++" -o "$HERE/root/tests/sdlgpu" "$O/sdlgpu.o" -Wl,-u,vkGetInstanceProcAddr -lSDL3 $libs -lm
 fi
 # glfwtest: GLFW (tests/glfw/glfwtest.c, sys/src/glfw), with -g its OpenGL and Vulkan;
 # GLFW refers to EGL and Vulkan weakly (plan9_module.c): -u pulls them in
