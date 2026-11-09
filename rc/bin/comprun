@@ -3,7 +3,9 @@
 # wsysflags=-g in plan9.ini): in windows of the desktop's wsys, two vktri
 # at once, then one partly covered by a text window; vktri checks its
 # pixels in /dev/screen (the screen as wsys composes it), the covered
-# corner and the middle are read from /mnt/wsys/screen.  The log into
+# corner and the middle are read from /mnt/wsys/screen; the driver's
+# overlay plane while they run (the window on top goes on it: during, and
+# off it while covered: covered).  The log into
 # comp.log on the ESP (FAT) of the USB stick the system booted from, as
 # wlrun's, else in /tmp.  Needs /amd64/vk/vktri (the CD has it), or
 # the vktri given.
@@ -58,6 +60,8 @@ fn peek { # x y
 	rm -f /tmp/compa.log /tmp/compb.log /tmp/compc.log
 	window -r 100 100 580 460 /tmp/compvk.rc /tmp/compa.log 3 $vktri
 	window -r 600 100 1080 460 /tmp/compvk.rc /tmp/compb.log 3 $vktri
+	sleep 1
+	grep '^overlay' /dev/gpu/0/status | sed 's/^/during: /'
 	waitexit /tmp/compa.log
 	waitexit /tmp/compb.log
 	window -r 100 100 580 460 /tmp/compvk.rc /tmp/compc.log 8 $vktri
@@ -68,6 +72,7 @@ fn peek { # x y
 	# window, its middle (the triangle's) 340,250 not
 	echo covered: `{peek 144 144}
 	echo uncovered: `{peek 340 250}
+	grep '^overlay' /dev/gpu/0/status | sed 's/^/covered: /'
 	waitexit /tmp/compc.log
 	for(f in a b c){
 		sed 's/^/'$f': /' /tmp/comp$f.log | grep -v ' per frame '
@@ -76,4 +81,4 @@ fn peek { # x y
 	cat /dev/gpu/0/status >[2]/dev/null | grep -i 'error\|hang' 
 	echo comprun: done `{date}
 } >$log >[2=1]
-grep '^(FAIL|[abc]: vktri:|covered|uncovered|comprun)' $log
+grep '^(FAIL|[abc]: vktri:|[abc]: wsi plan9: [^ ]*: |during|covered|uncovered|comprun)' $log

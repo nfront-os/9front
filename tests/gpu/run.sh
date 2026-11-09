@@ -214,7 +214,7 @@ if [ -r /dev/dri/renderD128 ] && [ -w /dev/dri/renderD128 ] &&
 			"test ! -x /tests/vkdraw || WSI_PLAN9_COPY=1 /tests/vkdraw 3" \
 			"test ! -x /tests/vktri || WSI_PLAN9_COPY=1 /tests/vktri 2" \
 			"test ! -x /tests/rsvk || WSI_PLAN9_COPY=1 /tests/rsvk 2" \
-			"test ! -x /tests/vkshare || {rm -f /tmp/vks /tmp/vks.done; /tests/vkshare export /tmp/vks & /tests/vkshare import /tmp/vks; wait}" \
+			"test ! -x /tests/vkshare || {rm -f /tmp/vks /tmp/vks.done; /tests/vkshare export /tmp/vks >/tmp/vksexp.log >[2=1] & /tests/vkshare import /tmp/vks >/tmp/vksimp.log >[2=1]; wait; cat /tmp/vksexp.log /tmp/vksimp.log}" \
 			"test ! -x /tests/vkspeed || /tests/vkspeed" \
 			"test ! -x /tests/vulkaninfo || /tests/vulkaninfo --summary" \
 			"test ! -x /tests/vulkaninfo || /tests/vulkaninfo | grep -c 'Surface type *= VK_PLAN9_surface'" \
