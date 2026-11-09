@@ -30,7 +30,7 @@ enum {
 };
 
 enum {
-	Nslot = 8,	/* wsys' buffers a window */
+	Nslot = 32,	/* wsys' buffers a window (wsys' MAXBUF): its surfaces' */
 	Maxkeys = 64,	/* keys held at once */
 };
 
@@ -42,9 +42,6 @@ enum {
 	Rsub,		/* a subsurface's (wl_subcompositor) */
 };
 
-enum {
-	Ncomp = 3,	/* the buffers of a window wlsys composes itself */
-};
 
 typedef struct Rect Rect;
 typedef struct Pool Pool;
@@ -135,10 +132,7 @@ struct Surface {
 	int	cached;
 	Buffer	*cbuf;
 	int	cattached;
-	/* the surface's pixels in a tree wlsys composes: a copy, the buffer released */
-	uint32_t	*pix;
-	int	pixw, pixh, pixalpha;
-	int	warned;	/* told that its dma-buf is left out */
+	int	lnew;		/* a new buffer since its window's last layers */
 	int	committed;	/* the toplevel's first commit, answered by a configure */
 	uint32_t	serial;	/* the last configure sent */
 	uint32_t	acked;	/* and acknowledged */
@@ -165,11 +159,7 @@ struct Win {
 	int	focus;
 	int	gone;		/* deleted in wsys: the client was told to close */
 	int	fresh;		/* new, or a new size: the next present shows all */
-	/* with subsurfaces: the buffers wlsys composes the tree into */
-	Pool	*cpool;
-	Buffer	*cbuf[Ncomp];
-	uint32_t	*cpx;
-	int	cw, ch;
+	int	layered;	/* its tree went to wsys as layers last */
 };
 
 /* wlsys.c */
@@ -234,8 +224,7 @@ int	subcommit(Surface*);
 void	subapply(Surface*);
 void	subcommitted(Surface*, int);
 int	hassubs(Surface*);
-Buffer	*compose(Surface*, Win*);
-void	compfree(Win*);
+int	treelayers(Surface*, Surface**, int*, int*, int);
 void	subgone(Surface*);
 Surface	*pick(Surface*, int, int, int*, int*);
 void	suborigin(Surface*, int*, int*);

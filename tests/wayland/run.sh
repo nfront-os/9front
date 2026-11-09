@@ -122,12 +122,18 @@ if [ "${NOVK:-0}" = 0 ]; then
 	trap stop EXIT
 	timeout 660 python3 "$ROOT/scripts/guest/mcp.py" wait 600 >/dev/null
 	t0=$(date +%s)
-	vk=$(timeout 700 python3 "$ROOT/scripts/guest/mcp.py" rc "bind -a '#i' /dev; bind -a '#m' /dev; /tests/wsys -x -i /tests/wlvk.rc >/tmp/wsys.log >[2=1]; cat /tmp/wsys.log /tmp/wlvk.log; sed 's/^/vkcube: /' /tmp/vkcube.log; sed 's/^/wlgl: /' /tmp/wlgl.log; sed 's/^/egl: /' /tmp/weston-simple-egl.log" 660) || true
+	vk=$(timeout 700 python3 "$ROOT/scripts/guest/mcp.py" rc "bind -a '#i' /dev; bind -a '#m' /dev; WSYSDEBUG=layers /tests/wsys -x -i /tests/wlvk.rc >/tmp/wsys.log >[2=1]; cat /tmp/wsys.log /tmp/wlvk.log; sed 's/^/vkcube: /' /tmp/vkcube.log; sed 's/^/wlgl: /' /tmp/wlgl.log; sed 's/^/egl: /' /tmp/weston-simple-egl.log" 660) || true
 	echo "wlvk and vkcube: $(($(date +%s) - t0)) s"
 	echo "$vk"
 	stop
 	trap - EXIT
 	echo "$vk" | grep -q '^wlvk: all passed' || { echo "FAIL wlvk"; fail=1; }
+	# its subsurface of GPU buffers composed by the GPU, the alpha blended (not drawn by draw(3))
+	if echo "$vk" | grep -q 'layers composed on the GPU' && ! echo "$vk" | grep -q 'no blending'; then
+		echo "ok wlvk: a subsurface's layers composed and blended on the GPU"
+	else
+		echo "FAIL wlvk: the subsurface's layers not composed on the GPU"; fail=1
+	fi
 	echo "$vk" | grep -q '^wlgl: wlgl: all passed' || { echo "FAIL wlgl (EGL's Wayland platform)"; fail=1; }
 	weston "$vk" egl simple-egl
 	# vkcube on Mesa's Wayland WSI: its window, its frames presented, a clean exit

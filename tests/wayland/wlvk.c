@@ -11,7 +11,9 @@
  * offset) fail.  Then Mesa's Wayland WSI: a second toplevel with a
  * VkSurfaceKHR of its wl_surface (VK_KHR_wayland_surface), a swapchain,
  * three frames cleared to three colours, each read back by the GPU first
- * (the image is right) and then from wsys' screen (it got there).
+ * (the image is right) and then from wsys' screen (it got there).  Between
+ * them a subsurface of GPU buffers over the first toplevel: opaque (blue),
+ * then half-transparent white blended over cyan by wsys (on the GPU).
  * Prints "ok ..." / "FAIL ..." lines and a summary.
  */
 #include <stdio.h>
@@ -35,6 +37,8 @@ enum {
 	Xrgb = 0x34325258,	/* DRM_FORMAT_XRGB8888 */
 	Orange = 0xff8000,
 	Cyan = 0x00c0c0,
+	Blue = 0x0000ff,
+	Argb = 0x34325241,	/* DRM_FORMAT_ARGB8888 */
 };
 
 static int nfail;
@@ -142,8 +146,18 @@ memtype(uint32_t bits, VkMemoryPropertyFlags want)
 }
 
 /* a buffer of W×H xrgb pixels of colour rgb, filled by the GPU; its dma-buf fd */
+static int gpuwords(uint32_t);
+
+/* a GPU buffer of rgb, opaque */
 static int
 gpubuffer(uint32_t rgb)
+{
+	return gpuwords(0xff000000 | rgb);
+}
+
+/* a GPU buffer of W x H pixels of word v (a8r8g8b8, premultiplied); its dma-buf fd */
+static int
+gpuwords(uint32_t v)
 {
 	VkBuffer b;
 	VkDeviceMemory m;
@@ -191,7 +205,7 @@ gpubuffer(uint32_t rgb)
 	};
 	VK(vkAllocateCommandBuffers(dev, &cai, &cb), "vkAllocateCommandBuffers");
 	VK(vkBeginCommandBuffer(cb, &bi), "vkBeginCommandBuffer");
-	vkCmdFillBuffer(cb, b, 0, Stride*H, 0xff000000 | rgb);
+	vkCmdFillBuffer(cb, b, 0, Stride*H, v);
 	VK(vkEndCommandBuffer(cb), "vkEndCommandBuffer");
 	VkFenceCreateInfo fci = { .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO };
 	VkSubmitInfo si = {
@@ -220,6 +234,7 @@ gpubuffer(uint32_t rgb)
 /* ---- Wayland ---- */
 
 static struct wl_display *d;
+static struct wl_subcompositor *subc;
 static struct wl_compositor *comp;
 static struct xdg_wm_base *wm;
 static struct zwp_linux_dmabuf_v1 *dmabuf;
@@ -309,6 +324,8 @@ global(void *data, struct wl_registry *r, uint32_t name, const char *iface, uint
 {
 	if(strcmp(iface, wl_compositor_interface.name) == 0)
 		comp = wl_registry_bind(r, name, &wl_compositor_interface, 4);
+	else if(strcmp(iface, wl_subcompositor_interface.name) == 0)
+		subc = wl_registry_bind(r, name, &wl_subcompositor_interface, 1);
 	else if(strcmp(iface, xdg_wm_base_interface.name) == 0){
 		wm = wl_registry_bind(r, name, &xdg_wm_base_interface, 1);
 		xdg_wm_base_add_listener(wm, &wmlistener, NULL);
@@ -676,8 +693,12 @@ int
 main(void)
 {
 	struct zwp_linux_buffer_params_v1 *p;
-	struct wl_buffer *b0, *b1;
-	int fd0, fd1, fdx;
+	struct wl_buffer *b0, *b1, *sb, *sw;
+	struct wl_subsurface *sub;
+	struct wl_surface *ss;
+	int fd0, fd1, fdx, fdb, fdw;
+	long v;
+	int i;
 
 	vksetup();
 	fd0 = gpubuffer(Orange);
@@ -754,6 +775,54 @@ main(void)
 	wl_display_roundtrip(d);
 	want(W/2, H/2, Cyan, "the second (cyan)");
 	check("the first released", waitfor(&released[0]), NULL);
+
+	/*
+	 * a subsurface at 20 30 of GPU buffers: blue, then white at half
+	 * alpha (premultiplied 80808080), blended over cyan by wsys
+	 */
+	check("wl_subcompositor offered", subc != NULL, NULL);
+	if(subc == NULL)
+		FATAL("no wl_subcompositor");
+	fdb = gpubuffer(Blue);
+	fdw = gpuwords(0x80808080);
+	p = params(fdb, 0);
+	sb = zwp_linux_buffer_params_v1_create_immed(p, W, H, Xrgb, 0);
+	zwp_linux_buffer_params_v1_destroy(p);
+	p = params(fdw, 0);
+	sw = zwp_linux_buffer_params_v1_create_immed(p, W, H, Argb, 0);
+	zwp_linux_buffer_params_v1_destroy(p);
+	close(fdb);
+	close(fdw);
+	ss = wl_compositor_create_surface(comp);
+	sub = wl_subcompositor_get_subsurface(subc, ss, surf);
+	wl_subsurface_set_position(sub, 20, 30);
+	wl_surface_attach(ss, sb, 0, 0);
+	wl_surface_damage_buffer(ss, 0, 0, W, H);
+	wl_surface_commit(ss);
+	wl_surface_commit(surf);
+	wl_display_roundtrip(d);
+	want(30, 40, Blue, "a subsurface's GPU buffer (blue) at 20 30");
+	want(10, 10, Cyan, "the parent beside it");
+	wl_surface_attach(ss, sw, 0, 0);
+	wl_surface_damage_buffer(ss, 0, 0, W, H);
+	wl_surface_commit(ss);
+	wl_surface_commit(surf);
+	wl_display_roundtrip(d);
+	/* 80 + c0*(ff-80)/ff = df.6: a GPU rounds (e0), or not */
+	for(i = 0; i < 50; i++){
+		v = peek(wx0 + 30, wy0 + 40);
+		if(v >= 0 && labs((v>>16 & 255) - 0x80) <= 1 && labs((v>>8 & 255) - 0xe0) <= 1 && labs((v & 255) - 0xe0) <= 1)
+			break;
+		usleep(20*1000);
+	}
+	check("the window at 30,40: half white over cyan (blended)", i < 50, "%06lx, want 80e0e0", v);
+	want(10, 10, Cyan, "the parent beside it still");
+	wl_subsurface_destroy(sub);
+	wl_surface_destroy(ss);
+	wl_display_roundtrip(d);
+	want(30, 40, Cyan, "the subsurface gone");
+	wl_buffer_destroy(sb);
+	wl_buffer_destroy(sw);
 
 	xdg_toplevel_destroy(top);
 	xdg_surface_destroy(xsurf);

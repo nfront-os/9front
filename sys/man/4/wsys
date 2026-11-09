@@ -334,10 +334,10 @@ Messages written:
 moves the window; with a new size it keeps showing its picture (white
 beyond it) until a buffer is presented.
 .TP
-.BI buffer " b seg w h stride \fR[\fPoff\fR]\fP
+.BI buffer " b seg w h stride \fR[\fPoff \fR[\fPchan\fR]]\fP
 announces buffer
 .I b
-(0 to 7): segment
+(0 to 31): segment
 .I seg
 of
 .I w
@@ -345,7 +345,14 @@ by
 .I h
 pixels,
 .I off
-bytes into it (default 0).
+bytes into it (default 0);
+.I chan
+is
+.B x8r8g8b8
+(the default: opaque) or
+.B a8r8g8b8
+(premultiplied alpha, which counts in
+.BR layers ).
 .I Wsys
 attaches it; it must lie in the window's range, or in the region
 where the kernel puts segments made with an address of 0
@@ -357,7 +364,7 @@ Wayland client's pool, see
 it is attached once.
 To reuse an address, unbuffer first.
 .TP
-.BI gpubuffer " b token w h stride
+.BI gpubuffer " b token w h stride \fR[\fPchan\fR]\fP
 announces buffer
 .I b
 as a GPU buffer the client exported from its context of
@@ -436,6 +443,37 @@ again only on its
 so that Vulkan programs draw no faster than the display shows (an image
 not back within 2 seconds it takes back, with a message); its swapchains
 have three images then (one shown, one on its way, one being drawn).
+.TP
+.BR layers " [" + "]\fIb x y\fR ..."
+the window shows these buffers, bottom to top, each with its top left
+corner at
+.I x y
+in the window (a Wayland window with subsurfaces,
+.IR wlsys (4)):
+the bottom one is copied, one over others blended if it has alpha
+.RB ( a8r8g8b8 ;
+Plan 9's and Wayland's premultiplied over).
+.B +
+marks a buffer with new content: it gets its
+.B s
+when a frame shows it.
+A listed buffer stays
+.IR wsys 's
+while listed; one no longer listed comes back with
+.B b
+once no frame shows it (a
+.B present
+ends the layers: all but its buffer come back).
+When the GPU composes the screen and has all of them it composes them
+(a layer with alpha drawn over the frame by a shader that reads the
+client's buffer itself); else
+.IR draw (3)
+does, through an image of
+.B a8r8g8b8
+.RB ( SoverD ).
+A window with layers does not go on the overlay plane.
+.B WSYSDEBUG=layers
+writes which composes a window's layers.
 .TP
 .B top
 raises the window and gives it the focus.

@@ -19,13 +19,14 @@ int screenx, screeny, screenw, screenh;
 static uint32_t clock;
 static struct wl_event_source *retry;	/* while wsys is gone */
 static void wsyslost(void);
+static void showlayers(Surface*, Win*);
 static void released(Win*, int);
 
 int
 ctlmsg(Win *w, char *fmt, ...)
 {
 	va_list a;
-	char buf[512];
+	char buf[2048];
 	int n;
 
 	va_start(a, fmt);
@@ -299,6 +300,15 @@ Err:
 	return NULL;
 }
 
+/* the buffer's channels for wsys: with alpha (premultiplied) or without */
+static char*
+bufchan(Buffer *b)
+{
+	if(b->pool != NULL)
+		return b->format == WL_SHM_FORMAT_ARGB8888 ? "a8r8g8b8" : "x8r8g8b8";
+	return b->format == 0x34325241 ? "a8r8g8b8" : "x8r8g8b8";	/* DRM_FORMAT_ARGB8888 */
+}
+
 /* buffer b as one of window w's, announced if it is not yet */
 static int
 slotof(Win *w, Buffer *b)
@@ -323,9 +333,9 @@ slotof(Win *w, Buffer *b)
 	if(w->slot[old] != NULL)
 		unbuffer(w->slot[old]);
 	if(b->pool != NULL){
-		if(ctlmsg(w, "buffer %d %s %d %d %d %d", old, b->pool->seg, b->w, b->h, b->stride, b->off) < 0)
+		if(ctlmsg(w, "buffer %d %s %d %d %d %d %s", old, b->pool->seg, b->w, b->h, b->stride, b->off, bufchan(b)) < 0)
 			return -1;
-	}else if(ctlmsg(w, "gpubuffer %d %s %d %d %d", old, b->token, b->w, b->h, b->stride) < 0)
+	}else if(ctlmsg(w, "gpubuffer %d %s %d %d %d %s", old, b->token, b->w, b->h, b->stride, bufchan(b)) < 0)
 		return -1;
 	w->slot[old] = b;
 	b->win = w;
@@ -351,6 +361,57 @@ unbuffer(Buffer *b)
 	}
 	b->win = NULL;
 	b->slot = -1;
+}
+
+/*
+ * surface s's tree of subsurfaces to window w as wsys' layers, bottom to
+ * top, each surface's buffer as it is (one of the window's, held while
+ * listed: wsys gives it back with b when no frame shows it); + marks those
+ * with a new buffer since the last; the root's frame callbacks done with
+ * the s of its buffer
+ */
+static void
+showlayers(Surface *s, Win *w)
+{
+	Surface *v[Nslot];
+	int xs[Nslot], ys[Nslot], slot[Nslot], took[Nslot], n, i, len;
+	char msg[2048];
+
+	n = treelayers(s, v, xs, ys, Nslot);
+	for(i = 0; i < n; i++){
+		took[i] = 0;
+		if((slot[i] = slotof(w, v[i]->buf)) < 0){
+			/* wsys has all of them: this picture is skipped */
+			while(--i >= 0)
+				if(took[i])
+					w->busy[slot[i]] = 0;
+			later(&s->pframes);
+			return;
+		}
+		/* held from now on (and not given to the next one of the tree) */
+		took[i] = !w->busy[slot[i]];
+		w->busy[slot[i]] = 1;
+	}
+	len = snprintf(msg, sizeof msg, "layers");
+	for(i = 0; i < n && len < (int)sizeof msg; i++)
+		len += snprintf(msg + len, sizeof msg - len, " %s%d %d %d", v[i]->lnew || took[i] ? "+" : "", slot[i], xs[i], ys[i]);
+	for(i = 0; i < n; i++){
+		if(v[i]->lnew || took[i])
+			w->age[slot[i]] = ++clock;
+		if(v[i] == s && (s->lnew || took[i])){
+			wl_list_insert_list(&w->frames[slot[i]], &s->pframes);
+			wl_list_init(&s->pframes);
+		}
+	}
+	if(ctlmsg(w, "%s", msg) < 0){
+		for(i = 0; i < n; i++)
+			if(took[i])
+				released(w, slot[i]);
+		return;
+	}
+	for(i = 0; i < n; i++)
+		v[i]->lnew = 0;
+	w->layered = 1;
 }
 
 /* the surface's buffer to its window: made, sized, presented */
@@ -399,12 +460,13 @@ show(Surface *s)
 		w->h = b->h;
 		w->fresh = 1;
 	}
-	if(hassubs(s) || s->pix != NULL){
-		/* a tree of subsurfaces: composed into a buffer of the window's own */
-		if((b = compose(s, w)) == NULL){
-			later(&s->pframes);	/* all of them wsys': this picture is skipped */
-			return;
-		}
+	if(hassubs(s)){
+		showlayers(s, w);
+		return;
+	}
+	if(w->layered){
+		/* a present again: wsys gives back the layers' buffers; all of it shown */
+		w->layered = 0;
 		w->fresh = 1;
 	}
 	if((i = slotof(w, b)) < 0){
@@ -456,7 +518,6 @@ unshow(Surface *s)
 	for(i = 0; i < Nslot; i++)
 		if(w->slot[i] != NULL)
 			unbuffer(w->slot[i]);
-	compfree(w);
 	winquiet(w);
 	close(w->kbd);
 	close(w->ev);
@@ -481,7 +542,6 @@ windrop(Win *w)
 		}
 		later(&w->frames[i]);
 	}
-	compfree(w);
 	close(w->kbd);
 	close(w->ev);
 	close(w->ctl);

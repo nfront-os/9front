@@ -9,6 +9,7 @@ use crate::p9::{Fd, ORDWR};
 use std::io;
 
 pub const XRGB32: u32 = 0x6808_1828; // CHAN4(CIgnore,8, CRed,8, CGreen,8, CBlue,8)
+pub const ARGB32: u32 = 0x4808_1828; // CHAN4(CAlpha,8, CRed,8, CGreen,8, CBlue,8)
 const GREY1: u32 = 0x31;
 const BORDERWIDTH: i32 = 4; // rio's, around the window image a rio client draws in
 // devdraw takes messages of any size, libdraw sends at most its buffer (8000

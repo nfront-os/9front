@@ -107,23 +107,31 @@ done
 a click on its parent, or anywhere else, closes a menu, as a grab's.
 Its parent's toplevel stays activated while a popup of it has the focus.
 .PP
-A window with subsurfaces is composed by
+A window with subsurfaces is shown as
+.IR wsys 's
+layers
+.RB ( ctl 's
+.BR layers ):
+each surface's buffer goes to
+.I wsys
+as it is, a
+.B wl_shm
+one with its channels
+.RB ( a8r8g8b8
+for
+.BR argb8888 ),
+a dma-buf by its token, and one message gives the tree's order and each
+surface's place; a commit of the tree sends it again, marking the buffers
+that are new.
+.I Wsys
+composes them (on the GPU, a layer with alpha blended over those under it,
+or with
+.IR draw (3))
+and gives each buffer back when no frame shows it any more;
 .I wlsys
-itself: each surface of the tree keeps a copy of its buffer's pixels (read
-from the segment's
-.B data
-file at its commit, the buffer released at once), and the tree is blended
-bottom to top (premultiplied alpha), each surface at its place, into one of
-three buffers of the window's own (a memfd of
-.IR wlsys 's),
-which goes to
-.IR wsys ;
-the window is the root surface's size.
+copies no pixels.
 Synchronized subsurfaces (the default) keep their commits until the
 parent's; desynchronized ones show theirs at once.
-A window without subsurfaces is not composed: its client's buffers go to
-.I wsys
-as they are.
 The pointer goes to the topmost surface of the tree under it (while a
 button is held, to the one it was pressed on).
 .PP
@@ -202,7 +210,7 @@ display's pace: a client that draws on each callback draws some 60
 frames a second, not as fast as
 .I wsys
 copies).
-A window holds eight buffers; when all are taken, the one presented
+A window holds 32 buffers; when all are taken, the one presented
 longest ago that
 .I wsys
 has released is announced anew.
@@ -316,9 +324,9 @@ wlsys -s wayland-0 &
 .IR segment (3),
 .IR kbd (3)
 .SH BUGS
-One output; a subsurface beyond its root surface is cut off, a dma-buf in a
-tree of subsurfaces is left out (not read), input regions are not kept
-(a surface takes the pointer wherever it has pixels); cursors of two colours and 16 by 16 pixels, as
+One output; a subsurface beyond its root surface is cut off (the window is
+the root's size), input regions are not kept (a surface takes the pointer
+wherever it has pixels), a window holds 32 buffers (its surfaces'); cursors of two colours and 16 by 16 pixels, as
 .IR cursor (3)'s;
 only text in the clipboard, no drag and drop (a drag's source is
 cancelled at once), no primary selection; popups do not follow a parent

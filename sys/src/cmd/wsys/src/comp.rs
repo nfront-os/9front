@@ -13,7 +13,13 @@
 //	  imported into this device), each where its window shows it and is not
 //	  covered, copied by the GPU: the processor copies none of their pixels.
 //
-// Only copies: no shaders, no pipelines. The frames are paced by the display
+// Copies, and for a layer with alpha over others (a Wayland subsurface,
+// wsys' layers) one pipeline: a triangle cut to the layer's rectangles whose
+// fragment shader reads the client's buffer itself (a storage buffer) and is
+// blended over the frame (ONE, ONE_MINUS_SRC_ALPHA: premultiplied); its
+// SPIR-V is in ../shaders (scripts/build/wsys-shaders.sh). Without the
+// pipeline (the swapchain's images cannot be drawn into) such a layer is
+// copied: it shows, its alpha ignored. The frames are paced by the display
 // (FIFO); what changes meanwhile goes into the next one. The main loop tells
 // the thread what is shown (Job::Scene: the GPU windows, bottom to top, their
 // visible rectangles) and hears when a frame is on its way (Done::Composed):
@@ -76,6 +82,23 @@ pub struct Shown {
     pub key: Key,
     pub at: (i32, i32),
     pub rects: Vec<Rect>,
+    pub blend: bool, // blended over what is under it (a8r8g8b8, premultiplied), else copied
+}
+
+static BLENDVERT: &[u8] = include_bytes!("../shaders/blend.vert.spv");
+static BLENDFRAG: &[u8] = include_bytes!("../shaders/blend.frag.spv");
+
+/// the pipeline blending a layer over the frame, and what draws into the
+/// swapchain's images
+struct Blend {
+    rp: vk::RenderPass,
+    dsl: vk::DescriptorSetLayout,
+    layout: vk::PipelineLayout,
+    pipe: vk::Pipeline,
+    dpool: vk::DescriptorPool,
+    views: Vec<vk::ImageView>,
+    fbs: Vec<vk::Framebuffer>,
+    maxrange: u64, // the most a storage buffer may be
 }
 
 pub enum Job {
@@ -222,6 +245,7 @@ fn vkerr(what: &str) -> impl Fn(vk::Result) -> String + '_ {
 struct Imp {
     buf: vk::Buffer,
     mem: vk::DeviceMemory,
+    set: Option<vk::DescriptorSet>, // the buffer to the blending shader
     w: i32,
     h: i32,
     stride: usize,
@@ -267,6 +291,8 @@ struct Vkc {
     scene: Vec<Shown>,
     frames: u64,
     checked: bool, // the first frame read back and compared with devdraw's screen
+    blend: Option<Blend>,
+    drawable: bool, // the swapchain's images may be drawn into (COLOR_ATTACHMENT)
 }
 
 impl Vkc {
@@ -360,8 +386,17 @@ impl Vkc {
             scene: vec![],
             frames: 0,
             checked: false,
+            blend: None,
+            drawable: false,
         };
         c.mkswapchain()?;
+        match c.mkblend(props.limits.max_storage_buffer_range as u64) {
+            Ok(b) => {
+                c.blend = Some(b);
+                c.mkfbs()?;
+            }
+            Err(e) => eprintln!("wsys: composing on the GPU: no blending (layers with alpha copied): {e}"),
+        }
         say!(
             "wsys: composing on the GPU: {}, {}x{}, {} images",
             props.device_name_as_c_str().unwrap_or(c"?").to_string_lossy(),
@@ -426,10 +461,15 @@ impl Vkc {
         self.idle();
         let caps = unsafe { self.surface.get_physical_device_surface_capabilities(self.pd, self.surf) }.map_err(vkerr("surface capabilities"))?;
         let ext = caps.current_extent;
-        let usage = vk::ImageUsageFlags::TRANSFER_DST | vk::ImageUsageFlags::TRANSFER_SRC;
+        let mut usage = vk::ImageUsageFlags::TRANSFER_DST | vk::ImageUsageFlags::TRANSFER_SRC;
         if !caps.supported_usage_flags.contains(usage) {
             return Err("the swapchain's images cannot be copied to and from".into());
         }
+        // drawn into too: layers blended (mkblend)
+        if caps.supported_usage_flags.contains(vk::ImageUsageFlags::COLOR_ATTACHMENT) {
+            usage |= vk::ImageUsageFlags::COLOR_ATTACHMENT;
+        }
+        self.drawable = usage.contains(vk::ImageUsageFlags::COLOR_ATTACHMENT);
         let fmts = unsafe { self.surface.get_physical_device_surface_formats(self.pd, self.surf) }.map_err(vkerr("surface formats"))?;
         if !fmts.iter().any(|f| f.format == vk::Format::B8G8R8A8_UNORM) {
             return Err("no B8G8R8A8_UNORM on the screen".into());
@@ -455,6 +495,9 @@ impl Vkc {
         }
         self.sc = sc;
         self.imgs = unsafe { self.swapchain.get_swapchain_images(sc) }.map_err(vkerr("swapchain images"))?;
+        if self.blend.is_some() {
+            self.mkfbs()?;
+        }
         self.fresh = vec![true; self.imgs.len()];
         self.pending = vec![None; self.imgs.len()];
         let (w, h) = (ext.width as i32, ext.height as i32);
@@ -504,7 +547,7 @@ impl Vkc {
             let mut ext = vk::ExternalMemoryBufferCreateInfo::default().handle_types(ht);
             let bci = vk::BufferCreateInfo::default()
                 .size(size)
-                .usage(vk::BufferUsageFlags::TRANSFER_SRC)
+                .usage(vk::BufferUsageFlags::TRANSFER_SRC | vk::BufferUsageFlags::STORAGE_BUFFER)
                 .sharing_mode(vk::SharingMode::EXCLUSIVE)
                 .push_next(&mut ext);
             let buf = unsafe { self.dev.create_buffer(&bci, None) }.map_err(vkerr("vkCreateBuffer"))?;
@@ -531,7 +574,8 @@ impl Vkc {
                 }
                 return Err(format!("vkBindBufferMemory: {r:?}"));
             }
-            Ok(Imp { buf, mem, w, h, stride })
+            let set = self.blendset(buf, size);
+            Ok(Imp { buf, mem, set, w, h, stride })
         })();
         match res {
             Ok(i) => {
@@ -551,10 +595,162 @@ impl Vkc {
             // not while a frame reads it
             self.idle();
             unsafe {
+                if let (Some(set), Some(b)) = (i.set, &self.blend) {
+                    let _ = self.dev.free_descriptor_sets(b.dpool, &[set]);
+                }
                 self.dev.destroy_buffer(i.buf, None);
                 self.dev.free_memory(i.mem, None);
             }
         }
+    }
+
+    /// the blending pipeline (its render pass on the swapchain's format); an error
+    /// if the swapchain's images cannot be drawn into
+    fn mkblend(&mut self, maxrange: u64) -> Result<Blend, String> {
+        if !self.drawable {
+            return Err("the swapchain's images cannot be drawn into".into());
+        }
+        let dev = &self.dev;
+        let att = [vk::AttachmentDescription::default()
+            .format(vk::Format::B8G8R8A8_UNORM)
+            .samples(vk::SampleCountFlags::TYPE_1)
+            .load_op(vk::AttachmentLoadOp::LOAD)
+            .store_op(vk::AttachmentStoreOp::STORE)
+            .stencil_load_op(vk::AttachmentLoadOp::DONT_CARE)
+            .stencil_store_op(vk::AttachmentStoreOp::DONT_CARE)
+            .initial_layout(vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL)
+            .final_layout(vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL)];
+        let cref = [vk::AttachmentReference::default().attachment(0).layout(vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL)];
+        let sub = [vk::SubpassDescription::default().pipeline_bind_point(vk::PipelineBindPoint::GRAPHICS).color_attachments(&cref)];
+        let rpi = vk::RenderPassCreateInfo::default().attachments(&att).subpasses(&sub);
+        let rp = unsafe { dev.create_render_pass(&rpi, None) }.map_err(vkerr("vkCreateRenderPass"))?;
+        let bind = [vk::DescriptorSetLayoutBinding::default()
+            .binding(0)
+            .descriptor_type(vk::DescriptorType::STORAGE_BUFFER)
+            .descriptor_count(1)
+            .stage_flags(vk::ShaderStageFlags::FRAGMENT)];
+        let dsl = unsafe { dev.create_descriptor_set_layout(&vk::DescriptorSetLayoutCreateInfo::default().bindings(&bind), None) }
+            .map_err(vkerr("vkCreateDescriptorSetLayout"))?;
+        let pcr = [vk::PushConstantRange::default().stage_flags(vk::ShaderStageFlags::FRAGMENT).offset(0).size(12)];
+        let dsls = [dsl];
+        let layout = unsafe { dev.create_pipeline_layout(&vk::PipelineLayoutCreateInfo::default().set_layouts(&dsls).push_constant_ranges(&pcr), None) }
+            .map_err(vkerr("vkCreatePipelineLayout"))?;
+        let module = |code: &[u8]| -> Result<vk::ShaderModule, String> {
+            let words: Vec<u32> = code.chunks_exact(4).map(|c| u32::from_le_bytes(c.try_into().unwrap())).collect();
+            unsafe { dev.create_shader_module(&vk::ShaderModuleCreateInfo::default().code(&words), None) }.map_err(vkerr("vkCreateShaderModule"))
+        };
+        let (vs, fs) = (module(BLENDVERT)?, module(BLENDFRAG)?);
+        let stages = [
+            vk::PipelineShaderStageCreateInfo::default().stage(vk::ShaderStageFlags::VERTEX).module(vs).name(c"main"),
+            vk::PipelineShaderStageCreateInfo::default().stage(vk::ShaderStageFlags::FRAGMENT).module(fs).name(c"main"),
+        ];
+        let vin = vk::PipelineVertexInputStateCreateInfo::default();
+        let ia = vk::PipelineInputAssemblyStateCreateInfo::default().topology(vk::PrimitiveTopology::TRIANGLE_LIST);
+        let vp = vk::PipelineViewportStateCreateInfo::default().viewport_count(1).scissor_count(1);
+        let rs = vk::PipelineRasterizationStateCreateInfo::default()
+            .polygon_mode(vk::PolygonMode::FILL)
+            .cull_mode(vk::CullModeFlags::NONE)
+            .front_face(vk::FrontFace::COUNTER_CLOCKWISE)
+            .line_width(1.0);
+        let ms = vk::PipelineMultisampleStateCreateInfo::default().rasterization_samples(vk::SampleCountFlags::TYPE_1);
+        let cba = [vk::PipelineColorBlendAttachmentState::default()
+            .blend_enable(true)
+            .src_color_blend_factor(vk::BlendFactor::ONE)
+            .dst_color_blend_factor(vk::BlendFactor::ONE_MINUS_SRC_ALPHA)
+            .color_blend_op(vk::BlendOp::ADD)
+            .src_alpha_blend_factor(vk::BlendFactor::ONE)
+            .dst_alpha_blend_factor(vk::BlendFactor::ONE_MINUS_SRC_ALPHA)
+            .alpha_blend_op(vk::BlendOp::ADD)
+            .color_write_mask(vk::ColorComponentFlags::RGBA)];
+        let cb = vk::PipelineColorBlendStateCreateInfo::default().attachments(&cba);
+        let dyns = [vk::DynamicState::VIEWPORT, vk::DynamicState::SCISSOR];
+        let ds = vk::PipelineDynamicStateCreateInfo::default().dynamic_states(&dyns);
+        let gpi = [vk::GraphicsPipelineCreateInfo::default()
+            .stages(&stages)
+            .vertex_input_state(&vin)
+            .input_assembly_state(&ia)
+            .viewport_state(&vp)
+            .rasterization_state(&rs)
+            .multisample_state(&ms)
+            .color_blend_state(&cb)
+            .dynamic_state(&ds)
+            .layout(layout)
+            .render_pass(rp)
+            .subpass(0)];
+        let pipes = unsafe { dev.create_graphics_pipelines(vk::PipelineCache::null(), &gpi, None) };
+        unsafe {
+            dev.destroy_shader_module(vs, None);
+            dev.destroy_shader_module(fs, None);
+        }
+        let pipe = pipes.map_err(|(_, r)| format!("vkCreateGraphicsPipelines: {r:?}"))?[0];
+        let sizes = [vk::DescriptorPoolSize::default().ty(vk::DescriptorType::STORAGE_BUFFER).descriptor_count(1024)];
+        let dpi = vk::DescriptorPoolCreateInfo::default()
+            .flags(vk::DescriptorPoolCreateFlags::FREE_DESCRIPTOR_SET)
+            .max_sets(1024)
+            .pool_sizes(&sizes);
+        let dpool = unsafe { dev.create_descriptor_pool(&dpi, None) }.map_err(vkerr("vkCreateDescriptorPool"))?;
+        say!("wsys: composing on the GPU: layers with alpha blended");
+        Ok(Blend { rp, dsl, layout, pipe, dpool, views: vec![], fbs: vec![], maxrange })
+    }
+
+    /// views and framebuffers of the swapchain's images for the blending
+    fn mkfbs(&mut self) -> Result<(), String> {
+        let Some(b) = self.blend.as_mut() else { return Ok(()) };
+        let dev = &self.dev;
+        unsafe {
+            for f in b.fbs.drain(..) {
+                dev.destroy_framebuffer(f, None);
+            }
+            for v in b.views.drain(..) {
+                dev.destroy_image_view(v, None);
+            }
+        }
+        let range = vk::ImageSubresourceRange { aspect_mask: vk::ImageAspectFlags::COLOR, base_mip_level: 0, level_count: 1, base_array_layer: 0, layer_count: 1 };
+        for &img in &self.imgs {
+            let vci = vk::ImageViewCreateInfo::default()
+                .image(img)
+                .view_type(vk::ImageViewType::TYPE_2D)
+                .format(vk::Format::B8G8R8A8_UNORM)
+                .subresource_range(range);
+            let v = unsafe { dev.create_image_view(&vci, None) }.map_err(vkerr("vkCreateImageView"))?;
+            b.views.push(v);
+            let atts = [v];
+            let fci = vk::FramebufferCreateInfo::default()
+                .render_pass(b.rp)
+                .attachments(&atts)
+                .width(self.w as u32)
+                .height(self.h as u32)
+                .layers(1);
+            b.fbs.push(unsafe { dev.create_framebuffer(&fci, None) }.map_err(vkerr("vkCreateFramebuffer"))?);
+        }
+        Ok(())
+    }
+
+    /// a descriptor set with buf (size bytes) for the blending shader; none
+    /// without the pipeline or if the buffer is too big for one
+    fn blendset(&self, buf: vk::Buffer, size: u64) -> Option<vk::DescriptorSet> {
+        let b = self.blend.as_ref()?;
+        if size > b.maxrange {
+            eprintln!("wsys: a buffer of {size} bytes is too big to blend (at most {}): copied", b.maxrange);
+            return None;
+        }
+        let dsls = [b.dsl];
+        let ai = vk::DescriptorSetAllocateInfo::default().descriptor_pool(b.dpool).set_layouts(&dsls);
+        let set = match unsafe { self.dev.allocate_descriptor_sets(&ai) } {
+            Ok(v) => v[0],
+            Err(r) => {
+                eprintln!("wsys: a descriptor set to blend a buffer: {r:?}: copied");
+                return None;
+            }
+        };
+        let bi = [vk::DescriptorBufferInfo::default().buffer(buf).offset(0).range(vk::WHOLE_SIZE)];
+        let wr = [vk::WriteDescriptorSet::default()
+            .dst_set(set)
+            .dst_binding(0)
+            .descriptor_type(vk::DescriptorType::STORAGE_BUFFER)
+            .buffer_info(&bi)];
+        unsafe { self.dev.update_descriptor_sets(&wr, &[]) };
+        Some(set)
     }
 
     /// what the GPU windows covered: devdraw's screen there again, in every image
@@ -655,6 +851,45 @@ impl Vkc {
             for s in &self.scene {
                 let Some(i) = self.imps.get(&s.key) else { continue };
                 let mine = Rect::new(s.at.0, s.at.1, s.at.0 + i.w, s.at.1 + i.h);
+                if let (true, Some(bl), Some(set)) = (s.blend, &self.blend, i.set) {
+                    // drawn over the frame: its rectangles as scissors of one triangle each
+                    let rects: Vec<Rect> = s.rects.iter().map(|r| r.clip(&mine).clip(&all)).filter(|r| !r.empty()).collect();
+                    if rects.is_empty() {
+                        continue;
+                    }
+                    let b = [barrier(
+                        vk::ImageLayout::TRANSFER_DST_OPTIMAL,
+                        vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
+                        vk::AccessFlags::TRANSFER_WRITE,
+                        vk::AccessFlags::COLOR_ATTACHMENT_READ | vk::AccessFlags::COLOR_ATTACHMENT_WRITE,
+                    )];
+                    dev.cmd_pipeline_barrier(cb, vk::PipelineStageFlags::TRANSFER, vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT, vk::DependencyFlags::empty(), &[], &[], &b);
+                    let rpb = vk::RenderPassBeginInfo::default()
+                        .render_pass(bl.rp)
+                        .framebuffer(bl.fbs[idx])
+                        .render_area(vk::Rect2D { offset: vk::Offset2D { x: 0, y: 0 }, extent: vk::Extent2D { width: self.w as u32, height: self.h as u32 } });
+                    dev.cmd_begin_render_pass(cb, &rpb, vk::SubpassContents::INLINE);
+                    dev.cmd_bind_pipeline(cb, vk::PipelineBindPoint::GRAPHICS, bl.pipe);
+                    dev.cmd_bind_descriptor_sets(cb, vk::PipelineBindPoint::GRAPHICS, bl.layout, 0, &[set], &[]);
+                    let pc: Vec<u8> = [s.at.0, s.at.1, (i.stride / 4) as i32].iter().flat_map(|v| v.to_le_bytes()).collect();
+                    dev.cmd_push_constants(cb, bl.layout, vk::ShaderStageFlags::FRAGMENT, 0, &pc);
+                    let vp = [vk::Viewport { x: 0.0, y: 0.0, width: self.w as f32, height: self.h as f32, min_depth: 0.0, max_depth: 1.0 }];
+                    dev.cmd_set_viewport(cb, 0, &vp);
+                    for r in &rects {
+                        let sc = [vk::Rect2D { offset: vk::Offset2D { x: r.x0, y: r.y0 }, extent: vk::Extent2D { width: r.dx() as u32, height: r.dy() as u32 } }];
+                        dev.cmd_set_scissor(cb, 0, &sc);
+                        dev.cmd_draw(cb, 3, 1, 0, 0);
+                    }
+                    dev.cmd_end_render_pass(cb);
+                    let b = [barrier(
+                        vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
+                        vk::ImageLayout::TRANSFER_DST_OPTIMAL,
+                        vk::AccessFlags::COLOR_ATTACHMENT_WRITE,
+                        vk::AccessFlags::TRANSFER_WRITE,
+                    )];
+                    dev.cmd_pipeline_barrier(cb, vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT, vk::PipelineStageFlags::TRANSFER, vk::DependencyFlags::empty(), &[], &[], &b);
+                    continue;
+                }
                 let regions: Vec<vk::BufferImageCopy> = s
                     .rects
                     .iter()
@@ -851,6 +1086,21 @@ impl Vkc {
         self.freehost(s);
         let r = self.readback.take();
         self.freehost(r);
+        if let Some(mut b) = self.blend.take() {
+            unsafe {
+                for f in b.fbs.drain(..) {
+                    self.dev.destroy_framebuffer(f, None);
+                }
+                for v in b.views.drain(..) {
+                    self.dev.destroy_image_view(v, None);
+                }
+                self.dev.destroy_pipeline(b.pipe, None);
+                self.dev.destroy_pipeline_layout(b.layout, None);
+                self.dev.destroy_descriptor_set_layout(b.dsl, None);
+                self.dev.destroy_descriptor_pool(b.dpool, None);
+                self.dev.destroy_render_pass(b.rp, None);
+            }
+        }
         unsafe {
             if self.sc != vk::SwapchainKHR::null() {
                 self.swapchain.destroy_swapchain(self.sc, None);

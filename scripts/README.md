@@ -46,6 +46,7 @@ Called by `build.exe` (Pre/Post steps); rarely run by hand.
 | `check-install.py` | is everything `mk install` installs there? `-r` removes stale files, `-i x.iso` checks a CD. `scripts/build/check-install.py` |
 | `clean.sh` | remove the build's files from the source dirs (`-i`: installed files too). `scripts/build/clean.sh` |
 | `cargo.sh` | a Rust crate of the tree (its programs in `rust.json`, `scripts/gen/rustcrates.py`; no network: `vendor/`), built with ../9front-rust's stage-1 rustc and linked against this tree; programs to `/$objtype/bin` (amd64); without Rust it skips (check-install: norust). build.exe's step `rust`; rc twin `rc/cargo.rc` (native cargo, rustc, gcc). `scripts/build/cargo.sh sys/src/cmd/wsys wsys` |
+| `wsys-shaders.sh` | wsys' shaders (`sys/src/cmd/wsys/shaders`, the GPU's blending of layers with alpha) to SPIR-V with the host's glslc, checked in. `scripts/build/wsys-shaders.sh` |
 | `rc/*.rc` | the same steps in rc, for `build.exe` running on 9front itself (self-hosting): `build.exe` maps `bash …/X.sh` and `python3 …/X.py` to `rc …/rc/X.rc`. `lib.rc` holds the shared helpers (`hostcc`: helper programs with the native gcc, `bin2c`, `mkvar`) |
 
 ## hw/ — the hardware test stick (tests/hw/README.md)

@@ -1,21 +1,16 @@
 /*
  * SPDX-License-Identifier: MIT
  *
- * wl_subcompositor: a window with subsurfaces is composed by wlsys.  Each
- * surface of the tree keeps a copy of its buffer's pixels (read from the
- * segment's data file when it is committed; the buffer is released at
- * once), and a commit of the tree blends the copies, bottom to top, each
- * at its place, into one of the window's own buffers (a memfd of wlsys'
- * as a pool, three of them: wsys holds the one shown); the window is the
- * root surface's size, a subsurface beyond it is cut off.  A window
- * without subsurfaces stays as it was: its client's buffers go to wsys as
- * they are, nothing copied.  Synchronized subsurfaces (the default) keep a
- * commit until their parent's, as the protocol says; desynchronized ones
- * show theirs at once.  A dma-buf in a tree is not read: it is left out.
+ * wl_subcompositor: a window with subsurfaces shows its tree as wsys'
+ * layers (ctl's layers): every surface's buffer goes to wsys as it is, the
+ * tree's order and places in one message; wsys composes them (on the GPU,
+ * a layer with alpha blended over those under it, or with draw(3)) and
+ * keeps each buffer until no frame shows it.  wlsys copies no pixels.
+ * Synchronized subsurfaces (the default) keep a commit until their
+ * parent's, as the protocol says; desynchronized ones show theirs at once.
  * The pointer goes to the topmost surface under it.
  */
 #include "dat.h"
-#include <sys/mman.h>
 
 static void
 resdestroy(struct wl_client *c, struct wl_resource *r)
@@ -57,36 +52,6 @@ synced(Surface *s)
 	return 0;
 }
 
-/* the buffer's pixels copied (a dma-buf's: none), the buffer released */
-static void
-snap(Surface *s)
-{
-	Buffer *b;
-	unsigned char *px;
-	int y;
-
-	px = NULL;
-	free(s->pix);
-	s->pix = NULL;
-	if((b = s->buf) == NULL)
-		return;
-	if(b->pool == NULL){
-		/* a dma-buf: its pixels are the GPU's, not read here */
-		if(!s->warned){
-			fprintf(stderr, "wlsys: a GPU buffer (dma-buf) in a window with subsurfaces: not shown\n");
-			s->warned = 1;
-		}
-	}else if((px = pixels(b)) != NULL && (s->pix = malloc((size_t)b->w*b->h*4)) != NULL){
-		for(y = 0; y < b->h; y++)
-			memcpy(s->pix + (size_t)y*b->w, px + (size_t)y*b->stride, 4*b->w);
-		s->pixw = b->w;
-		s->pixh = b->h;
-		s->pixalpha = b->format == WL_SHM_FORMAT_ARGB8888;
-	}
-	free(px);
-	relbuf(b);
-}
-
 /* the window of the tree shown again (composed) */
 static void
 repaint(Surface *s)
@@ -119,8 +84,7 @@ subcommit(Surface *s)
 
 /*
  * s committed (its state applied): its subsurfaces' places, their
- * kept commits (and theirs) applied, its pixels copied if it is in a tree
- * wlsys composes; a desynchronized subsurface's window shown again
+ * kept commits (and theirs) applied
  */
 void
 subapply(Surface *s)
@@ -142,7 +106,7 @@ subapply(Surface *s)
 				c->cattached = 0;
 				if(c->buf != NULL)
 					c->buf->freed = 0;
-				snap(c);
+				c->lnew = 1;
 			}
 			subapply(c);
 		}
@@ -151,182 +115,50 @@ subapply(Surface *s)
 
 /*
  * after a surface's own state was applied by a commit (attached: with a
- * buffer): copied if it is part of a tree, a root without subsurfaces any
- * more back to showing its client's buffers; a desynchronized
+ * buffer): its subsurfaces' kept commits applied; a desynchronized
  * subsurface's tree shown again
  */
 void
 subcommitted(Surface *s, int attached)
 {
-	if(attached){
-		if(s->sub != NULL || hassubs(s))
-			snap(s);
-		else{
-			free(s->pix);
-			s->pix = NULL;
-		}
-	}
+	if(attached)
+		s->lnew = 1;
 	subapply(s);
 	if(s->sub != NULL)
 		repaint(s);
 }
 
-/* ---- composing ---- */
-
-/* n pixels of src over dst (premultiplied; no alpha: a copy) */
-static void
-blend(uint32_t *dst, uint32_t *src, int n, int alpha)
-{
-	uint32_t s, d, a, rb, g;
-	int i;
-
-	if(!alpha){
-		for(i = 0; i < n; i++)
-			dst[i] = src[i] | 0xff000000u;
-		return;
-	}
-	for(i = 0; i < n; i++){
-		s = src[i];
-		a = s >> 24;
-		if(a == 255){
-			dst[i] = s;
-			continue;
-		}
-		if(a == 0)
-			continue;
-		d = dst[i];
-		rb = ((d & 0xff00ff) * (255 - a) / 255) & 0xff00ff;
-		g = ((d & 0x00ff00) * (255 - a) / 255) & 0x00ff00;
-		dst[i] = (s & 0xffffff) + rb + g;	/* premultiplied: no carry */
-		dst[i] |= 0xff000000u;
-	}
-}
-
-/* surface s's copy at x, y of the w by h picture px, then its subsurfaces, in their order */
-static void
-draw(Surface *s, int x, int y, uint32_t *px, int w, int h)
+/*
+ * the layers of root's tree, bottom to top: each surface with a buffer
+ * (its parents with theirs), where it is in the window; their number
+ */
+static int
+layers1(Surface *s, int x, int y, Surface **v, int *xs, int *ys, int n, int max)
 {
 	struct wl_list *l;
 	Surface *c;
-	int x0, y0, x1, y1, row;
 
 	for(l = s->stack.next; l != &s->stack; l = l->next){
 		if(l != &s->self){
 			c = wl_container_of(l, c, slink);
 			if(c->buf != NULL)
-				draw(c, x + c->sx, y + c->sy, px, w, h);
+				n = layers1(c, x + c->sx, y + c->sy, v, xs, ys, n, max);
 			continue;
 		}
-		if(s->pix == NULL)
-			continue;
-		x0 = x < 0 ? 0 : x;
-		y0 = y < 0 ? 0 : y;
-		x1 = x + s->pixw > w ? w : x + s->pixw;
-		y1 = y + s->pixh > h ? h : y + s->pixh;
-		for(row = y0; row < y1 && x0 < x1; row++)
-			blend(px + (size_t)row*w + x0, s->pix + (size_t)(row - y)*s->pixw + (x0 - x), x1 - x0, s->pixalpha);
-	}
-}
-
-/* the window's own buffers let go of */
-void
-compfree(Win *w)
-{
-	int i;
-
-	for(i = 0; i < Ncomp; i++){
-		if(w->cbuf[i] == NULL)
-			continue;
-		unbuffer(w->cbuf[i]);
-		free(w->cbuf[i]);
-		w->cbuf[i] = NULL;
-	}
-	if(w->cpx != NULL)
-		munmap(w->cpx, (size_t)Ncomp*w->cw*w->ch*4);
-	w->cpx = NULL;
-	if(w->cpool != NULL)
-		poolput(w->cpool);
-	w->cpool = NULL;
-	w->cw = w->ch = 0;
-}
-
-/* Ncomp buffers of w by h in a memfd of wlsys' */
-static int
-compmake(Win *w, int bw, int bh)
-{
-	Pool *p;
-	Buffer *b;
-	size_t n;
-	int fd, i;
-
-	compfree(w);
-	n = (size_t)Ncomp*bw*bh*4;
-	if((p = calloc(1, sizeof *p)) == NULL)
-		return -1;
-	if((fd = memfd_create("wlsys-compose", MFD_CLOEXEC)) < 0 || ftruncate(fd, n) < 0 ||
-	   segname(fd, p->seg, sizeof p->seg) < 0 ||
-	   (w->cpx = mmap(NULL, n, PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0)) == MAP_FAILED){
-		fprintf(stderr, "wlsys: window %d: buffers to compose in: %s\n", w->id, strerror(errno));
-		if(fd >= 0)
-			close(fd);
-		free(p);
-		w->cpx = NULL;
-		return -1;
-	}
-	p->fd = fd;
-	p->size = n;
-	p->ref = 1;
-	w->cpool = p;
-	w->cw = bw;
-	w->ch = bh;
-	for(i = 0; i < Ncomp; i++){
-		if((b = calloc(1, sizeof *b)) == NULL){
-			compfree(w);
-			return -1;
+		if(s->buf != NULL && n < max){
+			v[n] = s;
+			xs[n] = x;
+			ys[n] = y;
+			n++;
 		}
-		b->pool = p;
-		b->off = i*bw*bh*4;
-		b->w = bw;
-		b->h = bh;
-		b->stride = 4*bw;
-		b->format = WL_SHM_FORMAT_XRGB8888;
-		b->slot = -1;
-		w->cbuf[i] = b;
 	}
-	dprint("window %d: composes its subsurfaces, %dx%d\n", w->id, bw, bh);
-	return 0;
+	return n;
 }
 
-/*
- * the tree of root composed into one of window w's own buffers, the root's
- * size; nil if all of them are wsys' (the picture is skipped)
- */
-Buffer*
-compose(Surface *root, Win *w)
+int
+treelayers(Surface *root, Surface **v, int *xs, int *ys, int max)
 {
-	Buffer *b;
-	uint32_t *px;
-	int i, bw, bh;
-
-	if(root->pix == NULL && root->buf != NULL)
-		snap(root);	/* subsurfaces came without a new buffer of the root */
-	bw = root->buf->w;
-	bh = root->buf->h;
-	if((w->cw != bw || w->ch != bh) && compmake(w, bw, bh) < 0)
-		return NULL;
-	b = NULL;
-	for(i = 0; i < Ncomp; i++)
-		if(w->cbuf[i]->win != w || !w->busy[w->cbuf[i]->slot]){
-			b = w->cbuf[i];
-			break;
-		}
-	if(b == NULL)
-		return NULL;
-	px = w->cpx + (size_t)i*bw*bh;
-	for(i = 0; i < bw*bh; i++)
-		px[i] = 0xff000000u;
-	draw(root, 0, 0, px, bw, bh);
-	return b;
+	return layers1(root, 0, 0, v, xs, ys, 0, max);
 }
 
 /* ---- the pointer ---- */
@@ -488,7 +320,7 @@ subdesync(struct wl_client *c, struct wl_resource *r)
 			s->cattached = 0;
 			if(s->buf != NULL)
 				s->buf->freed = 0;
-			snap(s);
+			s->lnew = 1;
 		}
 		subapply(s);
 		repaint(s);
@@ -523,8 +355,6 @@ subgone(Surface *s)
 		wl_list_init(&c->slink);
 		c->sparent = NULL;
 	}
-	free(s->pix);
-	s->pix = NULL;
 }
 
 /* ---- wl_subcompositor ---- */
@@ -563,7 +393,7 @@ getsub(struct wl_client *c, struct wl_resource *r, uint32_t id, struct wl_resour
 	/* on top of its siblings */
 	wl_list_insert(p->stack.prev, &s->slink);
 	if(s->buf != NULL)
-		snap(s);
+		s->lnew = 1;
 }
 
 static const struct wl_subcompositor_interface subcompimpl = {

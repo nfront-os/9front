@@ -17,8 +17,9 @@
 //				cons consctl cursor kbd label mouse screen snarf
 //				text wctl wdir window winid winname
 //	N/ctl			read: id x0 y0 x1 y1 w h base size focus
-//				write: rect x0 y0 x1 y1 | buffer n seg w h stride [off] |
-//				unbuffer n | present n [x0 y0 x1 y1] | top |
+//				write: rect x0 y0 x1 y1 | buffer n seg w h stride [off [chan]] |
+//				gpubuffer n token w h stride [chan] | unbuffer n |
+//				present n [x0 y0 x1 y1] | layers [+]n x y ... | top |
 //				label text | popup [grab] | delete
 //	N/event			read (blocks): lines m x y buttons msec | k hex-rune |
 //				r w h | f 0|1 | b n
@@ -75,6 +76,7 @@ mod comp {
         pub key: Key,
         pub at: (i32, i32),
         pub rects: Vec<crate::draw::Rect>,
+        pub blend: bool,
     }
     pub enum Done {
         Composed(Vec<Key>),
@@ -121,7 +123,7 @@ const UNFOCUSED: u32 = 0xAAAAAA;
 const SEGBASE: usize = p9::window_region().0;
 const SEGSIZE: usize = p9::window_region().1;
 const NSLOT: usize = p9::window_region().2;
-const MAXBUF: u32 = 8;
+const MAXBUF: u32 = 32; // a window's buffers (a Wayland window's surfaces, two or three each)
 const WHITE: u32 = 0xFFFFFF;
 const MINSIZE: i32 = 16; // a window swept smaller stays this big
 const CORNER: i32 = 20; // on the border this near a corner grabs both its edges
@@ -232,6 +234,17 @@ struct Buf {
     h: i32,
     stride: usize,
     comp: bool, // imported by the GPU's thread too (-g): it composes it
+    alpha: bool, // a8r8g8b8 (premultiplied): a layer over others is blended
+}
+
+/// a buffer's channels, the last word of buffer and gpubuffer: x8r8g8b8 (the
+/// default, opaque) or a8r8g8b8 (premultiplied alpha)
+fn bufalpha(w: Option<&&str>) -> Result<bool, String> {
+    match w.copied() {
+        None | Some("x8r8g8b8") => Ok(false),
+        Some("a8r8g8b8") => Ok(true),
+        Some(c) => Err(format!("channels {c}: x8r8g8b8 or a8r8g8b8")),
+    }
 }
 
 /// where a buffer's pixels are: a segment of the client's, or a GPU buffer it
@@ -251,6 +264,15 @@ impl Mem {
             Mem::Gpu(g) => (g.read(y0 as usize * stride, (y1 - y0) as usize * stride), y0),
         }
     }
+}
+
+/// a buffer of a window's layers (layers: a Wayland window with subsurfaces),
+/// where its top left corner is in the window
+#[derive(Clone, Copy, PartialEq)]
+struct Layer {
+    b: u32,
+    x: i32,
+    y: i32,
 }
 
 struct Win {
@@ -302,6 +324,15 @@ struct Win {
     // its way shows (held: the client gets it back when another is shown)
     shownb: Option<u32>,
     held: Option<u32>,
+    // layers: what the window shows, bottom to top (none: a buffer presented);
+    // its buffers stay wsys' while listed. lgpu: composed by the GPU, lheld the
+    // buffers of the last frame on the display, lqueued those listed with new
+    // content since (each gets its s when a frame shows it)
+    layers: Vec<Layer>,
+    lgpu: bool,
+    lheld: Vec<u32>,
+    lqueued: Vec<u32>,
+    scratch: Option<(u32, i32, i32)>, // an a8r8g8b8 image of draw(3) to blend a layer through
     // the GPU buffers presented since the one held, oldest first (shownb last): a
     // frame with one of them on the display gives back the ones before it
     queued: Vec<u32>,
@@ -849,7 +880,7 @@ impl Wsys {
                             };
                             // -g: the screen as the GPU composed it (the GPU windows are
                             // not in devdraw's); a window's is what is seen of it
-                            let gpuwin = matches!(k, Kind::File(n, F::Window) if self.wins[&n].shownb.is_some());
+                            let gpuwin = matches!(k, Kind::File(n, F::Window) if self.wins[&n].shownb.is_some() || self.wins[&n].lgpu);
                             let snap = if self.comp.is_some() && (gpuwin || !matches!(k, Kind::File(_, F::Window))) {
                                 self.compsnapshot(r)
                             } else {
@@ -1265,6 +1296,7 @@ impl Wsys {
             cursor: vec![], state: 1, textwin: text, scroll: 0, scrolling: false, sel: (0, 0), rows: vec![], hidden: false,
             hold: false, want: None, stale: false,
             scrollr: Rect::default(), shown: (1, 0, 1), lastb: None, inside: false, nooverlay: false, ovsent: None, shownb: None, held: None, queued: vec![], ovheld: None,
+            layers: vec![], lgpu: false, lheld: vec![], lqueued: vec![], scratch: None,
         });
         self.z.push(n);
         if text {
@@ -1294,6 +1326,9 @@ impl Wsys {
             }
         }
         let _ = self.d.name(w.layer, &w.name, false);
+        if let Some((id, _, _)) = w.scratch {
+            let _ = self.d.free(id);
+        }
         let _ = self.d.free(w.layer);
         let _ = self.d.free(w.img);
         self.slots[w.slot] = false; // its buffers go with w
@@ -1471,7 +1506,7 @@ impl Wsys {
                 let a: Vec<&str> = line.split_whitespace().collect();
                 let num = |i: usize| a.get(i).and_then(|x| x.parse::<i64>().ok());
                 let (Some(b), Some(name), Some(bw), Some(bh), Some(stride)) = (num(1), a.get(2), num(3), num(4), num(5)) else {
-                    return Err("usage: buffer n seg w h stride".into());
+                    return Err("usage: buffer n seg w h stride [off [chan]]".into());
                 };
                 if !(0..MAXBUF as i64).contains(&b) || bw < 1 || bh < 1 || bw > 16384 || bh > 16384 || stride < bw * 4 {
                     return Err("bad buffer".into());
@@ -1480,6 +1515,7 @@ impl Wsys {
                     None => 0,
                     Some(x) => x.parse::<usize>().map_err(|_| "bad buffer offset")?,
                 };
+                let alpha = bufalpha(a.get(7))?;
                 let at = Seg::find(name).map_err(|e| format!("buffer {b}: {e}"))?;
                 let w = self.wins.get_mut(&n).unwrap();
                 let base = SEGBASE + w.slot * SEGSIZE;
@@ -1505,15 +1541,16 @@ impl Wsys {
                     }
                 };
                 let w = self.wins.get_mut(&n).unwrap();
-                w.bufs.insert(b as u32, Buf { mem: Mem::Seg(seg, off), w: bw as i32, h: bh as i32, stride: stride as usize, comp: false });
+                w.bufs.insert(b as u32, Buf { mem: Mem::Seg(seg, off), w: bw as i32, h: bh as i32, stride: stride as usize, comp: false, alpha });
                 Ok(())
             }
             "gpubuffer" => {
                 let a: Vec<&str> = line.split_whitespace().collect();
                 let num = |i: usize| a.get(i).and_then(|x| x.parse::<i64>().ok());
                 let (Some(b), Some(token), Some(bw), Some(bh), Some(stride)) = (num(1), a.get(2), num(3), num(4), num(5)) else {
-                    return Err("usage: gpubuffer n token w h stride".into());
+                    return Err("usage: gpubuffer n token w h stride [chan]".into());
                 };
+                let alpha = bufalpha(a.get(6))?;
                 if !(0..MAXBUF as i64).contains(&b) || bw < 1 || bh < 1 || bw > 16384 || bh > 16384 || stride < bw * 4 {
                     return Err("bad buffer".into());
                 }
@@ -1533,7 +1570,7 @@ impl Wsys {
                     None => false,
                 };
                 let w = self.wins.get_mut(&n).unwrap();
-                w.bufs.insert(b as u32, Buf { mem: Mem::Gpu(mem), w: bw as i32, h: bh as i32, stride: stride as usize, comp });
+                w.bufs.insert(b as u32, Buf { mem: Mem::Gpu(mem), w: bw as i32, h: bh as i32, stride: stride as usize, comp, alpha });
                 Ok(())
             }
             "unbuffer" => {
@@ -1544,12 +1581,43 @@ impl Wsys {
                 self.unbuffer(n, b);
                 Ok(())
             }
+            "layers" => {
+                let a: Vec<&str> = line.split_whitespace().skip(1).collect();
+                if a.is_empty() || a.len() % 3 != 0 {
+                    return Err("usage: layers [+]b x y ...".into());
+                }
+                let mut list = vec![];
+                let mut new = vec![];
+                for t in a.chunks(3) {
+                    let (fresh, bs) = match t[0].strip_prefix('+') {
+                        Some(r) => (true, r),
+                        None => (false, t[0]),
+                    };
+                    let (Ok(b), Ok(x), Ok(y)) = (bs.parse::<u32>(), t[1].parse::<i32>(), t[2].parse::<i32>()) else {
+                        return Err("usage: layers [+]b x y ...".into());
+                    };
+                    if !self.wins[&n].bufs.contains_key(&b) {
+                        return Err(format!("layers: no buffer {b}"));
+                    }
+                    if list.iter().any(|l: &Layer| l.b == b) {
+                        return Err(format!("layers: buffer {b} twice"));
+                    }
+                    list.push(Layer { b, x, y });
+                    if fresh {
+                        new.push(b);
+                    }
+                }
+                self.map(n);
+                self.setlayers(n, list, new);
+                Ok(())
+            }
             "present" => {
                 let b = *nums.first().ok_or("usage: present n [x0 y0 x1 y1]")? as u32;
                 if !self.wins[&n].bufs.contains_key(&b) {
                     return Err("no such buffer".into());
                 }
                 self.map(n);
+                self.unlayer(n, Some(b));
                 let r = if nums.len() == 5 { Some(Rect::new(nums[1], nums[2], nums[3], nums[4])) } else { None };
                 if self.compshow(n, b) {
                     return Ok(());
@@ -1610,6 +1678,153 @@ impl Wsys {
     /// window n's buffer b composed by the GPU from now on (the next frame), if it
     /// can be; the client gets back the ones shown or presented before when that
     /// frame is on the display
+    /// window n shows layers (bottom to top; new: those with new content): composed
+    /// by the GPU if it composes all of them, else by draw(3); the buffers listed
+    /// before and not now go back to the client once no frame shows them
+    fn setlayers(&mut self, n: u32, list: Vec<Layer>, new: Vec<u32>) {
+        if self.wins[&n].layers.is_empty() {
+            // a buffer presented before: off the plane, out of the GPU's frames
+            if self.ov == Some(n) {
+                self.ov = None;
+                if let Some(tx) = &self.ovtx {
+                    let _ = tx.send(OvJob { win: n, b: 0, tag: None, count: 0, line: "overlay off".into() });
+                }
+            }
+            self.ovletgo(n);
+            self.uncompose(n);
+            self.wins.get_mut(&n).unwrap().lastb = None;
+        }
+        let gpu = self.comp.is_some() && list.iter().all(|l| self.wins[&n].bufs[&l.b].comp);
+        if std::env::var("WSYSDEBUG").is_ok_and(|v| v.contains("layers")) && (self.wins[&n].layers.is_empty() || self.wins[&n].lgpu != gpu) {
+            eprintln!("wsys: window {n}: layers {}", if gpu { "composed on the GPU" } else { "drawn by draw(3)" });
+        }
+        let w = self.wins.get_mut(&n).unwrap();
+        let old: Vec<u32> = w.layers.iter().map(|l| l.b).collect();
+        w.layers = list;
+        let now: Vec<u32> = w.layers.iter().map(|l| l.b).collect();
+        if gpu {
+            if !w.lgpu {
+                // drawn by draw(3) before: what is not listed now is free at once
+                w.lgpu = true;
+                for b in old.into_iter().filter(|b| !now.contains(b)) {
+                    self.event(n, format!("b {b}"));
+                }
+            }
+            let w = self.wins.get_mut(&n).unwrap();
+            for b in new {
+                w.lqueued.retain(|&q| q != b);
+                w.lqueued.push(b);
+            }
+            self.compdirty = true;
+            return;
+        }
+        if w.lgpu {
+            // the GPU composed them: those on the display go back after the next frame
+            w.lgpu = false;
+            let gone: Vec<u32> = w.lheld.drain(..).chain(w.lqueued.drain(..)).filter(|b| !now.contains(b)).collect();
+            self.compgone.extend(gone.into_iter().map(|b| (n, b)));
+            self.compdirty = true;
+        } else {
+            for b in old.into_iter().filter(|b| !now.contains(b)) {
+                self.event(n, format!("b {b}"));
+            }
+        }
+        self.lcompose(n);
+        for b in new {
+            self.event(n, format!("s {b}"));
+        }
+    }
+
+    /// window n shows a buffer again (b presented), not layers: those listed go
+    /// back to the client (but b)
+    fn unlayer(&mut self, n: u32, keep: Option<u32>) {
+        let w = self.wins.get_mut(&n).unwrap();
+        if w.layers.is_empty() && w.lheld.is_empty() && w.lqueued.is_empty() {
+            return;
+        }
+        let listed: Vec<u32> = w.layers.drain(..).map(|l| l.b).collect();
+        let gpu = std::mem::replace(&mut w.lgpu, false);
+        let mut gone: Vec<u32> = listed;
+        gone.extend(w.lheld.drain(..));
+        gone.extend(w.lqueued.drain(..));
+        gone.sort();
+        gone.dedup();
+        gone.retain(|&b| Some(b) != keep);
+        if gpu {
+            self.compgone.extend(gone.into_iter().map(|b| (n, b)));
+            self.compdirty = true;
+        } else {
+            for b in gone {
+                self.event(n, format!("b {b}"));
+            }
+        }
+    }
+
+    /// window n's layers drawn by draw(3) into its image, bottom to top: the
+    /// bottom one and opaque ones copied, those with alpha blended (SoverD,
+    /// premultiplied) through an a8r8g8b8 image; then shown
+    fn lcompose(&mut self, n: u32) {
+        self.freshen(n);
+        let (layers, r) = (self.wins[&n].layers.clone(), self.wins[&n].r);
+        let all = Rect::new(0, 0, r.dx(), r.dy());
+        for (i, l) in layers.iter().enumerate() {
+            let w = &self.wins[&n];
+            let Some(buf) = w.bufs.get(&l.b) else { continue };
+            if let Mem::Gpu(g) = &buf.mem {
+                if !g.mapped() {
+                    continue; // in VRAM: not for the processor
+                }
+            }
+            let lr = Rect::new(l.x, l.y, l.x + buf.w, l.y + buf.h).clip(&all);
+            if lr.empty() {
+                continue;
+            }
+            let blend = i > 0 && buf.alpha;
+            let scratch = if blend {
+                match self.scratch(n, lr.dx(), lr.dy()) {
+                    Ok(id) => Some(id),
+                    Err(e) => {
+                        eprintln!("wsys: window {n}: a layer to blend: {e}");
+                        continue;
+                    }
+                }
+            } else {
+                None
+            };
+            let w = self.wins.get_mut(&n).unwrap();
+            let img = w.img;
+            let buf = w.bufs.get_mut(&l.b).unwrap();
+            let stride = buf.stride;
+            let (bx, by) = (lr.x0 - l.x, lr.y0 - l.y);
+            let (px, row) = buf.mem.rows(by, by + lr.dy(), stride);
+            let d = &mut self.d;
+            let res = match scratch {
+                None => d.load_at(img, &lr, px, stride, bx, by - row),
+                Some(s) => d
+                    .load_at(s, &Rect::new(0, 0, lr.dx(), lr.dy()), px, stride, bx, by - row)
+                    .and_then(|_| d.draw(img, &lr, s, 0, 0)),
+            };
+            if let Err(e) = res {
+                eprintln!("wsys: window {n}: a layer: {e}");
+            }
+        }
+        self.paint(n, Some(all));
+    }
+
+    /// window n's a8r8g8b8 image of draw(3), at least w x h
+    fn scratch(&mut self, n: u32, w: i32, h: i32) -> Result<u32, String> {
+        if let Some((id, sw, sh)) = self.wins[&n].scratch {
+            if sw >= w && sh >= h {
+                return Ok(id);
+            }
+            let _ = self.d.free(id);
+            self.wins.get_mut(&n).unwrap().scratch = None;
+        }
+        let id = self.d.alloc(Rect::new(0, 0, w, h), draw::ARGB32, false, 0).map_err(|e| e.to_string())?;
+        self.wins.get_mut(&n).unwrap().scratch = Some((id, w, h));
+        Ok(id)
+    }
+
     fn compshow(&mut self, n: u32, b: u32) -> bool {
         let Some(w) = self.wins.get_mut(&n) else { return false };
         if self.comp.is_none() || !w.bufs.get(&b).is_some_and(|x| x.comp) {
@@ -1633,6 +1848,12 @@ impl Wsys {
         if w.ovheld == Some(b) {
             w.ovheld = None;
         }
+        if w.layers.iter().any(|l| l.b == b) {
+            w.layers.retain(|l| l.b != b);
+            self.compdirty = true;
+        }
+        w.lheld.retain(|&q| q != b);
+        w.lqueued.retain(|&q| q != b);
         if buf.comp {
             if w.shownb == Some(b) {
                 w.shownb = None;
@@ -1675,6 +1896,10 @@ impl Wsys {
         let mut scene = vec![];
         for (i, &n) in self.z.iter().enumerate() {
             let w = &self.wins[&n];
+            if w.lgpu {
+                scene.extend(self.layershown(i, n));
+                continue;
+            }
             let Some(b) = w.shownb else { continue };
             let Some(buf) = w.bufs.get(&b) else { continue };
             if self.ov == Some(n) {
@@ -1683,28 +1908,12 @@ impl Wsys {
             if w.hidden {
                 // nothing of it seen, but its frames go back at the display's rate
                 // (else its client would wait for ever)
-                scene.push(comp::Shown { key: (n, b), at: (w.r.x0, w.r.y0), rects: vec![] });
+                scene.push(comp::Shown { key: (n, b), at: (w.r.x0, w.r.y0), rects: vec![], blend: false });
                 continue;
             }
             let mine = Rect::new(w.r.x0, w.r.y0, w.r.x0 + buf.w.min(w.r.dx()), w.r.y0 + buf.h.min(w.r.dy())).clip(&self.d.r);
-            let mut rects = if mine.empty() { vec![] } else { vec![mine] };
-            let mut over: Vec<Rect> = self.z[i + 1..].iter().map(|o| &self.wins[o]).filter(|o| !o.hidden).map(|o| o.frame()).collect();
-            if let Some(m) = &self.menu {
-                over.push(m.r);
-            }
-            if let Some(r) = self.sweepr {
-                let f = r.inset(-BORDER);
-                over.extend([
-                    Rect::new(f.x0, f.y0, f.x1, r.y0),
-                    Rect::new(f.x0, r.y1, f.x1, f.y1),
-                    Rect::new(f.x0, r.y0, r.x0, r.y1),
-                    Rect::new(r.x1, r.y0, f.x1, r.y1),
-                ]);
-            }
-            for o in over {
-                rects = rects.iter().flat_map(|r| subtract(r, &o)).collect();
-            }
-            scene.push(comp::Shown { key: (n, b), at: (w.r.x0, w.r.y0), rects });
+            let rects = self.uncovered(i, mine);
+            scene.push(comp::Shown { key: (n, b), at: (w.r.x0, w.r.y0), rects, blend: false });
         }
         if scene == self.compscene && !self.compdirty {
             return;
@@ -1713,6 +1922,68 @@ impl Wsys {
         self.compscene = scene.clone();
         if !self.comp.as_ref().unwrap().scene(scene) {
             self.compfailed("its thread is gone".into());
+        }
+    }
+
+    /// what is seen of r (screen coordinates) of the window at z[i]: not under a
+    /// window above it, wsys' menu or a sweep's outline
+    fn uncovered(&self, i: usize, r: Rect) -> Vec<Rect> {
+        let mut rects = if r.empty() { vec![] } else { vec![r] };
+        let mut over: Vec<Rect> = self.z[i + 1..].iter().map(|o| &self.wins[o]).filter(|o| !o.hidden).map(|o| o.frame()).collect();
+        if let Some(m) = &self.menu {
+            over.push(m.r);
+        }
+        if let Some(r) = self.sweepr {
+            let f = r.inset(-BORDER);
+            over.extend([
+                Rect::new(f.x0, f.y0, f.x1, r.y0),
+                Rect::new(f.x0, r.y1, f.x1, f.y1),
+                Rect::new(f.x0, r.y0, r.x0, r.y1),
+                Rect::new(r.x1, r.y0, f.x1, r.y1),
+            ]);
+        }
+        for o in over {
+            rects = rects.iter().flat_map(|r| subtract(r, &o)).collect();
+        }
+        rects
+    }
+
+    /// the layers of the window n at z[i] as the GPU composes them, bottom to top,
+    /// each in the window where it is seen; those over others with alpha blended
+    fn layershown(&self, i: usize, n: u32) -> Vec<comp::Shown> {
+        let w = &self.wins[&n];
+        let mut v = vec![];
+        for (k, l) in w.layers.iter().enumerate() {
+            let Some(buf) = w.bufs.get(&l.b) else { continue };
+            let at = (w.r.x0 + l.x, w.r.y0 + l.y);
+            // hidden: nothing seen, but its frames go back at the display's rate
+            let rects = if w.hidden {
+                vec![]
+            } else {
+                let mine = Rect::new(at.0, at.1, at.0 + buf.w, at.1 + buf.h).clip(&w.r).clip(&self.d.r);
+                self.uncovered(i, mine)
+            };
+            v.push(comp::Shown { key: (n, l.b), at, rects, blend: k > 0 && buf.alpha });
+        }
+        v
+    }
+
+    /// a frame showed buffers f of layered window n: those new in it get their s,
+    /// those shown or listed before and neither listed nor in it now go back
+    fn lcomposed(&mut self, n: u32, f: &[u32]) {
+        let Some(w) = self.wins.get_mut(&n) else { return };
+        let now: Vec<u32> = w.layers.iter().map(|l| l.b).collect();
+        let mut back: Vec<u32> = w.lheld.iter().chain(w.lqueued.iter()).copied().filter(|b| !f.contains(b) && !now.contains(b)).collect();
+        back.sort();
+        back.dedup();
+        let shown: Vec<u32> = w.lqueued.iter().copied().filter(|b| f.contains(b)).collect();
+        w.lqueued.retain(|b| !f.contains(b) && now.contains(b));
+        w.lheld = f.to_vec();
+        for b in shown {
+            self.event(n, format!("s {b}"));
+        }
+        for b in back {
+            self.event(n, format!("b {b}"));
         }
     }
 
@@ -1725,7 +1996,18 @@ impl Wsys {
         for (n, b) in std::mem::take(&mut self.compgone) {
             self.event(n, format!("b {b}"));
         }
+        // layered windows: all of a window's buffers in the frame at once
+        let mut lw: Vec<u32> = keys.iter().map(|k| k.0).filter(|n| self.wins.get(n).is_some_and(|w| w.lgpu)).collect();
+        lw.sort();
+        lw.dedup();
+        for &n in &lw {
+            let f: Vec<u32> = keys.iter().filter(|k| k.0 == n).map(|k| k.1).collect();
+            self.lcomposed(n, &f);
+        }
         for (n, b) in keys {
+            if lw.contains(&n) {
+                continue;
+            }
             let Some(w) = self.wins.get_mut(&n) else { continue };
             let Some(i) = w.queued.iter().position(|&q| q == b) else { continue };
             // b is on the display: the one shown before and those presented before
@@ -1755,6 +2037,22 @@ impl Wsys {
             let w = self.wins.get_mut(&n).unwrap();
             for b in w.bufs.values_mut() {
                 b.comp = false;
+            }
+            if w.lgpu {
+                // draw(3) composes its layers; what is not listed goes back
+                w.lgpu = false;
+                let now: Vec<u32> = w.layers.iter().map(|l| l.b).collect();
+                let mut back: Vec<u32> = w.lheld.drain(..).chain(w.lqueued.drain(..)).filter(|b| !now.contains(b)).collect();
+                back.sort();
+                back.dedup();
+                self.lcompose(n);
+                for b in back {
+                    self.event(n, format!("b {b}"));
+                }
+                for b in now {
+                    self.event(n, format!("s {b}"));
+                }
+                continue;
             }
             let shown = w.shownb.take();
             let mut back: Vec<u32> = w.held.take().into_iter().chain(w.queued.drain(..)).collect();
@@ -1996,6 +2294,7 @@ impl Wsys {
             (self.nooverlay, "-O"),
             (self.gpu.as_ref().and_then(|g| g.overlay_ctl()).is_none(), "the driver has no overlay"),
             (self.z.last() != Some(&n), "not on top"),
+            (!w.layers.is_empty(), "layers"),
             (w.hidden, "hidden"),
             (w.nooverlay, "refused before"),
             (self.menu.is_some() || self.drag.is_some() || self.op3.is_some(), "wsys draws over it"),
