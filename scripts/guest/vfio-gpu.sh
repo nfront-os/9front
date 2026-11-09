@@ -63,13 +63,25 @@ bind)
 	for d in $DEVS; do
 		g=$(group "$d")
 		[ "$(ls /sys/kernel/iommu_groups/$g/devices | wc -l)" = 1 ] || die "$d shares IOMMU group $g with other devices"
-		echo vfio-pci > "$sys/$d/driver_override"
 		if [ "$(driver "$d")" != vfio-pci ]; then
 			u=$(sndusers "$d")
 			[ -z "$u" ] || die "$d: its sound card is open in: $u (close them, e.g. systemctl --user restart wireplumber, or stop pipewire)"
-			if [ -e "$sys/$d/driver" ]; then
-				echo "$d" > "$sys/$d/driver/unbind" || die "$d: unbind from $(driver "$d") failed"
-			fi
+		fi
+	done
+	# off the host's drivers first, the audio before the GPU: the HDMI audio
+	# is the GPU's consumer (snd_hda_intel binds amdgpu's audio component, a
+	# device link); its unbind wakes its supplier, which must still be
+	# amdgpu's -- one already vfio-pci's oopsed in vfio_pci_core_runtime_resume
+	# (Linux 7.2.11, 2026-11-09), the next bind hung, only a reboot helped
+	for d in $AUDIO $GPU; do
+		echo vfio-pci > "$sys/$d/driver_override"
+		if [ "$(driver "$d")" != vfio-pci ] && [ -e "$sys/$d/driver" ]; then
+			echo "$d" > "$sys/$d/driver/unbind" || die "$d: unbind from $(driver "$d") failed"
+		fi
+	done
+	for d in $DEVS; do
+		g=$(group "$d")
+		if [ "$(driver "$d")" != vfio-pci ]; then
 			echo "$d" > /sys/bus/pci/drivers/vfio-pci/bind || die "$d: vfio-pci bind failed (see dmesg)"
 		fi
 		[ "$(driver "$d")" = vfio-pci ] || die "$d: not bound to vfio-pci"
