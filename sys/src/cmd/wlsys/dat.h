@@ -138,6 +138,7 @@ struct Surface {
 	/* the surface's pixels in a tree wlsys composes: a copy, the buffer released */
 	uint32_t	*pix;
 	int	pixw, pixh, pixalpha;
+	int	warned;	/* told that its dma-buf is left out */
 	int	committed;	/* the toplevel's first commit, answered by a configure */
 	uint32_t	serial;	/* the last configure sent */
 	uint32_t	acked;	/* and acknowledged */

@@ -65,11 +65,18 @@ snap(Surface *s)
 	unsigned char *px;
 	int y;
 
+	px = NULL;
 	free(s->pix);
 	s->pix = NULL;
 	if((b = s->buf) == NULL)
 		return;
-	if((px = pixels(b)) != NULL && (s->pix = malloc((size_t)b->w*b->h*4)) != NULL){
+	if(b->pool == NULL){
+		/* a dma-buf: its pixels are the GPU's, not read here */
+		if(!s->warned){
+			fprintf(stderr, "wlsys: a GPU buffer (dma-buf) in a window with subsurfaces: not shown\n");
+			s->warned = 1;
+		}
+	}else if((px = pixels(b)) != NULL && (s->pix = malloc((size_t)b->w*b->h*4)) != NULL){
 		for(y = 0; y < b->h; y++)
 			memcpy(s->pix + (size_t)y*b->w, px + (size_t)y*b->stride, 4*b->w);
 		s->pixw = b->w;
