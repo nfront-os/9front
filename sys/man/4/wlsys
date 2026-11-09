@@ -363,11 +363,6 @@ transform are taken as 1 and normal.
 The keymap is not made again when
 .B /dev/kbmap
 changes.
-The socket's entry in
-.B /srv
-stays when
-.I wlsys
-exits.
 Built by the system's build only with ../9front-gcc's compiler (build step
 .BR ape ),
 as Mesa, SDL3 and GLFW.

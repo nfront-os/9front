@@ -65,6 +65,8 @@ if [ "${VKONLY:-0}" = 0 ]; then
 	wl=$($M rc "bind -a '#i' /dev; bind -a '#m' /dev; /tests/wsys -x -i /tests/wlsys.rc >/tmp/wsys.log >[2=1]; cat /tmp/wsys.log /tmp/wlclient.log; sed 's/^/shm: /' /tmp/weston-simple-shm.log; sed 's/^/inwin: /' /tmp/inwinwatch.log /tmp/inwin.log" 300) || true
 	echo "$wl"
 	$M rc "cat /tmp/keymap.xkb" > "$CLI_DIR/wlsys-keymap.xkb" 2>/dev/null || true
+	# the listening sockets' /srv entries (APE: UD.name) gone with their servers
+	ud=$($M rc "ls /srv | grep '^/srv/UD\.' || echo none" 30) || true
 	# a Wayland client outlives its wsys: wlsys makes its window in the next one
 	rs=$($M rc "/tests/wsysrestart.rc" 200) || true
 	echo "$rs"
@@ -79,6 +81,8 @@ if [ "${VKONLY:-0}" = 0 ]; then
 	trap - EXIT
 	echo "$out" | grep -q '^wltest: all passed' || { echo "FAIL wltest"; fail=1; }
 	echo "$wl" | grep -q '^wlclient: all passed' || { echo "FAIL wlclient"; fail=1; }
+	[ "$(echo "$ud" | tr -d '\r' | tail -1)" = none ] && echo "ok no socket left in /srv after wltest and wlsys exited" ||
+		{ echo "FAIL sockets left in /srv: $(echo "$ud" | tr '\n' ' ')"; fail=1; }
 	echo "$wn" | grep -q '^wlclient: all passed' && echo "ok wlclient under a wsys in a window of wsys" ||
 		{ echo "FAIL wlclient under a wsys in a window of wsys"; fail=1; }
 	weston "$wl" shm simple-shm
