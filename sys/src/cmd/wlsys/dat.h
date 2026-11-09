@@ -39,6 +39,11 @@ enum {
 	Rnone,
 	Rxdg,		/* an xdg_surface's: a toplevel's or a popup's */
 	Rcursor,	/* the pointer's picture (wl_pointer.set_cursor) */
+	Rsub,		/* a subsurface's (wl_subcompositor) */
+};
+
+enum {
+	Ncomp = 3,	/* the buffers of a window wlsys composes itself */
 };
 
 typedef struct Rect Rect;
@@ -70,6 +75,7 @@ struct Buffer {
 	uint32_t	format;
 	Win	*win;		/* the window it is announced to, and as which buffer */
 	int	slot;
+	int	freed;		/* released since its last commit */
 };
 
 /* an xdg_positioner's rules: where a popup goes by its parent */
@@ -112,6 +118,26 @@ struct Surface {
 	int	dismissed;	/* popup_done sent */
 	int	activated;	/* a toplevel's state sent: it or a popup of it has the focus */
 	int	gx, gy;		/* its window geometry's origin in the surface */
+
+	/*
+	 * a tree of subsurfaces: stack has the surface (self) and its
+	 * subsurfaces (their slink), bottom to top
+	 */
+	struct wl_list	stack;
+	struct wl_list	self;
+	struct wl_list	slink;
+	Surface	*sparent;	/* a subsurface's parent */
+	struct wl_resource	*sub;	/* its wl_subsurface */
+	int	sx, sy;		/* its place in the parent */
+	int	psx, psy;	/* set_position's, applied with the parent's commit */
+	int	desync;
+	/* a synchronized subsurface's commit, applied with its parent's */
+	int	cached;
+	Buffer	*cbuf;
+	int	cattached;
+	/* the surface's pixels in a tree wlsys composes: a copy, the buffer released */
+	uint32_t	*pix;
+	int	pixw, pixh, pixalpha;
 	int	committed;	/* the toplevel's first commit, answered by a configure */
 	uint32_t	serial;	/* the last configure sent */
 	uint32_t	acked;	/* and acknowledged */
@@ -138,6 +164,11 @@ struct Win {
 	int	focus;
 	int	gone;		/* deleted in wsys: the client was told to close */
 	int	fresh;		/* new, or a new size: the next present shows all */
+	/* with subsurfaces: the buffers wlsys composes the tree into */
+	Pool	*cpool;
+	Buffer	*cbuf[Ncomp];
+	uint32_t	*cpx;
+	int	cw, ch;
 };
 
 /* wlsys.c */
@@ -157,6 +188,10 @@ void	sendenter(Surface*);
 void	shminit(void);
 Buffer	*newbuffer(struct wl_client*, uint32_t);
 Buffer	*getbuffer(struct wl_resource*);
+void	relbuf(Buffer*);
+unsigned char	*pixels(Buffer*);
+int	segname(int, char*, int);
+void	poolput(Pool*);
 
 /* dmabuf.c */
 void	dmabufinit(void);
@@ -188,7 +223,21 @@ void	focus(Win*, int);
 void	seatforget(Win*);
 void	cursorcommit(Surface*, int, int, int);
 void	cursorgone(Surface*);
+void	pointergone(Surface*);
 Win	*keywin(void);
+
+/* sub.c */
+void	subinit(void);
+void	subnew(Surface*);
+int	subcommit(Surface*);
+void	subapply(Surface*);
+void	subcommitted(Surface*, int);
+int	hassubs(Surface*);
+Buffer	*compose(Surface*, Win*);
+void	compfree(Win*);
+void	subgone(Surface*);
+Surface	*pick(Surface*, int, int, int*, int*);
+void	suborigin(Surface*, int*, int*);
 
 /* data.c */
 void	datainit(void);

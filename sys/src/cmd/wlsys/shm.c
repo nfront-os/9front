@@ -9,7 +9,7 @@
  */
 #include "dat.h"
 
-static void
+void
 poolput(Pool *p)
 {
 	if(--p->ref > 0)
@@ -61,6 +61,51 @@ newbuffer(struct wl_client *c, uint32_t id)
 	b->slot = -1;
 	wl_resource_set_implementation(b->res, &bufferimpl, b, bufferdestroy);
 	return b;
+}
+
+/*
+ * the pixels of a wl_shm buffer, read from its segment (segment(3)'s data
+ * file: wlsys maps no pool); nil if they cannot be read
+ */
+unsigned char*
+pixels(Buffer *b)
+{
+	char path[160];
+	unsigned char *px;
+	int fd, n, m, k;
+
+	if(b->pool == NULL)
+		return NULL;	/* a dma-buf: in the GPU's memory */
+	snprintf(path, sizeof path, "#g/%s/data", b->pool->seg);
+	if((fd = open(path, O_RDONLY)) < 0)
+		return NULL;
+	n = b->stride*(b->h - 1) + 4*b->w;
+	if((px = malloc(n)) == NULL){
+		close(fd);
+		return NULL;
+	}
+	for(m = 0; m < n; m += k)
+		if((k = pread(fd, px + m, n - m, b->off + m)) <= 0)
+			break;
+	close(fd);
+	if(m < n){
+		free(px);
+		return NULL;
+	}
+	return px;
+}
+
+/*
+ * buffer b free again for its client: wl_buffer.release, once for each
+ * time it was committed (a buffer wlsys made itself has none)
+ */
+void
+relbuf(Buffer *b)
+{
+	if(b == NULL || b->res == NULL || b->freed)
+		return;
+	b->freed = 1;
+	wl_buffer_send_release(b->res);
 }
 
 Buffer*
@@ -142,7 +187,7 @@ static const struct wl_shm_pool_interface poolimpl = {
  * the segment fd is the directory of in #g, if it is one: the last field
  * of /fd/nctl (dup(3), as proc(3)'s fd file) is the file's name
  */
-static int
+int
 segname(int fd, char *name, int n)
 {
 	char ctl[32], buf[512], *path, *e;

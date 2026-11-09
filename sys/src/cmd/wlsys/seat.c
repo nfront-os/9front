@@ -19,6 +19,7 @@ enum {
 
 static struct wl_list pointers, keyboards;	/* their resources */
 static Win *pwin;		/* the window the pointer is in */
+static Surface *psurf;		/* and the surface of its tree under it */
 static int px, py, pbuttons;
 static Win *kwin;		/* the one the keyboard is in */
 static uint32_t held[Maxkeys];	/* Linux codes */
@@ -59,28 +60,31 @@ pleave(void)
 	if(pwin == NULL)
 		return;
 	serial = wl_display_next_serial(display);
-	eachres(r, &pointers, pwin){
-		wl_pointer_send_leave(r, serial, pwin->s->res);
-		pframe(r);
-	}
+	if(psurf != NULL)
+		eachres(r, &pointers, pwin){
+			wl_pointer_send_leave(r, serial, psurf->res);
+			pframe(r);
+		}
 	pwin = NULL;
+	psurf = NULL;
 	pbuttons = 0;
 }
 
 static void
-penter(Win *w, int x, int y)
+penter(Win *w, Surface *s, int x, int y)
 {
 	struct wl_resource *r;
 	uint32_t serial;
 
 	pleave();
 	pwin = w;
+	psurf = s;
 	px = x;
 	py = y;
 	pbuttons = 0;
 	serial = wl_display_next_serial(display);
 	eachres(r, &pointers, w){
-		wl_pointer_send_enter(r, serial, w->s->res, wl_fixed_from_int(x), wl_fixed_from_int(y));
+		wl_pointer_send_enter(r, serial, s->res, wl_fixed_from_int(x), wl_fixed_from_int(y));
 		pframe(r);
 	}
 }
@@ -121,15 +125,27 @@ pointer(Win *w, int x, int y, int b, uint32_t ms)
 		{1, Btnleft}, {2, Btnmiddle}, {4, Btnright},
 	};
 	struct wl_resource *r;
-	int inside, i, old;
+	Surface *s;
+	int inside, i, old, ox, oy;
 
 	if(w->s == NULL)
 		return;
 	inside = x >= 0 && y >= 0 && x < w->w && y < w->h;
-	if(pwin != w){
-		if(!inside)
+	/*
+	 * the surface of the window's tree under it, in its coordinates;
+	 * while a button is held, the one it was pressed on
+	 */
+	if(pwin == w && pbuttons != 0 && psurf != NULL){
+		s = psurf;
+		suborigin(s, &ox, &oy);
+		x -= ox;
+		y -= oy;
+	}else
+		s = pick(w->s, x, y, &x, &y);
+	if(pwin != w || psurf != s){
+		if(!inside && pwin != w)
 			return;
-		penter(w, x, y);
+		penter(w, s, x, y);
 	}
 	if(x != px || y != py){
 		px = x;
@@ -204,6 +220,17 @@ focus(Win *w, int f)
 	}else if(kwin == w)
 		kleave();
 	focuschanged();	/* activated, or not; popups done */
+}
+
+/* surface s goes: the pointer is in none of its window's (no leave: it is gone) */
+void
+pointergone(Surface *s)
+{
+	if(psurf == s){
+		psurf = NULL;
+		pwin = NULL;
+		pbuttons = 0;
+	}
 }
 
 /* the window with the keyboard, nil if none */
@@ -345,38 +372,6 @@ resrelease(struct wl_client *c, struct wl_resource *r)
  * go) ----
  */
 
-/*
- * the pixels of a wl_shm buffer, read from its segment (segment(3)'s data
- * file: wlsys maps no pool); nil if they cannot be read
- */
-static unsigned char*
-pixels(Buffer *b)
-{
-	char path[160];
-	unsigned char *px;
-	int fd, n, m, k;
-
-	if(b->pool == NULL)
-		return NULL;	/* a dma-buf: in the GPU's memory */
-	snprintf(path, sizeof path, "#g/%s/data", b->pool->seg);
-	if((fd = open(path, O_RDONLY)) < 0)
-		return NULL;
-	n = b->stride*(b->h - 1) + 4*b->w;
-	if((px = malloc(n)) == NULL){
-		close(fd);
-		return NULL;
-	}
-	for(m = 0; m < n; m += k)
-		if((k = pread(fd, px + m, n - m, b->off + m)) <= 0)
-			break;
-	close(fd);
-	if(m < n){
-		free(px);
-		return NULL;
-	}
-	return px;
-}
-
 static void
 putlong(unsigned char *p, int v)
 {
@@ -488,7 +483,7 @@ setcursor(struct wl_client *c, struct wl_resource *r, uint32_t serial, struct wl
 		s->role = Rcursor;
 		mkcursor(s);	/* a buffer committed before it had the role */
 		if(s->buf != NULL)
-			wl_buffer_send_release(s->buf->res);
+			relbuf(s->buf);
 	}
 	cursurf = s;
 	curhx = x;
@@ -508,7 +503,7 @@ cursorcommit(Surface *s, int attached, int dx, int dy)
 	if(attached){
 		mkcursor(s);
 		if(s->buf != NULL)
-			wl_buffer_send_release(s->buf->res);
+			relbuf(s->buf);
 	}
 	if(s != cursurf)
 		return;

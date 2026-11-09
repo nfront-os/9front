@@ -15,7 +15,9 @@
  * cancelled); the decoration (wsys': server side); a popup that grabs
  * (where its positioner put it, no border, the keyboard, done by a click
  * on its parent) and a tooltip (flipped onto the screen, the keyboard
- * stays); deleted in wsys: the toplevel's close.
+ * stays); subsurfaces (composed by wlsys: synchronized until the parent's
+ * commit, below the parent, blended, desynchronized, the pointer's enter
+ * on one, gone again); deleted in wsys: the toplevel's close.
  * Prints "ok ..." / "FAIL ..." lines and a summary.
  */
 #include <stdio.h>
@@ -75,6 +77,9 @@ static struct wl_data_device_manager *ddm;
 static struct wl_data_offer *seloffer;
 static int selections, offertext, sent, cancelled;
 
+static struct wl_subcompositor *subcomp;
+static struct wl_surface *penters;	/* the surface the pointer entered last */
+static int penterx, pentery;
 static int popconf, popdone, popx, popy, popw, poph;
 static uint32_t popserial;
 
@@ -186,6 +191,9 @@ static void
 penter(void *data, struct wl_pointer *p, uint32_t serial, struct wl_surface *s, wl_fixed_t x, wl_fixed_t y)
 {
 	enterserial = serial;
+	penters = s;
+	penterx = wl_fixed_to_int(x);
+	pentery = wl_fixed_to_int(y);
 	if(s == surf){
 		entered++;
 		enterx = wl_fixed_to_int(x);
@@ -335,6 +343,8 @@ global(void *data, struct wl_registry *reg, uint32_t name, const char *iface, ui
 		xdg_wm_base_add_listener(wm, &wmlistener, NULL);
 	}else if(strcmp(iface, zxdg_decoration_manager_v1_interface.name) == 0)
 		decomgr = wl_registry_bind(reg, name, &zxdg_decoration_manager_v1_interface, 1);
+	else if(strcmp(iface, wl_subcompositor_interface.name) == 0)
+		subcomp = wl_registry_bind(reg, name, &wl_subcompositor_interface, 1);
 	else if(strcmp(iface, wl_data_device_manager_interface.name) == 0)
 		ddm = wl_registry_bind(reg, name, &wl_data_device_manager_interface, 3);
 	else if(strcmp(iface, wl_seat_interface.name) == 0)
@@ -680,6 +690,11 @@ main(void)
 	struct xdg_positioner *pos;
 	struct xdg_surface *pxs;
 	struct xdg_popup *pop;
+	struct wl_subsurface *sub;
+	struct wl_surface *ss;
+	struct wl_shm_pool *spool;
+	struct wl_buffer *sb, *sw, *sg;
+	uint32_t *spx;
 	unsigned char cur[72];
 	uint16_t set[16], clr[16];
 	uint32_t *px, *px2, *cpx, *ppx;
@@ -1021,6 +1036,82 @@ main(void)
 	for(i = 0; i < 50 && near(peek(wx0 + 50, wy0 + y - 30), Magenta); i++)
 		usleep(20*1000);
 	check("the tooltip gone", !near(peek(wx0 + 50, wy0 + y - 30), Magenta), NULL);
+
+	/*
+	 * a subsurface 60x40 at 20 30: blue; synchronized, shown with the
+	 * parent's commit; below the parent (hidden); half-transparent white
+	 * over the parent's green; desynchronized, its commit shown at once
+	 * (yellow); the pointer's enter on it; destroyed: the parent alone
+	 */
+	check("a subcompositor", subcomp != NULL, NULL);
+	if(subcomp == NULL)
+		return 1;
+	if((spx = mkpool(3*60*40*4, &spool)) == NULL)
+		return 1;
+	fill(spx, 60*40, Blue);
+	for(i = 0; i < 60*40; i++)
+		spx[60*40 + i] = 0x80808080u;	/* white, half: premultiplied */
+	fill(spx + 2*60*40, 60*40, 0xffff00);
+	sb = wl_shm_pool_create_buffer(spool, 0, 60, 40, 240, WL_SHM_FORMAT_XRGB8888);
+	sw = wl_shm_pool_create_buffer(spool, 60*40*4, 60, 40, 240, WL_SHM_FORMAT_ARGB8888);
+	sg = wl_shm_pool_create_buffer(spool, 2*60*40*4, 60, 40, 240, WL_SHM_FORMAT_XRGB8888);
+	ss = wl_compositor_create_surface(comp);
+	sub = wl_subcompositor_get_subsurface(subcomp, ss, surf);
+	wl_subsurface_set_position(sub, 20, 30);
+	wl_surface_attach(ss, sb, 0, 0);
+	wl_surface_damage_buffer(ss, 0, 0, 60, 40);
+	wl_surface_commit(ss);
+	wl_display_roundtrip(d);
+	usleep(200*1000);
+	check("synchronized: not shown before the parent's commit", near(peek(wx0 + 50, wy0 + 50), Green), "%06lx", peek(wx0 + 50, wy0 + 50));
+	wl_surface_commit(surf);
+	wl_display_roundtrip(d);
+	want(50, 50, Blue, "the subsurface, with the parent's commit");
+	want(20, 30, Blue, "its corner at 20 30");
+	want(19, 29, Green, "the parent beside it");
+	want(250, 180, Green, "the parent elsewhere");
+	wl_subsurface_place_below(sub, surf);
+	wl_surface_commit(surf);
+	wl_display_roundtrip(d);
+	want(50, 50, Green, "below the parent: covered");
+	wl_subsurface_place_above(sub, surf);
+	wl_surface_attach(ss, sw, 0, 0);
+	wl_surface_damage_buffer(ss, 0, 0, 60, 40);
+	wl_surface_commit(ss);
+	wl_surface_commit(surf);
+	wl_display_roundtrip(d);
+	want(50, 50, 0x7fff7f, "half white over green (blended)");
+	wl_subsurface_set_desync(sub);
+	wl_surface_attach(ss, sg, 0, 0);
+	wl_surface_damage_buffer(ss, 0, 0, 60, 40);
+	wl_surface_commit(ss);
+	wl_display_roundtrip(d);
+	want(50, 50, 0xffff00, "desynchronized: its own commit shown");
+	mouse(wx0 + 150, wy0 + 150, 0);
+	mouse(wx0 + 30, wy0 + 40, 0);
+	for(i = 0; i < 50 && penters != ss; i++){
+		wl_display_roundtrip(d);
+		usleep(20*1000);
+	}
+	check("the pointer entered the subsurface", penters == ss && penterx == 10 && pentery == 10,
+		"%s at %d %d", penters == ss ? "it" : penters == surf ? "the parent" : "another", penterx, pentery);
+	mouse(wx0 + 150, wy0 + 150, 0);
+	for(i = 0; i < 50 && penters != surf; i++){
+		wl_display_roundtrip(d);
+		usleep(20*1000);
+	}
+	check("and the parent again beside it", penters == surf && penterx == 150 && pentery == 150, "%d %d", penterx, pentery);
+	wl_subsurface_destroy(sub);
+	wl_surface_destroy(ss);
+	wl_display_roundtrip(d);
+	want(50, 50, Green, "the subsurface gone");
+	present(b2, 300, 200);
+	check("the parent's own buffer again", waitfor(&framedone), NULL);
+	want(50, 50, Green, "the parent alone");
+	wl_buffer_destroy(sb);
+	wl_buffer_destroy(sw);
+	wl_buffer_destroy(sg);
+	wl_shm_pool_destroy(spool);
 
 	/* deleted in wsys: close */
 	check("delete to the window's ctl", winctl("delete") == 0, "%s", strerror(errno));

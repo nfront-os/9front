@@ -117,7 +117,7 @@ released(Win *w, int i)
 		return;
 	w->busy[i] = 0;
 	if((b = w->slot[i]) != NULL)
-		wl_buffer_send_release(b->res);
+		relbuf(b);
 	later(&w->frames[i]);
 }
 
@@ -371,14 +371,14 @@ show(Surface *s)
 		 * done at the next tick (surfcommit: the client keeps its pace)
 		 */
 		if(retry != NULL || (w = mkwin(s, b->w, b->h)) == NULL){
-			wl_buffer_send_release(b->res);
+			relbuf(b);
 			return;
 		}
 		s->win = w;
 		sendenter(s);
 	}
 	if(w->gone){
-		wl_buffer_send_release(b->res);
+		relbuf(b);
 		return;
 	}
 	/*
@@ -399,9 +399,17 @@ show(Surface *s)
 		w->h = b->h;
 		w->fresh = 1;
 	}
+	if(hassubs(s) || s->pix != NULL){
+		/* a tree of subsurfaces: composed into a buffer of the window's own */
+		if((b = compose(s, w)) == NULL){
+			later(&s->pframes);	/* all of them wsys': this picture is skipped */
+			return;
+		}
+		w->fresh = 1;
+	}
 	if((i = slotof(w, b)) < 0){
 		/* wsys has all of them: this picture is skipped */
-		wl_buffer_send_release(b->res);
+		relbuf(b);
 		later(&s->pframes);
 		return;
 	}
@@ -448,6 +456,7 @@ unshow(Surface *s)
 	for(i = 0; i < Nslot; i++)
 		if(w->slot[i] != NULL)
 			unbuffer(w->slot[i]);
+	compfree(w);
 	winquiet(w);
 	close(w->kbd);
 	close(w->ev);
@@ -468,10 +477,11 @@ windrop(Win *w)
 			b->win = NULL;
 			b->slot = -1;
 			if(w->busy[i])
-				wl_buffer_send_release(b->res);
+				relbuf(b);
 		}
 		later(&w->frames[i]);
 	}
+	compfree(w);
 	close(w->kbd);
 	close(w->ev);
 	close(w->ctl);

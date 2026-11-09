@@ -7,7 +7,7 @@
  * $WAYLAND_DISPLAY (in /env: the processes started after it see it); with
  * cmd, it runs it and exits when it exits, with its status.  -d prints what
  * it does.  Globals: wl_compositor, wl_shm, wl_seat, wl_output, xdg_wm_base,
- * wl_data_device_manager (the snarf buffer), zxdg_decoration_manager_v1 (wsys'
+ * wl_subcompositor, wl_data_device_manager (the snarf buffer), zxdg_decoration_manager_v1 (wsys'
  * borders), zwp_linux_dmabuf_v1 (with gpu(4)).
  */
 #include "dat.h"
@@ -220,9 +220,18 @@ surfcommit(struct wl_client *c, struct wl_resource *r)
 	(void)c;
 	s = ssurface(r);
 	attached = s->pattached;
+	if(s->role == Rsub && subcommit(s)){
+		/* synchronized: kept for the parent's commit */
+		later(&s->pframes);
+		s->pdamage = (Rect){0, 0, 0, 0};
+		s->pdx = s->pdy = 0;
+		return;
+	}
 	changed = s->pattached || (s->pdamage.x0 < s->pdamage.x1 && s->pdamage.y0 < s->pdamage.y1);
 	if(s->pattached){
 		s->buf = s->pbuf;
+		if(s->buf != NULL)
+			s->buf->freed = 0;
 		s->pbuf = NULL;
 		s->pattached = 0;
 		if(s->buf == NULL)
@@ -233,6 +242,9 @@ surfcommit(struct wl_client *c, struct wl_resource *r)
 		cursorcommit(s, attached, s->pdx, s->pdy);
 	}
 	s->pdx = s->pdy = 0;
+	subcommitted(s, attached);
+	if(hassubs(s))
+		changed = 1;	/* a subsurface's commit may have come with it */
 	if((s->toplevel != NULL || s->popup != NULL) && !s->committed){
 		/* the first commit: the toplevel's state (popup's place); a configure answers */
 		s->committed = 1;
@@ -285,6 +297,8 @@ buffergone(Buffer *b)
 	wl_list_for_each(s, &surfaces, link){
 		if(s->pbuf == b)
 			s->pbuf = NULL;
+		if(s->cbuf == b)
+			s->cbuf = NULL;
 		if(s->buf == b)
 			s->buf = NULL;
 	}
@@ -298,8 +312,10 @@ surfdestroyres(struct wl_resource *r)
 
 	s = ssurface(r);
 	popupforget(s);
+	subgone(s);
 	unshow(s);
 	cursorgone(s);
+	pointergone(s);
 	wl_list_for_each_safe(f, t, &s->pframes, link)
 		wl_resource_destroy(f->res);
 	if(s->xdgsurf != NULL)
@@ -343,6 +359,7 @@ compcreatesurface(struct wl_client *c, struct wl_resource *r, uint32_t id)
 		return;
 	}
 	wl_list_init(&s->pframes);
+	subnew(s);
 	wl_list_insert(&surfaces, &s->link);
 	wl_resource_set_implementation(s->res, &surfaceimpl, s, surfdestroyres);
 }
@@ -520,6 +537,7 @@ main(int argc, char **argv)
 	loop = wl_display_get_event_loop(display);
 	ticker = wl_event_loop_add_timer(loop, ontick, NULL);
 	wl_global_create(display, &wl_compositor_interface, 5, NULL, compbind);
+	subinit();
 	wl_global_create(display, &wl_output_interface, 4, NULL, outbind);
 	shminit();
 	dmabufinit();
