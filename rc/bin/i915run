@@ -94,6 +94,11 @@ if(test -e /dev/gpu/0/clone){
 	# Vulkan through Mesa's hasvk (libdrm9 over gpu(4)), in this window
 	if(test -d /$objtype/vk){
 		bind -a /$objtype/vk /bin
+		# in a window of wsys the screen as wsys composes it (a window of GPU
+		# buffers is not in devdraw's image, nor one on the overlay plane): vktri
+		# reads its pixels there (comprun's way)
+		if(! ~ $#wsys 0 && test -e /dev/screen)
+			screenpeek=/dev/screen
 		# full screen first by copies alone (no scanout, no modeset), then with scanout
 		for(c in 'vulkaninfo --summary' 'vktri 3' 'WSI_PLAN9_STATS=1 vkcube --c 300' \
 			'@{rfork en; bind -b ''#i'' /dev; WSI_PLAN9_COPY=1 WSI_PLAN9_STATS=1 vkcube --c 300}' \

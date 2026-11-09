@@ -37,6 +37,10 @@ pub struct GpuMem {
     va: usize,
     pub len: usize,
     copy: Vec<u8>, // what read read last
+    // Intel: the object may be uncached (i915 makes one the display shows so: the
+    // overlay plane), the GPU writes past the processor's cache: read gets fresh
+    // lines (clflush first, as Linux before a read of such an object)
+    flush: bool,
 }
 
 impl GpuMem {
@@ -59,6 +63,10 @@ impl GpuMem {
         self.copy.resize(n, 0);
         let src = (self.va + off) as *const u8;
         #[cfg(target_arch = "x86_64")]
+        if self.flush {
+            unsafe { flushlines(src, n) };
+        }
+        #[cfg(target_arch = "x86_64")]
         {
             if std::arch::is_x86_feature_detected!("sse4.1") && src as usize % 16 == 0 {
                 unsafe { stream_copy(self.copy.as_mut_ptr(), src, n) };
@@ -67,6 +75,23 @@ impl GpuMem {
         }
         unsafe { std::ptr::copy_nonoverlapping(src, self.copy.as_mut_ptr(), n) };
         &self.copy
+    }
+}
+
+/// the cache lines of n bytes at p out of the processor's caches (clflush): the
+/// next loads come from memory
+#[cfg(target_arch = "x86_64")]
+unsafe fn flushlines(p: *const u8, n: usize) {
+    use std::arch::x86_64::{_mm_clflush, _mm_mfence};
+    let mut a = p as usize & !63;
+    let end = p as usize + n;
+    unsafe {
+        _mm_mfence();
+        while a < end {
+            _mm_clflush(a as *const u8);
+            a += 64;
+        }
+        _mm_mfence();
     }
 }
 
@@ -163,7 +188,7 @@ impl Gpu {
             return Err(bad("import", &rep));
         };
         // from here on dropping m lets go of it again
-        let mut m = GpuMem { ctl: self.ctl.clone(), res, seg: None, va: 0, len: 0, copy: vec![] };
+        let mut m = GpuMem { ctl: self.ctl.clone(), res, seg: None, va: 0, len: 0, copy: vec![], flush: false };
         if rsize < size {
             return Err(io::Error::other(format!("gpu: buffer of {rsize} bytes, {size} wanted")));
         }
@@ -198,7 +223,7 @@ impl Gpu {
         else {
             return Err(bad("import", &rep));
         };
-        let mut m = GpuMem { ctl: self.ctl.clone(), res: id, seg: None, va: 0, len: 0, copy: vec![] };
+        let mut m = GpuMem { ctl: self.ctl.clone(), res: id, seg: None, va: 0, len: 0, copy: vec![], flush: false };
         if osize < size {
             return Err(io::Error::other(format!("gpu: buffer of {osize} bytes, {size} wanted")));
         }
@@ -206,6 +231,7 @@ impl Gpu {
         m.va = s.va;
         m.len = size;
         m.seg = Some(s);
+        m.flush = true;
         Ok(m)
     }
 
@@ -217,7 +243,7 @@ impl Gpu {
         let (Some(&"import"), Some(h), Some(osize)) = (f.first(), f.get(1).and_then(|x| x.parse::<u32>().ok()), f.get(2).and_then(|x| x.parse::<usize>().ok())) else {
             return Err(bad("import", &rep));
         };
-        let mut m = GpuMem { ctl: self.ctl.clone(), res: h, seg: None, va: 0, len: 0, copy: vec![] };
+        let mut m = GpuMem { ctl: self.ctl.clone(), res: h, seg: None, va: 0, len: 0, copy: vec![], flush: false };
         if osize < size {
             return Err(io::Error::other(format!("gpu: buffer of {osize} bytes, {size} wanted")));
         }
@@ -262,7 +288,7 @@ impl Gpu {
         let (Some(&"readback"), Some(h), Some(osize)) = (f.first(), f.get(1).and_then(|x| x.parse::<u32>().ok()), f.get(2).and_then(|x| x.parse::<usize>().ok())) else {
             return Err(bad("readback", &rep));
         };
-        let mut m = GpuMem { ctl: self.ctl.clone(), res: h, seg: None, va: 0, len: 0, copy: vec![] };
+        let mut m = GpuMem { ctl: self.ctl.clone(), res: h, seg: None, va: 0, len: 0, copy: vec![], flush: false };
         if osize < b.len {
             return Err(bad("readback: smaller than the buffer", &rep));
         }
