@@ -16,6 +16,5 @@ rm -f "$LOG"
 mkdir -p "$1"
 W=$ROOT/sys/src/cmd/wlsys
 "$CROSS/$TRIPLE-gcc" -std=gnu11 -O2 -Wall -o "$1/wlsys" \
-	"$W/wlsys.c" "$W/shm.c" "$W/xdg.c" "$W/win.c" "$W/seat.c" "$W/keymap.c" "$W/dmabuf.c" \
-	"$W/data.c" "$W/deco.c" "$W/sub.c" "$W/dnd.c" \
+	"$W"/*.c \
 	-lwayland-server -lffi

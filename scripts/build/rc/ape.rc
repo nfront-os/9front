@@ -1,0 +1,25 @@
+#!/bin/rc
+# ape.sh on 9front: APE's parts built with the native gcc of ../9front-gcc
+# (/$cputype/gnu): build.exe -D on the libraries' compatibility manifests
+# (Mesa, libffi, libwayland, SDL3, GLFW), then wlsys into /$objtype/bin when
+# it changed. Without that gcc it says so and builds nothing (check-install.rc
+# reports wlsys as nocross).
+. $PLAN9/scripts/build/rc/lib.rc
+if(! test -x $GNU/gcc){
+	echo ape.rc: no native gcc '('$GNU')': Mesa, libwayland, SDL3, GLFW, wlsys not built >[1=2]
+	exit ''
+}
+bind -b $GNU /bin
+for(d in sys/src/mesa sys/src/libffi sys/src/wayland sys/src/sdl3 sys/src/glfw){
+	echo ape.rc: $d
+	CC=$GNU/gcc ARCH=$objtype $PLAN9/sys/src/cmd/build/build.exe -D $PLAN9/$d/build.json >/tmp/ape.log >[2=1] || {
+		tail -20 /tmp/ape.log
+		die $d failed
+	}
+}
+w=$PLAN9/sys/src/cmd/wlsys
+gcc -std=gnu11 -O2 -Wall -o /tmp/wlsys $w/*.c -lwayland-server -lffi || die wlsys
+mkdir -p $PLAN9/$objtype/bin
+if(! cmp -s /tmp/wlsys $PLAN9/$objtype/bin/wlsys)
+	cp /tmp/wlsys $PLAN9/$objtype/bin/wlsys.new && mv $PLAN9/$objtype/bin/wlsys.new $PLAN9/$objtype/bin/wlsys || die install wlsys
+exit ''

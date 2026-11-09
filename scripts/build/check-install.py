@@ -10,6 +10,8 @@ files those rules install, scripts/build/mkinstall.py) and the kernel.
   missing  expected, not in the tree (or in the staged distribution)
   norust   a Rust crate's program (scripts/gen/rustcrates.py) not built: no Rust
            toolchain (scripts/build/cargo.sh skips them)
+  nocross  a program of APE's parts (scripts/gen/apeprogs.py: wlsys) not built: no
+           cross compiler of ../9front-gcc (scripts/build/ape.sh skips them)
   stale    in /$objtype/bin or /acme/bin/$objtype, but nothing installs
            it there (left from an older build: telnet before it moved
            from /amd64/bin/ip to /amd64/bin, as ip/mkfile installs it)
@@ -35,6 +37,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'gen'))
 import gencmds as g
+import apeprogs
 import rustcrates
 from arch import OBJTYPE as A
 
@@ -78,6 +81,12 @@ def expected():
 				out[b['Install'].replace('/$ARCH', '/' + A) + b['Program']] = m
 	return out
 
+def apeprogs_():
+	"""{path: source} of the programs scripts/build/ape.sh installs"""
+	if A not in apeprogs.OBJTYPES:
+		return {}
+	return {'/%s/bin/%s' % (A, p): d for p, d in apeprogs.PROGS.items()}
+
 def rustprogs():
 	"""{path: crate} of the Rust crates' programs (scripts/gen/rustcrates.py):
 	built only where there is a Rust toolchain"""
@@ -93,8 +102,8 @@ def isofiles(iso):
 def main():
 	args = sys.argv[1:]
 	if args == ['-l']:
-		# the Rust programs marked ?: check-install.rc does not miss them without Rust
-		print('\n'.join(sorted(expected()) + sorted('?' + p for p in rustprogs())))
+		# the Rust and APE programs marked ?: check-install.rc does not miss them without Rust or gcc
+		print('\n'.join(sorted(expected()) + sorted('?' + p for p in rustprogs()) + sorted('?' + p for p in apeprogs_())))
 		return
 	remove = '-r' in args
 	dist = args[args.index('-d') + 1] if '-d' in args else None
@@ -126,6 +135,16 @@ def main():
 			else:
 				print('norust  %s (%s: no Rust toolchain, ../9front-rust)' % (p, name))
 	exp.update(rust)
+	ape = apeprogs_()
+	havecross = apeprogs.cross(A)
+	for p, name in sorted(ape.items()):
+		if not os.path.exists(g.ROOT + p):
+			if havecross:
+				print('missing tree %s (%s)' % (p, name))
+				bad = 1
+			else:
+				print('nocross %s (%s: no cross compiler, ../9front-gcc)' % (p, name))
+	exp.update(ape)
 	# stale: what no rule installs in the program directories (the kernel
 	# build's ELF amd64/bin/9pc64 is for boot-cli.sh's multiboot)
 	keep = {'/%s/bin/%s' % (A, KERNELS[0])}

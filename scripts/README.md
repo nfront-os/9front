@@ -17,6 +17,7 @@ Run them after a mkfile changes (e.g. after rebasing onto `front`);
 | `gencmds.py` | program manifests `cmds.json`; `--list` build order, `--probe` rebuilds `cmds-broken*.txt`. `scripts/gen/gencmds.py cmd/rio` |
 | `genkernel.py` | kernel manifest from mkfile + CONF (pc, arm64; pc64's is hand-made). `scripts/gen/genkernel.py pc` |
 | `genbuild.py` | top-level `build.json` and `build.<arch>.json`. `scripts/gen/genbuild.py` |
+| `apeprogs.py` | APE's parts made by the cross compiler (`scripts/build/ape.sh`): the libraries' manifests in order, the programs (wlsys), whether ../9front-gcc's compiler is there; for genbuild.py and check-install.py. `scripts/gen/apeprogs.py` |
 | `rustcrates.py` | the Rust crates of the tree (sys/src/cmd/*/rust.json: their programs), for genbuild.py and check-install.py. `scripts/gen/rustcrates.py` |
 | `genmusl.py` | manifests of APE's musl part `sys/src/ape/lib/musl/musl[.386\|.arm64].json` (gcc only; sources per arch in `musl/<objtype>.list`); `--list` for genbuild. `scripts/gen/genmusl.py` |
 | `genclean.py` | module: the files a manifest's Pre steps generate (its `Clean` key) |
@@ -46,6 +47,7 @@ Called by `build.exe` (Pre/Post steps); rarely run by hand.
 | `check-install.py` | is everything `mk install` installs there? `-r` removes stale files, `-i x.iso` checks a CD. `scripts/build/check-install.py` |
 | `clean.sh` | remove the build's files from the source dirs (`-i`: installed files too). `scripts/build/clean.sh` |
 | `cargo.sh` | a Rust crate of the tree (its programs in `rust.json`, `scripts/gen/rustcrates.py`; no network: `vendor/`), built with ../9front-rust's stage-1 rustc and linked against this tree; programs to `/$objtype/bin` (amd64); without Rust it skips (check-install: norust). build.exe's step `rust`; rc twin `rc/cargo.rc` (native cargo, rustc, gcc). `scripts/build/cargo.sh sys/src/cmd/wsys wsys` |
+| `ape.sh` | APE's parts made with ../9front-gcc's cross compiler: build.exe -D on sys/src/mesa (libvulkan.a), libffi, wayland, sdl3, glfw, then the programs of them (`scripts/gen/apeprogs.py`: wlsys) into `/$objtype/bin`; without the compiler it skips (check-install: nocross). build.exe's step `ape`; rc twin `rc/ape.rc` (the native gcc). `scripts/build/ape.sh` |
 | `wsys-shaders.sh` | wsys' shaders (`sys/src/cmd/wsys/shaders`, the GPU's blending of layers with alpha) to SPIR-V with the host's glslc, checked in. `scripts/build/wsys-shaders.sh` |
 | `rc/*.rc` | the same steps in rc, for `build.exe` running on 9front itself (self-hosting): `build.exe` maps `bash …/X.sh` and `python3 …/X.py` to `rc …/rc/X.rc`. `lib.rc` holds the shared helpers (`hostcc`: helper programs with the native gcc, `bin2c`, `mkvar`) |
 

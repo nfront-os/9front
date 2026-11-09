@@ -368,4 +368,6 @@ The socket's entry in
 stays when
 .I wlsys
 exits.
-Not part of the system's build yet.
+Built by the system's build only with ../9front-gcc's compiler (build step
+.BR ape ),
+as Mesa, SDL3 and GLFW.
