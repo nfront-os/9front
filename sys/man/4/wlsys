@@ -324,6 +324,11 @@ Shift, Control, Mod1, Mod4 and Mod5.
 So a client's xkbcommon gives the characters
 .I kbdfs
 would.
+When the tables change
+.RI ( kbmap (1)),
+the next window that gets the keyboard brings every client the new keymap
+.RI ( wlsys
+reads them again then).
 .SH EXAMPLES
 In a window of
 .IR wsys ,
@@ -360,9 +365,6 @@ that moves (the click on its border dismisses them); dma-bufs without feedback
 .RB ( linux-drm-syncobj :
 Mesa's Wayland WSI waits for its blit before it commits); scale and
 transform are taken as 1 and normal.
-The keymap is not made again when
-.B /dev/kbmap
-changes.
 Built by the system's build only with ../9front-gcc's compiler (build step
 .BR ape ),
 as Mesa, SDL3 and GLFW.

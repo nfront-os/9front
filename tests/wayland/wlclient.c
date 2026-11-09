@@ -67,7 +67,7 @@ static int released[4];
 static int framedone;
 
 static int entered, enterx, entery, left, pressed, unpressed;
-static int keymapfd = -1, keymapsize;
+static int keymapfd = -1, keymapsize, nkeymaps;
 static int keydown, keyup, keymods, shifted;
 static uint32_t enterserial, keyserial;
 static struct wl_surface *kfocus;	/* the surface with the keyboard */
@@ -243,6 +243,7 @@ kkeymap(void *data, struct wl_keyboard *k, uint32_t format, int32_t fd, uint32_t
 		close(keymapfd);
 	keymapfd = fd;
 	keymapsize = size;
+	nkeymaps++;
 }
 static void kenter(void *data, struct wl_keyboard *k, uint32_t serial, struct wl_surface *s, struct wl_array *keys) { kfocus = s; }
 static void kleave(void *data, struct wl_keyboard *k, uint32_t serial, struct wl_surface *s) { if(kfocus == s) kfocus = NULL; }
@@ -734,6 +735,25 @@ readall(int fd, char *buf, int n)
 	return m;
 }
 
+/* the keymap's line of key <K45> (x's) has sym first */
+static int
+k45is(char *sym)
+{
+	char *km, *l, *e, want[16];
+	int ok;
+
+	if(keymapfd < 0 || (km = mmap(NULL, keymapsize, PROT_READ, MAP_PRIVATE, keymapfd, 0)) == MAP_FAILED)
+		return 0;
+	ok = 0;
+	snprintf(want, sizeof want, "[ %s,", sym);
+	if((l = strstr(km, "key <K45>")) != NULL && (e = strchr(l, '\n')) != NULL){
+		*e = 0;	/* MAP_PRIVATE: our copy */
+		ok = strstr(l, want) != NULL;
+	}
+	munmap(km, keymapsize);
+	return ok;
+}
+
 /* a popup of our toplevel by p's rules, configured; its xdg_surface in *xs */
 static struct xdg_popup*
 mkpopup(struct wl_surface *ps, struct xdg_positioner *p, struct xdg_surface **xs, int grab)
@@ -1035,6 +1055,13 @@ main(void)
 	want(250, 180, Green, "the new buffer, green");
 
 	/*
+	 * kbdfs' tables changed (x's key gives y now, as kbmap(1) would): the
+	 * next window with the keyboard (the popup below) brings a new keymap
+	 */
+	j = nkeymaps;
+	writefile("/dev/kbmap", "none 45 121\n", 12);
+
+	/*
 	 * a popup that grabs (a menu): 80x60 below and right of the point 10 10,
 	 * 5 5 further; magenta, no border, the keyboard's; a click on its
 	 * parent beside it: popup_done, gone
@@ -1068,6 +1095,9 @@ main(void)
 		usleep(20*1000);
 	}
 	check("the popup has the keyboard (it grabs)", kfocus == ps, NULL);
+	check("kbdfs' tables changed: a new keymap with the keyboard's enter", nkeymaps > j, "%d keymaps", nkeymaps);
+	check("x's key is y in it", k45is("y"), NULL);
+	writefile("/dev/kbmap", "none 45 120\n", 12);
 	wl_display_roundtrip(d);
 	check("the toplevel stays activated", deactivated == 0, "%d configures without", deactivated);
 	mouse(wx0 + 250, wy0 + 180, 1);

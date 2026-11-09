@@ -297,6 +297,7 @@ readkbmap(char *path)
 
 	if((f = fopen(path, "r")) == NULL)
 		return -1;
+	memset(tab, 0, sizeof tab);	/* read again: nothing of the tables before */
 	n = 0;
 	while(fscanf(f, "%31s %d %d", name, &sc, &r) == 3){
 		for(t = 0; t < Nlayers; t++)

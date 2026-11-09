@@ -28,6 +28,8 @@ static int nheld;
 static uint32_t mods;
 static int keymapfd = -1;
 static int keymaplen;
+static char *keymaptext;	/* what keymapfd holds */
+static int keymapload(void);
 static Surface *cursurf;	/* the cursor surface set, nil: hidden */
 static int curset;		/* set_cursor was called for curwin */
 static int curhx, curhy;	/* its hot spot */
@@ -187,6 +189,13 @@ kenter(Win *w)
 	kwin = w;
 	nheld = 0;
 	mods = 0;
+	/*
+	 * kbdfs' tables changed (no word of it comes): the new keymap to every
+	 * keyboard, before a key of it (its runes are the new tables')
+	 */
+	if(keymapload() == 1)
+		wl_resource_for_each(r, &keyboards)
+			wl_keyboard_send_keymap(r, WL_KEYBOARD_KEYMAP_FORMAT_XKB_V1, keymapfd, keymaplen);
 	wl_array_init(&keys);
 	serial = wl_display_next_serial(display);
 	eachres(r, &keyboards, w){
@@ -638,35 +647,51 @@ seatbind(struct wl_client *c, void *data, uint32_t version, uint32_t id)
 		wl_seat_send_name(r, "seat0");
 }
 
-/* the keymap in a memfd: the clients map it (MAP_PRIVATE: a copy) */
-static void
-keymapinit(void)
+/*
+ * the keymap of kbdfs' tables in a memfd, the clients map it (MAP_PRIVATE:
+ * a copy); 1 if it is new (the first, or the tables changed: kbmap(1)),
+ * 0 if as before, -1 if none
+ */
+static int
+keymapload(void)
 {
 	char *text, *p;
 	int n, fd;
 
 	if((n = mkkeymap("/dev/kbmap", &text)) < 0){
-		fprintf(stderr, "wlsys: /dev/kbmap: no keyboard's tables; no keymap\n");
-		return;
+		if(keymaptext == NULL)
+			fprintf(stderr, "wlsys: /dev/kbmap: no keyboard's tables; no keymap\n");
+		return -1;
+	}
+	if(keymaptext != NULL && n == keymaplen && memcmp(text, keymaptext, n) == 0){
+		free(text);
+		return 0;
 	}
 	if((fd = memfd_create("wlsys-keymap", MFD_CLOEXEC)) < 0 || ftruncate(fd, n) < 0){
 		fprintf(stderr, "wlsys: keymap: memfd: %s\n", strerror(errno));
+		if(fd >= 0)
+			close(fd);
 		free(text);
-		return;
+		return -1;
 	}
 	p = mmap(NULL, n, PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
 	if(p == MAP_FAILED){
 		fprintf(stderr, "wlsys: keymap: mmap: %s\n", strerror(errno));
 		close(fd);
 		free(text);
-		return;
+		return -1;
 	}
 	memcpy(p, text, n);
 	munmap(p, n);
-	free(text);
+	/* the clients have their own descriptors of the old one */
+	if(keymapfd >= 0)
+		close(keymapfd);
+	free(keymaptext);
+	keymaptext = text;
 	keymapfd = fd;
 	keymaplen = n;
 	dprint("keymap: %d bytes\n", n);
+	return 1;
 }
 
 void
@@ -674,6 +699,6 @@ seatinit(void)
 {
 	wl_list_init(&pointers);
 	wl_list_init(&keyboards);
-	keymapinit();
+	keymapload();
 	wl_global_create(display, &wl_seat_interface, 7, NULL, seatbind);
 }
