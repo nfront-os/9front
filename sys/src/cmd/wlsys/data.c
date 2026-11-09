@@ -17,7 +17,6 @@
 #include "dat.h"
 
 enum {
-	Nmime = 16,
 	Maxsnarf = 16*1024*1024,
 	RFFDG = 1<<2,
 	RFPROC = 1<<4,
@@ -27,12 +26,6 @@ enum {
 extern void _EXITS(char*);
 extern long _WRITE(int, const void*, long);
 
-typedef struct Source Source;
-struct Source {
-	struct wl_resource	*res;
-	char	*mime[Nmime];
-	int	nmime;
-};
 
 /* the names of text, the preferred first */
 static char *textmime[] = {
@@ -329,7 +322,8 @@ sourceoffer(struct wl_client *c, struct wl_resource *r, const char *mime)
 static void
 sourceactions(struct wl_client *c, struct wl_resource *r, uint32_t actions)
 {
-	(void)c; (void)r; (void)actions;
+	(void)c;
+	((Source*)wl_resource_get_user_data(r))->actions = actions;
 }
 
 static const struct wl_data_source_interface sourceimpl = {
@@ -347,6 +341,7 @@ sourcedestroyres(struct wl_resource *r)
 	s = wl_resource_get_user_data(r);
 	if(selection == s)
 		selection = NULL;	/* the snarf buffer stays */
+	dragsourcegone(s);
 	for(i = 0; i < s->nmime; i++)
 		free(s->mime[i]);
 	free(s);
@@ -372,12 +367,14 @@ unsetsel(void)
 
 /* ---- wl_data_device ---- */
 
+/* a drag (dnd.c), while a button is held in the window of origin */
 static void
 devicedrag(struct wl_client *c, struct wl_resource *r, struct wl_resource *src, struct wl_resource *origin, struct wl_resource *icon, uint32_t serial)
 {
-	(void)c; (void)r; (void)origin; (void)icon; (void)serial;
-	if(src != NULL)
-		wl_data_source_send_cancelled(src);
+	(void)c; (void)serial;
+	dragstart(r, src != NULL ? wl_resource_get_user_data(src) : NULL,
+		origin != NULL ? wl_resource_get_user_data(origin) : NULL,
+		icon != NULL ? wl_resource_get_user_data(icon) : NULL);
 }
 
 static void
@@ -467,6 +464,13 @@ mgrbind(struct wl_client *c, void *data, uint32_t version, uint32_t id)
 		return;
 	}
 	wl_resource_set_implementation(r, &mgrimpl, NULL, NULL);
+}
+
+/* the wl_data_device resources of all clients */
+struct wl_list*
+datadevices(void)
+{
+	return &devices;
 }
 
 void

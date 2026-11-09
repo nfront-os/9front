@@ -40,6 +40,7 @@ enum {
 	Rxdg,		/* an xdg_surface's: a toplevel's or a popup's */
 	Rcursor,	/* the pointer's picture (wl_pointer.set_cursor) */
 	Rsub,		/* a subsurface's (wl_subcompositor) */
+	Rdndicon,	/* a drag's icon (wl_data_device.start_drag) */
 };
 
 
@@ -50,6 +51,8 @@ typedef struct Surface Surface;
 typedef struct Win Win;
 typedef struct Frame Frame;
 typedef struct Pos Pos;
+typedef struct Region Region;
+typedef struct Source Source;
 
 struct Rect {
 	int	x0, y0, x1, y1;
@@ -75,6 +78,27 @@ struct Buffer {
 	int	freed;		/* released since its last commit */
 };
 
+enum {
+	Nmime = 16,
+};
+
+/* a wl_data_source: what its client offers (a selection's or a drag's) */
+struct Source {
+	struct wl_resource	*res;
+	char	*mime[Nmime];
+	int	nmime;
+	uint32_t	actions;	/* a drag's: copy, move, ask (set_actions) */
+};
+
+/* a wl_region: rectangles added and taken away, in their order */
+struct Region {
+	int	n;
+	struct {
+		int	add;
+		Rect	r;
+	}	*v;
+};
+
 /* an xdg_positioner's rules: where a popup goes by its parent */
 struct Pos {
 	int32_t	w, h;		/* the popup's size */
@@ -97,6 +121,9 @@ struct Surface {
 	Buffer	*pbuf;
 	int	pattached;
 	int	pdx, pdy;	/* attach's or offset's move of the picture */
+	Region	*pinput;	/* set_input_region's (nil: all), with pinputset */
+	int	pinputset;
+	Region	*input;		/* where it takes the pointer; nil: everywhere */
 	Rect	pdamage;	/* in the buffer's coordinates; empty: none */
 	struct wl_list	pframes;
 
@@ -132,7 +159,10 @@ struct Surface {
 	int	cached;
 	Buffer	*cbuf;
 	int	cattached;
+	Region	*cinput;
+	int	cinputset;
 	int	lnew;		/* a new buffer since its window's last layers */
+	int	ix, iy;		/* a drag icon's place at the pointer (attach's moves) */
 	int	committed;	/* the toplevel's first commit, answered by a configure */
 	uint32_t	serial;	/* the last configure sent */
 	uint32_t	acked;	/* and acknowledged */
@@ -175,6 +205,11 @@ void	frames(struct wl_list*, uint32_t);
 void	later(struct wl_list*);
 void	sendenter(Surface*);
 
+/* wlsys.c's regions */
+Region	*regcopy(Region*);
+void	regfree(Region*);
+int	regin(Region*, int, int);
+
 /* shm.c */
 void	shminit(void);
 Buffer	*newbuffer(struct wl_client*, uint32_t);
@@ -215,6 +250,8 @@ void	seatforget(Win*);
 void	cursorcommit(Surface*, int, int, int);
 void	cursorgone(Surface*);
 void	pointergone(Surface*);
+Win	*pointerheld(struct wl_client*, int*, int*);
+void	pointerleave(void);
 Win	*keywin(void);
 
 /* sub.c */
@@ -232,6 +269,15 @@ void	suborigin(Surface*, int*, int*);
 /* data.c */
 void	datainit(void);
 void	selectionfocus(Win*);
+struct wl_list	*datadevices(void);
+
+/* dnd.c */
+void	dragstart(struct wl_resource*, Source*, Surface*, Surface*);
+int	dragpointer(Win*, int, int, int, uint32_t);
+void	dragsourcegone(Source*);
+void	dragsurfacegone(Surface*);
+void	dragwingone(Win*);
+int	iconrect(Surface*, int, int, Rect*);
 
 /* deco.c */
 void	decoinit(void);

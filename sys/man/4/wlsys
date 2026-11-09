@@ -132,8 +132,37 @@ and gives each buffer back when no frame shows it any more;
 copies no pixels.
 Synchronized subsurfaces (the default) keep their commits until the
 parent's; desynchronized ones show theirs at once.
-The pointer goes to the topmost surface of the tree under it (while a
-button is held, to the one it was pressed on).
+The pointer goes to the topmost surface of the tree under it whose input
+region has the point (while a button is held, to the one it was pressed
+on).
+.PP
+Drag and drop
+.RB ( start_drag ,
+while a button is held in the window it starts from:
+.I wsys
+keeps giving that window the mouse, also outside it) goes between Wayland
+windows: each motion's point on the screen finds the topmost window of
+.I wsys
+there (every window's
+.BR ctl :
+its rectangle,
+.I z
+and
+.IR hidden ),
+and if it is one of
+.IR wlsys 's
+the surface of its tree under the point, whose client's data devices get
+an offer of the source's types with enter, motion and leave.
+The button released over a target that accepted a type and an action
+(the target's preferred, else copy, move, ask) drops; else the source is
+cancelled.
+The target's
+.B receive
+goes to the source as it is (its pipe), its
+.B finish
+ends the drag.
+The icon is a window without a border and without the focus at the pointer.
+No drag reaches a Plan 9 program, nor comes from one.
 .PP
 The pointer's picture
 .RB ( wl_pointer.set_cursor )
@@ -325,11 +354,10 @@ wlsys -s wayland-0 &
 .IR kbd (3)
 .SH BUGS
 One output; a subsurface beyond its root surface is cut off (the window is
-the root's size), input regions are not kept (a surface takes the pointer
-wherever it has pixels), a window holds 32 buffers (its surfaces'); cursors of two colours and 16 by 16 pixels, as
+the root's size), a window holds 32 buffers (its surfaces'); cursors of two colours and 16 by 16 pixels, as
 .IR cursor (3)'s;
-only text in the clipboard, no drag and drop (a drag's source is
-cancelled at once), no primary selection; popups do not follow a parent
+only text in the clipboard, no primary selection; drags only between
+Wayland windows; popups do not follow a parent
 that moves (the click on its border dismisses them); dma-bufs without feedback
 (version 4), modifiers or fences
 .RB ( linux-drm-syncobj :

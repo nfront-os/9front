@@ -20,6 +20,7 @@ enum {
 static struct wl_list pointers, keyboards;	/* their resources */
 static Win *pwin;		/* the window the pointer is in */
 static Surface *psurf;		/* and the surface of its tree under it */
+static int pwx, pwy;		/* where in the window, last seen */
 static int px, py, pbuttons;
 static Win *kwin;		/* the one the keyboard is in */
 static uint32_t held[Maxkeys];	/* Linux codes */
@@ -130,6 +131,13 @@ pointer(Win *w, int x, int y, int b, uint32_t ms)
 
 	if(w->s == NULL)
 		return;
+	/* a drag from this window takes the pointer (dnd.c) */
+	if(dragpointer(w, x, y, b, ms)){
+		pbuttons = b;
+		return;
+	}
+	pwx = x;
+	pwy = y;
 	inside = x >= 0 && y >= 0 && x < w->w && y < w->h;
 	/*
 	 * the surface of the window's tree under it, in its coordinates;
@@ -220,6 +228,27 @@ focus(Win *w, int f)
 	}else if(kwin == w)
 		kleave();
 	focuschanged();	/* activated, or not; popups done */
+}
+
+/*
+ * the window the pointer is in, if c's and a button is held there (a drag
+ * may start); the point in it in *x, *y
+ */
+Win*
+pointerheld(struct wl_client *c, int *x, int *y)
+{
+	if(pwin == NULL || pbuttons == 0 || winclient(pwin) != c)
+		return NULL;
+	*x = pwx;
+	*y = pwy;
+	return pwin;
+}
+
+/* the pointer leaves the surface it is in (a drag takes it) */
+void
+pointerleave(void)
+{
+	pleave();
 }
 
 /* surface s goes: the pointer is in none of its window's (no leave: it is gone) */

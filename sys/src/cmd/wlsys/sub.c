@@ -76,6 +76,13 @@ subcommit(Surface *s)
 		s->cbuf = s->pbuf;
 		s->cattached = 1;
 	}
+	if(s->pinputset){
+		regfree(s->cinput);
+		s->cinput = s->pinput;
+		s->cinputset = 1;
+		s->pinput = NULL;
+		s->pinputset = 0;
+	}
 	s->pbuf = NULL;
 	s->pattached = 0;
 	s->cached = 1;
@@ -100,6 +107,12 @@ subapply(Surface *s)
 		c->sy = c->psy;
 		if(c->cached){
 			c->cached = 0;
+			if(c->cinputset){
+				regfree(c->input);
+				c->input = c->cinput;
+				c->cinput = NULL;
+				c->cinputset = 0;
+			}
 			if(c->cattached){
 				c->buf = c->cbuf;
 				c->cbuf = NULL;
@@ -177,7 +190,8 @@ pick1(Surface *s, int sx, int sy, int x, int y, int *px, int *py)
 				return f;
 			continue;
 		}
-		if(s->buf != NULL && x >= sx && y >= sy && x < sx + s->buf->w && y < sy + s->buf->h){
+		if(s->buf != NULL && x >= sx && y >= sy && x < sx + s->buf->w && y < sy + s->buf->h &&
+		   regin(s->input, x - sx, y - sy)){
 			*px = x - sx;
 			*py = y - sy;
 			return s;
@@ -314,6 +328,12 @@ subdesync(struct wl_client *c, struct wl_resource *r)
 	s->desync = 1;
 	if(s->cached && !synced(s)){
 		s->cached = 0;
+		if(s->cinputset){
+			regfree(s->input);
+			s->input = s->cinput;
+			s->cinput = NULL;
+			s->cinputset = 0;
+		}
 		if(s->cattached){
 			s->buf = s->cbuf;
 			s->cbuf = NULL;

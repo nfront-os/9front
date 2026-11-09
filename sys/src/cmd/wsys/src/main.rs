@@ -16,7 +16,7 @@
 //	/mnt/wsys/N/		a window: ctl, event (wsys' own), and rio(4)'s
 //				cons consctl cursor kbd label mouse screen snarf
 //				text wctl wdir window winid winname
-//	N/ctl			read: id x0 y0 x1 y1 w h base size focus
+//	N/ctl			read: id x0 y0 x1 y1 w h base size focus z hidden
 //				write: rect x0 y0 x1 y1 | buffer n seg w h stride [off [chan]] |
 //				gpubuffer n token w h stride [chan] | unbuffer n |
 //				present n [x0 y0 x1 y1] | layers [+]n x y ... | top |
@@ -1131,9 +1131,10 @@ impl Wsys {
     fn ctltext(&self, n: u32) -> String {
         let w = &self.wins[&n];
         format!(
-            "{} {} {} {} {} {} {} {:#x} {:#x} {}\n",
+            "{} {} {} {} {} {} {} {:#x} {:#x} {} {} {}\n",
             n, w.r.x0, w.r.y0, w.r.x1, w.r.y1, w.r.dx(), w.r.dy(),
-            SEGBASE + w.slot * SEGSIZE, SEGSIZE, (self.focus == Some(n)) as i32
+            SEGBASE + w.slot * SEGSIZE, SEGSIZE, (self.focus == Some(n)) as i32,
+            self.z.iter().position(|&i| i == n).unwrap_or(0), w.hidden as i32
         )
     }
 

@@ -98,7 +98,7 @@ later(struct wl_list *list)
 	}
 }
 
-/* ---- wl_region: wsys windows are opaque rectangles; regions are not kept ---- */
+/* ---- wl_region: kept as its rectangles, in their order (input regions) ---- */
 
 static void
 resdestroy(struct wl_client *c, struct wl_resource *r)
@@ -107,16 +107,83 @@ resdestroy(struct wl_client *c, struct wl_resource *r)
 	wl_resource_destroy(r);
 }
 
-static void
-regionrect(struct wl_client *c, struct wl_resource *r, int32_t x, int32_t y, int32_t w, int32_t h)
+/* a copy of g (nil: nil) */
+Region*
+regcopy(Region *g)
 {
-	(void)c; (void)r; (void)x; (void)y; (void)w; (void)h;
+	Region *c;
+
+	if(g == NULL || (c = calloc(1, sizeof *c)) == NULL)
+		return NULL;
+	if(g->n > 0 && (c->v = malloc(g->n * sizeof c->v[0])) == NULL){
+		free(c);
+		return NULL;
+	}
+	if(g->n > 0)
+		memcpy(c->v, g->v, g->n * sizeof c->v[0]);
+	c->n = g->n;
+	return c;
+}
+
+void
+regfree(Region *g)
+{
+	if(g == NULL)
+		return;
+	free(g->v);
+	free(g);
+}
+
+/* x, y in g: the last of its rectangles with it added it (nil: everywhere) */
+int
+regin(Region *g, int x, int y)
+{
+	int i, in;
+
+	if(g == NULL)
+		return 1;
+	in = 0;
+	for(i = 0; i < g->n; i++){
+		Rect *r = &g->v[i].r;
+
+		if(x >= r->x0 && x < r->x1 && y >= r->y0 && y < r->y1)
+			in = g->v[i].add;
+	}
+	return in;
+}
+
+static void
+regop(struct wl_resource *r, int add, int32_t x, int32_t y, int32_t w, int32_t h)
+{
+	Region *g;
+	void *v;
+
+	g = wl_resource_get_user_data(r);
+	if(w <= 0 || h <= 0 || g->n >= 4096)
+		return;
+	if((v = realloc(g->v, (g->n + 1) * sizeof g->v[0])) == NULL){
+		wl_client_post_no_memory(wl_resource_get_client(r));
+		return;
+	}
+	g->v = v;
+	g->v[g->n].add = add;
+	g->v[g->n].r = (Rect){x, y, x + w, y + h};
+	g->n++;
+}
+
+static void regadd(struct wl_client *c, struct wl_resource *r, int32_t x, int32_t y, int32_t w, int32_t h) { (void)c; regop(r, 1, x, y, w, h); }
+static void regsub(struct wl_client *c, struct wl_resource *r, int32_t x, int32_t y, int32_t w, int32_t h) { (void)c; regop(r, 0, x, y, w, h); }
+
+static void
+regdestroyres(struct wl_resource *r)
+{
+	regfree(wl_resource_get_user_data(r));
 }
 
 static const struct wl_region_interface regionimpl = {
 	resdestroy,
-	regionrect,	/* add */
-	regionrect,	/* subtract */
+	regadd,
+	regsub,
 };
 
 /* ---- wl_surface ---- */
@@ -205,10 +272,24 @@ surfframe(struct wl_client *c, struct wl_resource *r, uint32_t id)
 	wl_list_insert(s->pframes.prev, &f->link);
 }
 
+/* the opaque region: wsys knows from a buffer's channels */
 static void
-surfregion(struct wl_client *c, struct wl_resource *r, struct wl_resource *reg)
+surfopaque(struct wl_client *c, struct wl_resource *r, struct wl_resource *reg)
 {
 	(void)c; (void)r; (void)reg;
+}
+
+/* where the surface takes the pointer, a copy of reg's, from its next commit on */
+static void
+surfinput(struct wl_client *c, struct wl_resource *r, struct wl_resource *reg)
+{
+	Surface *s;
+
+	(void)c;
+	s = ssurface(r);
+	regfree(s->pinput);
+	s->pinput = reg != NULL ? regcopy(wl_resource_get_user_data(reg)) : NULL;
+	s->pinputset = 1;
 }
 
 static void
@@ -227,6 +308,12 @@ surfcommit(struct wl_client *c, struct wl_resource *r)
 		s->pdx = s->pdy = 0;
 		return;
 	}
+	if(s->pinputset){
+		regfree(s->input);
+		s->input = s->pinput;
+		s->pinput = NULL;
+		s->pinputset = 0;
+	}
 	changed = s->pattached || (s->pdamage.x0 < s->pdamage.x1 && s->pdamage.y0 < s->pdamage.y1);
 	if(s->pattached){
 		s->buf = s->pbuf;
@@ -236,6 +323,17 @@ surfcommit(struct wl_client *c, struct wl_resource *r)
 		s->pattached = 0;
 		if(s->buf == NULL)
 			unshow(s);	/* unmapped */
+	}
+	if(s->role == Rdndicon){
+		/* a drag's icon: moved by attach's offset, shown while the drag lasts */
+		s->ix += s->pdx;
+		s->iy += s->pdy;
+		if(changed && s->buf != NULL){
+			Rect r;
+
+			if(iconrect(s, s->buf->w, s->buf->h, &r) == 0)
+				show(s);
+		}
 	}
 	if(s->role == Rcursor){
 		/* the pointer's picture: read now, the buffer free again */
@@ -278,8 +376,8 @@ static const struct wl_surface_interface surfaceimpl = {
 	surfattach,
 	surfdamage,
 	surfframe,
-	surfregion,	/* set_opaque_region */
-	surfregion,	/* set_input_region */
+	surfopaque,	/* set_opaque_region */
+	surfinput,	/* set_input_region */
 	surfcommit,
 	surfint,	/* set_buffer_transform */
 	surfint,	/* set_buffer_scale */
@@ -312,6 +410,7 @@ surfdestroyres(struct wl_resource *r)
 
 	s = ssurface(r);
 	popupforget(s);
+	dragsurfacegone(s);
 	subgone(s);
 	unshow(s);
 	cursorgone(s);
@@ -327,6 +426,9 @@ surfdestroyres(struct wl_resource *r)
 	if(s->popup != NULL)
 		wl_resource_set_user_data(s->popup, NULL);
 	wl_list_remove(&s->link);
+	regfree(s->pinput);
+	regfree(s->input);
+	regfree(s->cinput);
 	free(s->title);
 	free(s);
 }
@@ -374,7 +476,14 @@ compcreateregion(struct wl_client *c, struct wl_resource *r, uint32_t id)
 		return;
 	}
 	(void)r;
-	wl_resource_set_implementation(g, &regionimpl, NULL, NULL);
+	Region *rg;
+
+	if((rg = calloc(1, sizeof *rg)) == NULL){
+		wl_resource_destroy(g);
+		wl_client_post_no_memory(c);
+		return;
+	}
+	wl_resource_set_implementation(g, &regionimpl, rg, regdestroyres);
 }
 
 static const struct wl_compositor_interface compimpl = {

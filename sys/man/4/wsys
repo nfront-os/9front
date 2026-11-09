@@ -326,7 +326,11 @@ Reading gives one line of fields:
 .I base size
 (the range for its buffers)
 .I focus
-(1 if it has the focus).
+(1 if it has the focus)
+.I z
+(its place in the stack, 0 the bottom)
+.I hidden
+(1 if hidden).
 Messages written:
 .RS
 .TP

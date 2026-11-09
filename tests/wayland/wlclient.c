@@ -17,7 +17,11 @@
  * on its parent) and a tooltip (flipped onto the screen, the keyboard
  * stays); subsurfaces (composed by wlsys: synchronized until the parent's
  * commit, below the parent, blended, desynchronized, the pointer's enter
- * on one, gone again); deleted in wsys: the toplevel's close.
+ * on one, an input region letting it through, gone again); drag and drop
+ * from our toplevel into a second one (wlclient-b: enter, the icon at the
+ * pointer, accept and the action, drop, the data through the source,
+ * finish; a drag released over nothing cancelled); deleted in wsys: the
+ * toplevel's close.
  * Prints "ok ..." / "FAIL ..." lines and a summary.
  */
 #include <stdio.h>
@@ -80,6 +84,12 @@ static int selections, offertext, sent, cancelled;
 static struct wl_subcompositor *subcomp;
 static struct wl_surface *penters;	/* the surface the pointer entered last */
 static int penterx, pentery;
+static int pmx, pmy;		/* the pointer's last motion */
+static struct wl_surface *dndsurf;	/* a drag's enter: where */
+static struct wl_data_offer *dndoffer;
+static uint32_t dndserial;
+static int dndenters, dndmotions, dnddrops, nsrcdropped, nsrcfinished;
+static uint32_t srcact;
 static int popconf, popdone, popx, popy, popw, poph;
 static uint32_t popserial;
 
@@ -201,7 +211,7 @@ penter(void *data, struct wl_pointer *p, uint32_t serial, struct wl_surface *s, 
 	}
 }
 static void pleave(void *data, struct wl_pointer *p, uint32_t serial, struct wl_surface *s) { if(s == surf) left++; }
-static void pmotion(void *data, struct wl_pointer *p, uint32_t ms, wl_fixed_t x, wl_fixed_t y) {}
+static void pmotion(void *data, struct wl_pointer *p, uint32_t ms, wl_fixed_t x, wl_fixed_t y) { pmx = wl_fixed_to_int(x); pmy = wl_fixed_to_int(y); }
 static void
 pbutton(void *data, struct wl_pointer *p, uint32_t serial, uint32_t ms, uint32_t b, uint32_t st)
 {
@@ -281,10 +291,17 @@ devoffer(void *data, struct wl_data_device *dd, struct wl_data_offer *o)
 	offertext = 0;
 	wl_data_offer_add_listener(o, &offerlistener, NULL);
 }
-static void deventer(void *data, struct wl_data_device *dd, uint32_t serial, struct wl_surface *s, wl_fixed_t x, wl_fixed_t y, struct wl_data_offer *o) {}
-static void devleave(void *data, struct wl_data_device *dd) {}
-static void devmotion(void *data, struct wl_data_device *dd, uint32_t ms, wl_fixed_t x, wl_fixed_t y) {}
-static void devdrop(void *data, struct wl_data_device *dd) {}
+static void
+deventer(void *data, struct wl_data_device *dd, uint32_t serial, struct wl_surface *s, wl_fixed_t x, wl_fixed_t y, struct wl_data_offer *o)
+{
+	dndsurf = s;
+	dndoffer = o;
+	dndserial = serial;
+	dndenters++;
+}
+static void devleave(void *data, struct wl_data_device *dd) { dndsurf = NULL; }
+static void devmotion(void *data, struct wl_data_device *dd, uint32_t ms, wl_fixed_t x, wl_fixed_t y) { dndmotions++; }
+static void devdrop(void *data, struct wl_data_device *dd) { dnddrops++; }
 static void
 devselection(void *data, struct wl_data_device *dd, struct wl_data_offer *o)
 {
@@ -306,9 +323,9 @@ srcsend(void *data, struct wl_data_source *s, const char *mime, int32_t fd)
 	sent++;
 }
 static void srccancelled(void *data, struct wl_data_source *s) { cancelled++; }
-static void srcdropped(void *data, struct wl_data_source *s) {}
-static void srcfinished(void *data, struct wl_data_source *s) {}
-static void srcaction(void *data, struct wl_data_source *s, uint32_t a) {}
+static void srcdropped(void *data, struct wl_data_source *s) { nsrcdropped++; }
+static void srcfinished(void *data, struct wl_data_source *s) { nsrcfinished++; }
+static void srcaction(void *data, struct wl_data_source *s, uint32_t a) { srcact = a; }
 static const struct wl_data_source_listener srclistener = { srctarget, srcsend, srccancelled, srcdropped, srcfinished, srcaction };
 
 static void
@@ -576,6 +593,47 @@ present(struct wl_buffer *b, int w, int h)
 	wl_surface_commit(surf);
 }
 
+/* the window of wsys labelled l: its id and place on the screen; -1 if none */
+static int
+labelled(char *l, int *id, int *x0, int *y0, int *x1, int *y1)
+{
+	DIR *dir;
+	struct dirent *e;
+	char path[128], buf[256];
+	int n, i;
+
+	if((dir = opendir("/mnt/wsys")) == NULL)
+		return -1;
+	n = -1;
+	while((e = readdir(dir)) != NULL){
+		if((i = atoi(e->d_name)) <= 0)
+			continue;
+		snprintf(path, sizeof path, "/mnt/wsys/%d/label", i);
+		if(readfile(path, buf, sizeof buf) >= 0 && strcmp(buf, l) == 0)
+			n = i;
+	}
+	closedir(dir);
+	if(n < 0)
+		return -1;
+	snprintf(path, sizeof path, "/mnt/wsys/%d/ctl", n);
+	if(readfile(path, buf, sizeof buf) < 0 || sscanf(buf, "%d %d %d %d %d", id, x0, y0, x1, y1) != 5)
+		return -1;
+	return 0;
+}
+
+/* dispatch until *flag changes from was, about 2 s */
+static int
+waitchange(int *flag, int was)
+{
+	int i;
+
+	for(i = 0; i < 40 && *flag == was; i++){
+		wl_display_roundtrip(d);
+		usleep(50*1000);
+	}
+	return *flag != was;
+}
+
 /* a pool of n bytes (a memfd), mapped; nil if not */
 static uint32_t*
 mkpool(int n, struct wl_shm_pool **pool)
@@ -693,8 +751,14 @@ main(void)
 	struct wl_subsurface *sub;
 	struct wl_surface *ss;
 	struct wl_shm_pool *spool;
-	struct wl_buffer *sb, *sw, *sg;
-	uint32_t *spx;
+	struct wl_buffer *sb, *sw, *sg, *bb, *ib;
+	struct wl_region *rg;
+	struct wl_surface *bs, *is;
+	struct xdg_surface *bxs;
+	struct xdg_toplevel *btop;
+	struct wl_shm_pool *bpool;
+	uint32_t *spx, *bpx;
+	int bid, bx0, by0, bx1, by1;
 	unsigned char cur[72];
 	uint16_t set[16], clr[16];
 	uint32_t *px, *px2, *cpx, *ppx;
@@ -1101,6 +1165,39 @@ main(void)
 		usleep(20*1000);
 	}
 	check("and the parent again beside it", penters == surf && penterx == 150 && pentery == 150, "%d %d", penterx, pentery);
+	/* an empty input region: the subsurface takes the pointer nowhere (the parent's there) */
+	rg = wl_compositor_create_region(comp);
+	wl_surface_set_input_region(ss, rg);
+	wl_region_destroy(rg);
+	wl_surface_commit(ss);
+	wl_display_roundtrip(d);
+	mouse(wx0 + 30, wy0 + 40, 0);
+	for(i = 0; i < 50 && !(pmx == 30 && pmy == 40); i++){
+		wl_display_roundtrip(d);
+		usleep(20*1000);
+	}
+	check("an empty input region: the pointer goes through to the parent", penters == surf && pmx == 30 && pmy == 40,
+		"%s, at %d %d", penters == ss ? "the subsurface" : "the parent", pmx, pmy);
+	/* half of it: 0 0 to 30 40 takes it again */
+	rg = wl_compositor_create_region(comp);
+	wl_region_add(rg, 0, 0, 60, 40);
+	wl_region_subtract(rg, 30, 0, 30, 40);
+	wl_surface_set_input_region(ss, rg);
+	wl_region_destroy(rg);
+	wl_surface_commit(ss);
+	wl_display_roundtrip(d);
+	mouse(wx0 + 25, wy0 + 35, 0);
+	for(i = 0; i < 50 && penters != ss; i++){
+		wl_display_roundtrip(d);
+		usleep(20*1000);
+	}
+	check("its input region added: the subsurface's again (5 5)", penters == ss && penterx == 5 && pentery == 5, "%d %d", penterx, pentery);
+	mouse(wx0 + 60, wy0 + 50, 0);
+	for(i = 0; i < 50 && penters != surf; i++){
+		wl_display_roundtrip(d);
+		usleep(20*1000);
+	}
+	check("and where it was taken away the parent's (60 50)", penters == surf && penterx == 60 && pentery == 50, "%d %d", penterx, pentery);
 	wl_subsurface_destroy(sub);
 	wl_surface_destroy(ss);
 	wl_display_roundtrip(d);
@@ -1108,6 +1205,122 @@ main(void)
 	present(b2, 300, 200);
 	check("the parent's own buffer again", waitfor(&framedone), NULL);
 	want(50, 50, Green, "the parent alone");
+
+	/*
+	 * drag and drop: a second toplevel beside ours; a press in ours, a
+	 * drag of text with an icon (16x16 magenta), moved into it with the
+	 * button held: its enter, the icon at the pointer; accepted, copy;
+	 * released: dropped, the data from our source, finished
+	 */
+	bs = wl_compositor_create_surface(comp);
+	bxs = xdg_wm_base_get_xdg_surface(wm, bs);
+	xdg_surface_add_listener(bxs, &popxslistener, NULL);
+	btop = xdg_surface_get_toplevel(bxs);
+	xdg_toplevel_set_title(btop, "wlclient-b");
+	popconf = 0;
+	wl_surface_commit(bs);
+	check("a second toplevel configured", waitfor(&popconf), NULL);
+	xdg_surface_ack_configure(bxs, popserial);
+	if((bpx = mkpool(100*100*4 + 16*16*4, &bpool)) == NULL)
+		return 1;
+	fill(bpx, 100*100, Red);
+	fill(bpx + 100*100, 16*16, Magenta);
+	bb = wl_shm_pool_create_buffer(bpool, 0, 100, 100, 400, WL_SHM_FORMAT_XRGB8888);
+	ib = wl_shm_pool_create_buffer(bpool, 100*100*4, 16, 16, 64, WL_SHM_FORMAT_XRGB8888);
+	wl_surface_attach(bs, bb, 0, 0);
+	wl_surface_damage_buffer(bs, 0, 0, 100, 100);
+	wl_surface_commit(bs);
+	wl_display_roundtrip(d);
+	usleep(200*1000);
+	ok = labelled("wlclient-b", &bid, &bx0, &by0, &bx1, &by1) == 0;
+	check("its window", ok, NULL);
+	snprintf(msg, sizeof msg, "/mnt/wsys/%d/ctl", bid);
+	snprintf(buf, sizeof buf, "rect %d %d %d %d", wx1 + 60, wy0, wx1 + 160, wy0 + 100);
+	writefile(msg, buf, strlen(buf));
+	labelled("wlclient-b", &bid, &bx0, &by0, &bx1, &by1);
+	check("beside ours", bx0 == wx1 + 60, "%d %d", bx0, by0);
+	is = wl_compositor_create_surface(comp);
+	wl_surface_attach(is, ib, 0, 0);
+	wl_surface_damage_buffer(is, 0, 0, 16, 16);
+	wl_surface_commit(is);
+	src = wl_data_device_manager_create_data_source(ddm);
+	wl_data_source_add_listener(src, &srclistener, "dragged");
+	wl_data_source_offer(src, "text/plain;charset=utf-8");
+	wl_data_source_set_actions(src, WL_DATA_DEVICE_MANAGER_DND_ACTION_COPY | WL_DATA_DEVICE_MANAGER_DND_ACTION_MOVE);
+	j = pressed;
+	mouse(wx0 + 250, wy0 + 150, 0);
+	usleep(50*1000);
+	mouse(wx0 + 250, wy0 + 150, 1);
+	check("a press in ours", waitchange(&pressed, j), NULL);
+	wl_data_device_start_drag(dd, src, surf, is, keyserial);
+	wl_display_roundtrip(d);
+	mouse(bx0 + 30, by0 + 30, 1);
+	usleep(50*1000);
+	mouse(bx0 + 50, by0 + 50, 1);
+	for(i = 0; i < 50 && dndsurf != bs; i++){
+		wl_display_roundtrip(d);
+		usleep(20*1000);
+	}
+	check("the drag entered the second toplevel", dndsurf == bs && dndoffer != NULL, NULL);
+	check("the offer: our text", offertext, NULL);
+	for(i = 0; i < 50 && !near(peek(bx0 + 58, by0 + 58), Magenta); i++)
+		usleep(20*1000);
+	check("the icon at the pointer", near(peek(bx0 + 58, by0 + 58), Magenta), "%06lx", peek(bx0 + 58, by0 + 58));
+	if(dndoffer != NULL){
+		wl_data_offer_accept(dndoffer, dndserial, "text/plain;charset=utf-8");
+		wl_data_offer_set_actions(dndoffer, WL_DATA_DEVICE_MANAGER_DND_ACTION_COPY, WL_DATA_DEVICE_MANAGER_DND_ACTION_COPY);
+	}
+	wl_display_roundtrip(d);
+	wl_display_roundtrip(d);
+	check("the action: copy", srcact == WL_DATA_DEVICE_MANAGER_DND_ACTION_COPY, "%u", srcact);
+	mouse(bx0 + 50, by0 + 50, 0);
+	check("released: dropped", waitfor(&dnddrops), NULL);
+	check("the source told (dnd_drop_performed)", waitfor(&nsrcdropped), NULL);
+	buf[0] = 0;
+	if(dndoffer != NULL && pipe(p) == 0){
+		wl_data_offer_receive(dndoffer, "text/plain;charset=utf-8", p[1]);
+		close(p[1]);
+		wl_display_roundtrip(d);	/* our source's send comes, writes and closes */
+		wl_display_roundtrip(d);
+		readall(p[0], buf, sizeof buf);
+		close(p[0]);
+	}
+	check("the data, from our source", strcmp(buf, "dragged") == 0, "%s", buf);
+	if(dndoffer != NULL)
+		wl_data_offer_finish(dndoffer);
+	check("finished (dnd_finished)", waitfor(&nsrcfinished), NULL);
+	for(i = 0; i < 50 && near(peek(bx0 + 58, by0 + 58), Magenta); i++)
+		usleep(20*1000);
+	check("the icon gone", !near(peek(bx0 + 58, by0 + 58), Magenta), NULL);
+	wl_data_source_destroy(src);
+
+	/* released over nothing of ours (wsys' background): cancelled */
+	src = wl_data_device_manager_create_data_source(ddm);
+	wl_data_source_add_listener(src, &srclistener, "dragged");
+	wl_data_source_offer(src, "text/plain;charset=utf-8");
+	wl_data_source_set_actions(src, WL_DATA_DEVICE_MANAGER_DND_ACTION_COPY);
+	j = pressed;
+	cancelled = 0;
+	mouse(wx0 + 250, wy0 + 150, 0);
+	usleep(50*1000);
+	mouse(wx0 + 250, wy0 + 150, 1);
+	waitchange(&pressed, j);
+	wl_data_device_start_drag(dd, src, surf, NULL, keyserial);
+	wl_display_roundtrip(d);
+	mouse(bx0 + 50, by1 + 60, 1);
+	usleep(100*1000);
+	mouse(bx0 + 50, by1 + 60, 0);
+	check("a drag released over nothing: cancelled", waitfor(&cancelled), NULL);
+	wl_data_source_destroy(src);
+	xdg_toplevel_destroy(btop);
+	xdg_surface_destroy(bxs);
+	wl_surface_destroy(bs);
+	wl_surface_destroy(is);
+	wl_buffer_destroy(bb);
+	wl_buffer_destroy(ib);
+	wl_shm_pool_destroy(bpool);
+	wl_display_roundtrip(d);
+
 	wl_buffer_destroy(sb);
 	wl_buffer_destroy(sw);
 	wl_buffer_destroy(sg);

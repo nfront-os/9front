@@ -73,6 +73,7 @@ winlabel(Win *w, char *s)
 static void
 winquiet(Win *w)
 {
+	dragwingone(w);
 	seatforget(w);
 	if(w->evsrc != NULL){
 		wl_event_source_remove(w->evsrc);
@@ -264,7 +265,14 @@ mkwin(Surface *s, int bw, int bh)
 		goto Err;
 	w->w = r.x1 - r.x0;
 	w->h = r.y1 - r.y0;
-	if(s->popup != NULL){
+	if(s->role == Rdndicon){
+		/* a drag's icon: no border, no focus, at the pointer */
+		if(ctlmsg(w, "popup") < 0 || iconrect(s, bw, bh, &r) < 0)
+			goto Err;
+		ctlmsg(w, "rect %d %d %d %d", r.x0, r.y0, r.x1, r.y1);
+		w->w = bw;
+		w->h = bh;
+	}else if(s->popup != NULL){
 		/* no border, where its positioner puts it */
 		if(ctlmsg(w, s->grab ? "popup grab" : "popup") < 0 || popuprect(s, bw, bh, &r) < 0)
 			goto Err;
@@ -446,8 +454,8 @@ show(Surface *s)
 	 * the client's size, unless it has not seen the one swept in wsys
 	 * yet (a configure not acknowledged); a popup's place (repositioned)
 	 */
-	if(s->popup != NULL){
-		if(popuprect(s, b->w, b->h, &d) == 0 && winrect(w, &r) == 0 &&
+	if(s->popup != NULL || s->role == Rdndicon){
+		if((s->popup != NULL ? popuprect(s, b->w, b->h, &d) : iconrect(s, b->w, b->h, &d)) == 0 && winrect(w, &r) == 0 &&
 		   (d.x0 != r.x0 || d.y0 != r.y0 || d.x1 != r.x1 || d.y1 != r.y1)){
 			ctlmsg(w, "rect %d %d %d %d", d.x0, d.y0, d.x1, d.y1);
 			w->fresh |= b->w != w->w || b->h != w->h;
