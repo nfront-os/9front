@@ -58,7 +58,10 @@ It offers
 .B wl_output
 (the screen of
 .IR wsys ),
-.B xdg_wm_base
+.BR xdg_wm_base ,
+.B wl_data_device_manager
+(the clipboard),
+.B zxdg_decoration_manager_v1
 and, when there is a GPU
 .RB ( /dev/gpu/0 ),
 .B zwp_linux_dmabuf_v1
@@ -79,7 +82,73 @@ sends the toplevel
 .BR close .
 Maximizing, full screen and minimizing are not offered
 .RB ( wm_capabilities
-is empty); popups are dismissed at once.
+is empty).
+A toplevel's decoration is always the server's
+.RB ( zxdg_decoration_manager_v1 ):
+.I wsys
+draws the border.
+.PP
+A popup is a window of
+.I wsys
+too, without a border
+.RB ( ctl 's
+.BR popup ),
+where its positioner's rules put it by its parent: the anchor's point of
+the anchor rectangle, the side the gravity says, the offset; flipped when
+it would leave the screen and the rules let it (and it fits then), then
+slid onto the screen if they let it; repositioned when asked.
+One that grabs (a menu) takes the focus and the keyboard; one that does
+not (a tooltip) leaves them where they are.
+Once the focus settled, a popup that is not on the way to the window with
+the focus (it, or one of its popups), nor a tooltip of one that is, is
+done
+.RB ( popup_done ):
+a click on its parent, or anywhere else, closes a menu, as a grab's.
+Its parent's toplevel stays activated while a popup of it has the focus.
+.PP
+The pointer's picture
+.RB ( wl_pointer.set_cursor )
+goes to the window's
+.B cursor
+file, as
+.IR cursor (3)'s
+16 by 16 pixels: a pixel at least half opaque is black if dark, else white;
+a bigger picture is shrunk by a whole factor (a dark pixel of a block
+first), its hot spot with it.
+.I Wsys
+shows it while the window has the focus.
+No surface hides the cursor; one of a dma-buf gives the default.
+.I Wlsys
+reads the picture from the segment's
+.B data
+file when it is committed and releases the buffer at once.
+.PP
+The clipboard is
+.IR wsys 's
+snarf buffer (the window's
+.B snarf
+file; rio's, when
+.I wsys
+runs in
+.IR rio ),
+shared with every Plan 9 program.
+A selection a client sets is read from it at once, as text
+.RB ( text/plain;charset=utf-8 ,
+.BR UTF8_STRING ,
+.BR text/plain ,
+.BR TEXT ,
+.BR STRING ,
+in that order), and written to the snarf buffer; the client that gets the
+keyboard is offered the snarf buffer as the selection, read when it asks,
+so that what a Plan 9 program snarfed since is what it pastes.
+A child process writes it to the client's pipe:
+.I wlsys
+never waits for a client to read.
+The snarf buffer outlives the client that set it, as
+.IR rio 's;
+a selection unset by the client whose selection it is empties it, if it
+still holds that text (a password manager clearing what it copied), not
+what another program snarfed since.
 .PP
 A
 .B wl_shm
@@ -226,9 +295,11 @@ wlsys -s wayland-0 &
 .IR segment (3),
 .IR kbd (3)
 .SH BUGS
-A first version: one output, no cursor surfaces (the cursor stays
-.IR wsys 's),
-no subsurfaces, no popups, no clipboard; dma-bufs without feedback
+One output, no subsurfaces; cursors of two colours and 16 by 16 pixels, as
+.IR cursor (3)'s;
+only text in the clipboard, no drag and drop (a drag's source is
+cancelled at once), no primary selection; popups do not follow a parent
+that moves (the click on its border dismisses them); dma-bufs without feedback
 (version 4), modifiers or fences
 .RB ( linux-drm-syncobj :
 Mesa's Wayland WSI waits for its blit before it commits); scale and

@@ -9,7 +9,13 @@
  * leave; the keymap (mapped, saved as /tmp/keymap.xkb for the host's
  * xkbcommon) and keys (/dev/kbdin: x down and up, shift held: its
  * modifier); the window swept bigger by its ctl (a configure, a buffer of
- * that size, green); deleted in wsys: the toplevel's close.
+ * that size, green); a cursor surface's picture in the window's cursor
+ * file (16 by 16, 32 by 32 shrunk, none); the clipboard (wsys' snarf
+ * buffer offered, a selection of ours snarfed, the older source
+ * cancelled); the decoration (wsys': server side); a popup that grabs
+ * (where its positioner put it, no border, the keyboard, done by a click
+ * on its parent) and a tooltip (flipped onto the screen, the keyboard
+ * stays); deleted in wsys: the toplevel's close.
  * Prints "ok ..." / "FAIL ..." lines and a summary.
  */
 #include <stdio.h>
@@ -25,10 +31,12 @@
 #include <sys/mman.h>
 #include <wayland-client.h>
 #include <xdg-shell-client-protocol.h>
+#include <xdg-decoration-unstable-v1-client-protocol.h>
+#include <signal.h>
 
 enum {
 	W = 200, H = 150,
-	Red = 0xff0000, Green = 0x00ff00, Blue = 0x0000ff,
+	Red = 0xff0000, Green = 0x00ff00, Blue = 0x0000ff, Magenta = 0xff00ff,
 	Btnleft = 0x110,
 	Keyx = 45,	/* x's Linux code (scancode 0x2d) */
 };
@@ -55,6 +63,20 @@ static int framedone;
 static int entered, enterx, entery, left, pressed, unpressed;
 static int keymapfd = -1, keymapsize;
 static int keydown, keyup, keymods, shifted;
+static uint32_t enterserial, keyserial;
+static struct wl_surface *kfocus;	/* the surface with the keyboard */
+static int deactivated;			/* configures without activated */
+
+static struct zxdg_decoration_manager_v1 *decomgr;
+static uint32_t decomode;
+static int decoconfigured;
+
+static struct wl_data_device_manager *ddm;
+static struct wl_data_offer *seloffer;
+static int selections, offertext, sent, cancelled;
+
+static int popconf, popdone, popx, popy, popw, poph;
+static uint32_t popserial;
 
 static void
 check(const char *what, int ok, const char *fmt, ...)
@@ -121,6 +143,8 @@ topconfigure(void *data, struct xdg_toplevel *t, int32_t w, int32_t h, struct wl
 	wl_array_for_each(s, states)
 		if(*s == XDG_TOPLEVEL_STATE_ACTIVATED)
 			activated = 1;
+	if(!activated)
+		deactivated++;
 }
 static void topclose(void *data, struct xdg_toplevel *t) { closed = 1; }
 static void topbounds(void *data, struct xdg_toplevel *t, int32_t w, int32_t h) {}
@@ -161,6 +185,7 @@ static const struct wl_output_listener outlistener = { outgeometry, outmode, out
 static void
 penter(void *data, struct wl_pointer *p, uint32_t serial, struct wl_surface *s, wl_fixed_t x, wl_fixed_t y)
 {
+	enterserial = serial;
 	if(s == surf){
 		entered++;
 		enterx = wl_fixed_to_int(x);
@@ -172,6 +197,7 @@ static void pmotion(void *data, struct wl_pointer *p, uint32_t ms, wl_fixed_t x,
 static void
 pbutton(void *data, struct wl_pointer *p, uint32_t serial, uint32_t ms, uint32_t b, uint32_t st)
 {
+	keyserial = serial;
 	if(b == Btnleft && st == WL_POINTER_BUTTON_STATE_PRESSED)
 		pressed++;
 	if(b == Btnleft && st == WL_POINTER_BUTTON_STATE_RELEASED)
@@ -200,11 +226,12 @@ kkeymap(void *data, struct wl_keyboard *k, uint32_t format, int32_t fd, uint32_t
 	keymapfd = fd;
 	keymapsize = size;
 }
-static void kenter(void *data, struct wl_keyboard *k, uint32_t serial, struct wl_surface *s, struct wl_array *keys) {}
-static void kleave(void *data, struct wl_keyboard *k, uint32_t serial, struct wl_surface *s) {}
+static void kenter(void *data, struct wl_keyboard *k, uint32_t serial, struct wl_surface *s, struct wl_array *keys) { kfocus = s; }
+static void kleave(void *data, struct wl_keyboard *k, uint32_t serial, struct wl_surface *s) { if(kfocus == s) kfocus = NULL; }
 static void
 kkey(void *data, struct wl_keyboard *k, uint32_t serial, uint32_t ms, uint32_t key, uint32_t st)
 {
+	keyserial = serial;
 	if(key == Keyx && st == WL_KEYBOARD_KEY_STATE_PRESSED)
 		keydown++;
 	if(key == Keyx && st == WL_KEYBOARD_KEY_STATE_RELEASED)
@@ -220,6 +247,82 @@ kmods(void *data, struct wl_keyboard *k, uint32_t serial, uint32_t dep, uint32_t
 static void krepeat(void *data, struct wl_keyboard *k, int32_t rate, int32_t delay) {}
 static const struct wl_keyboard_listener klistener = { kkeymap, kenter, kleave, kkey, kmods, krepeat };
 
+/* ---- the decoration, the clipboard, popups ---- */
+
+static void
+decoconfigure(void *data, struct zxdg_toplevel_decoration_v1 *t, uint32_t mode)
+{
+	decomode = mode;
+	decoconfigured++;
+}
+static const struct zxdg_toplevel_decoration_v1_listener decolistener = { decoconfigure };
+
+static void
+offeroffer(void *data, struct wl_data_offer *o, const char *mime)
+{
+	if(strcmp(mime, "text/plain;charset=utf-8") == 0)
+		offertext++;
+}
+static void offeractions(void *data, struct wl_data_offer *o, uint32_t a) {}
+static void offeraction(void *data, struct wl_data_offer *o, uint32_t a) {}
+static const struct wl_data_offer_listener offerlistener = { offeroffer, offeractions, offeraction };
+
+static void
+devoffer(void *data, struct wl_data_device *dd, struct wl_data_offer *o)
+{
+	offertext = 0;
+	wl_data_offer_add_listener(o, &offerlistener, NULL);
+}
+static void deventer(void *data, struct wl_data_device *dd, uint32_t serial, struct wl_surface *s, wl_fixed_t x, wl_fixed_t y, struct wl_data_offer *o) {}
+static void devleave(void *data, struct wl_data_device *dd) {}
+static void devmotion(void *data, struct wl_data_device *dd, uint32_t ms, wl_fixed_t x, wl_fixed_t y) {}
+static void devdrop(void *data, struct wl_data_device *dd) {}
+static void
+devselection(void *data, struct wl_data_device *dd, struct wl_data_offer *o)
+{
+	if(seloffer != NULL && seloffer != o)
+		wl_data_offer_destroy(seloffer);
+	seloffer = o;
+	selections++;
+}
+static const struct wl_data_device_listener devlistener = { devoffer, deventer, devleave, devmotion, devdrop, devselection };
+
+static void srctarget(void *data, struct wl_data_source *s, const char *mime) {}
+static void
+srcsend(void *data, struct wl_data_source *s, const char *mime, int32_t fd)
+{
+	char *text = data;
+
+	write(fd, text, strlen(text));
+	close(fd);
+	sent++;
+}
+static void srccancelled(void *data, struct wl_data_source *s) { cancelled++; }
+static void srcdropped(void *data, struct wl_data_source *s) {}
+static void srcfinished(void *data, struct wl_data_source *s) {}
+static void srcaction(void *data, struct wl_data_source *s, uint32_t a) {}
+static const struct wl_data_source_listener srclistener = { srctarget, srcsend, srccancelled, srcdropped, srcfinished, srcaction };
+
+static void
+popxsconfigure(void *data, struct xdg_surface *x, uint32_t serial)
+{
+	popserial = serial;
+	popconf++;
+}
+static const struct xdg_surface_listener popxslistener = { popxsconfigure };
+
+static void
+popconfigure(void *data, struct xdg_popup *p, int32_t x, int32_t y, int32_t w, int32_t h)
+{
+	popx = x;
+	popy = y;
+	popw = w;
+	poph = h;
+}
+static void popupdone(void *data, struct xdg_popup *p) { popdone++; }
+static void poprepositioned(void *data, struct xdg_popup *p, uint32_t token) {}
+static const struct xdg_popup_listener poplistener = { popconfigure, popupdone, poprepositioned };
+
 static void
 global(void *data, struct wl_registry *reg, uint32_t name, const char *iface, uint32_t version)
 {
@@ -230,7 +333,11 @@ global(void *data, struct wl_registry *reg, uint32_t name, const char *iface, ui
 	else if(strcmp(iface, xdg_wm_base_interface.name) == 0){
 		wm = wl_registry_bind(reg, name, &xdg_wm_base_interface, 2);
 		xdg_wm_base_add_listener(wm, &wmlistener, NULL);
-	}else if(strcmp(iface, wl_seat_interface.name) == 0)
+	}else if(strcmp(iface, zxdg_decoration_manager_v1_interface.name) == 0)
+		decomgr = wl_registry_bind(reg, name, &zxdg_decoration_manager_v1_interface, 1);
+	else if(strcmp(iface, wl_data_device_manager_interface.name) == 0)
+		ddm = wl_registry_bind(reg, name, &wl_data_device_manager_interface, 3);
+	else if(strcmp(iface, wl_seat_interface.name) == 0)
 		seat = wl_registry_bind(reg, name, &wl_seat_interface, 5);
 	else if(strcmp(iface, wl_output_interface.name) == 0){
 		output = wl_registry_bind(reg, name, &wl_output_interface, 2);
@@ -459,6 +566,103 @@ present(struct wl_buffer *b, int w, int h)
 	wl_surface_commit(surf);
 }
 
+/* a pool of n bytes (a memfd), mapped; nil if not */
+static uint32_t*
+mkpool(int n, struct wl_shm_pool **pool)
+{
+	uint32_t *px;
+	int fd;
+
+	fd = memfd_create("wlclientpool", MFD_CLOEXEC);
+	if(fd < 0 || ftruncate(fd, n) < 0 ||
+	   (px = mmap(NULL, n, PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0)) == MAP_FAILED){
+		check("a pool: memfd_create, ftruncate, mmap", 0, "%s", strerror(errno));
+		return NULL;
+	}
+	*pool = wl_shm_create_pool(shm, fd, n);
+	return px;
+}
+
+/* the 72 bytes in our window's cursor file (cursor(3)); how many */
+static int
+readcursor(unsigned char *c)
+{
+	char path[64];
+	int fd, n;
+
+	memset(c, 0xee, 72);
+	snprintf(path, sizeof path, "/mnt/wsys/%d/cursor", winid);
+	if((fd = open(path, O_RDONLY)) < 0)
+		return -1;
+	n = read(fd, c, 72);
+	close(fd);
+	return n;
+}
+
+static int
+getlong(unsigned char *p)
+{
+	return (int)(p[0] | p[1]<<8 | p[2]<<16 | (uint32_t)p[3]<<24);
+}
+
+/* the cursor's offset and its 16 rows of set and clr bits, as wanted */
+static int
+iscursor(unsigned char *c, int ox, int oy, uint16_t *set, uint16_t *clr)
+{
+	int y;
+
+	if(getlong(c) != ox || getlong(c+4) != oy)
+		return 0;
+	for(y = 0; y < 16; y++)
+		if((c[8+2*y]<<8 | c[9+2*y]) != clr[y] || (c[40+2*y]<<8 | c[41+2*y]) != set[y])
+			return 0;
+	return 1;
+}
+
+static char*
+snarfpath(void)
+{
+	static char path[64];
+
+	snprintf(path, sizeof path, "/mnt/wsys/%d/snarf", winid);
+	return path;
+}
+
+static void onalarm(int sig) { (void)sig; }
+
+/* what comes through fd until its end, in 5 s */
+static int
+readall(int fd, char *buf, int n)
+{
+	int m, k;
+
+	signal(SIGALRM, onalarm);
+	alarm(5);
+	for(m = 0; m < n - 1; m += k)
+		if((k = read(fd, buf + m, n - 1 - m)) <= 0)
+			break;
+	alarm(0);
+	buf[m] = 0;
+	return m;
+}
+
+/* a popup of our toplevel by p's rules, configured; its xdg_surface in *xs */
+static struct xdg_popup*
+mkpopup(struct wl_surface *ps, struct xdg_positioner *p, struct xdg_surface **xs, int grab)
+{
+	struct xdg_popup *pop;
+
+	*xs = xdg_wm_base_get_xdg_surface(wm, ps);
+	xdg_surface_add_listener(*xs, &popxslistener, NULL);
+	pop = xdg_surface_get_popup(*xs, xsurf, p);
+	xdg_popup_add_listener(pop, &poplistener, NULL);
+	if(grab)
+		xdg_popup_grab(pop, seat, keyserial);
+	popconf = popdone = 0;
+	wl_surface_commit(ps);
+	return pop;
+}
+
 int
 main(void)
 {
@@ -467,9 +671,20 @@ main(void)
 	struct wl_buffer *b0, *b1, *b2;
 	struct wl_pointer *ptr;
 	struct wl_keyboard *kbd;
-	uint32_t *px, *px2;
-	char *km, msg[64];
-	int fd, fd2, size, ok;
+	struct wl_surface *cursurf, *ps;
+	struct wl_shm_pool *cpool, *ppool;
+	struct wl_buffer *c16, *c32, *pb;
+	struct zxdg_toplevel_decoration_v1 *deco;
+	struct wl_data_device *dd;
+	struct wl_data_source *src, *src2;
+	struct xdg_positioner *pos;
+	struct xdg_surface *pxs;
+	struct xdg_popup *pop;
+	unsigned char cur[72];
+	uint16_t set[16], clr[16];
+	uint32_t *px, *px2, *cpx, *ppx;
+	char *km, msg[64], buf[256];
+	int fd, fd2, size, ok, i, j, p[2], y;
 
 	if((d = wl_display_connect(NULL)) == NULL){
 		check("wl_display_connect $WAYLAND_DISPLAY", 0, "%s", strerror(errno));
@@ -497,9 +712,19 @@ main(void)
 	top = xdg_surface_get_toplevel(xsurf);
 	xdg_toplevel_add_listener(top, &toplistener, NULL);
 	xdg_toplevel_set_title(top, "wlclient");
+	/* we would draw our own decoration: wsys draws them (server side) */
+	deco = NULL;
+	if(decomgr != NULL){
+		deco = zxdg_decoration_manager_v1_get_toplevel_decoration(decomgr, top);
+		zxdg_toplevel_decoration_v1_add_listener(deco, &decolistener, NULL);
+		zxdg_toplevel_decoration_v1_set_mode(deco, ZXDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE);
+	}
 	wl_surface_commit(surf);
 	check("the first configure", waitfor(&configured), NULL);
 	check("its size: ours to choose (0 0)", confw == 0 && confh == 0, "%d %d", confw, confh);
+	check("a decoration manager", decomgr != NULL, NULL);
+	check("the decoration: wsys' (server side)", decoconfigured && decomode == ZXDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE,
+		"%d configures, mode %u", decoconfigured, decomode);
 	xdg_surface_ack_configure(xsurf, confserial);
 
 	/* two buffers in a pool: a memfd, a segment */
@@ -538,6 +763,60 @@ main(void)
 	check("at the click", enterx == 50 && entery == 40, "%d,%d", enterx, entery);
 	check("button 1: BTN_LEFT pressed", waitfor(&pressed), NULL);
 	check("and released", waitfor(&unpressed), NULL);
+
+	/*
+	 * the pointer's picture: 16x16, the top left quarter black, the top
+	 * right white, the rest clear, its hot spot at 3 4; then 32x32, its
+	 * top left quarter black (shrunk by 2: 8x8); then none
+	 */
+	cursurf = wl_compositor_create_surface(comp);
+	if((cpx = mkpool(16*16*4 + 32*32*4, &cpool)) == NULL)
+		return 1;
+	for(y = 0; y < 16; y++)
+		for(i = 0; i < 16; i++)
+			cpx[16*y + i] = y >= 8 ? 0 : i < 8 ? 0xff000000u : 0xffffffffu;
+	for(y = 0; y < 32; y++)
+		for(i = 0; i < 32; i++)
+			cpx[256 + 32*y + i] = y < 16 && i < 16 ? 0xff000000u : 0;
+	c16 = wl_shm_pool_create_buffer(cpool, 0, 16, 16, 64, WL_SHM_FORMAT_ARGB8888);
+	wl_buffer_add_listener(c16, &buflistener, (void*)3);
+	c32 = wl_shm_pool_create_buffer(cpool, 256*4, 32, 32, 128, WL_SHM_FORMAT_ARGB8888);
+	wl_surface_attach(cursurf, c16, 0, 0);
+	wl_surface_damage_buffer(cursurf, 0, 0, 16, 16);
+	wl_surface_commit(cursurf);
+	wl_pointer_set_cursor(ptr, enterserial, cursurf, 3, 4);
+	wl_display_roundtrip(d);
+	for(y = 0; y < 16; y++){
+		set[y] = y < 8 ? 0xff00 : 0;
+		clr[y] = y < 8 ? 0x00ff : 0;
+	}
+	ok = readcursor(cur) == 72 && iscursor(cur, -3, -4, set, clr);
+	check("the cursor in the window's cursor file (16x16, hot spot 3 4)", ok, "offset %d %d, row 0 clr %02x%02x set %02x%02x",
+		getlong(cur), getlong(cur+4), cur[8], cur[9], cur[40], cur[41]);
+	check("its buffer released at once (read)", waitfor(&released[3]), NULL);
+	wl_surface_attach(cursurf, c32, 0, 0);
+	wl_surface_damage_buffer(cursurf, 0, 0, 32, 32);
+	wl_surface_commit(cursurf);
+	wl_pointer_set_cursor(ptr, enterserial, cursurf, 10, 6);
+	wl_display_roundtrip(d);
+	for(y = 0; y < 16; y++){
+		set[y] = y < 8 ? 0xff00 : 0;
+		clr[y] = 0;
+	}
+	ok = readcursor(cur) == 72 && iscursor(cur, -5, -3, set, clr);
+	check("a 32x32 cursor shrunk by 2 (hot spot 10 6: 5 3)", ok, "offset %d %d, row 0 set %02x%02x",
+		getlong(cur), getlong(cur+4), cur[40], cur[41]);
+	wl_pointer_set_cursor(ptr, enterserial, NULL, 0, 0);
+	wl_display_roundtrip(d);
+	memset(set, 0, sizeof set);
+	memset(clr, 0, sizeof clr);
+	ok = readcursor(cur) == 72 && iscursor(cur, 0, 0, set, clr);
+	check("no cursor surface: none shown (all clear)", ok, NULL);
+	wl_surface_destroy(cursurf);
+	wl_buffer_destroy(c16);
+	wl_buffer_destroy(c32);
+	wl_shm_pool_destroy(cpool);
+
 	mouse(wx0 - 30 > 0 ? wx0 - 30 : wx1 + 30, wy0 + 40, 0);
 	check("the pointer left", waitfor(&left), NULL);
 
@@ -560,6 +839,77 @@ main(void)
 	kbdin('r', "\xef\x80\x96");	/* Kshift */
 	check("shift held: the modifier Shift", waitfor(&shifted), "%#x", keymods);
 	kbdin('R', "\xef\x80\x96");
+
+	/*
+	 * the clipboard: wsys' snarf buffer offered (a Plan 9 program's), a
+	 * selection of ours read into it, the older source cancelled by a newer
+	 */
+	check("a data device manager", ddm != NULL, NULL);
+	if(ddm == NULL)
+		return 1;
+	ok = writefile(snarfpath(), "from plan9", 10) == 0;
+	check("the snarf buffer written (as a Plan 9 program)", ok, "%s", strerror(errno));
+	dd = wl_data_device_manager_get_data_device(ddm, seat);
+	wl_data_device_add_listener(dd, &devlistener, NULL);
+	check("the selection offered (we have the keyboard)", waitfor(&selections) && seloffer != NULL, NULL);
+	check("as text/plain;charset=utf-8", offertext, NULL);
+	buf[0] = 0;
+	if(seloffer != NULL && pipe(p) == 0){
+		wl_data_offer_receive(seloffer, "text/plain;charset=utf-8", p[1]);
+		close(p[1]);
+		wl_display_flush(d);
+		readall(p[0], buf, sizeof buf);
+		close(p[0]);
+	}
+	check("received: the snarf buffer", strcmp(buf, "from plan9") == 0, "%s", buf);
+	src = wl_data_device_manager_create_data_source(ddm);
+	wl_data_source_add_listener(src, &srclistener, "from wayland");
+	wl_data_source_offer(src, "text/plain");
+	wl_data_source_offer(src, "text/plain;charset=utf-8");
+	wl_data_device_set_selection(dd, src, keyserial);
+	check("our selection read by wlsys", waitfor(&sent), NULL);
+	for(i = 0; i < 50; i++){
+		if(readfile(snarfpath(), buf, sizeof buf) >= 0 && strcmp(buf, "from wayland") == 0)
+			break;
+		wl_display_roundtrip(d);
+		usleep(20*1000);
+	}
+	check("our selection in the snarf buffer", strcmp(buf, "from wayland") == 0, "%s", buf);
+	src2 = wl_data_device_manager_create_data_source(ddm);
+	wl_data_source_add_listener(src2, &srclistener, "again");
+	wl_data_source_offer(src2, "UTF8_STRING");
+	wl_data_device_set_selection(dd, src2, keyserial);
+	check("a newer selection: the older source cancelled", waitfor(&cancelled), NULL);
+	wl_data_source_destroy(src);
+	/* unset by us: emptied while it holds our text, not when a Plan 9 program snarfed since */
+	for(i = 0; i < 50; i++){
+		if(readfile(snarfpath(), buf, sizeof buf) >= 0 && strcmp(buf, "again") == 0)
+			break;
+		wl_display_roundtrip(d);
+		usleep(20*1000);
+	}
+	check("the newer selection in the snarf buffer", strcmp(buf, "again") == 0, "%s", buf);
+	wl_data_device_set_selection(dd, NULL, keyserial);
+	wl_display_roundtrip(d);
+	ok = readfile(snarfpath(), buf, sizeof buf) == 0;
+	check("our selection unset: the snarf buffer empty", ok, "%s", buf);
+	src = wl_data_device_manager_create_data_source(ddm);
+	wl_data_source_add_listener(src, &srclistener, "third");
+	wl_data_source_offer(src, "text/plain;charset=utf-8");
+	wl_data_device_set_selection(dd, src, keyserial);
+	for(i = 0; i < 50; i++){
+		if(readfile(snarfpath(), buf, sizeof buf) >= 0 && strcmp(buf, "third") == 0)
+			break;
+		wl_display_roundtrip(d);
+		usleep(20*1000);
+	}
+	writefile(snarfpath(), "plan9 again", 11);
+	wl_data_device_set_selection(dd, NULL, keyserial);
+	wl_display_roundtrip(d);
+	readfile(snarfpath(), buf, sizeof buf);
+	check("unset after a Plan 9 program snarfed: its text stays", strcmp(buf, "plan9 again") == 0, "%s", buf);
+	wl_data_source_destroy(src);
+	wl_data_source_destroy(src2);
 
 	/* the window swept bigger: a configure of the size, a buffer of it */
 	configured = 0;
@@ -585,10 +935,99 @@ main(void)
 	check("the window 300x200", wx1 - wx0 == 300 && wy1 - wy0 == 200, "%dx%d", wx1 - wx0, wy1 - wy0);
 	want(250, 180, Green, "the new buffer, green");
 
+	/*
+	 * a popup that grabs (a menu): 80x60 below and right of the point 10 10,
+	 * 5 5 further; magenta, no border, the keyboard's; a click on its
+	 * parent beside it: popup_done, gone
+	 */
+	if((ppx = mkpool(80*60*4, &ppool)) == NULL)
+		return 1;
+	fill(ppx, 80*60, Magenta);
+	pb = wl_shm_pool_create_buffer(ppool, 0, 80, 60, 320, WL_SHM_FORMAT_XRGB8888);
+	pos = xdg_wm_base_create_positioner(wm);
+	xdg_positioner_set_size(pos, 80, 60);
+	xdg_positioner_set_anchor_rect(pos, 10, 10, 1, 1);
+	xdg_positioner_set_anchor(pos, XDG_POSITIONER_ANCHOR_TOP_LEFT);
+	xdg_positioner_set_gravity(pos, XDG_POSITIONER_GRAVITY_BOTTOM_RIGHT);
+	xdg_positioner_set_offset(pos, 5, 5);
+	ps = wl_compositor_create_surface(comp);
+	deactivated = 0;
+	pop = mkpopup(ps, pos, &pxs, 1);
+	xdg_positioner_destroy(pos);
+	check("the popup's configure", waitfor(&popconf), NULL);
+	check("at 15 15, 80x60", popx == 15 && popy == 15 && popw == 80 && poph == 60, "%d %d %dx%d", popx, popy, popw, poph);
+	xdg_surface_ack_configure(pxs, popserial);
+	wl_surface_attach(ps, pb, 0, 0);
+	wl_surface_damage_buffer(ps, 0, 0, 80, 60);
+	wl_surface_commit(ps);
+	wl_display_roundtrip(d);
+	want(55, 45, Magenta, "the popup over its parent");
+	want(15, 15, Magenta, "the popup's corner: no border");
+	want(14, 14, Green, "the parent beside it");
+	for(i = 0; i < 50 && kfocus != ps; i++){
+		wl_display_roundtrip(d);
+		usleep(20*1000);
+	}
+	check("the popup has the keyboard (it grabs)", kfocus == ps, NULL);
+	wl_display_roundtrip(d);
+	check("the toplevel stays activated", deactivated == 0, "%d configures without", deactivated);
+	mouse(wx0 + 250, wy0 + 180, 1);
+	usleep(50*1000);
+	mouse(wx0 + 250, wy0 + 180, 0);
+	check("a click on the parent: popup_done", waitfor(&popdone), NULL);
+	want(55, 45, Green, "the popup gone: its parent there");
+	xdg_popup_destroy(pop);
+	xdg_surface_destroy(pxs);
+	wl_surface_destroy(ps);
+
+	/*
+	 * a tooltip (no grab): below the point 10 y, 20 above the screen's
+	 * bottom, would leave it: flipped above (y - 60); the keyboard stays
+	 */
+	for(i = 0; i < 50 && kfocus != surf; i++){
+		wl_display_roundtrip(d);
+		usleep(20*1000);
+	}
+	y = outh - wy0 - 20;
+	ps = wl_compositor_create_surface(comp);
+	pos = xdg_wm_base_create_positioner(wm);
+	xdg_positioner_set_size(pos, 80, 60);
+	xdg_positioner_set_anchor_rect(pos, 10, y, 1, 1);
+	xdg_positioner_set_anchor(pos, XDG_POSITIONER_ANCHOR_BOTTOM_LEFT);
+	xdg_positioner_set_gravity(pos, XDG_POSITIONER_GRAVITY_BOTTOM_RIGHT);
+	xdg_positioner_set_constraint_adjustment(pos, XDG_POSITIONER_CONSTRAINT_ADJUSTMENT_FLIP_Y);
+	pop = mkpopup(ps, pos, &pxs, 0);
+	xdg_positioner_destroy(pos);
+	check("the tooltip's configure", waitfor(&popconf), NULL);
+	check("flipped above the point", popx == 10 && popy == y - 60, "%d %d, want 10 %d", popx, popy, y - 60);
+	xdg_surface_ack_configure(pxs, popserial);
+	wl_surface_attach(ps, pb, 0, 0);
+	wl_surface_damage_buffer(ps, 0, 0, 80, 60);
+	wl_surface_commit(ps);
+	wl_display_roundtrip(d);
+	want(10 + 40, y - 30, Magenta, "the tooltip");
+	for(j = 0; j < 10; j++){
+		wl_display_roundtrip(d);
+		usleep(20*1000);
+	}
+	check("the keyboard stays with the toplevel", kfocus == surf, NULL);
+	check("not dismissed", popdone == 0, NULL);
+	xdg_popup_destroy(pop);
+	xdg_surface_destroy(pxs);
+	wl_surface_destroy(ps);
+	wl_buffer_destroy(pb);
+	wl_shm_pool_destroy(ppool);
+	wl_display_roundtrip(d);
+	for(i = 0; i < 50 && near(peek(wx0 + 50, wy0 + y - 30), Magenta); i++)
+		usleep(20*1000);
+	check("the tooltip gone", !near(peek(wx0 + 50, wy0 + y - 30), Magenta), NULL);
+
 	/* deleted in wsys: close */
 	check("delete to the window's ctl", winctl("delete") == 0, "%s", strerror(errno));
 	check("the toplevel's close", waitfor(&closed), NULL);
 
+	if(deco != NULL)
+		zxdg_toplevel_decoration_v1_destroy(deco);
 	xdg_toplevel_destroy(top);
 	xdg_surface_destroy(xsurf);
 	wl_surface_destroy(surf);

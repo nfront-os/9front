@@ -34,12 +34,20 @@ enum {
 	Maxkeys = 64,	/* keys held at once */
 };
 
+/* a surface's role: what it is for, once given (wl_surface's role error) */
+enum {
+	Rnone,
+	Rxdg,		/* an xdg_surface's: a toplevel's or a popup's */
+	Rcursor,	/* the pointer's picture (wl_pointer.set_cursor) */
+};
+
 typedef struct Rect Rect;
 typedef struct Pool Pool;
 typedef struct Buffer Buffer;
 typedef struct Surface Surface;
 typedef struct Win Win;
 typedef struct Frame Frame;
+typedef struct Pos Pos;
 
 struct Rect {
 	int	x0, y0, x1, y1;
@@ -64,6 +72,14 @@ struct Buffer {
 	int	slot;
 };
 
+/* an xdg_positioner's rules: where a popup goes by its parent */
+struct Pos {
+	int32_t	w, h;		/* the popup's size */
+	int32_t	ax, ay, aw, ah;	/* the anchor rectangle, in the parent's window geometry */
+	uint32_t	anchor, gravity, adjust;
+	int32_t	ox, oy;		/* the offset */
+};
+
 /* a frame callback, waiting for its surface's picture to be shown */
 struct Frame {
 	struct wl_resource	*res;
@@ -77,12 +93,25 @@ struct Surface {
 	/* the state a commit applies */
 	Buffer	*pbuf;
 	int	pattached;
+	int	pdx, pdy;	/* attach's or offset's move of the picture */
 	Rect	pdamage;	/* in the buffer's coordinates; empty: none */
 	struct wl_list	pframes;
 
+	int	role;
+	unsigned char	cbits[64];	/* a cursor's: cursor(3)'s clr and set */
+	int	cshrink;	/* shrunk by this much; 0: not read, the default cursor */
 	Buffer	*buf;		/* the current buffer */
 	struct wl_resource	*xdgsurf;
 	struct wl_resource	*toplevel;
+	struct wl_resource	*deco;	/* its zxdg_toplevel_decoration_v1 */
+	struct wl_resource	*popup;	/* an xdg_popup's: of parent, placed by pos */
+	Surface	*parent;
+	Pos	pos;
+	int	grab;		/* it takes the keyboard (a menu's) */
+	int	popx, popy;	/* its place configured, in the parent's window geometry */
+	int	dismissed;	/* popup_done sent */
+	int	activated;	/* a toplevel's state sent: it or a popup of it has the focus */
+	int	gx, gy;		/* its window geometry's origin in the surface */
 	int	committed;	/* the toplevel's first commit, answered by a configure */
 	uint32_t	serial;	/* the last configure sent */
 	uint32_t	acked;	/* and acknowledged */
@@ -136,10 +165,16 @@ void	dmabufinit(void);
 void	xdginit(void);
 void	configure(Surface*);
 void	toplevelclose(Surface*);
+int	popuprect(Surface*, int, int, Rect*);
+void	popupforget(Surface*);
+void	popupsdone(void);
+void	focuschanged(void);
 
 /* win.c */
-extern int screenw, screenh;
+extern int screenx, screeny, screenw, screenh;
 int	wsysinit(void);
+int	winrect(Win*, Rect*);
+int	ctlmsg(Win*, char*, ...);
 void	show(Surface*);
 void	unshow(Surface*);
 void	unbuffer(Buffer*);
@@ -151,6 +186,16 @@ void	pointer(Win*, int, int, int, uint32_t);
 void	keys(Win*, char*, int);
 void	focus(Win*, int);
 void	seatforget(Win*);
+void	cursorcommit(Surface*, int, int, int);
+void	cursorgone(Surface*);
+Win	*keywin(void);
+
+/* data.c */
+void	datainit(void);
+void	selectionfocus(Win*);
+
+/* deco.c */
+void	decoinit(void);
 
 /* keymap.c */
 int	mkkeymap(char*, char**);

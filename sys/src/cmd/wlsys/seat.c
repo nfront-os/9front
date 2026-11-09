@@ -26,6 +26,10 @@ static int nheld;
 static uint32_t mods;
 static int keymapfd = -1;
 static int keymaplen;
+static Surface *cursurf;	/* the cursor surface set, nil: hidden */
+static int curset;		/* set_cursor was called for curwin */
+static int curhx, curhy;	/* its hot spot */
+static Win *curwin;		/* the window it was set for */
 
 static struct wl_client*
 winclient(Win *w)
@@ -166,6 +170,7 @@ kenter(Win *w)
 		wl_keyboard_send_modifiers(r, serial, 0, 0, 0, 0);
 	}
 	wl_array_release(&keys);
+	selectionfocus(w);
 }
 
 static void
@@ -198,14 +203,24 @@ focus(Win *w, int f)
 		}
 	}else if(kwin == w)
 		kleave();
-	if(w->s != NULL)
-		configure(w->s);	/* activated, or not */
+	focuschanged();	/* activated, or not; popups done */
+}
+
+/* the window with the keyboard, nil if none */
+Win*
+keywin(void)
+{
+	return kwin;
 }
 
 /* the window goes: the pointer and the keyboard leave it */
 void
 seatforget(Win *w)
 {
+	if(curwin == w){
+		curwin = NULL;
+		curset = 0;
+	}
 	if(pwin == w)
 		pleave();
 	if(kwin == w)
@@ -323,11 +338,190 @@ resrelease(struct wl_client *c, struct wl_resource *r)
 	wl_resource_destroy(r);
 }
 
+/*
+ * ---- the pointer's picture: a cursor surface's buffer as cursor(3)'s
+ * (16 by 16, each pixel black, white or clear) in the window's cursor file;
+ * wsys shows it while the window has the focus (where the pointer's events
+ * go) ----
+ */
+
+/*
+ * the pixels of a wl_shm buffer, read from its segment (segment(3)'s data
+ * file: wlsys maps no pool); nil if they cannot be read
+ */
+static unsigned char*
+pixels(Buffer *b)
+{
+	char path[160];
+	unsigned char *px;
+	int fd, n, m, k;
+
+	if(b->pool == NULL)
+		return NULL;	/* a dma-buf: in the GPU's memory */
+	snprintf(path, sizeof path, "#g/%s/data", b->pool->seg);
+	if((fd = open(path, O_RDONLY)) < 0)
+		return NULL;
+	n = b->stride*(b->h - 1) + 4*b->w;
+	if((px = malloc(n)) == NULL){
+		close(fd);
+		return NULL;
+	}
+	for(m = 0; m < n; m += k)
+		if((k = pread(fd, px + m, n - m, b->off + m)) <= 0)
+			break;
+	close(fd);
+	if(m < n){
+		free(px);
+		return NULL;
+	}
+	return px;
+}
+
+static void
+putlong(unsigned char *p, int v)
+{
+	p[0] = v;
+	p[1] = v>>8;
+	p[2] = v>>16;
+	p[3] = v>>24;
+}
+
+/*
+ * cursor(3)'s clr and set for surface s from its buffer: a pixel at least
+ * half opaque is black if dark, else white; a picture bigger than 16 by 16
+ * is shrunk by a whole factor, a dark pixel of a block first (an outline
+ * stays); s->cshrink is the factor, 0 if the pixels cannot be read (the
+ * default cursor then); no buffer: nothing shown
+ */
+static void
+mkcursor(Surface *s)
+{
+	Buffer *b;
+	unsigned char *px, *p, *clr, *set;
+	uint32_t v, a, l;
+	int f, x, y, i, j, dark, light;
+
+	memset(s->cbits, 0, sizeof s->cbits);
+	s->cshrink = 1;
+	if((b = s->buf) == NULL)
+		return;
+	if((px = pixels(b)) == NULL){
+		s->cshrink = 0;
+		return;
+	}
+	f = ((b->w > b->h ? b->w : b->h) + 15) / 16;
+	clr = s->cbits;
+	set = s->cbits + 32;
+	for(y = 0; y < 16; y++)
+		for(x = 0; x < 16; x++){
+			dark = light = 0;
+			for(j = 0; j < f; j++)
+				for(i = 0; i < f; i++){
+					if(x*f + i >= b->w || y*f + j >= b->h)
+						continue;
+					p = px + (y*f + j)*b->stride + 4*(x*f + i);
+					v = p[0] | p[1]<<8 | p[2]<<16 | (uint32_t)p[3]<<24;
+					a = b->format == WL_SHM_FORMAT_ARGB8888 ? v>>24 : 255;
+					if(a < 128)
+						continue;
+					/* premultiplied: the colour's lightness is l/a */
+					l = (299*(v>>16 & 255) + 587*(v>>8 & 255) + 114*(v & 255)) / 1000;
+					if(l*255 < 128*a)
+						dark = 1;
+					else
+						light = 1;
+				}
+			if(dark)
+				set[2*y + x/8] |= 0x80 >> (x&7);
+			else if(light)
+				clr[2*y + x/8] |= 0x80 >> (x&7);
+		}
+	free(px);
+	s->cshrink = f;
+}
+
+/* the cursor set for curwin to its cursor file (no bytes: the default) */
+static void
+cursorshow(void)
+{
+	unsigned char c[72];
+	char path[64];
+	int fd, n;
+
+	if(curwin == NULL || curwin->gone || !curset)
+		return;
+	memset(c, 0, sizeof c);
+	n = 72;
+	if(cursurf != NULL){
+		if(cursurf->cshrink == 0)
+			n = 0;
+		else{
+			putlong(c, -curhx/cursurf->cshrink);
+			putlong(c+4, -curhy/cursurf->cshrink);
+			memcpy(c+8, cursurf->cbits, 64);
+		}
+	}
+	snprintf(path, sizeof path, "/mnt/wsys/%d/cursor", curwin->id);
+	if((fd = open(path, O_WRONLY)) < 0)
+		return;
+	dprint("cursor %d: %d bytes, hot spot %d %d\n", curwin->id, n, curhx, curhy);
+	if(write(fd, c, n) != n)
+		fprintf(stderr, "wlsys: %s: %s\n", path, strerror(errno));
+	close(fd);
+}
+
 static void
 setcursor(struct wl_client *c, struct wl_resource *r, uint32_t serial, struct wl_resource *surf, int32_t x, int32_t y)
 {
-	/* wsys' cursor stays */
-	(void)c; (void)r; (void)serial; (void)surf; (void)x; (void)y;
+	Surface *s;
+
+	(void)serial;
+	/* for the window the pointer is in, the client's (serial: its enter) */
+	if(pwin == NULL || winclient(pwin) != c)
+		return;
+	s = surf != NULL ? wl_resource_get_user_data(surf) : NULL;
+	if(s != NULL && s->role != Rnone && s->role != Rcursor){
+		wl_resource_post_error(r, WL_POINTER_ERROR_ROLE, "the surface has another role");
+		return;
+	}
+	if(s != NULL && s->role == Rnone){
+		s->role = Rcursor;
+		mkcursor(s);	/* a buffer committed before it had the role */
+		if(s->buf != NULL)
+			wl_buffer_send_release(s->buf->res);
+	}
+	cursurf = s;
+	curhx = x;
+	curhy = y;
+	curwin = pwin;
+	curset = 1;
+	cursorshow();
+}
+
+/*
+ * a commit of a cursor surface (attached: a buffer with it): its picture
+ * read and the buffer released at once; the hot spot moved by -dx, -dy
+ */
+void
+cursorcommit(Surface *s, int attached, int dx, int dy)
+{
+	if(attached){
+		mkcursor(s);
+		if(s->buf != NULL)
+			wl_buffer_send_release(s->buf->res);
+	}
+	if(s != cursurf)
+		return;
+	curhx -= dx;
+	curhy -= dy;
+	cursorshow();
+}
+
+void
+cursorgone(Surface *s)
+{
+	if(cursurf == s)
+		cursurf = NULL;
 }
 
 static const struct wl_pointer_interface pointerimpl = {

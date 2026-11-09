@@ -6,7 +6,9 @@
  * PF_UNIX socket: an entry in /srv), default wayland-$pid, and sets
  * $WAYLAND_DISPLAY (in /env: the processes started after it see it); with
  * cmd, it runs it and exits when it exits, with its status.  -d prints what
- * it does.  Globals: wl_compositor, wl_shm, wl_seat, wl_output, xdg_wm_base.
+ * it does.  Globals: wl_compositor, wl_shm, wl_seat, wl_output, xdg_wm_base,
+ * wl_data_device_manager (the snarf buffer), zxdg_decoration_manager_v1 (wsys'
+ * borders), zwp_linux_dmabuf_v1 (with gpu(4)).
  */
 #include "dat.h"
 #include <time.h>
@@ -162,10 +164,14 @@ surfattach(struct wl_client *c, struct wl_resource *r, struct wl_resource *buf, 
 {
 	Surface *s;
 
-	(void)c; (void)x; (void)y;
+	(void)c;
 	s = ssurface(r);
 	s->pbuf = getbuffer(buf);
 	s->pattached = 1;
+	if(wl_resource_get_version(r) < WL_SURFACE_OFFSET_SINCE_VERSION){
+		s->pdx += x;
+		s->pdy += y;
+	}
 }
 
 /* damage: the surface's coordinates are its buffer's (no scale, no transform) */
@@ -209,10 +215,11 @@ static void
 surfcommit(struct wl_client *c, struct wl_resource *r)
 {
 	Surface *s;
-	int changed;
+	int changed, attached;
 
 	(void)c;
 	s = ssurface(r);
+	attached = s->pattached;
 	changed = s->pattached || (s->pdamage.x0 < s->pdamage.x1 && s->pdamage.y0 < s->pdamage.y1);
 	if(s->pattached){
 		s->buf = s->pbuf;
@@ -221,12 +228,17 @@ surfcommit(struct wl_client *c, struct wl_resource *r)
 		if(s->buf == NULL)
 			unshow(s);	/* unmapped */
 	}
-	if(s->toplevel != NULL && !s->committed){
-		/* the first commit: the toplevel's state; a configure answers */
+	if(s->role == Rcursor){
+		/* the pointer's picture: read now, the buffer free again */
+		cursorcommit(s, attached, s->pdx, s->pdy);
+	}
+	s->pdx = s->pdy = 0;
+	if((s->toplevel != NULL || s->popup != NULL) && !s->committed){
+		/* the first commit: the toplevel's state (popup's place); a configure answers */
 		s->committed = 1;
 		configure(s);
 	}
-	if(changed && s->toplevel != NULL && s->buf != NULL)
+	if(changed && (s->toplevel != NULL || (s->popup != NULL && !s->dismissed)) && s->buf != NULL)
 		show(s);
 	later(&s->pframes);
 	s->pdamage = (Rect){0, 0, 0, 0};
@@ -241,7 +253,12 @@ surfint(struct wl_client *c, struct wl_resource *r, int32_t v)
 static void
 surfoffset(struct wl_client *c, struct wl_resource *r, int32_t x, int32_t y)
 {
-	(void)c; (void)r; (void)x; (void)y;
+	Surface *s;
+
+	(void)c;
+	s = ssurface(r);
+	s->pdx += x;
+	s->pdy += y;
 }
 
 static const struct wl_surface_interface surfaceimpl = {
@@ -280,13 +297,19 @@ surfdestroyres(struct wl_resource *r)
 	Frame *f, *t;
 
 	s = ssurface(r);
+	popupforget(s);
 	unshow(s);
+	cursorgone(s);
 	wl_list_for_each_safe(f, t, &s->pframes, link)
 		wl_resource_destroy(f->res);
 	if(s->xdgsurf != NULL)
 		wl_resource_set_user_data(s->xdgsurf, NULL);
 	if(s->toplevel != NULL)
 		wl_resource_set_user_data(s->toplevel, NULL);
+	if(s->deco != NULL)
+		wl_resource_set_user_data(s->deco, NULL);
+	if(s->popup != NULL)
+		wl_resource_set_user_data(s->popup, NULL);
 	wl_list_remove(&s->link);
 	free(s->title);
 	free(s);
@@ -501,7 +524,9 @@ main(int argc, char **argv)
 	shminit();
 	dmabufinit();
 	seatinit();
+	datainit();
 	xdginit();
+	decoinit();
 	dprint("%s, screen %dx%d\n", name, screenw, screenh);
 
 	pid = -1;

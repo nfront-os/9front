@@ -15,12 +15,13 @@
  */
 #include "dat.h"
 
-int screenw, screenh;
+int screenx, screeny, screenw, screenh;
 static uint32_t clock;
 static struct wl_event_source *retry;	/* while wsys is gone */
 static void wsyslost(void);
+static void released(Win*, int);
 
-static int
+int
 ctlmsg(Win *w, char *fmt, ...)
 {
 	va_list a;
@@ -41,7 +42,7 @@ ctlmsg(Win *w, char *fmt, ...)
 }
 
 /* the window's place on the screen, from its ctl */
-static int
+int
 winrect(Win *w, Rect *r)
 {
 	char buf[256];
@@ -86,13 +87,24 @@ winquiet(Win *w)
 static void
 wingone(Win *w)
 {
+	int i;
+
 	if(w->gone)
 		return;
 	w->gone = 1;
 	dprint("window %d gone\n", w->id);
 	winquiet(w);
-	if(w->s != NULL)
+	/*
+	 * wsys reads none of its buffers any more: those it held are free
+	 * (else a client waiting for one, as Mesa's WSI in a swap, never
+	 * sees the close)
+	 */
+	for(i = 0; i < Nslot; i++)
+		released(w, i);
+	if(w->s != NULL){
+		popupforget(w->s);	/* its popups have nowhere to be */
 		toplevelclose(w->s);
+	}
 }
 
 /* buffer i let go of by wsys: the client may write it again */
@@ -251,7 +263,14 @@ mkwin(Surface *s, int bw, int bh)
 		goto Err;
 	w->w = r.x1 - r.x0;
 	w->h = r.y1 - r.y0;
-	if(bw != w->w || bh != w->h){
+	if(s->popup != NULL){
+		/* no border, where its positioner puts it */
+		if(ctlmsg(w, s->grab ? "popup grab" : "popup") < 0 || popuprect(s, bw, bh, &r) < 0)
+			goto Err;
+		ctlmsg(w, "rect %d %d %d %d", r.x0, r.y0, r.x1, r.y1);
+		w->w = bw;
+		w->h = bh;
+	}else if(bw != w->w || bh != w->h){
 		ctlmsg(w, "rect %d %d %d %d", r.x0, r.y0, r.x0 + bw, r.y0 + bh);
 		w->w = bw;
 		w->h = bh;
@@ -364,9 +383,17 @@ show(Surface *s)
 	}
 	/*
 	 * the client's size, unless it has not seen the one swept in wsys
-	 * yet (a configure not acknowledged)
+	 * yet (a configure not acknowledged); a popup's place (repositioned)
 	 */
-	if((b->w != w->w || b->h != w->h) && s->acked == s->serial && winrect(w, &r) == 0){
+	if(s->popup != NULL){
+		if(popuprect(s, b->w, b->h, &d) == 0 && winrect(w, &r) == 0 &&
+		   (d.x0 != r.x0 || d.y0 != r.y0 || d.x1 != r.x1 || d.y1 != r.y1)){
+			ctlmsg(w, "rect %d %d %d %d", d.x0, d.y0, d.x1, d.y1);
+			w->fresh |= b->w != w->w || b->h != w->h;
+			w->w = b->w;
+			w->h = b->h;
+		}
+	}else if((b->w != w->w || b->h != w->h) && s->acked == s->serial && winrect(w, &r) == 0){
 		ctlmsg(w, "rect %d %d %d %d", r.x0, r.y0, r.x0 + b->w, r.y0 + b->h);
 		w->w = b->w;
 		w->h = b->h;
@@ -503,6 +530,7 @@ wsyslost(void)
 	if(retry != NULL)
 		return;
 	fprintf(stderr, "wlsys: wsys gone; its next one is waited for\n");
+	popupsdone();
 	wl_list_for_each(s, &surfaces, link)
 		if(s->win != NULL){
 			windrop(s->win);
@@ -528,6 +556,8 @@ wsysinit(void)
 	buf[n] = 0;
 	if(sscanf(buf, "%*s %d %d %d %d", &x0, &y0, &x1, &y1) != 4)
 		return -1;
+	screenx = x0;
+	screeny = y0;
 	screenw = x1 - x0;
 	screenh = y1 - y0;
 	return 0;

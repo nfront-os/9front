@@ -267,6 +267,13 @@ runs in a window of
 Opening it makes a window; the open file is then the window's
 .BR ctl ,
 and the window lives until it is closed.
+The window is off the screen, without the focus, until its first
+.B present
+(or
+.BR top ):
+then it comes up where the client put it, with its first picture, and
+takes the focus (as Wayland's compositors map a surface with its first
+buffer; nothing white flashes where it would be made).
 Ranges of closed windows are given again.
 .TP
 .B screen
@@ -432,6 +439,15 @@ have three images then (one shown, one on its way, one being drawn).
 .TP
 .B top
 raises the window and gives it the focus.
+.TP
+.BR popup " [" grab ]
+before the first
+.BR present :
+the window has no border (a menu's or a tooltip's,
+.IR wlsys (4));
+shown, it takes the focus with
+.B grab
+(a menu), else leaves it where it is (a tooltip).
 .TP
 .BI label " text
 .TP

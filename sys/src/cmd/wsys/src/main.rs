@@ -19,7 +19,7 @@
 //	N/ctl			read: id x0 y0 x1 y1 w h base size focus
 //				write: rect x0 y0 x1 y1 | buffer n seg w h stride [off] |
 //				unbuffer n | present n [x0 y0 x1 y1] | top |
-//				label text | delete
+//				label text | popup [grab] | delete
 //	N/event			read (blocks): lines m x y buttons msec | k hex-rune |
 //				r w h | f 0|1 | b n
 //
@@ -255,6 +255,9 @@ impl Mem {
 
 struct Win {
     r: Rect, // content, in screen coordinates
+    border: i32, // around it: BORDER, none for a popup
+    mapped: bool, // made by clone: off the screen (hidden) until its first present
+    nofocus: bool, // a popup that leaves the focus where it is (a tooltip)
     slot: usize,
     bufs: HashMap<u32, Buf>,
     img: u32,   // what a client of buffers presented, x8r8g8b8, the window's size
@@ -305,6 +308,13 @@ struct Win {
     // on the overlay plane: the buffer shown there (variant b: the display reads
     // the client's own), back to the client when another one is shown
     ovheld: Option<u32>,
+}
+
+impl Win {
+    /// the window on the screen, border and all
+    fn frame(&self) -> Rect {
+        self.r.inset(-self.border)
+    }
 }
 
 /// a line of a text window as drawn: each rune's x, width and offset, and the
@@ -834,7 +844,7 @@ impl Wsys {
                         // all), taken at the read at offset 0
                         if offset == 0 || f.snap.is_none() {
                             let (id, r) = match k {
-                                Kind::File(n, F::Window) => (self.wins[&n].layer, self.wins[&n].r.inset(-BORDER)),
+                                Kind::File(n, F::Window) => (self.wins[&n].layer, self.wins[&n].frame()),
                                 _ => (self.d.screen, self.d.r),
                             };
                             // -g: the screen as the GPU composed it (the GPU windows are
@@ -1158,7 +1168,7 @@ impl Wsys {
                 }
                 let state = w.state.max(1);
                 w.state = state;
-                let f = w.r.inset(-BORDER);
+                let f = w.frame();
                 let cur = if focus == Some(n) { "current" } else { "notcurrent" };
                 let vis = if w.hidden { "hidden" } else { "visible" };
                 let s = format!("{:11} {:11} {:11} {:11} {:>11} {:>11} ", f.x0, f.y0, f.x1, f.y1, cur, vis);
@@ -1248,7 +1258,7 @@ impl Wsys {
         self.nextwin = n;
         self.slots[slot] = true;
         self.wins.insert(n, Win {
-            r, slot, bufs: HashMap::new(), img, layer, name, refs: 0, pinned: false, pid: o.pid,
+            r, border: BORDER, mapped: text, nofocus: false, slot, bufs: HashMap::new(), img, layer, name, refs: 0, pinned: false, pid: o.pid,
             label: String::new(), wdir: o.cd.clone().unwrap_or_default(), text: String::new(), partial: vec![],
             events: VecDeque::new(), raw: false, line: String::new(), cons: VecDeque::new(), eof: false,
             kbd: VecDeque::new(), kbdopen: 0, mouseopen: 0, mouse: VecDeque::new(), resized: false,
@@ -1257,7 +1267,12 @@ impl Wsys {
             scrollr: Rect::default(), shown: (1, 0, 1), lastb: None, inside: false, nooverlay: false, ovsent: None, shownb: None, held: None, queued: vec![], ovheld: None,
         });
         self.z.push(n);
-        self.setfocus(Some(n));
+        if text {
+            self.setfocus(Some(n));
+        } else {
+            // a client of buffers: shown with its first picture, where it put the window
+            self.hide(n, true);
+        }
         self.paint(n, None);
         self.drawtext(n);
         Ok(n)
@@ -1367,8 +1382,9 @@ impl Wsys {
         match cmd {
             "resize" | "move" => {
                 let o = opts(&words[1..], false)?;
-                let f = place(self.wins[&n].r.inset(-BORDER), &o, cmd == "move");
-                self.setrect(n, f.inset(BORDER))
+                let b = self.wins[&n].border;
+                let f = place(self.wins[&n].frame(), &o, cmd == "move");
+                self.setrect(n, f.inset(b))
             }
             "top" => {
                 self.raise(n);
@@ -1530,6 +1546,10 @@ impl Wsys {
             }
             "present" => {
                 let b = *nums.first().ok_or("usage: present n [x0 y0 x1 y1]")? as u32;
+                if !self.wins[&n].bufs.contains_key(&b) {
+                    return Err("no such buffer".into());
+                }
+                self.map(n);
                 let r = if nums.len() == 5 { Some(Rect::new(nums[1], nums[2], nums[3], nums[4])) } else { None };
                 if self.compshow(n, b) {
                     return Ok(());
@@ -1552,12 +1572,31 @@ impl Wsys {
                 self.setrect(n, Rect::new(nums[0], nums[1], nums[2], nums[3]))
             }
             "top" => {
+                self.map(n);
                 self.raise(n);
                 self.setfocus(Some(n));
                 Ok(())
             }
             "label" => {
                 self.wins.get_mut(&n).unwrap().label = line[5..].trim().to_string();
+                Ok(())
+            }
+            "popup" => {
+                // a menu's or a tooltip's window, before its first present: no
+                // border; shown, it takes the focus if it grabs (a menu), else
+                // leaves it where it is (a tooltip)
+                let grab = match f.next() {
+                    None => false,
+                    Some("grab") => true,
+                    Some(_) => return Err("usage: popup [grab]".into()),
+                };
+                let w = self.wins.get_mut(&n).unwrap();
+                w.nofocus = !grab;
+                if w.border != 0 {
+                    w.border = 0;
+                    let r = w.r;
+                    self.reframe(n, r, true)?;
+                }
                 Ok(())
             }
             "delete" => {
@@ -1649,7 +1688,7 @@ impl Wsys {
             }
             let mine = Rect::new(w.r.x0, w.r.y0, w.r.x0 + buf.w.min(w.r.dx()), w.r.y0 + buf.h.min(w.r.dy())).clip(&self.d.r);
             let mut rects = if mine.empty() { vec![] } else { vec![mine] };
-            let mut over: Vec<Rect> = self.z[i + 1..].iter().map(|o| &self.wins[o]).filter(|o| !o.hidden).map(|o| o.r.inset(-BORDER)).collect();
+            let mut over: Vec<Rect> = self.z[i + 1..].iter().map(|o| &self.wins[o]).filter(|o| !o.hidden).map(|o| o.frame()).collect();
             if let Some(m) = &self.menu {
                 over.push(m.r);
             }
@@ -1738,6 +1777,11 @@ impl Wsys {
     /// what it showed (white beyond it), and its client an r event; a draw(3)
     /// program reads r from its mouse file either way
     fn setrect(&mut self, n: u32, r: Rect) -> Result<(), String> {
+        self.reframe(n, r, false)
+    }
+
+    /// window n's content to r; new: a new layer even if its size stays (its border changed)
+    fn reframe(&mut self, n: u32, r: Rect, new: bool) -> Result<(), String> {
         if let Some(w) = self.wins.get_mut(&n) {
             w.nooverlay = false; // somewhere else: the overlay again, perhaps
         }
@@ -1745,21 +1789,22 @@ impl Wsys {
             return Err("bad rectangle".into());
         }
         let old = self.wins[&n].r;
-        if r == old {
+        if r == old && !new {
             return Ok(());
         }
         self.freshen(n);
-        if r.dx() != old.dx() || r.dy() != old.dy() {
+        let sized = r.dx() != old.dx() || r.dy() != old.dy();
+        if sized || new {
             let img = self.image(r.dx(), r.dy())?;
             let w = &self.wins[&n];
-            let (oldimg, oldlayer, oldname) = (w.img, w.layer, w.name.clone());
+            let (oldimg, oldlayer, oldname, border) = (w.img, w.layer, w.name.clone(), w.border);
             let all = Rect::new(0, 0, r.dx(), r.dy());
             let (white, scr) = (self.white, self.scr);
             let d = &mut self.d;
             let made = d
                 .draw(img, &all, white, 0, 0)
                 .and_then(|_| d.draw(img, &all, oldimg, 0, 0))
-                .and_then(|_| d.allocwindow(scr, r.inset(-BORDER), 0xFFFF_FFFF));
+                .and_then(|_| d.allocwindow(scr, r.inset(-border), 0xFFFF_FFFF));
             let layer = match made {
                 Ok(l) => l,
                 Err(e) => {
@@ -1790,16 +1835,26 @@ impl Wsys {
             }
             self.paintborder(n);
             self.drawtext(n);
-            self.event(n, format!("r {} {}", r.dx(), r.dy()));
+            if sized {
+                self.event(n, format!("r {} {}", r.dx(), r.dy()));
+            }
         } else {
             let l = self.wins[&n].layer;
             self.wins.get_mut(&n).unwrap().r = r;
-            let f = r.inset(-BORDER);
+            let f = self.wins[&n].frame();
             if let Err(e) = self.d.origin(l, (f.x0, f.y0), (f.x0, f.y0)).and_then(|_| self.d.flush()) {
                 eprintln!("wsys: draw: {e}");
             }
         }
-        self.wins.get_mut(&n).unwrap().resized = true;
+        let w = self.wins.get_mut(&n).unwrap();
+        w.resized = true;
+        if w.hidden {
+            // still off the screen, where it is (hide moves it back)
+            let (l, f) = (w.layer, w.frame());
+            if let Err(e) = self.d.origin(l, (f.x0, f.y0), (self.d.r.x1, self.d.r.y1)).and_then(|_| self.d.flush()) {
+                eprintln!("wsys: draw: {e}");
+            }
+        }
         self.changed(n);
         Ok(())
     }
@@ -1835,7 +1890,10 @@ impl Wsys {
     fn paintborder(&mut self, n: u32) {
         let w = &self.wins[&n];
         let (l, r) = (w.layer, w.r);
-        let f = r.inset(-BORDER);
+        if w.border == 0 {
+            return;
+        }
+        let f = w.frame();
         let col = match (w.hold, self.focus == Some(n)) {
             (true, true) => self.holdcol,
             (true, false) => self.paleholdcol,
@@ -2389,7 +2447,7 @@ impl Wsys {
             return;
         }
         let pressed = b != 0 && self.buttons == 0;
-        let hit = self.z.iter().rev().copied().find(|n| !self.wins[n].hidden && self.wins[n].r.inset(-BORDER).contains(x, y));
+        let hit = self.z.iter().rev().copied().find(|n| !self.wins[n].hidden && self.wins[n].frame().contains(x, y));
         if pressed && self.op3.is_some() {
             // button 3's command takes this press (another button cancels it)
             let op = self.op3.take().unwrap();
@@ -2411,7 +2469,7 @@ impl Wsys {
                 }
             };
             if mine {
-                let hidden: Vec<u32> = self.z.iter().copied().filter(|n| self.wins[n].hidden).collect();
+                let hidden: Vec<u32> = self.z.iter().copied().filter(|n| self.wins[n].hidden && self.wins[n].mapped).collect();
                 let mut items: Vec<String> = MENU3.iter().map(|s| s.to_string()).collect();
                 for n in &hidden {
                     let w = &self.wins[n];
@@ -2436,7 +2494,7 @@ impl Wsys {
                     let kind = if b & 3 == 0 {
                         DragKind::Move
                     } else {
-                        let f = r.inset(-BORDER);
+                        let f = self.wins[&n].frame();
                         let portion = |v: i32, lo: i32, hi: i32| {
                             let (v, hi) = (v - lo, hi - lo);
                             if v < hi / 2 { if v < CORNER { 0 } else { 1 } } else if v > hi - CORNER { 2 } else { 1 }
@@ -2589,7 +2647,8 @@ impl Wsys {
                         }
                     }
                     Some(n) => {
-                        let _ = self.setrect(n, f.inset(BORDER));
+                        let b = self.wins.get(&n).map_or(BORDER, |w| w.border);
+                        let _ = self.setrect(n, f.inset(b));
                     }
                 }
             }
@@ -2631,14 +2690,31 @@ impl Wsys {
         }
     }
 
+    /// window n made by clone on the screen, at its first present: on top, with
+    /// the focus unless it is a tooltip's
+    fn map(&mut self, n: u32) {
+        let Some(w) = self.wins.get_mut(&n) else { return };
+        if w.mapped {
+            return;
+        }
+        w.mapped = true;
+        let focus = !w.nofocus;
+        self.show(n, false, focus);
+    }
+
     /// window n off the screen (rio's Hide: past its far corner) or back on it
     fn hide(&mut self, n: u32, off: bool) {
+        self.show(n, off, true)
+    }
+
+    /// hide's; focus: back on the screen, it takes the focus
+    fn show(&mut self, n: u32, off: bool, focus: bool) {
         let Some(w) = self.wins.get_mut(&n) else { return };
         if w.hidden == off {
             return;
         }
         w.hidden = off;
-        let (l, f) = (w.layer, w.r.inset(-BORDER));
+        let (l, f) = (w.layer, w.frame());
         let at = if off { (self.d.r.x1, self.d.r.y1) } else { (f.x0, f.y0) };
         if let Err(e) = self.d.origin(l, (f.x0, f.y0), at).and_then(|_| self.d.flush()) {
             eprintln!("wsys: draw: {e}");
@@ -2650,7 +2726,9 @@ impl Wsys {
             }
         } else {
             self.raise(n);
-            self.setfocus(Some(n));
+            if focus {
+                self.setfocus(Some(n));
+            }
         }
         self.changed(n);
     }

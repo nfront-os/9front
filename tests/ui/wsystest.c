@@ -471,8 +471,9 @@ main(void)
 	/* window a: 320x240; buffer 0 left half red, right half green */
 	a = newwin();
 	print("ok window %d: %R, range %#llux %#llux\n", a->id, a->r, a->base, a->size);
-	if(!a->focus)
-		fail("a new window has the focus");
+	/* made by clone: off the screen, without the focus, until its first present */
+	if(a->focus)
+		fail("a new window has the focus before its first present");
 	ctlrect(a, R(100, 100, 420, 340));
 	l = event(a, 'r');
 	if(tokenize(l, f, nelem(f)) != 3 || atoi(f[1]) != 320 || atoi(f[2]) != 240)
@@ -481,8 +482,12 @@ main(void)
 	mkbuf(a, 0, 320, 240, a->base, 1);
 	fill(&a->buf[0], Rect(0, 0, 160, 240), Red);
 	fill(&a->buf[0], Rect(160, 0, 320, 240), Green);
+	want(P(180, 220), Bg, "a not shown before its first present");
 	present(a, 0, nil);
 	print("ok a: buffer 0 presented, released\n");
+	readctl(a);
+	if(!a->focus)
+		fail("a has no focus after its first present");
 	want(P(180, 220), Red, "a, left");
 	want(P(340, 220), Green, "a, right");
 	want(P(98, 200), Focused, "a's border, focused");
