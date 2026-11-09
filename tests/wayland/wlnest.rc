@@ -1,0 +1,9 @@
+#!/bin/rc
+# run by wsys -x -i (tests/wayland/run.sh): wlclient under a wsys in a
+# window of this one, as wlrun runs it on a machine with a wsys desktop:
+# that wsys' screen is the window (not at 0 0), its snarf buffer this
+# one's; done when the window's command is (3 minutes at most)
+rm -f /tmp/wlnest.log /tmp/wlnest.done
+window -r 40 30 1000 740 'rc -c ''/tests/wsys -x -i /tests/wlnestwin.rc >/tmp/wsysN.log >[2=1]; touch /tmp/wlnest.done'''
+n=0
+while(! test -e /tmp/wlnest.done && test $n -lt 180){ sleep 1; n=`{echo $n+1 | hoc} }

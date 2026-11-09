@@ -444,6 +444,26 @@ winctl(char *msg)
 	return writefile(path, msg, strlen(msg));
 }
 
+/* the top of wsys' screen (in a window of another, not 0): its header's y0 */
+static int
+screentop(void)
+{
+	char hdr[61];
+	int fd, x0, y0;
+
+	if((fd = open("/mnt/wsys/screen", O_RDONLY)) < 0)
+		return 0;
+	if(read(fd, hdr, 60) != 60){
+		close(fd);
+		return 0;
+	}
+	close(fd);
+	hdr[60] = 0;
+	if(sscanf(hdr, "%*s %d %d", &x0, &y0) != 2)
+		return 0;
+	return y0;
+}
+
 /* the screen's pixel at x, y (screen coordinates) as 0xRRGGBB; -1 if not read */
 static long
 peek(int x, int y)
@@ -1061,13 +1081,14 @@ main(void)
 
 	/*
 	 * a tooltip (no grab): below the point 10 y, 20 above the screen's
-	 * bottom, would leave it: flipped above (y - 60); the keyboard stays
+	 * bottom (its top and height: a wsys in a window does not start at
+	 * 0), would leave it: flipped above (y - 60); the keyboard stays
 	 */
 	for(i = 0; i < 50 && kfocus != surf; i++){
 		wl_display_roundtrip(d);
 		usleep(20*1000);
 	}
-	y = outh - wy0 - 20;
+	y = screentop() + outh - wy0 - 20;
 	ps = wl_compositor_create_surface(comp);
 	pos = xdg_wm_base_create_positioner(wm);
 	xdg_positioner_set_size(pos, 80, 60);

@@ -3216,8 +3216,13 @@ impl Wsys {
     }
 
     fn putsnarf(&mut self) {
-        if self.parentsnarf {
-            let _ = std::fs::write("/dev/snarf", &self.snarf);
+        if !self.parentsnarf {
+            return;
+        }
+        // written from offset 0 (the parent empties it there): an empty one too,
+        // by a write of nothing (write_all writes none)
+        if let Ok(mut f) = std::fs::OpenOptions::new().write(true).open("/dev/snarf") {
+            let _ = if self.snarf.is_empty() { f.write(&[]).map(|_| ()) } else { f.write_all(&self.snarf) };
         }
     }
 

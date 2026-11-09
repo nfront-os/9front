@@ -1,0 +1,4 @@
+#!/bin/rc
+# wlnest.rc's: wlclient under wlsys in the wsys of the window
+/tests/wlsys /tests/wlclient >/tmp/wlnest.log >[2=1]
+echo wlsys: exit $status >>/tmp/wlnest.log

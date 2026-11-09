@@ -31,7 +31,7 @@ bash "$ROOT/scripts/wayland/build.sh" "$HERE/root/tests"
 # weston's examples (scripts/wayland/weston.sh: simple-shm, simple-egl)
 bash "$ROOT/scripts/wayland/weston.sh" build "$HERE/root/tests" >/dev/null
 cp "$HERE/wlweston.rc" "$HERE/root/tests/wlweston.rc"
-for f in restartA.rc wsysrestart.rc restartdesk.rc restartwin.rc inwin.rc; do
+for f in restartA.rc wsysrestart.rc restartdesk.rc restartwin.rc inwin.rc wlnest.rc wlnestwin.rc; do
 	cp "$HERE/$f" "$HERE/root/tests/$f"
 	chmod +x "$HERE/root/tests/$f"
 done
@@ -71,10 +71,16 @@ if [ "${VKONLY:-0}" = 0 ]; then
 	# the same in a window of a wsys (a desktop, as wlrun on a machine)
 	rd=$($M rc "bind -a '#i' /dev; bind -a '#m' /dev; /tests/wsys -x -i /tests/restartdesk.rc >/tmp/wsysD.log >[2=1]; cat /tmp/restartdesk.log" 200) || true
 	echo "$rd" | sed 's/^/desk: /'
+	# wlclient under a wsys in a window of another (as wlrun on a machine): that
+	# screen not at 0 0, the snarf buffer the outer one's
+	wn=$($M rc "bind -a '#i' /dev; bind -a '#m' /dev; /tests/wsys -x -i /tests/wlnest.rc >/tmp/wsysO.log >[2=1]; cat /tmp/wlnest.log" 300) || true
+	echo "$wn" | grep -E '^(FAIL|wlclient:)' | sed 's/^/nest: /'
 	stop
 	trap - EXIT
 	echo "$out" | grep -q '^wltest: all passed' || { echo "FAIL wltest"; fail=1; }
 	echo "$wl" | grep -q '^wlclient: all passed' || { echo "FAIL wlclient"; fail=1; }
+	echo "$wn" | grep -q '^wlclient: all passed' && echo "ok wlclient under a wsys in a window of wsys" ||
+		{ echo "FAIL wlclient under a wsys in a window of wsys"; fail=1; }
 	weston "$wl" shm simple-shm
 	echo "$wl" | grep -q '^inwin: wlwatch simple-shm: all passed' &&
 		echo "ok wlsys started in a window of wsys (it mounts \$wsys)" ||
