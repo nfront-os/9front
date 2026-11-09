@@ -15,6 +15,7 @@
 			"vendor/lib/xmlparse.c",
 			"vendor/lib/xmlrole.c",
 			"vendor/lib/xmltok.c",
+			"vendor/lib/xcs.c",
 			"vendor/lib/random_getentropy.c"
 		]
 	}

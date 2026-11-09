@@ -1,0 +1,35 @@
+{
+	"name": "libxkbcommon",
+	"version": "1.13.2",
+	"url": "https://github.com/xkbcommon/libxkbcommon/archive/refs/tags/xkbcommon-1.13.2.tar.gz",
+	"sha256": "acc4d5f7c3cbba5f9f8d08d8bdbeede84ecede46792f47929aa9321873385528",
+	"key": "none: GitHub's archive of the tag xkbcommon-1.13.2 (xkbcommon.org's signed tarball not reachable 2026-11-09)",
+	"tar": "../9front-ui/src/libxkbcommon-1.13.2.tar.gz",
+	"top": "libxkbcommon-xkbcommon-1.13.2",
+	"keep": ["LICENSE", "README.md"],
+	"gen": [["src/xkbcomp", "bison", "--defines=parser.h", "-o", "parser.c", "-p", "_xkbcommon_", "parser.y"]],
+	"libraries": [{
+		"name": "xkbcommon",
+		"library": "libxkbcommon.a",
+		"objtag": "k",
+		"cflags": ["-O2", "-std=gnu11", "-fno-strict-aliasing", "-Ivendor/include", "-Ivendor/src", "-Ivendor"],
+		"sources": [
+			"src/compose/parser.c", "src/compose/paths.c", "src/compose/state.c", "src/compose/table.c",
+			"src/xkbcomp/action.c", "src/xkbcomp/ast-build.c", "src/xkbcomp/compat.c", "src/xkbcomp/expr.c",
+			"src/xkbcomp/include.c", "src/xkbcomp/keycodes.c", "src/xkbcomp/keymap.c", "src/xkbcomp/keymap-dump.c",
+			"src/xkbcomp/keywords.c", "src/xkbcomp/parser.c", "src/xkbcomp/rules.c", "src/xkbcomp/scanner.c",
+			"src/xkbcomp/symbols.c", "src/xkbcomp/types.c", "src/xkbcomp/vmod.c", "src/xkbcomp/xkbcomp.c",
+			"src/atom.c", "src/context.c", "src/context-priv.c", "src/keysym.c", "src/keysym-case-mappings.c",
+			"src/keysym-utf.c", "src/keymap.c", "src/keymap-compare.c", "src/keymap-priv.c", "src/rmlvo.c",
+			"src/scanner-utils.c", "src/state.c", "src/text.c", "src/utf8.c", "src/utf8-decoding.c",
+			"src/utils.c", "src/utils-paths.c"
+		]
+	}],
+	"headers": [
+		{"from": "include/xkbcommon/xkbcommon.h", "to": "sys/include/ape/xkbcommon"},
+		{"from": "include/xkbcommon/xkbcommon-compat.h", "to": "sys/include/ape/xkbcommon"},
+		{"from": "include/xkbcommon/xkbcommon-compose.h", "to": "sys/include/ape/xkbcommon"},
+		{"from": "include/xkbcommon/xkbcommon-keysyms.h", "to": "sys/include/ape/xkbcommon"},
+		{"from": "include/xkbcommon/xkbcommon-names.h", "to": "sys/include/ape/xkbcommon"}
+	]
+}

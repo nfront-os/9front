@@ -12,7 +12,7 @@
 		"library": "libexpat.a",
 		"objtag": "x",
 		"cflags": ["-O2", "-DXML_ENABLE_VISIBILITY=0", "-Ivendor/lib"],
-		"sources": ["lib/xmlparse.c", "lib/xmlrole.c", "lib/xmltok.c", "lib/random_getentropy.c"]
+		"sources": ["lib/xmlparse.c", "lib/xmlrole.c", "lib/xmltok.c", "lib/xcs.c", "lib/random_getentropy.c"]
 	}],
 	"headers": [
 		{"from": "lib/expat.h", "to": "sys/include/ape"},

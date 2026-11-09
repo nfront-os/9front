@@ -95,17 +95,39 @@ for h in spec.get('headers', []):
 		os.makedirs(dst, exist_ok=True)
 		shutil.copy2(src, os.path.join(dst, os.path.basename(src)))
 
+# build.exe names an object by its source's base name (and Objtag), in one
+# directory: sources of the same name in different directories (xkbcommon's
+# two keymap.c) go into parts of their own, each with an Objtag of its own,
+# appended to the same archive
 build = []
 for l in spec['libraries']:
-	build.append({
-		'Name': l['name'],
-		'Compat': True,
-		'Cflags': ['-Iplan9'] + l.get('cflags', []),
-		'Library': l['library'],
-		'Install': '/$ARCH/lib.gcc/ape',
-		'Objtag': l.get('objtag', 'v'),
-		'SourceFiles': ['vendor/' + s for s in l['sources']],
-	})
+	parts = []
+	for src in l['sources']:
+		b = os.path.splitext(os.path.basename(src))[0]
+		for p in parts:
+			if b not in p[0]:
+				break
+		else:
+			p = (set(), [])
+			parts.append(p)
+		p[0].add(b)
+		p[1].append(src)
+	tag = l.get('objtag', 'v')
+	for i, (_, srcs) in enumerate(parts):
+		e = {
+			'Name': l['name'] if i == 0 else '%s-%d' % (l['name'], i),
+			'Compat': True,
+			'Cflags': ['-Iplan9'] + l.get('cflags', []),
+			'Library': l['library'],
+			'Install': '/$ARCH/lib.gcc/ape',
+			'Objtag': tag if i == 0 else '%s%d' % (tag, i),
+			'SourceFiles': ['vendor/' + s for s in srcs],
+		}
+		if i > 0:
+			e['Append'] = True
+		elif len(parts) > 1:
+			e['Shared'] = True
+		build.append(e)
 with open(os.path.join(here, 'build.json'), 'w') as f:
 	json.dump(build, f, indent='\t')
 	f.write('\n')

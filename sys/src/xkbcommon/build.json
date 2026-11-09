@@ -1,0 +1,77 @@
+[
+	{
+		"Name": "xkbcommon",
+		"Compat": true,
+		"Cflags": [
+			"-Iplan9",
+			"-O2",
+			"-std=gnu11",
+			"-fno-strict-aliasing",
+			"-Ivendor/include",
+			"-Ivendor/src",
+			"-Ivendor"
+		],
+		"Library": "libxkbcommon.a",
+		"Install": "/$ARCH/lib.gcc/ape",
+		"Objtag": "k",
+		"SourceFiles": [
+			"vendor/src/compose/parser.c",
+			"vendor/src/compose/paths.c",
+			"vendor/src/compose/state.c",
+			"vendor/src/compose/table.c",
+			"vendor/src/xkbcomp/action.c",
+			"vendor/src/xkbcomp/ast-build.c",
+			"vendor/src/xkbcomp/compat.c",
+			"vendor/src/xkbcomp/expr.c",
+			"vendor/src/xkbcomp/include.c",
+			"vendor/src/xkbcomp/keycodes.c",
+			"vendor/src/xkbcomp/keymap.c",
+			"vendor/src/xkbcomp/keymap-dump.c",
+			"vendor/src/xkbcomp/keywords.c",
+			"vendor/src/xkbcomp/rules.c",
+			"vendor/src/xkbcomp/scanner.c",
+			"vendor/src/xkbcomp/symbols.c",
+			"vendor/src/xkbcomp/types.c",
+			"vendor/src/xkbcomp/vmod.c",
+			"vendor/src/xkbcomp/xkbcomp.c",
+			"vendor/src/atom.c",
+			"vendor/src/context.c",
+			"vendor/src/context-priv.c",
+			"vendor/src/keysym.c",
+			"vendor/src/keysym-case-mappings.c",
+			"vendor/src/keysym-utf.c",
+			"vendor/src/keymap-compare.c",
+			"vendor/src/keymap-priv.c",
+			"vendor/src/rmlvo.c",
+			"vendor/src/scanner-utils.c",
+			"vendor/src/text.c",
+			"vendor/src/utf8.c",
+			"vendor/src/utf8-decoding.c",
+			"vendor/src/utils.c",
+			"vendor/src/utils-paths.c"
+		],
+		"Shared": true
+	},
+	{
+		"Name": "xkbcommon-1",
+		"Compat": true,
+		"Cflags": [
+			"-Iplan9",
+			"-O2",
+			"-std=gnu11",
+			"-fno-strict-aliasing",
+			"-Ivendor/include",
+			"-Ivendor/src",
+			"-Ivendor"
+		],
+		"Library": "libxkbcommon.a",
+		"Install": "/$ARCH/lib.gcc/ape",
+		"Objtag": "k1",
+		"SourceFiles": [
+			"vendor/src/xkbcomp/parser.c",
+			"vendor/src/keymap.c",
+			"vendor/src/state.c"
+		],
+		"Append": true
+	}
+]

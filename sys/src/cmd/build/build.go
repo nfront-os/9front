@@ -502,7 +502,11 @@ func outofdate(b *build) (link, archive bool) {
 			want = asig
 		}
 		deps, sig, ok := readdeps(b, f)
-		return !ok || sig != want || !thisarch(o) || stale(o, append(deps, f))
+		// made from another source of the same name (gcc's x.d names it
+		// first): a manifest's sources moved between parts (scripts/ape/
+		// vendor.py: xkbcommon's two keymap.c), the old object stays
+		other := ok && len(deps) > 0 && path.Clean(deps[0]) != path.Clean(f)
+		return !ok || other || sig != want || !thisarch(o) || stale(o, append(deps, f))
 	}
 	var libs []string
 	for _, l := range b.Libs {
