@@ -263,6 +263,16 @@ runs in a window of
 .IR rio 's.
 .PP
 .TP
+.B stack
+Reading gives the windows, bottom to top, a line each:
+.I n
+.I x0 y0 x1 y1
+(its frame on the screen, border and all)
+.I border
+(its width)
+.I hidden
+(1 if hidden).
+.TP
 .B clone
 Opening it makes a window; the open file is then the window's
 .BR ctl ,
@@ -326,11 +336,9 @@ Reading gives one line of fields:
 .I base size
 (the range for its buffers)
 .I focus
-(1 if it has the focus)
-.I z
-(its place in the stack, 0 the bottom)
-.I hidden
-(1 if hidden).
+(1 if it has the focus); Mesa's plan9 WSI knows a window of
+.I wsys
+by these ten fields.
 Messages written:
 .RS
 .TP

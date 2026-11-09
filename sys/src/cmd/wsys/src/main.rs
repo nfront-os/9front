@@ -12,11 +12,14 @@
 //	/mnt/wsys/screen	read: an image(6) of where wsys draws (all of the
 //				screen, or inside its rio window), as rio's
 //	/mnt/wsys/wctl		write: new [options] [cmd] (rio(4))
+//	/mnt/wsys/stack		read: the windows bottom to top, a line each:
+//				id x0 y0 x1 y1 border hidden (the frame, border and all)
 //	/mnt/wsys/clone		open: a new window; the fid is then its ctl
 //	/mnt/wsys/N/		a window: ctl, event (wsys' own), and rio(4)'s
 //				cons consctl cursor kbd label mouse screen snarf
 //				text wctl wdir window winid winname
-//	N/ctl			read: id x0 y0 x1 y1 w h base size focus z hidden
+//	N/ctl			read: id x0 y0 x1 y1 w h base size focus (ten fields:
+//				Mesa's plan9 WSI knows a window of wsys by them)
 //				write: rect x0 y0 x1 y1 | buffer n seg w h stride [off [chan]] |
 //				gpubuffer n token w h stride [chan] | unbuffer n |
 //				present n [x0 y0 x1 y1] | layers [+]n x y ... | top |
@@ -209,6 +212,7 @@ enum Kind {
     Screen,
     Clone,
     RootWctl,
+    Stack,
     WinDir(u32),
     File(u32, F),
 }
@@ -616,6 +620,7 @@ fn qid(k: Kind) -> Qid {
         Kind::Clone => (0, 1),
         Kind::Screen => (0, 5),
         Kind::RootWctl => (0, 6),
+        Kind::Stack => (0, 7),
         Kind::WinDir(n) => (ninep::QTDIR, (n as u64) << 8 | 0x10),
         Kind::File(n, f) => (0, (n as u64) << 8 | (0x20 + f as u64)),
     };
@@ -639,6 +644,7 @@ impl Wsys {
             Kind::Clone => ("clone".to_string(), 0o666),
             Kind::Screen => ("screen".to_string(), 0o444),
             Kind::RootWctl => ("wctl".to_string(), 0o222),
+            Kind::Stack => ("stack".to_string(), 0o444),
             Kind::WinDir(n) => (n.to_string(), ninep::DMDIR | 0o555),
             Kind::File(_, f) => {
                 let (_, name, mode) = WINFILES.iter().find(|w| w.0 == f).unwrap();
@@ -661,6 +667,7 @@ impl Wsys {
                 "clone" => Some(Kind::Clone),
                 "screen" => Some(Kind::Screen),
                 "wctl" => Some(Kind::RootWctl),
+                "stack" => Some(Kind::Stack),
                 ".." => Some(Kind::Root),
                 _ => {
                     let n: u32 = name.parse().ok()?;
@@ -680,7 +687,7 @@ impl Wsys {
     fn children(&self, k: Kind) -> Vec<Kind> {
         match k {
             Kind::Root => {
-                let mut v = vec![Kind::Screen, Kind::Clone, Kind::RootWctl];
+                let mut v = vec![Kind::Screen, Kind::Clone, Kind::RootWctl, Kind::Stack];
                 let mut ids: Vec<u32> = self.wins.keys().copied().collect();
                 ids.sort();
                 v.extend(ids.into_iter().map(Kind::WinDir));
@@ -799,7 +806,7 @@ impl Wsys {
                 let writing = rw == OWRITE as u8 || rw == 2;
                 let k = match k {
                     Kind::Root | Kind::WinDir(_) if rw != OREAD as u8 => return e("is a directory"),
-                    Kind::Screen if writing => return e("permission denied"),
+                    Kind::Screen | Kind::Stack if writing => return e("permission denied"),
                     Kind::RootWctl if reading => return e("permission denied"),
                     Kind::File(_, F::Event | F::Winid | F::Winname | F::Window | F::Screen) if writing => return e("permission denied"),
                     Kind::File(_, F::Consctl) if reading => return e("permission denied"),
@@ -897,6 +904,7 @@ impl Wsys {
                         Some(R::new(117, tag).u32(b.len() as u32).bytes(b).done())
                     }
                     Kind::File(n, F::Ctl) => text(self.ctltext(n).as_bytes()),
+                    Kind::Stack => text(self.stacktext().as_bytes()),
                     Kind::File(n, F::Label) => text(self.wins[&n].label.as_bytes()),
                     Kind::File(n, F::Wdir) => text(self.wins[&n].wdir.as_bytes()),
                     Kind::File(n, F::Text) => text(self.wins[&n].text.as_bytes()),
@@ -1128,13 +1136,23 @@ impl Wsys {
         Ok(b)
     }
 
+    /// the stack file: each window, bottom to top, its frame, its border's width, whether hidden
+    fn stacktext(&self) -> String {
+        let mut s = String::new();
+        for n in &self.z {
+            let w = &self.wins[n];
+            let f = w.frame();
+            s.push_str(&format!("{} {} {} {} {} {} {}\n", n, f.x0, f.y0, f.x1, f.y1, w.border, w.hidden as i32));
+        }
+        s
+    }
+
     fn ctltext(&self, n: u32) -> String {
         let w = &self.wins[&n];
         format!(
-            "{} {} {} {} {} {} {} {:#x} {:#x} {} {} {}\n",
+            "{} {} {} {} {} {} {} {:#x} {:#x} {}\n",
             n, w.r.x0, w.r.y0, w.r.x1, w.r.y1, w.r.dx(), w.r.dy(),
-            SEGBASE + w.slot * SEGSIZE, SEGSIZE, (self.focus == Some(n)) as i32,
-            self.z.iter().position(|&i| i == n).unwrap_or(0), w.hidden as i32
+            SEGBASE + w.slot * SEGSIZE, SEGSIZE, (self.focus == Some(n)) as i32
         )
     }
 

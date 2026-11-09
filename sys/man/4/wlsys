@@ -143,12 +143,9 @@ while a button is held in the window it starts from:
 keeps giving that window the mouse, also outside it) goes between Wayland
 windows: each motion's point on the screen finds the topmost window of
 .I wsys
-there (every window's
-.BR ctl :
-its rectangle,
-.I z
-and
-.IR hidden ),
+there
+.RI ( wsys 's
+.BR stack ),
 and if it is one of
 .IR wlsys 's
 the surface of its tree under the point, whose client's data devices get

@@ -4,7 +4,7 @@
  * Drag and drop (wl_data_device.start_drag): while the button that started
  * it is held, wsys keeps giving the mouse to the window of origin, also
  * outside it; each motion's point on the screen finds the topmost window of
- * wsys there (every window's ctl: its rectangle, z and hidden), and if it is
+ * wsys there (wsys' stack: the windows bottom to top), and if it is
  * a Wayland window of wlsys' the surface of its tree under the point.  That
  * client's data devices get an offer of the source's types with enter,
  * motion and leave; the button released over a target that accepted a type
@@ -15,7 +15,6 @@
  * from one.
  */
 #include "dat.h"
-#include <dirent.h>
 
 enum {
 	Noffer = 8,	/* the target client's data devices */
@@ -221,43 +220,50 @@ enter(Surface *s, int x, int y)
 }
 
 /*
- * the topmost window of wsys at sx, sy (not the icon's), from every
- * window's ctl: id x0 y0 x1 y1 w h base size focus z hidden; -1 if none
+ * the topmost window of wsys at sx, sy (not the icon's), from wsys' stack
+ * (bottom to top: id x0 y0 x1 y1 border hidden, the frame); its content's
+ * rectangle in *wr; -1 if none, or on its border
  */
 static int
 topwin(int sx, int sy, Rect *wr)
 {
-	DIR *dir;
-	struct dirent *e;
-	char path[64], buf[256];
-	int fd, n, id, best, bestz, z, hidden, skip;
-	Rect r;
+	char *buf, *p, *e;
+	int fd, n, m, id, best, bw, hidden, skip, nb;
+	Rect f;
 
-	if((dir = opendir("/mnt/wsys")) == NULL)
+	if((fd = open("/mnt/wsys/stack", O_RDONLY)) < 0)
 		return -1;
+	nb = 65536;
+	if((buf = malloc(nb)) == NULL){
+		close(fd);
+		return -1;
+	}
+	for(n = 0; n < nb - 1; n += m)
+		if((m = read(fd, buf + n, nb - 1 - n)) <= 0)
+			break;
+	close(fd);
+	buf[n] = 0;
 	skip = drag.icon != NULL && drag.icon->win != NULL ? drag.icon->win->id : -1;
 	best = -1;
-	bestz = -1;
-	while((e = readdir(dir)) != NULL){
-		if((id = atoi(e->d_name)) <= 0 || id == skip)
+	for(p = buf; *p != 0; p = e){
+		if((e = strchr(p, '\n')) == NULL)
+			e = p + strlen(p);
+		else
+			*e++ = 0;
+		if(sscanf(p, "%d %d %d %d %d %d %d", &id, &f.x0, &f.y0, &f.x1, &f.y1, &bw, &hidden) != 7)
 			continue;
-		snprintf(path, sizeof path, "/mnt/wsys/%d/ctl", id);
-		if((fd = open(path, O_RDONLY)) < 0)
+		if(id == skip || hidden || sx < f.x0 || sy < f.y0 || sx >= f.x1 || sy >= f.y1)
 			continue;
-		n = read(fd, buf, sizeof buf - 1);
-		close(fd);
-		if(n <= 0)
-			continue;
-		buf[n] = 0;
-		if(sscanf(buf, "%*d %d %d %d %d %*d %*d %*s %*s %*d %d %d", &r.x0, &r.y0, &r.x1, &r.y1, &z, &hidden) != 6)
-			continue;
-		if(hidden || sx < r.x0 || sy < r.y0 || sx >= r.x1 || sy >= r.y1 || z <= bestz)
-			continue;
-		best = id;
-		bestz = z;
-		*wr = r;
+		/* above those before it: on its border, no window's content */
+		best = -1;
+		wr->x0 = f.x0 + bw;
+		wr->y0 = f.y0 + bw;
+		wr->x1 = f.x1 - bw;
+		wr->y1 = f.y1 - bw;
+		if(sx >= wr->x0 && sy >= wr->y0 && sx < wr->x1 && sy < wr->y1)
+			best = id;
 	}
-	closedir(dir);
+	free(buf);
 	return best;
 }
 
