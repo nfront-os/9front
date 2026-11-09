@@ -610,7 +610,14 @@ segmentopen(Chan *c, int omode)
 			putgseg(g);
 			nexterror();
 		}
-		devpermcheck(g->uid, g->perm, omode);
+		/*
+		 * 9front-ng: the hostowner may open any segment's ctl and data,
+		 * as it may attach any (below): a GPU driver gives segments to
+		 * its clients' users and still hands their pages in (its pager:
+		 * ctl's own words check for the hostowner)
+		 */
+		if(!iseve())
+			devpermcheck(g->uid, g->perm, omode);
 		if(TYPE(c) == Qdata && g->q != nil){
 			/* a pager queue's data: the faults, for the hostowner (its driver) */
 			if(!iseve() || openmode(omode) != OREAD)

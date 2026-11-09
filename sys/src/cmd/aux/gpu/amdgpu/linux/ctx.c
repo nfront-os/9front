@@ -1081,17 +1081,23 @@ pagerfault(const char *seg)
 		    (abo->tbo.resource->mem_type == TTM_PL_VRAM && amdgpu_res_cpu_visible(adev, abo->tbo.resource)))) {
 			/* a move's copy first (Linux: ttm_bo_vm_fault_idle), then the processor */
 			r = dma_resv_wait_timeout(abo->tbo.base.resv, DMA_RESV_USAGE_KERNEL, false, MAX_SCHEDULE_TIMEOUT);
-			if (r >= 0 && (abo->tbo.resource->mem_type == TTM_PL_VRAM ?
-			    pagerpages(name, abo, size) : pagerram(name, abo, size)) == 0) {
-				if (amdgpu_fencetrace)
-					pr_info("amdgpu: pager %s: %llu pages in %s at %#llx...\n", name, size >> PAGE_SHIFT,
-					    abo->tbo.resource->mem_type == TTM_PL_VRAM ? "VRAM" : "memory",
-					    (u64)abo->tbo.resource->start << PAGE_SHIFT);
-				atomic64_inc(&npfault);
+			if (r >= 0)
+				r = abo->tbo.resource->mem_type == TTM_PL_VRAM ?
+				    pagerpages(name, abo, size) : pagerram(name, abo, size);
+			if (r < 0) {
+				/* visible, but its pages not handed in */
+				pr_warn("amdgpu: pager %s: the pages not given (%ld)\n", name, r);
 				amdgpu_bo_unreserve(abo);
-				drm_gem_object_put(&abo->tbo.base);
-				return;
+				break;
 			}
+			if (amdgpu_fencetrace)
+				pr_info("amdgpu: pager %s: %llu pages in %s at %#llx...\n", name, size >> PAGE_SHIFT,
+				    abo->tbo.resource->mem_type == TTM_PL_VRAM ? "VRAM" : "memory",
+				    (u64)abo->tbo.resource->start << PAGE_SHIFT);
+			atomic64_inc(&npfault);
+			amdgpu_bo_unreserve(abo);
+			drm_gem_object_put(&abo->tbo.base);
+			return;
 		}
 		pr_warn("amdgpu: pager %s: not visible to the processor (fault %#x, in %u)\n", name, vf,
 		    abo->tbo.resource ? abo->tbo.resource->mem_type : 99);
