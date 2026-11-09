@@ -678,9 +678,9 @@ suite(void)
 			if(k != 0 && fencewait(&a, k, nil) < 0)
 				fail("rps load: %r");
 			else if(fbusy > fmin)
-				ok("rps: %d MHz asked under load (min %d)", fbusy, fmin);
+				ok("rps: %d MHz asked under load (min %d; %d batches)", fbusy, fmin, i);
 			else
-				fail("rps: still %d MHz under load (min %d)", fbusy, fmin);
+				fail("rps: still %d MHz under load (min %d; %d of 300 batches went: %r)", fbusy, fmin, i);
 		}
 	}
 

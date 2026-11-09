@@ -731,9 +731,15 @@ wsi_plan9_swapchain_queue_present(struct wsi_swapchain *wsi_chain,
       if (wsysdebug())
          fprintf(stderr, "wsi plan9: %s\n", msg);
       if (plan9win_wsysctl(chain->wsys, msg) == 0) {
-         /* wsys' word changed: another kind of images (VRAM for the plane, or not) */
+         /*
+          * wsys' word changed: another kind of images (VRAM for the plane, or
+          * not) -- only where the device makes them (plan9_scanout_device_local);
+          * else (Intel: no VRAM) the plane shows these as they are, and a new
+          * swapchain would get the same: new ones again and again, a flicker
+          */
          int ov = p_atomic_read(&wsys_overlay);
-         if (ov >= 0 && (ov == 1) != chain->overlay && chain->status == VK_SUCCESS) {
+         bool vram = chain->base.wsi->plan9_scanout_device_local;
+         if (ov >= 0 && (ov == 1) != chain->overlay && (vram || chain->overlay) && chain->status == VK_SUCCESS) {
             if (chain->stats)
                fprintf(stderr, "wsi plan9: wsys says overlay %d: a new swapchain\n", ov);
             chain->status = VK_SUBOPTIMAL_KHR;
