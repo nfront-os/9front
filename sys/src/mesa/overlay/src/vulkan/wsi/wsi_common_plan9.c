@@ -43,9 +43,9 @@
 
 extern int plan9_dmabuf_token(int fd, char *buf, int n);	/* plan9/lib/dmabuf.c */
 
-enum { Wsysbufs = 8 };	/* wsys' buffers a window */
+enum { Wsysbufs = 32 };	/* wsys' buffers a window (wsys(4): 0 to 31) */
 /*
- * a swapchain's buffers in wsys: numbers 0-3 or 4-7, the other half from the
+ * a swapchain's buffers in wsys: numbers 0-15 or 16-31, the other half from the
  * swapchain before (an app makes the new one before it destroys the old,
  * whose unbuffers must not hit the new one's)
  */
@@ -103,6 +103,21 @@ plan9_scanout(VkIcdSurfacePlan9 *s, struct wsi_device *wsi_device)
           plan9win_isscreen(s->windowName);
 }
 
+/* the surface's frames go to wsys as GPU buffers (as plan9_create_swapchain decides) */
+static bool
+plan9_inwsys(VkIcdSurfacePlan9 *s, struct wsi_device *wsi_device)
+{
+   const char *copy = getenv("WSI_PLAN9_COPY");
+   int fd;
+
+   if (plan9_scanout(s, wsi_device) || (copy && atoi(copy)) || wsi_device->sw)
+      return false;
+   if ((fd = plan9win_wsys(s->windowName)) < 0)
+      return false;
+   plan9win_wsysclose(fd);
+   return true;
+}
+
 /*
  * The images the WSI holds itself while the app acquires: the one being
  * presented (venus presents on a thread of its own, the image is the
@@ -116,16 +131,11 @@ plan9_scanout(VkIcdSurfacePlan9 *s, struct wsi_device *wsi_device)
 static uint32_t
 plan9_min_images(VkIcdSurfacePlan9 *s, struct wsi_device *wsi_device)
 {
-   const char *copy = getenv("WSI_PLAN9_COPY");
-   int fd;
-
    if (plan9_scanout(s, wsi_device))
       return 3;
    /* in wsys (as plan9_create_swapchain decides) */
-   if (!(copy && atoi(copy)) && !wsi_device->sw && (fd = plan9win_wsys(s->windowName)) >= 0) {
-      plan9win_wsysclose(fd);
+   if (plan9_inwsys(s, wsi_device))
       return 3;
-   }
    return 2;
 }
 
@@ -141,7 +151,11 @@ wsi_plan9_surface_get_capabilities(VkIcdSurfaceBase *surface,
       return VK_ERROR_SURFACE_LOST_KHR;
 
    caps->surfaceCapabilities.minImageCount = plan9_min_images(s, wsi_device);
-   caps->surfaceCapabilities.maxImageCount = 0;
+   /*
+    * in wsys: at most a half of the window's buffers (plan9_create_swapchain
+    * copies through draw(3) with more), else no limit
+    */
+   caps->surfaceCapabilities.maxImageCount = plan9_inwsys(s, wsi_device) ? Wsysbufs / 2 : 0;
 
    /* the window's size: the swapchain must have it */
    caps->surfaceCapabilities.currentExtent = (VkExtent2D) { w, h };

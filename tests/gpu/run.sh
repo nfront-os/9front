@@ -330,14 +330,20 @@ if [ -r /dev/dri/renderD128 ] && [ -w /dev/dri/renderD128 ] &&
 			check "wsys: ui (ui(4)) draws with the GPU (vello on wgpu)" grep -q '^ui: renderer gpu ' "$TMPD/logwsys"
 			check "wsys: ui laid out its button after a frame" grep -q '^ui: rect [0-9]' "$TMPD/logwsys"
 			check "wsys: ui rendered without errors" bash -c "! grep -q '^ui: log' '$TMPD/logwsys'"
+			check "wsys: ui's frames go to wsys as GPU buffers (not copied)" grep -qE '^ui: wsi plan9: [^ ]+: wsys$' "$TMPD/logwsys"
 			grep '^ui: renderer' "$TMPD/logwsys" | sed 's/^/  /'
 		fi
 		for p in sdlvk sdlgpu; do
 			[ -x "$HERE/root/tests/$p" ] && check "wsys: $p (SDL3 on Vulkan) in a window: all passed" grep -q "^$p: $p: all passed" "$TMPD/logwsys"
+			# the way its frames go: GPU buffers, not the WSI's quiet copy through
+			# draw(3) (the same pixels, so only this tells; SDL's renderer asked for
+			# more images than the WSI gave wsys and was copied unnoticed)
+			[ -x "$HERE/root/tests/$p" ] && check "wsys: $p's frames go to wsys as GPU buffers (not copied)" grep -qE "^$p: wsi plan9: [^ ]+: wsys\$" "$TMPD/logwsys"
 		done
 		grep -E '^sdlgpu: (ok|FAIL)' "$TMPD/logwsys" | sed 's/^/  /'
 		if [ -x "$HERE/root/tests/eframetest" ]; then
 			check "wsys: eframetest (egui's eframe) on wgpu's Vulkan, not the processor: all passed" grep -q '^eframe: eframetest: all passed' "$TMPD/logwsys"
+			check "wsys: eframe's frames go to wsys as GPU buffers (not copied)" grep -qE '^eframe: wsi plan9: [^ ]+: wsys$' "$TMPD/logwsys"
 			grep -E '^eframe: ok (wgpu adapter|[0-9]+ frames)' "$TMPD/logwsys" | sed 's/^/  /'
 		fi
 		# the screen composed on the GPU, wsys' default (-g says so; here
