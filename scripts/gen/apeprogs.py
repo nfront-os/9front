@@ -2,7 +2,9 @@
 """
 The tree's parts built with ../9front-gcc's cross compiler for APE (POSIX
 on 9front): the libraries of sys/src/mesa (libvulkan.a), sys/src/libffi,
-sys/src/wayland, sys/src/sdl3, sys/src/glfw (compatibility manifests,
+sys/src/wayland, sys/src/sdl3, sys/src/glfw, sys/src/freetype, sys/src/pixman,
+sys/src/expat (compatibility manifests; the last three vendored by
+scripts/ape/vendor.sh from their VENDOR.json,
 build.exe -D) and the programs made of them, which scripts/build/ape.sh
 installs in /$objtype/bin. scripts/gen/genbuild.py makes the build step,
 scripts/build/check-install.py expects the programs.
@@ -17,7 +19,8 @@ ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)),
 OBJTYPES = ['amd64']
 
 # the libraries' manifests, in the order they depend on each other
-LIBS = ['sys/src/mesa', 'sys/src/libffi', 'sys/src/wayland', 'sys/src/sdl3', 'sys/src/glfw']
+LIBS = ['sys/src/mesa', 'sys/src/libffi', 'sys/src/wayland', 'sys/src/sdl3', 'sys/src/glfw',
+	'sys/src/freetype', 'sys/src/pixman', 'sys/src/expat']
 
 # program: its source directory
 PROGS = {'wlsys': 'sys/src/cmd/wlsys'}

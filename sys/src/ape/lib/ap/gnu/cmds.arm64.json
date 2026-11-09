@@ -22,6 +22,7 @@
 			"dlfcn.c",
 			"epoll.c",
 			"flock.c",
+			"getentropy.c",
 			"getpagesize.c",
 			"hwcap.c",
 			"inttypes.c",

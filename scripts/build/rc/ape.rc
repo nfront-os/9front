@@ -10,7 +10,7 @@ if(! test -x $GNU/gcc){
 	exit ''
 }
 bind -b $GNU /bin
-for(d in sys/src/mesa sys/src/libffi sys/src/wayland sys/src/sdl3 sys/src/glfw){
+for(d in sys/src/mesa sys/src/libffi sys/src/wayland sys/src/sdl3 sys/src/glfw sys/src/freetype sys/src/pixman sys/src/expat){
 	echo ape.rc: $d
 	CC=$GNU/gcc ARCH=$objtype $PLAN9/sys/src/cmd/build/build.exe -D $PLAN9/$d/build.json >/tmp/ape.log >[2=1] || {
 		tail -20 /tmp/ape.log

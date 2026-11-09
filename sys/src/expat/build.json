@@ -1,0 +1,21 @@
+[
+	{
+		"Name": "expat",
+		"Compat": true,
+		"Cflags": [
+			"-Iplan9",
+			"-O2",
+			"-DXML_ENABLE_VISIBILITY=0",
+			"-Ivendor/lib"
+		],
+		"Library": "libexpat.a",
+		"Install": "/$ARCH/lib.gcc/ape",
+		"Objtag": "x",
+		"SourceFiles": [
+			"vendor/lib/xmlparse.c",
+			"vendor/lib/xmlrole.c",
+			"vendor/lib/xmltok.c",
+			"vendor/lib/random_getentropy.c"
+		]
+	}
+]

@@ -659,6 +659,25 @@ sleeper(void *v)
 	return v;
 }
 
+/* 9front-ng: getentropy (POSIX.1-2024): random bytes from /dev/random, at most 256 */
+static void
+testentropy(void)
+{
+	unsigned char a[32], b[32], big[257];
+	int i, zero;
+
+	check("getentropy 32 bytes", getentropy(a, sizeof a) == 0, "%s", strerror(errno));
+	check("getentropy again", getentropy(b, sizeof b) == 0, "%s", strerror(errno));
+	zero = 1;
+	for(i = 0; i < 32; i++)
+		if(a[i] != 0)
+			zero = 0;
+	check("getentropy: not all zero", !zero, NULL);
+	check("getentropy: two calls differ", memcmp(a, b, sizeof a) != 0, NULL);
+	errno = 0;
+	check("getentropy of 257 bytes: EINVAL", getentropy(big, sizeof big) < 0 && errno == EINVAL, "errno %d", errno);
+}
+
 int
 main(void)
 {
@@ -669,6 +688,7 @@ main(void)
 	testmmap();
 	testshm();
 	testseals();
+	testentropy();
 	testscm();
 	testposix();
 	testthreads();

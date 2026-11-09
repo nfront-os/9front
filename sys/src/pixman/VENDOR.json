@@ -1,0 +1,34 @@
+{
+	"name": "pixman",
+	"version": "0.46.4",
+	"url": "https://cairographics.org/releases/pixman-0.46.4.tar.xz",
+	"sha256": "a098c33924754ad43f981b740f6d576c70f9ed1006e12221b1845431ebce1239",
+	"key": "16238A7D92448B02B7B10344B6B1CEAE5103DB07 Matt Turner <mattst88@gmail.com> (the signed sha512, checked 2026-11-09)",
+	"tar": "../9front-ui/src/pixman-0.46.4.tar.xz",
+	"top": "pixman-0.46.4",
+	"keep": ["COPYING", "README"],
+	"gen": [["pixman", "sh", "-c", "sed -e s/@PIXMAN_VERSION_MAJOR@/0/ -e s/@PIXMAN_VERSION_MINOR@/46/ -e s/@PIXMAN_VERSION_MICRO@/4/ pixman-version.h.in > pixman-version.h"]],
+	"libraries": [{
+		"name": "pixman",
+		"library": "libpixman-1.a",
+		"objtag": "p",
+		"cflags": ["-O2", "-DHAVE_CONFIG_H", "-fno-strict-aliasing", "-msse2", "-Ivendor/pixman"],
+		"sources": [
+			"pixman/pixman.c", "pixman/pixman-access.c", "pixman/pixman-access-accessors.c",
+			"pixman/pixman-bits-image.c", "pixman/pixman-combine32.c", "pixman/pixman-combine-float.c",
+			"pixman/pixman-conical-gradient.c", "pixman/pixman-edge.c", "pixman/pixman-edge-accessors.c",
+			"pixman/pixman-fast-path.c", "pixman/pixman-filter.c", "pixman/pixman-glyph.c",
+			"pixman/pixman-general.c", "pixman/pixman-gradient-walker.c", "pixman/pixman-image.c",
+			"pixman/pixman-implementation.c", "pixman/pixman-linear-gradient.c", "pixman/pixman-matrix.c",
+			"pixman/pixman-noop.c", "pixman/pixman-radial-gradient.c", "pixman/pixman-region16.c",
+			"pixman/pixman-region32.c", "pixman/pixman-region64f.c", "pixman/pixman-solid-fill.c",
+			"pixman/pixman-timer.c", "pixman/pixman-trap.c", "pixman/pixman-utils.c",
+			"pixman/pixman-x86.c", "pixman/pixman-sse2.c",
+			"pixman/pixman-arm.c", "pixman/pixman-ppc.c", "pixman/pixman-mips.c", "pixman/pixman-riscv.c"
+		]
+	}],
+	"headers": [
+		{"from": "pixman/pixman.h", "to": "sys/include/ape/pixman-1"},
+		{"from": "pixman/pixman-version.h", "to": "sys/include/ape/pixman-1"}
+	]
+}

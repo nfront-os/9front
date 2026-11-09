@@ -1,0 +1,33 @@
+{
+	"name": "freetype",
+	"version": "2.15.0",
+	"url": "https://download.savannah.gnu.org/releases/freetype/freetype-2.15.0.tar.xz",
+	"sha256": "93cd47eb719c325107f2d3cf087d06299e944c3b48a40b55537302304dea1dd5",
+	"key": "E30674707856409FF1948010BE6C3AAC63AD8E3F Werner Lemberg <wl@gnu.org> (the .sig checked 2026-11-09)",
+	"tar": "../9front-ui/src/freetype-2.15.0.tar.xz",
+	"top": "freetype-2.15.0",
+	"keep": ["LICENSE.TXT", "docs/FTL.TXT", "docs/GPLv2.TXT", "README"],
+	"libraries": [{
+		"name": "freetype",
+		"library": "libfreetype.a",
+		"objtag": "f",
+		"cflags": ["-O2", "-DFT2_BUILD_LIBRARY", "-Ivendor/include"],
+		"sources": [
+			"src/base/ftbase.c", "src/base/ftsystem.c", "src/base/ftinit.c", "src/base/ftdebug.c",
+			"src/base/ftbitmap.c", "src/base/ftglyph.c", "src/base/ftmm.c", "src/base/ftbbox.c",
+			"src/base/ftfstype.c", "src/base/ftgasp.c", "src/base/ftstroke.c", "src/base/ftsynth.c",
+			"src/base/ftpatent.c", "src/base/ftotval.c", "src/base/ftpfr.c", "src/base/fttype1.c",
+			"src/base/ftwinfnt.c", "src/base/ftcid.c", "src/base/ftgxval.c",
+			"src/autofit/autofit.c", "src/bdf/bdf.c", "src/cache/ftcache.c", "src/cff/cff.c",
+			"src/cid/type1cid.c", "src/gzip/ftgzip.c", "src/hvf/hvf.c", "src/lzw/ftlzw.c",
+			"src/pcf/pcf.c", "src/pfr/pfr.c", "src/psaux/psaux.c", "src/pshinter/pshinter.c",
+			"src/psnames/psnames.c", "src/raster/raster.c", "src/sdf/sdf.c", "src/sfnt/sfnt.c",
+			"src/smooth/smooth.c", "src/svg/svg.c", "src/truetype/truetype.c", "src/type1/type1.c",
+			"src/type42/type42.c", "src/winfonts/winfnt.c"
+		]
+	}],
+	"headers": [
+		{"from": "include/ft2build.h", "to": "sys/include/ape/freetype2"},
+		{"from": "include/freetype", "to": "sys/include/ape/freetype2/freetype", "exclude": ["internal"]}
+	]
+}

@@ -25,6 +25,12 @@ Run them after a mkfile changes (e.g. after rebasing onto `front`);
 | `cmds-broken*.txt` | programs that do not build yet, per arch (written by `gencmds.py --probe`) |
 | `i915-regs.py` | aux/intelgpu's register excerpts: the definitions of Linux's i915 the driver uses, verbatim from a Linux tree into excerpts of their headers (`sys/src/cmd/aux/gpu/intel/UPSTREAM`, lines with `*`). `scripts/gen/i915-regs.py ~/Devel/linux-6.6` |
 
+## ape/ — libraries for APE from their releases
+
+| Script | What |
+|---|---|
+| `vendor.sh` | a library into the tree from its release as `sys/src/<lib>/VENDOR.json` describes it (version, archive and its sha256, the sources, the public headers): the sources and what they include (the cross gcc's -MM) into `sys/src/<lib>/vendor`, `plan9/` first in the include path, `build.json` for build.exe (step `ape`). `scripts/ape/vendor.sh freetype` |
+
 ## build/ — steps the manifests run
 
 Called by `build.exe` (Pre/Post steps); rarely run by hand.

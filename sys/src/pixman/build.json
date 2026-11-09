@@ -1,0 +1,52 @@
+[
+	{
+		"Name": "pixman",
+		"Compat": true,
+		"Cflags": [
+			"-Iplan9",
+			"-O2",
+			"-DHAVE_CONFIG_H",
+			"-fno-strict-aliasing",
+			"-msse2",
+			"-Ivendor/pixman"
+		],
+		"Library": "libpixman-1.a",
+		"Install": "/$ARCH/lib.gcc/ape",
+		"Objtag": "p",
+		"SourceFiles": [
+			"vendor/pixman/pixman.c",
+			"vendor/pixman/pixman-access.c",
+			"vendor/pixman/pixman-access-accessors.c",
+			"vendor/pixman/pixman-bits-image.c",
+			"vendor/pixman/pixman-combine32.c",
+			"vendor/pixman/pixman-combine-float.c",
+			"vendor/pixman/pixman-conical-gradient.c",
+			"vendor/pixman/pixman-edge.c",
+			"vendor/pixman/pixman-edge-accessors.c",
+			"vendor/pixman/pixman-fast-path.c",
+			"vendor/pixman/pixman-filter.c",
+			"vendor/pixman/pixman-glyph.c",
+			"vendor/pixman/pixman-general.c",
+			"vendor/pixman/pixman-gradient-walker.c",
+			"vendor/pixman/pixman-image.c",
+			"vendor/pixman/pixman-implementation.c",
+			"vendor/pixman/pixman-linear-gradient.c",
+			"vendor/pixman/pixman-matrix.c",
+			"vendor/pixman/pixman-noop.c",
+			"vendor/pixman/pixman-radial-gradient.c",
+			"vendor/pixman/pixman-region16.c",
+			"vendor/pixman/pixman-region32.c",
+			"vendor/pixman/pixman-region64f.c",
+			"vendor/pixman/pixman-solid-fill.c",
+			"vendor/pixman/pixman-timer.c",
+			"vendor/pixman/pixman-trap.c",
+			"vendor/pixman/pixman-utils.c",
+			"vendor/pixman/pixman-x86.c",
+			"vendor/pixman/pixman-sse2.c",
+			"vendor/pixman/pixman-arm.c",
+			"vendor/pixman/pixman-ppc.c",
+			"vendor/pixman/pixman-mips.c",
+			"vendor/pixman/pixman-riscv.c"
+		]
+	}
+]
