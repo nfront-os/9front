@@ -37,6 +37,8 @@
 			"pread.c",
 			"pthread.c",
 			"realpath.c",
+			"semaphore.c",
+			"sigchld.c",
 			"stdlib.c",
 			"string.c",
 			"syslog.c",

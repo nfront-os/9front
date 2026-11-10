@@ -9,6 +9,7 @@
 #define _SYS_EPOLL_H
 
 #include <stdint.h>
+#include <signal.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -49,6 +50,9 @@ extern int epoll_create(int);
 extern int epoll_create1(int);
 extern int epoll_ctl(int, int, int, struct epoll_event *);
 extern int epoll_wait(int, struct epoll_event *, int, int);
+/* epoll_wait with the signal mask set to *mask meanwhile (not atomically: a
+ * signal between the mask and the wait waits for the next event) */
+extern int epoll_pwait(int, struct epoll_event *, int, int, const sigset_t *);
 
 #ifdef __cplusplus
 }

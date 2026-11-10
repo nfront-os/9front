@@ -43,6 +43,7 @@ typedef struct Fdinfo{
 #define FD_BUFFERED	0x4
 #define FD_BUFFEREDX	0x8
 #define FD_ISTTY	0x20
+#define FD_EVENTFD	0x40	/* GCC port: an eventfd (gnu/epoll.c): write goes to its pipe's other end */
 
 #define MAXSIG SIGTRAP
 

@@ -9,7 +9,7 @@
  * pipe2, mkostemp, strchrnul, mbrtoc32, locale objects, syslog, a thread's
  * name in /proc, timercmp, byte swaps, regex (musl's TRE); a pty of ptyfs
  * with an APE program and rc in it (line editing, echo, raw modes, size,
- * interrupt, hangup, end of file).
+ * interrupt, hangup, end of file); SIGCHLD.
  *
  * Output: one "ok name" or "FAIL name: detail" line per check, then
  * "apegnutest: N ok, M failed".
@@ -46,6 +46,8 @@
 #include <signal.h>
 #include <termios.h>
 #include <sys/ioctl.h>
+#include <sys/epoll.h>
+#include <sys/eventfd.h>
 
 static int nok, nfail;
 
@@ -1057,6 +1059,105 @@ testpty(void)
 	signal(SIGALRM, old);
 }
 
+static volatile int nchld;
+
+static void onchld(int s) { (void)s; nchld++; }
+
+/* SIGCHLD (gnu/sigchld.c): the handler on a child's exit, its status by waitpid */
+static void
+testsigchld(void)
+{
+	struct sigaction sa;
+	int pid, pid2, st, r, i;
+
+	memset(&sa, 0, sizeof sa);
+	sa.sa_handler = onchld;
+	sigemptyset(&sa.sa_mask);
+	check("sigaction SIGCHLD", sigaction(SIGCHLD, &sa, NULL) == 0, NULL);
+	if((pid = fork()) == 0)
+		_exit(3);
+	for(i = 0; i < 500 && nchld == 0; i++)
+		usleep(10000);
+	check("SIGCHLD when the child exited", nchld == 1, "%d", nchld);
+	st = 0;
+	r = waitpid(-1, &st, WNOHANG);
+	check("waitpid WNOHANG: its pid and status 3", r == pid && WIFEXITED(st) && WEXITSTATUS(st) == 3, "%d %x", r, st);
+	check("waitpid WNOHANG again: 0", waitpid(-1, &st, WNOHANG) == 0, NULL);
+	if((pid = fork()) == 0){
+		usleep(200000);
+		_exit(4);
+	}
+	if((pid2 = fork()) == 0)
+		_exit(5);
+	st = 0;
+	r = waitpid(pid, &st, 0);
+	check("waitpid of the later child, the other exited first", r == pid && WEXITSTATUS(st) == 4, "%d %x", r, st);
+	r = waitpid(pid2, &st, 0);
+	check("then the other's", r == pid2 && WEXITSTATUS(st) == 5, "%d %x", r, st);
+	for(i = 0; i < 100 && nchld < 3; i++)
+		usleep(10000);
+	check("SIGCHLD for each", nchld == 3, "%d", nchld);
+	{
+		sigset_t set, old;
+		int fd[2], ep, n0;
+		char c;
+		struct epoll_event ev;
+
+		sigemptyset(&set);
+		check("sigaddset SIGTERM, SIGCHLD (APE refused them)", sigaddset(&set, SIGTERM) == 0 && sigaddset(&set, SIGCHLD) == 0 &&
+			sigismember(&set, SIGCHLD) == 1, NULL);
+		sigprocmask(SIG_BLOCK, &set, &old);
+		n0 = nchld;
+		pipe(fd);
+		if((pid = fork()) == 0){
+			usleep(100000);
+			write(fd[1], "x", 1);	/* after the parent's child below exited */
+			_exit(0);
+		}
+		if((pid2 = fork()) == 0)
+			_exit(7);
+		r = read(fd[0], &c, 1);
+		check("a blocked SIGCHLD interrupts no read", r == 1 && nchld == n0, "%d %d", r, nchld - n0);
+		usleep(100000);
+		ep = epoll_create1(0);
+		memset(&ev, 0, sizeof ev);
+		ev.events = EPOLLIN;
+		epoll_ctl(ep, EPOLL_CTL_ADD, fd[0], &ev);
+		r = epoll_pwait(ep, &ev, 1, 2000, &old);
+		check("epoll_pwait opening the mask: the pending SIGCHLD, EINTR", r < 0 && errno == EINTR && nchld > n0, "%d %d", r, nchld - n0);
+		sigprocmask(SIG_SETMASK, &old, NULL);
+		waitpid(pid, &st, 0);
+		waitpid(pid2, &st, 0);
+		close(ep);
+		close(fd[0]);
+		close(fd[1]);
+	}
+	{
+		/* an eventfd written by plain write, as foot's shutdown does: readable on it */
+		struct epoll_event ev;
+		uint64_t v;
+		int e, ep;
+
+		e = eventfd(0, EFD_CLOEXEC|EFD_NONBLOCK);
+		ep = epoll_create1(0);
+		memset(&ev, 0, sizeof ev);
+		ev.events = EPOLLIN;
+		epoll_ctl(ep, EPOLL_CTL_ADD, e, &ev);
+		v = 1;
+		check("eventfd: write(2) on it", write(e, &v, sizeof v) == sizeof v, "%s", strerror(errno));
+		check("eventfd: epoll sees it readable", epoll_wait(ep, &ev, 1, 2000) == 1, NULL);
+		v = 0;
+		check("eventfd: its value read back", read(e, &v, sizeof v) == sizeof v && v == 1, "%llu", (unsigned long long)v);
+		close(ep);
+		close(e);
+	}
+	signal(SIGCHLD, SIG_DFL);
+	if((pid = fork()) == 0)
+		_exit(6);
+	r = waitpid(pid, &st, 0);
+	check("SIG_DFL: the note ignored, waitpid as before", r == pid && WEXITSTATUS(st) == 6, "%d %x", r, st);
+}
+
 int
 main(void)
 {
@@ -1073,6 +1174,7 @@ main(void)
 	testgnuext();
 	testregex();
 	testpty();
+	testsigchld();
 	testscm();
 	testposix();
 	testthreads();

@@ -88,6 +88,11 @@
 /*#define STREAM_MAX _POSIX_STREAM_MAX */
 /*#define TIMER_MAX _POSIX_TIMER_MAX */
 #define TZNAME_MAX _POSIX_TZNAME_MAX
+#if defined(__GNUC__) || defined(_APE_GNU)
+/* GCC port: POSIX.1-2001's (gethostname: /dev/sysname) */
+#define _POSIX_HOST_NAME_MAX	255
+#define HOST_NAME_MAX	255
+#endif
 
 
 #ifdef _LIMITS_EXTENSION

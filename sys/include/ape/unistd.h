@@ -237,6 +237,9 @@ extern long	sysconf(int) __asm__("__apecompat_sysconf");
 extern int	getpagesize(void);	/* BSD's (ap/gnu/xsysconf.c) */
 extern int	getentropy(void *, size_t);	/* POSIX.1-2024's (ap/gnu/getentropy.c: /dev/random) */
 extern int	pipe2(int *, int);	/* POSIX.1-2024's (ap/gnu/gnuext.c): O_CLOEXEC, O_NONBLOCK */
+/* POSIX's confstr (ap/gnu/gnuext.c): _CS_PATH, where the standard programs are */
+#define _CS_PATH	0
+extern size_t	confstr(int, char *, size_t);
 #ifndef _BSD_EXTENSION
 extern int	getopt(int, char *const *, const char *);
 extern char	*optarg;

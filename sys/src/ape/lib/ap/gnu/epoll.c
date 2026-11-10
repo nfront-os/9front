@@ -26,6 +26,9 @@
 #include <errno.h>
 #include <time.h>
 #include <poll.h>
+
+extern void __eventfdmark(int);	/* plan9/write.c */
+#include <signal.h>
 #include <lock.h>
 #include <sys/epoll.h>
 #include <sys/timerfd.h>
@@ -337,6 +340,36 @@ epoll_wait(int epfd, struct epoll_event *evs, int max, int ms)
 	return got;
 }
 
+/*
+ * epoll_wait with *mask the signal mask meanwhile (foot unblocks its
+ * signals so). A handler that runs as the mask opens (a pending SIGCHLD,
+ * gnu/sigchld.c) makes it return EINTR at once, as Linux's would.
+ */
+int
+epoll_pwait(int epfd, struct epoll_event *evs, int max, int ms, const sigset_t *mask)
+{
+	extern int _sigdelivered;	/* plan9/signal.c: handlers run */
+	sigset_t old;
+	int r, e, n0;
+
+	if(mask == NULL)
+		return epoll_wait(epfd, evs, max, ms);
+	n0 = _sigdelivered;
+	if(sigprocmask(SIG_SETMASK, mask, &old) < 0)
+		return -1;
+	/* a handler ran as the mask opened (a pending SIGCHLD): as if the wait were interrupted */
+	if(_sigdelivered != n0){
+		sigprocmask(SIG_SETMASK, &old, NULL);
+		errno = EINTR;
+		return -1;
+	}
+	r = epoll_wait(epfd, evs, max, ms);
+	e = errno;
+	sigprocmask(SIG_SETMASK, &old, NULL);
+	errno = e;
+	return r;
+}
+
 int
 timerfd_create(int clock, int flags)
 {
@@ -418,9 +451,10 @@ timerfd_gettime(int fd, struct itimerspec *cur)
 
 /*
  * an eventfd: the read end of a pipe, its other end kept as a timer's
- * (no deadline): eventfd_write writes there.  A plain write on the
- * descriptor does not come back to it (a Plan 9 pipe gives what one end
- * writes to the other).
+ * (no deadline): eventfd_write writes there, and so does a plain write on
+ * the descriptor (FD_EVENTFD: plan9/write.c), as Linux's (a Plan 9 pipe
+ * gives what one end writes to the other).  Each write is read on its
+ * own, not added up.
  */
 int
 eventfd(unsigned int initval, int flags)
@@ -451,7 +485,21 @@ eventfd(unsigned int initval, int flags)
 		v = initval;
 		write(w, &v, sizeof v);
 	}
+	__eventfdmark(fd);	/* write(fd) goes to w (plan9/write.c) */
 	return fd;
+}
+
+/* the other end of eventfd fd's pipe, where a write on fd goes; -1 if none */
+int
+__eventfdpeer(int fd)
+{
+	Timer *t;
+	int w;
+
+	lock(&lk);
+	w = (t = findtimer(fd, 0)) != NULL ? t->w : -1;
+	unlock(&lk);
+	return w;
 }
 
 int

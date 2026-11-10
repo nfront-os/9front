@@ -62,20 +62,18 @@ tokenize(char *s, char **args, int maxargs)
 	return nargs;
 }
 
+/* GCC port: a wait message's text parsed (also gnu/sigchld.c's, read from /proc/n/wait) */
 Waitmsg*
-_WAIT(void)
+_parsewait(char *buf)
 {
-	int n, l;
-	char buf[512], *fld[5];
+	int l;
+	char *fld[5];
 	Waitmsg *w;
 
-	n = _AWAIT(buf, sizeof buf-1);
-	if(n < 0)
-		return nil;
-	buf[n] = '\0';
 	if(tokenize(buf, fld, 5) != 5){
-		strcpy(buf, "couldn't parse wait message");
-		_ERRSTR(buf, sizeof buf);
+		char e[] = "couldn't parse wait message";
+
+		_ERRSTR(e, sizeof e);
 		return nil;
 	}
 	l = strlen(fld[4])+1;
@@ -89,5 +87,18 @@ _WAIT(void)
 	w->msg = (char*)&w[1];
 	memmove(w->msg, fld[4], l);
 	return w;
+}
+
+Waitmsg*
+_WAIT(void)
+{
+	int n;
+	char buf[512];
+
+	n = _AWAIT(buf, sizeof buf-1);
+	if(n < 0)
+		return nil;
+	buf[n] = '\0';
+	return _parsewait(buf);
 }
 

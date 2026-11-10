@@ -6,10 +6,18 @@
  * the signal #define'd as i in signal.h is inluded.
  */
 
-static sigset_t stdsigs = SIGHUP|SIGINT|SIGQUIT|SIGILL|SIGABRT|SIGFPE|SIGKILL|
-		SIGSEGV|SIGPIPE|SIGALRM|SIGTERM|SIGUSR1|SIGUSR2;
-
 #define BITSIG(s) (2<<(s))
+
+/*
+ * the signals there are, as their bits (it was their numbers or'ed:
+ * SIGHUP|...|SIGUSR2 is 15, and sigaddset refused SIGTERM, SIGCHLD and
+ * the others whose bit is not in 15)
+ */
+static sigset_t stdsigs = BITSIG(SIGHUP)|BITSIG(SIGINT)|BITSIG(SIGQUIT)|BITSIG(SIGILL)|
+		BITSIG(SIGABRT)|BITSIG(SIGFPE)|BITSIG(SIGKILL)|BITSIG(SIGSEGV)|BITSIG(SIGPIPE)|
+		BITSIG(SIGALRM)|BITSIG(SIGTERM)|BITSIG(SIGUSR1)|BITSIG(SIGUSR2)|BITSIG(SIGBUS)|
+		BITSIG(SIGCHLD)|BITSIG(SIGCONT)|BITSIG(SIGSTOP)|BITSIG(SIGTSTP)|BITSIG(SIGTTIN)|
+		BITSIG(SIGTTOU);
 
 int
 sigemptyset(sigset_t *set)

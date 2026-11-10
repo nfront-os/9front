@@ -83,6 +83,7 @@ struct ucred {
 	int	gid;
 };
 #define	SO_TYPE		0x1008		/* get socket type */
+#define	SO_DOMAIN	0x1019		/* 9front-ng: get socket domain (FreeBSD's number) */
 
 /*
  * Structure used for manipulating linger option.
@@ -234,6 +235,7 @@ struct cmsghdr {
 #define	MSG_MAXIOVLEN	16
 
 extern int accept(int, void *, int *);
+extern int accept4(int, void *, int *, int);	/* 9front-ng: Linux's, SOCK_CLOEXEC, SOCK_NONBLOCK */
 extern int bind(int, void *, int);
 extern int connect(int, void *, int);
 extern int getpeername(int, void *, int *);

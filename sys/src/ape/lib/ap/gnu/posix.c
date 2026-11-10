@@ -123,10 +123,13 @@ posix_fallocate(int fd, off_t off, off_t len)
 #define _BSD_EXTENSION
 #include <sys/socket.h>
 
+extern int __apecompat_sockinfo(int, int *, int *);	/* bsd/socket.c */
+
 int
 __apecompat_getsockopt(int fd, int level, int opt, void *val, int *len)
 {
-	(void)fd;
+	int domain, stype;
+
 	if(level != SOL_SOCKET || val == NULL || len == NULL || *len < (int)sizeof(int)){
 		errno = EINVAL;
 		return -1;
@@ -138,6 +141,14 @@ __apecompat_getsockopt(int fd, int level, int opt, void *val, int *len)
 	case SO_SNDBUF:
 	case SO_RCVBUF:
 		*(int *)val = 65536;
+		break;
+	case SO_DOMAIN:	/* 9front-ng: what socket made it */
+	case SO_TYPE:
+		if(__apecompat_sockinfo(fd, &domain, &stype) < 0){
+			errno = ENOTSOCK;
+			return -1;
+		}
+		*(int *)val = opt == SO_DOMAIN ? domain : stype;
 		break;
 	case SO_PEERCRED:
 		/* 9front-ng: a PF_UNIX peer: the same machine and user; its pid not known */

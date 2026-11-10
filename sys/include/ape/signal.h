@@ -126,6 +126,13 @@ extern int sigsuspend(const sigset_t *);
 #endif /* _POSIX_SOURCE */
 
 #if defined(__GNUC__) || defined(_APE_GNU)
+/* GCC port: kill also when <sys/types.h> came after <signal.h> (pid_t is int) */
+#ifndef __cplusplus
+extern int kill(int, int);
+#endif
+/* GCC port: no real-time signals (SIGRTMIN above SIGRTMAX); SIGRTMAX the highest signal, as Linux's */
+#define SIGRTMIN	25
+#define SIGRTMAX	24
 #ifdef __APE_POSIX_SIGNAL
 #undef signal
 #undef sigaction

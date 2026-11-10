@@ -13,6 +13,7 @@ static struct {
 	int	num;
 } sigtab[] = {
 	{"hangup",				SIGHUP},
+	{"child",				SIGCHLD},	/* GCC port: gnu/sigchld.c's watcher */
 	{"interrupt",				SIGINT},
 	{"quit",				SIGQUIT},
 	{"alarm",				SIGALRM},
@@ -121,6 +122,9 @@ sigaction(int sig, const struct sigaction *act, struct sigaction *oact)	/* GCC p
 	return 0;
 }
 
+/* GCC port: handlers run, ever (gnu/epoll.c: epoll_pwait's window between mask and wait) */
+int _sigdelivered;
+
 /* this is registered in _envsetup */
 int
 _notehandler(void *u, char *msg)	/* GCC port: types as in the prototype, kencc ignored the difference */
@@ -131,12 +135,27 @@ _notehandler(void *u, char *msg)	/* GCC port: types as in the prototype, kencc i
 
 	if(_finishing)
 		_finish(0, 0);
+	/* GCC port: a fault in a segment another proc of the program mapped (gnu/mman.c) */
+	if(strncmp(msg, "sys: trap: fault", 16) == 0){
+		extern int __shmfault(unsigned long long);
+		char *a;
+
+		if((a = strstr(msg, "addr=")) != 0 && __shmfault(strtoull(a+5, 0, 0))){
+			_NOTED(0); /* NCONT: the instruction again */
+			return 0;
+		}
+	}
 	for(i = 0; i<NSIGTAB; i++){
 		if(strncmp(msg, sigtab[i].msg, strlen(sigtab[i].msg)) == 0){
 			f = _sighdlr[sigtab[i].num];
+			if(f == SIG_DFL && sigtab[i].num == SIGCHLD){	/* GCC port: POSIX's default: ignored */
+				_NOTED(0);
+				return 0;
+			}
 			if(f == SIG_DFL || f == SIG_ERR)
 				break;
 			if(f != SIG_IGN) {
+				_sigdelivered++;	/* GCC port: gnu/epoll.c's epoll_pwait looks */
 				_notetramp(sigtab[i].num, f, u);
 				/* notetramp is machine-dependent; doesn't return to here */
 			}

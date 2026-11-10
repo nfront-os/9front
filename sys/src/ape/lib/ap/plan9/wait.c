@@ -118,6 +118,18 @@ wait4(pid_t wpid, int *status, int options, struct rusage *res)
 	Dir *d;
 	Waitmsg *w;
 
+	/* GCC port: SIGCHLD's watcher reads the wait messages (gnu/sigchld.c) */
+	{
+		extern int __sigchld_watching(void);
+		extern Waitmsg *__sigchld_take(int, int);
+
+		if(__sigchld_watching()){
+			w = __sigchld_take(wpid, options & WNOHANG);
+			if(w == nil)
+				return (options & WNOHANG) ? 0 : -1;
+			goto Got;
+		}
+	}
 	w = lookpid(wpid);
 	if(w == nil){
 		if(options & WNOHANG){
@@ -140,6 +152,7 @@ wait4(pid_t wpid, int *status, int options, struct rusage *res)
 			addpid(w);
 		}
 	}
+Got:
 	if(res != nil)
 		waitresource(res, w);
 	if(status != nil)

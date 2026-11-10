@@ -1,7 +1,7 @@
 /*
  * What POSIX.1-2024 took from GNU and the BSDs, on APE: pipe2 and
  * mkostemp (their flags: O_CLOEXEC by fcntl's FD_CLOEXEC, which APE's
- * exec honours, O_NONBLOCK, O_APPEND), strchrnul; and glibc's
+ * exec honours, O_NONBLOCK, O_APPEND), strchrnul, confstr; and glibc's
  * pthread_setname_np: the thread's proc is named so in its
  * /proc/n/args (9front lets a process write its own), as ps shows it;
  * posix_openpt, grantpt, unlockpt on ptyfs.
@@ -70,6 +70,25 @@ mkostemp(char *tmpl, int flags)
 		return -1;
 	}
 	return fd;
+}
+
+/* POSIX's confstr: _CS_PATH, where APE's and 9front's programs are (/bin has both) */
+size_t
+confstr(int name, char *buf, size_t n)
+{
+	const char *v;
+
+	switch(name){
+	case _CS_PATH:
+		v = "/bin";
+		break;
+	default:
+		errno = EINVAL;
+		return 0;
+	}
+	if(buf != NULL && n > 0)
+		snprintf(buf, n, "%s", v);
+	return strlen(v) + 1;
 }
 
 char*

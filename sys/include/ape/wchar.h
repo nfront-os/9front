@@ -9,6 +9,11 @@
 #ifndef __APE_WCHAR
 #define __APE_WCHAR
 
+/* wchar_t's values are ISO 10646's (UTF-32), as C says with this macro (glibc's stdc-predef.h) */
+#ifndef __STDC_ISO_10646__
+#define __STDC_ISO_10646__	201706L
+#endif
+
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdio.h>

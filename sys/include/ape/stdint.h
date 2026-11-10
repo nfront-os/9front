@@ -156,6 +156,9 @@ typedef __UINTMAX_TYPE__ uintmax_t;
 #define INTMAX_MAX	__INTMAX_MAX__
 #define UINTMAX_MIN	0
 #define UINTMAX_MAX	__UINTMAX_MAX__
+/* uint32_t's limit an unsigned int (its promoted type, as C wants it); 0xffffffffL is a long of 64 bits on LP64 */
+#undef UINT32_MAX
+#define UINT32_MAX	0xffffffffU
 
 #ifndef INT8_C
 #define INT8_C(c)	c

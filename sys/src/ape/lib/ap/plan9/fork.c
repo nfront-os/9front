@@ -15,5 +15,10 @@ fork(void)
 		_detachbuf();
 		_sessleader = 0;
 	}
+	if(n > 0){	/* GCC port: SIGCHLD (gnu/sigchld.c) */
+		extern void __sigchld_forked(void);
+
+		__sigchld_forked();
+	}
 	return n;
 }

@@ -231,10 +231,50 @@ struct Shm {
 	char	*base;
 	size_t	len;
 	int	ref;	/* mmaps of it */
+	int	dirfd;	/* #g/name kept open: the segment stays attachable by name */
 	Shm	*next;
 };
 
 static Shm *shms;
+
+/*
+ * A program's procs (pthreads: rfork RFMEM) share the segments there were
+ * when they were made, not those attached later: a segment mapped by one
+ * proc faults in another (foot's render threads in its wl_shm pools).
+ * _notehandler (plan9/signal.c) asks __shmfault: the proc attaches the
+ * segment there too (the same address: the kernel chose it at "va 0") and
+ * the instruction is done again. Segments unmapped meanwhile (their bases
+ * in dead[]) the proc detaches then, so that it keeps no old pool's memory.
+ */
+enum { Ndead = 32, Nseen = 64 };
+static char *dead[Ndead];
+static unsigned long ndead;	/* bases put in dead[], ever */
+
+/* per proc: dead[] detached up to (no __thread: libap is built by the host's gcc, whose TLS is %fs) */
+static struct {
+	int	pid;
+	unsigned long	seen;
+} seen[Nseen];
+
+/* this proc's slot of seen[] (with lk); a new one starts at ndead */
+static unsigned long *
+seenof(int pid)
+{
+	int i, free;
+
+	free = -1;
+	for(i = 0; i < Nseen; i++){
+		if(seen[i].pid == pid)
+			return &seen[i].seen;
+		if(seen[i].pid == 0 && free < 0)
+			free = i;
+	}
+	if(free < 0)
+		free = pid % Nseen;	/* full: one is taken over, its proc detaches again */
+	seen[free].pid = pid;
+	seen[free].seen = 0;
+	return &seen[free].seen;
+}
 static int memfdn;
 
 /*
@@ -470,6 +510,12 @@ shmmap(int fd, size_t len, off_t off, int writable)
 		free(s);
 		return MAP_FAILED;
 	}
+	{
+		char dir[160];
+
+		snprintf(dir, sizeof dir, "#g/%s", name);
+		s->dirfd = _OPEN(dir, OREAD9);
+	}
 	snprintf(s->name, sizeof s->name, "%s", name);
 	s->base = p;
 	s->len = slen;
@@ -500,9 +546,54 @@ shmunmap(void *p)
 		return 1;
 	}
 	*l = s->next;
+	dead[ndead++ % Ndead] = s->base;	/* other procs may have it attached (__shmfault) */
+	*seenof(getpid()) = ndead;	/* this one detaches it here */
 	unlock(&lk);
 	_SEGDETACH(s->base);
+	if(s->dirfd >= 0)
+		_CLOSE(s->dirfd);
 	free(s);
+	return 1;
+}
+
+/*
+ * a fault at addr in this proc: 1 if it was in a segment another proc of
+ * the program mapped, now attached here too (the caller continues)
+ */
+int
+__shmfault(unsigned long long addr)
+{
+	char name[128];
+	char *base;
+	unsigned long i, *seendead;
+	Shm *s;
+	void *p;
+
+	lock(&lk);
+	/* old pools' segments, unmapped since this proc last looked: not kept */
+	seendead = seenof(getpid());
+	if(ndead - *seendead > Ndead)
+		*seendead = ndead - Ndead;
+	for(i = *seendead; i < ndead; i++)
+		_SEGDETACH(dead[i % Ndead]);	/* fails if not attached here */
+	*seendead = ndead;
+	for(s = shms; s != NULL; s = s->next)
+		if(addr >= (uintptr_t)s->base && addr < (uintptr_t)s->base + s->len)
+			break;
+	if(s == NULL){
+		unlock(&lk);
+		return 0;
+	}
+	snprintf(name, sizeof name, "%s", s->name);
+	base = s->base;
+	unlock(&lk);
+	p = _SEGATTACH(0, name, NULL, 0);
+	if(p == (void *)-1)
+		return 0;	/* attached already: a real fault */
+	if(p != base){
+		_SEGDETACH(p);
+		return 0;
+	}
 	return 1;
 }
 

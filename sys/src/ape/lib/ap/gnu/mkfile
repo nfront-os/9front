@@ -29,6 +29,8 @@ OFILES=\
 	pread.$O\
 	pthread.$O\
 	realpath.$O\
+	semaphore.$O\
+	sigchld.$O\
 	stdlib.$O\
 	string.$O\
 	syslog.$O\

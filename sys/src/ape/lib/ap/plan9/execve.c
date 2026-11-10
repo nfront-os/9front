@@ -131,6 +131,11 @@ execve(const char *name, const char *argv[], const char *envp[])
 			}
 		}
 	}
+	{	/* GCC port: SIGCHLD's watcher is the old program's (gnu/sigchld.c) */
+		extern void __sigchld_exec(void);
+
+		__sigchld_exec();
+	}
 	n = _EXEC(name, argv);
 	_syserrno();
 	return n;
