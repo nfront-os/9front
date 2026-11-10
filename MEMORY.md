@@ -1090,8 +1090,24 @@ von `upstream` übersetzt, als Serie auf origin/front anwendbar. Nicht dabei: da
 Schließen von TCP (neue Schnittstelle für den Rust-Port).
 - 0023/0024 (2026-11-05, vom Branch `gpu`): `fault.c` SG_FAULT (`||` bindet stärker als `?:`, Lesen/Schreiben ging durch; auf gpu `16edbc924`, gefunden mit segment(3)s revoke, `tests/gpu/segrevoke`), hier mit Kommentar „GCC port“; `sys/lib/dist/mkfile` 16 MB statt 2 MB vor der ESP (auf gcc wirkt es in `scripts/guest/boot/mkiso.rc`, von gpu `98b95ff65`). fault.c mit 6c/8c/7c -FTVw im Gast gegen upstreams Header übersetzt. Offen auf gpu, ohne Fix: Pager-Livelock, wenn nur Prozesse des Hostowners laufen.
 
+## 2026-11-06: memmove/memcpy schneller (von Branch ui übernommen)
+- **APE amd64** hatte nur `gen/memmove.c` (Byte-Schleife, -O0): jetzt `amd64/memcpy.$O memmove.$O` im mkfile wie 386/arm64; `.S` = musl 1.2.5 x86_64 unverändert (MIT, `sys/src/ape/lib/musl/COPYRIGHT`: Ziel ausrichten, `rep movsq`), `.s` = libcs für 6a.
+- **libc amd64** `memmove.S`/`memcpy.S`: Quadwörter bei jeder Ausrichtung (musls Weise), 9fronts Verhalten bleibt (memcpy überlappend, negatives n faultet). Im RAM gleich schnell (ERMS), durch einen BAR (uncached) 8 statt 1 Byte je Zugriff.
+- **klibc amd64/386** (Kernel): libcs Assembler (`memmove memcpy memset memchr memcmp memccpy strcat strchr strcpy strlen`) statt `port/*.c` (Byte-Schleifen mit `-Os`), wie Upstream libc.a linkt; keine nutzt r14/r15 (amd64 m/up), Trap-/Syscall-Eintritt machen `cld`. 1 MB: amd64 360 → 55 µs, 386 665 → 55 µs.
+- `tests/static`: „9fronts .s unverändert“ prüft nur geänderte/gelöschte (`--diff-filter=MD`), ein für 6a hinzugefügtes ist erlaubt. apetest/libctest prüfen memmove/memcpy bei allen Ausrichtungen.
+- gcc: amd64 Bau 812/812, guest 129/129, boot 19/19; 386 Bau 812/812, guest 129/129, boot 19/19; static 14/14.
+
+## 2026-11-06: build.exe kompiliert parallel (von Branch ui übernommen)
+Vorher war eine Bibliothek **ein** gcc-Aufruf mit allen Dateien (gcc übersetzt sie nacheinander), Programme und Kernel-Bibliotheken liefen nacheinander; `CPUS` war gesetzt, aber unbenutzt. Jetzt `parallel()` in build.go: jede Quelldatei eines Manifests ist ein eigener gcc-Lauf, `CPUS` zugleich (Vorgabe NumCPU; `CPUS=1` wie vorher). Manifeste laufen weiter nacheinander, Link/Archiv danach. Auf ui (12 Kerne): SDL3 82 → 13,5 s, ganzer Baum nach `touch sys/include/libc.h` mit `-D` 84 s statt > 10 min.
+
+## 2026-11-10: Rebase auf front 82ddeb288
+- `front` auf origin/front vorgespult (17 Commits: smtpd STARTTLS/Schmuggel, factotum ohne ecdsa, vcrop entfernt, arm64 CPU_ON/SEVL, gefs, libsec mlkem/sha3, cwfs Gfmt, ktrans hangul, devsegment-Rechte), `gcc` darauf (189 Commits, ohne Konflikte; vorher 6bd69d14b). Manifeste neu: `vcrop` und factotums `ecdsa.c` fallen weg. static 14/14. Noch nicht gebaut; `riscv` (../9front-riscv) und `upstream` noch auf dem alten Stand.
+
 ## 2026-11-06: memmove schneller (riscv64)
 - **libc `riscv64/memmove.S`** neu (gilt auch für den Kernel, klibc nahm es schon): Ziel ausrichten, dann 4 Doppelwörter je Runde, wenn die Quelle gleich ausgerichtet ist; sonst zwei ausgerichtete Loads zusammengeschoben (keine misaligned Zugriffe, viele Harts trappen); rückwärts dasselbe vom Ende (vorher rückwärts immer Bytes, ungleich ausgerichtet Bytes). Unter qemu-riscv64 (1 MB): ausgerichtet 403 → 106 µs, ungleich 1752 → 362, rückwärts 1570 → 104. Host-Test gegen Byte-Referenz (alle Ausrichtungen, Überlappung, Längen 0–200) in qemu-riscv64.
 - **APE riscv64** hatte kein memmove (gen/memmove.c, Byte-Schleife): `memmove.$O` im mkfile, `.S` = libcs, `.s` = libcs mit `MOVWU n` (size_t 4 Byte unter jc, wie APE arm64).
 - **klibc riscv64:** memccpy/memchr/memcmp/strchr/strcmp/strcpy aus `riscv64/*.S` statt port/*.c (keine nutzt s10/s11 = up/m).
 - Tests: apetest/libctest prüfen memmove/memcpy bei allen Ausrichtungen (aus Branch ui). riscv64: Bau 822/822, guest 130/130, boot 12/12, static 14/14. Dasselbe für amd64/386 liegt auf Branch ui (APE amd64 musl, libc amd64, klibc amd64/386); arm64 brauchte nichts (16 Byte je Schritt überall).
+
+## 2026-11-10 (Teil 66): riscv auf gcc mit front 82ddeb288 rebased
+- `riscv` (28 Commits, vorher e5b83b8fd) auf `gcc` bc217714c (`git rebase --onto gcc 405194edb`). Konflikte nur in MEMORY.md (beide hängen am Ende an) und im Kopfkommentar von `tests/guest/apetest.c` (gcc's Fassung). Der Commit „build.exe parallel“ fiel leer weg (gcc hat ihn). MEMORY.md danach als Drei-Wege-Merge neu (die Konfliktlösungen je Commit hatten die alte Überschrift „Teil 53“ neben „Teil 58“ und „Patch-Kandidaten“ doppelt stehen lassen).
