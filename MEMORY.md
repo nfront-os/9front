@@ -1111,3 +1111,4 @@ Vorher war eine Bibliothek **ein** gcc-Aufruf mit allen Dateien (gcc übersetzt 
 
 ## 2026-11-10 (Teil 66): riscv auf gcc mit front 82ddeb288 rebased
 - `riscv` (28 Commits, vorher e5b83b8fd) auf `gcc` bc217714c (`git rebase --onto gcc 405194edb`). Konflikte nur in MEMORY.md (beide hängen am Ende an) und im Kopfkommentar von `tests/guest/apetest.c` (gcc's Fassung). Der Commit „build.exe parallel“ fiel leer weg (gcc hat ihn). MEMORY.md danach als Drei-Wege-Merge neu (die Konfliktlösungen je Commit hatten die alte Überschrift „Teil 53“ neben „Teil 58“ und „Patch-Kandidaten“ doppelt stehen lassen).
+- Danach: Bau riscv64 821/821 (vcrop weg), static 14/14; Rust `riscv64gc-unknown-plan9` (../9front-rust Teil 15) run.sh 13/13 im virt-Gast mit dem vom Branch gpu neu gebauten Cross-gcc (der alte hatte noch die compat-Header im Präfix). guest/boot-Suiten des Baums nicht gelaufen.
