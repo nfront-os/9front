@@ -196,7 +196,6 @@
 			"unlnfs.c",
 			"unmount.c",
 			"urlencode.c",
-			"vcrop.c",
 			"vdiff.c",
 			"walk.c",
 			"wc.c",
