@@ -37,6 +37,7 @@ unsafe extern "C" {
 
 /// devdraw's file types: the low four bits of a qid's path, slot<<4 above them
 pub const QNEW: u64 = 1;
+pub const QWINNAME: u64 = 2;
 pub const QCOLORMAP: u64 = 5;
 pub const QCTL: u64 = 6;
 pub const QDATA: u64 = 7;
@@ -54,6 +55,7 @@ pub struct Core {
     pub name: String, // the segment's: the compositor attaches it too
     pub r: Rect,
     pub stride: usize, // bytes a row
+    pub winname: String, // the screen's name in devdraw (noborder.screen.n): wsys' winname with -d
 }
 
 impl Core {
@@ -73,7 +75,14 @@ impl Core {
             return Err(io::Error::other(format!("devdraw: {}", errtext(&e))));
         }
         let stride = unsafe { drawcore_width() } as usize * 4;
-        Ok(Core { seg, name, r, stride })
+        // the screen's public name: a client of wsys' root finds it as /dev/winname
+        // (the kernel's says another: its screen's names count its own screens)
+        let mut b = [0u8; 64];
+        let winname = match Chan::open(QWINNAME, 0).map_err(io::Error::other)?.read(&mut b, 0).map_err(io::Error::other)? {
+            Read::Data(n) => String::from_utf8_lossy(&b[..n]).into_owned(),
+            Read::Wait => String::new(),
+        };
+        Ok(Core { seg, name, r, stride, winname })
     }
 
     /// the screen's rectangles drawn on since the last call

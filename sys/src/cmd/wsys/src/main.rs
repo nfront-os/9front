@@ -230,6 +230,7 @@ enum Kind {
     File(u32, F),
     // wsys' own devdraw (-d): draw/, draw/new, draw/n/ (a client in devdraw's
     // slot n), its files (devdraw's types: colormap, ctl, data, refresh)
+    RootWinname, // -d: the screen's name in wsys' devdraw
     Draw,
     DrawNew,
     DrawCl(u32),
@@ -647,6 +648,7 @@ fn qid(k: Kind) -> Qid {
         Kind::WinDir(n) => (ninep::QTDIR, (n as u64) << 8 | 0x10),
         Kind::File(n, f) => (0, (n as u64) << 8 | (0x20 + f as u64)),
         Kind::Draw => (ninep::QTDIR, 2),
+        Kind::RootWinname => (0, 4),
         Kind::DrawNew => (0, 3),
         Kind::DrawCl(sl) => (ninep::QTDIR, 1 << 40 | (sl as u64) << drawcore::QSHIFT | 3),
         Kind::DrawF(sl, t) => (0, 1 << 40 | (sl as u64) << drawcore::QSHIFT | t),
@@ -678,6 +680,7 @@ impl Wsys {
                 (name.to_string(), *mode)
             }
             Kind::Draw => ("draw".to_string(), ninep::DMDIR | 0o555),
+            Kind::RootWinname => ("winname".to_string(), 0o444),
             Kind::DrawNew => ("new".to_string(), 0o666),
             Kind::DrawCl(sl) => (drawcore::clientid(sl).unwrap_or(0).to_string(), ninep::DMDIR | 0o555),
             Kind::DrawF(_, t) => {
@@ -704,6 +707,7 @@ impl Wsys {
                 "wctl" => Some(Kind::RootWctl),
                 "stack" => Some(Kind::Stack),
                 "draw" if self.core.is_some() => Some(Kind::Draw),
+                "winname" if self.core.is_some() => Some(Kind::RootWinname),
                 ".." => Some(Kind::Root),
                 _ => {
                     let n: u32 = name.parse().ok()?;
@@ -744,6 +748,7 @@ impl Wsys {
                 let mut v = vec![Kind::Screen, Kind::Clone, Kind::RootWctl, Kind::Stack];
                 if self.core.is_some() {
                     v.push(Kind::Draw);
+                    v.push(Kind::RootWinname);
                 }
                 let mut ids: Vec<u32> = self.wins.keys().copied().collect();
                 ids.sort();
@@ -900,7 +905,7 @@ impl Wsys {
                             Err(err) => return e(&err),
                         }
                     }
-                    Kind::Screen | Kind::Stack if writing => return e("permission denied"),
+                    Kind::Screen | Kind::Stack | Kind::RootWinname if writing => return e("permission denied"),
                     Kind::RootWctl if reading => return e("permission denied"),
                     Kind::File(_, F::Event | F::Winid | F::Winname | F::Window | F::Screen) if writing => return e("permission denied"),
                     Kind::File(_, F::Consctl) if reading => return e("permission denied"),
@@ -1011,6 +1016,7 @@ impl Wsys {
                     }
                     Kind::File(n, F::Ctl) => text(self.ctltext(n).as_bytes()),
                     Kind::Stack => text(self.stacktext().as_bytes()),
+                    Kind::RootWinname => text(self.core.as_ref().map(|c| c.winname.as_str()).unwrap_or("").as_bytes()),
                     Kind::File(n, F::Label) => text(self.wins[&n].label.as_bytes()),
                     Kind::File(n, F::Wdir) => text(self.wins[&n].wdir.as_bytes()),
                     Kind::File(n, F::Text) => text(self.wins[&n].text.as_bytes()),

@@ -1,0 +1,30 @@
+#!/bin/rc
+# aux/amdgpu with its screen; wsys with its own devdraw (-d, ../9front-ui PLAN
+# stage 4c) on the card: drawcmp through the kernel's devdraw and through
+# wsys -d, the same SHA-1s; the GPU composing wsys -d's screen (wsyscomp.rc:
+# two vktri, one covered); the overlay plane under -d (wsysovl.rc); the
+# workload (tests/draw) with what devdraw and the GPU did
+bind -a '#i' /dev
+bind -a '#v' /dev
+bind -a '#m' /dev
+aux/amdgpu $* >/tmp/amd.log >[2=1]
+sleep 2
+/tests/drawcmp >/tmp/k.out >[2=1]
+/tests/wsys -d -x -i 'bind -b /mnt/wsys /dev; /tests/drawcmp >/tmp/d.out >[2=1]' >/tmp/wsys.log >[2=1]
+sed 's/^/drawcmp: /' /tmp/wsys.log
+if(cmp -s /tmp/k.out /tmp/d.out && grep -s '^drawcmp: done' /tmp/d.out && ! grep -s '%' /tmp/k.out)
+	echo 'ok drawcmp: the kernel''s devdraw and wsys -d the same ('^`{grep -c . /tmp/k.out}^' lines)'
+if not {
+	echo FAIL drawcmp: kernel and wsys -d differ
+	diff /tmp/k.out /tmp/d.out | sed 10q
+}
+WSI_PLAN9_STATS=1 /tests/wsys -d -g -x -i /tests/wsyscomp >/tmp/wsys.log >[2=1]
+grep -v ' per frame ' /tmp/wsys.log | sed 's/^/comp: /'
+grep ' per frame ' /tmp/wsys.log | sed 4q | sed 's/^/comp: /'
+WSYSDEBUG=overlay,comp /tests/wsys -d -x -i '/tests/wsysovl comp' >/tmp/wsys.log >[2=1]
+sed 's/^/ovl: /' /tmp/wsys.log
+WSYSDEBUG=draw,comp /tests/wsys -d -x -i /tests/workload >/tmp/wsys.log >[2=1]
+sed 's/^/load: /' /tmp/wsys.log
+echo segs `{ls '#g' | grep -c wsys.screen}
+grep 'WARN|error|fault|BUG' /tmp/amd.log
+echo TESTEND
