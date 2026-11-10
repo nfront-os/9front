@@ -5,7 +5,9 @@
  * aligned blocks (plan9/malloc.c), mmap, POSIX additions, pthreads, select and
  * poll on a pipe written by a thread and by a forked child (gnu/buf.c: more
  * than a buffer, the end, close, fork; a file's dup polled, the original read), and exit with a thread and
- * a copy proc still running.
+ * a copy proc still running. What foot needs: C11 threads, getopt_long,
+ * pipe2, mkostemp, strchrnul, mbrtoc32, locale objects, syslog, a thread's
+ * name in /proc, timercmp, byte swaps, regex (musl's TRE).
  *
  * Output: one "ok name" or "FAIL name: detail" line per check, then
  * "apegnutest: N ok, M failed".
@@ -31,6 +33,14 @@
 #include <sys/wait.h>
 #include <sys/socket.h>
 #include <sys/un.h>
+#include <sys/time.h>
+#include <threads.h>
+#include <getopt.h>
+#include <uchar.h>
+#include <locale.h>
+#include <syslog.h>
+#include <byteswap.h>
+#include <regex.h>
 
 static int nok, nfail;
 
@@ -678,6 +688,191 @@ testentropy(void)
 	check("getentropy of 257 bytes: EINVAL", getentropy(big, sizeof big) < 0 && errno == EINVAL, "errno %d", errno);
 }
 
+static mtx_t c11m;
+static cnd_t c11c;
+static int c11v;
+static tss_t c11k;
+static once_flag c11once = ONCE_FLAG_INIT;
+static int c11ones;
+
+static void c11one(void) { c11ones++; }
+
+static int
+c11thread(void *a)
+{
+	tss_set(c11k, a);
+	mtx_lock(&c11m);
+	c11v = (int)(intptr_t)tss_get(c11k);
+	cnd_signal(&c11c);
+	mtx_unlock(&c11m);
+	call_once(&c11once, c11one);
+	return 42;
+}
+
+static void
+testc11threads(void)
+{
+	thrd_t t;
+	int r;
+	struct timespec ts;
+
+	check("mtx_init, cnd_init, tss_create", mtx_init(&c11m, mtx_plain) == thrd_success &&
+		cnd_init(&c11c) == thrd_success && tss_create(&c11k, NULL) == thrd_success, NULL);
+	call_once(&c11once, c11one);
+	mtx_lock(&c11m);
+	check("thrd_create", thrd_create(&t, c11thread, (void*)7) == thrd_success, NULL);
+	while(c11v == 0)
+		cnd_wait(&c11c, &c11m);
+	mtx_unlock(&c11m);
+	check("the thread's tss and the condition", c11v == 7, "%d", c11v);
+	check("thrd_join: its result", thrd_join(t, &r) == thrd_success && r == 42, "%d", r);
+	check("call_once: once", c11ones == 1, "%d", c11ones);
+	check("tss_get in main: not the thread's", tss_get(c11k) == NULL, NULL);
+	mtx_init(&c11m, mtx_recursive);
+	check("mtx_recursive: twice", mtx_lock(&c11m) == thrd_success && mtx_trylock(&c11m) == thrd_success, NULL);
+	mtx_unlock(&c11m);
+	mtx_unlock(&c11m);
+	timespec_get(&ts, TIME_UTC);
+	ts.tv_nsec += 20000000;
+	if(ts.tv_nsec >= 1000000000){
+		ts.tv_sec++;
+		ts.tv_nsec -= 1000000000;
+	}
+	mtx_lock(&c11m);
+	check("cnd_timedwait: thrd_timedout", cnd_timedwait(&c11c, &c11m, &ts) == thrd_timedout, NULL);
+	mtx_unlock(&c11m);
+	ts.tv_sec = 0;
+	ts.tv_nsec = 1000000;
+	check("thrd_sleep", thrd_sleep(&ts, NULL) == 0, NULL);
+}
+
+static void
+testgetoptlong(void)
+{
+	static const struct option lo[] = {
+		{"config", required_argument, NULL, 'c'},
+		{"log-level", optional_argument, NULL, 'l'},
+		{"hold", no_argument, NULL, 'H'},
+		{NULL, 0, NULL, 0},
+	};
+	char *argv[] = {"foot", "-Hc", "a.ini", "--log-level=info", "--hold", "-lwarn", "--conf", "b.ini", "-x", "rc", "-l", NULL};
+	char got[128];
+	int c, n;
+
+	opterr = 0;
+	optind = 0;
+	got[0] = 0;
+	n = 0;
+	while((c = getopt_long(11, argv, "+c:Hl::", lo, NULL)) != -1)
+		n += snprintf(got + n, sizeof got - n, "%c%s ", c, optarg != NULL ? optarg : "");
+	check("getopt_long: short, grouped, long, =, abbreviated, optional, unknown, stops at the command",
+		strcmp(got, "H ca.ini linfo H lwarn cb.ini ? ") == 0 && optind == 9, "%s, optind %d", got, optind);
+	opterr = 1;
+	optind = 1;
+}
+
+static void
+testgnuext(void)
+{
+	char tmpl[] = "/tmp/apegnuXXXXXX", buf[64];
+	int fd[2], f, n;
+	char32_t c;
+	mbstate_t st;
+	locale_t l;
+	struct timeval a = {1, 500}, b = {1, 700}, r;
+
+	check("pipe2 O_CLOEXEC|O_NONBLOCK", pipe2(fd, O_CLOEXEC|O_NONBLOCK) == 0, "%s", strerror(errno));
+	check("pipe2: close-on-exec, non-blocking", (fcntl(fd[0], F_GETFD) & FD_CLOEXEC) != 0 &&
+		(fcntl(fd[1], F_GETFL) & O_NONBLOCK) != 0, NULL);
+	close(fd[0]);
+	close(fd[1]);
+	errno = 0;
+	check("pipe2 with other flags: EINVAL", pipe2(fd, O_APPEND) < 0 && errno == EINVAL, NULL);
+	f = mkostemp(tmpl, O_CLOEXEC);
+	check("mkostemp O_CLOEXEC", f >= 0 && (fcntl(f, F_GETFD) & FD_CLOEXEC) != 0 && strncmp(tmpl, "/tmp/apegnu", 11) == 0 &&
+		strcmp(tmpl + 11, "XXXXXX") != 0, "%s", tmpl);
+	if(f >= 0){
+		close(f);
+		unlink(tmpl);
+	}
+	f = open("/dev/null", O_RDONLY|O_CLOEXEC);
+	check("open O_CLOEXEC: FD_CLOEXEC", f >= 0 && (fcntl(f, F_GETFD) & FD_CLOEXEC) != 0, NULL);
+	close(f);
+	f = open("/dev/null", O_RDONLY);
+	check("open without: not", f >= 0 && (fcntl(f, F_GETFD) & FD_CLOEXEC) == 0, NULL);
+	close(f);
+	check("strchrnul", *strchrnul("abc", 'x') == 0 && *strchrnul("abc", 'b') == 'b', NULL);
+	memset(&st, 0, sizeof st);
+	check("mbrtoc32 of ö", mbrtoc32(&c, "\xc3\xb6", 2, &st) == 2 && c == 0xf6, NULL);
+	check("c32rtomb of €", c32rtomb(buf, 0x20ac, &st) == 3 && memcmp(buf, "\xe2\x82\xac", 3) == 0, NULL);
+	check("setlocale(LC_CTYPE, \"\")", setlocale(LC_CTYPE, "") != NULL, NULL);
+	l = newlocale(LC_NUMERIC_MASK, "C", (locale_t)0);
+	check("newlocale C, uselocale", l != (locale_t)0 && uselocale(l) != (locale_t)0, NULL);
+	freelocale(l);
+	errno = 0;
+	check("newlocale de_DE: ENOENT", newlocale(LC_ALL_MASK, "de_DE", (locale_t)0) == (locale_t)0 && errno == ENOENT, NULL);
+	timersub(&b, &a, &r);
+	check("timercmp, timersub", timercmp(&a, &b, <) && !timercmp(&a, &b, >=) && r.tv_sec == 0 && r.tv_usec == 200, NULL);
+	check("bswap_16/32/64", bswap_16(0x1234) == 0x3412 && bswap_32(0x12345678) == 0x78563412 &&
+		bswap_64(0x0102030405060708ULL) == 0x0807060504030201ULL, NULL);
+
+	check("pthread_setname_np", pthread_setname_np(pthread_self(), "apegnu-name") == 0, NULL);
+	snprintf(tmpl, sizeof tmpl, "/proc/%d/args", getpid());
+	buf[0] = 0;
+	if((f = open(tmpl, O_RDONLY)) >= 0){
+		n = read(f, buf, sizeof buf - 1);
+		buf[n > 0 ? n : 0] = 0;
+		close(f);
+	}
+	check("its /proc/n/args: name [args]", strcmp(buf, "apegnutest [apegnu-name]") == 0, "%s", buf);
+
+	/* syslog to standard error (no /sys/log/apegnutest) */
+	if(pipe(fd) == 0){
+		int e = dup(2);
+
+		dup2(fd[1], 2);
+		openlog("apegnutest", LOG_PERROR|LOG_PID, LOG_USER);
+		errno = ENOENT;
+		syslog(LOG_ERR, "hello %d: %m", 5);
+		closelog();
+		dup2(e, 2);
+		close(e);
+		close(fd[1]);
+		n = read(fd[0], buf, sizeof buf - 1);
+		buf[n > 0 ? n : 0] = 0;
+		close(fd[0]);
+		snprintf(tmpl, sizeof tmpl, "apegnutest[%d]: hello 5: ", getpid());
+		check("syslog LOG_PERROR, LOG_PID, %m", strncmp(buf, tmpl, strlen(tmpl)) == 0 && buf[strlen(buf)-1] == '\n', "%s", buf);
+	}
+}
+
+static void
+testregex(void)
+{
+	regex_t re;
+	regmatch_t m[3];
+	const char *s = "siehe https://9front.org/über-uns oder nicht";
+	char buf[64];
+	int e;
+
+	e = regcomp(&re, "(https?|ftp)://[^[:space:]]+", REG_EXTENDED);
+	check("regcomp ERE", e == 0, "%d", e);
+	if(e == 0){
+		e = regexec(&re, s, 3, m, 0);
+		check("regexec: the URL, through the ü", e == 0 && m[0].rm_so == 6 && m[0].rm_eo == 34 &&
+			m[1].rm_so == 6 && m[1].rm_eo == 11 && re.re_nsub == 1,
+			"%d: %ld-%ld %ld-%ld", e, (long)m[0].rm_so, (long)m[0].rm_eo, (long)m[1].rm_so, (long)m[1].rm_eo);
+		check("regexec: no match", regexec(&re, "kein link", 0, NULL, 0) == REG_NOMATCH, NULL);
+		regfree(&re);
+	}
+	check("REG_ICASE on ÄÖ", regcomp(&re, "^äö$", REG_EXTENDED|REG_ICASE|REG_NOSUB) == 0 &&
+		regexec(&re, "ÄÖ", 0, NULL, 0) == 0, NULL);
+	regfree(&re);
+	e = regcomp(&re, "a(b", REG_EXTENDED);
+	regerror(e, &re, buf, sizeof buf);
+	check("regerror: Missing ')'", e == REG_EPAREN && strcmp(buf, "Missing ')'") == 0, "%d %s", e, buf);
+}
+
 int
 main(void)
 {
@@ -689,6 +884,10 @@ main(void)
 	testshm();
 	testseals();
 	testentropy();
+	testc11threads();
+	testgetoptlong();
+	testgnuext();
+	testregex();
 	testscm();
 	testposix();
 	testthreads();

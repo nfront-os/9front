@@ -9,28 +9,33 @@ OFILES=\
 	asprintf.$O\
 	at.$O\
 	buf.$O\
+	c11threads.$O\
 	c99stdio.$O\
 	c99time.$O\
 	dlfcn.$O\
 	epoll.$O\
 	flock.$O\
 	getentropy.$O\
+	getopt_long.$O\
 	getpagesize.$O\
+	gnuext.$O\
 	hwcap.$O\
 	inttypes.$O\
-	newlocale.$O\
 	mman.$O\
 	multibyte.$O\
 	native.$O\
+	newlocale.$O\
 	posix.$O\
 	pread.$O\
 	pthread.$O\
 	realpath.$O\
 	stdlib.$O\
 	string.$O\
+	syslog.$O\
 	truncate.$O\
+	uchar.$O\
 	wstdio.$O\
-	xsysconf.$O\
+	xsysconf.$O
 
 </sys/src/cmd/mksyslib
 

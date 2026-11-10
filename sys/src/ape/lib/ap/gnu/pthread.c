@@ -368,6 +368,13 @@ mainpidinit(void)
 	mainpid = getpid();
 }
 
+/* the proc of a thread (gnuext.c: pthread_setname_np) */
+int
+__apecompat_pthreadpid(pthread_t t)
+{
+	return t->pid;
+}
+
 pthread_t
 pthread_self(void)
 {

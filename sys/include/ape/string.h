@@ -73,6 +73,7 @@ extern char	*strndup(const char *, size_t);
 extern char	*strtok_r(char *, const char *, char **);
 extern void	*memmem(const void *, size_t, const void *, size_t);
 extern char	*strsignal(int);
+extern char	*strchrnul(const char *, int);	/* GNU's, the BSDs' (ap/gnu/gnuext.c) */
 #ifdef __cplusplus
 }
 #endif

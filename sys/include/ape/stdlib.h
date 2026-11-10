@@ -105,6 +105,7 @@ extern _Noreturn void	_Exit(int);
 extern int	at_quick_exit(void (*)(void));
 extern _Noreturn void	quick_exit(int);
 extern char	*realpath(const char *, char *);
+extern int	mkostemp(char *, int);	/* POSIX.1-2024's (ap/gnu/gnuext.c) */
 
 extern int	mblen(const char *, size_t)
 		__asm__("__apecompat_mblen");

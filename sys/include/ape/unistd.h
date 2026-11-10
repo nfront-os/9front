@@ -236,6 +236,7 @@ extern int	gethostname(char *, int);
 extern long	sysconf(int) __asm__("__apecompat_sysconf");
 extern int	getpagesize(void);	/* BSD's (ap/gnu/xsysconf.c) */
 extern int	getentropy(void *, size_t);	/* POSIX.1-2024's (ap/gnu/getentropy.c: /dev/random) */
+extern int	pipe2(int *, int);	/* POSIX.1-2024's (ap/gnu/gnuext.c): O_CLOEXEC, O_NONBLOCK */
 #ifndef _BSD_EXTENSION
 extern int	getopt(int, char *const *, const char *);
 extern char	*optarg;

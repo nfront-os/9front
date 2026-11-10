@@ -10,6 +10,10 @@
 /*
  * O_NOCTTY has no effect
  */
+/* GCC port: POSIX.1-2008's O_CLOEXEC (fcntl.h's, under _APE_GNU): the descriptor closes on exec */
+#ifndef O_CLOEXEC
+#define O_CLOEXEC	0x8000
+#endif
 int
 open(const char *path, int flags, ...)
 {
@@ -53,6 +57,8 @@ open(const char *path, int flags, ...)
 	if(n >= 0){
 		fi = &_fdinfo[n];
 		fi->flags = FD_ISOPEN;
+		if(flags&O_CLOEXEC)	/* GCC port */
+			fi->flags |= FD_CLOEXEC;
 		fi->oflags = flags&(O_ACCMODE|O_NONBLOCK|O_APPEND);
 		fi->uid = -2;
 		fi->gid = -2;

@@ -3,7 +3,7 @@
 sys/src/ape/lib/musl/musl[.386|.arm64].json: what musl gives APE (C99's float
 and long double math, <fenv.h>, <complex.h>, the wide string functions and
 <wctype.h>; and the engine of C99's printf and scanf, bridged to APE's FILE),
-appended to libap.a. Not built by 9front's own compilers (C99 in musl's
+appended to libap.a; POSIX's regex (TRE). Not built by 9front's own compilers (C99 in musl's
 headers): gcc only, as 9front's gcc port's toolchain had it (its compat).
 
 The sources per architecture are scripts/gen/musl/<objtype>.list: musl's file
@@ -75,6 +75,15 @@ for n in ('fprintf', 'fscanf', 'fwrite', 'fwrite_unlocked', 'snprintf', 'strtod'
 		'vfwprintf', 'vfwscanf', 'fputwc', 'fwide', 'getwc', 'ungetwc'):
 	ENGINE_RENAMES[n] = '__musl_' + n
 
+# POSIX's regex.h (musl's TRE, sys/include/ape/regex.h has its layout): its
+# characters from APE's mbtowc for gcc's 32-bit wchar_t (libap's own mbtowc
+# stores 16 bits); regerror's message untranslated (ape/lctrans.c)
+REGEX = [
+	'src/regex/regcomp.c', 'src/regex/regexec.c', 'src/regex/regerror.c',
+	'src/regex/tre-mem.c', 'ape/lctrans.c',
+]
+REGEX_RENAMES = {'mbtowc': '__apecompat_mbtowc'}
+
 def manifests(objtype):
 	march, sfx = ARCHES[objtype]
 	srcs = open(os.path.join(ROOT, 'scripts/gen/musl/%s.list' % objtype)).read().split()
@@ -92,12 +101,15 @@ def manifests(objtype):
 		Pre=['bash ../../../../../scripts/build/gen-musl-bits.sh ' + march],
 		Clean=['obj/%s/include/bits/*.h' % march],
 		Cflags=flags, SourceFiles=srcs)
+	r = dict(base, Name='ape-lib-musl-regex-libap.a',
+		Cflags=flags + ['-D%s=%s' % kv for kv in sorted(REGEX_RENAMES.items())],
+		SourceFiles=REGEX)
 	e = dict(base, Name='ape-lib-musl-engine-libap.a',
 		Cflags=flags + ['-D%s=%s' % kv for kv in sorted(ENGINE_RENAMES.items())],
 		SourceFiles=ENGINE,
 		# musl's names libap has too (i386 floor.s: ceil) local in its members
 		Post=['bash ../../../../../scripts/build/musl-localize.sh'])
-	return 'musl%s.json' % sfx, [m, e]
+	return 'musl%s.json' % sfx, [m, r, e]
 
 def main():
 	objtype = os.environ.get('objtype', 'amd64')

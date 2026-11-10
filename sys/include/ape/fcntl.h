@@ -67,10 +67,10 @@ extern int creat(const char *, mode_t);
 
 #if defined(__GNUC__) || defined(_APE_GNU)
 /* GCC port: POSIX.1-2008's openat with AT_FDCWD (ap/gnu/at.c), posix_fallocate
- * (ap/gnu/posix.c); APE's open knows no O_CLOEXEC */
+ * (ap/gnu/posix.c); O_CLOEXEC: open marks the descriptor FD_CLOEXEC (plan9/open.c) */
 #define AT_FDCWD	(-100)
 #ifndef O_CLOEXEC
-#define O_CLOEXEC	0
+#define O_CLOEXEC	0x8000
 #endif
 #ifdef __cplusplus
 extern "C" {

@@ -161,6 +161,8 @@ extern int	pthread_sigmask(int, const sigset_t *, sigset_t *);
 extern int	pthread_getcpuclockid(pthread_t, clockid_t *);
 
 extern int	pthread_key_create(pthread_key_t *, void (*)(void *));
+/* GNU's: the thread's proc named so (its /proc/n/args, as ps shows it) */
+extern int	pthread_setname_np(pthread_t, const char *);
 extern int	pthread_key_delete(pthread_key_t);
 extern void	*pthread_getspecific(pthread_key_t);
 extern int	pthread_setspecific(pthread_key_t, const void *);
