@@ -11,7 +11,7 @@ cross compiler):
 	from, a file or directory of the release or of plan9/, to, a directory
 	from the root: sys/include/ape/..., exclude: subdirectories not), gen (commands that make files of
 	the release in it before anything is copied: [dir, argv...], dir from
-	its top)
+	its top; $ROOT is the tree's root)
 
 sys/src/<lib>/plan9/ holds what 9front needs instead (configuration
 headers): it comes before the release's directories in each library's
@@ -40,7 +40,7 @@ shutil.rmtree(tree, ignore_errors=True)
 with tarfile.open(tar) as f:
 	f.extractall(work, filter='data')
 for g in spec.get('gen', []):
-	subprocess.run(g[1:], cwd=os.path.join(tree, g[0]), check=True)
+	subprocess.run(g[1:], cwd=os.path.join(tree, g[0]), check=True, env=dict(os.environ, ROOT=root))
 
 plan9 = os.path.join(here, 'plan9')
 

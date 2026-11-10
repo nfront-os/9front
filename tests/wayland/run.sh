@@ -36,7 +36,7 @@ fi
 # weston's examples (scripts/wayland/weston.sh: simple-shm, simple-egl)
 bash "$ROOT/scripts/wayland/weston.sh" build "$HERE/root/tests" >/dev/null
 cp "$HERE/wlweston.rc" "$HERE/root/tests/wlweston.rc"
-for f in restartA.rc wsysrestart.rc restartdesk.rc restartwin.rc inwin.rc wlnest.rc wlnestwin.rc; do
+for f in restartA.rc wsysrestart.rc restartdesk.rc restartwin.rc inwin.rc wlnest.rc wlnestwin.rc wlfoot.rc; do
 	cp "$HERE/$f" "$HERE/root/tests/$f"
 	chmod +x "$HERE/root/tests/$f"
 done
@@ -73,6 +73,9 @@ if [ "${VKONLY:-0}" = 0 ]; then
 	# the libraries for foot on 9front (libtest: xkbcommon compiles wlclient's keymap)
 	lt=$($M rc "test ! -x /tests/libtest || /tests/libtest" 120) || true
 	echo "$lt"
+	# foot (/bin/foot, the ape step's) under wlsys: rc in its pty, foot ends with it
+	ft=$($M rc "test ! -x /bin/foot || { bind -a '#i' /dev; bind -a '#m' /dev; /tests/wsys -x -i /tests/wlfoot.rc >/tmp/wsysfoot.log >[2=1]; cat /tmp/foot.tty; grep -e goodbye -e '^exit' -e ' err:' /tmp/foot.log }" 120) || true
+	echo "$ft" | sed 's/^/foot: /'
 	# the listening sockets' /srv entries (APE: UD.name) gone with their servers
 	ud=$($M rc "ls /srv | grep '^/srv/UD\.' || echo none" 30) || true
 	# a Wayland client outlives its wsys: wlsys makes its window in the next one
@@ -91,6 +94,12 @@ if [ "${VKONLY:-0}" = 0 ]; then
 	echo "$wl" | grep -q '^wlclient: all passed' || { echo "FAIL wlclient"; fail=1; }
 	if [ -x "$HERE/root/tests/libtest" ]; then
 		echo "$lt" | grep -q '^libtest: all passed' || { echo "FAIL libtest (freetype, pixman, expat, xkbcommon, fontconfig, fcft)"; fail=1; }
+	fi
+	if [ -x "$ROOT/amd64/bin/foot" ]; then
+		echo "$ft" | grep -q '^TERM foot' && echo "$ft" | grep -q '^IOR ' && echo "ok foot: rc in its pty (TERM, the pty's modes)" ||
+			{ echo "FAIL foot: rc in its pty: $(echo "$ft" | tr '\n' ' ')"; fail=1; }
+		echo "$ft" | grep -q 'goodbye' && echo "ok foot: gone with its shell (SIGCHLD)" ||
+			{ echo "FAIL foot: not gone with its shell: $(echo "$ft" | tr '\n' ' ')"; fail=1; }
 	fi
 	[ "$(echo "$ud" | tr -d '\r' | tail -1)" = none ] && echo "ok no socket left in /srv after wltest and wlsys exited" ||
 		{ echo "FAIL sockets left in /srv: $(echo "$ud" | tr '\n' ' ')"; fail=1; }

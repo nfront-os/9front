@@ -8,7 +8,7 @@
  * xkbcommon compiles the keymap wlsys made of kbdfs' tables (wlclient
  * saved it as /tmp/keymap.xkb): x's key is x, with shift X; fontconfig
  * reads /lib/fontconfig/fonts.conf, finds the fonts of /lib/font/ttf and
- * matches sans-serif to Fira Sans' file; fcft loads it through fontconfig
+ * matches sans-serif to Fira Sans' file, monospace to Go Mono's; fcft loads it through fontconfig
  * and rasterizes an A (a pixman image, inked) from two threads at once.
  * Prints "ok ..." / "FAIL ..." lines and a summary.
  */
@@ -226,6 +226,18 @@ testfontconfig(void)
 			"%s, %s", file ? (char*)file : "none", fam ? (char*)fam : "none");
 		FcPatternDestroy(m);
 	}
+	FcPatternDestroy(p);
+	p = FcNameParse((const FcChar8*)"monospace");
+	FcConfigSubstitute(cfg, p, FcMatchPattern);
+	FcDefaultSubstitute(p);
+	m = FcFontMatch(cfg, p, &r);
+	file = NULL;
+	if(m != NULL)
+		FcPatternGetString(m, FC_FILE, 0, &file);
+	check("fontconfig: monospace to Go Mono", file != NULL && strcmp((char*)file, "/lib/font/ttf/Go-Mono.ttf") == 0,
+		"%s", file ? (char*)file : "none");
+	if(m != NULL)
+		FcPatternDestroy(m);
 	FcPatternDestroy(p);
 	FcConfigDestroy(cfg);
 }

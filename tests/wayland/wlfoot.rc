@@ -1,0 +1,7 @@
+#!/bin/rc
+# run by wsys -x -i (tests/wayland/run.sh): foot (/bin/foot, APE) in wlsys;
+# rc in foot's pty (ptyfs) leaves what it sees in /tmp/foot.tty and exits;
+# foot goes with it (SIGCHLD)
+rm -f /tmp/foot.tty
+/tests/wlsys -d /bin/foot -d info -o 'tweak.font-monospace-warn=no' /bin/rc -c 'echo TERM $TERM >/tmp/foot.tty; cat /dev/ptyctl* >>/tmp/foot.tty; echo in foot; sleep 2' >/tmp/foot.log >[2=1]
+echo exit $status >>/tmp/foot.log

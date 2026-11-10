@@ -1,8 +1,8 @@
 #!/bin/rc
 # ape.sh on 9front: APE's parts built with the native gcc of ../9front-gcc
 # (/$cputype/gnu): build.exe -D on the libraries' compatibility manifests
-# (Mesa, libffi, libwayland, SDL3, GLFW), then wlsys into /$objtype/bin when
-# it changed. Without that gcc it says so and builds nothing (check-install.rc
+# (Mesa, libffi, libwayland, SDL3, GLFW, the vendored libraries, foot's), then
+# wlsys and foot into /$objtype/bin when they changed. Without that gcc it says so and builds nothing (check-install.rc
 # reports wlsys as nocross).
 . $PLAN9/scripts/build/rc/lib.rc
 if(! test -x $GNU/gcc){
@@ -10,7 +10,7 @@ if(! test -x $GNU/gcc){
 	exit ''
 }
 bind -b $GNU /bin
-for(d in sys/src/mesa sys/src/libffi sys/src/wayland sys/src/sdl3 sys/src/glfw sys/src/freetype sys/src/pixman sys/src/expat sys/src/xkbcommon){
+for(d in sys/src/mesa sys/src/libffi sys/src/wayland sys/src/sdl3 sys/src/glfw sys/src/freetype sys/src/pixman sys/src/expat sys/src/xkbcommon sys/src/fontconfig sys/src/fcft sys/src/foot){
 	echo ape.rc: $d
 	CC=$GNU/gcc ARCH=$objtype $PLAN9/sys/src/cmd/build/build.exe -D $PLAN9/$d/build.json >/tmp/ape.log >[2=1] || {
 		tail -20 /tmp/ape.log
@@ -20,6 +20,9 @@ for(d in sys/src/mesa sys/src/libffi sys/src/wayland sys/src/sdl3 sys/src/glfw s
 w=$PLAN9/sys/src/cmd/wlsys
 gcc -std=gnu11 -O2 -Wall -o /tmp/wlsys $w/*.c -lwayland-server -lffi || die wlsys
 mkdir -p $PLAN9/$objtype/bin
-if(! cmp -s /tmp/wlsys $PLAN9/$objtype/bin/wlsys)
-	cp /tmp/wlsys $PLAN9/$objtype/bin/wlsys.new && mv $PLAN9/$objtype/bin/wlsys.new $PLAN9/$objtype/bin/wlsys || die install wlsys
+# foot from its library (apeprogs.py's LINKS)
+gcc -o /tmp/foot -Wl,-u,main -lfoot -lfcft -lfontconfig -lfreetype -lexpat -lpixman-1 -lxkbcommon -lwayland-cursor -lwayland-client -lffi -lm || die foot
+for(p in wlsys foot)
+	if(! cmp -s /tmp/$p $PLAN9/$objtype/bin/$p)
+		cp /tmp/$p $PLAN9/$objtype/bin/$p.new && mv $PLAN9/$objtype/bin/$p.new $PLAN9/$objtype/bin/$p || die install $p
 exit ''
