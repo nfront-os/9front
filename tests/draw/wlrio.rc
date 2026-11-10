@@ -1,0 +1,4 @@
+#!/bin/rc
+# workload: in rio (in a window of wsys), a window writing lines
+window -r 20 20 300 200 /tests/wltext
+sleep 6

@@ -97,6 +97,13 @@ pub fn stats() -> String {
     String::from_utf8_lossy(&b[..n]).into_owned()
 }
 
+impl Drop for Core {
+    /// the segment's name goes (its memory with the last who has it attached)
+    fn drop(&mut self) {
+        let _ = crate::p9::remove(&format!("#g/{}", self.name));
+    }
+}
+
 /// a refresh read may be answered now
 pub fn wake() -> bool {
     unsafe { drawcore_wake() != 0 }

@@ -1,0 +1,7 @@
+#!/bin/rc
+# workload: the window it runs in moves itself (its layer's pixels copied)
+for(x in 100 140 180 220 260 300 340 380 420 460 500 540){
+	echo move -minx $x -miny 420 >/dev/wctl
+	sleep 0.1
+}
+sleep 1

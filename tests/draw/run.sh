@@ -22,7 +22,7 @@ timeout 660 python3 "$ROOT/scripts/guest/mcp.py" wait 600 >/dev/null
 k=$($M rc "bind -a '#i' /dev; /tests/drawcmp >[2=1]" 120) || true
 d=$($M rc "rfork n; drawfs -r 640 480; cat /dev/drawfs/screen; /tests/drawcmp >[2=1]" 120) || true
 # wsys with its own devdraw (-d): drawcmp in its name space draws through wsys
-w=$($M rc "bind -a '#i' /dev; bind -a '#m' /dev; wsys -d -x -i 'bind -b /mnt/wsys /dev; ls /dev/draw/new >/tmp/wls; /tests/drawcmp >/tmp/wcmp >[2=1]' >/tmp/wsysd.log >[2=1]; cat /tmp/wls /tmp/wcmp /tmp/wsysd.log" 180) || true
+w=$($M rc "bind -a '#i' /dev; bind -a '#m' /dev; wsys -d -x -i 'bind -b /mnt/wsys /dev; ls /dev/draw/new >/tmp/wls; /tests/drawcmp >/tmp/wcmp >[2=1]' >/tmp/wsysd.log >[2=1]; cat /tmp/wls /tmp/wcmp /tmp/wsysd.log; echo segs \`{ls '#g' | grep -c wsys.screen}" 180) || true
 stop
 trap - EXIT
 fail=0
@@ -32,6 +32,7 @@ echo "$k" | grep -q '^drawcmp: done' || { echo "FAIL drawcmp on #i: $(echo "$k" 
 echo "$d" | grep -q '^drawcmp: done' || { echo "FAIL drawcmp on drawfs: $(echo "$d" | tail -3 | tr '\n' ' ')"; fail=1; }
 echo "$w" | grep -q '^drawcmp: done' || { echo "FAIL drawcmp in wsys -d: $(echo "$w" | tail -3 | tr '\n' ' ')"; fail=1; }
 echo "$w" | grep -q '^/dev/draw/new' && echo "ok drawcmp's third run in wsys -d (its draw/)" || { echo "FAIL wsys -d serves no draw/"; fail=1; }
+echo "$w" | grep -q '^segs 0' && echo "ok wsys -d took its screen's segment out of #g" || { echo "FAIL wsys -d left its segment: $(echo "$w" | grep '^segs')"; fail=1; }
 # a real hash each (not a format left unexpanded)
 if echo "$k" | grep -q '%'; then echo "FAIL drawcmp printed no hashes: $(echo "$k" | head -2 | tr '\n' ' ')"; fail=1; fi
 while read -r name sum; do

@@ -4031,6 +4031,8 @@ fn main() {
     if ws.core.is_some() && std::env::var("WSYSDEBUG").is_ok_and(|v| v.contains("draw")) {
         eprint!("{}", drawcore::stats().lines().map(|l| format!("wsys: draw: {l}\n")).collect::<String>());
     }
+    // the screen's segment out of #g (std::process::exit runs no destructors)
+    drop(ws.core.take());
     // the windows let go of their clients' segments; their processes hang up
     let ids: Vec<u32> = ws.wins.keys().copied().collect();
     for n in ids {

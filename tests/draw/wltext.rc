@@ -1,0 +1,5 @@
+#!/bin/rc
+# workload: lines written into the text window it runs in (it scrolls)
+for(i in `{seq 1 400})
+	echo line $i: the quick brown fox jumps over the lazy dog, 0123456789
+sleep 1
