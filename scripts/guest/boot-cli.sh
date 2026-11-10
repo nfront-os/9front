@@ -241,7 +241,16 @@ done
 [ -n "$pts" ] || die "no QEMU serial pty (log: $CLI_DIR/qemu.log)"
 # QEMU gone at once (seen now and then right after another guest): how
 sleep 0.2
-if ! running || ! stty -F "$pts" raw -echo 2>/dev/null; then
+# the pty right after QEMU named it: stty failed now and then (it worked a
+# moment later), so a few tries; never wait for a QEMU that still runs
+ttyok=0
+for _ in $(seq 30); do
+	running || break
+	stty -F "$pts" raw -echo 2>/dev/null && { ttyok=1; break; }
+	sleep 0.1
+done
+if [ $ttyok = 0 ]; then
+	running && { echo "boot-cli: stty on $pts failed: QEMU stopped" >&2; kill $qemupid 2>/dev/null; }
 	wait $qemupid 2>/dev/null
 	st=$?
 	echo "boot-cli: QEMU ended at the start (status $st); its log:" >&2
