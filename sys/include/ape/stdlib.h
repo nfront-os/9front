@@ -106,6 +106,11 @@ extern int	at_quick_exit(void (*)(void));
 extern _Noreturn void	quick_exit(int);
 extern char	*realpath(const char *, char *);
 extern int	mkostemp(char *, int);	/* POSIX.1-2024's (ap/gnu/gnuext.c) */
+/* POSIX's ptys: ptyfs' (ap/gnu/gnuext.c on libbsd's _getpty, ptsname) */
+extern int	posix_openpt(int);
+extern int	grantpt(int);
+extern int	unlockpt(int);
+extern char	*ptsname(int);
 
 extern int	mblen(const char *, size_t)
 		__asm__("__apecompat_mblen");

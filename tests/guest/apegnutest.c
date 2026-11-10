@@ -7,7 +7,9 @@
  * than a buffer, the end, close, fork; a file's dup polled, the original read), and exit with a thread and
  * a copy proc still running. What foot needs: C11 threads, getopt_long,
  * pipe2, mkostemp, strchrnul, mbrtoc32, locale objects, syslog, a thread's
- * name in /proc, timercmp, byte swaps, regex (musl's TRE).
+ * name in /proc, timercmp, byte swaps, regex (musl's TRE); a pty of ptyfs
+ * with an APE program and rc in it (line editing, echo, raw modes, size,
+ * interrupt, hangup, end of file).
  *
  * Output: one "ok name" or "FAIL name: detail" line per check, then
  * "apegnutest: N ok, M failed".
@@ -41,6 +43,9 @@
 #include <syslog.h>
 #include <byteswap.h>
 #include <regex.h>
+#include <signal.h>
+#include <termios.h>
+#include <sys/ioctl.h>
 
 static int nok, nfail;
 
@@ -873,6 +878,185 @@ testregex(void)
 	check("regerror: Missing ')'", e == REG_EPAREN && strcmp(buf, "Missing ')'") == 0, "%d %s", e, buf);
 }
 
+static volatile int ptyalarm, ptyint;
+
+static void ptyonalarm(int s) { (void)s; ptyalarm = 1; }
+static void ptyonint(int s) { (void)s; ptyint = 1; }
+
+/*
+ * the master's output until want shows (10 s at most): what came up to
+ * its end in got; what came after it stays for the next call
+ */
+static char ptybuf[1024];
+static int nptybuf;
+
+static int
+ptyexpect(int m, char *want, char *got, int ngot)
+{
+	char *e;
+	int k, n;
+
+	ptyalarm = 0;
+	alarm(10);
+	ptybuf[nptybuf] = 0;
+	while((e = strstr(ptybuf, want)) == NULL && nptybuf < (int)sizeof ptybuf - 1 && !ptyalarm){
+		k = read(m, ptybuf + nptybuf, sizeof ptybuf - 1 - nptybuf);
+		if(k <= 0)
+			break;
+		nptybuf += k;
+		ptybuf[nptybuf] = 0;
+	}
+	alarm(0);
+	n = e != NULL ? (int)(e - ptybuf) + (int)strlen(want) : nptybuf;
+	snprintf(got, ngot, "%.*s", n, ptybuf);
+	memmove(ptybuf, ptybuf + n, nptybuf - n);
+	nptybuf -= n;
+	ptybuf[nptybuf] = 0;
+	return e != NULL;
+}
+
+static void
+ptysay(char *fmt, ...)
+{
+	char buf[128];
+	va_list a;
+
+	va_start(a, fmt);
+	vsnprintf(buf, sizeof buf, fmt, a);
+	va_end(a);
+	write(1, buf, strlen(buf));
+}
+
+/* the programs in the pty: an APE one, then rc */
+static void
+ptychild(char *name)
+{
+	struct termios t, cooked;
+	struct winsize w;
+	char buf[64];
+	int s, n, c;
+
+	setsid();
+	if((s = open(name, O_RDWR)) < 0 || ioctl(s, TIOCSCTTY, 0) < 0)
+		_exit(10);
+	dup2(s, 0);
+	dup2(s, 1);
+	dup2(s, 2);
+	if(s > 2)
+		close(s);
+	ptysay("hi isatty=%d tc=%d\n", isatty(0), tcgetattr(0, &cooked) == 0 && (cooked.c_lflag & ICANON) != 0);
+	n = read(0, buf, sizeof buf - 1);
+	buf[n > 0 ? n : 0] = 0;
+	ptysay("got[%s]\n", buf);
+	t = cooked;
+	t.c_lflag &= ~(ICANON|ECHO);
+	t.c_cc[VMIN] = 1;
+	tcsetattr(0, TCSANOW, &t);
+	ptysay("raw\n");
+	n = read(0, buf, sizeof buf - 1);
+	buf[n > 0 ? n : 0] = 0;
+	ptysay("rawgot[%s]\n", buf);
+	tcsetattr(0, TCSANOW, &cooked);
+	memset(&w, 0, sizeof w);
+	ioctl(0, TIOCGWINSZ, &w);
+	ptysay("ws %d %d\n", w.ws_row, w.ws_col);
+	if((c = open("/dev/consctl", O_WRONLY)) >= 0)
+		write(c, "rawon", 5);
+	ptysay("rawon %d\n", c >= 0);
+	n = read(0, buf, 1);
+	buf[n > 0 ? n : 0] = 0;
+	ptysay("cons[%s]\n", buf);
+	if(c >= 0)
+		close(c);
+	signal(SIGINT, ptyonint);
+	ptysay("sig\n");
+	n = read(0, buf, sizeof buf);
+	ptysay("int %d %d\n", ptyint, n);
+	execl("/bin/rc", "rc", "-c", "echo native; x=`{read}; echo rc got $x", NULL);
+	_exit(11);
+}
+
+static void
+testpty(void)
+{
+	char got[512], *name;
+	struct winsize w = {30, 100, 0, 0};
+	int m, st, pid;
+	void (*old)(int);
+
+	old = signal(SIGALRM, ptyonalarm);
+	m = posix_openpt(O_RDWR|O_NOCTTY);
+	check("posix_openpt (ptyfs started)", m >= 0, "%s", strerror(errno));
+	if(m < 0)
+		return;
+	name = ptsname(m);
+	check("ptsname: /dev/pttyN", name != NULL && strncmp(name, "/dev/ptty", 9) == 0, "%s", name ? name : "nil");
+	check("grantpt, unlockpt", grantpt(m) == 0 && unlockpt(m) == 0, NULL);
+	check("TIOCSWINSZ on the master", ioctl(m, TIOCSWINSZ, &w) == 0, "%s", strerror(errno));
+	if((pid = fork()) == 0){
+		close(m);
+		ptychild(name);
+	}
+	check("the slave a tty with termios; NL is CR NL", ptyexpect(m, "hi isatty=1 tc=1\r\n", got, sizeof got), "%s", got);
+	write(m, "abc\177d\r", 6);
+	check("a line edited, echoed", ptyexpect(m, "got[abd\r\n]", got, sizeof got) && strstr(got, "abc\b \bd\r\n") != NULL, "%s", got);
+	check("raw mode", ptyexpect(m, "raw\r\n", got, sizeof got), "%s", got);
+	write(m, "xy", 2);
+	check("raw: the bytes at once, no echo", ptyexpect(m, "rawgot[xy]", got, sizeof got) && strcmp(got, "rawgot[xy]") == 0, "%s", got);
+	check("TIOCGWINSZ on the slave: the master's size", ptyexpect(m, "ws 30 100", got, sizeof got), "%s", got);
+	check("consctl rawon (TIOCSCTTY bound it)", ptyexpect(m, "rawon 1", got, sizeof got), "%s", got);
+	write(m, "q", 1);
+	check("rawon: a byte, no echo", ptyexpect(m, "cons[q]", got, sizeof got) && strcmp(got, "\r\ncons[q]") == 0, "%s", got);
+	check("SIGINT handler set", ptyexpect(m, "sig\r\n", got, sizeof got), "%s", got);
+	write(m, "\003", 1);
+	check("^C: interrupt to the note group (SIGINT)", ptyexpect(m, "int 1", got, sizeof got), "%s", got);
+	check("rc in the pty", ptyexpect(m, "native\r\n", got, sizeof got), "%s", got);
+	write(m, "zz\r", 3);
+	check("rc reads a line of it", ptyexpect(m, "rc got zz\r\n", got, sizeof got), "%s", got);
+	nptybuf = 0;
+	ptyalarm = 0;
+	alarm(10);
+	while(read(m, got, sizeof got) > 0)
+		;
+	alarm(0);
+	check("the slave gone: the master reads end of file", !ptyalarm, NULL);
+	ptyalarm = 0;
+	alarm(10);
+	st = -1;
+	if(waitpid(pid, &st, 0) < 0)
+		kill(pid, SIGKILL);	/* not to hang the tests */
+	alarm(0);
+	check("the programs exited", st != -1 && WIFEXITED(st) && WEXITSTATUS(st) == 0, "%x", st);
+	close(m);
+
+	/* hangup: the master closes under a reader */
+	nptybuf = 0;
+	m = posix_openpt(O_RDWR);
+	name = ptsname(m);
+	if((pid = fork()) == 0){
+		char b[8];
+		int s;
+
+		close(m);
+		setsid();
+		signal(SIGHUP, SIG_IGN);
+		s = open(name, O_RDWR);
+		ioctl(s, TIOCSCTTY, 0);
+		write(s, "r\n", 2);
+		_exit(read(s, b, sizeof b) == 0 ? 7 : 8);
+	}
+	ptyexpect(m, "r\r\n", got, sizeof got);
+	close(m);
+	ptyalarm = 0;
+	alarm(10);
+	st = 0;
+	if(waitpid(pid, &st, 0) < 0)
+		kill(pid, SIGKILL);
+	alarm(0);
+	check("the master closed: the slave reads end of file", !ptyalarm && WIFEXITED(st) && WEXITSTATUS(st) == 7, "%x", st);
+	signal(SIGALRM, old);
+}
+
 int
 main(void)
 {
@@ -888,6 +1072,7 @@ main(void)
 	testgetoptlong();
 	testgnuext();
 	testregex();
+	testpty();
 	testscm();
 	testposix();
 	testthreads();

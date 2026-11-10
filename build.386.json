@@ -117,6 +117,7 @@
 			"/sys/src/ape/cmd/expr/cmds.386.json",
 			"/sys/src/ape/cmd/make/cmds.386.json",
 			"/sys/src/ape/cmd/pdksh/cmds.386.json",
+			"/sys/src/ape/cmd/ptyfs/cmds.386.json",
 			"/sys/src/ape/cmd/sed/cmds.386.json",
 			"/acme/bin/source/cmds.386.json",
 			"/acme/bin/source/win/cmds.386.json",

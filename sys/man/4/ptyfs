@@ -1,0 +1,169 @@
+.TH PTYFS 4
+.SH NAME
+ptyfs \- pseudo-terminals for APE
+.SH SYNOPSIS
+.B /bin/ape/ptyfs
+[
+.B -D
+] [
+.B -s
+.I srvname
+]
+.SH DESCRIPTION
+.I Ptyfs
+serves pseudo-terminals: a terminal emulator holds one side, the
+master, and the programs in the terminal the other, the slave.
+APE's
+.IR posix_openpt
+(and
+.IR _getpty )
+starts it when
+.B /dev/ptyclone
+is missing; it posts
+.BI /srv/ srvname
+(default
+.BR ptyfs )
+and the caller mounts that after
+.BR /dev .
+.PP
+Opening
+.B ptyclone
+makes a pty
+.IR n :
+the file descriptor is its master
+.BI ttym n\f1;
+the slave is
+.BI ptty n
+.RI ( ptsname
+names it),
+.BI pconsctl n
+is the slave's
+.IR consctl ,
+and
+.BI ptyctl n
+holds the terminal's modes.
+What the master writes is typed at the terminal, what it reads is the
+terminal's output.
+The pty's files go when no side holds them open.
+.PP
+A POSIX program makes the slave its terminal by
+.I setsid
+(a namespace and note group of its own), opening the slave and
+.B ioctl(fd, TIOCSCTTY, 0):
+APE binds
+.BI ptty n
+on
+.B /dev/cons
+and
+.BI pconsctl n
+on
+.BR /dev/consctl ,
+so native programs run in it as in a
+.IR rio (1)
+window; the note group is the terminal's.
+.SS Line discipline
+In canonical mode
+.RB ( ICANON )
+input is edited by lines: the erase character (DEL, or backspace)
+erases a character (a UTF-8 rune), the kill character (control-U) the
+line, control-W (with
+.BR IEXTEN )
+a word; the end-of-file character (control-D) ends a read, an empty one
+at the start of a line.
+A read returns one line at most.
+Input is echoed
+.RB ( ECHO ,
+erase as backspace, space, backspace with
+.BR ECHOE );
+carriage return becomes newline
+.RB ( ICRNL ).
+With
+.BR ISIG ,
+control-C posts the note
+.B interrupt
+to the terminal's note group and control-\e
+.BR quit ;
+control-Z is dropped (no job control).
+Output's newline becomes carriage return, newline
+.RB ( OPOST ,
+.BR ONLCR ).
+Raw mode
+.RB ( ICANON
+off) passes bytes as they come;
+.B VMIN
+0 makes a read return at once.
+Writing
+.B rawon
+to the slave's
+.I consctl
+turns
+.B ICANON
+and
+.B ECHO
+off until
+.B rawoff
+or until that file is closed, as
+.IR cons (3)
+does.
+.PP
+When the master's last descriptor closes, the note group gets
+.B hangup
+and the slave reads end of file; writes fail.
+When the slave was open and no longer is, the master reads end of file.
+.SS Control
+Each pty has a control file
+.BI ptyctl n
+(APE's
+.IR tcgetattr ,
+.IR tcsetattr ,
+.IR tcsetpgrp ,
+.IR ioctl ):
+reading gives
+.IP
+.B IOR
+.I iflag oflag cflag lflag
+.IR cc ...
+.I pgrp rows cols xpixels ypixels
+.PP
+(flags and control characters in hex, with the values of APE's
+.BR termios.h );
+writing
+.B IOW
+.I iflag oflag cflag lflag
+.IR cc ...
+sets them,
+.B IOW note
+.I pid
+the note group (that of
+.IR pid ),
+.B IOW winsize
+.I rows cols xpixels ypixels
+the size
+.RB ( TIOCSWINSZ ,
+.BR TIOCGWINSZ ).
+.PP
+The
+.B -D
+flag prints the 9P messages.
+.SH SOURCE
+.B /sys/src/ape/cmd/ptyfs
+.br
+.B /sys/src/ape/lib/bsd/pty.c
+.br
+.B /sys/src/ape/lib/bsd/ioctl.c
+.SH SEE ALSO
+.IR cons (3),
+.IR rio (4),
+.IR vt (1)
+.SH BUGS
+A changed size posts no note
+.RB ( SIGWINCH ):
+a native program would die of it; programs ask with
+.BR TIOCGWINSZ .
+.B VTIME
+is ignored, and so is
+.B VMIN
+above 1.
+Flow control
+.RB ( IXON )
+is not done.

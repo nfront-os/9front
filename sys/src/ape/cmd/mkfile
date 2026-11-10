@@ -6,10 +6,12 @@ TARG=basename\
 	kill\
 	uname
 
+# GCC port: ptyfs, the pty server APE's _getpty starts (bsd/pty.c)
 DIRS=\
 	expr\
 	make\
 	pdksh\
+	ptyfs\
 	sed\
 
 BIN=$APEBIN

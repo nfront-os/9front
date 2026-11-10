@@ -3,7 +3,8 @@
  * mkostemp (their flags: O_CLOEXEC by fcntl's FD_CLOEXEC, which APE's
  * exec honours, O_NONBLOCK, O_APPEND), strchrnul; and glibc's
  * pthread_setname_np: the thread's proc is named so in its
- * /proc/n/args (9front lets a process write its own), as ps shows it.
+ * /proc/n/args (9front lets a process write its own), as ps shows it;
+ * posix_openpt, grantpt, unlockpt on ptyfs.
  */
 #include <unistd.h>
 #include <stdlib.h>
@@ -77,6 +78,42 @@ strchrnul(const char *s, int c)
 	while(*s != 0 && *s != (char)c)
 		s++;
 	return (char*)s;
+}
+
+/*
+ * POSIX's ptys on ptyfs (libbsd's pty.c: _getpty opens /dev/ptyclone,
+ * starting ptyfs if there is none): the slave is ready at once
+ */
+extern int _getpty(void);
+
+int
+posix_openpt(int flags)
+{
+	int fd;
+
+	if((flags & O_ACCMODE) != O_RDWR){
+		errno = EINVAL;
+		return -1;
+	}
+	if((fd = _getpty()) < 0)
+		return -1;
+	if((flags & O_CLOEXEC) != 0)
+		fcntl(fd, F_SETFD, FD_CLOEXEC);
+	return fd;
+}
+
+int
+grantpt(int fd)
+{
+	(void)fd;
+	return 0;
+}
+
+int
+unlockpt(int fd)
+{
+	(void)fd;
+	return 0;
 }
 
 /* struct __pthread's pid (pthread.c) */

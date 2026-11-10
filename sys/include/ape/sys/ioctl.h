@@ -27,8 +27,12 @@ int ioctl(int, unsigned long, void*);
 #undef __GCC_BSD_SYS_IOCTL_H
 #endif
 #if defined(__GNUC__) || defined(_APE_GNU)
-/* GCC port: a terminal's size, which Plan 9 does not tell (ioctl fails) */
+/* GCC port: a terminal's size, which Plan 9 does not tell (ioctl fails but on a pty);
+ * a pty of ptyfs the caller's terminal (TIOCSCTTY: its /dev/cons), bsd/ioctl.c */
 #ifndef TIOCGWINSZ
+#define TIOCSCTTY	0x540E
+#define TIOCNOTTY	0x5422
+#define TIOCSWINSZ	0x5414
 #define TIOCGWINSZ	0x5413
 struct winsize {
 	unsigned short	ws_row;

@@ -16,19 +16,20 @@
 /*
  * return the name of the slave
  */
+extern int _ptynum(int, int*);	/* GCC port: ap/plan9/tcgetattr.c, by the qid */
+
 char*
 ptsname(int fd)
 {
-	Dir *d;
 	static char buf[32];
+	int n;
 
-	if((d = _dirfstat(fd)) == nil || strlen(d->name) < 4){
-		free(d);
-		_syserrno();
+	/* GCC port: fstat's name is ptyclone for a master: the number from the qid */
+	if((n = _ptynum(fd, 0)) < 0){
+		errno = ENOTTY;
 		return 0;
 	}
-	snprintf(buf, sizeof buf, "/dev/ptty%d", atoi(d->name+4));
-	free(d);
+	snprintf(buf, sizeof buf, "/dev/ptty%d", n);
 	return buf;
 }
 
@@ -38,16 +39,14 @@ ptsname(int fd)
 char*
 ptmname(int fd)
 {
-	Dir *d;
 	static char buf[32];
+	int n;
 
-	if((d = _dirfstat(fd)) == nil || strlen(d->name) < 4){
-		free(d);
-		_syserrno();
+	if((n = _ptynum(fd, 0)) < 0){	/* GCC port: as ptsname */
+		errno = ENOTTY;
 		return 0;
 	}
-
-	snprintf(buf, sizeof buf, "/dev/ttym%d", atoi(d->name+4));
+	snprintf(buf, sizeof buf, "/dev/ttym%d", n);
 	return buf;
 }
 

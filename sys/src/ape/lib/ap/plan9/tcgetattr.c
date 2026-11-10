@@ -22,17 +22,53 @@
 #define CEOL	000
 #define	CNSWTCH	0
 
+/*
+ * GCC port: a pty of ptyfs (sys/src/ape/cmd/ptyfs) is known by its
+ * qid, "PTY", its number, its side (fstat's name is the one fd was
+ * opened by: ptyclone, or /dev/cons the slave is bound on): its number,
+ * *side 2 the master, 3 the slave; -1 if fd is none
+ */
+int
+_ptynum(int fd, int *side)
+{
+	Dir *d;
+	unsigned long long q;
+	int t;
+
+	if((d = _dirfstat(fd)) == nil)
+		return -1;
+	q = d->qid.path;
+	free(d);
+	t = q & 0xF;
+	if((q >> 40) != 0x505459 || (t != 2 && t != 3))
+		return -1;
+	if(side != nil)
+		*side = t;
+	return (q >> 4) & 0xFFFFFFF;
+}
+
+/*
+ * GCC port: a pty's modes are in ptyfs' /dev/ptyctlN (the protocol at
+ * the file offset -2 needs negative offsets, which 9front's kernel
+ * refuses): opened for the pty of fd (bsd/ioctl.c too); -1 if none
+ */
+int
+_ptyctl(int fd, int omode)
+{
+	char path[32];
+	int n;
+
+	if((n = _ptynum(fd, nil)) < 0)
+		return -1;
+	snprintf(path, sizeof path, "/dev/ptyctl%d", n);
+	return _OPEN(path, omode);
+}
+
 static int
 isptty(int fd)
 {
-	Dir *d;
-	int rv;
-
-	if((d = _dirfstat(fd)) == nil)
-		return 0;
-	rv = (strncmp(d->name, "ptty", 4) == 0);
-	free(d);
-	return rv;
+	/* GCC port: by its qid (_ptynum), either side (Linux's termios on the master too); the name was "ptty" */
+	return _ptynum(fd, nil) >= 0;
 }
 
 int
@@ -62,12 +98,13 @@ tcgetattr(int fd, struct termios *t)
 			return -1;
 		}
 	}
-	if(_SEEK(fd, -2, 0) != -2) {
+	if((fd = _ptyctl(fd, 0)) < 0) {	/* GCC port */
 		_syserrno();
 		return -1;
 	}
 
 	n = _READ(fd, buf, 57);
+	_CLOSE(fd);
 	if(n < 0) {
 		_syserrno();
 		return -1;
@@ -105,12 +142,13 @@ tcsetattr(int fd, int, const struct termios *t)
 	for(i = 0; i < NCCS; i++)
 		n += sprintf(buf+n, "%2.2x ", t->c_cc[i]);
 
-	if(_SEEK(fd, -2, 0) != -2) {
+	if((fd = _ptyctl(fd, 1)) < 0) {	/* GCC port */
 		_syserrno();
 		return -1;
 	}
 
 	n = _WRITE(fd, buf, n);
+	_CLOSE(fd);
 	if(n < 0) {
 		_syserrno();
 		return -1;
@@ -134,12 +172,13 @@ tcsetpgrp(int fd, pid_t pgrpid)
 	}
 	n = sprintf(buf, "IOW note %d", pgrpid);
 
-	if(_SEEK(fd, -2, 0) != -2) {
+	if((fd = _ptyctl(fd, 1)) < 0) {	/* GCC port */
 		_syserrno();
 		return -1;
 	}
 
 	n = _WRITE(fd, buf, n);
+	_CLOSE(fd);
 	if(n < 0) {
 		_syserrno();
 		return -1;
@@ -158,11 +197,12 @@ tcgetpgrp(int fd)
 		errno = ENOTTY;
 		return -1;
 	}
-	if(_SEEK(fd, -2, 0) != -2) {
+	if((fd = _ptyctl(fd, 0)) < 0) {	/* GCC port */
 		_syserrno();
 		return -1;
 	}
-	n = _READ(fd, buf, sizeof(buf));
+	n = _READ(fd, buf, sizeof(buf)-1);
+	_CLOSE(fd);
 	if(n < 0) {
 		_syserrno();
 		return -1;
