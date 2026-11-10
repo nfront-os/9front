@@ -207,6 +207,7 @@
 			"/sys/src/cmd/disk/smart/cmds.arm64.json",
 			"/sys/src/cmd/disk/vblade/cmds.arm64.json",
 			"/sys/src/cmd/dossrv/cmds.arm64.json",
+			"/sys/src/cmd/drawfs/cmds.arm64.json",
 			"/sys/src/cmd/dtracy/cmds.arm64.json",
 			"/sys/src/cmd/eqn/cmds.arm64.json",
 			"/sys/src/cmd/execnet/cmds.arm64.json",

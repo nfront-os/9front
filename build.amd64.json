@@ -208,6 +208,7 @@
 			"/sys/src/cmd/disk/smart/cmds.json",
 			"/sys/src/cmd/disk/vblade/cmds.json",
 			"/sys/src/cmd/dossrv/cmds.json",
+			"/sys/src/cmd/drawfs/cmds.json",
 			"/sys/src/cmd/dtracy/cmds.json",
 			"/sys/src/cmd/eqn/cmds.json",
 			"/sys/src/cmd/execnet/cmds.json",

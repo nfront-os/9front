@@ -14,6 +14,8 @@
 #            GUI_SCREENSHOT=file.png keeps the screen dump)
 #   ui       wsys (sys/src/cmd/wsys), the window system of ../9front-ui, on VESA:
 #            windows, shared segments, focus, input (boots once)
+#   draw     drawfs (draw(3) in user space) against the kernel's devdraw: the same
+#            operations, the same pixels (tests/draw/drawcmp.c, VESA, boots once)
 #   disk     install image with hjfs (scripts/guest/mkdisk.sh, minutes), booted
 #            on its own (DISKIMG=image skips building it)
 #   iso      install/live CD (scripts/guest/mkiso.sh): booted as CD and as disk
@@ -33,7 +35,7 @@
 #
 # usage: tests/run.sh [category...]     (default: all, in the order above)
 cd "$(dirname "$0")"
-cats=${*:-static asm syscall build guest boot pmc gpu gui ui disk iso rio usb gcc go hw}
+cats=${*:-static asm syscall build guest boot pmc gpu gui ui draw disk iso rio usb gcc go hw}
 failed=()
 for c in $cats; do
 	[ -x "$c/run.sh" ] || { echo "unknown category $c"; exit 2; }

@@ -1,0 +1,98 @@
+.TH DRAWFS 4
+.SH NAME
+drawfs \- draw device in user space
+.SH SYNOPSIS
+.B drawfs
+[
+.B -D
+] [
+.B -c
+.I chan
+] [
+.B -r
+.I width height
+] [
+.B -s
+.I srvname
+] [
+.B -m
+.I mtpt
+]
+.SH DESCRIPTION
+.I Drawfs
+is
+.IR draw (3)
+as a file server: the kernel's devdraw, with
+.IR memdraw (2)
+and
+.IR memlayer (2),
+in a process.
+It serves the files of
+.B #i
+.RB ( draw/new ,
+.BI draw/ n /colormap\fR,
+.BR ctl ,
+.BR data ,
+.BR refresh ,
+and
+.BR winname ),
+so a program that finds them on
+.B /dev
+draws through it, unchanged.
+Its screen is an image of
+.I width
+by
+.I height
+pixels (1024 by 768 by default) in channel
+.I chan
+.RB ( x8r8g8b8 ),
+named
+.BI noborder.screen. n
+in
+.BR winname ;
+its memory is a segment of
+.IR segment (3),
+.BI drawfs. pid\fR.
+.PP
+For the program that shows the screen,
+.B drawfs/screen
+reads
+.IP
+.I segment chan minx miny maxx maxy width
+.PP
+.RI ( width
+in words of 32 bits per line), and
+.B drawfs/dirty
+the rectangles of the screen drawn on since the last read, a line
+.I "minx miny maxx maxy"
+each; a read waits for one.
+.PP
+.I Drawfs
+mounts itself before
+.I mtpt
+.RB ( /dev
+by default) and posts
+.BI /srv/ srvname
+if given.
+The
+.B -D
+flag prints the 9P messages.
+.SH EXAMPLE
+Draw with a program into a screen of its own, in a new name space:
+.IP
+.EX
+rfork n
+drawfs -r 640 480
+clock
+.EE
+.SH SOURCE
+.B /sys/src/cmd/drawfs
+.SH SEE ALSO
+.IR draw (3),
+.IR draw (2),
+.IR memdraw (2),
+.IR wsys (4)
+.SH BUGS
+It draws with the processor; the plan (../9front-ui, stage 4c) is to
+draw the frequent operations on the GPU.
+There is no cursor and no mouse.

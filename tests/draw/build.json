@@ -1,0 +1,23 @@
+[
+	{
+		"Name": "draw-tests",
+		"Include": [
+			"/$ARCH/cflags.json"
+		],
+		"Install": "/tests/draw/root/tests/",
+		"Oflags": [
+			"--entry=_main"
+		],
+		"Libs": [
+			"--start-group",
+			"/$ARCH/lib.gcc/libdraw.a",
+			"/$ARCH/lib.gcc/libsec.a",
+			"/$ARCH/lib.gcc/libmp.a",
+			"/$ARCH/lib.gcc/libc.a",
+			"--end-group"
+		],
+		"SourceFilesCmd": [
+			"drawcmp.c"
+		]
+	}
+]

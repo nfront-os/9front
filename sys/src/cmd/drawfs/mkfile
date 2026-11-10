@@ -1,0 +1,14 @@
+</$objtype/mkfile
+
+TARG=drawfs
+
+OFILES=\
+	compat.$O\
+	devdraw.$O\
+	drawfs.$O\
+
+HFILES=compat.h
+
+BIN=/$objtype/bin
+
+</sys/src/cmd/mkone
