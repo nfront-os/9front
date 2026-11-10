@@ -145,6 +145,15 @@ _notehandler(void *u, char *msg)	/* GCC port: types as in the prototype, kencc i
 			return 0;
 		}
 	}
+	/* GCC port: a write with MSG_NOSIGNAL (gnu/nosigpipe.c): it only fails */
+	if(strncmp(msg, "sys: write on closed pipe", 25) == 0){
+		extern int __nosigpipe(void);
+
+		if(__nosigpipe()){
+			_NOTED(0);
+			return 0;
+		}
+	}
 	for(i = 0; i<NSIGTAB; i++){
 		if(strncmp(msg, sigtab[i].msg, strlen(sigtab[i].msg)) == 0){
 			f = _sighdlr[sigtab[i].num];

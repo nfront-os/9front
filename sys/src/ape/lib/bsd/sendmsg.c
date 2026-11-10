@@ -12,7 +12,8 @@
  * of the data than the caller takes: the rest stays in the pipe (counted
  * in the socket's rock), so select and poll still see it.  Data written
  * with write is read as it is (no header).  MSG_DONTWAIT: EAGAIN when no
- * message is there (through APE's read buffer).
+ * message is there (through APE's read buffer).  MSG_NOSIGNAL: a gone
+ * reader is EPIPE, no SIGPIPE (ap/gnu/nosigpipe.c).
  */
 
 /* posix */
@@ -42,6 +43,8 @@ static const char magic[8] = "APEmsg\0\1";
 
 extern int _startbuf(int);	/* libap (gnu/buf.c): fd read through a copy proc */
 static int nsent;
+extern int __nosigpipe_begin(void);	/* MSG_NOSIGNAL (ap/gnu/nosigpipe.c) */
+extern long __nosigpipe_end(int, long);
 
 static void
 put4(unsigned char *p, unsigned long v)
@@ -141,7 +144,11 @@ sendmsg(int fd, const struct msghdr *msg, int flags)
 		memcpy(p + j, msg->msg_iov[i].iov_base, n);
 		j += n;
 	}
-	n = write(fd, buf, Hdr + nfd*Name + len);
+	if(flags & MSG_NOSIGNAL){	/* no SIGPIPE, EPIPE */
+		i = __nosigpipe_begin();
+		n = __nosigpipe_end(i, write(fd, buf, Hdr + nfd*Name + len));
+	}else
+		n = write(fd, buf, Hdr + nfd*Name + len);
 	free(buf);
 	if(n < 0){
 		for(i = 0; i < nfd; i++){

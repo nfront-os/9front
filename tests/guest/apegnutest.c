@@ -9,7 +9,7 @@
  * pipe2, mkostemp, strchrnul, mbrtoc32, locale objects, syslog, a thread's
  * name in /proc, timercmp, byte swaps, regex (musl's TRE); a pty of ptyfs
  * with an APE program and rc in it (line editing, echo, raw modes, size,
- * interrupt, hangup, end of file); SIGCHLD.
+ * interrupt, hangup, end of file); SIGCHLD; MSG_NOSIGNAL (EPIPE, no SIGPIPE).
  *
  * Output: one "ok name" or "FAIL name: detail" line per check, then
  * "apegnutest: N ok, M failed".
@@ -1158,6 +1158,41 @@ testsigchld(void)
 	check("SIG_DFL: the note ignored, waitpid as before", r == pid && WEXITSTATUS(st) == 6, "%d %x", r, st);
 }
 
+static int npipe;
+static void onpipe(int s) { (void)s; npipe++; }
+
+/* a write to a pipe whose reader is gone: SIGPIPE, but not with MSG_NOSIGNAL (libwayland's sends) */
+static void
+testnosignal(void)
+{
+	struct msghdr m;
+	struct iovec iov;
+	int p[2], n, e;
+
+	if(pipe(p) < 0){
+		check("pipe", 0, "%s", strerror(errno));
+		return;
+	}
+	close(p[0]);
+	signal(SIGPIPE, SIG_DFL);
+	n = send(p[1], "x", 1, MSG_NOSIGNAL);
+	e = errno;
+	check("send with MSG_NOSIGNAL to a gone reader: EPIPE, alive", n == -1 && e == EPIPE, "%d %s", n, strerror(e));
+	memset(&m, 0, sizeof m);
+	iov.iov_base = "y";
+	iov.iov_len = 1;
+	m.msg_iov = &iov;
+	m.msg_iovlen = 1;
+	n = sendmsg(p[1], &m, MSG_NOSIGNAL);
+	e = errno;
+	check("sendmsg with MSG_NOSIGNAL: EPIPE, alive", n == -1 && e == EPIPE, "%d %s", n, strerror(e));
+	signal(SIGPIPE, onpipe);
+	n = send(p[1], "z", 1, 0);
+	check("send without it: SIGPIPE", n == -1 && npipe == 1, "%d, %d signals", n, npipe);
+	signal(SIGPIPE, SIG_DFL);
+	close(p[1]);
+}
+
 int
 main(void)
 {
@@ -1175,6 +1210,7 @@ main(void)
 	testregex();
 	testpty();
 	testsigchld();
+	testnosignal();
 	testscm();
 	testposix();
 	testthreads();

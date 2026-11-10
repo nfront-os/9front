@@ -62,7 +62,8 @@
 //		and what it does
 //	-p	the processor composes the screen
 //	-d	devdraw is wsys' own (draw/ in its tree, drawcore): the draw(3) programs in
-//		its windows draw through it, not the kernel's
+//		its windows draw through it, not the kernel's (the default; -d: or an error)
+//	-k	the kernel's devdraw (the windows are its windows, as in rio)
 //	-f	the font of text windows (default $font, else /lib/font/bit/vga/unicode.font)
 //	-s	post as /srv/srvname (default wsys.$user.$pid, and wsys.$user: the newest
 //		wsys of the user, where programs that outlive one find the next)
@@ -3695,7 +3696,7 @@ fn kbdreader(tx: mpsc::Sender<Ev>) {
 }
 
 fn usage() -> ! {
-    eprintln!("usage: wsys [-dgpOx] [-f font] [-s srvname] [-i cmd]");
+    eprintln!("usage: wsys [-dgkpOx] [-f font] [-s srvname] [-i cmd]");
     std::process::exit(1);
 }
 
@@ -3706,7 +3707,7 @@ fn main() {
     let mut srvname = format!("wsys.{user}.{}", std::process::id());
     let mut alias = true; // /srv/wsys.$user too, unless -s names it
     // gpucomp: None the GPU where it can, quietly; Some(true) -g; Some(false) -p
-    let (mut init, mut exitwith, mut nooverlay, mut gpucomp, mut coredraw) = (None, false, false, None, false);
+    let (mut init, mut exitwith, mut nooverlay, mut gpucomp, mut coredraw) = (None, false, false, None, None);
     let mut fontname = std::env::var("font").ok().filter(|f| !f.is_empty()).unwrap_or(DEFFONT.to_string());
     while let Some(a) = args.next() {
         match a.as_str() {
@@ -3719,7 +3720,8 @@ fn main() {
             "-O" => nooverlay = true,
             "-g" => gpucomp = Some(true),
             "-p" => gpucomp = Some(false),
-            "-d" => coredraw = true,
+            "-d" => coredraw = Some(true),
+            "-k" => coredraw = Some(false),
             "-f" => fontname = args.next().unwrap_or_else(|| usage()),
             _ => usage(),
         }
@@ -3735,9 +3737,10 @@ fn main() {
             std::process::exit(1);
         }
     };
-    // -d: devdraw is wsys' own (drawcore), on a screen as big as the kernel's; what
-    // it draws the GPU composes, or wsys copies it into the kernel's screen (kd)
-    let (d, core, kd) = if coredraw {
+    // devdraw is wsys' own (drawcore; -k: the kernel's), on a screen as big as the
+    // kernel's; what it draws the GPU composes, or wsys copies it into the kernel's
+    // screen (kd). Where it cannot start, the kernel's (-d asked for it: an error)
+    let (d, core, kd) = if coredraw != Some(false) {
         let started = if d.chan != XRGB32 {
             Err(std::io::Error::other(format!("the screen is {}, not x8r8g8b8", draw::chanstr(d.chan))))
         } else {
@@ -3750,9 +3753,13 @@ fn main() {
                 }
                 (cd, Some(c), Some(d))
             }
-            Err(e) => {
+            Err(e) if coredraw == Some(true) => {
                 eprintln!("wsys: -d: {e}");
                 std::process::exit(1);
+            }
+            Err(e) => {
+                eprintln!("wsys: the kernel's devdraw: {e}");
+                (d, None, None)
             }
         }
     } else {
@@ -4037,13 +4044,15 @@ fn main() {
     if ws.core.is_some() && std::env::var("WSYSDEBUG").is_ok_and(|v| v.contains("draw")) {
         eprint!("{}", drawcore::stats().lines().map(|l| format!("wsys: draw: {l}\n")).collect::<String>());
     }
-    // the screen's segment out of #g (std::process::exit runs no destructors)
-    drop(ws.core.take());
     // the windows let go of their clients' segments; their processes hang up
     let ids: Vec<u32> = ws.wins.keys().copied().collect();
     for n in ids {
         ws.delwin(n, true);
     }
+    // then the screen's segment out of #g (std::process::exit runs no destructors):
+    // not before, deleting a window draws on the screen (wsys -x died so, its
+    // processes kept as Broken with wsys' files open)
+    drop(ws.core.take());
     // std's threads are procs of their own, blocked in reads of the mouse and the
     // keyboard: std's exit kills them (end_program, /proc/n/ctl kill under its lock of the
     // thread list). Not a kill note to wsys' own note group: it could hit a thread inside

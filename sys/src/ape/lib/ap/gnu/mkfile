@@ -25,6 +25,7 @@ OFILES=\
 	multibyte.$O\
 	native.$O\
 	newlocale.$O\
+	nosigpipe.$O\
 	posix.$O\
 	pread.$O\
 	pthread.$O\

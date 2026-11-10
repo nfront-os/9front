@@ -33,6 +33,7 @@
 			"multibyte.c",
 			"native.c",
 			"newlocale.c",
+			"nosigpipe.c",
 			"posix.c",
 			"pread.c",
 			"pthread.c",
