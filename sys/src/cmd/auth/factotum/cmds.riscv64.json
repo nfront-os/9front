@@ -117,7 +117,6 @@
 			"p9sk1.c",
 			"pass.c",
 			"rsa.c",
-			"ecdsa.c",
 			"wpapsk.c",
 			"totp.c",
 			"confirm.c",
