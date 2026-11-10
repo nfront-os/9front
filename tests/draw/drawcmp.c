@@ -78,6 +78,7 @@ main(int argc, char **argv)
 	ARGBEGIN{
 	}ARGEND
 	USED(argc, argv);
+	fmtinstall('H', encodefmt);
 	if(initdraw(nil, nil, "drawcmp") < 0)
 		sysfatal("initdraw: %r");
 

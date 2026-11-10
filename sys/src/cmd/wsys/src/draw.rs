@@ -5,6 +5,7 @@
 // it, so devdraw (memdraw) composes and the screen is any draw(3) has: VESA,
 // a vga driver, a GPU driver's framebuffer, or a rio window.
 
+use crate::drawcore;
 use crate::p9::{Fd, ORDWR};
 use std::io;
 
@@ -96,9 +97,42 @@ pub fn chanstr(chan: u32) -> String {
 
 pub const REFBACKUP: u8 = 0;
 
+/// the connection: the files of a devdraw (the kernel's, or rio's window's), or
+/// wsys' own devdraw's channels (drawcore)
+enum Conn {
+    Files { ctl: Fd, data: Fd },
+    Core { ctl: drawcore::Chan, data: drawcore::Chan },
+}
+
+impl Conn {
+    fn write1(&self, b: &[u8]) -> io::Result<()> {
+        match self {
+            Conn::Files { data, .. } => data.write1(b),
+            Conn::Core { data, .. } => data.write(b).map(|_| ()).map_err(io::Error::other),
+        }
+    }
+    fn read(&self, b: &mut [u8]) -> io::Result<usize> {
+        match self {
+            Conn::Files { data, .. } => data.read(b),
+            Conn::Core { data, .. } => match data.read(b, 0).map_err(io::Error::other)? {
+                drawcore::Read::Data(n) => Ok(n),
+                drawcore::Read::Wait => Ok(0),
+            },
+        }
+    }
+    fn ctlread(&self, b: &mut [u8]) -> io::Result<usize> {
+        match self {
+            Conn::Files { ctl, .. } => ctl.read(b),
+            Conn::Core { ctl, .. } => match ctl.read(b, 0).map_err(io::Error::other)? {
+                drawcore::Read::Data(n) => Ok(n),
+                drawcore::Read::Wait => Ok(0),
+            },
+        }
+    }
+}
+
 pub struct Display {
-    _ctl: Fd, // the connection lives while /dev/draw/new is open
-    data: Fd,
+    conn: Conn, // the connection lives while new (the ctl) is open
     buf: Vec<u8>,
     pub screen: u32,  // image id drawn on: 0, or the rio window's
     pub chan: u32,    // its channels: windows on it have them too
@@ -126,9 +160,24 @@ impl Display {
         let n = ctl.read(&mut b)?;
         let f = info(&b[..n])?;
         let data = Fd::open(&format!("/dev/draw/{}/data", f[0]), ORDWR)?;
+        Self::with(Conn::Files { ctl, data }, &f, true)
+    }
+
+    /// wsys' own devdraw (drawcore), its screen
+    pub fn open_core() -> io::Result<Display> {
+        let ctl = drawcore::Chan::open(drawcore::QNEW, 2).map_err(io::Error::other)?;
+        let data = drawcore::Chan::open((ctl.path & !0xF) | drawcore::QDATA, 2).map_err(io::Error::other)?;
+        let conn = Conn::Core { ctl, data };
+        let mut b = [0u8; 12 * 12 + 1];
+        let n = conn.ctlread(&mut b)?;
+        let f = info(&b[..n])?;
+        Self::with(conn, &f, false)
+    }
+
+    fn with(conn: Conn, f: &[String], winname: bool) -> io::Result<Display> {
+        let mut b = [0u8; 12 * 12 + 1];
         let mut d = Display {
-            _ctl: ctl,
-            data,
+            conn,
             buf: Vec::with_capacity(MAXMSG),
             screen: 0,
             chan: strtochan(&f[2]).unwrap_or(XRGB32),
@@ -136,7 +185,8 @@ impl Display {
             next: 16,
             opaque: 0,
         };
-        if let Ok(w) = std::fs::read_to_string("/dev/winname") {
+        let w = if winname { std::fs::read_to_string("/dev/winname").ok() } else { None };
+        if let Some(w) = w {
             let w = w.trim().to_string();
             if !w.is_empty() {
                 let id = d.id();
@@ -146,7 +196,7 @@ impl Display {
                 m.extend_from_slice(w.as_bytes());
                 d.cmd(&m)?;
                 d.flush()?;
-                let n = d._ctl.read(&mut b)?;
+                let n = d.conn.ctlread(&mut b)?;
                 let f = info(&b[..n])?;
                 d.screen = id;
                 d.chan = strtochan(&f[2]).unwrap_or(XRGB32);
@@ -171,7 +221,7 @@ impl Display {
             self.flushbuf()?;
         }
         if m.len() > MAXMSG {
-            return self.data.write1(m);
+            return self.conn.write1(m);
         }
         self.buf.extend_from_slice(m);
         Ok(())
@@ -179,7 +229,7 @@ impl Display {
 
     fn flushbuf(&mut self) -> io::Result<()> {
         if !self.buf.is_empty() {
-            let r = self.data.write1(&self.buf);
+            let r = self.conn.write1(&self.buf);
             self.buf.clear();
             r?;
         }
@@ -227,7 +277,7 @@ impl Display {
                 m.extend_from_slice(&v.to_le_bytes());
             }
             m.push(0); // not public
-            match self.data.write1(&m) {
+            match self.conn.write1(&m) {
                 Ok(()) => return Ok(id),
                 Err(e) => last = Some(e),
             }
@@ -384,12 +434,12 @@ impl Display {
             let mut m = vec![b'r'];
             m.extend_from_slice(&id.to_le_bytes());
             Self::rect(&mut m, &Rect::new(r.x0, y, r.x1, y1));
-            self.data.write1(&m)?;
+            self.conn.write1(&m)?;
             let want = bpl * (y1 - y) as usize;
             let mut got = 0;
             let mut b = vec![0u8; want];
             while got < want {
-                let n = self.data.read(&mut b[got..])?;
+                let n = self.conn.read(&mut b[got..])?;
                 if n == 0 {
                     return Err(io::Error::other("short read of an image"));
                 }

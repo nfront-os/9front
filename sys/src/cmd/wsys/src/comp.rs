@@ -126,6 +126,15 @@ pub struct Comp {
     tx: mpsc::Sender<Job>,
 }
 
+/// devdraw's screen when it is wsys' own (drawcore): its segment's name, set
+/// before start; the main loop then tells the changes (damage), no reader of
+/// #G's dirty
+static CORESCREEN: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+
+pub fn corescreen(seg: &str) {
+    let _ = CORESCREEN.set(seg.to_string());
+}
+
 // what goes well said too (wsys -g asked for the GPU; by default only what fails:
 // a desktop's messages go to the console, which draws over the screen)
 static VERBOSE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
@@ -165,8 +174,11 @@ impl Comp {
                 };
                 let gdir = c.gdir.clone();
                 let _ = itx.send(Ok(()));
-                // devdraw's changes, read by a thread of their own (the read blocks)
-                thread::spawn(move || dirtyreader(&gdir, dtx));
+                // devdraw's changes, read by a thread of their own (the read blocks);
+                // wsys' own devdraw's the main loop tells
+                if CORESCREEN.get().is_none() {
+                    thread::spawn(move || dirtyreader(&gdir, dtx));
+                }
                 let e = c.run(rx, &*done);
                 c.destroy();
                 done(Done::Failed(e));
@@ -189,6 +201,11 @@ impl Comp {
 
     pub fn forget(&self, key: Key) {
         let _ = self.tx.send(Job::Forget(key));
+    }
+
+    /// devdraw (wsys' own) drew in r
+    pub fn damage(&self, r: Rect) {
+        let _ = self.tx.send(Job::Damage(r));
     }
 
     pub fn scene(&self, s: Vec<Shown>) -> bool {
@@ -505,7 +522,17 @@ impl Vkc {
             self.w = w;
             self.h = h;
             let size = w as usize * h as usize * 4;
-            self.fb = Some(fbattach(&self.gdir, size)?);
+            self.fb = Some(match CORESCREEN.get() {
+                Some(name) => {
+                    let (va, len) = Seg::find(name).map_err(|e| format!("{name}: {e}"))?;
+                    if len < size {
+                        return Err(format!("{name}: {len} bytes, the screen {size}"));
+                    }
+                    // inherited when wsys attached it before starting this thread
+                    Seg::attach_or_have(name, (va, len)).map_err(|e| format!("{name}: {e}"))?
+                }
+                None => fbattach(&self.gdir, size)?,
+            });
             let s = self.staging.take();
             self.freehost(s);
             let r = self.readback.take();

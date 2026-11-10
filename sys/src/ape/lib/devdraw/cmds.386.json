@@ -10,6 +10,7 @@
 			"-D_POSIX_SOURCE",
 			"-D_PLAN9_SOURCE",
 			"-D_RESEARCH_SOURCE",
+			"-D_APE_GNU",
 			"-Duintptr=uintptr_t",
 			"-I../../../cmd/drawfs",
 			"-I../9"

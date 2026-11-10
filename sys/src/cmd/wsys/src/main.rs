@@ -61,6 +61,8 @@
 //	-g	the GPU composes the screen (the default, where it can): why not if it cannot,
 //		and what it does
 //	-p	the processor composes the screen
+//	-d	devdraw is wsys' own (draw/ in its tree, drawcore): the draw(3) programs in
+//		its windows draw through it, not the kernel's
 //	-f	the font of text windows (default $font, else /lib/font/bit/vga/unicode.font)
 //	-s	post as /srv/srvname (default wsys.$user.$pid, and wsys.$user: the newest
 //		wsys of the user, where programs that outlive one find the next)
@@ -100,9 +102,12 @@ mod comp {
         pub fn snapshot(&self, _: crate::draw::Rect) -> Result<Vec<u8>, String> {
             Err("no GPU".into())
         }
+        pub fn damage(&self, _: crate::draw::Rect) {}
     }
+    pub fn corescreen(_: &str) {}
 }
 mod draw;
+mod drawcore;
 mod font;
 mod gpu;
 mod ninep;
@@ -206,6 +211,14 @@ const WINFILES: [(F, &str, u32); 16] = [
     (F::Screen, "screen", 0o444),
 ];
 
+/// the files of a client of wsys' devdraw, as #i's
+const DRAWFILES: [(u64, &str, u32); 4] = [
+    (drawcore::QCOLORMAP, "colormap", 0o600),
+    (drawcore::QCTL, "ctl", 0o600),
+    (drawcore::QDATA, "data", 0o600),
+    (drawcore::QREFRESH, "refresh", 0o400),
+];
+
 #[derive(Clone, Copy, PartialEq, Debug)]
 enum Kind {
     Root,
@@ -215,6 +228,12 @@ enum Kind {
     Stack,
     WinDir(u32),
     File(u32, F),
+    // wsys' own devdraw (-d): draw/, draw/new, draw/n/ (a client in devdraw's
+    // slot n), its files (devdraw's types: colormap, ctl, data, refresh)
+    Draw,
+    DrawNew,
+    DrawCl(u32),
+    DrawF(u32, u64),
 }
 
 struct FidState {
@@ -226,6 +245,7 @@ struct FidState {
     raw: bool,        // a consctl that turned raw mode on
     seen: u64,        // wctl: the window's state last read (0: none yet)
     snap: Option<Vec<u8>>, // screen, window: the image (6) as it was at the first read
+    chan: Option<drawcore::Chan>, // a file of wsys' devdraw, open
 }
 
 /// A client's buffer. Only the main loop touches it: Rust's std on Plan 9 runs
@@ -569,6 +589,9 @@ struct Wsys {
     nextwin: u32,
     pending: Vec<Pending>,
     d: Display,
+    core: Option<drawcore::Core>, // -d: devdraw is wsys' own; its screen
+    kd: Option<Display>,          // -d without the GPU: the kernel's devdraw, where the screen is copied
+    drawpend: Vec<(u16, u32, u32)>, // refresh reads of wsys' devdraw waiting: tag, fid, count
     bg: u32,
     cfocus: u32,
     cother: u32,
@@ -623,6 +646,10 @@ fn qid(k: Kind) -> Qid {
         Kind::Stack => (0, 7),
         Kind::WinDir(n) => (ninep::QTDIR, (n as u64) << 8 | 0x10),
         Kind::File(n, f) => (0, (n as u64) << 8 | (0x20 + f as u64)),
+        Kind::Draw => (ninep::QTDIR, 2),
+        Kind::DrawNew => (0, 3),
+        Kind::DrawCl(sl) => (ninep::QTDIR, 1 << 40 | (sl as u64) << drawcore::QSHIFT | 3),
+        Kind::DrawF(sl, t) => (0, 1 << 40 | (sl as u64) << drawcore::QSHIFT | t),
     };
     Qid { ty, vers: 0, path }
 }
@@ -650,6 +677,13 @@ impl Wsys {
                 let (_, name, mode) = WINFILES.iter().find(|w| w.0 == f).unwrap();
                 (name.to_string(), *mode)
             }
+            Kind::Draw => ("draw".to_string(), ninep::DMDIR | 0o555),
+            Kind::DrawNew => ("new".to_string(), 0o666),
+            Kind::DrawCl(sl) => (drawcore::clientid(sl).unwrap_or(0).to_string(), ninep::DMDIR | 0o555),
+            Kind::DrawF(_, t) => {
+                let (name, mode) = DRAWFILES.iter().find(|d| d.0 == t).map(|d| (d.1, d.2)).unwrap_or(("?", 0));
+                (name.to_string(), mode)
+            }
         };
         Dir { qid: qid(k), mode, length: 0, name, uid: self.uid.clone(), mtime: 0 }
     }
@@ -657,6 +691,7 @@ impl Wsys {
     fn exists(&self, k: Kind) -> bool {
         match k {
             Kind::WinDir(n) | Kind::File(n, _) => self.wins.contains_key(&n),
+            Kind::DrawCl(sl) | Kind::DrawF(sl, _) => drawcore::clientid(sl).is_some_and(|id| id > 0),
             _ => true,
         }
     }
@@ -668,6 +703,7 @@ impl Wsys {
                 "screen" => Some(Kind::Screen),
                 "wctl" => Some(Kind::RootWctl),
                 "stack" => Some(Kind::Stack),
+                "draw" if self.core.is_some() => Some(Kind::Draw),
                 ".." => Some(Kind::Root),
                 _ => {
                     let n: u32 = name.parse().ok()?;
@@ -678,7 +714,25 @@ impl Wsys {
                 if name == ".." {
                     return Some(Kind::Root);
                 }
+                if name == "draw" && self.core.is_some() {
+                    return Some(Kind::Draw);
+                }
                 WINFILES.iter().find(|w| w.1 == name).map(|w| Kind::File(n, w.0))
+            }
+            Kind::Draw => match name {
+                ".." => Some(Kind::Root),
+                "new" => Some(Kind::DrawNew),
+                _ => {
+                    let id: u32 = name.parse().ok()?;
+                    let sl = drawcore::clientslot(id);
+                    (id > 0 && sl > 0).then_some(Kind::DrawCl(sl))
+                }
+            },
+            Kind::DrawCl(sl) => {
+                if name == ".." {
+                    return Some(Kind::Draw);
+                }
+                DRAWFILES.iter().find(|d| d.1 == name).map(|d| Kind::DrawF(sl, d.0))
             }
             _ => None,
         }
@@ -688,12 +742,33 @@ impl Wsys {
         match k {
             Kind::Root => {
                 let mut v = vec![Kind::Screen, Kind::Clone, Kind::RootWctl, Kind::Stack];
+                if self.core.is_some() {
+                    v.push(Kind::Draw);
+                }
                 let mut ids: Vec<u32> = self.wins.keys().copied().collect();
                 ids.sort();
                 v.extend(ids.into_iter().map(Kind::WinDir));
                 v
             }
-            Kind::WinDir(n) => WINFILES.iter().map(|w| Kind::File(n, w.0)).collect(),
+            Kind::WinDir(n) => {
+                let mut v: Vec<Kind> = WINFILES.iter().map(|w| Kind::File(n, w.0)).collect();
+                if self.core.is_some() {
+                    v.push(Kind::Draw);
+                }
+                v
+            }
+            Kind::Draw => {
+                let mut v = vec![Kind::DrawNew];
+                let mut sl = 1;
+                while let Some(id) = drawcore::clientid(sl) {
+                    if id > 0 {
+                        v.push(Kind::DrawCl(sl));
+                    }
+                    sl += 1;
+                }
+                v
+            }
+            Kind::DrawCl(sl) => DRAWFILES.iter().map(|d| Kind::DrawF(sl, d.0)).collect(),
             _ => vec![],
         }
     }
@@ -716,7 +791,7 @@ impl Wsys {
                 w.pinned = false;
             }
         }
-        self.fids.insert(fid, FidState { kind, open: false, dirpos: 0, win, owns: false, raw: false, seen: 0, snap: None });
+        self.fids.insert(fid, FidState { kind, open: false, dirpos: 0, win, owns: false, raw: false, seen: 0, snap: None, chan: None });
     }
 
     /// the reply, or None when it comes later (a read that waits)
@@ -754,6 +829,7 @@ impl Wsys {
             }
             T::Flush { oldtag } => {
                 self.pending.retain(|p| p.tag != oldtag);
+                self.drawpend.retain(|p| p.0 != oldtag);
                 self.ovtags.retain(|&t| t != oldtag); // no answer for it any more
                 Some(R::new(109, tag).done())
             }
@@ -805,7 +881,25 @@ impl Wsys {
                 let reading = rw == OREAD as u8 || rw == 2;
                 let writing = rw == OWRITE as u8 || rw == 2;
                 let k = match k {
-                    Kind::Root | Kind::WinDir(_) if rw != OREAD as u8 => return e("is a directory"),
+                    Kind::Root | Kind::WinDir(_) | Kind::Draw | Kind::DrawCl(_) if rw != OREAD as u8 => return e("is a directory"),
+                    Kind::DrawNew | Kind::DrawF(..) => {
+                        let path = match k {
+                            Kind::DrawF(sl, t) => (sl as u64) << drawcore::QSHIFT | t,
+                            _ => drawcore::QNEW,
+                        };
+                        match drawcore::Chan::open(path, mode) {
+                            Ok(c) => {
+                                let k = Kind::DrawF((c.path >> drawcore::QSHIFT) as u32, c.path & 0xF);
+                                let f = self.fids.get_mut(&fid).unwrap();
+                                f.chan = Some(c);
+                                f.kind = k;
+                                f.open = true;
+                                self.drawwake();
+                                return Some(R::new(113, tag).qid(qid(k)).u32(self.msize - ninep::IOHDRSZ).done());
+                            }
+                            Err(err) => return e(&err),
+                        }
+                    }
                     Kind::Screen | Kind::Stack if writing => return e("permission denied"),
                     Kind::RootWctl if reading => return e("permission denied"),
                     Kind::File(_, F::Event | F::Winid | F::Winname | F::Window | F::Screen) if writing => return e("permission denied"),
@@ -862,7 +956,19 @@ impl Wsys {
                     Some(R::new(117, tag).u32(b.len() as u32).bytes(b).done())
                 };
                 match k {
-                    Kind::Root | Kind::WinDir(_) => {
+                    Kind::DrawF(..) => {
+                        let mut b = vec![0u8; count as usize];
+                        let c = f.chan.as_ref().unwrap();
+                        match c.read(&mut b, offset) {
+                            Ok(drawcore::Read::Data(n)) => Some(R::new(117, tag).u32(n as u32).bytes(&b[..n]).done()),
+                            Ok(drawcore::Read::Wait) => {
+                                self.drawpend.push((tag, fid, count));
+                                None
+                            }
+                            Err(err) => e(&err),
+                        }
+                    }
+                    Kind::Root | Kind::WinDir(_) | Kind::Draw | Kind::DrawCl(_) => {
                         let pos = if offset == 0 { 0 } else { f.dirpos };
                         let mut out = vec![];
                         let mut n = pos;
@@ -939,6 +1045,14 @@ impl Wsys {
                     return e("window deleted");
                 }
                 let ok = Some(R::new(119, tag).u32(data.len() as u32).done());
+                if let Kind::DrawF(..) = k {
+                    let r = match f.chan.as_ref().unwrap().write(&data) {
+                        Ok(n) => Some(R::new(119, tag).u32(n as u32).done()),
+                        Err(err) => e(&err),
+                    };
+                    self.drawwake();
+                    return r;
+                }
                 let s = String::from_utf8_lossy(&data).into_owned();
                 match k {
                     Kind::File(n, F::Ctl) => {
@@ -1023,9 +1137,56 @@ impl Wsys {
         }
     }
 
+    /// refresh reads of wsys' devdraw that may be answered now
+    fn drawwake(&mut self) {
+        if self.core.is_none() || !drawcore::wake() {
+            return;
+        }
+        let waiting = std::mem::take(&mut self.drawpend);
+        for (tag, fid, count) in waiting {
+            let Some(c) = self.fids.get(&fid).and_then(|f| f.chan.as_ref()) else { continue };
+            let mut b = vec![0u8; count as usize];
+            match c.read(&mut b, 0) {
+                Ok(drawcore::Read::Data(n)) => self.send(R::new(117, tag).u32(n as u32).bytes(&b[..n]).done()),
+                Ok(drawcore::Read::Wait) => self.drawpend.push((tag, fid, count)),
+                Err(err) => self.send(ninep::error(tag, &err)),
+            }
+        }
+    }
+
+    /// what devdraw (wsys' own, -d) drew reaches the screen: the GPU composes it,
+    /// or it is copied into the kernel's devdraw's screen
+    fn corepresent(&mut self) {
+        let Some(core) = &self.core else { return };
+        let rects = core.dirty();
+        if rects.is_empty() {
+            return;
+        }
+        if let Some(c) = &self.comp {
+            for r in rects {
+                c.damage(r.add(-core.r.x0, -core.r.y0));
+            }
+            return;
+        }
+        let Some(kd) = self.kd.as_mut() else { return };
+        let px = core.seg.bytes();
+        let mut res = Ok(());
+        for r in rects {
+            res = res.and_then(|_| kd.load_at(kd.screen, &r, px, core.stride, r.x0 - core.r.x0, r.y0 - core.r.y0));
+        }
+        if let Err(e) = res.and_then(|_| kd.flush()) {
+            eprintln!("wsys: the screen: {e}");
+        }
+    }
+
     fn clunk(&mut self, fid: u32) {
-        let Some(f) = self.fids.remove(&fid) else { return };
+        let Some(mut f) = self.fids.remove(&fid) else { return };
         self.pending.retain(|p| p.fid != fid);
+        self.drawpend.retain(|p| p.1 != fid);
+        if let Some(c) = f.chan.take() {
+            drop(c); // devdraw lets go of what the client had (its windows go)
+            self.drawwake();
+        }
         let Some(n) = f.win.or(match f.kind {
             Kind::File(n, _) | Kind::WinDir(n) => Some(n),
             _ => None,
@@ -3528,7 +3689,7 @@ fn kbdreader(tx: mpsc::Sender<Ev>) {
 }
 
 fn usage() -> ! {
-    eprintln!("usage: wsys [-gpOx] [-f font] [-s srvname] [-i cmd]");
+    eprintln!("usage: wsys [-dgpOx] [-f font] [-s srvname] [-i cmd]");
     std::process::exit(1);
 }
 
@@ -3539,7 +3700,7 @@ fn main() {
     let mut srvname = format!("wsys.{user}.{}", std::process::id());
     let mut alias = true; // /srv/wsys.$user too, unless -s names it
     // gpucomp: None the GPU where it can, quietly; Some(true) -g; Some(false) -p
-    let (mut init, mut exitwith, mut nooverlay, mut gpucomp) = (None, false, false, None);
+    let (mut init, mut exitwith, mut nooverlay, mut gpucomp, mut coredraw) = (None, false, false, None, false);
     let mut fontname = std::env::var("font").ok().filter(|f| !f.is_empty()).unwrap_or(DEFFONT.to_string());
     while let Some(a) = args.next() {
         match a.as_str() {
@@ -3552,6 +3713,7 @@ fn main() {
             "-O" => nooverlay = true,
             "-g" => gpucomp = Some(true),
             "-p" => gpucomp = Some(false),
+            "-d" => coredraw = true,
             "-f" => fontname = args.next().unwrap_or_else(|| usage()),
             _ => usage(),
         }
@@ -3566,6 +3728,29 @@ fn main() {
             eprintln!("wsys: draw: {e}");
             std::process::exit(1);
         }
+    };
+    // -d: devdraw is wsys' own (drawcore), on a screen as big as the kernel's; what
+    // it draws the GPU composes, or wsys copies it into the kernel's screen (kd)
+    let (d, core, kd) = if coredraw {
+        let started = if d.chan != XRGB32 {
+            Err(std::io::Error::other(format!("the screen is {}, not x8r8g8b8", draw::chanstr(d.chan))))
+        } else {
+            drawcore::Core::start(d.r, "x8r8g8b8").and_then(|c| Ok((Display::open_core()?, c)))
+        };
+        match started {
+            Ok((cd, c)) => {
+                if c.r.x0 == 0 && c.r.y0 == 0 && c.stride == c.r.dx() as usize * 4 {
+                    comp::corescreen(&c.name);
+                }
+                (cd, Some(c), Some(d))
+            }
+            Err(e) => {
+                eprintln!("wsys: -d: {e}");
+                std::process::exit(1);
+            }
+        }
+    } else {
+        (d, None, None)
     };
 
     // the connection: one end posted in /srv, wsys serves the other
@@ -3636,6 +3821,9 @@ fn main() {
         focus: None,
         nextwin: 0,
         pending: vec![],
+        core,
+        kd,
+        drawpend: vec![],
         d,
         bg: 0,
         cfocus: 0,
@@ -3835,10 +4023,14 @@ fn main() {
         }
         // after whatever changed: the window on the overlay plane may have to leave it;
         // with -g, what the GPU composes
+        ws.corepresent();
         ws.ovcheck();
         ws.compsync();
     }
     let _ = p9::remove(&srvpath);
+    if ws.core.is_some() && std::env::var("WSYSDEBUG").is_ok_and(|v| v.contains("draw")) {
+        eprint!("{}", drawcore::stats().lines().map(|l| format!("wsys: draw: {l}\n")).collect::<String>());
+    }
     // the windows let go of their clients' segments; their processes hang up
     let ids: Vec<u32> = ws.wins.keys().copied().collect();
     for n in ids {

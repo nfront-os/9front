@@ -4,7 +4,7 @@ wsys \- window system, prototype (processor backend), rio(4)'s files
 .SH SYNOPSIS
 .B wsys
 [
-.B -gpOx
+.B -dgpOx
 ] [
 .B -f
 .I font
@@ -103,6 +103,32 @@ makes the processor compose;
 asks for the GPU and says why not when it cannot, and what it does
 (as does
 .BR WSYSDEBUG=comp ).
+.PP
+With
+.BR -d ,
+.IR draw (3)
+is
+.IR wsys 's
+own: the kernel's devdraw, libmemdraw and libmemlayer in its process
+.RB ( drawfs (4)'s,
+built for APE), on a screen as big as the kernel's in a segment of
+.IR segment (3)
+.RB ( wsys.screen. pid).
+Its tree and every window's directory have a directory
+.B draw
+.RB ( new ,
+.IB n /colormapR,
+.BR ctl ,
+.BR data ,
+.BR refresh ,
+as
+.BR #i 's),
+so the programs in its windows, which find the window's directory on
+.BR /dev ,
+draw through it.
+What it drew the GPU composes from that segment, or
+.I wsys
+copies into the kernel's screen.
 .PP
 A window's pixels are not sent through the files: they are in global
 segments of

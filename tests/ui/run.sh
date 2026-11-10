@@ -39,18 +39,19 @@ cp "$HERE/hold.rc" "$HERE/root/tests/hold"
 cp "$HERE/plumbrules" "$HERE/root/tests/plumbrules"
 chmod +x "$HERE/root/tests/rio4" "$HERE/root/tests/text" "$HERE/root/tests/sel" "$HERE/root/tests/menu3" "$HERE/root/tests/scroll" "$HERE/root/tests/hold"
 
+# WSYSFLAGS: more flags for wsys (-d: its own devdraw)
 boot(){
 	UFS_EXTRA="$HERE/root" MEM=1024 KARGS="vgasize=1024x768x32 monitor=vesa mouseport=ps2" \
 	SCREENSHOT="$TMPD/screen.png" \
 		"$ROOT/scripts/guest/boot-cli.sh" \
 		'aux/realemu' 'aux/vga -m vesa -l 1024x768x32' "bind -a '#i' /dev" "bind -a '#m' /dev" \
-		"/tests/wsys -x -i '/tests/wsystest >/tmp/wsystest.log >[2=1]' >/tmp/wsys.log >[2=1]; cat /tmp/wsys.log /tmp/wsystest.log" \
-		"/tests/wsys -x -i /tests/rio4 >/tmp/rio4.log >[2=1]; cat /tmp/rio4.log" \
-		"/tests/wsys -x -i /tests/text >/tmp/text.log >[2=1]; cat /tmp/text.log" \
-		"/tests/wsys -x -i /tests/sel >/tmp/sel.log >[2=1]; cat /tmp/sel.log" \
-		"/tests/wsys -x -i /tests/menu3 >/tmp/menu3.log >[2=1]; cat /tmp/menu3.log" \
-		"/tests/wsys -x -i /tests/scroll >/tmp/scroll.log >[2=1]; cat /tmp/scroll.log" \
-		"plumber -p /tests/plumbrules >/dev/null >[2=1] </dev/null; /tests/wsys -x -i /tests/hold >/tmp/hold.log >[2=1] </dev/null; cat /tmp/hold.log" \
+		"/tests/wsys ${WSYSFLAGS:-} -x -i '/tests/wsystest >/tmp/wsystest.log >[2=1]' >/tmp/wsys.log >[2=1]; cat /tmp/wsys.log /tmp/wsystest.log" \
+		"/tests/wsys ${WSYSFLAGS:-} -x -i /tests/rio4 >/tmp/rio4.log >[2=1]; cat /tmp/rio4.log" \
+		"/tests/wsys ${WSYSFLAGS:-} -x -i /tests/text >/tmp/text.log >[2=1]; cat /tmp/text.log" \
+		"/tests/wsys ${WSYSFLAGS:-} -x -i /tests/sel >/tmp/sel.log >[2=1]; cat /tmp/sel.log" \
+		"/tests/wsys ${WSYSFLAGS:-} -x -i /tests/menu3 >/tmp/menu3.log >[2=1]; cat /tmp/menu3.log" \
+		"/tests/wsys ${WSYSFLAGS:-} -x -i /tests/scroll >/tmp/scroll.log >[2=1]; cat /tmp/scroll.log" \
+		"plumber -p /tests/plumbrules >/dev/null >[2=1] </dev/null; /tests/wsys ${WSYSFLAGS:-} -x -i /tests/hold >/tmp/hold.log >[2=1] </dev/null; cat /tmp/hold.log" \
 		> "$TMPD/console" 2>&1
 	tr -d '\r' < "$TMPD/console" > "$TMPD/log"
 }

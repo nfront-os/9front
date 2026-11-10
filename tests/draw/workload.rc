@@ -1,0 +1,11 @@
+#!/bin/rc
+# run by wsys -d -x -i with WSYSDEBUG=draw (tests/draw/run.sh): drawing as a
+# desktop does it, for wsys' own devdraw to count (hwdraw's classes, its time):
+# text written into a text window (it scrolls), a draw(3) program (clock),
+# windows that move themselves (their layers' pixels copied), rio in a window
+# of wsys with a window of its own
+window -r 0 0 640 400 rc -c 'for(i in `{seq 1 300}) echo line $i: the quick brown fox jumps over the lazy dog; sleep 1'
+window -r 660 0 960 240 clock
+window -r 100 420 500 700 rc -c 'for(x in 100 140 180 220 260 300 340 380 420 460){echo move -minx $x -miny 420 >/dev/wctl; sleep 0.2}; sleep 1'
+window -r 520 260 1000 740 rio -i 'window -r 20 20 300 200 rc -c ''for(i in `{seq 1 100}) echo rio line $i; sleep 2'''
+sleep 8

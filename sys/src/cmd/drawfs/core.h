@@ -13,3 +13,4 @@ extern int	drawcore_clientslot(int);
 extern int	drawcore_clientid(int);
 extern int	drawcore_dirty(int*, int);
 extern int	drawcore_wake(void);
+extern int	drawcore_stats(char*, int);

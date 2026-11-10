@@ -291,7 +291,7 @@ if [ -r /dev/dri/renderD128 ] && [ -w /dev/dri/renderD128 ] &&
 		# (ps, the logs' last lines), then the guest goes
 		bootwsys(){ # [wsys' options and -i script; its log in $TMPD/consolewsys]
 			local cli=${CLI_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/9front-cli} g n ok=0
-			local cmd=${1:-/tests/wsys -p -x -i /tests/wsysvk}
+			local cmd=${1:-/tests/wsys ${WSYSFLAGS:-} -p -x -i /tests/wsysvk}
 			local m="python3 $ROOT/scripts/guest/mcp.py"
 			CPU=host MEM=1024 UFS_EXTRA="$HERE/root" \
 			QEMU_EXTRA="-vga none -display egl-headless -device virtio-gpu-gl-pci,blob=true,venus=true,hostmem=256M -object memory-backend-memfd,id=mem1,size=1024M,share=on -machine memory-backend=mem1" \
@@ -348,7 +348,7 @@ if [ -r /dev/dri/renderD128 ] && [ -w /dev/dri/renderD128 ] &&
 		fi
 		# the screen composed on the GPU, wsys' default (-g says so; here
 		# WSYSDEBUG=comp, so that the default is what runs) (wsyscomp.rc)
-		check "boot with virtio-gpu-gl, wsys (the GPU composes by default)" bootwsys "WSI_PLAN9_STATS=1 WSYSDEBUG=comp /tests/wsys -x -i /tests/wsyscomp"
+		check "boot with virtio-gpu-gl, wsys (the GPU composes by default)" bootwsys "WSI_PLAN9_STATS=1 WSYSDEBUG=comp /tests/wsys ${WSYSFLAGS:-} -x -i /tests/wsyscomp"
 		tr -d '\r' < "$TMPD/consolewsys" > "$TMPD/logcomp"
 		cp "$TMPD/logcomp" "$HERE/console-wsyscomp.log"
 		check "wsys, GPU: composing on the GPU" grep -q '^wsys: composing on the GPU' "$TMPD/logcomp"

@@ -210,6 +210,17 @@ impl Seg {
         Ok(s)
     }
 
+    /// segment name as this proc has it already: inherited from the proc that
+    /// attached it before starting this one (std's threads are procs; rfork
+    /// RFMEM shares the segments there are), else attached
+    pub fn attach_or_have(name: &str, (va, len): (usize, usize)) -> io::Result<Seg> {
+        match Seg::attach(name, (va, len)) {
+            Ok(s) => Ok(s),
+            Err(e) if e.to_string().contains("overlap") => Ok(Seg { va, len }),
+            Err(e) => Err(e),
+        }
+    }
+
     /// len bytes of a segment of the kernel's of class (segment(3)'s physical
     /// segments: a device's memory, gpu(3)), where the kernel puts it
     pub fn phys(class: &str, len: usize) -> io::Result<Seg> {

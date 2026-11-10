@@ -8,8 +8,28 @@
  */
 #include "compat.h"
 #include "core.h"
+#include <time.h>
 
 static QLock	corelk;
+
+/*
+ * what memdraw is asked to do (hwdraw sees every draw first): the classes
+ * its paths are for, calls and pixels each, on the screen or elsewhere;
+ * and the time devdraw takes (drawcore_write): where drawing on the GPU
+ * would pay (../9front-ui PLAN stage 4c)
+ */
+enum {
+	Sfill,	/* a colour, no mask or a full one (memoptdraw: memset) */
+	Scopy,	/* an image, no mask, S or an opaque one (memoptdraw: memmove) */
+	Schar,	/* a colour through a mask (chardraw: text) */
+	Sblend,	/* the rest (alphadraw) */
+	Nstat,
+};
+static struct {
+	uvlong	calls;
+	uvlong	pixels;
+} stat[Nstat][2];	/* [class][on the screen] */
+static uvlong	writens, writes;
 static Rectangle	screenr;
 static ulong	screenchan;
 static int	screenwidth;
@@ -75,6 +95,55 @@ void
 refreshwake(void)
 {
 	towake = 1;
+}
+
+static uvlong
+nsnow(void)
+{
+	struct timespec t;
+
+	clock_gettime(CLOCK_MONOTONIC, &t);
+	return (uvlong)t.tv_sec*1000000000ULL + t.tv_nsec;
+}
+
+/* memdraw's hook, before its own paths: counted, done by them */
+int
+hwdraw(Memdrawparam *p)
+{
+	int c, onscreen;
+
+	if(p->state&Simplesrc){
+		if(p->mask == memopaque || (p->state&Fullmask))
+			c = Sfill;
+		else
+			c = Schar;
+	}else if(p->mask == memopaque && (p->op == S || (p->op == SoverD && !(p->src->flags&Falpha))))
+		c = Scopy;
+	else
+		c = Sblend;
+	onscreen = p->dst->data == &screendata;
+	stat[c][onscreen].calls++;
+	stat[c][onscreen].pixels += (uvlong)Dx(p->r)*Dy(p->r);
+	return 0;
+}
+
+/* the counts so far, a line each: class calls pixels (screen and not), devdraw's time */
+int
+drawcore_stats(char *buf, int n)
+{
+	static char *name[Nstat] = { "fill", "copy", "char", "blend" };
+	char *p, *e;
+	int i;
+
+	qlock(&corelk);
+	p = buf;
+	e = buf+n;
+	for(i = 0; i < Nstat; i++)
+		p = seprint(p, e, "%s %llud %llud screen %llud %llud\n", name[i],
+			stat[i][0].calls, stat[i][0].pixels, stat[i][1].calls, stat[i][1].pixels);
+	p = seprint(p, e, "writes %llud ms %llud\n", writes, writens/1000000);
+	qunlock(&corelk);
+	return p-buf;
 }
 
 static void
@@ -162,6 +231,7 @@ long
 drawcore_write(void *c, void *buf, long n, char *err, int nerr)
 {
 	long r;
+	uvlong t;
 
 	qlock(&corelk);
 	if(waserror()){
@@ -169,7 +239,10 @@ drawcore_write(void *c, void *buf, long n, char *err, int nerr)
 		qunlock(&corelk);
 		return -1;
 	}
+	t = nsnow();
 	r = drawwrite(c, buf, n, 0);
+	writens += nsnow()-t;
+	writes++;
 	poperror();
 	qunlock(&corelk);
 	return r;
