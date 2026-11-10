@@ -1,0 +1,25 @@
+[
+	{
+		"Name": "ape-lib-devdraw-libdevdraw.a",
+		"Include": [
+			"/$ARCH/cflags.json",
+			"/$ARCH/ape.json"
+		],
+		"Install": "/$ARCH/lib.gcc/ape/",
+		"Cflags": [
+			"-D_POSIX_SOURCE",
+			"-D_PLAN9_SOURCE",
+			"-D_RESEARCH_SOURCE",
+			"-Duintptr=uintptr_t",
+			"-I../../../cmd/drawfs",
+			"-I../9"
+		],
+		"Ape": true,
+		"Library": "libdevdraw.a",
+		"SourceFiles": [
+			"../../../cmd/drawfs/compat.c",
+			"../../../cmd/drawfs/core.c",
+			"../../../cmd/drawfs/devdraw.c"
+		]
+	}
+]

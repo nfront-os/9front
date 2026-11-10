@@ -1,0 +1,44 @@
+[
+	{
+		"Name": "ape-lib-memdraw-libmemdraw.a",
+		"Include": [
+			"/$ARCH/cflags.json",
+			"/$ARCH/ape.json"
+		],
+		"Install": "/$ARCH/lib.gcc/ape/",
+		"Cflags": [
+			"-D_POSIX_SOURCE",
+			"-D_PLAN9_SOURCE",
+			"-Duintptr=uintptr_t",
+			"-D_tas=tas",
+			"-D_ifmt=__ifmt",
+			"-I.",
+			"-I../9"
+		],
+		"Ape": true,
+		"Library": "libmemdraw.a",
+		"SourceFiles": [
+			"../../../libmemdraw/alloc.c",
+			"../../../libmemdraw/arc.c",
+			"../../../libmemdraw/cload.c",
+			"../../../libmemdraw/cmap.c",
+			"../../../libmemdraw/cread.c",
+			"../../../libmemdraw/defont.c",
+			"../../../libmemdraw/draw.c",
+			"../../../libmemdraw/ellipse.c",
+			"../../../libmemdraw/fillpoly.c",
+			"../../../libmemdraw/hwdraw.c",
+			"../../../libmemdraw/line.c",
+			"../../../libmemdraw/load.c",
+			"../../../libmemdraw/openmemsubfont.c",
+			"../../../libmemdraw/poly.c",
+			"../../../libmemdraw/read.c",
+			"../../../libmemdraw/string.c",
+			"../../../libmemdraw/subfont.c",
+			"../../../libmemdraw/unload.c",
+			"../../../libmemdraw/write.c",
+			"../../../libmemdraw/warp.c",
+			"pool.c"
+		]
+	}
+]

@@ -1,0 +1,28 @@
+# GCC port: libmemlayer for APE (gcc's APE programs: wsys' devdraw, ../9front-ui
+# PLAN stage 4c), built from /sys/src/libmemlayer as ../draw is from libdraw
+APE=/sys/src/ape
+<$APE/config
+
+LIB=/$objtype/lib/ape/libmemlayer.a
+
+OFILES=\
+	draw.$O\
+	warp.$O\
+	lalloc.$O\
+	layerop.$O\
+	ldelete.$O\
+	lhide.$O\
+	line.$O\
+	load.$O\
+	lorigin.$O\
+	lsetrefresh.$O\
+	ltofront.$O\
+	ltorear.$O\
+	unload.$O\
+
+</sys/src/cmd/mksyslib
+
+CFLAGS=-c $CFLAGS -D_POSIX_SOURCE -D_PLAN9_SOURCE -Duintptr=uintptr_t -D_tas=tas -I. -I../9
+
+%.$O: /sys/src/libmemlayer/%.c
+	$CC $CFLAGS /sys/src/libmemlayer/$stem.c

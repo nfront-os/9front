@@ -1,12 +1,37 @@
 /*
  * drawfs: what devdraw.c takes from the kernel, in user space.
  */
+#ifdef _POSIX_SOURCE
+/* APE's build (sys/src/ape/lib/devdraw: wsys' devdraw, core.c) */
+#include <u.h>
+#include <libc.h>
+#include <setjmp.h>
+#include <draw.h>
+#include <memdraw.h>
+#include <memlayer.h>
+#ifndef ERRMAX
+#define	ERRMAX	128
+#endif
+#ifndef QTDIR
+#define	QTDIR	0x80
+#define	QTFILE	0x00
+#endif
+typedef struct Ref Ref;
+struct Ref
+{
+	long	ref;
+};
+#define	incref(r)	__atomic_add_fetch(&(r)->ref, 1, __ATOMIC_SEQ_CST)
+#define	decref(r)	__atomic_sub_fetch(&(r)->ref, 1, __ATOMIC_SEQ_CST)
+typedef int Rendez;
+#else
 #include <u.h>
 #include <libc.h>
 #include <draw.h>
 #include <memdraw.h>
 #include <memlayer.h>
 #include <thread.h>
+#endif
 
 /* a channel: what devdraw keeps of an open file (a fid of drawfs.c) */
 typedef struct Chan Chan;
@@ -25,7 +50,7 @@ enum { COPEN = 0x0001 };
 #define	smalloc(n)	emallocz(n)
 extern void	*emallocz(ulong);
 
-/* QLock, Rendez: libc's (the refresh reads wait in drawfs.c); Ref, incref, decref: libthread's (lib9p's) */
+/* QLock, Rendez: libc's (the refresh reads wait in drawfs.c); Ref, incref, decref: libthread's (lib9p's), APE's above */
 #define	eqlock(l)	qlock(l)
 #define	panic	sysfatal
 #undef	IOUNIT	/* libc's; devdraw.c has its own */

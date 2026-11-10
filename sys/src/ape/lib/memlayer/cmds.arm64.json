@@ -1,0 +1,35 @@
+[
+	{
+		"Name": "ape-lib-memlayer-libmemlayer.a",
+		"Include": [
+			"/$ARCH/cflags.json",
+			"/$ARCH/ape.json"
+		],
+		"Install": "/$ARCH/lib.gcc/ape/",
+		"Cflags": [
+			"-D_POSIX_SOURCE",
+			"-D_PLAN9_SOURCE",
+			"-Duintptr=uintptr_t",
+			"-D_tas=tas",
+			"-I.",
+			"-I../9"
+		],
+		"Ape": true,
+		"Library": "libmemlayer.a",
+		"SourceFiles": [
+			"../../../libmemlayer/draw.c",
+			"../../../libmemlayer/warp.c",
+			"../../../libmemlayer/lalloc.c",
+			"../../../libmemlayer/layerop.c",
+			"../../../libmemlayer/ldelete.c",
+			"../../../libmemlayer/lhide.c",
+			"../../../libmemlayer/line.c",
+			"../../../libmemlayer/load.c",
+			"../../../libmemlayer/lorigin.c",
+			"../../../libmemlayer/lsetrefresh.c",
+			"../../../libmemlayer/ltofront.c",
+			"../../../libmemlayer/ltorear.c",
+			"../../../libmemlayer/unload.c"
+		]
+	}
+]

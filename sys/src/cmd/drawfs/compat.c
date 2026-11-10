@@ -24,7 +24,9 @@ emallocz(ulong n)
 
 	if((v = mallocz(n, 1)) == nil)
 		sysfatal("out of memory");
+#ifndef _POSIX_SOURCE
 	setmalloctag(v, getcallerpc(&n));
+#endif
 	return v;
 }
 
@@ -39,7 +41,7 @@ nexterror(void)
 void
 error(char *e)
 {
-	strecpy(errbuf, errbuf+sizeof errbuf, e);
+	snprint(errbuf, sizeof errbuf, "%s", e);
 	nexterror();
 }
 

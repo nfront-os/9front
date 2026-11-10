@@ -1,0 +1,19 @@
+# GCC port: devdraw for gcc's APE programs (wsys serves draw(3) itself,
+# ../9front-ui PLAN stage 4c): /sys/src/cmd/drawfs' devdraw.c and compat.c
+# with core.c, the calls a program makes instead of drawfs' 9P
+APE=/sys/src/ape
+<$APE/config
+
+LIB=/$objtype/lib/ape/libdevdraw.a
+
+OFILES=\
+	compat.$O\
+	core.$O\
+	devdraw.$O\
+
+</sys/src/cmd/mksyslib
+
+CFLAGS=-c $CFLAGS -D_POSIX_SOURCE -D_PLAN9_SOURCE -D_RESEARCH_SOURCE -Duintptr=uintptr_t -I/sys/src/cmd/drawfs -I../9
+
+%.$O: /sys/src/cmd/drawfs/%.c
+	$CC $CFLAGS /sys/src/cmd/drawfs/$stem.c
