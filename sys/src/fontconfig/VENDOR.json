@@ -1,0 +1,42 @@
+{
+	"name": "fontconfig",
+	"version": "2.18.3",
+	"url": "https://www.freedesktop.org/software/fontconfig/release/fontconfig-2.18.3.tar.xz",
+	"sha256": "4f7b554a38cdf78c033f666c8871f3749e14a094f65a07f630c91ed0b43d35e3",
+	"key": "none: the release's sha256sum file on freedesktop.org (checked 2026-11-09)",
+	"tar": "../9front-ui/src/fontconfig-2.18.3.tar.xz",
+	"top": "fontconfig-2.18.3",
+	"keep": ["COPYING", "README.md", "AUTHORS"],
+	"gen": [
+		["fontconfig", "sh", "-c", "sed 's/@CACHE_VERSION@/12/; s/@CACHE_SNAP_VERSION@/0/; s/@NEXT_CACHE_VERSION@/0/; s/@CACHE_MIN_COMPAT_VERSION@/9/' fontconfig.h.in >fontconfig.h"],
+		["fc-case", "python3", "-I", "fc-case.py", "CaseFolding.txt", "--template", "fccase.tmpl.h", "--output", "fccase.h"],
+		["fc-lang", "sh", "-c", "python3 -I fc-lang.py $(sed -n '/^orth_files/,/^]/p' meson.build | grep -o \"'[^']*[.]orth'\" | tr -d \"'\") --template fclang.tmpl.h --output fclang.h --directory ."],
+		["fc-const", "python3", "-I", "fc-const.py", "fcconst.list", "../src/fcobjs.h", "--output", "fcconst.h"],
+		["fc-genericfamily", "python3", "-I", "fc-genericfamily.py", "-d", ".", "-o", "fcgenericfamily.gperf"],
+		["fc-genericfamily", "gperf", "--pic", "-m", "100", "fcgenericfamily.gperf", "--output-file", "fcgenericfamily.h"],
+		["src", "sh", "-c", "$CC -E -P -I.. -I. fcobjshash.gperf.h >fcobjshash.i"],
+		["src", "python3", "-I", "cutout.py", "fcobjshash.i", "fcobjshash.gperf"],
+		["src", "gperf", "--pic", "-m", "100", "fcobjshash.gperf", "--output-file", "fcobjshash.h"],
+		["src", "python3", "-I", "makealias.py", ".", "fcalias.h", "fcaliastail.h", "../fontconfig/fontconfig.h", "fcdeprecate.h", "../fontconfig/fcprivate.h"],
+		["src", "python3", "-I", "makealias.py", ".", "fcftalias.h", "fcftaliastail.h", "../fontconfig/fcfreetype.h"]
+	],
+	"libraries": [{
+		"name": "fontconfig",
+		"library": "libfontconfig.a",
+		"objtag": "f",
+		"cflags": ["-O2", "-std=gnu11", "-DHAVE_CONFIG_H", "-I../../include/ape/freetype2", "-Ivendor", "-Ivendor/src", "-Ivendor/fc-lang", "-Ivendor/fc-const", "-Ivendor/fc-genericfamily"],
+		"sources": [
+			"src/fcatomic.c", "src/fccache.c", "src/fccfg.c", "src/fccharset.c", "src/fcconffile.c",
+			"src/fccompat.c", "src/fcdbg.c", "src/fcdefault.c", "src/fcdir.c", "src/fcformat.c",
+			"src/fcfreetype.c", "src/fcfs.c", "src/fcgenericalias.c", "src/fcptrlist.c", "src/fchash.c",
+			"src/fcinit.c", "src/fclang.c", "src/fclist.c", "src/fcmatch.c", "src/fcmatrix.c",
+			"src/fcname.c", "src/fcobjs.c", "src/fcpat.c", "src/fcrange.c", "src/fcserialize.c",
+			"src/fcstat.c", "src/fcstr.c", "src/fcweight.c", "src/fcxml.c", "src/ftglue.c"
+		]
+	}],
+	"headers": [
+		{"from": "fontconfig/fontconfig.h", "to": "sys/include/ape/fontconfig"},
+		{"from": "fontconfig/fcfreetype.h", "to": "sys/include/ape/fontconfig"},
+		{"from": "fontconfig/fcprivate.h", "to": "sys/include/ape/fontconfig"}
+	]
+}

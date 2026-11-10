@@ -1,0 +1,53 @@
+[
+	{
+		"Name": "fontconfig",
+		"Compat": true,
+		"Cflags": [
+			"-Iplan9",
+			"-O2",
+			"-std=gnu11",
+			"-DHAVE_CONFIG_H",
+			"-I../../include/ape/freetype2",
+			"-Ivendor",
+			"-Ivendor/src",
+			"-Ivendor/fc-lang",
+			"-Ivendor/fc-const",
+			"-Ivendor/fc-genericfamily"
+		],
+		"Library": "libfontconfig.a",
+		"Install": "/$ARCH/lib.gcc/ape",
+		"Objtag": "f",
+		"SourceFiles": [
+			"vendor/src/fcatomic.c",
+			"vendor/src/fccache.c",
+			"vendor/src/fccfg.c",
+			"vendor/src/fccharset.c",
+			"vendor/src/fcconffile.c",
+			"vendor/src/fccompat.c",
+			"vendor/src/fcdbg.c",
+			"vendor/src/fcdefault.c",
+			"vendor/src/fcdir.c",
+			"vendor/src/fcformat.c",
+			"vendor/src/fcfreetype.c",
+			"vendor/src/fcfs.c",
+			"vendor/src/fcgenericalias.c",
+			"vendor/src/fcptrlist.c",
+			"vendor/src/fchash.c",
+			"vendor/src/fcinit.c",
+			"vendor/src/fclang.c",
+			"vendor/src/fclist.c",
+			"vendor/src/fcmatch.c",
+			"vendor/src/fcmatrix.c",
+			"vendor/src/fcname.c",
+			"vendor/src/fcobjs.c",
+			"vendor/src/fcpat.c",
+			"vendor/src/fcrange.c",
+			"vendor/src/fcserialize.c",
+			"vendor/src/fcstat.c",
+			"vendor/src/fcstr.c",
+			"vendor/src/fcweight.c",
+			"vendor/src/fcxml.c",
+			"vendor/src/ftglue.c"
+		]
+	}
+]

@@ -48,8 +48,10 @@ def incs(l):
 	"""a library's include path for -MM: plan9/ first, then the release's dirs"""
 	out = ['-I' + plan9]
 	for f in l.get('cflags', []):
-		if f.startswith('-Ivendor/'):
+		if f == '-Ivendor' or f.startswith('-Ivendor/'):
 			out.append('-I' + os.path.join(tree, f[len('-Ivendor/'):]))
+		elif f.startswith('-I'):
+			out.append('-I' + os.path.normpath(os.path.join(here, f[2:])))
 		elif f.startswith('-D') or f.startswith('-U'):
 			out.append(f)
 	return out

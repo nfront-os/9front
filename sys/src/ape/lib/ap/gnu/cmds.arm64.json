@@ -26,6 +26,7 @@
 			"getpagesize.c",
 			"hwcap.c",
 			"inttypes.c",
+			"newlocale.c",
 			"mman.c",
 			"multibyte.c",
 			"native.c",

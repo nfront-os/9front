@@ -31,6 +31,8 @@
 			"vendor/src/base/ftwinfnt.c",
 			"vendor/src/base/ftcid.c",
 			"vendor/src/base/ftgxval.c",
+			"vendor/src/base/ftbdf.c",
+			"vendor/src/base/ftfntfmt.c",
 			"vendor/src/autofit/autofit.c",
 			"vendor/src/bdf/bdf.c",
 			"vendor/src/cache/ftcache.c",

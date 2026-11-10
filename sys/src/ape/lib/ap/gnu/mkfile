@@ -18,6 +18,7 @@ OFILES=\
 	getpagesize.$O\
 	hwcap.$O\
 	inttypes.$O\
+	newlocale.$O\
 	mman.$O\
 	multibyte.$O\
 	native.$O\

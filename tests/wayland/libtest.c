@@ -2,11 +2,13 @@
  * SPDX-License-Identifier: MIT
  *
  * libtest: the libraries for APE that foot needs, on 9front (scripts/ape/
- * vendor.sh: sys/src/freetype, pixman, expat, xkbcommon): freetype renders
+ * vendor.sh: sys/src/freetype, pixman, expat, xkbcommon, fontconfig): freetype renders
  * an A of /lib/font/ttf/FiraSans-Regular.ttf at 32 pixels; pixman blends
  * half transparent red over blue; expat parses a little document;
  * xkbcommon compiles the keymap wlsys made of kbdfs' tables (wlclient
- * saved it as /tmp/keymap.xkb): x's key is x, with shift X.
+ * saved it as /tmp/keymap.xkb): x's key is x, with shift X; fontconfig
+ * reads /lib/fontconfig/fonts.conf, finds the fonts of /lib/font/ttf and
+ * matches sans-serif to Fira Sans' file.
  * Prints "ok ..." / "FAIL ..." lines and a summary.
  */
 #include <stdio.h>
@@ -18,6 +20,7 @@
 #include <pixman.h>
 #include <expat.h>
 #include <xkbcommon/xkbcommon.h>
+#include <fontconfig/fontconfig.h>
 
 static int nfail;
 
@@ -190,6 +193,40 @@ testxkb(void)
 	free(s);
 }
 
+static void
+testfontconfig(void)
+{
+	FcConfig *cfg;
+	FcFontSet *fs;
+	FcPattern *p, *m;
+	FcResult r;
+	FcChar8 *file, *fam;
+
+	cfg = FcInitLoadConfigAndFonts();
+	check("fontconfig: /lib/fontconfig/fonts.conf loaded", cfg != NULL, NULL);
+	if(cfg == NULL)
+		return;
+	fs = FcConfigGetFonts(cfg, FcSetSystem);
+	check("fontconfig: the fonts of /lib/font/ttf", fs != NULL && fs->nfont >= 1, "%d", fs ? fs->nfont : -1);
+	p = FcNameParse((const FcChar8*)"sans-serif:style=Regular");
+	FcConfigSubstitute(cfg, p, FcMatchPattern);
+	FcDefaultSubstitute(p);
+	m = FcFontMatch(cfg, p, &r);
+	check("fontconfig: sans-serif matched", m != NULL && r == FcResultMatch, "%d", r);
+	if(m != NULL){
+		file = fam = NULL;
+		FcPatternGetString(m, FC_FILE, 0, &file);
+		FcPatternGetString(m, FC_FAMILY, 0, &fam);
+		check("fontconfig: to FiraSans-Regular.ttf, Fira Sans",
+			file != NULL && strcmp((char*)file, "/lib/font/ttf/FiraSans-Regular.ttf") == 0 &&
+			fam != NULL && strcmp((char*)fam, "Fira Sans") == 0,
+			"%s, %s", file ? (char*)file : "none", fam ? (char*)fam : "none");
+		FcPatternDestroy(m);
+	}
+	FcPatternDestroy(p);
+	FcConfigDestroy(cfg);
+}
+
 int
 main(void)
 {
@@ -197,6 +234,7 @@ main(void)
 	testpixman();
 	testexpat();
 	testxkb();
+	testfontconfig();
 	printf(nfail ? "libtest: %d failed\n" : "libtest: all passed\n", nfail);
 	return nfail != 0;
 }
