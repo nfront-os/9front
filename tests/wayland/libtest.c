@@ -2,13 +2,14 @@
  * SPDX-License-Identifier: MIT
  *
  * libtest: the libraries for APE that foot needs, on 9front (scripts/ape/
- * vendor.sh: sys/src/freetype, pixman, expat, xkbcommon, fontconfig): freetype renders
+ * vendor.sh: sys/src/freetype, pixman, expat, xkbcommon, fontconfig, fcft): freetype renders
  * an A of /lib/font/ttf/FiraSans-Regular.ttf at 32 pixels; pixman blends
  * half transparent red over blue; expat parses a little document;
  * xkbcommon compiles the keymap wlsys made of kbdfs' tables (wlclient
  * saved it as /tmp/keymap.xkb): x's key is x, with shift X; fontconfig
  * reads /lib/fontconfig/fonts.conf, finds the fonts of /lib/font/ttf and
- * matches sans-serif to Fira Sans' file.
+ * matches sans-serif to Fira Sans' file; fcft loads it through fontconfig
+ * and rasterizes an A (a pixman image, inked) from two threads at once.
  * Prints "ok ..." / "FAIL ..." lines and a summary.
  */
 #include <stdio.h>
@@ -21,6 +22,8 @@
 #include <expat.h>
 #include <xkbcommon/xkbcommon.h>
 #include <fontconfig/fontconfig.h>
+#include <fcft/fcft.h>
+#include <pthread.h>
 
 static int nfail;
 
@@ -227,6 +230,60 @@ testfontconfig(void)
 	FcConfigDestroy(cfg);
 }
 
+static struct fcft_font *ftfont;
+
+/* an A's ink, rasterized by this thread */
+static void*
+ftraster(void *a)
+{
+	const struct fcft_glyph *g;
+	uint32_t *px;
+	int x, y, ink, stride;
+
+	(void)a;
+	g = fcft_rasterize_char_utf32(ftfont, 'A', FCFT_SUBPIXEL_NONE);
+	if(g == NULL || g->pix == NULL)
+		return (void*)-1;
+	px = pixman_image_get_data(g->pix);
+	stride = pixman_image_get_stride(g->pix);
+	ink = 0;
+	for(y = 0; y < g->height; y++)
+		for(x = 0; x < g->width; x++){
+			if(pixman_image_get_format(g->pix) == PIXMAN_a8){
+				if(((uint8_t*)px)[y*stride + x] > 128)
+					ink++;
+			}else if((((uint32_t*)((char*)px + y*stride))[x] >> 24) > 128)
+				ink++;
+		}
+	return (void*)(intptr_t)ink;
+}
+
+static void
+testfcft(void)
+{
+	const char *names[] = {"sans-serif"};
+	pthread_t t;
+	void *r1, *r2;
+	const struct fcft_glyph *g;
+
+	check("fcft: fcft_init", fcft_init(FCFT_LOG_COLORIZE_NEVER, false, FCFT_LOG_CLASS_ERROR), NULL);
+	ftfont = fcft_from_name(1, names, "size=12:dpi=96");
+	check("fcft: sans-serif at 12 points", ftfont != NULL && ftfont->height >= 12 && ftfont->height <= 24,
+		"%d", ftfont ? ftfont->height : -1);
+	if(ftfont == NULL)
+		return;
+	check("fcft: its name Fira Sans", ftfont->name != NULL && strstr(ftfont->name, "Fira Sans") != NULL,
+		"%s", ftfont->name ? ftfont->name : "none");
+	pthread_create(&t, NULL, ftraster, NULL);
+	r1 = ftraster(NULL);
+	pthread_join(t, &r2);
+	check("fcft: an A from two threads, inked alike", (intptr_t)r1 > 10 && r1 == r2, "%ld %ld", (long)(intptr_t)r1, (long)(intptr_t)r2);
+	g = fcft_rasterize_char_utf32(ftfont, 0x20ac, FCFT_SUBPIXEL_NONE);
+	check("fcft: € (U+20AC), an advance", g != NULL && g->advance.x > 0, NULL);
+	fcft_destroy(ftfont);
+	fcft_fini();
+}
+
 int
 main(void)
 {
@@ -235,6 +292,7 @@ main(void)
 	testexpat();
 	testxkb();
 	testfontconfig();
+	testfcft();
 	printf(nfail ? "libtest: %d failed\n" : "libtest: all passed\n", nfail);
 	return nfail != 0;
 }

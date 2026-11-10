@@ -1,0 +1,26 @@
+{
+	"name": "fcft",
+	"version": "3.3.3",
+	"url": "https://codeberg.org/dnkl/fcft/archive/3.3.3.tar.gz",
+	"sha256": "b0c0f4a599f43723736c8565b8b84337c4195077f07f1bb8bb3252bb13a2306a",
+	"key": "none: Codeberg's archive of the tag 3.3.3 (the project signs no tarballs)",
+	"tar": "../9front-ui/src/fcft-3.3.3.tar.gz",
+	"top": "fcft",
+	"keep": ["LICENSE", "README.md", "unicode/license.txt"],
+	"gen": [
+		["", "sh", "-c", "LC_ALL=C sh generate-unicode-precompose.sh unicode/UnicodeData.txt unicode-compose-table.h"],
+		["", "python3", "-I", "generate-emoji-data.py", "unicode/emoji-data.txt", "emoji-data.h"],
+		["", "sh", "-c", "LC_ALL=C sh generate-version.sh 3.3.3 /nonexistent version.h"]
+	],
+	"libraries": [{
+		"name": "fcft",
+		"library": "libfcft.a",
+		"objtag": "c",
+		"cflags": ["-O2", "-std=gnu11", "-D_GNU_SOURCE=200809L", "-DFCFT_EXPORT=", "-I../../include/ape/freetype2", "-I../../include/ape/pixman-1", "-Ivendor"],
+		"sources": ["fcft.c", "log.c"]
+	}],
+	"headers": [
+		{"from": "fcft/fcft.h", "to": "sys/include/ape/fcft"},
+		{"from": "fcft/stride.h", "to": "sys/include/ape/fcft"}
+	]
+}

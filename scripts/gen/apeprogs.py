@@ -3,7 +3,7 @@
 The tree's parts built with ../9front-gcc's cross compiler for APE (POSIX
 on 9front): the libraries of sys/src/mesa (libvulkan.a), sys/src/libffi,
 sys/src/wayland, sys/src/sdl3, sys/src/glfw, sys/src/freetype, sys/src/pixman,
-sys/src/expat, sys/src/xkbcommon, sys/src/fontconfig (compatibility manifests; the last five vendored by
+sys/src/expat, sys/src/xkbcommon, sys/src/fontconfig, sys/src/fcft (compatibility manifests; the last six vendored by
 scripts/ape/vendor.sh from their VENDOR.json,
 build.exe -D) and the programs made of them, which scripts/build/ape.sh
 installs in /$objtype/bin. scripts/gen/genbuild.py makes the build step,
@@ -20,7 +20,7 @@ OBJTYPES = ['amd64']
 
 # the libraries' manifests, in the order they depend on each other
 LIBS = ['sys/src/mesa', 'sys/src/libffi', 'sys/src/wayland', 'sys/src/sdl3', 'sys/src/glfw',
-	'sys/src/freetype', 'sys/src/pixman', 'sys/src/expat', 'sys/src/xkbcommon', 'sys/src/fontconfig']
+	'sys/src/freetype', 'sys/src/pixman', 'sys/src/expat', 'sys/src/xkbcommon', 'sys/src/fontconfig', 'sys/src/fcft']
 
 # program: its source directory
 PROGS = {'wlsys': 'sys/src/cmd/wlsys'}

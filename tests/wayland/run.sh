@@ -28,10 +28,10 @@ bash "$ROOT/scripts/wayland/build.sh" "$HERE/root/tests"
 "$CROSS/$TRIPLE-gcc" -std=gnu11 -O2 -Wall -Wno-unused-parameter -o "$HERE/root/tests/wlclient" "$HERE/wlclient.c" \
 	-lwayland-client -lffi
 "$CROSS/$TRIPLE-gcc" -std=gnu11 -O2 -Wall -o "$HERE/root/tests/wlwatch" "$HERE/wlwatch.c"
-# the libraries for foot (scripts/ape/vendor.sh: freetype, pixman, expat, xkbcommon, fontconfig), if built
-if [ -e "$ROOT/amd64/lib.gcc/ape/libfontconfig.a" ]; then
+# the libraries for foot (scripts/ape/vendor.sh: freetype, pixman, expat, xkbcommon, fontconfig, fcft), if built
+if [ -e "$ROOT/amd64/lib.gcc/ape/libfcft.a" ]; then
 	"$CROSS/$TRIPLE-gcc" -std=gnu11 -O2 -Wall -I"$ROOT/sys/include/ape/freetype2" -I"$ROOT/sys/include/ape/pixman-1" \
-		-o "$HERE/root/tests/libtest" "$HERE/libtest.c" -lfontconfig -lfreetype -lpixman-1 -lexpat -lxkbcommon -lm
+		-o "$HERE/root/tests/libtest" "$HERE/libtest.c" -lfcft -lfontconfig -lfreetype -lpixman-1 -lexpat -lxkbcommon -lm
 fi
 # weston's examples (scripts/wayland/weston.sh: simple-shm, simple-egl)
 bash "$ROOT/scripts/wayland/weston.sh" build "$HERE/root/tests" >/dev/null
@@ -90,7 +90,7 @@ if [ "${VKONLY:-0}" = 0 ]; then
 	echo "$out" | grep -q '^wltest: all passed' || { echo "FAIL wltest"; fail=1; }
 	echo "$wl" | grep -q '^wlclient: all passed' || { echo "FAIL wlclient"; fail=1; }
 	if [ -x "$HERE/root/tests/libtest" ]; then
-		echo "$lt" | grep -q '^libtest: all passed' || { echo "FAIL libtest (freetype, pixman, expat, xkbcommon, fontconfig)"; fail=1; }
+		echo "$lt" | grep -q '^libtest: all passed' || { echo "FAIL libtest (freetype, pixman, expat, xkbcommon, fontconfig, fcft)"; fail=1; }
 	fi
 	[ "$(echo "$ud" | tr -d '\r' | tail -1)" = none ] && echo "ok no socket left in /srv after wltest and wlsys exited" ||
 		{ echo "FAIL sockets left in /srv: $(echo "$ud" | tr '\n' ' ')"; fail=1; }

@@ -1,0 +1,23 @@
+[
+	{
+		"Name": "fcft",
+		"Compat": true,
+		"Cflags": [
+			"-Iplan9",
+			"-O2",
+			"-std=gnu11",
+			"-D_GNU_SOURCE=200809L",
+			"-DFCFT_EXPORT=",
+			"-I../../include/ape/freetype2",
+			"-I../../include/ape/pixman-1",
+			"-Ivendor"
+		],
+		"Library": "libfcft.a",
+		"Install": "/$ARCH/lib.gcc/ape",
+		"Objtag": "c",
+		"SourceFiles": [
+			"vendor/fcft.c",
+			"vendor/log.c"
+		]
+	}
+]
