@@ -10,10 +10,14 @@
 # See Cargo.toml.orig for the original contents.
 
 [package]
+autotests = false
+autobenches = false
+autoexamples = false
 edition = "2021"
 name = "owned_ttf_parser"
 version = "0.25.1"
 authors = ["Alex Butler <alexheretic@gmail.com>"]
+build = false
 include = [
     "README.md",
     "Cargo.toml",
@@ -22,9 +26,6 @@ include = [
 ]
 autolib = false
 autobins = false
-autoexamples = false
-autotests = false
-autobenches = false
 description = "ttf-parser plus support for owned data"
 readme = "README.md"
 keywords = [
@@ -55,9 +56,10 @@ opentype-layout = ["ttf-parser/opentype-layout"]
 std = ["ttf-parser/std"]
 variable-fonts = ["ttf-parser/variable-fonts"]
 
+[lib]
+name = "owned_ttf_parser"
+path = "src/lib.rs"
+
 [dependencies.ttf-parser]
 version = "0.25.1"
 default-features = false
-
-[lib]
-path = "lib.rs"

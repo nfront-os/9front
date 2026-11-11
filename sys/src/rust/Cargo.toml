@@ -5,7 +5,7 @@
 # ../9front-rust's, scripts/rust/crates.sh).
 [workspace]
 resolver = "2"
-members = ["../cmd/wsys", "../cmd/ui", "../libui/rust", "../cmd/uidemo", "../../../tests/winit"]
+members = ["../cmd/wsys", "../cmd/ui", "../cmd/term", "../libui/rust", "../cmd/uidemo", "../../../tests/winit"]
 
 [patch.crates-io]
 raw-window-handle = { path = "crates/raw-window-handle-0.6.2" }

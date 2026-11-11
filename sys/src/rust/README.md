@@ -23,4 +23,5 @@ A crate of the tree uses them by `[patch.crates-io]` with paths here
   (the static libvulkan.a, `VK_PLAN9_surface`); programs link
   `-l draw -l 9 -l fmt -l utf -l stdc++`.
 - `plan9/p9win` (MIT, ours): draw(3), `/dev/mouse`, `/dev/kbd`, `/dev/wctl`,
-  `/dev/cursor`, label, wctl, snarf.
+  `/dev/cursor`, label, wctl, snarf; a window made again in the next wsys
+  when its wsys is gone (`wsys.rs`).

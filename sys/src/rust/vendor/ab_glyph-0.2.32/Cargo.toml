@@ -10,15 +10,16 @@
 # See Cargo.toml.orig for the original contents.
 
 [package]
+autotests = false
+autobenches = false
+autoexamples = false
 edition = "2021"
 name = "ab_glyph"
 version = "0.2.32"
 authors = ["Alex Butler <alexheretic@gmail.com>"]
+build = false
 autolib = false
 autobins = false
-autoexamples = false
-autotests = false
-autobenches = false
 description = "API for loading, scaling, positioning and rasterizing OpenType font glyphs."
 readme = "README.md"
 keywords = [
@@ -49,6 +50,10 @@ std = [
 ]
 variable-fonts = ["owned_ttf_parser/variable-fonts"]
 
+[lib]
+name = "ab_glyph"
+path = "src/lib.rs"
+
 [dependencies.ab_glyph_rasterizer]
 version = "0.1.2"
 default-features = false
@@ -62,6 +67,3 @@ version = "0.25"
 default-features = false
 
 [dev-dependencies]
-
-[lib]
-path = "lib.rs"

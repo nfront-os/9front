@@ -15,7 +15,10 @@
 # pale on the screen), button 2's menu snarfs, pastes, cuts, sends. menu3.rc: button
 # 3's menu: New with a shell, Move, Resize, Hide and back, Delete. scroll.rc: double
 # clicks (a word, a line, in brackets) and the scroll bar. hold.rc: look, hold mode
-# (Esc), plumb (a plumber with plumbrules, started before wsys). Their output
+# (Esc), plumb (a plumber with plumbrules, started before wsys). term.rc: term
+# (sys/src/cmd/term) with rc on a pty of ptyfs, typed into (its screen's text
+# from TERMDEBUG=screen), button 1, 2 and the wheel; termrestart.rc: term in a
+# window of a wsys killed twice goes on in the next one (p9win). Their output
 # goes to files until the end: the kernel's console draws on the screen the test reads.
 # A second boot runs the same in a rio window.
 # Needs ../9front-rust's stage-1 rustc for wsys (scripts/build/cargo.sh).
@@ -26,10 +29,14 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 [ -f "$ROOT/amd64/bin/9pc64" ] || { skip "ui" "no kernel, run $BUILDHOW"; done_tests; exit; }
 
 check "build wsys (scripts/build/cargo.sh)" bash "$ROOT/scripts/build/cargo.sh" "$ROOT/sys/src/cmd/wsys" wsys || { done_tests; exit; }
+check "build term (scripts/build/cargo.sh)" bash "$ROOT/scripts/build/cargo.sh" "$ROOT/sys/src/cmd/term" term || { done_tests; exit; }
 buildtests(){ (cd "$HERE" && env PLAN9="$ROOT" ARCH=$objtype CC=gcc "$BUILDEXE" build.json); }
 check "build tests/ui" buildtests || { done_tests; exit; }
 mkdir -p "$HERE/root/tests"
 cp "$ROOT/amd64/bin/wsys" "$HERE/root/tests/wsys"
+cp "$ROOT/amd64/bin/term" "$HERE/root/tests/term"
+cp "$HERE/term.rc" "$HERE/root/tests/termtest"
+cp "$HERE/termrestart.rc" "$HERE/root/tests/termrestart"
 cp "$HERE/rio4.rc" "$HERE/root/tests/rio4"
 cp "$HERE/text.rc" "$HERE/root/tests/text"
 cp "$HERE/sel.rc" "$HERE/root/tests/sel"
@@ -37,7 +44,7 @@ cp "$HERE/menu3.rc" "$HERE/root/tests/menu3"
 cp "$HERE/scroll.rc" "$HERE/root/tests/scroll"
 cp "$HERE/hold.rc" "$HERE/root/tests/hold"
 cp "$HERE/plumbrules" "$HERE/root/tests/plumbrules"
-chmod +x "$HERE/root/tests/rio4" "$HERE/root/tests/text" "$HERE/root/tests/sel" "$HERE/root/tests/menu3" "$HERE/root/tests/scroll" "$HERE/root/tests/hold"
+chmod +x "$HERE/root/tests/termtest" "$HERE/root/tests/termrestart" "$HERE/root/tests/rio4" "$HERE/root/tests/text" "$HERE/root/tests/sel" "$HERE/root/tests/menu3" "$HERE/root/tests/scroll" "$HERE/root/tests/hold"
 
 # WSYSFLAGS: more flags for wsys (-d: its own devdraw)
 boot(){
@@ -52,6 +59,8 @@ boot(){
 		"/tests/wsys ${WSYSFLAGS:-} -x -i /tests/menu3 >/tmp/menu3.log >[2=1]; cat /tmp/menu3.log" \
 		"/tests/wsys ${WSYSFLAGS:-} -x -i /tests/scroll >/tmp/scroll.log >[2=1]; cat /tmp/scroll.log" \
 		"plumber -p /tests/plumbrules >/dev/null >[2=1] </dev/null; /tests/wsys ${WSYSFLAGS:-} -x -i /tests/hold >/tmp/hold.log >[2=1] </dev/null; cat /tmp/hold.log" \
+		"/tests/wsys ${WSYSFLAGS:-} -x -i /tests/termtest >/tmp/termtest.log >[2=1]; cat /tmp/termtest.log" \
+		"/tests/termrestart >/tmp/termrestart.log >[2=1]; cat /tmp/termrestart.log" \
 		> "$TMPD/console" 2>&1
 	tr -d '\r' < "$TMPD/console" > "$TMPD/log"
 }
@@ -70,6 +79,8 @@ check "selecting and snarfing (button 1, button 2's cut paste snarf send): all p
 check "button 3's menu (New, Move, Resize, Hide and back, Delete): all passed" grep -q '^menu3: all passed' "$TMPD/log"
 check "double clicks (word, line, brackets) and the scroll bar (1 held, 3, 2): all passed" grep -q '^scroll: all passed' "$TMPD/log"
 check "look, hold mode and plumb (the plumber started before wsys): all passed" grep -q '^hold: all passed' "$TMPD/log"
+check "term: rc on a pty typed into, colours, size, Del, alternate screen, select, paste, scroll back, exit: all passed" grep -q '^term: all passed' "$TMPD/log"
+check "term outlives its wsys: its window again in the next (p9win), twice: all passed" grep -q '^termrestart: all passed' "$TMPD/log"
 check "wsys posted /srv/wsys.glenda.pid on the 1024x768 screen" grep -qE '^wsys: /srv/wsys.glenda.[0-9]+ 0 0 1024 768' "$TMPD/log"
 check "no kernel panic" bash -c "! grep -q '^panic:' '$TMPD/log'"
 

@@ -1,0 +1,77 @@
+#!/bin/rc
+# a window that outlives its wsys (p9win's wsys.rs): term in a window of wsys A;
+# A killed (every proc, as a crash); wsys B started: term makes its window
+# there and goes on, its shell typed into; then wsys C the same after B is
+# killed. Run from the console (not in a wsys). Prints ok/FAIL lines and
+# "termrestart: all passed".
+rfork ne
+fn fail { echo FAIL $*; for(p in $wsyses) echo kill >/proc/$p/notepg >[2]/dev/null; exit fail }
+fn wait1 { # cmd...: until it succeeds, 15 s at most
+	n=0
+	while(! $* >[2]/dev/null && test $n -lt 150){ sleep 0.1; n=`{echo $n+1 | hoc} }
+	$* >[2]/dev/null
+}
+fn key { /tests/uipeek -k $1 }
+fn nl { /tests/uipeek -k '
+' }
+fn on { grep -s $1 $scr }
+fn start { # name: a wsys in the background; $w its pid
+	/tests/wsys >/tmp/wsys$1.log >[2=1] &
+	w=$apid
+	wsyses=($wsyses $w)
+	wait1 test -e /srv/wsys.$user.$w || fail no /srv/wsys.$user.$w: `{cat /tmp/wsys$1.log}
+}
+fn windows { # the windows of the wsys mounted on /mnt/wsys
+	ls -p /mnt/wsys | grep '^[0-9]+$'
+}
+wsyses=()
+bind -a '#i' /dev
+bind -a '#m' /dev
+
+echo '#!/bin/rc
+TERMDEBUG=screen
+exec /tests/term >/tmp/term.err >[2=1]' >/tmp/runterm
+chmod +x /tmp/runterm
+rm -f /tmp/term.*.geom /tmp/term.*.screen
+
+# A: term in a window
+start A
+a=$w
+mount /srv/wsys.$user.$a /mnt/wsys
+echo new -r 100 100 700 500 /tmp/runterm >/mnt/wsys/wctl
+fn geom { ls /tmp/term.*.geom }
+wait1 geom >/dev/null || fail no term in wsys A: `{cat /tmp/term.err}
+g=`{geom}
+t=`{echo $g | sed 's/.*term\.([0-9]+)\.geom/\1/'}
+scr=/tmp/term.$t.screen
+wait1 test -s $scr || fail no screen
+sleep 1
+key 'echo in A'; nl
+wait1 on '^in A$' || fail typing in A: `{cat $scr}
+echo ok term $t in wsys A, typed into
+
+for(b in B C){
+	# the wsys killed: all its procs, as a crash (its note group)
+	echo kill >/proc/$w/notepg
+	unmount /mnt/wsys >[2]/dev/null
+	wait1 test ! -e /proc/$w || fail wsys $w still there
+	sleep 1
+	test -e /proc/$t || fail term went with its wsys: `{cat /tmp/term.err}
+	echo ok term outlives its wsys
+	# the next: term finds it, makes its window there
+	start $b
+	mount /srv/wsys.$user.$w /mnt/wsys
+	wait1 windows >/dev/null || fail no window of term in wsys $b: `{cat /tmp/term.err}
+	echo ok term made its window in wsys $b: `{windows}
+	sleep 1
+	key 'echo in '$b; nl
+	wait1 on '^in '$b'$' || fail typing in wsys $b: `{cat $scr}
+	on '^in A$' || fail the screen of term lost: `{cat $scr}
+	echo ok term goes on in wsys $b, its screen kept
+}
+
+key 'exit'; nl
+wait1 test ! -e /proc/$t || fail term still there after exit
+echo ok term gone with its shell
+echo kill >/proc/$w/notepg
+echo termrestart: all passed

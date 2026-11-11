@@ -1,0 +1,127 @@
+.TH TERM 1
+.SH NAME
+term \- terminal for Plan 9 and POSIX programs
+.SH SYNOPSIS
+.B term
+[
+.B -r
+] [
+.B -f
+.I font.ttf
+] [
+.B -s
+.I size
+] [
+.I cmd
+[
+.I arg ...
+]
+]
+.SH DESCRIPTION
+.I Term
+runs
+.I cmd
+.RB ( "rc -i"
+by default) on a pseudo-terminal of
+.IR ptyfs (4)
+in its window of
+.IR wsys (4)
+or
+.IR rio (1)
+and shows what it writes as a terminal does: xterm's control
+sequences, colours (16, 256 and 24-bit), bold, italic, underlined and
+inverse text, the alternate screen of full-screen programs, and the
+lines that went off the top (10000 of them).
+It starts
+.I ptyfs
+and mounts it after
+.B /dev
+in a namespace of its own when there is none.
+.PP
+The program gets the pty's slave as
+.B /dev/cons
+and its
+.I consctl
+as
+.BR /dev/consctl ,
+in a namespace and note group of its own, so Plan 9's programs read
+and write the console as in a window of
+.IR rio ;
+POSIX programs (APE) find a terminal with
+.IR termios
+and
+.B TERM=xterm-256color.
+The pty knows the window's size in rows and columns.
+.PP
+Text is drawn with a TrueType font,
+.B /lib/font/ttf/Go-Mono.ttf
+unless
+.B -f
+names another, its bold, italic and bold italic styles from the
+files beside it
+.RI ( name -Bold.ttf,
+.IR name -Italic.ttf,
+.IR name -Bold-Italic.ttf);
+characters it lacks come from the other fonts in
+.BR /lib/font/ttf ,
+or are shown as an empty box.
+.B -s
+sets the height of a line in pixels (16).
+The colours are black on white;
+.B -r
+makes them white on black.
+.PP
+The mouse works as in
+.IR rio :
+button 1 selects text; button 2 holds a menu,
+.B snarf
+(the selection into the snarf buffer),
+.B paste
+(the snarf buffer typed, bracketed when the program asks) and
+.B send
+(the selection, or the snarf buffer, typed with a newline at the end).
+There is no
+.BR cut :
+what a terminal shows cannot be cut.
+The wheel and Shift with Page Up or Page Down scroll back; typing goes
+back to the bottom.
+A program that asked for the mouse gets it, unless Shift is held.
+Where a shell reads lines (the pty in canonical mode) Del interrupts,
+as in
+.IR rio ;
+in a full-screen program it is xterm's delete key.
+Enter sends a carriage return and backspace DEL, as POSIX programs
+expect.
+A program's title becomes the window's label.
+.I Term
+ends when its program does or when its window is deleted, which hangs
+the pty up.
+.PP
+With
+.B TERMDEBUG=screen
+in its environment
+.I term
+writes the text of its screen to
+.BI /tmp/term. pid .screen
+after each change and the cells' place to
+.BI /tmp/term. pid .geom
+.RI ( "x y width height rows columns" ),
+for tests.
+.SH EXAMPLES
+A shell in a new window of
+.IR wsys :
+.IP
+.EX
+window term
+.EE
+.SH SOURCE
+.B /sys/src/cmd/term
+.SH SEE ALSO
+.IR vt (1),
+.IR ptyfs (4),
+.IR wsys (4),
+.IR rio (1)
+.SH BUGS
+A program learns of a new size only when it asks: the pty posts no note
+.RB ( SIGWINCH ).
+There is no Alt (Meta) key: Plan 9's Alt composes characters.
