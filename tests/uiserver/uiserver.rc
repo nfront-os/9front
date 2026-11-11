@@ -319,6 +319,192 @@ p1=`{/tests/uipeek $x,$y | awk '{print $2}'}
 if(~ $p0 ffffff && ! ~ $p1 ffffff) ok 'focus ring: outside the focused text box' $p0 then $p1
 if not fail focus ring: at $x,$y $p0 then $p1
 
+# the kinds Masonry has besides: all made in one transaction, each a widget
+# (a rect); the tree gives them back
+echo clear >/mnt/ui/ctl
+echo 'new al align
+set al align right
+new alb label al
+set alb text right
+new zs zstack
+new z1 label zs
+set z1 text under
+new z2 label zs
+set z2 text over
+new st stack
+new sa label st
+set sa text first
+new sb label st
+set sb text second
+new sp split
+new s1 label sp
+set s1 text left
+new s2 label sp
+set s2 text right
+new bd badge
+set bd count 7
+new bg badged
+set bg badge new
+new bgl label bg
+set bgl text mail
+new cp collapse
+set cp text more
+new cpl label cp
+set cpl text inside
+new pr prose
+set pr text selectable
+new rg radiogroup
+new rc column rg
+new r1 radio rc
+set r1 text one
+new r2 radio rc
+set r2 text two
+new stp stepper
+set stp value 5
+new sv svg
+new ta textarea
+set ta text line
+new vl varlabel
+set vl text heavy
+set vl weight 700
+new pg pages
+set pg count 5' >/mnt/ui/ctl || fail the new kinds refused
+sleep 1
+nr=0
+for(k in al alb zs z1 z2 st sp s1 s2 bd bg bgl cp pr rg r1 r2 stp sv ta vl pg){
+	if(hasrect $k) nr=`{echo $nr+1 | hoc}
+	if not echo no rect: $k
+}
+kinds=`{cat /mnt/ui/nodes/^(al zs st sp bd bg cp pr rg r1 stp sv ta vl pg)^/kind}
+if(~ $nr 22 && ~ $"kinds 'align zstack stack split badge badged collapse prose radiogroup radio stepper svg textarea varlabel pages') ok 'kinds: align zstack stack split badge badged collapse prose radio radiogroup stepper svg textarea varlabel pages, each a widget'
+if not fail kinds: $nr rects of 22, $kinds
+
+# stack: one child shown (active), another when active changes
+echo clear >/mnt/ui/ctl
+echo 'new st stack
+set st flex 1
+new sa label st
+set sa text first
+set sa background #ff0000
+set sa padding 20
+new sb label st
+set sb text second
+set sb background #0000ff
+set sb padding 20' >/mnt/ui/ctl
+sleep 1
+r0=`{inside st ff0000}; b0=`{inside st 0000ff}
+echo 'set st active 1' >/mnt/ui/ctl
+sleep 1
+r1=`{inside st ff0000}; b1=`{inside st 0000ff}
+if(test $r0 -gt 200 && ~ $b0 0 && ~ $r1 0 && test $b1 -gt 200) ok 'stack: the active child shown,' red $r0 then blue $b1
+if not fail stack: red $r0 blue $b0, then red $r1 blue $b1
+
+# collapse: its child shown, folded away when collapsed
+echo clear >/mnt/ui/ctl
+echo 'new cp collapse
+set cp text more
+new cg label cp
+set cg text inside
+set cg background #00ff00
+set cg padding 20' >/mnt/ui/ctl
+sleep 1
+fn green { box=`{echo `{cat /mnt/ui/ctl} | awk '{printf "%d,%d,%d,%d\n", $1, $2, $1+$3, $2+$4}'}; /tests/uipeek -n $box 00ff00 }
+g0=`{green}
+echo 'set cp collapsed 1' >/mnt/ui/ctl
+sleep 1
+g1=`{green}
+if(test $g0 -gt 200 && ~ $g1 0) ok 'collapse: its child, then folded:' $g0 then $g1 green pixels
+if not fail collapse: $g0 then $g1 green pixels
+
+# split: a quarter for the first child
+echo clear >/mnt/ui/ctl
+echo 'new sp split
+set sp flex 1
+set sp fraction 0.25
+new s1 box sp
+set s1 background #ff0000
+new s2 box sp
+set s2 background #0000ff' >/mnt/ui/ctl
+sleep 1
+a=`{cat /mnt/ui/nodes/sp/rect}; l=`{cat /mnt/ui/nodes/s1/rect}; rr=`{cat /mnt/ui/nodes/s2/rect}
+w=`{echo $a(3)-$a(1) | hoc}; w1=`{echo $l(3)-$l(1) | hoc}
+q=`{echo 'int(100*'$w1'/'$w')' | hoc}
+if(test $q -ge 20 && test $q -le 30 && test $rr(1) -ge $l(3)) ok 'split: the first child' $q% of $w, the second after it
+if not fail split: $l and $rr in $a
+
+# radio: the second clicked, on, the first off; an event
+echo clear >/mnt/ui/ctl
+cat /mnt/ui/event >/tmp/ev4 &
+evpid4=$apid
+echo 'new rg radiogroup
+new rc column rg
+new r1 radio rc
+set r1 text one
+set r1 checked 1
+new r2 radio rc
+set r2 text two' >/mnt/ui/ctl
+sleep 1
+c=`{at r2}
+{ m $c(1) $c(2) 0; m $c(1) $c(2) 1; m $c(1) $c(2) 0 } >/dev/mousein
+waitfor /tmp/ev4 '^radio r2$'
+if(grep -s '^radio r2$' /tmp/ev4 && grep -s '^checked 0$' /mnt/ui/nodes/r1/props && grep -s '^checked 1$' /mnt/ui/nodes/r2/props) ok 'radio: two clicked, on; one off; radio r2'
+if not fail radio: `{cat /tmp/ev4} r1 `{cat /mnt/ui/nodes/r1/props} r2 `{cat /mnt/ui/nodes/r2/props}
+
+# stepper: its right half clicked, a step forward (the focus too), then the
+# up arrow, another (the left half steps back)
+echo clear >/mnt/ui/ctl
+echo 'new stp stepper
+set stp value 5
+set stp step 1
+set stp min 0
+set stp max 10' >/mnt/ui/ctl
+sleep 1
+o=`{cat /mnt/ui/ctl}; r=`{cat /mnt/ui/nodes/stp/rect}
+x=`{echo $o(1)+$r(3)-8 | hoc}; y=`{echo 'int('$o(2)'+('$r(2)+$r(4)')/2)' | hoc}
+{ m $x $y 0; m $x $y 1; m $x $y 0 } >/dev/mousein
+waitfor /tmp/ev4 '^step stp 6$'
+sleep 0.3
+/tests/uipeek -k ''
+waitfor /tmp/ev4 '^step stp 7$'
+if(grep -s '^step stp 6$' /tmp/ev4 && grep -s '^step stp 7$' /tmp/ev4 && grep -s '^value 7$' /mnt/ui/nodes/stp/props) ok 'stepper: clicked on its right, step stp 6; up, step stp 7'
+if not fail stepper: `{grep '^step' /tmp/ev4} props `{cat /mnt/ui/nodes/stp/props}
+
+# pages: a later page's button clicked
+echo clear >/mnt/ui/ctl
+echo 'new pg pages
+set pg count 5' >/mnt/ui/ctl
+sleep 1
+o=`{cat /mnt/ui/ctl}; r=`{cat /mnt/ui/nodes/pg/rect}
+x=`{echo $o(1)+$r(3)-12 | hoc}; y=`{echo 'int('$o(2)'+('$r(2)+$r(4)')/2)' | hoc}
+{ m $x $y 0; m $x $y 1; m $x $y 0 } >/dev/mousein
+waitfor /tmp/ev4 '^page pg [1-9]'
+if(grep -s '^page pg [1-9]' /tmp/ev4) ok 'pages: a later page:' `{grep '^page' /tmp/ev4} `{grep '^page' /mnt/ui/nodes/pg/props}
+if not fail pages: `{grep '^page' /tmp/ev4}, rect $r
+
+# svg: its picture written to nodes/id/image, drawn
+echo clear >/mnt/ui/ctl
+echo 'new sv svg' >/mnt/ui/ctl
+echo '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="30"><rect width="40" height="30" fill="#ff0000"/></svg>' >/mnt/ui/nodes/sv/image || fail svg written
+sleep 1
+red=`{inside sv ff0000}
+if(~ `{cat /mnt/ui/nodes/sv/image} '40 30' && test $red -gt 600) ok 'svg: 40 by 30,' $red red pixels
+if not fail svg: `{cat /mnt/ui/nodes/sv/image}, $red red pixels
+
+# textarea: typed into, Enter a new line; its text in the tree as 'a\nb'
+echo clear >/mnt/ui/ctl
+echo 'new ta textarea
+set ta flex 1' >/mnt/ui/ctl
+sleep 1
+c=`{at ta}
+{ m $c(1) $c(2) 0; m $c(1) $c(2) 1; m $c(1) $c(2) 0 } >/dev/mousein
+sleep 0.3
+/tests/uipeek -k 'a
+b'
+waitfor /tmp/ev4 '^text ta ''a\\nb''$'
+if(grep -s '^text ta ''a\\nb''$' /tmp/ev4 && grep -s '^set ta text ''a\\nb''$' /mnt/ui/tree) ok 'textarea: two lines, a\nb, in the event and the tree'
+if not fail textarea: `{grep '^(text|enter) ta' /tmp/ev4} tree `{grep 'ta text' /mnt/ui/tree}
+echo kill >/proc/$evpid4/note
+
 # the window deleted: wsys ends ui with a note (as rio); its /srv/uitest goes
 # with it (ORCLOSE), a read of event ends
 cat /mnt/ui/event >/tmp/ev2 &

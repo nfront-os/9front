@@ -37,7 +37,12 @@ use masonry::widgets::{
     Button, ButtonPress, Checkbox, CheckboxToggled, Flex, Label, Portal, ProgressBar, SizedBox, Slider,
     SliderMoved, TextAction, TextArea, TextInput, VirtualScroll, VirtualScrollAction, Image, Selector,
     SelectionChanged, Switch, SwitchToggled, Divider, Spinner, Grid, GridParams, GridTrackSize,
+    Align, ZStack, ChildAlignment, IndexedStack, Split, Badge, Badged, BadgePlacement, CollapsePanel, Prose,
+    RadioButton, RadioButtonSelected, RadioGroup, StepInput, Step, SplitPoint, Svg, InsertNewline, VariableLabel, Pagination,
+    PageChanged,
 };
+use masonry::layout::UnitPoint;
+use masonry::kurbo::Axis;
 use masonry::peniko::{ImageAlphaType, ImageBrush, ImageData, ImageFormat};
 use masonry_imaging::{Layer as ImagingLayer, PreparedFrame};
 use imaging::render::{ImageBufferFormat, ImageBufferTarget, ImageRenderer};
@@ -267,6 +272,61 @@ fn len(v: Option<f64>) -> Option<Length> {
     v.filter(|x| *x >= 0.0).map(Length::px)
 }
 
+/// a place in a box: align's words (center the default)
+fn unitpoint(s: Option<&str>) -> UnitPoint {
+    match s {
+        Some("left") => UnitPoint::LEFT,
+        Some("right") => UnitPoint::RIGHT,
+        Some("top") => UnitPoint::TOP,
+        Some("bottom") => UnitPoint::BOTTOM,
+        Some("topleft") => UnitPoint::TOP_LEFT,
+        Some("topright") => UnitPoint::TOP_RIGHT,
+        Some("bottomleft") => UnitPoint::BOTTOM_LEFT,
+        Some("bottomright") => UnitPoint::BOTTOM_RIGHT,
+        _ => UnitPoint::CENTER,
+    }
+}
+
+/// child i of node id as widgets, else an empty box (a kind that wants one)
+fn nth(sc: &Scene, id: &str, i: usize, ids: &mut Ids) -> NewWidget<dyn Widget> {
+    match sc.nodes[id].children.get(i) {
+        Some(c) => build(sc, c, ids),
+        None => NewWidget::new(SizedBox::empty()).erased(),
+    }
+}
+
+/// an svg node's picture (written to nodes/id/image), else nothing to draw
+fn svgtree(sc: &Scene, id: &str) -> Arc<resvg::usvg::Tree> {
+    sc.svgs.get(id).cloned().unwrap_or_else(|| {
+        let empty = r#"<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>"#;
+        Arc::new(resvg::usvg::Tree::from_str(empty, &resvg::usvg::Options::default()).expect("an empty svg"))
+    })
+}
+
+/// a stepper's numbers: value step min max (0 1 0 100 unless said)
+fn stepnums(n: &scene::Node) -> (f64, f64, f64, f64) {
+    let (lo, hi) = (n.num("min").unwrap_or(0.0), n.num("max").unwrap_or(100.0));
+    let (lo, hi) = (lo.min(hi), hi.max(lo));
+    (n.num("value").unwrap_or(lo).clamp(lo, hi), n.num("step").filter(|s| *s > 0.0).unwrap_or(1.0), lo, hi)
+}
+
+fn placement(s: Option<&str>) -> BadgePlacement {
+    match s {
+        Some("topleft") => BadgePlacement::TopLeft,
+        Some("bottomleft") => BadgePlacement::BottomLeft,
+        Some("bottomright") => BadgePlacement::BottomRight,
+        _ => BadgePlacement::TopRight,
+    }
+}
+
+/// a badge: its count (count), else its text
+fn badge(n: &scene::Node, text: &str) -> NewWidget<dyn Widget> {
+    match n.num("count") {
+        Some(c) => NewWidget::new(Badge::count(c.max(0.0) as u32)).erased(),
+        None => NewWidget::new(Badge::with_text(text.to_string())).erased(),
+    }
+}
+
 /// a node of the scene and what is under it as Masonry's widgets
 fn build(sc: &Scene, id: &str, ids: &mut Ids) -> NewWidget<dyn Widget> {
     let n = &sc.nodes[id];
@@ -344,6 +404,79 @@ fn build(sc: &Scene, id: &str, ids: &mut Ids) -> NewWidget<dyn Widget> {
             ids.shown.insert(id.to_string(), n.children.clone());
             ids.active.insert(id.to_string(), Default::default());
             NewWidget::new(VirtualScroll::new(0, n.children.len())).erased()
+        }
+        Kind::Align => {
+            ids.shown.insert(id.to_string(), n.children.clone());
+            NewWidget::new(Align::new(unitpoint(n.prop("align")), nth(sc, id, 0, ids))).erased()
+        }
+        Kind::ZStack => {
+            ids.shown.insert(id.to_string(), n.children.clone());
+            let mut z = ZStack::new().with_alignment(unitpoint(n.prop("align")));
+            for i in 0..n.children.len() {
+                z = z.with(nth(sc, id, i, ids), ChildAlignment::ParentAligned);
+            }
+            NewWidget::new(z).erased()
+        }
+        Kind::Stack => {
+            ids.shown.insert(id.to_string(), n.children.clone());
+            let mut st = IndexedStack::new();
+            for i in 0..n.children.len() {
+                st = st.with(nth(sc, id, i, ids));
+            }
+            let a = n.num("active").map_or(0, |a| a.max(0.0) as usize).min(n.children.len().saturating_sub(1));
+            NewWidget::new(st.with_active_child(a)).erased()
+        }
+        Kind::Split => {
+            ids.shown.insert(id.to_string(), n.children.clone());
+            let (a, b) = (nth(sc, id, 0, ids), nth(sc, id, 1, ids));
+            let axis = if n.prop("axis") == Some("vertical") { Axis::Vertical } else { Axis::Horizontal };
+            let sp = Split::new(a, b)
+                .split_axis(axis)
+                .split_fraction(n.num("fraction").unwrap_or(0.5).clamp(0.0, 1.0))
+                .draggable(n.prop("draggable") != Some("0"));
+            NewWidget::new(sp).erased()
+        }
+        Kind::Badge => badge(n, &text),
+        Kind::Badged => {
+            ids.shown.insert(id.to_string(), n.children.clone());
+            let content = nth(sc, id, 0, ids);
+            let b = match n.prop("badge") {
+                Some(t) => Badged::new(content, NewWidget::new(Badge::with_text(t.to_string()))),
+                None => Badged::new_optional(content, None),
+            };
+            NewWidget::new(b.with_badge_placement(placement(n.prop("placement")))).erased()
+        }
+        Kind::Collapse => {
+            ids.shown.insert(id.to_string(), n.children.clone());
+            let c = CollapsePanel::new(n.prop("collapsed") == Some("1"), text, nth(sc, id, 0, ids));
+            NewWidget::new(c).erased()
+        }
+        Kind::Prose => NewWidget::new(Prose::new(&text)).erased(),
+        Kind::Radio => NewWidget::new(RadioButton::new(n.prop("checked") == Some("1"), text)).erased(),
+        Kind::RadioGroup => {
+            ids.shown.insert(id.to_string(), n.children.clone());
+            NewWidget::new(RadioGroup::new(nth(sc, id, 0, ids))).erased()
+        }
+        Kind::Stepper => {
+            let (v, st, lo, hi) = stepnums(n);
+            NewWidget::new(StepInput::<f64>::new(v, st, lo, hi).with_wrap(n.prop("wrap") == Some("1"))).erased()
+        }
+        Kind::Svg => NewWidget::new(Svg::new(svgtree(sc, id))).erased(),
+        Kind::TextArea => {
+            // as a text box, more lines: Enter makes a new one
+            let area = NewWidget::new(TextArea::new_editable(&text).with_insert_newline(InsertNewline::OnEnter));
+            ids.node.insert(area.id(), id.to_string());
+            let mut t = TextInput::from_text_area(area);
+            if let Some(p) = n.prop("placeholder") {
+                t = t.with_placeholder(p.to_string());
+            }
+            NewWidget::new(t).erased()
+        }
+        Kind::VarLabel => NewWidget::new(VariableLabel::new(text).with_initial_weight(n.num("weight").unwrap_or(400.0) as f32)).erased(),
+        Kind::Pages => {
+            let count = n.num("count").map_or(1, |c| c.max(1.0) as usize);
+            let page = n.num("page").map_or(0, |p| p.max(0.0) as usize).min(count - 1);
+            NewWidget::new(Pagination::new(count).active_page(page)).erased()
         }
         Kind::Box => {
             ids.shown.insert(id.to_string(), n.children.clone());
@@ -496,6 +629,32 @@ fn sync(root: &mut RenderRoot, sc: &Scene, ids: &mut Ids, created: &BTreeSet<Str
                     match new.first() {
                         Some(c) => SizedBox::set_child(&mut b, build(sc, c, ids)),
                         None => SizedBox::remove_child(&mut b),
+                    }
+                }
+            }
+            // one child, made again when it is another
+            Kind::Align | Kind::Collapse | Kind::Badged => {
+                if !kn.first().copied().unwrap_or(old.is_empty()) {
+                    let child = nth(sc, &p, 0, ids);
+                    match kind {
+                        Kind::Align => Align::set_child(&mut w.downcast::<Align>(), child),
+                        Kind::Collapse => CollapsePanel::set_child(&mut w.downcast::<CollapsePanel>(), child),
+                        _ => Badged::set_content(&mut w.downcast::<Badged>(), child),
+                    }
+                }
+            }
+            // two: each in its place
+            Kind::Split => {
+                let mut sp = w.downcast::<Split<dyn Widget, dyn Widget>>();
+                for i in 0..2 {
+                    let same = old.get(i) == new.get(i) && new.get(i).is_none_or(|c| !created.contains(c));
+                    if !same {
+                        let child = nth(sc, &p, i, ids);
+                        if i == 0 {
+                            Split::set_child1(&mut sp, child);
+                        } else {
+                            Split::set_child2(&mut sp, child);
+                        }
                     }
                 }
             }
@@ -692,6 +851,28 @@ impl App {
             created.extend(ch.created);
             props.extend(ch.props);
         }
+        // kinds whose widgets cannot take or give up a child (zstack, stack,
+        // radiogroup): made again when their children change, and so those
+        // they are in that cannot either
+        if structure {
+            let sc = &self.fs.scene;
+            let again = |k: Kind| matches!(k, Kind::ZStack | Kind::Stack | Kind::RadioGroup);
+            for (id, n) in &sc.nodes {
+                if again(n.kind) && self.ids.shown.get(id).is_some_and(|old| *old != n.children) {
+                    created.insert(id.clone());
+                    let mut p = n.parent.clone();
+                    while let Some(pid) = p {
+                        match sc.nodes.get(&pid) {
+                            Some(pn) if again(pn.kind) => {
+                                created.insert(pid.clone());
+                                p = pn.parent.clone();
+                            }
+                            _ => break,
+                        }
+                    }
+                }
+            }
+        }
         // the shape first: the nodes made have their properties already
         if structure {
             sync(&mut g.root, &self.fs.scene, &mut self.ids, &created);
@@ -815,7 +996,83 @@ impl App {
                         Grid::set_columns(&mut gr, vec![GridTrackSize::FRACTION; cols]);
                         Grid::set_rows(&mut gr, vec![GridTrackSize::FRACTION; n.children.len().div_ceil(cols).max(1)]);
                     }
-                    Kind::Scroll | Kind::List | Kind::Divider | Kind::Spinner => {}
+                    Kind::Align => Align::set_alignment(&mut w.downcast::<Align>(), unitpoint(n.prop("align"))),
+                    Kind::ZStack => ZStack::set_alignment(&mut w.downcast::<ZStack>(), unitpoint(n.prop("align"))),
+                    Kind::Stack => {
+                        let a = n.num("active").map_or(0, |a| a.max(0.0) as usize).min(n.children.len().saturating_sub(1));
+                        IndexedStack::set_active_child(&mut w.downcast::<IndexedStack>(), a);
+                    }
+                    Kind::Split => {
+                        let mut sp = w.downcast::<Split<dyn Widget, dyn Widget>>();
+                        let axis = if n.prop("axis") == Some("vertical") { Axis::Vertical } else { Axis::Horizontal };
+                        Split::set_split_axis(&mut sp, axis);
+                        if let Some(f) = n.num("fraction") {
+                            Split::set_split_point(&mut sp, SplitPoint::Fraction(f.clamp(0.0, 1.0)));
+                        }
+                        Split::set_draggable(&mut sp, n.prop("draggable") != Some("0"));
+                    }
+                    Kind::Badge => {
+                        let t = n.num("count").map_or(text.clone(), |c| format!("{}", c.max(0.0) as u32));
+                        Badge::set_child(&mut w.downcast::<Badge>(), NewWidget::new(Label::new(t)));
+                    }
+                    Kind::Badged => {
+                        let mut b = w.downcast::<Badged>();
+                        match n.prop("badge") {
+                            Some(t) => Badged::set_badge(&mut b, NewWidget::new(Badge::with_text(t.to_string()))),
+                            None => Badged::clear_badge(&mut b),
+                        }
+                        Badged::set_badge_placement(&mut b, placement(n.prop("placement")));
+                    }
+                    Kind::Collapse => {
+                        let mut c = w.downcast::<CollapsePanel>();
+                        CollapsePanel::set_collapsed(&mut c, n.prop("collapsed") == Some("1"));
+                        CollapsePanel::set_text(&mut c, text.into());
+                    }
+                    Kind::Prose => {
+                        let mut pr = w.downcast::<Prose>();
+                        let mut area = Prose::text_mut(&mut pr);
+                        if area.widget.text().to_string() != text {
+                            TextArea::reset_text(&mut area, &text);
+                        }
+                    }
+                    Kind::Radio => {
+                        let mut r = w.downcast::<RadioButton>();
+                        RadioButton::set_checked(&mut r, n.prop("checked") == Some("1"));
+                        RadioButton::set_text(&mut r, text.into());
+                    }
+                    Kind::Stepper => {
+                        let mut st = w.downcast::<StepInput<f64>>();
+                        let (v, step, lo, hi) = stepnums(&n);
+                        StepInput::set_bounds(&mut st, lo, hi);
+                        StepInput::set_step(&mut st, step);
+                        StepInput::set_base(&mut st, v);
+                        StepInput::set_wrap(&mut st, n.prop("wrap") == Some("1"));
+                    }
+                    Kind::Svg => Svg::set_tree(&mut w.downcast::<Svg>(), svgtree(&self.fs.scene, &id)),
+                    Kind::TextArea => {
+                        let mut t = w.downcast::<TextInput>();
+                        let mut area = TextInput::text_mut(&mut t);
+                        if area.widget.text().to_string() != text {
+                            TextArea::reset_text(&mut area, &text);
+                        }
+                        drop(area);
+                        if let Some(p) = n.prop("placeholder") {
+                            TextInput::set_placeholder(&mut t, p.to_string());
+                        }
+                    }
+                    Kind::VarLabel => {
+                        let mut v = w.downcast::<VariableLabel>();
+                        VariableLabel::set_text(&mut v, text);
+                        let ms = n.num("animate").filter(|m| *m > 0.0).unwrap_or(0.0) as f32;
+                        VariableLabel::set_target_weight(&mut v, n.num("weight").unwrap_or(400.0) as f32, ms);
+                    }
+                    Kind::Pages => {
+                        let mut pg = w.downcast::<Pagination>();
+                        let count = n.num("count").map_or(1, |c| c.max(1.0) as usize);
+                        Pagination::set_page_count(&mut pg, count);
+                        Pagination::set_active_page(&mut pg, n.num("page").map_or(0, |p| p.max(0.0) as usize).min(count - 1));
+                    }
+                    Kind::Scroll | Kind::List | Kind::Divider | Kind::Spinner | Kind::RadioGroup => {}
                     }
                 });
             }
@@ -927,13 +1184,56 @@ impl App {
             let v = a.downcast::<SliderMoved>().unwrap().value;
             set(&mut self.fs, "value", format!("{v}"));
             self.event(format!("slide {id} {v}"));
+        } else if a.is::<RadioButtonSelected>() {
+            // the one on in its group (the radiogroup it is in), the others off
+            let group = {
+                let sc = &self.fs.scene;
+                let mut p = sc.nodes.get(&id).and_then(|n| n.parent.clone());
+                while let Some(pid) = p.clone() {
+                    if sc.nodes.get(&pid).is_some_and(|n| n.kind == Kind::RadioGroup) {
+                        break;
+                    }
+                    p = sc.nodes.get(&pid).and_then(|n| n.parent.clone());
+                }
+                p
+            };
+            let mut radios = vec![id.clone()];
+            if let Some(gid) = group {
+                let mut todo = vec![gid];
+                while let Some(x) = todo.pop() {
+                    if let Some(n) = self.fs.scene.nodes.get(&x) {
+                        if n.kind == Kind::Radio && x != id {
+                            radios.push(x.clone());
+                        }
+                        todo.extend(n.children.iter().cloned());
+                    }
+                }
+            }
+            for r in &radios {
+                let on = *r == id;
+                if let Some(n) = self.fs.scene.nodes.get_mut(r) {
+                    n.props.insert("checked".to_string(), if on { "1" } else { "0" }.to_string());
+                }
+                if let (Some(g), Some(&w)) = (self.gui.as_mut(), self.ids.widget.get(r)) {
+                    g.root.edit_widget(w, |mut w| RadioButton::set_checked(&mut w.downcast::<RadioButton>(), on));
+                }
+            }
+            self.event(format!("radio {id}"));
+        } else if a.is::<Step<f64>>() {
+            let v = a.downcast::<Step<f64>>().unwrap().value;
+            set(&mut self.fs, "value", format!("{v}"));
+            self.event(format!("step {id} {v}"));
+        } else if a.is::<PageChanged>() {
+            let pg = a.downcast::<PageChanged>().unwrap().0;
+            set(&mut self.fs, "page", format!("{pg}"));
+            self.event(format!("page {id} {pg}"));
         } else if a.is::<TextAction>() {
             match *a.downcast::<TextAction>().unwrap() {
                 TextAction::Changed(t) => {
-                    set(&mut self.fs, "text", t.clone());
-                    self.event(format!("text {id} {t}"));
+                    self.event(format!("text {id} {}", scene::evquote(&t)));
+                    set(&mut self.fs, "text", t);
                 }
-                TextAction::Entered(t) => self.event(format!("enter {id} {t}")),
+                TextAction::Entered(t) => self.event(format!("enter {id} {}", scene::evquote(&t))),
                 TextAction::Cancelled => {}
             }
         }

@@ -3149,6 +3149,7 @@ dependencies = [
  "masonry_imaging",
  "p9win",
  "png",
+ "resvg",
  "softbuffer",
  "ui-events-winit",
  "wgpu",

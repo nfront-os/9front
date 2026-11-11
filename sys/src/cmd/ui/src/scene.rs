@@ -15,7 +15,18 @@
 // list (a column that scrolls, widgets only for the children seen: long lists)
 // image (its picture written to nodes/id/image: PNG or image(6)) select (a
 // menu: options a|b|c, selected index) switch divider spinner grid (columns
-// n: its children row by row, a table)
+// n: its children row by row, a table) align (its child where align says: center
+// left right top bottom topleft ...) zstack (its children over each other)
+// stack (one of its children: active index; tabs) split (two children, a bar
+// between: axis horizontal vertical, fraction 0..1, draggable 0 1) badge (text,
+// or count) badged (its child with a badge: badge text, placement topleft
+// topright bottomleft bottomright) collapse (its child under a header that
+// folds it: text, collapsed 0 1) prose (text to select and copy, not edit)
+// radio (text, checked) radiogroup (its child holds radios: one of them on)
+// stepper (a number and its buttons: value step min max, wrap 0 1) svg (its
+// picture, SVG, written to nodes/id/image) textarea (lines of text: text,
+// placeholder; Enter a new line) varlabel (text, weight 100..900, moved with
+// animate) pages (buttons for pages: count, page)
 // keys: text, placeholder (textbox), checked (checkbox: 0 1), value
 // (progress: 0..1, none; slider), min max step (slider), width height (box),
 // flex (a child's share of its row or column), gap (between a row's or
@@ -49,6 +60,21 @@ pub enum Kind {
     Divider,
     Spinner,
     Grid,
+    Align,
+    ZStack,
+    Stack,
+    Split,
+    Badge,
+    Badged,
+    Collapse,
+    Prose,
+    Radio,
+    RadioGroup,
+    Stepper,
+    Svg,
+    TextArea,
+    VarLabel,
+    Pages,
 }
 
 impl Kind {
@@ -71,6 +97,21 @@ impl Kind {
             "divider" => Kind::Divider,
             "spinner" => Kind::Spinner,
             "grid" => Kind::Grid,
+            "align" => Kind::Align,
+            "zstack" => Kind::ZStack,
+            "stack" => Kind::Stack,
+            "split" => Kind::Split,
+            "badge" => Kind::Badge,
+            "badged" => Kind::Badged,
+            "collapse" => Kind::Collapse,
+            "prose" => Kind::Prose,
+            "radio" => Kind::Radio,
+            "radiogroup" => Kind::RadioGroup,
+            "stepper" => Kind::Stepper,
+            "svg" => Kind::Svg,
+            "textarea" => Kind::TextArea,
+            "varlabel" => Kind::VarLabel,
+            "pages" => Kind::Pages,
             _ => return None,
         })
     }
@@ -94,14 +135,30 @@ impl Kind {
             Kind::Divider => "divider",
             Kind::Spinner => "spinner",
             Kind::Grid => "grid",
+            Kind::Align => "align",
+            Kind::ZStack => "zstack",
+            Kind::Stack => "stack",
+            Kind::Split => "split",
+            Kind::Badge => "badge",
+            Kind::Badged => "badged",
+            Kind::Collapse => "collapse",
+            Kind::Prose => "prose",
+            Kind::Radio => "radio",
+            Kind::RadioGroup => "radiogroup",
+            Kind::Stepper => "stepper",
+            Kind::Svg => "svg",
+            Kind::TextArea => "textarea",
+            Kind::VarLabel => "varlabel",
+            Kind::Pages => "pages",
         }
     }
 
     /// how many children it takes
     pub fn holds(self) -> usize {
         match self {
-            Kind::Column | Kind::Row | Kind::List | Kind::Grid => usize::MAX,
-            Kind::Scroll | Kind::Box => 1,
+            Kind::Column | Kind::Row | Kind::List | Kind::Grid | Kind::ZStack | Kind::Stack => usize::MAX,
+            Kind::Split => 2,
+            Kind::Scroll | Kind::Box | Kind::Align | Kind::Badged | Kind::Collapse | Kind::RadioGroup => 1,
             _ => 0,
         }
     }
@@ -142,6 +199,7 @@ pub struct Scene {
     pub nodes: BTreeMap<String, Node>,
     pub title: String,
     pub images: BTreeMap<String, Arc<Picture>>, // image nodes' pictures (nodes/id/image)
+    pub svgs: BTreeMap<String, Arc<resvg::usvg::Tree>>, // svg nodes' pictures (nodes/id/image)
 }
 
 pub const ROOT: &str = "root";
@@ -159,7 +217,7 @@ impl Scene {
             ROOT.to_string(),
             Node { kind: Kind::Column, props: BTreeMap::new(), children: Vec::new(), parent: None },
         );
-        Scene { nodes, title: "ui".to_string(), images: BTreeMap::new() }
+        Scene { nodes, title: "ui".to_string(), images: BTreeMap::new(), svgs: BTreeMap::new() }
     }
 
     /// a write of ctl: all its lines or none (an error names the line)
@@ -295,6 +353,7 @@ impl Scene {
 
     fn remove(&mut self, id: &str) {
         self.images.remove(id);
+        self.svgs.remove(id);
         if let Some(n) = self.nodes.remove(id) {
             for c in n.children {
                 self.remove(&c);
@@ -335,24 +394,63 @@ fn split1(s: &str) -> (&str, &str) {
 pub fn unquote(v: &str) -> String {
     let t = v.trim_end_matches(['\n', '\r']);
     if t.len() >= 2 && t.starts_with('\'') && t.ends_with('\'') {
-        t[1..t.len() - 1].replace("''", "'")
+        unescape(&t[1..t.len() - 1].replace("''", "'"))
     } else {
         t.to_string()
     }
 }
 
-/// quoted as rc would, where it has to be
+/// in a quoted value: \n a new line, \\ a backslash (others as they are)
+fn unescape(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut it = s.chars().peekable();
+    while let Some(c) = it.next() {
+        match (c, it.peek()) {
+            ('\\', Some('n')) => {
+                out.push('\n');
+                it.next();
+            }
+            ('\\', Some('\\')) => {
+                out.push('\\');
+                it.next();
+            }
+            _ => out.push(c),
+        }
+    }
+    out
+}
+
+/// quoted as rc would, where it has to be; lines (a textarea's text) with
+/// \n for their ends, so that the value stays on its line (backslashes \\)
 pub fn quote(v: &str) -> String {
     if !v.is_empty() && !v.starts_with(char::is_whitespace) && !v.ends_with(char::is_whitespace) && !v.starts_with('\'') && !v.contains('\n') {
         v.to_string()
     } else {
-        format!("'{}'", v.replace('\'', "''").replace('\n', " "))
+        format!("'{}'", v.replace('\'', "''").replace('\\', "\\\\").replace('\n', "\\n"))
     }
+}
+
+/// a value in an event: as it is, but quoted when it has lines
+pub fn evquote(v: &str) -> String {
+    if v.contains('\n') { quote(v) } else { v.to_string() }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn lines() {
+        // a textarea's text: its lines' ends as \n, in quotes; backslashes doubled
+        let v = "one\ntwo \\ three";
+        assert_eq!(quote(v), "'one\\ntwo \\\\ three'");
+        assert_eq!(unquote(&quote(v)), v);
+        assert_eq!(unquote("plain \\n"), "plain \\n"); // unquoted: as it is
+        let mut s = Scene::new();
+        s.apply("new ta textarea\nset ta text 'a\\nb'\n").unwrap();
+        assert_eq!(s.nodes["ta"].prop("text"), Some("a\nb"));
+        assert!(s.dump().contains("set ta text 'a\\nb'\n"));
+    }
 
     #[test]
     fn transactions() {

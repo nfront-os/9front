@@ -71,12 +71,19 @@ names the line); read: where the window's contents are on the screen,
 Read: what the user did, a line each, from the open on:
 .BI click " id" ,
 .BI text " id text"
-(a text box changed),
+(a text box or textarea changed; a textarea's lines quoted, as in
+.BR set ),
 .BI enter " id text" ,
 .BI check " id " 0 \fR|\fP 1
 (a check box, a switch),
 .BI slide " id value" ,
 .BI select " id index option" ,
+.BI radio " id
+(that radio turned on),
+.BI step " id value
+(a stepper),
+.BI page " id page
+(pages),
 .BR close .
 A read waits for one; a flush (an interrupt) ends the wait.
 .TP
@@ -163,7 +170,91 @@ one's index),
 .B axis
 .B vertical
 in a row),
-.BR spinner ;
+.BR spinner ,
+.B align
+(its child where
+.B align
+says:
+.BR center ,
+.BR left ,
+.BR right ,
+.BR top ,
+.BR bottom ,
+.BR topleft ,
+.BR topright ,
+.BR bottomleft ,
+.BR bottomright ),
+.B zstack
+(its children over each other, aligned as
+.BR align ),
+.B stack
+(one of its children shown, the
+.B active
+one's index: tabs),
+.B split
+(two children and a bar between them:
+.B axis
+.B horizontal
+or
+.BR vertical ,
+.B fraction
+0 to 1 for the first,
+.B draggable
+0 or 1),
+.B badge
+(a small mark:
+.BR text ,
+or
+.BR count ),
+.B badged
+(its child with a badge of
+.B badge
+at
+.BR placement :
+.BR topleft ,
+.B topright
+.RB "" ( default ), " bottomleft" ,
+.BR bottomright ),
+.B collapse
+(its child under a header,
+.BR text ,
+that folds it away:
+.B collapsed
+0 or 1),
+.B prose
+(text to select and copy, not to edit),
+.B radio
+(text, checked),
+.B radiogroup
+(one child holding radios: a click turns one on and the others of the group off),
+.B stepper
+(a number with buttons and the arrow keys:
+.BR value ,
+.BR step ,
+.BR min ,
+.B max
+(0 1 0 100 unless said),
+.B wrap
+0 or 1),
+.B svg
+(its picture, SVG, written to
+.IB nodes/ id /image ),
+.B textarea
+(lines of text: Enter makes a new one;
+.BR text ,
+.BR placeholder ),
+.B varlabel
+(a label of a weight,
+.B weight
+100 to 900, moving there over
+.B animate
+milliseconds),
+.B pages
+(buttons for pages:
+.BR count ,
+the
+.B page
+shown from 0);
 in
 .I parent
 (default
@@ -176,7 +267,11 @@ Ids are letters, digits and
 .TP
 .BI set " id key value"
 A property; the value is the rest of the line (in rc's quotes if it starts or
-ends with blanks):
+ends with blanks; inside the quotes
+.B \\n
+is a new line and
+.B \\\\
+a backslash, as the tree, props and events give a textarea's lines):
 .B text
 (label, button, text box, check box),
 .B placeholder

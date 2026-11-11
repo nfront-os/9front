@@ -185,14 +185,15 @@ impl Fs {
                 let Some(n) = self.scene.nodes.get(id) else { return vec![] };
                 match *f {
                     "kind" => format!("{}\n", n.kind.name()),
-                    "props" => n.props.iter().map(|(k, v)| format!("{k} {v}\n")).collect(),
+                    "props" => n.props.iter().map(|(k, v)| format!("{k} {}\n", crate::scene::evquote(v))).collect(),
                     "rect" => match self.rects.get(id) {
                         Some(r) => format!("{} {} {} {}\n", r[0], r[1], r[2], r[3]),
                         None => String::new(),
                     },
-                    "image" => match self.scene.images.get(id) {
-                        Some(p) => format!("{} {}\n", p.width, p.height),
-                        None => String::new(),
+                    "image" => match (self.scene.images.get(id), self.scene.svgs.get(id)) {
+                        (Some(p), _) => format!("{} {}\n", p.width, p.height),
+                        (_, Some(t)) => format!("{} {}\n", t.size().width(), t.size().height()),
+                        _ => String::new(),
                     },
                     _ => n.children.iter().map(|c| format!("{c}\n")).collect(),
                 }
@@ -398,6 +399,17 @@ impl Fs {
                 self.pending.retain(|p| p.1 != fid);
                 // an image node's picture, written: decoded now
                 if let Some(Fid { path: Path::NodeFile(id, _), picture: Some(b), .. }) = f {
+                    // an svg node's: SVG (usvg's tree, its text with the fonts it has)
+                    if self.scene.nodes.get(&id).is_some_and(|n| n.kind == crate::scene::Kind::Svg) {
+                        return match resvg::usvg::Tree::from_data(&b, &resvg::usvg::Options::default()) {
+                            Ok(t) => {
+                                self.scene.svgs.insert(id.clone(), std::sync::Arc::new(t));
+                                self.changes.push(Change { props: vec![id], ..Default::default() });
+                                vec![R::new(121, tag).done()]
+                            }
+                            Err(e) => r(&format!("svg: {e}")),
+                        };
+                    }
                     match crate::image::decode(&b) {
                         Ok(p) if self.scene.nodes.contains_key(&id) => {
                             self.scene.images.insert(id.clone(), std::sync::Arc::new(p));
