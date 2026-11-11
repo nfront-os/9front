@@ -1,7 +1,7 @@
 From de9e93d8df7934f6dca291fe5f826f9b6f0d4203 Mon Sep 17 00:00:00 2001
 From: Stefan Hertenberger <erde74@gmail.com>
 Date: Tue, 3 Nov 2026 19:03:08 +0100
-Subject: [PATCH 20/24] ip/tcp: a write to a spliced loopback connection whose
+Subject: [PATCH 20/25] ip/tcp: a write to a spliced loopback connection whose
  other end is closed fails
 
 When one end of a spliced (bypass) loopback connection closed, it

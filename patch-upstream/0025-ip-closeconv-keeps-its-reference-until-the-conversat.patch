@@ -1,0 +1,56 @@
+From 7fba8067f4d7d0f78c5bd43ce58be35509d73afa Mon Sep 17 00:00:00 2001
+From: Stefan Hertenberger <erde74@gmail.com>
+Date: Wed, 11 Nov 2026 08:34:24 +0100
+Subject: [PATCH 25/25] ip: closeconv keeps its reference until the
+ conversation is Idle
+
+tcpclose can drop the conversation's lock (tcpoutput does, around
+ipoput, to send the FIN). closeconv had already taken inuse to 0, so
+when the ack of the FIN came in meanwhile (Last_ack -> Closed in the
+loopback reader) the conversation looked free and Fsprotoclone gave it
+to another process dialing. closeconv then went on and set it Idle,
+undoing that dialer's Connecting/Connected: connectctlmsg slept for
+ever on "connected", with the TCP side Established (often spliced).
+
+Seen as dial(2) over loopback hanging under load: four procs
+listening, accepting and closing, twelve procs each dialing 200 times
+hung after about a thousand dials in every run; with this all pass.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ sys/src/9/ip/devip.c | 12 +++++++++++-
+ 1 file changed, 11 insertions(+), 1 deletion(-)
+
+diff --git a/sys/src/9/ip/devip.c b/sys/src/9/ip/devip.c
+index ac7fe9320..165982520 100644
+--- a/sys/src/9/ip/devip.c
++++ b/sys/src/9/ip/devip.c
+@@ -595,7 +595,16 @@ closeconv(Conv *cv)
+ 
+ 	qlock(cv);
+ 
+-	if(--cv->inuse > 0) {
++	/*
++	 * keep our reference until the conversation is Idle:
++	 * the protocol's close can let go of the lock (tcpoutput does, to send
++	 * the FIN), and with inuse 0 and the protocol done (an ack of the FIN
++	 * meanwhile) Fsprotoclone would give it out again; setting it Idle then
++	 * would undo a connect in progress on the new owner's side, which then
++	 * sleeps for ever in connectctlmsg.
++	 */
++	if(cv->inuse > 1) {
++		cv->inuse--;
+ 		qunlock(cv);
+ 		return;
+ 	}
+@@ -617,6 +626,7 @@ closeconv(Conv *cv)
+ 		(*cv->p->close)(cv);
+ 
+ 	cv->state = Idle;
++	cv->inuse--;
+ 	qunlock(cv);
+ }
+ 
+-- 
+2.56.0
+

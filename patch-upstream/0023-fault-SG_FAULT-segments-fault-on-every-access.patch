@@ -1,7 +1,7 @@
 From d04f98ab5f1c26d19a849ba3c8c3568db7235f04 Mon Sep 17 00:00:00 2001
 From: Stefan Hertenberger <erde74@gmail.com>
 Date: Thu, 5 Nov 2026 12:33:58 +0100
-Subject: [PATCH 23/24] fault: SG_FAULT segments fault on every access
+Subject: [PATCH 23/25] fault: SG_FAULT segments fault on every access
 
 The check in fault() reads
 

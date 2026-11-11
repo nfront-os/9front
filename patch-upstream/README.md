@@ -25,7 +25,8 @@ taken or declined them.
 On Unix: `git am patch-upstream/0*.patch` on a checkout of `front`.
 On 9front: `git/import` takes the files as they are.
 
-All 24 apply as a series. Each applies alone too, except:
+All 25 apply as a series (on `f5df6bc0a` and on `origin/front` at
+`82ddeb288`, 2026-11-10). Each applies alone too, except:
 
 - 0009 needs 0007 (context: `vbump` in `rwstat`),
 - 0010 needs 0007 and 0009,
@@ -47,7 +48,8 @@ made with an AI assistant); drop it if 9front does not want it.
   `-FTVw` (the mkfiles' flags); APE's `arm64/notetramp.c` with
   `7c -FTVw -p` against the patched `ureg.h`; `9/arm64/main.c` (0016)
   with `7c -FTVw`; `9/pc/sd53c8xx.c` (0017) with `8c -FTVw` (pc) and
-  `6c -FTVw` (from pc64); `9/port/fault.c` (0023) with `6c -FTVw`
+  `6c -FTVw` (from pc64); `9/ip/devip.c` (0025) with `6c -FTVw` (pc64)
+  and `8c -FTVw` (pc); `9/port/fault.c` (0023) with `6c -FTVw`
   (pc64), `8c -FTVw` (pc) and `7c -FTVw` (arm64). No errors, no warnings.
 - **Not done**: a kernel and ext4srv built with 9front's compilers and run
   with these patches. The kernel conf (0014), riostart (0015) and the
@@ -83,6 +85,7 @@ made with an AI assistant); drop it if 9front does not want it.
 | 0022 | ape: lib9p's "file not found" is not ENOENT | bug fix |
 | 0023 | fault: SG_FAULT segments let reads and writes through | bug fix |
 | 0024 | dist: the CD's ESP can overlap the end of the ISO | bug fix (data) |
+| 0025 | ip: a closing conversation is given out again, its new connect hangs | bug fix |
 
 ### 0001 ip/tcp: don't hang up a reused conversation through a stale bypass pointer
 
@@ -370,6 +373,32 @@ MB, two whole cylinders of any geometry.
 Found by: the gcc port's GPU branch, whose CD with Mesa grew to 1.5 GB:
 xorriso reported the image as "recorded in interleaved mode", the Joliet
 tree was overwritten. Shown by: the same CD made with 16 MB is clean.
+
+### 0025 ip: closeconv keeps its reference until the conversation is Idle
+
+`closeconv()` took `inuse` to 0 first and set the conversation Idle last,
+after the protocol's close. `tcpclose()` can let go of the conversation's
+lock in between: `tcpoutput()` drops it around `ipoput4()`/`ipoput6()` to
+send the FIN. If the ack of that FIN came in meanwhile (Last_ack ->
+Closed, on another processor or in the loopback reader), the
+conversation was free by `Fsprotoclone()`'s test (`inuse` 0, the
+protocol done with it), and a process opening `clone` got it and wrote
+`connect`. Then `closeconv()` went on and set it Idle over that
+process's Connecting (or Connected): `Fsconnected()` only moves
+Connecting to Connected, and `connectctlmsg()` slept for ever on
+`connected` while the TCP side was Established, often spliced already.
+Now `closeconv()` drops its reference at the end, with the Idle, under
+the lock; nothing else in the close looks at `inuse`.
+
+Found by: dial(2) over loopback hanging under load (the Rust port's
+parallel std net tests; reproduced with a program of four procs
+listening, accepting and closing and twelve procs dialing 200 times
+each: it hung after about a thousand dials in every run, with the
+pristine kernel built by 6c too). Pinned down with a log of the
+conversations' events read through gdb: on every hung dialer's
+conversation the previous owner's `closeconv()` ended after the
+dialer's connect had begun. Shown by: the same program with 12, 24 and
+50 dialing procs runs to the end, repeatedly.
 
 ## Not included
 

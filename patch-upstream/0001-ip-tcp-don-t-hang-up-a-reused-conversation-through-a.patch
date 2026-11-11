@@ -1,7 +1,7 @@
 From cecfc8deb48d8a3f6cdd2fa72d657eabde36c547 Mon Sep 17 00:00:00 2001
 From: Stefan Hertenberger <erde74@gmail.com>
 Date: Sat, 31 Oct 2026 10:34:18 +0100
-Subject: [PATCH 01/24] ip/tcp: don't hang up a reused conversation through a
+Subject: [PATCH 01/25] ip/tcp: don't hang up a reused conversation through a
  stale bypass pointer
 
 A spliced loopback connection (tcpsplice) has each side's bypass pointing
