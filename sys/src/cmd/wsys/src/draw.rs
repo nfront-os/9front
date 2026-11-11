@@ -139,6 +139,7 @@ pub struct Display {
     pub r: Rect,      // its rectangle, inside rio's border
     next: u32,
     pub opaque: u32,
+    layer: Option<(u32, u32)>, // onlayer: the screen drawn under its name and the screen of the window over it
     pub raw: u64,  // bytes of pixels cload_at was given
     pub sent: u64, // and the bytes of its messages
 }
@@ -276,6 +277,7 @@ impl Display {
             r: Rect::new(int(&f[4]), int(&f[5]), int(&f[6]), int(&f[7])),
             next: 16,
             opaque: 0,
+            layer: None,
             raw: 0,
             sent: 0,
         };
@@ -312,6 +314,7 @@ impl Display {
         if w.is_empty() || self.screen == 0 {
             return Ok(false);
         }
+        self.offlayer();
         let id = self.id();
         let mut m = vec![b'n'];
         m.extend_from_slice(&id.to_le_bytes());
@@ -473,6 +476,38 @@ impl Display {
         let mut m = vec![b'f'];
         m.extend_from_slice(&id.to_le_bytes());
         self.cmd(&m)
+    }
+
+    /// a whole screen (/dev/winname noborder.screen.n, no rio): a window of
+    /// the screen's size over it, which what is drawn goes into instead
+    /// (screen is then its id). Only through a layer does every devdraw show
+    /// what is drawn on the screen: one drawn under its name, not as image
+    /// 0, it leaves unflushed (drawterm's; 9front's before 9front-ng); and
+    /// image 0 stays the old screen after a resize
+    pub fn onlayer(&mut self) -> io::Result<()> {
+        self.offlayer();
+        let w = std::fs::read_to_string("/dev/winname").unwrap_or_default();
+        if !w.trim().starts_with("noborder.screen.") || self.screen == 0 {
+            return Ok(());
+        }
+        let base = self.screen;
+        let scr = self.allocscreen(base, self.opaque)?;
+        let win = self.allocwindow(scr, self.r, 0x0000_00FF)?;
+        self.flush()?;
+        self.layer = Some((base, scr));
+        self.screen = win;
+        Ok(())
+    }
+
+    /// onlayer's window and screen gone, the screen drawn on again
+    fn offlayer(&mut self) {
+        if let Some((base, scr)) = self.layer.take() {
+            let win = std::mem::replace(&mut self.screen, base);
+            let _ = self.free(win);
+            let mut m = vec![b'F'];
+            m.extend_from_slice(&scr.to_le_bytes());
+            let _ = self.cmd(&m);
+        }
     }
 
     /// 'd': src at sp drawn into r of dst, through the opaque mask

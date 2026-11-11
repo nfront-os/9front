@@ -1550,7 +1550,7 @@ impl Wsys {
 
     fn event(&mut self, n: u32, line: String) {
         // WSYSDEBUG=release: each buffer given back
-        if line.starts_with("b ") && std::env::var("WSYSDEBUG").is_ok_and(|v| v.contains("release")) {
+        if line.starts_with("b ") && wsysdebug("release") {
             eprintln!("wsys: window {n}: {line}");
         }
         let Some(w) = self.wins.get_mut(&n) else { return };
@@ -2041,7 +2041,7 @@ impl Wsys {
             self.wins.get_mut(&n).unwrap().lastb = None;
         }
         let gpu = self.comp.is_some() && list.iter().all(|l| self.wins[&n].bufs[&l.b].comp);
-        if std::env::var("WSYSDEBUG").is_ok_and(|v| v.contains("layers")) && (self.wins[&n].layers.is_empty() || self.wins[&n].lgpu != gpu) {
+        if wsysdebug("layers") && (self.wins[&n].layers.is_empty() || self.wins[&n].lgpu != gpu) {
             eprintln!("wsys: window {n}: layers {}", if gpu { "composed on the GPU" } else { "drawn by draw(3)" });
         }
         let w = self.wins.get_mut(&n).unwrap();
@@ -2336,7 +2336,7 @@ impl Wsys {
     /// a frame with these buffers is on its way: each window's buffer shown
     /// before goes back to its client
     fn composed(&mut self, keys: Vec<comp::Key>) {
-        if std::env::var("WSYSDEBUG").is_ok_and(|v| v.contains("release")) {
+        if wsysdebug("release") {
             eprintln!("wsys: composed {keys:?}");
         }
         for (n, b) in std::mem::take(&mut self.compgone) {
@@ -2762,12 +2762,22 @@ impl Wsys {
     /// it, drawterm's window changed size): wsys' screen is what it shows now
     fn resized(&mut self) {
         let old = self.d.r;
+        // WSYSDEBUG=resize: each r, what the window and wsys' screen are then
+        let dbg = wsysdebug("resize");
+        if dbg {
+            eprintln!("wsys: resize: r, winname {}, screen {:?}", std::fs::read_to_string("/dev/winname").unwrap_or_default().trim(), old);
+        }
         if self.core.is_some() {
             // devdraw is wsys' own, as big as MAXSCREEN: the part shown changes
             let Some(kd) = self.kd.as_mut() else { return };
-            match kd.reattach() {
+            match kd.reattach().and_then(|again| kd.onlayer().map(|_| again)) {
                 Ok(true) => {}
-                Ok(false) => return, // the screen itself (its size is devdraw's)
+                Ok(false) => {
+                    if dbg {
+                        eprintln!("wsys: resize: not in a window (kd.screen {})", kd.screen);
+                    }
+                    return; // the screen itself (its size is devdraw's)
+                }
                 Err(e) => {
                     eprintln!("wsys: the window: {e}");
                     return;
@@ -2775,6 +2785,9 @@ impl Wsys {
             }
             let (cr, kr) = (self.imgr, kd.r);
             let shown = Rect::new(cr.x0, cr.y0, cr.x0 + kr.dx().min(cr.dx()), cr.y0 + kr.dy().min(cr.dy()));
+            if dbg {
+                eprintln!("wsys: resize: the window {kr:?}, devdraw's screen {cr:?}, shown {shown:?}");
+            }
             if shown != old {
                 // what comes into view: the screen's fill where no window is (a
                 // window of its own over it, freed: devdraw restores those below)
@@ -3011,7 +3024,7 @@ impl Wsys {
         let (Some(b), None) = (f.next().and_then(|x| x.parse::<u32>().ok()), f.next()) else { return false };
         if let Some(why) = self.ovwhynot(n, b) {
             // WSYSDEBUG=overlay: why not, once for each change
-            if std::env::var("WSYSDEBUG").is_ok_and(|v| v.contains("overlay")) && self.ovwhy != Some(why) {
+            if wsysdebug("overlay") && self.ovwhy != Some(why) {
                 eprintln!("wsys: window {n}: no overlay: {why}");
             }
             self.ovwhy = Some(why);
@@ -4372,6 +4385,12 @@ fn kbdreader(tx: mpsc::Sender<Ev>) {
     drop(ctl);
 }
 
+/// one of WSYSDEBUG's words (blanks or commas between them): whole words,
+/// so that compress is not comp
+fn wsysdebug(word: &str) -> bool {
+    std::env::var("WSYSDEBUG").is_ok_and(|v| v.split(|c: char| c == ',' || c.is_whitespace()).any(|w| w == word))
+}
+
 fn usage() -> ! {
     eprintln!("usage: wsys [-dgkpOxz] [-f font] [-t theme] [-s srvname] [-i cmd]");
     std::process::exit(1);
@@ -4390,7 +4409,8 @@ fn main() {
     // a screen far away: /dev/draw the terminal's of a cpu session (drawterm's
     // through rcpu: /mnt/term). Not any file server's: in a window of wsys,
     // /dev/draw is that wsys' (nested, on the same machine)
-    let mut compress = p9::fileid("/dev/draw/new").is_some_and(|d| Some(d) == p9::fileid("/mnt/term/dev/draw/new"));
+    let remote = p9::fileid("/dev/draw/new").is_some_and(|d| Some(d) == p9::fileid("/mnt/term/dev/draw/new"));
+    let mut compress = remote;
     while let Some(a) = args.next() {
         match a.as_str() {
             "-s" => {
@@ -4443,7 +4463,10 @@ fn main() {
     // in a window (rio's, drawterm's through rcpu) the window may change its size:
     // devdraw's screen as big as MAXSCREEN from the start (its pages made where it
     // is drawn), wsys' screen the part the window shows (resized: Ev::Resized)
-    let inwin = !std::fs::read_to_string("/dev/winname").unwrap_or_default().starts_with("noborder.screen.");
+    // the screen of this machine itself, else a window (rio's) or a screen far
+    // away (drawterm's, as its whole screen: noborder.screen too, and it resizes)
+    let ownscreen = !remote && std::fs::read_to_string("/dev/winname").unwrap_or_default().starts_with("noborder.screen.");
+    let inwin = !ownscreen;
     let (d, core, kd) = if coredraw != Some(false) {
         let cr = if inwin {
             Rect::new(d.r.x0, d.r.y0, d.r.x0 + d.r.dx().max(MAXSCREEN.0), d.r.y0 + d.r.dy().max(MAXSCREEN.1))
@@ -4462,6 +4485,11 @@ fn main() {
                 }
                 // wsys' screen: what the window shows of it
                 cd.r = Rect::new(c.r.x0, c.r.y0, c.r.x0 + d.r.dx(), c.r.y0 + d.r.dy());
+                // a whole screen: copied into a window over it (Display::onlayer)
+                let mut d = d;
+                if let Err(e) = d.onlayer() {
+                    eprintln!("wsys: the screen's window: {e}");
+                }
                 (cd, Some(c), Some(d))
             }
             Err(e) if coredraw == Some(true) => {
@@ -4641,9 +4669,9 @@ fn main() {
     // the frames would go into the window wsys draws into) and Vulkan can show it;
     // -g says why not and what it does
     if gpucomp != Some(false) {
-        let verbose = gpucomp == Some(true) || std::env::var("WSYSDEBUG").is_ok_and(|v| v.contains("comp"));
+        let verbose = gpucomp == Some(true) || wsysdebug("comp");
         let winname = std::fs::read_to_string("/dev/winname").unwrap_or_default();
-        let why = if !winname.starts_with("noborder.screen.") {
+        let why = if !ownscreen {
             Some(format!("not the whole screen ({winname})"))
         } else if ws.d.chan != XRGB32 {
             Some(format!("the screen is {}, not x8r8g8b8", draw::chanstr(ws.d.chan)))
@@ -4715,7 +4743,7 @@ fn main() {
             Ev::Resized => ws.resized(),
             Ev::Mouse { x, y, b, ms } => {
                 // WSYSDEBUG=mouse: each mouse message, and what is under it then
-                if std::env::var("WSYSDEBUG").is_ok_and(|v| v.contains("mouse")) {
+                if wsysdebug("mouse") {
                     let hit = ws.z.iter().rev().copied().find(|n| !ws.wins[n].hidden && ws.wins[n].frame().contains(x, y));
                     eprintln!("wsys: mouse {x} {y} {b} {ms}: window {hit:?}, drag {}, focus {:?}", ws.drag.is_some(), ws.focus);
                 }
@@ -4769,10 +4797,10 @@ fn main() {
         ws.compsync();
     }
     let _ = p9::remove(&srvpath);
-    if let Some(kd) = ws.kd.as_ref().filter(|_| std::env::var("WSYSDEBUG").is_ok_and(|v| v.contains("compress"))) {
+    if let Some(kd) = ws.kd.as_ref().filter(|_| wsysdebug("compress")) {
         eprintln!("wsys: compressed {} bytes of pixels into {} of messages", kd.raw, kd.sent);
     }
-    if ws.core.is_some() && std::env::var("WSYSDEBUG").is_ok_and(|v| v.contains("draw")) {
+    if ws.core.is_some() && wsysdebug("draw") {
         eprint!("{}", drawcore::stats().lines().map(|l| format!("wsys: draw: {l}\n")).collect::<String>());
     }
     // the windows let go of their clients' segments; their processes hang up
