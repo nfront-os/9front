@@ -593,7 +593,16 @@ closeconv(Conv *cv)
 
 	qlock(&cv->QLock);
 
-	if(--cv->inuse > 0) {
+	/*
+	 * GCC port branch: keep our reference until the conversation is Idle:
+	 * the protocol's close can let go of the lock (tcpoutput does, to send
+	 * the FIN), and with inuse 0 and the protocol done (an ack of the FIN
+	 * meanwhile) Fsprotoclone would give it out again; setting it Idle then
+	 * would undo a connect in progress on the new owner's side, which then
+	 * sleeps for ever in connectctlmsg.
+	 */
+	if(cv->inuse > 1) {
+		cv->inuse--;
 		qunlock(&cv->QLock);
 		return;
 	}
@@ -615,6 +624,7 @@ closeconv(Conv *cv)
 		(*cv->p->close)(cv);
 
 	cv->state = Idle;
+	cv->inuse--;	/* GCC port branch: see above */
 	qunlock(&cv->QLock);
 }
 
