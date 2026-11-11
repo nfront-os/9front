@@ -1,0 +1,114 @@
+#!/bin/rc
+# title bars (the theme's title 1), run by wsys -x -i: a window's frame as asked,
+# its content below a bar in the border's colour; button 1 on the bar moves the
+# window, a double click maximizes it and gives the frame back, max the same,
+# min hides it, x deletes it; title 0 written: the bar goes, the frame stays.
+# Prints ok/FAIL lines and "title: all passed".
+fn fail { echo FAIL $*; exit fail }
+fn wait1 { # cmd...: until it succeeds, 10 s at most
+	n=0
+	while(! $* >[2]/dev/null && test $n -lt 100){ sleep 0.1; n=`{echo $n+1 | hoc} }
+	$* >[2]/dev/null
+}
+# mousein keeps the buttons per open file: a press and its release go through one
+fn m { echo A $1 $2 $3; sleep 0.1 }
+fn click { { m $1 $2 0; m $1 $2 1; m $1 $2 0 } >/dev/mousein }
+fn dclick { { m $1 $2 0; m $1 $2 1; m $1 $2 0; m $1 $2 1; m $1 $2 0 } >/dev/mousein; sleep 0.2 }
+fn frame { # window $1: its frame, as wctl says
+	w=`{dd -if /mnt/wsys/$1/wctl -bs 128 -count 1 -quiet 1}
+	echo $w(1-4)
+}
+fn content { # window $1: its content, as ctl says
+	c=`{cat /mnt/wsys/$1/ctl}
+	echo $c(2-5)
+}
+fn state { # window $1: hidden or visible
+	w=`{dd -if /mnt/wsys/$1/wctl -bs 128 -count 1 -quiet 1}
+	echo $w(6)
+}
+fn is { # x,y rrggbb...: one of them on the screen there
+	px=`{/tests/uipeek $1 | awk '{print $2}'}
+	p=$1
+	shift
+	~ $px $* || fail at $p: $px, want $*
+}
+m 1020 760 0 >/dev/mousein
+cat /lib/theme/modern >/mnt/wsys/theme || fail writing the theme
+
+window -r 100 100 500 400
+wait1 test -d /mnt/wsys/1 || fail no window
+sleep 1
+echo -n hello >/mnt/wsys/1/label
+f=`{frame 1}
+~ $"f '100 100 500 400' || fail frame $f
+c=`{content 1}
+~ $c(1) 104 && ~ $c(3) 496 && ~ $c(4) 396 || fail content $c
+t=`{echo $c(2) - 104 | hoc}
+test $t -gt 10 || fail no title bar: content $c
+echo ok frame 100 100 500 400, content $"c, a bar $t high
+# the bar: the border's colour where no text is (the middle of its end)
+y=`{echo 104 + $t / 2 | hoc}
+is 300,$y 2b4c6f
+is 300,$c(2) ffffea
+echo ok the bar in the border colour, the content below it
+
+# button 1 on the bar moves the window
+y1=`{echo $y + 50 | hoc}
+{ m 300 $y 0; m 300 $y 1; m 350 $y1 1; m 350 $y1 0 } >/dev/mousein
+f=`{frame 1}
+~ $"f '150 150 550 450' || fail moved to $f
+echo ok dragged by its bar to $f
+
+# a double click on the bar: the whole screen, again: back
+y=`{echo 154 + $t / 2 | hoc}
+dclick 300 $y
+f=`{frame 1}
+~ $"f '0 0 1024 768' || fail double click: $f
+y=`{echo 4 + $t / 2 | hoc}
+dclick 300 $y
+f=`{frame 1}
+~ $"f '150 150 550 450' || fail double click again: $f
+echo ok a double click maximizes, and back
+
+# the buttons, from the end: x, max, min (vga's 8 pixels a rune, 6 each side)
+y=`{echo 154 + $t / 2 | hoc}
+click 508 $y
+f=`{frame 1}
+~ $"f '0 0 1024 768' || fail max: $f
+y=`{echo 4 + $t / 2 | hoc}
+click 982 $y
+f=`{frame 1}
+~ $"f '150 150 550 450' || fail max again: $f
+echo ok max and back
+# pressed on max, let go off it: nothing
+y=`{echo 154 + $t / 2 | hoc}
+{ m 508 $y 0; m 508 $y 1; m 508 300 1; m 508 300 0 } >/dev/mousein
+f=`{frame 1}
+~ $"f '150 150 550 450' || fail max let go elsewhere: $f
+echo ok a button let go off it does nothing
+click 472 $y
+~ `{state 1} hidden || fail min: `{state 1}
+echo unhide >/mnt/wsys/1/wctl
+~ `{state 1} visible || fail unhide: `{state 1}
+echo ok min hides
+
+# title 0: the frame stays, the bar goes
+echo title 0 >/mnt/wsys/theme
+sleep 0.3
+f=`{frame 1}
+c=`{content 1}
+~ $"f '150 150 550 450' && ~ $"c '154 154 546 446' || fail title 0: frame $f content $c
+echo title 1 >/mnt/wsys/theme
+sleep 0.3
+c=`{content 1}
+~ $c(2) `{echo 154 + $t | hoc} || fail title 1 again: content $c
+echo ok title 0 and 1: the frame kept, the content without and with the bar
+
+# x deletes it
+window -r 600 100 900 300
+wait1 test -d /mnt/wsys/2 || fail no second window
+sleep 0.5
+click 540 `{echo 154 + $t / 2 | hoc}
+wait1 test ! -d /mnt/wsys/1 || fail x did not delete window 1
+echo ok x deletes
+echo title: all passed

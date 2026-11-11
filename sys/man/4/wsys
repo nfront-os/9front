@@ -220,6 +220,44 @@ A window lives while its files are open (or the
 .B clone
 file that made it).
 .PP
+With the theme's
+.B "title 1"
+each window but a popup has a title bar between the top of its border and
+its content, as high as the font and 4 more, in the border's colour: its
+label (else
+.BI window " n1)"
+and at its end the buttons
+.BR min ,
+.B max
+and
+.BR x .
+Button 1 on the bar moves the window; twice within half a second, the window
+fills the screen, and again it has its frame back.
+A button acts when button 1 is let go on it:
+.B x
+deletes the window (as button 3's Delete),
+.B max
+is the double click,
+.B min
+hides it (as Hide).
+Buttons 2 and 3 on the bar are as on the border.
+The frame (what
+.B wctl
+and
+.B stack
+give, and
+.B new
+and
+.B resize
+take) holds the bar; the content
+.RB ( ctl )
+is below it.
+Writing
+.B title
+to the theme keeps each window's frame: its content grows or shrinks by the bar.
+.B WSYSDEBUG=mouse
+writes each mouse message and the window under it.
+.PP
 Mod4+Tab (the Windows key) makes the bottom visible window current and
 raises it, so pressing it again and again goes through all windows;
 Mod4+Shift+Tab goes back (the current window to the bottom, the top one
@@ -334,7 +372,7 @@ and
 .B holdinactive
 (a window holding, Esc),
 .B title
-(0 or 1: title bars),
+(0 or 1: title bars, above),
 .B font
 (wsys' own, a
 .IR font (6)

@@ -128,6 +128,20 @@ use std::sync::mpsc;
 use std::thread;
 
 const BORDER: i32 = 4;
+// a title bar's buttons (the theme's title 1), right to left from its end
+const TITLEOPS: [(&str, TitleOp); 3] = [("x", TitleOp::Delete), ("max", TitleOp::Max), ("min", TitleOp::Hide)];
+const TITLEPAD: i32 = 6; // each side of a button's text: what a click may hit is wider
+
+/// a window's frame around its content r: the border b, and a title bar t high
+/// between the top border and the content
+fn outer(r: Rect, b: i32, t: i32) -> Rect {
+    Rect::new(r.x0 - b, r.y0 - b - t, r.x1 + b, r.y1 + b)
+}
+
+/// the content in frame f
+fn inner(f: Rect, b: i32, t: i32) -> Rect {
+    Rect::new(f.x0 + b, f.y0 + b + t, f.x1 - b, f.y1 - b)
+}
 // the windows' ranges for their clients' segments: slot i is SEGBASE + i*SEGSIZE
 // (p9::window_region; slots are given again when free)
 const SEGBASE: usize = p9::window_region().0;
@@ -305,6 +319,8 @@ struct Layer {
 struct Win {
     r: Rect, // content, in screen coordinates
     border: i32, // around it: BORDER, none for a popup
+    title: i32,  // its title bar's height (the theme's title 1), none for a popup
+    unmax: Option<Rect>, // maximized from this frame (the title bar's max, a double click)
     mapped: bool, // made by clone: off the screen (hidden) until its first present
     nofocus: bool, // a popup that leaves the focus where it is (a tooltip)
     slot: usize,
@@ -371,7 +387,12 @@ struct Win {
 impl Win {
     /// the window on the screen, border and all
     fn frame(&self) -> Rect {
-        self.r.inset(-self.border)
+        outer(self.r, self.border, self.title)
+    }
+
+    /// its title bar (empty: none)
+    fn titlebar(&self) -> Rect {
+        Rect::new(self.r.x0, self.r.y0 - self.title, self.r.x1, self.r.y0)
     }
 }
 
@@ -449,9 +470,18 @@ fn crosscursor() -> Vec<u8> {
     c
 }
 
+/// what a title bar's button does
+#[derive(Clone, Copy, PartialEq, Debug)]
+enum TitleOp {
+    Delete,
+    Max,
+    Hide,
+}
+
 #[derive(Clone, Copy)]
 enum DragKind {
     Move,
+    Button(TitleOp, Rect), // a title bar's button held: done if let go on it
     Sweep { left: bool, right: bool, top: bool, bottom: bool },
     Box(Option<u32>), // a rectangle swept from the press: a new window's, or a window's new frame
 }
@@ -1155,6 +1185,9 @@ impl Wsys {
                             v.clear();
                         }
                         v.push_str(&s);
+                        if matches!(k, Kind::File(_, F::Label)) {
+                            self.painttitle(n);
+                        }
                         ok
                     }
                     Kind::File(_, F::Snarf) => {
@@ -1480,14 +1513,15 @@ impl Wsys {
         let n = self.nextwin + 1;
         let s = self.d.r;
         let off = 40 + 30 * ((n as i32 - 1) % 10);
-        let auto = Rect::new(s.x0 + off, s.y0 + off, s.x0 + off + 400, s.y0 + off + 300).inset(-BORDER);
+        let t = self.titleh();
+        let auto = outer(Rect::new(s.x0 + off, s.y0 + off, s.x0 + off + 400, s.y0 + off + 300), BORDER, t);
         let f = place(auto, o, false);
-        let r = f.inset(BORDER).clip(&s.inset(BORDER));
+        let r = inner(f, BORDER, t).clip(&inner(s, BORDER, t));
         if r.dx() < 1 || r.dy() < 1 {
             return Err("window outside the screen".into());
         }
         let img = self.image(r.dx(), r.dy())?;
-        let layer = match self.d.allocwindow(self.scr, r.inset(-BORDER), 0xFFFF_FFFF) {
+        let layer = match self.d.allocwindow(self.scr, outer(r, BORDER, t), 0xFFFF_FFFF) {
             Ok(l) => l,
             Err(e) => {
                 let _ = self.d.free(img);
@@ -1503,7 +1537,7 @@ impl Wsys {
         self.nextwin = n;
         self.slots[slot] = true;
         self.wins.insert(n, Win {
-            r, border: BORDER, mapped: text, nofocus: false, slot, bufs: HashMap::new(), img, layer, name, refs: 0, pinned: false, pid: o.pid,
+            r, border: BORDER, title: t, unmax: None, mapped: text, nofocus: false, slot, bufs: HashMap::new(), img, layer, name, refs: 0, pinned: false, pid: o.pid,
             label: String::new(), wdir: o.cd.clone().unwrap_or_default(), text: String::new(), partial: vec![],
             events: VecDeque::new(), raw: false, line: String::new(), cons: VecDeque::new(), eof: false,
             kbd: VecDeque::new(), kbdopen: 0, mouseopen: 0, mouse: VecDeque::new(), resized: false,
@@ -1631,9 +1665,10 @@ impl Wsys {
         match cmd {
             "resize" | "move" => {
                 let o = opts(&words[1..], false)?;
-                let b = self.wins[&n].border;
+                let (b, t) = (self.wins[&n].border, self.wins[&n].title);
                 let f = place(self.wins[&n].frame(), &o, cmd == "move");
-                self.setrect(n, f.inset(b))
+                self.wins.get_mut(&n).unwrap().unmax = None;
+                self.setrect(n, inner(f, b, t))
             }
             "top" => {
                 self.raise(n);
@@ -1861,6 +1896,7 @@ impl Wsys {
             }
             "label" => {
                 self.wins.get_mut(&n).unwrap().label = line[5..].trim().to_string();
+                self.painttitle(n);
                 Ok(())
             }
             "popup" => {
@@ -1876,6 +1912,7 @@ impl Wsys {
                 w.nofocus = !grab;
                 if w.border != 0 {
                     w.border = 0;
+                    w.title = 0;
                     let r = w.r;
                     self.reframe(n, r, true)?;
                 }
@@ -2148,7 +2185,7 @@ impl Wsys {
             over.push(m.r);
         }
         if let Some(r) = self.sweepr {
-            let f = r.inset(-BORDER);
+            let f = outer(r, BORDER, self.titleh());
             over.extend([
                 Rect::new(f.x0, f.y0, f.x1, r.y0),
                 Rect::new(f.x0, r.y1, f.x1, f.y1),
@@ -2309,14 +2346,14 @@ impl Wsys {
         if sized || new {
             let img = self.image(r.dx(), r.dy())?;
             let w = &self.wins[&n];
-            let (oldimg, oldlayer, oldname, border) = (w.img, w.layer, w.name.clone(), w.border);
+            let (oldimg, oldlayer, oldname, border, title) = (w.img, w.layer, w.name.clone(), w.border, w.title);
             let all = Rect::new(0, 0, r.dx(), r.dy());
             let (white, scr) = (self.white, self.scr);
             let d = &mut self.d;
             let made = d
                 .draw(img, &all, white, 0, 0)
                 .and_then(|_| d.draw(img, &all, oldimg, 0, 0))
-                .and_then(|_| d.allocwindow(scr, r.inset(-border), 0xFFFF_FFFF));
+                .and_then(|_| d.allocwindow(scr, outer(r, border, title), 0xFFFF_FFFF));
             let layer = match made {
                 Ok(l) => l,
                 Err(e) => {
@@ -2379,7 +2416,7 @@ impl Wsys {
                 self.d.free(l)?;
             }
             if let Some(r) = r {
-                let f = r.inset(-BORDER);
+                let f = outer(r, BORDER, self.titleh());
                 let col = self.theme.border << 8 | 0xFF;
                 for side in [
                     Rect::new(f.x0, f.y0, f.x1, r.y0),
@@ -2436,9 +2473,27 @@ impl Wsys {
         if let Err(e) = res {
             return Err(format!("theme: draw: {e}"));
         }
+        // title bars on or off: each window keeps its frame, its content
+        // grows or shrinks by the bar (a new size for its program)
+        let t = self.titleh();
+        let ids: Vec<u32> = self.wins.keys().copied().collect();
+        for &n in &ids {
+            let w = &self.wins[&n];
+            if w.border == 0 || w.title == t {
+                continue;
+            }
+            let (f, b) = (w.frame(), w.border);
+            let r = inner(f, b, t);
+            if r.dx() < 1 || r.dy() < 1 {
+                continue; // too small for a bar: as it was
+            }
+            self.wins.get_mut(&n).unwrap().title = t;
+            if let Err(e) = self.reframe(n, r, true) {
+                eprintln!("wsys: theme: window {n}: {e}");
+            }
+        }
         // the windows' programs hear it as a resize ('r' on their mouse, as rio
         // says the window changed): they draw again, and read /dev/theme again
-        let ids: Vec<u32> = self.wins.keys().copied().collect();
         for n in ids {
             self.paintborder(n);
             self.drawtext(n);
@@ -2474,6 +2529,107 @@ impl Wsys {
         })();
         if let Err(e) = res {
             eprintln!("wsys: draw: {e}");
+        }
+        self.painttitle(n);
+    }
+
+    /// a title bar's height now (the theme's title 1, wsys' font): none without
+    fn titleh(&self) -> i32 {
+        match &self.font {
+            Some(f) if self.theme.title => f.height + 4,
+            _ => 0,
+        }
+    }
+
+    /// the buttons of window n's title bar, from its end: where each is
+    fn titlebuttons(&mut self, n: u32) -> Vec<(TitleOp, Rect)> {
+        let Some(w) = self.wins.get(&n) else { return vec![] };
+        let bar = w.titlebar();
+        let Some(font) = self.font.as_mut() else { return vec![] };
+        if bar.empty() {
+            return vec![];
+        }
+        let mut x = bar.x1;
+        let mut v = vec![];
+        for (s, op) in TITLEOPS {
+            let wd: i32 = s.chars().map(|c| font.width(&mut self.d, c)).sum::<i32>() + 2 * TITLEPAD;
+            if x - wd < bar.x0 {
+                break;
+            }
+            v.push((op, Rect::new(x - wd, bar.y0, x, bar.y1)));
+            x -= wd;
+        }
+        v
+    }
+
+    /// window n's title bar: its label (else "window n") at the start, the
+    /// buttons min max x at the end, in the border's colour (the window's
+    /// colour for the text of the current window, the text's for the others)
+    fn painttitle(&mut self, n: u32) {
+        let Some(w) = self.wins.get(&n) else { return };
+        let bar = w.titlebar();
+        if bar.empty() || self.font.is_none() {
+            return;
+        }
+        let (l, label) = (w.layer, if w.label.is_empty() { format!("window {n}") } else { w.label.clone() });
+        let current = self.focus == Some(n);
+        let bg = match (w.hold, current) {
+            (true, true) => self.holdcol,
+            (true, false) => self.paleholdcol,
+            (false, true) => self.cfocus,
+            (false, false) => self.cother,
+        };
+        let ink = if current { self.white } else { self.black };
+        let buttons = self.titlebuttons(n);
+        let end = buttons.last().map_or(bar.x1, |b| b.1.x0) - TITLEPAD;
+        let mut items: Vec<(i32, i32, String)> = buttons.iter().map(|(op, r)| {
+            let s = TITLEOPS.iter().find(|t| t.1 == *op).unwrap().0;
+            (r.x0 + TITLEPAD, r.x1, s.to_string())
+        }).collect();
+        items.push((bar.x0 + TITLEPAD, end, label));
+        let (font, d) = (self.font.as_mut().unwrap(), &mut self.d);
+        let y = bar.y0 + (bar.dy() - font.height) / 2;
+        let res = (|| -> std::io::Result<()> {
+            d.draw(l, &bar, bg, 0, 0)?;
+            for (x0, x1, s) in items {
+                let mut x = x0;
+                for c in s.chars() {
+                    let Some(g) = font.glyph(d, c) else { continue };
+                    if x + g.width > x1 {
+                        break; // a label too long for its bar ends here
+                    }
+                    let dst = Rect::new(0, 0, g.src.dx(), g.src.dy()).add(x + g.dx, y + g.dy + g.src.y0);
+                    d.drawmask(l, &dst, ink, (0, 0), g.img, (g.src.x0, g.src.y0))?;
+                    x += g.width;
+                }
+            }
+            d.flush()
+        })();
+        if let Err(e) = res {
+            eprintln!("wsys: title: {e}");
+        }
+    }
+
+    /// a title bar's button let go on: x deletes (as button 3's Delete), max
+    /// fills the screen or gives the frame back, min hides (as Hide)
+    fn titleop(&mut self, n: u32, op: TitleOp) {
+        match op {
+            TitleOp::Delete => self.delwin(n, true),
+            TitleOp::Hide => self.hide(n, true),
+            TitleOp::Max => self.maximize(n),
+        }
+    }
+
+    /// window n over the whole screen, or back to the frame it had
+    fn maximize(&mut self, n: u32) {
+        let Some(w) = self.wins.get(&n) else { return };
+        let (b, t) = (w.border, w.title);
+        let (f, unmax) = match w.unmax {
+            Some(f) => (f, None),
+            None => (self.d.r, Some(w.frame())),
+        };
+        if self.setrect(n, inner(f, b, t)).is_ok() {
+            self.wins.get_mut(&n).unwrap().unmax = unmax;
         }
     }
 
@@ -3048,6 +3204,28 @@ impl Wsys {
                     self.setfocus(Some(n));
                 }
                 self.raise(n);
+                // button 1 on the title bar: a button (done when let go on it), a
+                // double click maximizes, else it moves the window
+                if b == 1 && self.wins[&n].titlebar().contains(x, y) {
+                    let r = self.wins[&n].r;
+                    if let Some((op, br)) = self.titlebuttons(n).into_iter().find(|(_, br)| br.contains(x, y)) {
+                        self.drag = Some(Drag { win: n, kind: DragKind::Button(op, br), x0: x, y0: y, orig: r, cur: r });
+                        self.buttons = b;
+                        return;
+                    }
+                    let double = matches!(self.click, Some((cw, cx, cy, cms))
+                        if cw == n && (cx - x).abs() <= 3 && (cy - y).abs() <= 3 && ms.wrapping_sub(cms) < 500);
+                    if double {
+                        self.click = None;
+                        self.maximize(n);
+                        self.buttons = b;
+                        return;
+                    }
+                    self.click = Some((n, x, y, ms));
+                    self.drag = Some(Drag { win: n, kind: DragKind::Move, x0: x, y0: y, orig: r, cur: r });
+                    self.buttons = b;
+                    return;
+                }
                 // on the border, as rio: button 1 or 2 sweeps the window to a new size
                 // (rio's whichcorner: 20 pixels from an end of an edge take the
                 // corner), button 3 moves it
@@ -3156,9 +3334,20 @@ impl Wsys {
         let (dx, dy) = (x - g.x0, y - g.y0);
         match g.kind {
             DragKind::Move => {
-                let _ = self.setrect(g.win, g.orig.add(dx, dy));
+                if dx != 0 || dy != 0 {
+                    let _ = self.setrect(g.win, g.orig.add(dx, dy));
+                    self.wins.get_mut(&g.win).unwrap().unmax = None;
+                }
                 if b == 0 {
                     self.drag = None;
+                }
+            }
+            DragKind::Button(op, r) => {
+                if b == 0 {
+                    self.drag = None;
+                    if r.contains(x, y) {
+                        self.titleop(g.win, op);
+                    }
                 }
             }
             DragKind::Sweep { left, right, top, bottom } => {
@@ -3179,6 +3368,7 @@ impl Wsys {
                 if b == 0 {
                     self.drag = None;
                     self.outline(None);
+                    self.wins.get_mut(&g.win).unwrap().unmax = None;
                     let _ = self.setrect(g.win, r);
                 } else {
                     self.drag = Some(g);
@@ -3188,11 +3378,12 @@ impl Wsys {
             DragKind::Box(target) => {
                 // the frame from the press to the mouse; its content shown as the outline
                 let f = Rect::new(g.x0.min(x), g.y0.min(y), g.x0.max(x), g.y0.max(y));
-                let big = f.dx() >= MINSIZE + 2 * BORDER && f.dy() >= MINSIZE + 2 * BORDER;
+                let t = self.titleh();
+                let big = f.dx() >= MINSIZE + 2 * BORDER && f.dy() >= MINSIZE + 2 * BORDER + t;
                 if b != 0 {
                     g.cur = f;
                     self.drag = Some(g);
-                    self.outline(if big { Some(f.inset(BORDER)) } else { None });
+                    self.outline(if big { Some(inner(f, BORDER, t)) } else { None });
                     return;
                 }
                 self.drag = None;
@@ -3209,8 +3400,11 @@ impl Wsys {
                         }
                     }
                     Some(n) => {
-                        let b = self.wins.get(&n).map_or(BORDER, |w| w.border);
-                        let _ = self.setrect(n, f.inset(b));
+                        let (b, t) = self.wins.get(&n).map_or((BORDER, t), |w| (w.border, w.title));
+                        if let Some(w) = self.wins.get_mut(&n) {
+                            w.unmax = None;
+                        }
+                        let _ = self.setrect(n, inner(f, b, t));
                     }
                 }
             }
@@ -4145,7 +4339,14 @@ fn main() {
         match ev {
             Ev::Msg(m) => ws.handle(&m),
             Ev::Hangup => break,
-            Ev::Mouse { x, y, b, ms } => ws.mouse(x, y, b, ms),
+            Ev::Mouse { x, y, b, ms } => {
+                // WSYSDEBUG=mouse: each mouse message, and what is under it then
+                if std::env::var("WSYSDEBUG").is_ok_and(|v| v.contains("mouse")) {
+                    let hit = ws.z.iter().rev().copied().find(|n| !ws.wins[n].hidden && ws.wins[n].frame().contains(x, y));
+                    eprintln!("wsys: mouse {x} {y} {b} {ms}: window {hit:?}, drag {}, focus {:?}", ws.drag.is_some(), ws.focus);
+                }
+                ws.mouse(x, y, b, ms)
+            }
             Ev::Kbd(m) => ws.kbd(m),
             Ev::Tick => {
                 if let Some((n, but, next)) = ws.scrolling {
