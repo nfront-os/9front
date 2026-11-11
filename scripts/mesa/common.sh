@@ -16,6 +16,8 @@ objtype=${objtype:-amd64}
 case $objtype in
 amd64)	TRIPLE=x86_64-pc-plan9 CPU=x86_64 ;;
 386)	TRIPLE=i686-pc-plan9 CPU=x86 ;;
+# (no Mesa there yet: the sysroot view and cross tools for scripts/build/cargo.sh)
+arm64)	TRIPLE=aarch64-pc-plan9 CPU=aarch64 ;;
 *)	echo "mesa: objtype=$objtype not supported" >&2; exit 1 ;;
 esac
 # the cross compilers of ../9front-gcc

@@ -28,7 +28,6 @@ enum {
 
 enum {
 	Nbuf = 4,
-	Bufstep = 0x10000000,	/* buffer i at base + i*Bufstep in the window's range */
 };
 
 typedef struct Buf Buf;
@@ -494,7 +493,9 @@ main(void)
 	want(P(60, 60), Bg, "background");
 
 	/* a swap chain: buffer 1 blue on top, then buffer 0 again */
-	mkbuf(a, 1, 320, 240, a->base + Bufstep, 1);
+	/* buffer i at base + i*size/4 in the window's range (its size: 4 GB on
+	 * amd64, 256 MB on arm64, 32 MB on 386) */
+	mkbuf(a, 1, 320, 240, a->base + a->size/4, 1);
 	fill(&a->buf[1], Rect(0, 0, 320, 240), Blue);
 	present(a, 1, nil);
 	want(P(180, 220), Blue, "a, buffer 1");

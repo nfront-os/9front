@@ -13,7 +13,7 @@ The **9front** OS source tree (Plan 9 fork). Branch `front` = mirror of github.c
 - Build tool (Go) once: `cd sys/src/cmd/build && GO111MODULE=off go build -o build.exe .`
 - Everything for one arch, from the tree root: `CC=gcc ARCH=amd64 sys/src/cmd/build/build.exe` (or `ARCH=386`, `ARCH=arm64`). Ends with `NNN files expected, ok`.
 - One manifest: `CC=gcc ARCH=amd64 sys/src/cmd/build/build.exe <path/to/x.json>`.
-- Rust programs (wsys, `sys/src/cmd/*/rust.json`): the build's step `rust` (`scripts/build/cargo.sh`, ../9front-rust's stage-1 rustc); without it they are skipped, not an error.
+- Rust programs (wsys, term, wbar, ui: `sys/src/cmd/*/rust.json`): the build's step `rust` (`scripts/build/cargo.sh`, ../9front-rust's stage-1 rustc; amd64, 386, arm64, the GPU parts on amd64 only); without it they are skipped, not an error.
 - Only what is out of date (like mk): add `-D`. After switching ARCH it rebuilds everything (objects of another arch are out of date).
 - Never run two builds in the same tree at once (they share object files).
 - After kernel changes rebuild with the full command, not the kernel manifest alone: its generated files (`sys/src/9/port/initcode.i`, ...) are shared by the arches and made by the full build just before the kernel. arm64: the guest boots `arm64/9qemu.u`, which only `scripts/guest/build-boot.sh` remakes.

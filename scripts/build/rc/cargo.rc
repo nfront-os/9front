@@ -3,10 +3,15 @@
 # of ../9front-rust (/$cputype/rust, scripts/install.sh there), linked by the native
 # gcc (/$cputype/gnu), its programs installed in /$objtype/bin. Without them it says
 # so and builds nothing (check-install.rc reports the programs as norust).
-#	cargo.rc dir prog...
+#	cargo.rc [-n] dir prog...	(-n: without the default features, as cargo.sh's)
 . $PLAN9/scripts/build/rc/lib.rc
+feat=()
+if(~ $1 -n){
+	feat=--no-default-features
+	shift
+}
 if(~ $#* 0 1)
-	die usage: cargo.rc dir prog...
+	die usage: cargo.rc [-n] dir prog...
 rust=/$cputype/rust/bin
 if(! test -x $rust/cargo || ! test -x $rust/rustc || ! test -x $GNU/gcc){
 	echo cargo.rc: no Rust toolchain '('$rust, $GNU')': $* not built >[1=2]
@@ -22,6 +27,13 @@ ws=`{sed -n 's/^workspace *= *"(.*)"/\1/p' $PLAN9/$dir/Cargo.toml}
 pkg=()
 if(! ~ $#ws 0)
 	pkg=(-p `{sed -n 's/^name *= *"(.*)"/\1/p' $PLAN9/$dir/Cargo.toml | sed 1q})
+# nor a std installed again for the same rustc: what it built with another goes
+std=`{ls -l /$cputype/rust/lib/rustlib/*/lib/libstd-*.rlib >[2]/dev/null}
+old=`{cat $target.std >[2]/dev/null}
+if(! ~ $"old $"std){
+	rm -rf $target
+	echo $"std >$target.std
+}
 # cargo does not know the C libraries it links (libvulkan.a, APE's, lib9's):
 # a program older than one of them goes (release/p and the deps/p-hash it is
 # a link of: cargo looks at that one), so that cargo links it again
@@ -37,7 +49,7 @@ for(p in $*){
 	cd $PLAN9/$dir || die no $dir
 	if(! ~ $#ws 0)
 		cd $ws || die no workspace $ws
-	CARGO_TARGET_DIR=$target cargo build --offline --release --quiet $pkg
+	CARGO_TARGET_DIR=$target cargo build --offline --release --quiet $pkg $feat
 } || die cargo build $dir
 mkdir -p $PLAN9/$objtype/bin
 for(p in $*){

@@ -12,7 +12,7 @@ import json, os
 ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..'))
 
 # the architectures cargo.sh builds for (its sysroot view: scripts/mesa/common.sh)
-OBJTYPES = ['amd64']
+OBJTYPES = ['amd64', '386', 'arm64']
 
 def crates():
 	"""[(dir from the root, [program, ...]), ...]"""

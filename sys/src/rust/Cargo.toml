@@ -16,5 +16,9 @@ wgpu = { path = "crates/wgpu-28.0.0" }
 wgpu-core = { path = "crates/wgpu-core-28.0.1" }
 wgpu-hal = { path = "crates/wgpu-hal-28.0.1" }
 
+# Xilem's crates (git) changed here: xilem/ (README.md)
+[patch."https://github.com/linebender/xilem"]
+masonry_imaging = { path = "xilem/masonry_imaging-0.4.0" }
+
 [profile.release]
 debug = true

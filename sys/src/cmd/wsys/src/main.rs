@@ -87,6 +87,7 @@ mod comp {
         pub rects: Vec<crate::draw::Rect>,
         pub blend: bool,
     }
+    #[allow(dead_code)] // made by the GPU's comp only; main matches on it
     pub enum Done {
         Composed(Vec<Key>),
         Failed(String),

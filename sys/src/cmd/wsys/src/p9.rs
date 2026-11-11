@@ -150,7 +150,10 @@ pub struct Seg {
 const USTKTOP: usize = 0x0000_7fff_ffff_f000;
 #[cfg(target_arch = "aarch64")]
 const USTKTOP: usize = (((1usize << 36) - 1) >> 1) - 0xFFFF;
-#[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
+// 386 (pc/mem.h): VMAP - BY2PG, VMAP 256 MB below KZERO 0xF0000000
+#[cfg(target_arch = "x86")]
+const USTKTOP: usize = 0xE000_0000 - 0x1000;
+#[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64", target_arch = "x86")))]
 const USTKTOP: usize = 0;
 
 /// The region of addresses the kernel gives segments made with "va 0 len"
@@ -165,11 +168,15 @@ pub const fn shared_region() -> (usize, usize) {
 /// The windows' ranges for their clients' segments: slot i is base + i*size,
 /// (base, size, slots). A quarter of the addresses from 5/8 of USTKTOP on:
 /// above the shared region (it ends at 9/16), below the stacks. amd64: 4 GB
-/// slots from 0x5000_0000_0000; arm64 (32 GB of addresses): 256 MB ones.
+/// slots from 0x5000_0000_0000; arm64 (32 GB of addresses): 256 MB ones; 386
+/// (3.5 GB): 27 of 32 MB from 0x8c00_0000 (std's thread stacks go down from
+/// 2 GB, the shared region is at 1.75 GB).
 pub const fn window_region() -> (usize, usize, usize) {
     #[cfg(target_arch = "aarch64")]
     const SIZE: usize = 0x1000_0000;
-    #[cfg(not(target_arch = "aarch64"))]
+    #[cfg(target_arch = "x86")]
+    const SIZE: usize = 0x200_0000;
+    #[cfg(not(any(target_arch = "aarch64", target_arch = "x86")))]
     const SIZE: usize = 0x1_0000_0000;
     let base = (USTKTOP / 8 * 5 + SIZE - 1) & !(SIZE - 1);
     (base, SIZE, USTKTOP / 4 / SIZE)
@@ -213,6 +220,7 @@ impl Seg {
     /// segment name as this proc has it already: inherited from the proc that
     /// attached it before starting this one (std's threads are procs; rfork
     /// RFMEM shares the segments there are), else attached
+    #[cfg(feature = "gpu")] // (comp.rs)
     pub fn attach_or_have(name: &str, (va, len): (usize, usize)) -> io::Result<Seg> {
         match Seg::attach(name, (va, len)) {
             Ok(s) => Ok(s),

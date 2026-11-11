@@ -89,8 +89,10 @@ def main():
 			# the Rust crates, wsys links Mesa's libvulkan.a
 			{'Name': 'ape', 'Pre': ['bash scripts/build/ape.sh']},
 		] if objtype in apeprogs.OBJTYPES else []) + ([
-			# the Rust crates (scripts/gen/rustcrates.py: rust.json), with ../9front-rust
-			{'Name': 'rust', 'Pre': ['bash scripts/build/cargo.sh %s %s' % (d, ' '.join(p))
+			# the Rust crates (scripts/gen/rustcrates.py: rust.json), with ../9front-rust;
+			# without their GPU features (-n) where APE's step makes no Mesa
+			{'Name': 'rust', 'Pre': ['bash scripts/build/cargo.sh %s%s %s' % (
+				'' if objtype in apeprogs.OBJTYPES else '-n ', d, ' '.join(p))
 				for d, p in rustcrates.crates()]},
 		] if objtype in rustcrates.OBJTYPES and rustcrates.crates() else []) + [
 			{'Name': 'kernelgen', 'Pre': gens, 'Clean': genclean.clean(gens, ROOT)},

@@ -364,6 +364,16 @@
 		]
 	},
 	{
+		"Name": "rust",
+		"Pre": [
+			"bash scripts/build/cargo.sh -n sys/src/cmd/term term",
+			"bash scripts/build/cargo.sh -n sys/src/cmd/ui ui",
+			"bash scripts/build/cargo.sh -n sys/src/cmd/uidemo uicount uitodo uitick",
+			"bash scripts/build/cargo.sh -n sys/src/cmd/wbar wbar",
+			"bash scripts/build/cargo.sh -n sys/src/cmd/wsys wsys"
+		]
+	},
+	{
 		"Name": "kernelgen",
 		"Pre": [
 			"bash scripts/build/gen-rebootcode-i.sh arm64",

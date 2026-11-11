@@ -23,27 +23,30 @@
 # goes to files until the end: the kernel's console draws on the screen the test reads.
 # A second boot runs the same in a rio window.
 # Needs ../9front-rust's stage-1 rustc for wsys (scripts/build/cargo.sh).
-# usage: bash tests/ui/run.sh   (amd64)
+# usage: [objtype=386] bash tests/ui/run.sh   (amd64, 386: a 9pc guest; the
+# programs without their GPU features there, as the build's step rust makes them)
 . "$(dirname "$0")/../lib.sh"
 HERE=$(cd "$(dirname "$0")" && pwd)
-[ "$objtype" = amd64 ] || { skip "ui tests" "objtype=$objtype: cargo.sh builds amd64 and 386 only"; done_tests; exit; }
-[ -f "$ROOT/amd64/bin/9pc64" ] || { skip "ui" "no kernel, run $BUILDHOW"; done_tests; exit; }
+case $objtype in amd64|386) ;; *) skip "ui tests" "objtype=$objtype: no VESA screen in its guest"; done_tests; exit ;; esac
+[ -f "$ROOT/$KBIN" ] || { skip "ui" "no kernel, run $BUILDHOW"; done_tests; exit; }
+# -n where the build makes no Mesa (scripts/gen/genbuild.py)
+nogpu=$(python3 -c "import sys; sys.path.insert(0, '$ROOT/scripts/gen'); import apeprogs; print('' if '$objtype' in apeprogs.OBJTYPES else '-n')")
 
-check "build wsys (scripts/build/cargo.sh)" bash "$ROOT/scripts/build/cargo.sh" "$ROOT/sys/src/cmd/wsys" wsys || { done_tests; exit; }
-check "build term (scripts/build/cargo.sh)" bash "$ROOT/scripts/build/cargo.sh" "$ROOT/sys/src/cmd/term" term || { done_tests; exit; }
-check "build wbar (scripts/build/cargo.sh)" bash "$ROOT/scripts/build/cargo.sh" "$ROOT/sys/src/cmd/wbar" wbar || { done_tests; exit; }
+check "build wsys (scripts/build/cargo.sh)" bash "$ROOT/scripts/build/cargo.sh" $nogpu "$ROOT/sys/src/cmd/wsys" wsys || { done_tests; exit; }
+check "build term (scripts/build/cargo.sh)" bash "$ROOT/scripts/build/cargo.sh" $nogpu "$ROOT/sys/src/cmd/term" term || { done_tests; exit; }
+check "build wbar (scripts/build/cargo.sh)" bash "$ROOT/scripts/build/cargo.sh" $nogpu "$ROOT/sys/src/cmd/wbar" wbar || { done_tests; exit; }
 buildtests(){ (cd "$HERE" && env PLAN9="$ROOT" ARCH=$objtype CC=gcc "$BUILDEXE" build.json); }
 check "build tests/ui" buildtests || { done_tests; exit; }
 mkdir -p "$HERE/root/tests"
-cp "$ROOT/amd64/bin/wsys" "$HERE/root/tests/wsys"
-cp "$ROOT/amd64/bin/term" "$HERE/root/tests/term"
+cp "$ROOT/$objtype/bin/wsys" "$HERE/root/tests/wsys"
+cp "$ROOT/$objtype/bin/term" "$HERE/root/tests/term"
 cp "$HERE/term.rc" "$HERE/root/tests/termtest"
 cp "$HERE/termrestart.rc" "$HERE/root/tests/termrestart"
 cp "$HERE/theme.rc" "$HERE/root/tests/themetest"
 cp "$HERE/desk.rc" "$HERE/root/tests/desktest"
 cp "$HERE/title.rc" "$HERE/root/tests/titletest"
 cp "$HERE/wbar.rc" "$HERE/root/tests/wbartest"
-cp "$ROOT/amd64/bin/wbar" "$HERE/root/tests/wbar"
+cp "$ROOT/$objtype/bin/wbar" "$HERE/root/tests/wbar"
 cp "$HERE/rio4.rc" "$HERE/root/tests/rio4"
 cp "$HERE/text.rc" "$HERE/root/tests/text"
 cp "$HERE/sel.rc" "$HERE/root/tests/sel"

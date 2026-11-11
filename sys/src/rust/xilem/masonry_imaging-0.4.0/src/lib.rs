@@ -49,7 +49,7 @@ mod headless_wgpu;
 #[cfg(all(feature = "imaging_skia", not(target_arch = "wasm32")))]
 pub mod skia;
 /// Host-neutral texture rendering helpers for texture-capable backends.
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(all(not(target_arch = "wasm32"), feature = "wgpu"))]
 pub mod texture_render;
 /// Masonry helpers for rendering retained scenes with `imaging_vello`.
 #[cfg(all(not(target_arch = "wasm32"), feature = "imaging_vello"))]
@@ -62,7 +62,7 @@ pub mod vello_cpu;
 pub mod vello_hybrid;
 
 pub use imaging::render::ImageRenderer;
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(all(not(target_arch = "wasm32"), feature = "wgpu"))]
 pub use imaging_wgpu::TextureRenderer;
 
 /// Backend-selected helpers for headless image rendering.
