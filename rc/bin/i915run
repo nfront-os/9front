@@ -99,10 +99,16 @@ if(test -e /dev/gpu/0/clone){
 		# reads its pixels there (comprun's way)
 		if(! ~ $#wsys 0 && test -e /dev/screen)
 			screenpeek=/dev/screen
-		# full screen first by copies alone (no scanout, no modeset), then with scanout
-		for(c in 'vulkaninfo --summary' 'vktri 3' 'WSI_PLAN9_STATS=1 vkcube --c 300' \
-			'@{rfork en; bind -b ''#i'' /dev; WSI_PLAN9_COPY=1 WSI_PLAN9_STATS=1 vkcube --c 300}' \
-			'@{rfork en; bind -b ''#i'' /dev; WSI_PLAN9_STATS=1 vkcube --c 300}'){
+		# full screen first by copies alone (no scanout, no modeset), then with
+		# scanout: not under wsys, which composes the same screen meanwhile (its
+		# frames and vkcube's would take turns: the desktop flickers through)
+		vkc=('vulkaninfo --summary' 'vktri 3' 'WSI_PLAN9_STATS=1 vkcube --c 300')
+		if(~ $#wsys 0)
+			vkc=($vkc '@{rfork en; bind -b ''#i'' /dev; WSI_PLAN9_COPY=1 WSI_PLAN9_STATS=1 vkcube --c 300}' \
+				'@{rfork en; bind -b ''#i'' /dev; WSI_PLAN9_STATS=1 vkcube --c 300}')
+		if not
+			echo '## full screen vkcube: not in wsys (run i915run without a window system)' >>$out
+		for(c in $vkc){
 			echo i915run: $c >>$log
 			echo '##' $c >>$out
 			# at most 60 s: a hang (full-screen vkcube on the laptop) leaves

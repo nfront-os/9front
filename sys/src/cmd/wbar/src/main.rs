@@ -13,8 +13,10 @@
 //	-f	the font (the theme's uifont, else /lib/font/ttf/Go-Regular.ttf)
 //	-s	its size in pixels (15)
 // WBARDEBUG=items: where things are on the bar, after each picture, in
-// /tmp/wbar.<pid>.items (tests): "menu x0 x1", "win n x0 x1 state label",
-// "clock x0 x1 text", "item i y0 y1 label" while the menu is open.
+// /tmp/wbar.<pid>.items (tests): "menu x0 x1 open|shut", "win n x0 x1 state
+// label", "clock x0 x1 text".
+// The menu is wsys': its window's menu file (wsys(4)) shows it below the bar
+// and says which item was chosen.
 
 mod text;
 
@@ -31,6 +33,7 @@ const MENU: &str = "menu";
 enum Ev {
     In(Input),
     Tick,
+    Chosen(i32), // the menu's item, -1 none
 }
 
 #[derive(Clone, PartialEq)]
@@ -53,14 +56,14 @@ struct Bar {
     clock: String,
     minute: u64,
     menu: Vec<(String, String)>,
-    open: Option<Option<usize>>, // the menu open, the item lit
-    opened: bool,                // the press that opened it is still held
-    press: Option<u32>,          // button 1 went down on this window's place
+    open: bool,         // wsys shows the menu
+    press: Option<u32>, // button 1 went down on this window's place
     buttons: u32,
     px: Vec<u32>,
     pw: usize,
     ph: usize,
     debug: Option<String>,
+    tx: mpsc::Sender<Ev>,
 }
 
 /// one read of a file (wctl: a second read would wait for a change)
@@ -124,17 +127,6 @@ fn run(cmd: &str) {
 }
 
 impl Bar {
-    fn rowh(&self) -> i32 {
-        self.text.height + 6
-    }
-
-    /// the menu's place below the bar, in the window
-    fn menurect(&mut self) -> Rect {
-        let labels: Vec<String> = self.menu.iter().map(|m| m.0.clone()).collect();
-        let w = labels.iter().map(|l| self.text.width(l)).max().unwrap_or(0) + 2 * PAD + 4;
-        Rect::new(self.menux.0, self.h, self.menux.0 + w, self.h + self.menu.len() as i32 * self.rowh() + 4)
-    }
-
     fn picture(&mut self) {
         let c = self.draw.content();
         let (w, h) = (c.dx().max(1) as usize, c.dy().max(1) as usize);
@@ -160,11 +152,11 @@ impl Bar {
         // the menu's place
         let mw = self.text.width(MENU) + 2 * PAD;
         self.menux = (0, mw);
-        if self.open.is_some() {
+        if self.open {
             fill(&mut self.px, Rect::new(0, 0, mw, bh - 2), t.menuhigh);
         }
         self.text.draw(&mut self.px, w, h, PAD, ty, MENU, ink, mw);
-        dbg += &format!("menu 0 {mw}\n");
+        dbg += &format!("menu 0 {mw} {}\n", if self.open { "open" } else { "shut" });
         // the clock
         let cw = self.text.width(&self.clock);
         let cx = bw - cw - PAD;
@@ -191,22 +183,6 @@ impl Bar {
             dbg += &format!("win {} {} {} {} {}\n", win.n, x, x + iw, state, win.label);
             x += iw + 2;
         }
-        // the menu, open below the bar
-        if let Some(lit) = self.open {
-            let r = self.menurect();
-            fill(&mut self.px, r, t.border);
-            fill(&mut self.px, r.inset(2), t.window);
-            let rh = self.rowh();
-            let items = self.menu.clone();
-            for (i, (label, _)) in items.iter().enumerate() {
-                let y = r.y0 + 2 + i as i32 * rh;
-                if lit == Some(i) {
-                    fill(&mut self.px, Rect::new(r.x0 + 2, y, r.x1 - 2, y + rh), t.menuhigh);
-                }
-                self.text.draw(&mut self.px, w, h, r.x0 + 2 + PAD, y + 3, label, ink, r.x1 - 2);
-                dbg += &format!("item {i} {y} {} {label}\n", y + rh);
-            }
-        }
         let _ = self.draw.put(&self.px, w, h, &[]);
         if let Some(p) = &self.debug {
             let _ = std::fs::write(p, dbg);
@@ -228,20 +204,47 @@ impl Bar {
         changed
     }
 
-    /// the window's height: the bar's, or with the menu below it
+    /// the window: the screen's width, the bar's height
     fn resize(&mut self) {
         let s = self.draw.screen();
-        let h = if self.open.is_some() { self.menurect().y1 } else { self.h };
-        let _ = p9win::wctl(&format!("resize -r {} {} {} {}", s.x0, s.y0, s.x1, s.y0 + h));
+        let _ = p9win::wctl(&format!("resize -r {} {} {} {}", s.x0, s.y0, s.x1, s.y0 + self.h));
     }
 
-    fn setmenu(&mut self, open: bool) {
-        if open == self.open.is_some() {
-            return;
+    /// the menu below its place on the bar, by wsys (its window's menu file:
+    /// written, then read for the item chosen; read in a thread of its own)
+    fn openmenu(&mut self) {
+        let c = self.draw.content();
+        let mut req = format!("{} {}\n", c.x0 + self.menux.0, c.y0 + self.h);
+        for (label, _) in &self.menu {
+            req += label;
+            req.push('\n');
         }
-        self.open = if open { Some(None) } else { None };
-        self.resize();
+        let tx = self.tx.clone();
+        let ask = move || -> std::io::Result<i32> {
+            let mut f = std::fs::OpenOptions::new().read(true).write(true).open("/dev/menu")?;
+            std::io::Write::write_all(&mut f, req.as_bytes())?;
+            let mut b = [0u8; 32];
+            let n = f.read(&mut b)?;
+            Ok(String::from_utf8_lossy(&b[..n]).trim().parse().unwrap_or(-1))
+        };
+        self.open = true;
         self.picture();
+        std::thread::spawn(move || {
+            let i = ask().unwrap_or_else(|e| {
+                eprintln!("wbar: menu: {e}");
+                -1
+            });
+            let _ = tx.send(Ev::Chosen(i));
+        });
+    }
+
+    /// the menu's item i chosen (-1: none)
+    fn chosen(&mut self, i: i32) {
+        self.open = false;
+        self.picture();
+        if let Some((_, cmd)) = usize::try_from(i).ok().and_then(|i| self.menu.get(i)) {
+            run(&cmd.clone());
+        }
     }
 
     fn mouse(&mut self, x: i32, y: i32, b: u32) {
@@ -252,31 +255,11 @@ impl Bar {
         let pressed = b & !prev;
         let released = prev & !b;
         let onmenu = y < self.h && x >= self.menux.0 && x < self.menux.1;
-        if self.open.is_some() {
-            let r = self.menurect();
-            let lit = (r.inset(2).contains(x, y)).then(|| ((y - r.y0 - 2) / self.rowh()) as usize).filter(|&i| i < self.menu.len());
-            if self.open != Some(lit) {
-                self.open = Some(lit);
-                self.picture();
-            }
-            if released & 1 != 0 {
-                if let Some(i) = lit {
-                    let cmd = self.menu[i].1.clone();
-                    self.setmenu(false);
-                    run(&cmd);
-                } else if !(onmenu && self.opened) {
-                    self.setmenu(false); // let go elsewhere: shut (a click on menu keeps it open)
-                }
-                self.opened = false;
-            } else if pressed & 1 != 0 && lit.is_none() {
-                self.setmenu(false);
-            }
-            return;
-        }
         if pressed & 1 != 0 {
             if onmenu {
-                self.opened = true;
-                self.setmenu(true);
+                if !self.open && !self.menu.is_empty() {
+                    self.openmenu();
+                }
                 return;
             }
             self.press = self.spots.iter().find(|s| x >= s.1 && x < s.2 && y < self.h).map(|s| s.0);
@@ -337,19 +320,19 @@ fn main() {
     };
     let text = text::Text::open(&fontpath, size).unwrap_or_else(|e| die("font", e));
     let draw = Draw::open().unwrap_or_else(|e| die("draw", e));
+    let (tx, rx) = mpsc::channel();
     let own = read1("/dev/winid").and_then(|s| s.trim().parse().ok()).unwrap_or(0);
     let h = text.height + 8;
     let debug = std::env::var("WBARDEBUG").is_ok_and(|v| v.contains("items")).then(|| format!("/tmp/wbar.{}.items", std::process::id()));
     let mut bar = Bar {
         draw, text, theme, own, h, wins: vec![], spots: vec![], menux: (0, 0), clock: String::new(), minute: 0,
-        menu: readmenu(&menupath), open: None, opened: false, press: None, buttons: 0, px: vec![], pw: 0, ph: 0, debug,
+        menu: readmenu(&menupath), open: false, press: None, buttons: 0, px: vec![], pw: 0, ph: 0, debug, tx: tx.clone(),
     };
     let _ = p9win::set_label("wbar");
     // a bar along the top of the screen (rio has no bars: there it is a window)
     let _ = p9win::wctl("bar");
     bar.resize();
 
-    let (tx, rx) = mpsc::channel();
     let itx = tx.clone();
     let _inputs = Inputs::start(move |i| {
         let _ = itx.send(Ev::In(i));
@@ -372,6 +355,7 @@ fn main() {
                     bar.picture();
                 }
             }
+            Ev::Chosen(i) => bar.chosen(i),
             Ev::In(Input::Closed) => break,
             Ev::In(Input::Mouse { x, y, buttons, resized }) => {
                 if resized {

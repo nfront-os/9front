@@ -3,7 +3,8 @@
 # a bar along the top (no border, above the windows made after it, never
 # current); its windows' places: button 1 makes a window current, hides the
 # current one, brings a hidden one back; a window maximized stays below the
-# bar; Mod4+Tab passes the bar by; the menu runs its command.
+# bar; Mod4+Tab passes the bar by; the menu (wsys', narrow) runs its command,
+# clicked and held.
 # Prints ok/FAIL lines and "wbar: all passed".
 fn fail { echo FAIL $*; exit fail }
 fn wait1 { # cmd...: until it succeeds, 10 s at most
@@ -31,6 +32,10 @@ fn spot { # window $1: the middle of its place on the bar
 	echo $s
 }
 fn state { items | awk '$1 == "win" && $2 == "'$1'" {print $5}' }
+fn is { # x,y rrggbb...: one of them on the screen there
+	px=`{/tests/uipeek $1 | awk '{print $2}'}
+	~ $px $* || fail at $1: $px, want $*
+}
 fn mod4tab {
 	/tests/uipeek -p f868
 	/tests/uipeek -p 9
@@ -101,17 +106,27 @@ c=`{current}
 ~ $c 2 3 || fail Mod4+Tab again: $c
 echo ok Mod4+Tab passes the bar by
 
-# the menu: a click opens it below the bar, a click on touch runs it
+# the menu (wsys', by wbar's menu file): a click opens it below the bar, only
+# as wide as its items (beta's title bar, maximized, still shows beside it); a
+# click on touch runs it; then held: pressed on menu, let go on touch
 x=`{items | awk '$1 == "menu" {print int(($2+$3)/2)}'}
 click $x $y
-fn open { items | grep -s '^item 0 ' }
+fn open { items | grep -s '^menu .* open$' }
 wait1 open || fail the menu did not open: `{items}
-i=`{items | awk '$1 == "item" && $2 == "0" {print int(($3+$4)/2)}'}
+i=`{echo $h+5 | hoc}
+is 40,$i ffffea
+is 600,$i 2b4c6f a8a49c
+echo ok the menu below the bar, narrow
 click 40 $i
 wait1 test -e /tmp/wbartouched || fail touch did not run: `{items}
-fn shut { ! items | grep -s '^item' }
+fn shut { items | grep -s '^menu .* shut$' }
 wait1 shut || fail the menu stayed open
 b=`{grep '^1 ' /mnt/wsys/stack}
-~ $b(5) $h || fail the bar not back to $h: $b
-echo ok the menu ran touch, shut again
+~ $b(5) $h || fail the bar not $h high: $b
+echo ok a click on the menu, a click on touch ran it
+rm -f /tmp/wbartouched
+{ m $x $y 0; m $x $y 1; sleep 0.3; m 40 $i 1; m 40 $i 0 } >/dev/mousein
+wait1 test -e /tmp/wbartouched || fail held: touch did not run: `{items}
+wait1 shut || fail held: the menu stayed open
+echo ok held on the menu, let go on touch
 echo wbar: all passed

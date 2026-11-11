@@ -219,6 +219,21 @@ as
 and p9win know such a window), above the other windows, the mouse while it
 is over it (or a button went down there) but never the keyboard's focus, not
 in Mod4+Tab; a window maximized leaves the edge of the screen it is on free.
+.PP
+A window's
+.B menu
+shows a menu of
+.IR wsys 's
+for its program, anywhere on the screen (a bar's, below it):
+written, its first line is
+.I x y
+(the menu's top left, kept on the screen), each further line an item;
+a read then waits until the menu is gone and gives the item chosen, from 0,
+or \-1 for none.
+A button held when it opens, let go on an item, chooses it; let go
+elsewhere, the menu stays open; then the next press's release chooses the
+item under it, or none off them.
+.PP
 A process
 .I wsys
 starts in a new window gets a name space with the window's files on
@@ -558,7 +573,8 @@ Mesa's plan9 WSI does this for Vulkan programs in a window of
 their frames are not copied by the program.
 With
 .IR aux/amdgpu ,
-a window on top, wholly on the screen, with nothing of
+a window on top (of those that are not bars, with no bar over it),
+wholly on the screen, with nothing of
 .I wsys
 over it (a menu, a sweep) and a GPU buffer as big as its contents (rows
 a multiple of 256 bytes) goes on an overlay plane

@@ -43,17 +43,19 @@ fn part { # name cmd...
 	name=$1
 	shift
 	echo '====' $name `{date}
-	{ $* >/tmp/wlrun.out >[2=1]; touch /tmp/wlrun.done } &
+	# its own files (two runs at once took each other's)
+	rm -f /tmp/wlrun.$pid.done /tmp/wlrun.$pid.out
+	{ $* >/tmp/wlrun.$pid.out >[2=1]; touch /tmp/wlrun.$pid.done } &
 	p=$apid
 	n=0
-	while(! test -e /tmp/wlrun.done && test $n -lt 300){ sleep 1; n=`{echo $n+1 | hoc} }
-	if(! test -e /tmp/wlrun.done){
+	while(! test -e /tmp/wlrun.$pid.done && test $n -lt 300){ sleep 1; n=`{echo $n+1 | hoc} }
+	if(! test -e /tmp/wlrun.$pid.done){
 		echo $name: not done in 5 minutes, running:
 		ps | grep -v ' (listen|Wakeme|Idle) '
 		echo kill >/proc/$p/notepg
 	}
-	rm -f /tmp/wlrun.done
-	cat /tmp/wlrun.out
+	rm -f /tmp/wlrun.$pid.done
+	cat /tmp/wlrun.$pid.out
 	echo $name: $n s
 }
 {

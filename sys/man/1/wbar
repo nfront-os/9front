@@ -28,7 +28,11 @@ On it are, from the start:
 .TP
 .B menu
 Button 1 opens a menu below the bar, held (let go on an item) or clicked
-(a click on an item, anywhere else shuts it).
+(a click on an item, anywhere else shuts it); it is
+.IR wsys 's
+(the window's
+.B menu
+file), as wide as its items.
 An item runs its command with
 .IR rc (1)
 in
@@ -117,6 +121,6 @@ Under
 which knows no bars, it is an ordinary window.
 .br
 .B WBARDEBUG=items
-writes where things are on the bar to
+writes where things are on the bar (and whether the menu is open) to
 .BI /tmp/wbar. pid .items
 after each picture (for tests).

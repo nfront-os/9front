@@ -228,12 +228,17 @@ WBARDEBUG=items exec wbar -m /tmp/deskmenu >/tmp/deskwbar.err >[2=1]' >/tmp/desk
 	if not fail Mod4+Tab: to $c1, then $c2, the bar $b
 	x=`{items | awk '$1 == "menu" {print int(($2+$3)/2)}'}
 	click $x $y
-	fn open { items | grep -s '^item 0 ' }
+	fn open { items | grep -s '^menu .* open$' }
 	wait1 open || fail the menu did not open: `{items}
-	i=`{items | awk '$1 == "item" && $2 == "0" {print int(($3+$4)/2)}'}
+	i=`{echo $sy0+$h+5 | hoc}
+	is `{echo $sx0+40 | hoc} $i ffffea
 	click `{echo $sx0+40 | hoc} $i
 	wait1 test -e /tmp/desktouched || fail the menu: touch did not run
 	if(test -e /tmp/desktouched) echo ok the menu ran touch
+	rm -f /tmp/desktouched
+	{ m $x $y 0; m $x $y 1; sleep 0.3; m `{echo $sx0+40 | hoc} $i 1; m `{echo $sx0+40 | hoc} $i 0 } >/dev/mousein
+	wait1 test -e /tmp/desktouched || fail the menu held: touch did not run
+	if(test -e /tmp/desktouched) echo ok the menu held, let go on touch
 	echo delete >/mnt/wsys/$a/wctl
 	echo delete >/mnt/wsys/$be/wctl
 

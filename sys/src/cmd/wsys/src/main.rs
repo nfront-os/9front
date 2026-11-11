@@ -203,9 +203,10 @@ enum F {
     Window,
     Screen,
     Theme,
+    Menu,
 }
 
-const WINFILES: [(F, &str, u32); 17] = [
+const WINFILES: [(F, &str, u32); 18] = [
     (F::Ctl, "ctl", 0o666),
     (F::Event, "event", 0o444),
     (F::Cons, "cons", 0o666),
@@ -223,6 +224,7 @@ const WINFILES: [(F, &str, u32); 17] = [
     (F::Window, "window", 0o444),
     (F::Screen, "screen", 0o444),
     (F::Theme, "theme", 0o666),
+    (F::Menu, "menu", 0o666),
 ];
 
 /// the files of a client of wsys' devdraw, as #i's
@@ -322,6 +324,7 @@ struct Win {
     title: i32,  // its title bar's height (the theme's title 1), none for a popup
     unmax: Option<Rect>, // maximized from this frame (the title bar's max, a double click)
     bar: bool,           // wctl's bar: on top of the others, the mouse without the focus (wbar)
+    menuout: Option<i32>, // its menu's item chosen (-1: none), for a read of menu
     mapped: bool, // made by clone: off the screen (hidden) until its first present
     nofocus: bool, // a popup that leaves the focus where it is (a tooltip)
     slot: usize,
@@ -426,6 +429,14 @@ struct Menu {
     r: Rect,
     layer: u32,
     cur: Option<usize>,
+    client: Option<Waiting>, // a program's, through its window's menu file
+}
+
+/// a program's menu: where its buttons are
+#[derive(Clone, Copy, PartialEq)]
+enum Waiting {
+    Held { first: bool }, // a button is down (first: the one down when it opened)
+    Open,                 // none: the next press and its release choose
 }
 
 const MENU2: &[&str] = &["cut", "paste", "snarf", "plumb", "look", "send"];
@@ -1098,7 +1109,7 @@ impl Wsys {
                         }
                         text(&self.snarf)
                     }
-                    Kind::File(n, f @ (F::Event | F::Mouse | F::Cons | F::Kbd | F::Wctl)) => {
+                    Kind::File(n, f @ (F::Event | F::Mouse | F::Cons | F::Kbd | F::Wctl | F::Menu)) => {
                         match self.take(fid, n, f, count) {
                             Some(b) => Some(R::new(117, tag).u32(b.len() as u32).bytes(&b).done()),
                             None => {
@@ -1190,6 +1201,10 @@ impl Wsys {
                         ok
                     }
                     Kind::Theme | Kind::File(_, F::Theme) => match self.settheme(&String::from_utf8_lossy(&data)) {
+                        Ok(()) => ok,
+                        Err(err) => e(&err),
+                    },
+                    Kind::File(n, F::Menu) => match self.clientmenu(n, &s) {
                         Ok(()) => ok,
                         Err(err) => e(&err),
                     },
@@ -1454,6 +1469,7 @@ impl Wsys {
                 }
                 if out.is_empty() { None } else { Some(out) }
             }
+            F::Menu => w.menuout.take().map(|i| format!("{i}\n").into_bytes()),
             F::Wctl => {
                 // the first read answers at once, a later one when something changed
                 if seen != 0 && seen >= w.state {
@@ -1552,7 +1568,7 @@ impl Wsys {
         self.nextwin = n;
         self.slots[slot] = true;
         self.wins.insert(n, Win {
-            r, border: BORDER, title: t, unmax: None, bar: false, tlayer: None, mapped: text, nofocus: false, slot, bufs: HashMap::new(), img, layer, name, refs: 0, pinned: false, pid: o.pid,
+            r, border: BORDER, title: t, unmax: None, bar: false, menuout: None, tlayer: None, mapped: text, nofocus: false, slot, bufs: HashMap::new(), img, layer, name, refs: 0, pinned: false, pid: o.pid,
             label: String::new(), wdir: o.cd.clone().unwrap_or_default(), text: String::new(), partial: vec![],
             events: VecDeque::new(), raw: false, line: String::new(), cons: VecDeque::new(), eof: false,
             kbd: VecDeque::new(), kbdopen: 0, mouseopen: 0, mouse: VecDeque::new(), resized: false,
@@ -2815,10 +2831,15 @@ impl Wsys {
     /// why window n may not go on the overlay plane, whatever its buffers
     fn ovwinwhynot(&self, n: u32) -> Option<&'static str> {
         let Some(w) = self.wins.get(&n) else { return Some("no window") };
+        // on top of the windows; bars (wbar) are above all of them, but only
+        // one over it would hide part of it
+        let top = self.z.iter().rev().copied().find(|i| !self.wins[i].bar && !self.wins[i].hidden);
+        let underbar = self.z.iter().any(|i| *i != n && self.wins[i].bar && !self.wins[i].hidden && !self.wins[i].frame().clip(&w.frame()).empty());
         let why = [
             (self.nooverlay, "-O"),
             (self.gpu.as_ref().and_then(|g| g.overlay_ctl()).is_none(), "the driver has no overlay"),
-            (self.z.last() != Some(&n), "not on top"),
+            (top != Some(n), "not on top"),
+            (underbar, "under a bar"),
             (!w.layers.is_empty(), "layers"),
             (w.hidden, "hidden"),
             (w.nooverlay, "refused before"),
@@ -3223,6 +3244,11 @@ impl Wsys {
 
     fn mouse(&mut self, x: i32, y: i32, b: i32, ms: u32) {
         (self.mx, self.my, self.ms) = (x, y, ms);
+        if self.menu.as_ref().is_some_and(|m| m.client.is_some()) {
+            self.clientmouse(x, y, b);
+            self.buttons = b;
+            return;
+        }
         if let Some(m) = &self.menu {
             // a menu while its button is held: let go over an item, it is done
             let button = m.button;
@@ -3998,7 +4024,7 @@ impl Wsys {
     /// button 2's menu, its item cur lit
     fn drawmenu(&mut self) {
         let Some(m) = &self.menu else { return };
-        let (l, r, items, cur) = (m.layer, m.r, m.items.clone(), m.cur);
+        let (l, r, items, cur, left) = (m.layer, m.r, m.items.clone(), m.cur, m.client.is_some());
         let (white, black, hi, border) = (self.white, self.black, self.menuhi, self.cfocus);
         let (font, d) = (self.font.as_mut().unwrap(), &mut self.d);
         let h = font.height;
@@ -4013,7 +4039,7 @@ impl Wsys {
                     d.draw(l, &row, hi, 0, 0)?;
                 }
                 let tw: i32 = it.chars().map(|c| font.width(d, c)).sum();
-                let mut x = inner.x0 + (inner.dx() - tw) / 2;
+                let mut x = if left { inner.x0 + 8 } else { inner.x0 + (inner.dx() - tw) / 2 };
                 for c in it.chars() {
                     if let Some(g) = font.glyph(d, c) {
                         let dst = Rect::new(0, 0, g.src.dx(), g.src.dy()).add(x + g.dx, y + g.dy + g.src.y0);
@@ -4041,8 +4067,74 @@ impl Wsys {
         let (dx, dy) = ((s.x0 - r.x0).max(0) + (s.x1 - r.x1).min(0), (s.y0 - r.y0).max(0) + (s.y1 - r.y1).min(0));
         r = r.add(dx, dy);
         let Ok(layer) = self.d.allocwindow(self.scr, r, 0xFFFF_FFFF) else { return };
-        self.menu = Some(Menu { win: n, button: b, items, hidden, r, layer, cur: None });
+        self.menu = Some(Menu { win: n, button: b, items, hidden, r, layer, cur: None, client: None });
         self.menumove(x, y);
+    }
+
+    /// a program's menu (window n's menu file written): "x y" and an item a
+    /// line; its top left at x y, kept on the screen; a read of menu gives the
+    /// item chosen, -1 for none
+    fn clientmenu(&mut self, n: u32, s: &str) -> Result<(), String> {
+        if self.menu.is_some() || self.drag.is_some() || self.op3.is_some() {
+            return Err("busy".into());
+        }
+        let mut lines = s.lines();
+        let at: Vec<i32> = lines.next().unwrap_or("").split_whitespace().filter_map(|v| v.parse().ok()).collect();
+        let items: Vec<String> = lines.filter(|l| !l.is_empty()).map(|l| l.to_string()).collect();
+        if at.len() != 2 || items.is_empty() {
+            return Err("bad menu: x y, then an item a line".into());
+        }
+        let Some(font) = self.font.as_mut() else { return Err("no font".into()) };
+        let h = font.height;
+        let d = &mut self.d;
+        let wd = items.iter().map(|it| it.chars().map(|c| font.width(d, c)).sum::<i32>()).max().unwrap_or(0) + 16 + 4;
+        let s = self.d.r;
+        let mut r = Rect::new(at[0], at[1], at[0] + wd, at[1] + items.len() as i32 * h + 4);
+        let (dx, dy) = ((s.x0 - r.x0).max(0) + (s.x1 - r.x1).min(0), (s.y0 - r.y0).max(0) + (s.y1 - r.y1).min(0));
+        r = r.add(dx, dy);
+        let layer = self.d.allocwindow(self.scr, r, 0xFFFF_FFFF).map_err(|e| e.to_string())?;
+        self.wins.get_mut(&n).unwrap().menuout = None;
+        let client = if self.buttons != 0 { Waiting::Held { first: true } } else { Waiting::Open };
+        self.menu = Some(Menu { win: Some(n), button: 0, items, hidden: vec![], r, layer, cur: None, client: Some(client) });
+        let (mx, my) = (self.mx, self.my);
+        self.menumove(mx, my);
+        Ok(())
+    }
+
+    /// the mouse while a program's menu is up: let go over an item, it is
+    /// chosen; let go elsewhere after the press that opened it, the menu stays
+    /// until the next press, whose release chooses (or none, off the items)
+    fn clientmouse(&mut self, x: i32, y: i32, b: i32) {
+        self.menumove(x, y);
+        let Some(m) = &mut self.menu else { return };
+        let Some(c) = m.client else { return };
+        let done = match (c, b) {
+            (Waiting::Held { first }, 0) => {
+                if m.cur.is_none() && first {
+                    m.client = Some(Waiting::Open);
+                    None
+                } else {
+                    Some(m.cur.map_or(-1, |i| i as i32))
+                }
+            }
+            (Waiting::Open, b) if b != 0 => {
+                m.client = Some(Waiting::Held { first: false });
+                None
+            }
+            _ => None,
+        };
+        if let Some(i) = done {
+            let m = self.menu.take().unwrap();
+            let _ = self.d.free(m.layer);
+            let _ = self.d.flush();
+            self.barheld = None; // (the release went to the menu)
+            if let Some(n) = m.win {
+                if let Some(w) = self.wins.get_mut(&n) {
+                    w.menuout = Some(i);
+                }
+                self.wake(n);
+            }
+        }
     }
 
     fn menumove(&mut self, x: i32, y: i32) {
