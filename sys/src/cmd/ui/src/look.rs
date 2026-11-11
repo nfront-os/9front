@@ -4,7 +4,7 @@
 // ui's look: Masonry's default properties (masonry/src/theme.rs of xilem rev
 // dc49687, Apache-2.0) with the colours of the desktop's theme (desk:
 // /dev/theme, wsys(4)) instead of Masonry's dark ones: the window's background
-// and text, the current border as accent and focus, and greys mixed between
+// and text, the current border as accent and focus (a ring: BoxShadow), and greys mixed between
 // background and text for surfaces, borders, hover and active (Palette).
 
 use masonry::core::{DefaultProperties, PropertySet, PropertyStack, Selector};
@@ -71,6 +71,12 @@ impl Palette {
     }
 }
 
+/// the focus ring (macOS' keyboard focus): a halo of the focus colour outside
+/// the widget, its shadow without offset (no layout moves, unlike a wider border)
+fn ring(p: &Palette) -> BoxShadow {
+    BoxShadow::new(p.focus.with_alpha(0.6), (0.0, 0.0)).blur(3.px())
+}
+
 pub fn property_set(p: &Palette) -> DefaultProperties {
     let mut properties = DefaultProperties::new();
 
@@ -105,7 +111,7 @@ pub fn property_set(p: &Palette) -> DefaultProperties {
         );
         stack.push_layer(
             Selector::new().with_focused(true),
-            BorderColor { color: p.focus },
+            (BorderColor { color: p.focus }, ring(p)),
         );
         stack.push_layer(
             Selector::new().with_active(true),
@@ -135,7 +141,7 @@ pub fn property_set(p: &Palette) -> DefaultProperties {
         );
         stack.push_layer(
             Selector::new().with_focused(true),
-            BorderColor { color: p.focus },
+            (BorderColor { color: p.focus }, ring(p)),
         );
         stack.push_layer(
             Selector::new().with_active(true),
@@ -181,7 +187,7 @@ pub fn property_set(p: &Palette) -> DefaultProperties {
         );
         stack.push_layer(
             Selector::new().with_focused(true),
-            BorderColor { color: p.focus },
+            (BorderColor { color: p.focus }, ring(p)),
         );
         stack.push_layer(
             Selector::classes(&["#toggled"]),
@@ -226,7 +232,7 @@ pub fn property_set(p: &Palette) -> DefaultProperties {
         );
         stack.push_layer(
             Selector::new().with_focused(true),
-            BorderColor { color: p.focus },
+            (BorderColor { color: p.focus }, ring(p)),
         );
         properties.insert_stack::<SelectorButton>(stack);
     }
@@ -276,7 +282,7 @@ pub fn property_set(p: &Palette) -> DefaultProperties {
         );
         stack.push_layer(
             Selector::new().with_focused(true),
-            BorderColor { color: p.focus },
+            (BorderColor { color: p.focus }, ring(p)),
         );
         stack.push_layer(
             Selector::new().with_disabled(true),
@@ -371,7 +377,7 @@ pub fn property_set(p: &Palette) -> DefaultProperties {
         );
         stack.push_layer(
             Selector::new().with_focused(true),
-            BorderColor { color: p.focus },
+            (BorderColor { color: p.focus }, ring(p)),
         );
         stack.push_layer(
             Selector::new().with_disabled(true),
@@ -399,7 +405,7 @@ pub fn property_set(p: &Palette) -> DefaultProperties {
         );
         stack.push_layer(
             Selector::new().with_focused(true),
-            BorderColor { color: p.focus },
+            (BorderColor { color: p.focus }, ring(p)),
         );
         properties.insert_stack::<Slider>(stack);
     }
@@ -455,7 +461,7 @@ fn default_step_input_style<T: Steppable>(p: &Palette, properties: &mut DefaultP
         );
         stack.push_layer(
             Selector::new().with_focused(true),
-            BorderColor { color: p.focus },
+            (BorderColor { color: p.focus }, ring(p)),
         );
 
         properties.insert_stack::<StepInput<T>>(stack);

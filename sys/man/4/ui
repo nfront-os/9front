@@ -93,6 +93,9 @@ What draws the window:
 or
 .BR cpu .
 .TP
+.B frames
+How many frames it has drawn (for tests: the pace of what moves).
+.TP
 .BI nodes/ id /kind
 The node's kind.
 .TP
@@ -241,6 +244,13 @@ The node and what is under it.
 .B clear
 All but the root.
 .PD
+.PP
+What moves (an animation, Masonry's own, a scroll) is drawn a frame at a time,
+not more often than 60 times a second (through
+.IR draw (3)
+nothing else paces it).
+A step of the wheel scrolls 120 pixels, given out over a few frames, quickly first.
+The widget with the keyboard's focus has a ring of the theme's focus colour around it.
 .PP
 The user's changes go into the tree as well: a text box's
 .BR text ,

@@ -258,6 +258,7 @@ set bx animate 1000' >/mnt/ui/ctl
 sleep 0.5
 fn width { r=`{cat /mnt/ui/nodes/$1/rect}; echo `{echo $r(3)-$r(1) | hoc} }
 w0=`{width bx}
+f0=`{cat /mnt/ui/frames}
 echo 'set bx width 200' >/mnt/ui/ctl
 sleep 0.4
 w1=`{width bx}
@@ -266,6 +267,57 @@ sleep 1.1
 w2=`{width bx}
 if(~ $w0 20 && test $w1 -gt 25 && test $w1 -lt 195 && ~ $w2 200) ok 'animate: width' $w0 then $w1 then $w2
 if not fail animate: width $w0 then $w1 then $w2
+# its pace: not more than 60 frames a second over the 1.5 s looked at
+# (frames: the frames drawn), not as many as the processor manages (nothing
+# paces draw(3): 768 before), nor a few
+nf=`{echo `{cat /mnt/ui/frames}-$f0 | hoc}
+if(test $nf -ge 20 && test $nf -le 100) ok 'animate: paced,' $nf frames in 1.5 s
+if not fail animate: $nf frames in 1.5 s, want 20 to 100
+
+# the wheel: a step of it scrolls 120 pixels, given out over frames (a part
+# of what is left each one): seen on the way, then all of it
+echo clear >/mnt/ui/ctl
+echo 'new sv scroll
+set sv flex 1
+new sc column sv' >/mnt/ui/ctl
+for(i in `{seq 0 59})
+	echo 'new s'$i' label sc
+set s'$i' text line '$i >/mnt/ui/ctl
+sleep 1
+fn top { r=`{cat /mnt/ui/nodes/$1/rect}; echo $r(2) }
+y0=`{top s0}
+echo A 350 300 16 >/dev/mousein; echo A 350 300 0 >/dev/mousein
+ys=()
+for(i in `{seq 1 25}){ ys=($ys `{top s0}); sleep 0.02 }
+sleep 0.5
+y1=`{top s0}
+# (in brackets: a top above the window is negative, and hoc reads 8--61 as --)
+d=`{echo $y0'-('$y1')' | hoc}
+between=0
+for(y in $ys){
+	e=`{echo $y0'-('$y')' | hoc}
+	if(test $e -gt 0 && test $e -lt $d) between=`{echo $between+1 | hoc}
+}
+if(~ $d 120 && test $between -gt 0) ok 'wheel: 120 pixels over frames, seen on the way' $between times
+if not fail wheel: scrolled $d, on the way $between times: $ys
+
+# the focus ring: a text box with the focus has a halo of the focus colour
+# outside it (BoxShadow); the window's background there without
+echo clear >/mnt/ui/ctl
+echo 'new fr textbox
+set fr text ring' >/mnt/ui/ctl
+sleep 1
+o=`{cat /mnt/ui/ctl}
+r=`{cat /mnt/ui/nodes/fr/rect}
+x=`{echo $o(1)+$r(1)-2 | hoc}
+y=`{echo 'int('$o(2)'+('$r(2)+$r(4)')/2)' | hoc}
+p0=`{/tests/uipeek $x,$y | awk '{print $2}'}
+c=`{at fr}
+{ m $c(1) $c(2) 0; m $c(1) $c(2) 1; m $c(1) $c(2) 0 } >/dev/mousein
+sleep 0.5
+p1=`{/tests/uipeek $x,$y | awk '{print $2}'}
+if(~ $p0 ffffff && ! ~ $p1 ffffff) ok 'focus ring: outside the focused text box' $p0 then $p1
+if not fail focus ring: at $x,$y $p0 then $p1
 
 # the window deleted: wsys ends ui with a note (as rio); its /srv/uitest goes
 # with it (ORCLOSE), a read of event ends

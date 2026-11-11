@@ -46,7 +46,7 @@ use ui_events_winit::{WindowEventReducer, WindowEventTranslation};
 use winit::application::ApplicationHandler;
 use winit::dpi::PhysicalSize;
 use winit::event::WindowEvent as WinitWindowEvent;
-use winit::event_loop::{ActiveEventLoop, EventLoop, EventLoopProxy};
+use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop, EventLoopProxy};
 use winit::window::{Window, WindowId};
 
 use fs::Fs;
@@ -635,6 +635,15 @@ fn setnum(w: WidgetMut<'_, dyn Widget>, kind: Kind, key: &str, v: f64) {
     }
 }
 
+/// the time between frames while something moves (animations, Masonry's, a
+/// scroll): the display's 60 Hz. Through draw(3) nothing paces a client (Vulkan's
+/// swapchain does, wsys' s events): without it, frames as fast as they draw.
+const FRAME: std::time::Duration = std::time::Duration::from_micros(16_667);
+/// a step of the wheel, in pixels (Masonry's line), given out over frames: a
+/// part of what is left each frame, so a scroll starts at once and slows down
+const WHEELLINE: f64 = 120.0;
+const WHEELPART: f64 = 0.35;
+
 struct App {
     anims: HashMap<(String, &'static str), Anim>,
     shownv: HashMap<(String, &'static str), f64>, // the animated properties as the widgets show them
@@ -649,6 +658,9 @@ struct App {
     debug: bool, // $UIDEBUG: the window's events and Masonry's signals on stderr
     pointer: (f64, f64),             // where the pointer is in the window
     b3at: Option<(f64, f64)>,        // button 3 pressed there: a click plumbs (as acme)
+    lastframe: Option<std::time::Instant>, // the last frame of something moving (Masonry's AnimFrame: the time since)
+    due: Option<std::time::Instant>,       // the next frame of something moving, not before then (FRAME)
+    wheel: (f64, f64),                     // the wheel's pixels not given to the widgets yet
 }
 
 impl App {
@@ -819,11 +831,15 @@ impl App {
             }
             match s {
                 RenderRootSignal::Action(a, wid) => self.action(a, wid),
-                RenderRootSignal::RequestRedraw | RenderRootSignal::RequestAnimFrame => {
+                // while something moves its frames are paced: a widget changed by
+                // the last one is drawn with the next (else each frame asked at once)
+                RenderRootSignal::RequestRedraw if self.lastframe.is_some() => self.another(),
+                RenderRootSignal::RequestRedraw => {
                     if let Some(g) = &self.gui {
                         g.window.request_redraw();
                     }
                 }
+                RenderRootSignal::RequestAnimFrame => self.another(),
                 RenderRootSignal::SetCursor(c) => {
                     if let Some(g) = &self.gui {
                         g.window.set_cursor(c);
@@ -953,8 +969,34 @@ impl App {
         let (Some(w), Some(h)) = (NonZeroU32::new(size.width), NonZeroU32::new(size.height)) else {
             return;
         };
+        // the wheel's part for this frame, at the pointer (as the wheel's event)
+        let (wx, wy) = self.wheel;
+        if wx != 0.0 || wy != 0.0 {
+            // a part of what is left, whole pixels, at least one; the last bit as it is
+            let part = |v: f64| match v {
+                v if v.abs() <= 1.0 => v,
+                v => match (v * WHEELPART).round() {
+                    0.0 => v.signum(),
+                    p => p,
+                },
+            };
+            let (px, py) = (part(wx), part(wy));
+            self.wheel = (wx - px, wy - py);
+            let ev = WinitWindowEvent::MouseWheel {
+                device_id: winit::event::DeviceId::dummy(),
+                delta: winit::event::MouseScrollDelta::PixelDelta(winit::dpi::PhysicalPosition::new(px, py)),
+                phase: winit::event::TouchPhase::Moved,
+            };
+            if let Some(WindowEventTranslation::Pointer(p)) = g.reducer.reduce(1.0, &ev) {
+                g.root.handle_pointer_event(p);
+            }
+        }
+        // Masonry's animations: the time since the last frame of something moving
+        // (not more than a few frames' worth after a pause)
+        let now = std::time::Instant::now();
         if g.root.needs_anim() {
-            g.root.handle_window_event(WindowEvent::AnimFrame(std::time::Duration::from_millis(16)));
+            let dt = self.lastframe.map_or(FRAME, |t| now.duration_since(t).min(FRAME * 4));
+            g.root.handle_window_event(WindowEvent::AnimFrame(dt));
         }
         let (layers, _access) = g.root.redraw();
         let overlays: Vec<_> = layers
@@ -968,10 +1010,10 @@ impl App {
         let VisualLayerKind::Scene(base) = &root.kind else { return };
         let frame = PreparedFrame::new(w.get(), h.get(), 1.0, g.background, base, &overlays);
         g.painter.paint(frame);
-        // animations under way: the next frame
-        if !self.anims.is_empty() {
-            g.window.request_redraw();
-        }
+        self.fs.frames += 1;
+        // something moving: another frame, a FRAME after this one began
+        let moving = !self.anims.is_empty() || g.root.needs_anim() || self.wheel != (0.0, 0.0);
+        self.lastframe = moving.then_some(now);
         // where each node is now, for nodes/id/rect
         self.fs.rects.clear();
         for (id, wid) in &self.ids.widget {
@@ -980,9 +1022,16 @@ impl App {
                 self.fs.rects.insert(id.clone(), [b.x0 as i32, b.y0 as i32, b.x1 as i32, b.y1 as i32]);
             }
         }
-        if g.root.needs_anim() {
-            g.window.request_redraw();
+        if moving {
+            self.another();
         }
+    }
+
+    /// another frame for what moves: not before FRAME after the last one
+    /// (about_to_wait waits for it)
+    fn another(&mut self) {
+        let at = self.lastframe.map_or_else(std::time::Instant::now, |t| t + FRAME);
+        self.due = Some(self.due.map_or(at, |d| d.min(at)));
     }
 }
 
@@ -1033,6 +1082,21 @@ impl ApplicationHandler<UserEvent> for App {
         println!("{}", self.srv);
     }
 
+    /// a frame due (another): asked for when its time came, else waited for
+    fn about_to_wait(&mut self, el: &ActiveEventLoop) {
+        match self.due {
+            Some(t) if std::time::Instant::now() >= t => {
+                self.due = None;
+                if let Some(g) = &self.gui {
+                    g.window.request_redraw();
+                }
+                el.set_control_flow(ControlFlow::Wait);
+            }
+            Some(t) => el.set_control_flow(ControlFlow::WaitUntil(t)),
+            None => el.set_control_flow(ControlFlow::Wait),
+        }
+    }
+
     fn user_event(&mut self, el: &ActiveEventLoop, ev: UserEvent) {
         match ev {
             UserEvent::NineP(m) => {
@@ -1050,6 +1114,14 @@ impl ApplicationHandler<UserEvent> for App {
             eprintln!("ui: {event:?}");
         }
         let Some(g) = self.gui.as_mut() else { return };
+        // the wheel's steps (lines) given to the widgets a part each frame (redraw)
+        if let WinitWindowEvent::MouseWheel { delta: winit::event::MouseScrollDelta::LineDelta(x, y), .. } = event {
+            self.wheel.0 += x as f64 * WHEELLINE;
+            self.wheel.1 += y as f64 * WHEELLINE;
+            self.another();
+            self.signals(el);
+            return;
+        }
         if let Some(t) = g.reducer.reduce(1.0, &event) {
             match t {
                 WindowEventTranslation::Keyboard(k) => {
@@ -1213,6 +1285,9 @@ fn main() {
         debug: std::env::var_os("UIDEBUG").is_some(),
         pointer: (0.0, 0.0),
         b3at: None,
+        lastframe: None,
+        due: None,
+        wheel: (0.0, 0.0),
     };
     let r = el.run_app(&mut app);
     if let Err(e) = r {
