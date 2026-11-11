@@ -43,13 +43,13 @@ unsafe extern "C" {
     fn p9stat(file: *const c_char, edir: *mut u8, nedir: c_int) -> c_int;
 }
 
-/// the device a file is of (stat(5)'s type: 'i' the kernel's draw, 'M' a
-/// mounted file server, drawterm's through rcpu among them)
-pub fn devtype(file: &str) -> Option<char> {
+/// which file it is: stat(5)'s type, dev and qid (two names of one file give
+/// the same)
+pub fn fileid(file: &str) -> Option<[u8; 19]> {
     let name = std::ffi::CString::new(file).ok()?;
     let mut b = [0u8; 512];
     let n = unsafe { p9stat(name.as_ptr(), b.as_mut_ptr(), b.len() as c_int) };
-    (n >= 4).then(|| char::from_u32(u16::from_le_bytes([b[2], b[3]]) as u32)).flatten()
+    (n >= 21).then(|| b[2..21].try_into().ok()).flatten()
 }
 
 /// the process's error string as an io::Error

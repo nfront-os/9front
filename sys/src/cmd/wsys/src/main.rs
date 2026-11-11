@@ -74,7 +74,8 @@
 //	-x	exit when cmd exits
 //	-O	no overlay plane: every window's pixels in wsys' screen (tests read them back)
 //	-z	what devdraw (its own) drew goes to the screen compressed ('Y', image(6)'s
-//		compression; the default where /dev/draw is a file server's: drawterm's)
+//		compression; the default where /dev/draw is the terminal's of a cpu
+//		session, /mnt/term's: drawterm's)
 // WSYSDEBUG=compress: at the end, the bytes of pixels copied and of the messages
 
 #[cfg(feature = "gpu")]
@@ -4386,8 +4387,10 @@ fn main() {
     let (mut init, mut exitwith, mut nooverlay, mut gpucomp, mut coredraw) = (None, false, false, None, None);
     let mut fontflag: Option<String> = None;
     let mut themefile: Option<String> = None;
-    // a screen far away (/dev/draw a file server's: drawterm's through rcpu)
-    let mut compress = p9::devtype("/dev/draw/new") == Some('M');
+    // a screen far away: /dev/draw the terminal's of a cpu session (drawterm's
+    // through rcpu: /mnt/term). Not any file server's: in a window of wsys,
+    // /dev/draw is that wsys' (nested, on the same machine)
+    let mut compress = p9::fileid("/dev/draw/new").is_some_and(|d| Some(d) == p9::fileid("/mnt/term/dev/draw/new"));
     while let Some(a) = args.next() {
         match a.as_str() {
             "-s" => {

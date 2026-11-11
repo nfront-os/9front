@@ -77,10 +77,16 @@ sends what its own devdraw drew to the screen compressed
 .IR image (6)'s
 compression); it does so anyway where
 .B /dev/draw
-is a file server's
-.RI ( drawterm 's
+is the terminal's of a cpu session
+.RB ( /mnt/term 's:
+.IR drawterm 's
 through
-.IR rcpu (1)):
+.IR rcpu (1);
+not in a window of another
+.IR wsys ,
+whose
+.B /dev/draw
+is that one's):
 a window's flat colours and repeated rows come to some sixteenth.
 .B WSYSDEBUG=compress
 says at the end how many bytes of pixels went in how many of messages.
