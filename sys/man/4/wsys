@@ -220,6 +220,15 @@ A window lives while its files are open (or the
 .B clone
 file that made it).
 .PP
+Mod4+Tab (the Windows key) makes the bottom visible window current and
+raises it, so pressing it again and again goes through all windows;
+Mod4+Shift+Tab goes back (the current window to the bottom, the top one
+current).
+These keys do not reach a window; Tab without Mod4 does.
+This is the only key
+.I wsys
+keeps for itself.
+.PP
 A window made by
 .B new
 is a text window, as
@@ -411,6 +420,15 @@ of the window (border and all) and of the screen, taken at a read at offset 0
 takes its width from
 .BR window 's
 header).
+.TP
+.IB n /wsys/
+all windows, by number, with their files, as
+.IR rio 's
+.BR /dev/wsys :
+a program in a window sees them at
+.B /dev/wsys
+.RI ( winwatch (1)
+runs on it).
 .TP
 .IB n /ctl
 Reading gives one line of fields:

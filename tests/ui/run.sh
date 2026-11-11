@@ -39,6 +39,7 @@ cp "$ROOT/amd64/bin/term" "$HERE/root/tests/term"
 cp "$HERE/term.rc" "$HERE/root/tests/termtest"
 cp "$HERE/termrestart.rc" "$HERE/root/tests/termrestart"
 cp "$HERE/theme.rc" "$HERE/root/tests/themetest"
+cp "$HERE/desk.rc" "$HERE/root/tests/desktest"
 cp "$HERE/rio4.rc" "$HERE/root/tests/rio4"
 cp "$HERE/text.rc" "$HERE/root/tests/text"
 cp "$HERE/sel.rc" "$HERE/root/tests/sel"
@@ -46,7 +47,7 @@ cp "$HERE/menu3.rc" "$HERE/root/tests/menu3"
 cp "$HERE/scroll.rc" "$HERE/root/tests/scroll"
 cp "$HERE/hold.rc" "$HERE/root/tests/hold"
 cp "$HERE/plumbrules" "$HERE/root/tests/plumbrules"
-chmod +x "$HERE/root/tests/termtest" "$HERE/root/tests/termrestart" "$HERE/root/tests/themetest" "$HERE/root/tests/rio4" "$HERE/root/tests/text" "$HERE/root/tests/sel" "$HERE/root/tests/menu3" "$HERE/root/tests/scroll" "$HERE/root/tests/hold"
+chmod +x "$HERE/root/tests/termtest" "$HERE/root/tests/termrestart" "$HERE/root/tests/themetest" "$HERE/root/tests/desktest" "$HERE/root/tests/rio4" "$HERE/root/tests/text" "$HERE/root/tests/sel" "$HERE/root/tests/menu3" "$HERE/root/tests/scroll" "$HERE/root/tests/hold"
 
 # WSYSFLAGS: more flags for wsys (-d: its own devdraw)
 boot(){
@@ -64,6 +65,7 @@ boot(){
 		"/tests/wsys ${WSYSFLAGS:-} -x -i /tests/termtest >/tmp/termtest.log >[2=1]; cat /tmp/termtest.log" \
 		"/tests/termrestart >/tmp/termrestart.log >[2=1]; cat /tmp/termrestart.log" \
 		"/tests/wsys ${WSYSFLAGS:-} -x -i /tests/themetest >/tmp/themetest.log >[2=1]; cat /tmp/themetest.log" \
+		"/tests/wsys ${WSYSFLAGS:-} -x -i /tests/desktest >/tmp/desktest.log >[2=1]; cat /tmp/desktest.log" \
 		> "$TMPD/console" 2>&1
 	tr -d '\r' < "$TMPD/console" > "$TMPD/log"
 }
@@ -85,6 +87,7 @@ check "look, hold mode and plumb (the plumber started before wsys): all passed" 
 check "term: rc on a pty typed into, colours, size, Del, alternate screen, select, paste, scroll back, exit: all passed" grep -q '^term: all passed' "$TMPD/log"
 check "term outlives its wsys: its window again in the next (p9win), twice: all passed" grep -q '^termrestart: all passed' "$TMPD/log"
 check "theme: classic, modern written to /mnt/wsys/theme at once, read back, a wrong line refused, one line: all passed" grep -q '^theme: all passed' "$TMPD/log"
+check "desk: wsys/ in a window, winwatch, Mod4+Tab and back, Tab without Mod4: all passed" bash -c "grep -q '^desk: all passed' '$TMPD/log' || { grep -E '^(ok|FAIL) ' '$TMPD/log' | tail -5; false; }"
 check "wsys posted /srv/wsys.glenda.pid on the 1024x768 screen" grep -qE '^wsys: /srv/wsys.glenda.[0-9]+ 0 0 1024 768' "$TMPD/log"
 check "no kernel panic" bash -c "! grep -q '^panic:' '$TMPD/log'"
 

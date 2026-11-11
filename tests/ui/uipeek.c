@@ -5,6 +5,8 @@
  * uipeek -n x0,y0,x1,y1 rrggbb: how many pixels of the rectangle are that colour
  * uipeek -k text: the runes of text typed, as kbd(3) c messages to /dev/kbdin
  * (each with its null byte, which echo cannot write)
+ * uipeek -p hex, -r hex: the key of that rune pressed, let go (kbdfs(8)'s r and R
+ * messages to /dev/kbdin: kbdfs makes the k, K and c messages), as Kmod4 f868
  */
 #include <u.h>
 #include <libc.h>
@@ -20,6 +22,21 @@ main(int argc, char **argv)
 	int i, x, y;
 	char *p;
 
+	if(argc == 3 && (strcmp(argv[1], "-p") == 0 || strcmp(argv[1], "-r") == 0)){
+		Rune r;
+		char m[UTFmax+2];
+		int fd, n;
+
+		if((fd = open("/dev/kbdin", OWRITE)) < 0)
+			sysfatal("/dev/kbdin: %r");
+		r = strtoul(argv[2], nil, 16);
+		m[0] = argv[1][1] == 'p' ? 'r' : 'R';
+		n = runetochar(m+1, &r);
+		m[1+n] = 0;
+		if(write(fd, m, n+2) != n+2)
+			sysfatal("write kbdin: %r");
+		exits(nil);
+	}
 	if(argc == 3 && strcmp(argv[1], "-k") == 0){
 		Rune r;
 		char m[UTFmax+2];

@@ -227,6 +227,7 @@ enum Kind {
     RootWctl,
     Stack,
     Theme, // the theme: its text; lines written change it (theme.rs)
+    Wsys,  // a window's wsys/: all the windows (rio's /dev/wsys: winwatch)
     WinDir(u32),
     File(u32, F),
     // wsys' own devdraw (-d): draw/, draw/new, draw/n/ (a client in devdraw's
@@ -585,6 +586,7 @@ struct Wsys {
     fids: HashMap<u32, FidState>,
     wins: HashMap<u32, Win>,
     z: Vec<u32>, // bottom to top
+    keysdown: Vec<char>, // kbd(3)'s keys down now (k, K): Mod4 is wsys' (kbdmod4)
     focus: Option<u32>,
     nextwin: u32,
     pending: Vec<Pending>,
@@ -646,6 +648,7 @@ fn qid(k: Kind) -> Qid {
         Kind::RootWctl => (0, 6),
         Kind::Stack => (0, 7),
         Kind::Theme => (0, 8),
+        Kind::Wsys => (ninep::QTDIR, 9),
         Kind::WinDir(n) => (ninep::QTDIR, (n as u64) << 8 | 0x10),
         Kind::File(n, f) => (0, (n as u64) << 8 | (0x20 + f as u64)),
         Kind::Draw => (ninep::QTDIR, 2),
@@ -676,6 +679,7 @@ impl Wsys {
             Kind::RootWctl => ("wctl".to_string(), 0o222),
             Kind::Stack => ("stack".to_string(), 0o444),
             Kind::Theme => ("theme".to_string(), 0o666),
+            Kind::Wsys => ("wsys".to_string(), ninep::DMDIR | 0o555),
             Kind::WinDir(n) => (n.to_string(), ninep::DMDIR | 0o555),
             Kind::File(_, f) => {
                 let (_, name, mode) = WINFILES.iter().find(|w| w.0 == f).unwrap();
@@ -721,11 +725,21 @@ impl Wsys {
                 if name == ".." {
                     return Some(Kind::Root);
                 }
+                if name == "wsys" {
+                    return Some(Kind::Wsys);
+                }
                 if name == "draw" && self.core.is_some() {
                     return Some(Kind::Draw);
                 }
                 WINFILES.iter().find(|w| w.1 == name).map(|w| Kind::File(n, w.0))
             }
+            Kind::Wsys => match name {
+                ".." => Some(Kind::Root),
+                _ => {
+                    let n: u32 = name.parse().ok()?;
+                    self.wins.contains_key(&n).then_some(Kind::WinDir(n))
+                }
+            },
             Kind::Draw => match name {
                 ".." => Some(Kind::Root),
                 "new" => Some(Kind::DrawNew),
@@ -760,10 +774,16 @@ impl Wsys {
             }
             Kind::WinDir(n) => {
                 let mut v: Vec<Kind> = WINFILES.iter().map(|w| Kind::File(n, w.0)).collect();
+                v.push(Kind::Wsys);
                 if self.core.is_some() {
                     v.push(Kind::Draw);
                 }
                 v
+            }
+            Kind::Wsys => {
+                let mut ids: Vec<u32> = self.wins.keys().copied().collect();
+                ids.sort();
+                ids.into_iter().map(Kind::WinDir).collect()
             }
             Kind::Draw => {
                 let mut v = vec![Kind::DrawNew];
@@ -889,7 +909,7 @@ impl Wsys {
                 let reading = rw == OREAD as u8 || rw == 2;
                 let writing = rw == OWRITE as u8 || rw == 2;
                 let k = match k {
-                    Kind::Root | Kind::WinDir(_) | Kind::Draw | Kind::DrawCl(_) if rw != OREAD as u8 => return e("is a directory"),
+                    Kind::Root | Kind::Wsys | Kind::WinDir(_) | Kind::Draw | Kind::DrawCl(_) if rw != OREAD as u8 => return e("is a directory"),
                     Kind::DrawNew | Kind::DrawF(..) => {
                         let path = match k {
                             Kind::DrawF(sl, t) => (sl as u64) << drawcore::QSHIFT | t,
@@ -976,7 +996,7 @@ impl Wsys {
                             Err(err) => e(&err),
                         }
                     }
-                    Kind::Root | Kind::WinDir(_) | Kind::Draw | Kind::DrawCl(_) => {
+                    Kind::Root | Kind::Wsys | Kind::WinDir(_) | Kind::Draw | Kind::DrawCl(_) => {
                         let pos = if offset == 0 { 0 } else { f.dirpos };
                         let mut out = vec![];
                         let mut n = pos;
@@ -3275,9 +3295,63 @@ impl Wsys {
         self.changed(n);
     }
 
+    /// Mod4 (the Windows key, which no program of Plan 9's uses) is wsys': held,
+    /// Tab makes the next window current (Shift: the one before), and the keys
+    /// meanwhile are no window's; once it is up, the keys down then go to the
+    /// window (it sees keys let go meanwhile go up). The other keys go to the
+    /// current window.
+    fn kbdmod4(&mut self, msgs: Vec<Vec<u8>>) -> Vec<Vec<u8>> {
+        const MOD4: char = '\u{F868}';
+        const SHIFT: char = '\u{F016}';
+        let mut rest = vec![];
+        for m in msgs {
+            match m.first() {
+                Some(b'k' | b'K') => {
+                    self.keysdown = String::from_utf8_lossy(&m[1..]).chars().collect();
+                    if self.keysdown.contains(&MOD4) {
+                        continue;
+                    }
+                }
+                Some(b'c') if self.keysdown.contains(&MOD4) => {
+                    if String::from_utf8_lossy(&m[1..]).starts_with('\t') {
+                        let back = self.keysdown.contains(&SHIFT);
+                        self.nextwin(back);
+                    }
+                    continue;
+                }
+                _ => {}
+            }
+            rest.push(m);
+        }
+        rest
+    }
+
+    /// Mod4+Tab: the bottom visible window up and current (through all of them
+    /// in turn); back: the current one down, the top one current
+    fn nextwin(&mut self, back: bool) {
+        let vis: Vec<u32> = self.z.iter().copied().filter(|n| !self.wins[n].hidden).collect();
+        if vis.len() < 2 {
+            return;
+        }
+        let n = if back {
+            if let Some(c) = self.focus {
+                self.restack(c, false);
+            }
+            *self.z.iter().rev().find(|n| !self.wins[*n].hidden).unwrap()
+        } else {
+            vis[0]
+        };
+        self.raise(n);
+        self.setfocus(Some(n));
+    }
+
     /// kbd(3) messages to the focused window: all of them to its kbd file when
     /// open, else the runes of the c messages to cons (and wsys' k events)
     fn kbd(&mut self, msgs: Vec<Vec<u8>>) {
+        let msgs = self.kbdmod4(msgs);
+        if msgs.is_empty() {
+            return;
+        }
         let Some(n) = self.focus else { return };
         let Some(w) = self.wins.get_mut(&n) else { return };
         if w.kbdopen > 0 {
@@ -3941,6 +4015,7 @@ fn main() {
         holdcol: 0,
         paleholdcol: 0,
         theme,
+        keysdown: vec![],
         ovtx: None,
         ov: None,
         ovtags: vec![],
