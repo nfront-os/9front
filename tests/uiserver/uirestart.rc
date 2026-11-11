@@ -1,0 +1,76 @@
+#!/bin/rc
+# run by tests/uiserver/run.sh (not in a wsys): a ui(4) program outlives its
+# wsys with its state (ui's window: p9win and winit make it again in the next
+# wsys and draw it there; the program talks to ui, not to wsys). uicount in a
+# window of wsys A, counted to 2; A killed (every proc, as a crash); wsys B:
+# ui's window there, the scene still at 2, a click there counts on to 3.
+# Prints ok/FAIL lines and "uirestart: all passed".
+rfork ne
+fn fail { echo FAIL $*; for(p in $wsyses) if(test -e /proc/$p) echo kill >/proc/$p/notepg; exit fail }
+fn wait1 { # cmd...: until it succeeds, 20 s at most
+	n=0
+	while(! $* >[2]/dev/null && test $n -lt 200){ sleep 0.1; n=`{echo $n+1 | hoc} }
+	$* >[2]/dev/null
+}
+fn m { echo A $1 $2 $3; sleep 0.1 }
+fn start { # name: a wsys in the background; $w its pid
+	/tests/wsys >/tmp/wsys$1.log >[2=1] &
+	w=$apid
+	wsyses=($wsyses $w)
+	wait1 test -e /srv/wsys.$user.$w || fail no /srv/wsys.$user.$w: `{cat /tmp/wsys$1.log}
+}
+fn count { grep -s '^set [^ ]* text count '$1'$' /mnt/uic/tree }
+fn click { # the first button (add one): where ui says it is on the screen (twice:
+	# the first click may only make the window current)
+	b=`{grep '^new [^ ]* button' /mnt/uic/tree | sed 1q | awk '{print $2}'}
+	o=`{cat /mnt/uic/ctl}
+	r=`{cat /mnt/uic/nodes/$b/rect}
+	x=`{echo 'int('$o(1)'+('$r(1)+$r(3)')/2)' | hoc}
+	y=`{echo 'int('$o(2)'+('$r(2)+$r(4)')/2)' | hoc}
+	{ m $x $y 0; m $x $y 1; m $x $y 0 } >/dev/mousein
+	sleep 0.5
+}
+wsyses=()
+bind -a '#i' /dev
+bind -a '#m' /dev
+bind /tests/ui /bin/ui
+
+echo '#!/bin/rc
+exec /tests/uicount >/tmp/uicount.log >[2=1]' >/tmp/runcount
+chmod +x /tmp/runcount
+
+# A: uicount (its ui in a window of its own), counted to 2
+start A
+mount /srv/wsys.$user.$w /mnt/wsys
+echo new -r 50 50 300 200 /tmp/runcount >/mnt/wsys/wctl
+fn uisrv { s=`{ls -p /srv | grep '^ui\.'$user'\.[0-9]+\.0$' | sed 1q}; ~ $#s 1 }
+wait1 uisrv || fail no ui of uicount: `{cat /tmp/uicount.log}
+s=/srv/$s
+mount $s /mnt/uic || fail mount $s
+wait1 count 0 || fail no count 0: `{cat /mnt/uic/tree}
+click
+click
+wait1 count 2 || fail the clicks did not count: `{grep count /mnt/uic/tree}
+echo ok uicount in wsys A, counted to 2
+
+# A killed: ui's window goes with it, ui and uicount stay
+echo kill >/proc/$w/notepg
+unmount /mnt/wsys >[2]/dev/null
+wait1 test ! -e /proc/$w || fail wsys $w still there
+sleep 1
+count 2 || fail ui went with its wsys
+echo ok ui and uicount outlive wsys A, the count still 2
+
+# B: ui makes its window there, draws it, takes a click
+start B
+mount /srv/wsys.$user.$w /mnt/wsys
+fn windows { ls -p /mnt/wsys | grep -s '^[0-9]+$' }
+wait1 windows || fail no window of ui in wsys B
+sleep 2
+count 2 || fail the count lost in wsys B: `{grep count /mnt/uic/tree}
+click
+click
+wait1 count 3 || wait1 count 4 || fail no click in wsys B: `{grep count /mnt/uic/tree}
+echo ok ui in wsys B: the count kept, a click there counts on
+echo kill >/proc/$w/notepg
+echo uirestart: all passed
