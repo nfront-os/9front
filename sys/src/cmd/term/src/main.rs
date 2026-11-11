@@ -88,6 +88,8 @@ struct Term {
     shift: bool,
     current: bool,
     debug: Option<String>,
+    theme: desk::theme::Theme, // as the view has its colours
+    reverse: bool,
 }
 
 impl Term {
@@ -318,7 +320,10 @@ impl Term {
 
 fn main() {
     let mut args: Vec<String> = std::env::args().skip(1).collect();
-    let (mut reverse, mut fontpath, mut size) = (false, "/lib/font/ttf/Go-Mono.ttf".to_string(), 16.0f32);
+    // the desktop's theme: colours, the monospaced font (unless -f)
+    let theme = desk::theme::current();
+    let deffont = if theme.monofont.is_empty() { "/lib/font/ttf/Go-Mono.ttf".to_string() } else { theme.monofont.clone() };
+    let (mut reverse, mut fontpath, mut size) = (false, deffont, 16.0f32);
     while let Some(a) = args.first().cloned() {
         if !a.starts_with('-') || a == "-" {
             break;
@@ -342,11 +347,11 @@ fn main() {
     let fonts = font::Fonts::open(&fontpath, size).unwrap_or_else(|e| die("font", e));
     let draw = Draw::open().unwrap_or_else(|e| die("draw", e));
     let c = draw.content();
-    let view = View::new(c.dx().max(1) as usize, c.dy().max(1) as usize, &fonts, reverse);
+    let view = View::new(c.dx().max(1) as usize, c.dy().max(1) as usize, &fonts, &theme, reverse);
     let pty = pty::Pty::open().unwrap_or_else(|e| die("pty", e));
     let vt = vt100::Parser::new_with_callbacks(view.rows, view.cols, SCROLLBACK, Replies::default());
     let debug = std::env::var("TERMDEBUG").is_ok_and(|v| v.contains("screen")).then(|| format!("/tmp/term.{}.screen", std::process::id()));
-    let mut t = Term { draw, fonts, view, vt, pty, sel: None, selecting: false, buttons: 0, menu: None, shift: false, current: true, debug };
+    let mut t = Term { draw, fonts, view, vt, pty, sel: None, selecting: false, buttons: 0, menu: None, shift: false, current: true, debug, theme: theme.clone(), reverse };
     t.size();
     let _ = p9win::set_label("term");
 
@@ -396,6 +401,12 @@ fn main() {
                     if resized {
                         if let Err(e) = t.draw.attach() {
                             die("attach", e);
+                        }
+                        // the window changed, or the desktop's theme (wsys says either so)
+                        let th = desk::theme::current();
+                        if th != t.theme {
+                            t.view.colours(&th, t.reverse);
+                            t.theme = th;
                         }
                         t.size();
                     }

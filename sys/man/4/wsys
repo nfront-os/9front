@@ -10,6 +10,10 @@ wsys \- window system, prototype (processor backend), rio(4)'s files
 .I font
 ]
 [
+.B -t
+.I theme
+]
+[
 .B -s
 .I srvname
 ]
@@ -230,6 +234,9 @@ shows the end of what was written to its
 .BR text )
 and the line being typed, wrapped to the window, in the font given by
 .BR -f ,
+else the theme's
+.RB ( font ,
+below),
 else
 .BR $font ,
 else
@@ -292,6 +299,54 @@ runs in a window of
 .IR rio ,
 .IR rio 's.
 .PP
+.TP
+.B theme
+The desktop's colours, a line
+.I "name value"
+each (lines starting with
+.B #
+are comments, colours
+.BI # rrggbb\f1):
+.B back
+(the screen behind the windows),
+.B border
+and
+.B borderinactive
+(the current window's and the others'),
+.B window
+and
+.B text
+(a text window's and a menu's background and text),
+.BR select ,
+.BR menuhigh ,
+.BR scroll ,
+.B hold
+and
+.B holdinactive
+(a window holding, Esc),
+.B title
+(0 or 1: title bars),
+.B font
+(wsys' own, a
+.IR font (6)
+file),
+.B uifont
+and
+.B monofont
+(TrueType files for
+.IR ui (4)
+and
+.IR term (1)).
+Reading gives the theme; writing lines changes what they name, at once
+(a line it does not know is an error, and nothing changes).
+The same file is in each window's directory, so programs find it as
+.BR /dev/theme .
+.B /lib/theme/classic
+holds the default (rio's colours),
+.B /lib/theme/modern
+paper, ink and slate blue;
+.B -t
+starts with a theme file.
 .TP
 .B stack
 Reading gives the windows, bottom to top, a line each:

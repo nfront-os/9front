@@ -463,7 +463,7 @@ impl Window {
 
     #[inline]
     pub fn theme(&self) -> Option<window::Theme> {
-        None
+        desktop_theme().map(|(t, _)| t)
     }
 
     #[inline]
@@ -481,4 +481,18 @@ impl Drop for Window {
     fn drop(&mut self) {
         self.shared.poke(|q| q.destroyed = true);
     }
+}
+
+/// the desktop's theme (wsys(4)'s /dev/theme: its text, light or dark by its
+/// windows' colour); None without one (rio)
+pub(crate) fn desktop_theme() -> Option<(window::Theme, String)> {
+    let text = std::fs::read_to_string("/dev/theme").ok()?;
+    let back = text.lines().find_map(|l| {
+        let mut f = l.split_whitespace();
+        (f.next() == Some("window")).then(|| f.next()).flatten()
+    });
+    let rgb = back.and_then(|v| u32::from_str_radix(v.trim_start_matches('#'), 16).ok()).unwrap_or(0xFFFFFF);
+    let luma = 299 * ((rgb >> 16) & 0xFF) + 587 * ((rgb >> 8) & 0xFF) + 114 * (rgb & 0xFF);
+    let t = if luma >= 128_000 { window::Theme::Light } else { window::Theme::Dark };
+    Some((t, text))
 }

@@ -227,6 +227,7 @@ struct State {
     last: Option<(i32, i32)>, // the pointer on the screen
     inside: bool,
     content: Rect,
+    theme: Option<String>, // the desktop's theme as last read (/dev/theme)
 }
 
 impl State {
@@ -344,7 +345,9 @@ impl<T: 'static> EventLoop<T> {
         })
     }
 
-    /// the window looked up again: Resized and Moved if it changed
+    /// the window looked up again ('r': it changed, it is to be drawn again, as
+    /// rio and wsys mean it: a new place, a new wsys, a new theme): Resized and
+    /// Moved if it did, ThemeChanged if /dev/theme did, a redraw in any case
     fn relook(win: &WinState, st: &mut State, h: &mut Handler<'_, T>, shared: &Shared) {
         let c = win.relook();
         let old = st.content;
@@ -353,8 +356,14 @@ impl<T: 'static> EventLoop<T> {
             window_event(h, event::WindowEvent::Resized(
                 (c.dx().max(0) as u32, c.dy().max(0) as u32).into(),
             ));
-            shared.poke(|q| q.redraw = true);
         }
+        if let Some((theme, text)) = super::window::desktop_theme() {
+            if st.theme.as_deref().is_some_and(|t| t != text) {
+                window_event(h, event::WindowEvent::ThemeChanged(theme));
+            }
+            st.theme = Some(text);
+        }
+        shared.poke(|q| q.redraw = true);
         if c.x0 != old.x0 || c.y0 != old.y0 {
             window_event(h, event::WindowEvent::Moved((c.x0, c.y0).into()));
         }

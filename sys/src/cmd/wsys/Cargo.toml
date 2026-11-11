@@ -12,6 +12,7 @@ publish = false
 workspace = "../../rust"
 
 [dependencies]
+desk = { path = "../../rust/desk" }
 # without "loaded" (dlopen, which 9front lacks) and "linked" (its build script
 # needs a target_family): the entry is libvulkan.a's vkGetInstanceProcAddr
 ash = { version = "0.38", default-features = false, features = ["std", "debug"], optional = true }

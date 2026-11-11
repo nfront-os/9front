@@ -2,18 +2,14 @@
 //
 // term's picture: vt100's screen as pixels (0x00RRGGBB, p9win's), a cell at a
 // time; only cells that look different from the last picture are drawn
-// again, and the rectangles they cover are what goes to the window. Plan 9's
-// colours by default: black on white, a selection pale yellow as acme's.
+// again, and the rectangles they cover are what goes to the window. The
+// colours are the desktop's theme (desk: /dev/theme; classic without wsys):
+// the text window's text and background, its selection, wsys' menus.
 
 use crate::font::{self, Fonts};
 use p9win::draw::Rect;
 
 pub const MARGIN: i32 = 4;
-const SELECTION: u32 = 0xEEEE9E;
-// rio's menus: pale green, a medium green border, the item under the pointer dark green
-const MENUBACK: u32 = 0xEAFFEA;
-const MENUBORDER: u32 = 0x88CC88;
-const MENUHIGH: u32 = 0x448844;
 const MENUPAD: i32 = 2;
 
 /// xterm's sixteen colours
@@ -58,6 +54,9 @@ pub struct View {
     pub cols: u16,
     prev: Vec<Option<Look>>,
     pub fresh: bool, // all of it to the window (the margins too): after a resize
+    sel: u32,        // a selection's background
+    mborder: u32,    // a menu's border (its background: bg), the item under the pointer
+    mhigh: u32,
     extra: Vec<Rect>, // drawn on besides the cells (the menu, where it was)
     fg: u32,
     bg: u32,
@@ -86,12 +85,21 @@ impl Sel {
 }
 
 impl View {
-    /// w x h pixels; reverse: white on black
-    pub fn new(w: usize, h: usize, f: &Fonts, reverse: bool) -> View {
-        let (fg, bg) = if reverse { (0xFFFFFF, 0x000000) } else { (0x000000, 0xFFFFFF) };
-        let mut v = View { w: 0, h: 0, px: vec![], rows: 0, cols: 0, prev: vec![], fresh: true, extra: vec![], fg, bg };
+    /// w x h pixels in the theme's colours; reverse: text and background swapped
+    pub fn new(w: usize, h: usize, f: &Fonts, t: &desk::theme::Theme, reverse: bool) -> View {
+        let (fg, bg) = if reverse { (t.window, t.text) } else { (t.text, t.window) };
+        let mut v = View {
+            w: 0, h: 0, px: vec![], rows: 0, cols: 0, prev: vec![], fresh: true, extra: vec![], fg, bg,
+            sel: t.select, mborder: t.border, mhigh: t.menuhigh,
+        };
         v.resize(w, h, f);
         v
+    }
+
+    /// the theme's colours (it changed): everything drawn again at the next size
+    pub fn colours(&mut self, t: &desk::theme::Theme, reverse: bool) {
+        (self.fg, self.bg) = if reverse { (t.window, t.text) } else { (t.text, t.window) };
+        (self.sel, self.mborder, self.mhigh) = (t.select, t.border, t.menuhigh);
     }
 
     /// the window's new size: everything drawn again
@@ -134,8 +142,8 @@ impl View {
             fg = mix(fg, bg);
         }
         if sel.is_some_and(|x| x.has(r, c)) {
-            bg = SELECTION;
-            if fg == SELECTION {
+            bg = self.sel;
+            if fg == self.sel {
                 fg = self.fg;
             }
         }
@@ -241,18 +249,20 @@ impl View {
                 v.px[row + q.x0 as usize..row + q.x1 as usize].fill(c);
             }
         };
-        fill(self, r, MENUBORDER);
-        fill(self, r.inset(1), MENUBACK);
+        let (mborder, mback, mhigh, mtext) = (self.mborder, self.bg, self.mhigh, self.fg);
+        fill(self, r, mborder);
+        fill(self, r.inset(1), mback);
         let ih = f.ch + 2 * MENUPAD;
         for (i, s) in items.iter().enumerate() {
             let iy = r.y0 + MENUPAD + i as i32 * ih;
             let lit = hi == Some(i);
             if lit {
-                fill(self, Rect::new(r.x0 + MENUPAD, iy, r.x1 - MENUPAD, iy + ih), MENUHIGH);
+                fill(self, Rect::new(r.x0 + MENUPAD, iy, r.x1 - MENUPAD, iy + ih), mhigh);
             }
             // centred, as rio's
             let tx = r.x0 + (r.dx() - s.chars().count() as i32 * f.cw) / 2;
-            let fg = if lit { MENUBACK } else { 0x000000 };
+            // as wsys' menus: the text as it is, the item under the pointer on menuhigh
+            let fg = mtext;
             let cw = f.cw;
             for (k, ch) in s.chars().enumerate() {
                 let Some(g) = f.glyph(ch, 0, 1) else { continue };

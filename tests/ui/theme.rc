@@ -1,0 +1,72 @@
+#!/bin/rc
+# wsys' theme, run by wsys -x -i: a text window and term; the screen's colours as the
+# classic theme has them, then /lib/theme/modern written to /mnt/wsys/theme:
+# the background, the window's border and inside in the new colours at once,
+# term's too (it reads /dev/theme again when wsys says the window changed),
+# the file reads back the new theme, a wrong line is refused (and changes
+# nothing), classic again. Prints ok/FAIL lines and "theme: all passed".
+fn fail { echo FAIL $*; exit fail }
+fn wait1 { # cmd...: until it succeeds, 10 s at most
+	n=0
+	while(! $* >[2]/dev/null && test $n -lt 100){ sleep 0.1; n=`{echo $n+1 | hoc} }
+	$* >[2]/dev/null
+}
+fn px { # x,y: the screen's colour there
+	/tests/uipeek $1 | awk '{print $2}'
+}
+fn is { # x,y rrggbb...: one of them
+	c=`{px $1}
+	p=$1
+	shift
+	~ $c $* || fail at $p: $c, want $*
+}
+fn away { echo A 1020 760 0 >/dev/mousein; sleep 0.2 }
+away
+
+window -r 100 100 400 300
+wait1 test -d /mnt/wsys/1 || fail no window
+# and term (sys/src/cmd/term), which follows the theme when wsys says so ('r')
+echo '#!/bin/rc
+exec /tests/term >/tmp/term.err >[2=1]' >/tmp/runterm
+chmod +x /tmp/runterm
+window -r 500 100 900 400 /tmp/runterm
+wait1 test -d /mnt/wsys/2 || fail no term window
+sleep 2
+# the background, the window's border (current or not), its inside (a text window)
+is 900,700 777777
+is 101,200 335588 aaaaaa
+is 390,290 ffffff
+is 880,380 ffffff
+echo ok classic: background 777777, border, window ffffff, term ffffff
+
+cat /lib/theme/modern >/mnt/wsys/theme || fail writing the theme
+sleep 0.5
+is 900,700 e6e4d9
+is 101,200 2b4c6f a8a49c
+is 390,290 ffffea
+sleep 1
+is 880,380 ffffea
+echo ok modern at once: background e6e4d9, border, window ffffea, term too
+grep -s '^back #e6e4d9$' /mnt/wsys/theme || fail the theme read back: `{cat /mnt/wsys/theme}
+grep -s '^title 1$' /mnt/wsys/theme || fail title not on: `{cat /mnt/wsys/theme}
+echo ok the theme reads back as written
+
+# a line it does not know: refused, nothing changed
+if(echo 'border #123456
+colour nonsense' >/mnt/wsys/theme >[2]/dev/null) fail a wrong line was taken
+grep -s '^border #2b4c6f$' /mnt/wsys/theme || fail a refused write changed the theme: `{grep '^border' /mnt/wsys/theme}
+echo ok a wrong line refused, nothing changed
+
+# one line: only that changes
+echo back '#336699' >/mnt/wsys/theme || fail one line
+sleep 0.5
+is 900,700 336699
+is 390,290 ffffea
+echo ok one line: the background alone
+
+cat /lib/theme/classic >/mnt/wsys/theme
+sleep 0.5
+is 900,700 777777
+is 390,290 ffffff
+echo ok classic again
+echo theme: all passed

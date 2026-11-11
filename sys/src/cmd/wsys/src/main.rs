@@ -57,14 +57,17 @@
 // A window lives while its files are open (or the clone fid that made it).
 // Processes wsys starts (-i, wctl's new) get note groups of their own.
 //
-// usage: wsys [-gpOx] [-f font] [-s srvname] [-i cmd]
+// usage: wsys [-dgkpOx] [-f font] [-t theme] [-s srvname] [-i cmd]
 //	-g	the GPU composes the screen (the default, where it can): why not if it cannot,
 //		and what it does
 //	-p	the processor composes the screen
 //	-d	devdraw is wsys' own (draw/ in its tree, drawcore): the draw(3) programs in
 //		its windows draw through it, not the kernel's (the default; -d: or an error)
 //	-k	the kernel's devdraw (the windows are its windows, as in rio)
-//	-f	the font of text windows (default $font, else /lib/font/bit/vga/unicode.font)
+//	-f	the font of text windows (default the theme's, $font, else /lib/font/bit/vga/unicode.font)
+//	-t	the theme, a file of lines "name value" (theme.rs; /lib/theme/classic, the
+//		default, and modern); the file theme (root and windows: /dev/theme) has it,
+//		and lines written there change it at once
 //	-s	post as /srv/srvname (default wsys.$user.$pid, and wsys.$user: the newest
 //		wsys of the user, where programs that outlive one find the next)
 //	-i	run cmd (rc) in a name space with /mnt/wsys mounted, $wsys set
@@ -113,6 +116,7 @@ mod font;
 mod gpu;
 mod ninep;
 mod p9;
+use desk::theme;
 
 use draw::{Display, Rect, XRGB32};
 use ninep::{Dir, Qid, R, T};
@@ -124,16 +128,12 @@ use std::sync::mpsc;
 use std::thread;
 
 const BORDER: i32 = 4;
-const BG: u32 = 0x777777;
-const FOCUSED: u32 = 0x335588;
-const UNFOCUSED: u32 = 0xAAAAAA;
 // the windows' ranges for their clients' segments: slot i is SEGBASE + i*SEGSIZE
 // (p9::window_region; slots are given again when free)
 const SEGBASE: usize = p9::window_region().0;
 const SEGSIZE: usize = p9::window_region().1;
 const NSLOT: usize = p9::window_region().2;
 const MAXBUF: u32 = 32; // a window's buffers (a Wayland window's surfaces, two or three each)
-const WHITE: u32 = 0xFFFFFF;
 const MINSIZE: i32 = 16; // a window swept smaller stays this big
 const CORNER: i32 = 20; // on the border this near a corner grabs both its edges
 const MAXEVENTS: usize = 512;
@@ -143,10 +143,7 @@ const TEXTSHOWN: usize = 64 << 10; // of a text window's text, laid out to show 
 // a text window as rio's: the scroll bar inside the border, then a gap, then the text
 const SCROLLWID: i32 = 12;
 const SCROLLGAP: i32 = 4;
-const SCROLLBG: u32 = 0x999999; // the scroll bar; the part shown white
 const DEFFONT: &str = "/lib/font/bit/vga/unicode.font";
-const PALEYELLOW: u32 = 0xFFFFAA; // a selection, as acme's and rio's
-const PALEBLUEGREEN: u32 = 0x9EEEEE; // a menu's item under the mouse
 
 enum Ev {
     Tick, // every 50 ms: a scroll button held repeats
@@ -191,9 +188,10 @@ enum F {
     Winname,
     Window,
     Screen,
+    Theme,
 }
 
-const WINFILES: [(F, &str, u32); 16] = [
+const WINFILES: [(F, &str, u32); 17] = [
     (F::Ctl, "ctl", 0o666),
     (F::Event, "event", 0o444),
     (F::Cons, "cons", 0o666),
@@ -210,6 +208,7 @@ const WINFILES: [(F, &str, u32); 16] = [
     (F::Winname, "winname", 0o444),
     (F::Window, "window", 0o444),
     (F::Screen, "screen", 0o444),
+    (F::Theme, "theme", 0o666),
 ];
 
 /// the files of a client of wsys' devdraw, as #i's
@@ -227,6 +226,7 @@ enum Kind {
     Clone,
     RootWctl,
     Stack,
+    Theme, // the theme: its text; lines written change it (theme.rs)
     WinDir(u32),
     File(u32, F),
     // wsys' own devdraw (-d): draw/, draw/new, draw/n/ (a client in devdraw's
@@ -394,8 +394,6 @@ struct Menu {
 }
 
 const MENU2: &[&str] = &["cut", "paste", "snarf", "plumb", "look", "send"];
-const HOLDCOL: u32 = 0x000099; // rio's DMedblue: text and border while holding
-const PALEHOLDCOL: u32 = 0x4993DD; // rio's DPalegreyblue: the border of one not focused
 const MENU3: &[&str] = &["New", "Resize", "Move", "Delete", "Hide"];
 
 /// a command of button 3's menu, waiting for button 3 on the screen
@@ -624,6 +622,7 @@ struct Wsys {
     click: Option<(u32, i32, i32, u32)>, // the last button 1 click in a text window: window, x, y, msec
     holdcol: u32,
     paleholdcol: u32,
+    theme: theme::Theme, // the colours the images above have (and title bars, fonts)
     plumbfd: Option<Fd>, // /mnt/plumb/send, opened when first plumbed
     ovtx: Option<mpsc::Sender<OvJob>>, // the overlay's thread, started for the first
     ov: Option<u32>,                   // the window on the overlay plane
@@ -646,6 +645,7 @@ fn qid(k: Kind) -> Qid {
         Kind::Screen => (0, 5),
         Kind::RootWctl => (0, 6),
         Kind::Stack => (0, 7),
+        Kind::Theme => (0, 8),
         Kind::WinDir(n) => (ninep::QTDIR, (n as u64) << 8 | 0x10),
         Kind::File(n, f) => (0, (n as u64) << 8 | (0x20 + f as u64)),
         Kind::Draw => (ninep::QTDIR, 2),
@@ -675,6 +675,7 @@ impl Wsys {
             Kind::Screen => ("screen".to_string(), 0o444),
             Kind::RootWctl => ("wctl".to_string(), 0o222),
             Kind::Stack => ("stack".to_string(), 0o444),
+            Kind::Theme => ("theme".to_string(), 0o666),
             Kind::WinDir(n) => (n.to_string(), ninep::DMDIR | 0o555),
             Kind::File(_, f) => {
                 let (_, name, mode) = WINFILES.iter().find(|w| w.0 == f).unwrap();
@@ -707,6 +708,7 @@ impl Wsys {
                 "screen" => Some(Kind::Screen),
                 "wctl" => Some(Kind::RootWctl),
                 "stack" => Some(Kind::Stack),
+                "theme" => Some(Kind::Theme),
                 "draw" if self.core.is_some() => Some(Kind::Draw),
                 "winname" if self.core.is_some() => Some(Kind::RootWinname),
                 ".." => Some(Kind::Root),
@@ -746,7 +748,7 @@ impl Wsys {
     fn children(&self, k: Kind) -> Vec<Kind> {
         match k {
             Kind::Root => {
-                let mut v = vec![Kind::Screen, Kind::Clone, Kind::RootWctl, Kind::Stack];
+                let mut v = vec![Kind::Screen, Kind::Clone, Kind::RootWctl, Kind::Stack, Kind::Theme];
                 if self.core.is_some() {
                     v.push(Kind::Draw);
                     v.push(Kind::RootWinname);
@@ -1017,6 +1019,7 @@ impl Wsys {
                     }
                     Kind::File(n, F::Ctl) => text(self.ctltext(n).as_bytes()),
                     Kind::Stack => text(self.stacktext().as_bytes()),
+                    Kind::Theme | Kind::File(_, F::Theme) => text(self.theme.text().as_bytes()),
                     Kind::RootWinname => text(self.core.as_ref().map(|c| c.winname.as_str()).unwrap_or("").as_bytes()),
                     Kind::File(n, F::Label) => text(self.wins[&n].label.as_bytes()),
                     Kind::File(n, F::Wdir) => text(self.wins[&n].wdir.as_bytes()),
@@ -1121,6 +1124,10 @@ impl Wsys {
                         }
                         ok
                     }
+                    Kind::Theme | Kind::File(_, F::Theme) => match self.settheme(&String::from_utf8_lossy(&data)) {
+                        Ok(()) => ok,
+                        Err(err) => e(&err),
+                    },
                     Kind::File(n, F::Label | F::Wdir) => {
                         let w = self.wins.get_mut(&n).unwrap();
                         let v = if matches!(k, Kind::File(_, F::Label)) { &mut w.label } else { &mut w.wdir };
@@ -2353,7 +2360,7 @@ impl Wsys {
             }
             if let Some(r) = r {
                 let f = r.inset(-BORDER);
-                let col = FOCUSED << 8 | 0xFF;
+                let col = self.theme.border << 8 | 0xFF;
                 for side in [
                     Rect::new(f.x0, f.y0, f.x1, r.y0),
                     Rect::new(f.x0, r.y1, f.x1, f.y1),
@@ -2372,6 +2379,55 @@ impl Wsys {
     }
 
     /// window n's border, in the colour of its focus
+    /// lines of a theme written: the colours' images take the new ones (each a
+    /// 1x1 replicated image, drawn into: whatever uses one sees it), then all of
+    /// it again: the background through a window over the screen, put at the
+    /// bottom and freed (the windows above come back from their backups, the
+    /// screen's fill shows where none is), borders, text windows
+    fn settheme(&mut self, text: &str) -> Result<(), String> {
+        let mut t = self.theme.clone();
+        t.apply(text)?;
+        let pairs = [
+            (self.bg, t.back),
+            (self.cfocus, t.border),
+            (self.cother, t.borderinactive),
+            (self.white, t.window),
+            (self.black, t.text),
+            (self.pale, t.select),
+            (self.menuhi, t.menuhigh),
+            (self.scrollbg, t.scroll),
+            (self.holdcol, t.hold),
+            (self.paleholdcol, t.holdinactive),
+        ];
+        self.theme = t;
+        let res = (|| -> std::io::Result<()> {
+            let one = Rect::new(0, 0, 1, 1);
+            for (img, rgb) in pairs {
+                let c = self.d.color(rgb)?;
+                self.d.draw(img, &one, c, 0, 0)?;
+                self.d.free(c)?;
+            }
+            let all = self.d.r;
+            let cover = self.d.allocwindow(self.scr, all, 0xFFFF_FFFF)?;
+            self.d.bottom(&[cover])?;
+            self.d.free(cover)?;
+            self.d.flush()
+        })();
+        if let Err(e) = res {
+            return Err(format!("theme: draw: {e}"));
+        }
+        // the windows' programs hear it as a resize ('r' on their mouse, as rio
+        // says the window changed): they draw again, and read /dev/theme again
+        let ids: Vec<u32> = self.wins.keys().copied().collect();
+        for n in ids {
+            self.paintborder(n);
+            self.drawtext(n);
+            self.wins.get_mut(&n).unwrap().resized = true;
+            self.wake(n);
+        }
+        Ok(())
+    }
+
     fn paintborder(&mut self, n: u32) {
         let w = &self.wins[&n];
         let (l, r) = (w.layer, w.r);
@@ -3696,7 +3752,7 @@ fn kbdreader(tx: mpsc::Sender<Ev>) {
 }
 
 fn usage() -> ! {
-    eprintln!("usage: wsys [-dgkpOx] [-f font] [-s srvname] [-i cmd]");
+    eprintln!("usage: wsys [-dgkpOx] [-f font] [-t theme] [-s srvname] [-i cmd]");
     std::process::exit(1);
 }
 
@@ -3708,7 +3764,8 @@ fn main() {
     let mut alias = true; // /srv/wsys.$user too, unless -s names it
     // gpucomp: None the GPU where it can, quietly; Some(true) -g; Some(false) -p
     let (mut init, mut exitwith, mut nooverlay, mut gpucomp, mut coredraw) = (None, false, false, None, None);
-    let mut fontname = std::env::var("font").ok().filter(|f| !f.is_empty()).unwrap_or(DEFFONT.to_string());
+    let mut fontflag: Option<String> = None;
+    let mut themefile: Option<String> = None;
     while let Some(a) = args.next() {
         match a.as_str() {
             "-s" => {
@@ -3722,10 +3779,27 @@ fn main() {
             "-p" => gpucomp = Some(false),
             "-d" => coredraw = Some(true),
             "-k" => coredraw = Some(false),
-            "-f" => fontname = args.next().unwrap_or_else(|| usage()),
+            "-f" => fontflag = Some(args.next().unwrap_or_else(|| usage())),
+            "-t" => themefile = Some(args.next().unwrap_or_else(|| usage())),
             _ => usage(),
         }
     }
+    // the theme: classic, what the file says over it
+    let mut theme = theme::Theme::classic();
+    if let Some(f) = &themefile {
+        match std::fs::read_to_string(f).map_err(|e| e.to_string()).and_then(|t| theme.apply(&t)) {
+            Ok(()) => {}
+            Err(e) => {
+                eprintln!("wsys: {f}: {e}");
+                std::process::exit(1);
+            }
+        }
+    }
+    // the font: -f, the theme's, $font, vga's
+    let fontname = fontflag
+        .or_else(|| Some(theme.font.clone()).filter(|f| !f.is_empty()))
+        .or_else(|| std::env::var("font").ok().filter(|f| !f.is_empty()))
+        .unwrap_or(DEFFONT.to_string());
     // a note group of wsys' own (as rio): it goes as a whole at the end
     if let Err(e) = p9::rfork(p9::RFNOTEG) {
         eprintln!("wsys: rfork: {e}");
@@ -3866,6 +3940,7 @@ fn main() {
         click: None,
         holdcol: 0,
         paleholdcol: 0,
+        theme,
         ovtx: None,
         ov: None,
         ovtags: vec![],
@@ -3884,7 +3959,9 @@ fn main() {
         parentsnarf: std::fs::metadata("/dev/snarf").is_ok() && std::fs::metadata("/dev/wctl").is_ok(),
     };
     let colors = (|| -> std::io::Result<(u32, u32, u32, u32, u32)> {
-        Ok((ws.d.color(BG)?, ws.d.color(FOCUSED)?, ws.d.color(UNFOCUSED)?, ws.d.color(WHITE)?, ws.d.color(0)?))
+        let t = &ws.theme;
+        let (back, border, other, window, text) = (t.back, t.border, t.borderinactive, t.window, t.text);
+        Ok((ws.d.color(back)?, ws.d.color(border)?, ws.d.color(other)?, ws.d.color(window)?, ws.d.color(text)?))
     })();
     match colors {
         Ok((a, b, c, w, k)) => (ws.bg, ws.cfocus, ws.cother, ws.white, ws.black) = (a, b, c, w, k),
@@ -3901,8 +3978,9 @@ fn main() {
         ws.d.flush()?;
         Ok(scr)
     })();
-    match ws.d.color(PALEYELLOW).and_then(|p| {
-        Ok((p, ws.d.color(PALEBLUEGREEN)?, ws.d.color(SCROLLBG)?, ws.d.color(HOLDCOL)?, ws.d.color(PALEHOLDCOL)?))
+    let t = ws.theme.clone();
+    match ws.d.color(t.select).and_then(|p| {
+        Ok((p, ws.d.color(t.menuhigh)?, ws.d.color(t.scroll)?, ws.d.color(t.hold)?, ws.d.color(t.holdinactive)?))
     }) {
         Ok((p, h, sb, hc, phc)) => (ws.pale, ws.menuhi, ws.scrollbg, ws.holdcol, ws.paleholdcol) = (p, h, sb, hc, phc),
         Err(e) => {

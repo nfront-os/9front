@@ -44,7 +44,18 @@ and Mesa) or, without one, by the processor (vello_cpu): no GPU is needed.
 .B -p
 draws on the processor also with a GPU.
 It takes its fonts from
-.BR /lib/font/ttf .
+.BR /lib/font/ttf ,
+the theme's
+.B uifont
+first, and its colours from the desktop's theme
+.RB ( /dev/theme ,
+.IR wsys (4):
+the window's background and text, the current border for what is on and
+what has the focus, greys between them for the rest; again when it changes;
+without
+.I wsys
+the classic one).
+A node's own look (below) goes over the theme's.
 .SS Files
 .TF nodes/id/children
 .TP

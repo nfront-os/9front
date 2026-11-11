@@ -67,9 +67,10 @@ test -e /mnt/ui/nodes/x && fail 'a refused transaction left node x' || ok 'a ref
 echo 'text changed by props' >/mnt/ui/nodes/t/props
 grep -s '^set t text changed by props$' /mnt/ui/tree && ok 'props written: in the tree' || fail props write
 
-# the window's pixels: Masonry's background, and widgets drawn on it
+# the window's pixels: the theme's window colour (classic: white; ui's look.rs,
+# not Masonry's dark one) as the background, and widgets drawn on it
 sleep 1
-bg=`{/tests/uipeek -n 104,104,596,446 1d1d1d}
+bg=`{/tests/uipeek -n 104,104,596,446 ffffff}
 total=`{echo 492'*'342 | hoc}
 other=`{echo $total-$bg | hoc}
 if(test $bg -gt 1000 && test $other -gt 500) ok window drawn: $bg background, $other else

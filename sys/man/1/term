@@ -67,9 +67,18 @@ characters it lacks come from the other fonts in
 or are shown as an empty box.
 .B -s
 sets the height of a line in pixels (16).
-The colours are black on white;
+The colours are the desktop's theme
+.RB ( /dev/theme ,
+.IR wsys (4):
+its text window's text, background and selection, its menus; without
+.I wsys
+black on white), and so is the font
+.RB ( monofont ),
+unless
+.B -f
+names one;
 .B -r
-makes them white on black.
+swaps text and background.
 .PP
 The mouse works as in
 .IR rio :

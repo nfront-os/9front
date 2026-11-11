@@ -13,6 +13,7 @@ workspace = "../../rust"
 
 [dependencies]
 p9win = { path = "../../rust/plan9/p9win" }
+desk = { path = "../../rust/desk" }
 vt100 = "0.16"
 ab_glyph = "0.2"
 unicode-width = "0.2"

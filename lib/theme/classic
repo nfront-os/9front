@@ -1,0 +1,12 @@
+# wsys' theme (wsys(4)): rio's colours, wsys' default
+back #777777
+border #335588
+borderinactive #aaaaaa
+window #ffffff
+text #000000
+select #ffffaa
+menuhigh #9eeeee
+scroll #999999
+hold #000099
+holdinactive #4993dd
+title 0

@@ -17,6 +17,7 @@ mod fs;
 #[cfg(feature = "gpu")]
 mod gpu;
 mod image;
+mod look;
 mod ninep;
 mod scene;
 
@@ -57,12 +58,13 @@ enum UserEvent {
     Hangup,         // the clients' connection ended
 }
 
-/// the fonts of the system: /lib/font/ttf (Plan 9's fonts are files)
-fn fonts() -> Vec<Vec<u8>> {
+/// the fonts of the system: /lib/font/ttf (Plan 9's fonts are files); the
+/// theme's uifont first (the default face), else the first by name
+fn fonts(first: &str) -> Vec<Vec<u8>> {
     let mut v = Vec::new();
     if let Ok(d) = std::fs::read_dir("/lib/font/ttf") {
         let mut names: Vec<_> = d.flatten().map(|e| e.path()).collect();
-        names.sort();
+        names.sort_by_key(|p| (p.to_str() != Some(first), p.clone()));
         for p in names {
             let ext = p.extension().and_then(|e| e.to_str()).unwrap_or("");
             if ext.eq_ignore_ascii_case("ttf") || ext.eq_ignore_ascii_case("otf") {
@@ -563,6 +565,7 @@ struct Gui {
     painter: Painter,
     root: RenderRoot,
     reducer: WindowEventReducer,
+    background: masonry::peniko::Color, // the frame's, the theme's window colour (look.rs)
 }
 
 /// a property moving to its new value (animate), from as shown when it changed
@@ -923,7 +926,7 @@ impl App {
             .collect();
         let Some(root) = layers.root_layer() else { return };
         let VisualLayerKind::Scene(base) = &root.kind else { return };
-        let frame = PreparedFrame::new(w.get(), h.get(), 1.0, masonry::theme::BACKGROUND_COLOR, base, &overlays);
+        let frame = PreparedFrame::new(w.get(), h.get(), 1.0, g.background, base, &overlays);
         g.painter.paint(frame);
         // animations under way: the next frame
         if !self.anims.is_empty() {
@@ -960,7 +963,10 @@ impl ApplicationHandler<UserEvent> for App {
         self.fs.renderer = renderer;
         let size = window.inner_size();
         let tx = self.signal_tx.clone();
-        let mut fonts = fonts().into_iter();
+        // the desktop's theme: colours (look.rs), the UI font
+        let theme = desk::theme::current();
+        let palette = look::Palette::from_theme(&theme);
+        let mut fonts = fonts(&theme.uifont).into_iter();
         let first = fonts.next();
         if first.is_none() {
             eprintln!("ui: no fonts in /lib/font/ttf: no text");
@@ -971,7 +977,7 @@ impl ApplicationHandler<UserEvent> for App {
                 let _ = tx.send(s);
             },
             RenderRootOptions {
-                default_properties: Arc::new(masonry::theme::default_property_set()),
+                default_properties: Arc::new(look::property_set(&palette)),
                 use_system_fonts: false,
                 size_policy: WindowSizePolicy::User,
                 size,
@@ -983,7 +989,7 @@ impl ApplicationHandler<UserEvent> for App {
             root.register_fonts(Blob::new(Arc::new(b)));
         }
         self.fs.size = (size.width, size.height);
-        self.gui = Some(Gui { window, painter, root, reducer: WindowEventReducer::default() });
+        self.gui = Some(Gui { window, painter, root, reducer: WindowEventReducer::default(), background: palette.background });
         println!("{}", self.srv);
     }
 
@@ -1034,6 +1040,13 @@ impl ApplicationHandler<UserEvent> for App {
             }
             WinitWindowEvent::Moved(p) => {
                 self.fs.origin = (p.x, p.y);
+            }
+            // the desktop's theme changed (/dev/theme, written): its colours now
+            WinitWindowEvent::ThemeChanged(_) => {
+                let palette = look::Palette::from_theme(&desk::theme::current());
+                g.root.set_default_properties(Arc::new(look::property_set(&palette)));
+                g.background = palette.background;
+                g.window.request_redraw();
             }
             WinitWindowEvent::Focused(f) => {
                 g.root.handle_text_event(TextEvent::WindowFocusChange(f));

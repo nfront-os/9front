@@ -24,6 +24,7 @@ ui-events-winit = { version = "0.3.0", default-features = false }
 winit = { version = "0.30.13", default-features = false, features = ["rwh_06"] }
 softbuffer = { version = "0.4.8", default-features = false }
 p9win = { path = "../../rust/plan9/p9win" }
+desk = { path = "../../rust/desk" }
 # an image node's PNG (image(6) is ui's own: src/image.rs)
 png = "0.18"
 
