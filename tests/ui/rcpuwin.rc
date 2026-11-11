@@ -1,0 +1,53 @@
+#!/bin/rc
+# run by wsys -x -i on the cpu side of rcpu.rc: wsys' screen is the
+# terminal's (/dev/draw is /mnt/term/dev/draw); a window, seen on that
+# screen (uipeek reads it through /mnt/term too); after the terminal's
+# screen went to 800x600, wsys' screen is that size and a window that was
+# off it is back on it. Prints ok/FAIL lines and "rcpuwin: all passed".
+nfail=0
+fn ok { echo ok $* }
+fn fail { echo FAIL $*; nfail=`{echo $nfail+1 | hoc} }
+fn wait1 { # cmd...: until it succeeds, 10 s at most
+	n=0
+	while(! $* >[2]/dev/null && test $n -lt 100){ sleep 0.1; n=`{echo $n+1 | hoc} }
+	$* >[2]/dev/null
+}
+fn screen { h=`{dd -if /mnt/wsys/screen -bs 60 -count 1 >[2]/dev/null}; echo $h(2-5) }
+fn frame { s=`{grep '^'$1' ' /mnt/wsys/stack}; echo $s(2-5) }
+fn colour { /tests/uipeek $1 | awk '{print $2}' }
+
+# the same file: qid, type and device as ls -lq gives them
+fn id { ls -lq $1 | awk '{print $1, $2, $3, $5, $6}' }
+d1=`{id /dev/draw/new}; d2=`{id /mnt/term/dev/draw/new}
+if(~ $#d1 5 && ~ $"d1 $"d2) ok /dev/draw is that of the terminal: $d1
+if not fail /dev/draw $d1, that of the terminal $d2
+s=`{screen}
+~ $"s '0 0 1024 768' || fail the screen $s, not 1024x768 as the terminal
+ok wsys on the screen of the terminal: $s
+
+window -r 100 100 400 300
+window -r 900 500 1000 700
+wait1 test -d /mnt/wsys/2 || fail no windows
+sleep 2
+# the first window's inside: the theme's window colour (classic: white) on the terminal's screen
+p=`{colour 250,200}
+if(~ $p ffffff) ok a window drawn on the terminal: $p at 250,200
+if not fail at 250,200 $p, not a window
+touch /usr/glenda/rcpu.ready
+
+n=0
+while(! test -e /usr/glenda/rcpu.resized && test $n -lt 600){ sleep 0.1; n=`{echo $n+1 | hoc} }
+fn small { t=`{screen}; ~ $"t '0 0 800 600' }
+wait1 small
+t=`{screen}
+if(~ $"t '0 0 800 600') ok the screen of the terminal 800x600: wsys followed
+if not fail after the terminal went to 800x600 wsys has $t
+f=`{frame 2}
+if(test $f(1) -lt 800 && test $f(2) -lt 600) ok the window off the screen back on it: $f
+if not fail window 2 at $f
+sleep 1
+p=`{colour 250,200}
+if(~ $p ffffff) ok drawn again after the resize: $p at 250,200
+if not fail after the resize at 250,200 $p
+touch /usr/glenda/rcpu.done
+if(~ $nfail 0) echo rcpuwin: all passed

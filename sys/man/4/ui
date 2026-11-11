@@ -28,7 +28,10 @@ as an
 .IR acme (4)
 window's text stays in acme.
 The files are 9P: a client on another machine mounts them as well
-.RI ( import (4)).
+.RI ( import (4));
+what goes over the network is the tree and the events, not pixels (for the
+whole desktop far away, see
+.IR wsys (4)).
 .PP
 .I Ui
 posts its files in

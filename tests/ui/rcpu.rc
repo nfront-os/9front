@@ -1,0 +1,64 @@
+#!/bin/rc
+# wsys through rcpu (../9front-ui PLAN stage 7, step 4), on one machine that
+# is terminal and cpu server: keyfs with glenda's key (/tests/rcpukeys, from
+# tests/ui/run.sh), a factotum of its own (dp9ik), authsrv and rcpu on
+# listen1, an authdom in /lib/ndb/local (the guest's root is made anew at
+# each boot); rcpu to its own address runs wsys there (rcpuwin.rc): it draws
+# on this terminal's screen through /mnt/term/dev/draw, as under drawterm.
+# Then the terminal's screen goes from 1024x768 to 800x600 (aux/vga) and
+# wsys follows it. Prints ok/FAIL lines and "rcpu: all passed".
+nfail=0
+fn ok { echo ok $* }
+fn fail { echo FAIL $*; nfail=`{echo $nfail+1 | hoc} }
+fn waitfile { # file seconds
+	n=0
+	while(! test -e $1 && test $n -lt `{echo $2'*10' | hoc}){ sleep 0.1; n=`{echo $n+1 | hoc} }
+	test -e $1
+}
+k=/tests/rcpukeys
+rm -f /usr/glenda/rcpu.^(ready resized done)
+ip=`{grep -h '^[0-9]+\.' /net/ipifc/*/local | awk '{print $1}' | grep -v '^127' | sed 1q}
+~ $#ip 1 || { fail no address of this machine; exit fail }
+
+# the auth server's keys: the machine's (nvram) and glenda's
+nvram=/tmp/nvram
+cp $k/nvram /tmp/nvram
+rm -f /tmp/keys	# (keyfs takes a file it cannot read as AES's)
+auth/keyfs -m /mnt/keys /tmp/keys >[2]/dev/null || { fail keyfs; exit fail }
+mkdir /mnt/keys/glenda
+cat $k/deskey >/mnt/keys/glenda/key
+cat $k/aeskey >/mnt/keys/glenda/aeskey
+echo 'authdom=rcpu-test auth='$ip >>/lib/ndb/local
+echo -n refresh >/net/cs
+# a factotum of its own, client's and server's: glenda's key, nothing else
+auth/factotum
+echo 'key proto=dp9ik dom=rcpu-test user=glenda !password='`{cat $k/pw} >/mnt/factotum/ctl
+aux/listen1 -t 'tcp!*!567' /rc/bin/service.auth/tcp567 >/tmp/auth.log >[2=1] &
+aux/listen1 -t 'tcp!*!17033' /rc/bin/service/tcp17019 >/tmp/rcpulisten.log >[2=1] &
+sleep 1
+ok auth and rcpu listening on $ip
+
+# wsys on the other side; its lines come back on the connection
+rcpu -h 'tcp!'$ip'!17033' -u glenda -c 'WSYSDEBUG=compress /tests/wsys -x -i /tests/rcpuwin' >/tmp/rcpu.out >[2=1] &
+r=$apid
+if(waitfile /usr/glenda/rcpu.ready 60) ok wsys through rcpu up
+if not {
+	fail wsys through rcpu did not come up
+	cat /tmp/rcpu.out /tmp/rcpulisten.log /tmp/auth.log
+	exit fail
+}
+# the terminal's screen smaller: devdraw's screen made again, the mouse says r
+aux/vga -m vesa -l 800x600x32 >[2=1]
+touch /usr/glenda/rcpu.resized
+waitfile /usr/glenda/rcpu.done 60 || fail wsys through rcpu did not finish
+n=0
+while(test -e /proc/$r/status && test $n -lt 100){ sleep 0.1; n=`{echo $n+1 | hoc} }
+cat /tmp/rcpu.out
+grep -s '^FAIL' /tmp/rcpu.out && nfail=`{echo $nfail+1 | hoc}
+grep -s '^rcpuwin: all passed' /tmp/rcpu.out || fail the other side: no all passed
+# what the compression saved: the pixels' bytes and the messages'
+c=`{grep '^wsys: compressed' /tmp/rcpu.out}
+if(~ $#c 0) fail no compression: wsys did not take the screen as far away
+if not if(test $c(3) -gt `{echo 4'*'$c(8) | hoc}) ok compressed $c(3) into $c(8) bytes
+if not fail compressed $c(3) into $c(8) bytes only
+if(~ $nfail 0) echo rcpu: all passed

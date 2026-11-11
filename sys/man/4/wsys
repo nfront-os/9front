@@ -90,6 +90,8 @@ is that one's):
 a window's flat colours and repeated rows come to some sixteenth.
 .B WSYSDEBUG=compress
 says at the end how many bytes of pixels went in how many of messages.
+.B WSYSDEBUG=resize
+says what each resize of the window it is in found.
 .PP
 Where it can,
 .I wsys
@@ -823,6 +825,37 @@ Mod4+Tab; pixels from
 and logs to
 .BR desk.log .
 .PP
+Over the network there are two ways, for two things.
+The whole desktop: a terminal (drawterm, or
+.IR rcpu (1)
+from 9front) runs
+.I wsys
+on a cpu server; it draws on the terminal's screen through
+.B /mnt/term/dev/draw
+(draw(3) over 9P: pixels), what changed compressed, and follows the
+terminal's window as it is resized.
+Its windows' programs run on the cpu server, buffer clients (segments, GPU
+buffers) among them; the GPU composes only on the machine's own screen.
+One program: a
+.IR ui (4)
+client on one machine and its window on another; what goes over the
+network is the tree of widgets and the user's events, not pixels
+.RI ( import (4)
+the window's
+.BR /srv ,
+or the client's
+.IR ui (2)
+over TCP).
+Draw(3) programs (stats, acme) go either way: in a window of a
+.I wsys
+far away, or by themselves on the terminal as under
+.IR rio .
+.IP
+.EX
+drawterm -h 'tcp!cpu!17019' -a 'tcp!auth!567' -u glenda
+cpu% wsys -t /lib/theme/modern -i 'window -r 0 0 1000 30 wbar; window term'
+.EE
+.PP
 A client in C: see
 .BR /tests/ui/wsystest.c .
 .SH SOURCE
@@ -835,7 +868,9 @@ A client in C: see
 .IR wlsys (4),
 .IR window (1),
 .IR draw (3),
-.IR segment (3)
+.IR segment (3),
+.IR rcpu (1),
+.IR ui (4)
 .SH BUGS
 .I Wsys
 must be allowed to attach the clients' segments: the same user, or the

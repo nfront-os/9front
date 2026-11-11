@@ -171,4 +171,36 @@ check "rio, -z: compressed 4 to 1 at least" ratio
 ratio | sed 's/^/       /'
 check "rio, -k (the kernel's devdraw): wsys follows its window: all passed" grep -q '^resize: all passed' "$H/wsysresizek.log"
 grep '^FAIL' "$H/wsysresizek.log" 2>/dev/null | sed 's/^/       /'
+# a third boot: wsys through rcpu (rcpu.rc, rcpuwin.rc), terminal and cpu
+# server in one guest; keys for an auth server of its own from a test password
+mkdir -p "$HERE/root/tests/rcpukeys"
+python3 - "$HERE/root/tests/rcpukeys" <<'PY'
+import hashlib, sys
+d, pw = sys.argv[1], 'rcputest'
+dom, user = b'rcpu-test', b'glenda'
+# passtodeskey of at most 8 characters (no DES rounds), passtoaeskey
+buf = bytearray(b' ' * 28); p = pw.encode(); buf[:len(p)] = p; buf[len(p)] = 0
+des = bytes(((buf[i] >> i) + (buf[i + 1] << (8 - (i + 1)))) & 0xFF for i in range(7))
+aes = hashlib.pbkdf2_hmac('sha1', p, b'Plan 9 key derivation', 9001, 16)
+cs = lambda b: bytes([(9 + sum(b)) & 0xFF])
+pad = lambda b, n: b + bytes(n - len(b))
+# Nvrsafe: machkey authkey config authid authdom aesmachkey, each with its sum
+nv = des + cs(des) + des + cs(des) + bytes(14) + cs(bytes(14)) + pad(user, 28) + cs(pad(user, 28)) + pad(dom, 48) + cs(pad(dom, 48)) + aes + cs(aes)
+for name, data in (('nvram', nv), ('deskey', des), ('aeskey', aes), ('pw', p)):
+    open(f'{d}/{name}', 'wb').write(data)
+PY
+cp "$HERE/rcpu.rc" "$HERE/root/tests/rcputest"
+cp "$HERE/rcpuwin.rc" "$HERE/root/tests/rcpuwin"
+chmod +x "$HERE/root/tests/rcputest" "$HERE/root/tests/rcpuwin"
+rcpuboot(){
+	UFS_EXTRA="$HERE/root" MEM=1024 KARGS="vgasize=1024x768x32 monitor=vesa mouseport=ps2" CMDWAIT=10 \
+		"$ROOT/scripts/guest/boot-cli.sh" \
+		'aux/realemu' 'aux/vga -m vesa -l 1024x768x32' "bind -a '#i' /dev" "bind -a '#m' /dev" \
+		"/tests/rcputest >/tmp/rcputest.log >[2=1]; cat /tmp/rcputest.log" \
+		> "$TMPD/consolercpu" 2>&1
+	tr -d '\r' < "$TMPD/consolercpu" > "$TMPD/logrcpu"
+}
+check "boot for rcpu (terminal and cpu server in one)" rcpuboot
+cp "$TMPD/logrcpu" "$HERE/rcpu.log" 2>/dev/null
+check "rcpu: wsys on the terminal's screen through /mnt/term, compressed, follows its 800x600: all passed" bash -c "grep -q '^rcpu: all passed' '$TMPD/logrcpu' || { grep -E '^(ok|FAIL) ' '$TMPD/logrcpu' | tail -8; false; }"
 done_tests
