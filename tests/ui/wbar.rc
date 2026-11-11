@@ -1,0 +1,117 @@
+#!/bin/rc
+# wbar(1) in wsys, run by wsys -x -i (the modern theme: title bars): wbar's window
+# a bar along the top (no border, above the windows made after it, never
+# current); its windows' places: button 1 makes a window current, hides the
+# current one, brings a hidden one back; a window maximized stays below the
+# bar; Mod4+Tab passes the bar by; the menu runs its command.
+# Prints ok/FAIL lines and "wbar: all passed".
+fn fail { echo FAIL $*; exit fail }
+fn wait1 { # cmd...: until it succeeds, 10 s at most
+	n=0
+	while(! $* >[2]/dev/null && test $n -lt 100){ sleep 0.1; n=`{echo $n+1 | hoc} }
+	$* >[2]/dev/null
+}
+# mousein keeps the buttons per open file: a press and its release go through one
+fn m { echo A $1 $2 $3; sleep 0.1 }
+fn click { { m $1 $2 0; m $1 $2 1; m $1 $2 0 } >/dev/mousein; sleep 0.7 }
+fn dclick { { m $1 $2 0; m $1 $2 1; m $1 $2 0; m $1 $2 1; m $1 $2 0 } >/dev/mousein; sleep 0.3 }
+fn wctl { # window $1: its wctl's fields
+	dd -if /mnt/wsys/$1/wctl -bs 128 -count 1 -quiet 1
+}
+fn current { # the current window's number
+	for(d in `{ls -p /mnt/wsys | grep '^[0-9]+$'}){
+		w=`{wctl $d}
+		if(~ $w(5) current) echo $d
+	}
+}
+fn items { cat /tmp/wbar.*.items }
+fn spot { # window $1: the middle of its place on the bar
+	s=`{items | awk '$1 == "win" && $2 == "'$1'" {print int(($3+$4)/2)}'}
+	~ $#s 1 || fail no place for window $1: `{items}
+	echo $s
+}
+fn state { items | awk '$1 == "win" && $2 == "'$1'" {print $5}' }
+fn mod4tab {
+	/tests/uipeek -p f868
+	/tests/uipeek -p 9
+	/tests/uipeek -r 9
+	/tests/uipeek -r f868
+	sleep 0.3
+}
+rm -f /tmp/wbar.*.items /tmp/wbartouched
+m 1020 760 0 >/dev/mousein
+cat /lib/theme/modern >/mnt/wsys/theme || fail writing the theme
+echo 'touch	touch /tmp/wbartouched' >/tmp/wbarmenu
+echo '#!/bin/rc
+WBARDEBUG=items exec /tests/wbar -m /tmp/wbarmenu >/tmp/wbar.err >[2=1]' >/tmp/runwbar
+chmod +x /tmp/runwbar
+
+window -r 0 0 1024 60 /tmp/runwbar
+wait1 test -d /mnt/wsys/1 || fail no window for wbar
+fn haveitems { items | grep -s '^clock' }
+wait1 haveitems || fail no items of wbar: `{cat /tmp/wbar.err}
+b=`{grep '^1 ' /mnt/wsys/stack}
+~ $b(2) 0 && ~ $b(3) 0 && ~ $b(4) 1024 && ~ $b(6) 0 || fail the bar: $b
+h=$b(5)
+test $h -gt 10 && test $h -lt 60 || fail the bar $h high
+echo ok wbar a bar: 0 0 1024 $h, no border
+
+window -r 100 100 400 300
+window -r 500 100 900 400
+wait1 test -d /mnt/wsys/3 || fail no windows 2 and 3
+sleep 1 # (their shells label them first)
+echo -n alpha >/mnt/wsys/2/label
+echo -n beta >/mnt/wsys/3/label
+fn twowins { items | grep -s '^win 3 .* beta$' && items | grep -s '^win 2 .* alpha$' }
+wait1 twowins || fail windows not on the bar: `{items}
+~ `{tail -1 /mnt/wsys/stack | awk '{print $1}'} 1 || fail the bar not on top: `{cat /mnt/wsys/stack}
+~ `{current} 3 || fail current `{current}, want 3
+echo ok the windows on the bar, the bar on top of them
+
+y=`{echo 'int('$h'/2)' | hoc}
+x=`{spot 2}
+click $x $y
+~ `{current} 2 || fail a click on alpha: current `{current}
+~ `{state 2} current || fail alpha not lit: `{items}
+click $x $y
+w=`{wctl 2}
+~ $w(6) hidden || fail a click on alpha current: $w
+~ `{state 2} hidden || fail alpha not pale: `{items}
+click $x $y
+w=`{wctl 2}
+~ $w(5) current && ~ $w(6) visible || fail a click on alpha hidden: $w
+echo ok button 1: current, hidden, back
+w=`{wctl 1}
+~ $w(5) notcurrent || fail the bar took the focus: $w
+
+# beta maximized by a double click on its title bar: below the bar
+dclick 700 114
+w=`{wctl 3}
+f=$w(1-4)
+~ $"f '0 '$h' 1024 768' || fail maximized: $f, want 0 $h 1024 768
+echo ok maximized below the bar
+~ `{tail -1 /mnt/wsys/stack | awk '{print $1}'} 1 || fail the bar not on top after: `{cat /mnt/wsys/stack}
+
+# Mod4+Tab: never the bar
+mod4tab
+c=`{current}
+~ $c 2 3 || fail Mod4+Tab: $c
+mod4tab
+c=`{current}
+~ $c 2 3 || fail Mod4+Tab again: $c
+echo ok Mod4+Tab passes the bar by
+
+# the menu: a click opens it below the bar, a click on touch runs it
+x=`{items | awk '$1 == "menu" {print int(($2+$3)/2)}'}
+click $x $y
+fn open { items | grep -s '^item 0 ' }
+wait1 open || fail the menu did not open: `{items}
+i=`{items | awk '$1 == "item" && $2 == "0" {print int(($3+$4)/2)}'}
+click 40 $i
+wait1 test -e /tmp/wbartouched || fail touch did not run: `{items}
+fn shut { ! items | grep -s '^item' }
+wait1 shut || fail the menu stayed open
+b=`{grep '^1 ' /mnt/wsys/stack}
+~ $b(5) $h || fail the bar not back to $h: $b
+echo ok the menu ran touch, shut again
+echo wbar: all passed

@@ -1,0 +1,122 @@
+.TH WBAR 1
+.SH NAME
+wbar \- the desktop's bar in wsys
+.SH SYNOPSIS
+.B wbar
+[
+.B -m
+.I menu
+] [
+.B -f
+.I font.ttf
+] [
+.B -s
+.I size
+]
+.SH DESCRIPTION
+.I Wbar
+runs in a window of
+.IR wsys (4)
+and makes it a bar along the top of the screen
+(the
+.B bar
+message to
+.BR /dev/wctl :
+no border, above the other windows, the mouse but never the keyboard's focus;
+a window maximized stays below it).
+On it are, from the start:
+.TP
+.B menu
+Button 1 opens a menu below the bar, held (let go on an item) or clicked
+(a click on an item, anywhere else shuts it).
+An item runs its command with
+.IR rc (1)
+in
+.IR wbar 's
+name space: its
+.B /dev
+is its window's,
+.IR window (1)
+makes a new window.
+The items are the lines of
+.I menu
+(default
+.BR $home/lib/wbar/menu ,
+else
+.BR /lib/wbar/menu ):
+a label, a tab, the command; lines starting with
+.B #
+are comments.
+.TP
+the windows
+of
+.B /dev/wsys
+by number, each by its label (else
+.BI window " n\f1),"
+cut to fit: the current one on the theme's selection colour, a hidden one paler.
+Button 1 on one makes it current; on the current one, it hides it; on a hidden
+one, it brings it back.
+.TP
+a clock
+at the end: the local time from
+.IR date (1),
+weekday, day, month, hours and minutes.
+.PP
+The colours are the theme's
+.RB ( /dev/theme ,
+.IR wsys (4)):
+.B window
+behind,
+.B text
+for the text,
+.B border
+for a line at the bottom and the menu's frame,
+.B menuhigh
+for the item under the mouse.
+The font is
+.IR font.ttf ,
+else the theme's
+.BR uifont ,
+else
+.BR /lib/font/ttf/Go-Regular.ttf ,
+.I size
+pixels (15).
+When
+.I wsys
+says the window changed, it reads the theme again.
+It looks at the windows twice a second.
+.PP
+.IR Riostart ,
+under
+.I wsys
+.RB ( desktop=wsys ),
+starts it first.
+.SH EXAMPLES
+A menu of one's own:
+.IP
+.EX
+term	window term
+mail	window -r 100 100 700 600 acme /mail/fs/mbox
+theme: modern	cat /lib/theme/modern >/dev/theme
+.EE
+.SH FILES
+.TF /lib/wbar/menu
+.TP
+.B /lib/wbar/menu
+the menu by default
+.SH SOURCE
+.B /sys/src/cmd/wbar
+.SH SEE ALSO
+.IR wsys (4),
+.IR winwatch (1),
+.IR window (1),
+.IR term (1)
+.SH BUGS
+Under
+.IR rio (1),
+which knows no bars, it is an ordinary window.
+.br
+.B WBARDEBUG=items
+writes where things are on the bar to
+.BI /tmp/wbar. pid .items
+after each picture (for tests).

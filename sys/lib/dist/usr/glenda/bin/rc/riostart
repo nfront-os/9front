@@ -2,8 +2,14 @@
 # not the old syntax 'window 0,0,161,117': that makes the window from a
 # background job, which can finish after the windows below and take the
 # keyboard focus from them (the serial console window)
-window -r 0 0 161 117 stats -lmisce
-window -miny 130
+# ui branch: under wsys(4) wbar(1) first, a bar along the top; stats below it
+y=0
+if(~ $desktop wsys && test -x /bin/wbar){
+	window -r 0 0 1024 30 wbar
+	y=30
+}
+window -r 0 $y 161 `{echo $y + 117 | hoc} stats -lmisce
+window -miny `{echo $y + 130 | hoc}
 
 # run a system shell on the serial console
 ~ $#console 0 || window -scroll console

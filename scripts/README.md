@@ -82,7 +82,7 @@ Called by `build.exe` (Pre/Post steps); rarely run by hand.
 | `mkdisk.sh` | installed disk image (hjfs). `scripts/guest/mkdisk.sh` |
 | `stage-dist.sh` | the distribution tree the guest gets for mkiso/mkdisk |
 | `gen-ufs-root.sh`, `proto.py` | root tree for the guest; files of a 9front proto |
-| `boot/` | rc scripts run inside the guest (`mkboot.rc`, `mkiso.rc`, `mkdisk.rc`, `mkkencc.rc`, `mkself.rc`), `gccproto` (`/$objtype/lib.gcc`), `gnuproto` (`/$objtype/gnu`, the native gcc of `../9front-gcc`) `rustproto` (`/$objtype/rust`, Rust of `../9front-rust`, `scripts/install.sh` there; only with `RUST_OUT`) and `goproto` (`/$objtype/go`, Go of `../9front-go`, `scripts/install.sh` there; only with `GO_OUT`) |
+| `boot/` | rc scripts run inside the guest (`mkboot.rc`, `mkiso.rc`, `mkdisk.rc`, `mkkencc.rc`, `mkself.rc`), `gccproto` (`/$objtype/lib.gcc`), `uiproto` (the ui branch's `/lib/font/ttf`, `/lib/theme`, `/lib/wbar`), `gnuproto` (`/$objtype/gnu`, the native gcc of `../9front-gcc`) `rustproto` (`/$objtype/rust`, Rust of `../9front-rust`, `scripts/install.sh` there; only with `RUST_OUT`) and `goproto` (`/$objtype/go`, Go of `../9front-go`, `scripts/install.sh` there; only with `GO_OUT`) |
 
 ## check/ — gcc vs. 9front's compilers
 

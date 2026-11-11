@@ -1,0 +1,10 @@
+# wbar's menu (wbar(1)): a label, a tab, a command for rc (run in wbar's
+# name space: /dev is wsys' window's, window(1) makes a new window)
+term	window term
+rc	window
+stats	window -r 0 30 161 147 stats -lmisce
+theme: classic	cat /lib/theme/classic >/dev/theme
+theme: modern	cat /lib/theme/modern >/dev/theme
+edit the theme	window acme /dev/theme
+/net	window acme /net/
+/dev	window acme /dev/

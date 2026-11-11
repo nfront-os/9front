@@ -203,7 +203,22 @@ messages
 .BR current ,
 .BR delete ,
 .BR set ,
-.BR new ).
+.BR new ,
+.BR hide ,
+.BR unhide ,
+.BR scroll ,
+.BR noscroll )
+and
+.BR bar :
+the window becomes a bar
+.RI ( wbar (1)):
+no border or title bar (its image's name starts with
+.BR noborder. ,
+as
+.IR graphics (2)
+and p9win know such a window), above the other windows, the mouse while it
+is over it (or a button went down there) but never the keyboard's focus, not
+in Mod4+Tab; a window maximized leaves the edge of the screen it is on free.
 A process
 .I wsys
 starts in a new window gets a name space with the window's files on
@@ -241,6 +256,14 @@ is the double click,
 .B min
 hides it (as Hide).
 Buttons 2 and 3 on the bar are as on the border.
+The bar is a window of its own in
+.IR draw (3)
+above the window's (border and content), which
+.B winname
+names, as in
+.IR rio :
+.IR draw (3)
+programs inset that by the border and keep off the bar.
 The frame (what
 .B wctl
 and

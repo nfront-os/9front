@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: MIT
+# wbar: the desktop's bar in wsys(4), wbar(1): a menu of commands, the windows
+# (/dev/wsys), a clock; draw(3) through p9win, the theme's colours and font
+# (ab_glyph). Part of the workspace in sys/src/rust (its vendor/).
+[package]
+name = "wbar"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+publish = false
+workspace = "../../rust"
+
+[dependencies]
+p9win = { path = "../../rust/plan9/p9win" }
+desk = { path = "../../rust/desk" }
+ab_glyph = "0.2"

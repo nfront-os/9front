@@ -104,9 +104,22 @@ c=`{content 1}
 ~ $c(2) `{echo 154 + $t | hoc} || fail title 1 again: content $c
 echo ok title 0 and 1: the frame kept, the content without and with the bar
 
+# a draw(3) program (stats): it insets winname's image by the border only, so
+# its picture is below the bar (the bar its own window above the window's)
+window -r 600 450 1000 700 stats -lmisce
+wait1 test -d /mnt/wsys/2 || fail no window for stats
+sleep 3
+ty=`{echo 'int(454+'$t'/2)' | hoc}
+is 800,$ty 2b4c6f a8a49c
+c=`{content 2}
+~ $c(2) `{echo 454 + $t | hoc} || fail stats content $c
+echo ok stats draws below its title bar
+echo delete >/mnt/wsys/2/wctl
+wait1 test ! -d /mnt/wsys/2 || fail stats window stayed
+
 # x deletes it
 window -r 600 100 900 300
-wait1 test -d /mnt/wsys/2 || fail no second window
+wait1 test -d /mnt/wsys/3 || fail no third window
 sleep 0.5
 click 540 `{echo 154 + $t / 2 | hoc}
 wait1 test ! -d /mnt/wsys/1 || fail x did not delete window 1

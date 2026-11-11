@@ -321,13 +321,15 @@ struct Win {
     border: i32, // around it: BORDER, none for a popup
     title: i32,  // its title bar's height (the theme's title 1), none for a popup
     unmax: Option<Rect>, // maximized from this frame (the title bar's max, a double click)
+    bar: bool,           // wctl's bar: on top of the others, the mouse without the focus (wbar)
     mapped: bool, // made by clone: off the screen (hidden) until its first present
     nofocus: bool, // a popup that leaves the focus where it is (a tooltip)
     slot: usize,
     bufs: HashMap<u32, Buf>,
     img: u32,   // what a client of buffers presented, x8r8g8b8, the window's size
     stale: bool, // presented into the layer since: img is behind it (freshen)
-    layer: u32, // its window on wsys's screen in draw(3), border and all
+    layer: u32, // its window on wsys's screen in draw(3), border and all (as rio's: what winname names)
+    tlayer: Option<u32>, // its title bar's, above it: draw(3) programs inset winname's by the border only
     name: String, // the layer's public name (winname)
     refs: u32,    // fids holding the window
     pinned: bool, // made by wctl's new: kept until its process attached or ended
@@ -390,9 +392,20 @@ impl Win {
         outer(self.r, self.border, self.title)
     }
 
-    /// its title bar (empty: none)
+    /// its title bar (empty: none): above the border
     fn titlebar(&self) -> Rect {
-        Rect::new(self.r.x0, self.r.y0 - self.title, self.r.x1, self.r.y0)
+        let f = self.frame();
+        Rect::new(f.x0, f.y0, f.x1, f.y0 + self.title)
+    }
+
+    /// its layer's rectangle: the content and the border
+    fn lrect(&self) -> Rect {
+        self.r.inset(-self.border)
+    }
+
+    /// its layers, the title bar's last
+    fn layers(&self) -> Vec<u32> {
+        std::iter::once(self.layer).chain(self.tlayer).collect()
     }
 }
 
@@ -668,6 +681,8 @@ struct Wsys {
     compdirty: bool,             // a buffer presented since: a frame
     compgone: Vec<(u32, u32)>,   // buffers out of the scene: back when the next frame is composed
     sweepr: Option<Rect>,        // the sweep's outline (over the GPU windows)
+    barheld: Option<u32>,        // a button went down on this bar: the mouse is its until all are up
+    mlast: Option<u32>,          // the window the last mouse event went to
 }
 
 fn qid(k: Kind) -> Qid {
@@ -1046,7 +1061,7 @@ impl Wsys {
                         // all), taken at the read at offset 0
                         if offset == 0 || f.snap.is_none() {
                             let (id, r) = match k {
-                                Kind::File(n, F::Window) => (self.wins[&n].layer, self.wins[&n].frame()),
+                                Kind::File(n, F::Window) => (self.wins[&n].layer, self.wins[&n].lrect()),
                                 _ => (self.d.screen, self.d.r),
                             };
                             // -g: the screen as the GPU composed it (the GPU windows are
@@ -1521,7 +1536,7 @@ impl Wsys {
             return Err("window outside the screen".into());
         }
         let img = self.image(r.dx(), r.dy())?;
-        let layer = match self.d.allocwindow(self.scr, outer(r, BORDER, t), 0xFFFF_FFFF) {
+        let layer = match self.d.allocwindow(self.scr, r.inset(-BORDER), 0xFFFF_FFFF) {
             Ok(l) => l,
             Err(e) => {
                 let _ = self.d.free(img);
@@ -1537,7 +1552,7 @@ impl Wsys {
         self.nextwin = n;
         self.slots[slot] = true;
         self.wins.insert(n, Win {
-            r, border: BORDER, title: t, unmax: None, mapped: text, nofocus: false, slot, bufs: HashMap::new(), img, layer, name, refs: 0, pinned: false, pid: o.pid,
+            r, border: BORDER, title: t, unmax: None, bar: false, tlayer: None, mapped: text, nofocus: false, slot, bufs: HashMap::new(), img, layer, name, refs: 0, pinned: false, pid: o.pid,
             label: String::new(), wdir: o.cd.clone().unwrap_or_default(), text: String::new(), partial: vec![],
             events: VecDeque::new(), raw: false, line: String::new(), cons: VecDeque::new(), eof: false,
             kbd: VecDeque::new(), kbdopen: 0, mouseopen: 0, mouse: VecDeque::new(), resized: false,
@@ -1547,6 +1562,8 @@ impl Wsys {
             layers: vec![], lgpu: false, lheld: vec![], lqueued: vec![], scratch: None,
         });
         self.z.push(n);
+        self.alloctitle(n);
+        self.restack(n, true); // (below the bars)
         if text {
             self.setfocus(Some(n));
         } else {
@@ -1578,6 +1595,9 @@ impl Wsys {
             let _ = self.d.free(id);
         }
         let _ = self.d.free(w.layer);
+        if let Some(t) = w.tlayer {
+            let _ = self.d.free(t);
+        }
         let _ = self.d.free(w.img);
         self.slots[w.slot] = false; // its buffers go with w
         self.z.retain(|&i| i != n);
@@ -1598,7 +1618,7 @@ impl Wsys {
         }
         if self.focus == Some(n) {
             self.focus = None;
-            let top = self.z.last().copied();
+            let top = self.z.iter().rev().copied().find(|i| !self.wins[i].hidden && !self.wins[i].bar);
             self.setfocus(top);
         }
         let _ = self.d.flush();
@@ -1640,15 +1660,23 @@ impl Wsys {
         } else {
             self.z.insert(0, n);
         }
-        let l = self.wins[&n].layer;
-        let r = if top { self.d.top(&[l]) } else { self.d.bottom(&[l]) };
+        let mut l = self.wins[&n].layers();
+        if top && !self.wins[&n].bar {
+            // the bars above it again
+            let bars: Vec<u32> = self.z.iter().copied().filter(|i| self.wins[i].bar).collect();
+            self.z.retain(|i| !self.wins[i].bar);
+            self.z.extend(&bars);
+            l.extend(bars.iter().flat_map(|i| self.wins[i].layers()));
+        }
+        let r = if top { self.d.top(&l) } else { self.d.bottom(&l) };
         if let Err(e) = r.and_then(|_| self.d.flush()) {
             eprintln!("wsys: draw: {e}");
         }
     }
 
     fn raise(&mut self, n: u32) {
-        if self.z.last() != Some(&n) {
+        let top = self.z.iter().rev().find(|i| self.wins[i].bar == self.wins[&n].bar);
+        if top != Some(&n) {
             self.restack(n, true);
         }
     }
@@ -1680,7 +1708,9 @@ impl Wsys {
             }
             "current" => {
                 self.raise(n);
-                self.setfocus(Some(n));
+                if !self.wins[&n].bar {
+                    self.setfocus(Some(n));
+                }
                 Ok(())
             }
             "delete" => {
@@ -1704,6 +1734,25 @@ impl Wsys {
             }
             "scroll" | "noscroll" => {
                 self.setscrolling(n, cmd == "scroll");
+                Ok(())
+            }
+            "bar" => {
+                // a bar (wbar): no border or title bar, above the other windows,
+                // the mouse while over it but never the focus, not in Mod4+Tab;
+                // a window maximized leaves its edge of the screen free
+                let w = self.wins.get_mut(&n).unwrap();
+                w.bar = true;
+                w.unmax = None;
+                if w.border != 0 || w.title != 0 {
+                    (w.border, w.title) = (0, 0);
+                    let r = w.r;
+                    self.reframe(n, r, true)?;
+                }
+                if self.focus == Some(n) {
+                    let next = self.z.iter().rev().copied().find(|i| *i != n && !self.wins[i].hidden && !self.wins[i].bar);
+                    self.setfocus(next);
+                }
+                self.restack(n, true);
                 Ok(())
             }
             _ => Err(format!("unknown wctl message: {cmd}")),
@@ -2346,14 +2395,14 @@ impl Wsys {
         if sized || new {
             let img = self.image(r.dx(), r.dy())?;
             let w = &self.wins[&n];
-            let (oldimg, oldlayer, oldname, border, title) = (w.img, w.layer, w.name.clone(), w.border, w.title);
+            let (oldimg, oldlayer, oldname, border) = (w.img, w.layer, w.name.clone(), w.border);
             let all = Rect::new(0, 0, r.dx(), r.dy());
             let (white, scr) = (self.white, self.scr);
             let d = &mut self.d;
             let made = d
                 .draw(img, &all, white, 0, 0)
                 .and_then(|_| d.draw(img, &all, oldimg, 0, 0))
-                .and_then(|_| d.allocwindow(scr, outer(r, border, title), 0xFFFF_FFFF));
+                .and_then(|_| d.allocwindow(scr, r.inset(-border), 0xFFFF_FFFF));
             let layer = match made {
                 Ok(l) => l,
                 Err(e) => {
@@ -2363,7 +2412,9 @@ impl Wsys {
             };
             // what the old window showed (a draw(3) program's picture too)
             let keep = Rect::new(r.x0, r.y0, r.x0 + old.dx().min(r.dx()), r.y0 + old.dy().min(r.dy()));
-            let name = format!("wsys.{}.{}.{}", std::process::id(), n, layer);
+            // without a border (a bar): noborder., as libdraw and p9win know such a window
+            let pre = if border == 0 { "noborder." } else { "" };
+            let name = format!("{pre}wsys.{}.{}.{}", std::process::id(), n, layer);
             let res = self
                 .d
                 .draw(layer, &r, white, 0, 0)
@@ -2376,36 +2427,76 @@ impl Wsys {
             let _ = self.d.free(oldimg);
             let w = self.wins.get_mut(&n).unwrap();
             (w.img, w.layer, w.r, w.name) = (img, layer, r, name);
+            self.alloctitle(n);
             // the stack as it was: those above go on top again
-            let above: Vec<u32> = self.z.iter().skip_while(|&&i| i != n).skip(1).map(|i| self.wins[i].layer).collect();
+            let above: Vec<u32> = self.z.iter().skip_while(|&&i| i != n).skip(1).flat_map(|i| self.wins[i].layers()).collect();
             let _ = self.d.free(oldlayer);
             if !above.is_empty() {
                 let _ = self.d.top(&above);
             }
             self.paintborder(n);
             self.drawtext(n);
+            // the new layer's name known before its program hears of it (a
+            // window without a border paints nothing that would flush)
+            if let Err(e) = self.d.flush() {
+                eprintln!("wsys: draw: {e}");
+            }
             if sized {
                 self.event(n, format!("r {} {}", r.dx(), r.dy()));
             }
         } else {
-            let l = self.wins[&n].layer;
             self.wins.get_mut(&n).unwrap().r = r;
-            let f = self.wins[&n].frame();
-            if let Err(e) = self.d.origin(l, (f.x0, f.y0), (f.x0, f.y0)).and_then(|_| self.d.flush()) {
-                eprintln!("wsys: draw: {e}");
-            }
+            self.origins(n);
         }
         let w = self.wins.get_mut(&n).unwrap();
         w.resized = true;
         if w.hidden {
             // still off the screen, where it is (hide moves it back)
-            let (l, f) = (w.layer, w.frame());
-            if let Err(e) = self.d.origin(l, (f.x0, f.y0), (self.d.r.x1, self.d.r.y1)).and_then(|_| self.d.flush()) {
-                eprintln!("wsys: draw: {e}");
-            }
+            self.origins(n);
         }
         self.changed(n);
         Ok(())
+    }
+
+    /// window n's title bar a window of its own above its layer (made again:
+    /// the old one freed), none without a bar
+    fn alloctitle(&mut self, n: u32) {
+        let w = self.wins.get_mut(&n).unwrap();
+        let (old, bar) = (w.tlayer.take(), w.titlebar());
+        if let Some(t) = old {
+            let _ = self.d.free(t);
+        }
+        if !bar.empty() {
+            match self.d.allocwindow(self.scr, bar, 0xFFFF_FFFF) {
+                Ok(t) => self.wins.get_mut(&n).unwrap().tlayer = Some(t),
+                Err(e) => eprintln!("wsys: title: {e}"),
+            }
+        }
+        if self.wins[&n].hidden {
+            self.origins(n);
+        }
+        self.painttitle(n);
+    }
+
+    /// window n's layers where it is, or past the screen's far corner when hidden
+    fn origins(&mut self, n: u32) {
+        let w = &self.wins[&n];
+        let f = w.frame();
+        let mut v = vec![(w.layer, w.lrect())];
+        if let Some(t) = w.tlayer {
+            v.push((t, w.titlebar()));
+        }
+        let hidden = w.hidden;
+        let res = (|| -> std::io::Result<()> {
+            for (l, r) in v {
+                let at = if hidden { (self.d.r.x1, self.d.r.y1 + r.y0 - f.y0) } else { (r.x0, r.y0) };
+                self.d.origin(l, (r.x0, r.y0), at)?;
+            }
+            self.d.flush()
+        })();
+        if let Err(e) = res {
+            eprintln!("wsys: draw: {e}");
+        }
     }
 
     /// the frame of r on top of all (a sweep in progress): four thin windows
@@ -2509,7 +2600,7 @@ impl Wsys {
         if w.border == 0 {
             return;
         }
-        let f = w.frame();
+        let f = w.lrect();
         let col = match (w.hold, self.focus == Some(n)) {
             (true, true) => self.holdcol,
             (true, false) => self.paleholdcol,
@@ -2568,10 +2659,11 @@ impl Wsys {
     fn painttitle(&mut self, n: u32) {
         let Some(w) = self.wins.get(&n) else { return };
         let bar = w.titlebar();
+        let Some(l) = w.tlayer else { return };
         if bar.empty() || self.font.is_none() {
             return;
         }
-        let (l, label) = (w.layer, if w.label.is_empty() { format!("window {n}") } else { w.label.clone() });
+        let label = if w.label.is_empty() { format!("window {n}") } else { w.label.clone() };
         let current = self.focus == Some(n);
         let bg = match (w.hold, current) {
             (true, true) => self.holdcol,
@@ -2620,13 +2712,27 @@ impl Wsys {
         }
     }
 
+    /// the screen but for the bars at its top and bottom edges
+    fn workarea(&self) -> Rect {
+        let mut s = self.d.r;
+        for w in self.wins.values().filter(|w| w.bar && !w.hidden) {
+            let f = w.frame();
+            if f.y0 <= self.d.r.y0 {
+                s.y0 = s.y0.max(f.y1);
+            } else if f.y1 >= self.d.r.y1 {
+                s.y1 = s.y1.min(f.y0);
+            }
+        }
+        if s.dy() < MINSIZE { self.d.r } else { s }
+    }
+
     /// window n over the whole screen, or back to the frame it had
     fn maximize(&mut self, n: u32) {
         let Some(w) = self.wins.get(&n) else { return };
         let (b, t) = (w.border, w.title);
         let (f, unmax) = match w.unmax {
             Some(f) => (f, None),
-            None => (self.d.r, Some(w.frame())),
+            None => (self.workarea(), Some(w.frame())),
         };
         if self.setrect(n, inner(f, b, t)).is_ok() {
             self.wins.get_mut(&n).unwrap().unmax = unmax;
@@ -3198,8 +3304,11 @@ impl Wsys {
                 return;
             }
         }
+        if pressed && hit.is_some_and(|n| self.wins[&n].bar) {
+            self.barheld = hit;
+        }
         if pressed {
-            if let Some(n) = hit {
+            if let Some(n) = hit.filter(|n| !self.wins[n].bar) {
                 if self.focus != Some(n) {
                     self.setfocus(Some(n));
                 }
@@ -3290,8 +3399,24 @@ impl Wsys {
         }
         let held = b != 0 || self.buttons != 0;
         let wheel = b & 24 != 0 && self.buttons & 24 == 0;
+        // the mouse is the focused window's, but over a bar (no button held
+        // from elsewhere) or with a button that went down on one, the bar's
+        let overbar = hit.filter(|n| self.wins[n].bar && self.buttons == 0);
+        let target = self.barheld.or(overbar).or(self.focus).filter(|n| self.wins.contains_key(n));
         self.buttons = b;
-        if let Some(n) = self.focus {
+        if b == 0 {
+            self.barheld = None;
+        }
+        if let Some(o) = self.mlast.filter(|o| Some(*o) != target && self.wins.contains_key(o)) {
+            // gone to another window: once more for the one it left (Wayland's leave)
+            if self.wins[&o].inside {
+                let r = self.wins[&o].r;
+                self.event(o, format!("m {} {} {} {}", x - r.x0, y - r.y0, b, ms));
+                self.wins.get_mut(&o).unwrap().inside = false;
+            }
+        }
+        self.mlast = target;
+        if let Some(n) = target {
             let r = self.wins[&n].r;
             let w = &self.wins[&n];
             if wheel && w.textwin && w.mouseopen == 0 && r.contains(x, y) {
@@ -3470,19 +3595,15 @@ impl Wsys {
             return;
         }
         w.hidden = off;
-        let (l, f) = (w.layer, w.frame());
-        let at = if off { (self.d.r.x1, self.d.r.y1) } else { (f.x0, f.y0) };
-        if let Err(e) = self.d.origin(l, (f.x0, f.y0), at).and_then(|_| self.d.flush()) {
-            eprintln!("wsys: draw: {e}");
-        }
+        self.origins(n);
         if off {
             if self.focus == Some(n) {
-                let next = self.z.iter().rev().copied().find(|i| !self.wins[i].hidden);
+                let next = self.z.iter().rev().copied().find(|i| !self.wins[i].hidden && !self.wins[i].bar);
                 self.setfocus(next);
             }
         } else {
             self.raise(n);
-            if focus {
+            if focus && !self.wins[&n].bar {
                 self.setfocus(Some(n));
             }
         }
@@ -3523,7 +3644,7 @@ impl Wsys {
     /// Mod4+Tab: the bottom visible window up and current (through all of them
     /// in turn); back: the current one down, the top one current
     fn nextwin(&mut self, back: bool) {
-        let vis: Vec<u32> = self.z.iter().copied().filter(|n| !self.wins[n].hidden).collect();
+        let vis: Vec<u32> = self.z.iter().copied().filter(|n| !self.wins[n].hidden && !self.wins[n].bar).collect();
         if vis.len() < 2 {
             return;
         }
@@ -3531,7 +3652,7 @@ impl Wsys {
             if let Some(c) = self.focus {
                 self.restack(c, false);
             }
-            *self.z.iter().rev().find(|n| !self.wins[*n].hidden).unwrap()
+            *self.z.iter().rev().find(|n| !self.wins[*n].hidden && !self.wins[*n].bar).unwrap()
         } else {
             vis[0]
         };
@@ -4223,6 +4344,8 @@ fn main() {
         compdirty: false,
         compgone: vec![],
         sweepr: None,
+        barheld: None,
+        mlast: None,
         tabstop: std::env::var("tabstop").ok().and_then(|t| t.trim().parse().ok()).filter(|&t: &i32| t > 0).unwrap_or(4),
         // rio's snarf, when wsys runs in a window of rio
         parentsnarf: std::fs::metadata("/dev/snarf").is_ok() && std::fs::metadata("/dev/wctl").is_ok(),
