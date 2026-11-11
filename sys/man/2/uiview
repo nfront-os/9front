@@ -54,6 +54,18 @@ gets the index picked),
 .BI progress( done )
 .RB ( None :
 not known),
+.BI badge( text ) ,
+.BI badge_count( n ) ,
+.BI prose( text ) ,
+.BI radio( "text, checked, f" )
+(in a radiogroup;
+.I f
+when the user turns it on),
+.BI stepper( "min, max, value, f" )
+.RB ( .step( s )),
+.BI textarea( "text, f" ) ,
+.BI varlabel( "text, weight" ) ,
+.BI pages( "count, page, f" ) ,
 and those holding others:
 .BI column( children ) ,
 .BI row( children ) ,
@@ -66,7 +78,16 @@ and those holding others:
 with
 .BI .width( w )
 and
-.BI .height( h ) .
+.BI .height( h ) ,
+.BI align( "place, child" ) ,
+.BI zstack( children ) ,
+.BI stack( "active, children" )
+(one shown: tabs),
+.BI split( "fraction, children" )
+(two),
+.BI badged( "badge, child" ) ,
+.BI collapse( "header, collapsed, child" ) ,
+.BI radiogroup( child ) .
 Children are a view, a tuple of views, a
 .BR Vec ,
 an

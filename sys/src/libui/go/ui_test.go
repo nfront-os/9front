@@ -18,7 +18,8 @@ func TestQuote(t *testing.T) {
 		"it's":        "it's",
 		"'q":          "'''q'",
 		"":            "''",
-		"a\nb":        "'a b'",
+		"a\nb":        "'a\\nb'",
+		" a\\b":       "' a\\\\b'",
 	} {
 		if got := Quote(in); got != want {
 			t.Errorf("Quote(%q) = %q, want %q", in, got, want)

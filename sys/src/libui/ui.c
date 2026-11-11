@@ -107,11 +107,47 @@ uictl(Ui *u, char *fmt, ...)
 	return r;
 }
 
-/* a property, its value as rc would quote it */
+/*
+ * a value as ui(4) reads it: as it is, else in rc's quotes, where \n is a
+ * new line and \\ a backslash (a textarea's lines stay on one line)
+ */
+static char*
+uiquote(char *v)
+{
+	char *q, *p;
+	int n;
+
+	n = strlen(v);
+	if(n > 0 && v[0] != ' ' && v[0] != '\t' && v[n-1] != ' ' && v[n-1] != '\t' && v[0] != '\'' && strchr(v, '\n') == nil)
+		return strdup(v);
+	if((q = malloc(2*n + 3)) == nil)
+		return nil;
+	p = q;
+	*p++ = '\'';
+	for(; *v; v++)
+		switch(*v){
+		case '\'':	*p++ = '\''; *p++ = '\''; break;
+		case '\\':	*p++ = '\\'; *p++ = '\\'; break;
+		case '\n':	*p++ = '\\'; *p++ = 'n'; break;
+		default:	*p++ = *v;
+		}
+	*p++ = '\'';
+	*p = 0;
+	return q;
+}
+
+/* a property, its value quoted as ui reads it */
 int
 uiset(Ui *u, char *id, char *key, char *value)
 {
-	return uictl(u, "set %s %s %q", id, key, value);
+	char *q;
+	int r;
+
+	if((q = uiquote(value)) == nil)
+		return -1;
+	r = uictl(u, "set %s %s %s", id, key, q);
+	free(q);
+	return r;
 }
 
 /* the next event, waiting for one; -1 when ui is gone */

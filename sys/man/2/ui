@@ -82,9 +82,14 @@ gave (which names the line).
 sets one property, quoting
 .I value
 as
-.IR rc (1)
-does
-.RB ( %q ).
+.IR ui (4)
+reads it: in
+.IR rc (1)'s
+quotes where it has to be, a new line in them as
+.B \\n
+and a backslash as
+.B \\\\
+(a textarea's lines).
 .PP
 .I Uievent
 waits for the next event and fills

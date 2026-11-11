@@ -224,8 +224,34 @@ impl Event {
         let line = line.trim_end_matches('\n');
         let (kind, rest) = line.split_once(' ')?;
         let (id, arg) = rest.split_once(' ').unwrap_or((rest, ""));
-        Some(Event { kind: kind.into(), id: id.into(), arg: arg.into() })
+        // a text with lines comes quoted (a textarea's)
+        let arg = if matches!(kind, "text" | "enter") { unquote(arg) } else { arg.to_string() };
+        Some(Event { kind: kind.into(), id: id.into(), arg })
     }
+}
+
+/// a value in rc's quotes (\n in them a new line, \\ a backslash), as ui gives it
+pub(crate) fn unquote(v: &str) -> String {
+    if v.len() < 2 || !v.starts_with('\'') || !v.ends_with('\'') {
+        return v.to_string();
+    }
+    let t = v[1..v.len() - 1].replace("''", "'");
+    let mut out = String::with_capacity(t.len());
+    let mut it = t.chars().peekable();
+    while let Some(c) = it.next() {
+        match (c, it.peek()) {
+            ('\\', Some('n')) => {
+                out.push('\n');
+                it.next();
+            }
+            ('\\', Some('\\')) => {
+                out.push('\\');
+                it.next();
+            }
+            _ => out.push(c),
+        }
+    }
+    out
 }
 
 /// rc's quotes where a value needs them (scene.rs of ui unquotes them)
@@ -238,7 +264,7 @@ pub(crate) fn quote(v: &str) -> String {
     {
         v.to_string()
     } else {
-        format!("'{}'", v.replace('\'', "''").replace('\n', " "))
+        format!("'{}'", v.replace('\'', "''").replace('\\', "\\\\").replace('\n', "\\n"))
     }
 }
 
@@ -380,6 +406,56 @@ pub fn spinner<S, A>() -> Widget<S, A> {
     Widget::new("spinner")
 }
 
+/// a small mark of text (a badge)
+pub fn badge<S, A>(text: impl ToString) -> Widget<S, A> {
+    Widget::new("badge").prop("text", text)
+}
+
+/// a badge of a count
+pub fn badge_count<S, A>(count: u32) -> Widget<S, A> {
+    Widget::new("badge").prop("count", count)
+}
+
+/// text to select and copy, not to edit
+pub fn prose<S, A>(text: impl ToString) -> Widget<S, A> {
+    Widget::new("prose").prop("text", text)
+}
+
+/// a radio of a radiogroup: f when the user turns it on (the others of its
+/// group go off)
+pub fn radio<S: 'static, A: 'static>(text: impl ToString, checked: bool, f: impl Fn(&mut S) -> A + 'static) -> Widget<S, A> {
+    Widget::new("radio").prop("text", text).prop("checked", if checked { 1 } else { 0 }).on("radio", move |s, _| f(s))
+}
+
+/// a number with buttons to step it (step: .step); f gets each step the user takes
+pub fn stepper<S: 'static, A: 'static>(
+    min: f64,
+    max: f64,
+    value: f64,
+    f: impl Fn(&mut S, f64) -> A + 'static,
+) -> Widget<S, A> {
+    Widget::new("stepper")
+        .prop("min", min)
+        .prop("max", max)
+        .prop("value", value)
+        .on("step", move |s, a| f(s, a.trim().parse().unwrap_or(0.0)))
+}
+
+/// lines of text (Enter makes a new one); f gets each change the user makes
+pub fn textarea<S: 'static, A: 'static>(text: impl ToString, f: impl Fn(&mut S, String) -> A + 'static) -> Widget<S, A> {
+    Widget::new("textarea").prop("text", text).on("text", move |s, a| f(s, a.to_string()))
+}
+
+/// a label of a weight (100 to 900), which it moves to (.prop("animate", ms))
+pub fn varlabel<S, A>(text: impl ToString, weight: f64) -> Widget<S, A> {
+    Widget::new("varlabel").prop("text", text).prop("weight", weight)
+}
+
+/// buttons for count pages, page shown (from 0); f gets the one the user picks
+pub fn pages<S: 'static, A: 'static>(count: usize, page: usize, f: impl Fn(&mut S, usize) -> A + 'static) -> Widget<S, A> {
+    Widget::new("pages").prop("count", count).prop("page", page).on("page", move |s, a| f(s, a.trim().parse().unwrap_or(0)))
+}
+
 /// what the user's change made of a property: ui has it already
 fn learn(known: &mut Known, ev: &Event) {
     let (key, v) = match ev.kind.as_str() {
@@ -387,6 +463,9 @@ fn learn(known: &mut Known, ev: &Event) {
         "check" => ("checked", ev.arg.clone()),
         "slide" => ("value", ev.arg.clone()),
         "select" => ("selected", ev.arg.split_whitespace().next().unwrap_or("0").to_string()),
+        "radio" => ("checked", "1".to_string()),
+        "step" => ("value", ev.arg.clone()),
+        "page" => ("page", ev.arg.clone()),
         _ => return,
     };
     known.0.insert(key, v);
@@ -510,6 +589,42 @@ pub fn scroll<S: 'static, A, V: UiView<S, A>>(child: V) -> Container<V, S, A> {
 /// one child or none, in a box of its size
 pub fn sized<S, A, Seq: UiSeq<S, A>>(child: Seq) -> Container<Seq, S, A> {
     container("box", child)
+}
+
+/// one child, placed: center left right top bottom topleft topright bottomleft bottomright
+pub fn align<S: 'static, A, V: UiView<S, A>>(place: &str, child: V) -> Container<V, S, A> {
+    container("align", child).prop("align", place)
+}
+
+/// children over each other
+pub fn zstack<S, A, Seq: UiSeq<S, A>>(seq: Seq) -> Container<Seq, S, A> {
+    container("zstack", seq)
+}
+
+/// one of the children shown, the active one's (tabs)
+pub fn stack<S, A, Seq: UiSeq<S, A>>(active: usize, seq: Seq) -> Container<Seq, S, A> {
+    container("stack", seq).prop("active", active)
+}
+
+/// two children and a bar between them, the first fraction (0 to 1) of it;
+/// .prop("axis", "vertical"): one over the other
+pub fn split<S, A, Seq: UiSeq<S, A>>(fraction: f64, seq: Seq) -> Container<Seq, S, A> {
+    container("split", seq).prop("fraction", fraction)
+}
+
+/// one child with a badge of text (.prop("placement", "topleft") ...)
+pub fn badged<S: 'static, A, V: UiView<S, A>>(badge: impl ToString, child: V) -> Container<V, S, A> {
+    container("badged", child).prop("badge", badge)
+}
+
+/// one child under a header that folds it away
+pub fn collapse<S: 'static, A, V: UiView<S, A>>(header: impl ToString, collapsed: bool, child: V) -> Container<V, S, A> {
+    container("collapse", child).prop("text", header).prop("collapsed", if collapsed { 1 } else { 0 })
+}
+
+/// one child holding radios: one of them on
+pub fn radiogroup<S: 'static, A, V: UiView<S, A>>(child: V) -> Container<V, S, A> {
+    container("radiogroup", child)
 }
 
 pub struct ContainerState<SeqState> {
@@ -659,6 +774,70 @@ mod tests {
             column(items).gap(4.0),
             last,
         ))
+    }
+
+    #[test]
+    fn lines_and_new_kinds() {
+        // a textarea's lines: quoted with \n, and back from its event
+        assert_eq!(quote("a\nb"), "'a\\nb'");
+        let ev = Event::parse("text n1 'a\\nb'").unwrap();
+        assert_eq!(ev.arg, "a\nb");
+        assert_eq!(Event::parse("text n1 plain \\n").unwrap().arg, "plain \\n");
+        // the kinds Masonry has besides, as views
+        #[derive(Default)]
+        struct T {
+            on: usize,
+            v: f64,
+            page: usize,
+            text: String,
+        }
+        fn view(t: &mut T) -> impl UiView<T> + use<> {
+            column((
+                stack(1, (label("a"), label("b"))),
+                split(0.25, (label("l"), label("r"))),
+                radiogroup(column((radio("one", t.on == 0, |t: &mut T| t.on = 0), radio("two", t.on == 1, |t: &mut T| t.on = 1)))),
+                stepper(0.0, 10.0, t.v, |t: &mut T, v| t.v = v).step(2.0),
+                textarea(t.text.clone(), |t: &mut T, s| t.text = s),
+                pages(5, t.page, |t: &mut T, p| t.page = p),
+                badged("new", label("mail")),
+                collapse("more", false, label("inside")),
+                align("right", label("r")),
+                zstack((label("under"), label("over"))),
+                (badge_count(3), prose("p"), varlabel("w", 700.0)),
+            ))
+        }
+        let mut t = T::default();
+        let mut cx = Cx::new();
+        let v = view(&mut t);
+        let (mut root, mut vs) = v.build(&mut cx, &mut t);
+        let out = cx.take();
+        let ids: Vec<&str> = out.lines().filter_map(|l| l.strip_prefix("new ")).collect();
+        let id = |kind: &str| ids.iter().find(|l| l.split(' ').nth(1) == Some(kind)).unwrap_or_else(|| panic!("no {kind} in {out}")).split(' ').next().unwrap().to_string();
+        for (kind, key, value) in [("stack", "active", "1"), ("split", "fraction", "0.25"), ("stepper", "step", "2"), ("pages", "count", "5"),
+            ("badged", "badge", "new"), ("collapse", "text", "more"), ("align", "align", "right"), ("badge", "count", "3"),
+            ("varlabel", "weight", "700"), ("radio", "text", "one"), ("prose", "text", "p"), ("textarea", "text", "")] {
+            let line = format!("set {} {key} {}\n", id(kind), quote(value));
+            assert!(value.is_empty() || out.contains(&line), "{line} not in {out}");
+        }
+        for kind in ["radiogroup", "zstack"] {
+            id(kind);
+        }
+        // their events: a radio on, a step, a page, two lines typed
+        let r2 = ids.iter().filter(|l| l.split(' ').nth(1) == Some("radio")).nth(1).unwrap().split(' ').next().unwrap().to_string();
+        for (line, check) in [
+            (format!("radio {r2}"), 0),
+            (format!("step {} 4", id("stepper")), 1),
+            (format!("page {} 3", id("pages")), 2),
+            (format!("text {} 'x\\ny'", id("textarea")), 3),
+        ] {
+            cx.message(&v, &mut vs, &mut root, &mut t, Event::parse(&line).unwrap());
+            match check {
+                0 => assert_eq!(t.on, 1),
+                1 => assert_eq!(t.v, 4.0),
+                2 => assert_eq!(t.page, 3),
+                _ => assert_eq!(t.text, "x\ny"),
+            }
+        }
     }
 
     #[test]

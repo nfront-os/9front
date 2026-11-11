@@ -113,13 +113,15 @@ func (u *Ui) Set(id, key, value string) error {
 }
 
 // Quote quotes as rc (and ui) where a value needs it: blanks at its ends, a
-// quote at its start, a newline.
+// quote at its start, a newline. In the quotes \n is a new line, \\ a
+// backslash (a textarea's lines stay on one line).
 func Quote(v string) string {
 	if v != "" && strings.TrimSpace(v[:1]) != "" && strings.TrimSpace(v[len(v)-1:]) != "" &&
 		v[0] != '\'' && !strings.Contains(v, "\n") {
 		return v
 	}
-	return "'" + strings.ReplaceAll(strings.ReplaceAll(v, "'", "''"), "\n", " ") + "'"
+	r := strings.NewReplacer("'", "''", "\\", "\\\\", "\n", "\\n")
+	return "'" + r.Replace(v) + "'"
 }
 
 // Event waits for the next event; an error when ui is gone.

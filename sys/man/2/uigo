@@ -54,7 +54,13 @@ one property
 .RI ( Quote
 quotes as
 .IR rc (1)
-does, where a value needs it),
+does, where a value needs it; a new line in the quotes as
+.B \\n
+and a backslash as
+.BR \\\\ ,
+as
+.IR ui (4)
+reads them),
 .I Event
 waits for the next line of
 .B event
