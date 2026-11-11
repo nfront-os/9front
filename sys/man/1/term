@@ -82,16 +82,29 @@ swaps text and background.
 .PP
 The mouse works as in
 .IR rio :
-button 1 selects text; button 2 holds a menu,
+button 1 selects text; button 2 holds a menu, as
+.IR rio 's
+without
+.B cut
+(what a terminal shows cannot be cut):
+.B paste
+(the snarf buffer typed, bracketed when the program asks),
 .B snarf
 (the selection into the snarf buffer),
-.B paste
-(the snarf buffer typed, bracketed when the program asks) and
+.B plumb
+(the selection, or the word where the menu was opened, to the
+.IR plumber (4),
+from the directory of the program on the pty),
+.B look
+(the selection's text, or that word, found further down the screen and
+selected) and
 .B send
 (the selection, or the snarf buffer, typed with a newline at the end).
-There is no
-.BR cut :
-what a terminal shows cannot be cut.
+A click of button 3 plumbs the word under it, as in
+.IR acme (1):
+a file name with its line,
+.BR file.c:42 ,
+opens there.
 The wheel and Shift with Page Up or Page Down scroll back; typing goes
 back to the bottom.
 A program that asked for the mouse gets it, unless Shift is held.

@@ -228,6 +228,25 @@ red=`{inside st ff0000}
 if(test $blue -gt 200 && ~ $red 0) ok 'look: changed in place to blue,' $blue pixels
 if not fail look: blue $blue red $red
 
+# a click of button 3 on text plumbs it, as in acme (the plumber started before
+# wsys, tests/ui/plumbrules: plumbtest... to testport)
+if(test -e /mnt/plumb/send){
+	echo clear >/mnt/ui/ctl
+	echo 'new pl label
+set pl text plumbtest55' >/mnt/ui/ctl
+	sleep 1
+	rm -f /tmp/uplumbed
+	cat /mnt/plumb/testport >/tmp/uplumbed >[2]/dev/null </dev/null &
+	ppid=$apid
+	p=`{at pl}
+	{ m $p(1) $p(2) 0; m $p(1) $p(2) 4; m $p(1) $p(2) 0 } >/dev/mousein
+	waitfor /tmp/uplumbed plumbtest55
+	if(grep -s plumbtest55 /tmp/uplumbed && grep -s '^ui$' /tmp/uplumbed) ok 'plumb: button 3 on a label sent its text from ui'
+	if not fail plumb: `{tr '\012' ' ' </tmp/uplumbed}
+	echo kill >/proc/$ppid/note
+}
+if not fail plumb: no plumber
+
 # animate: a box's width from 20 to 200 in a second, a frame at a time in ui
 # (the scene has 200 at once)
 echo clear >/mnt/ui/ctl

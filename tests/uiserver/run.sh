@@ -34,6 +34,8 @@ fi
 cp "$ROOT/amd64/bin/wsys" "$ROOT/tests/ui/root/tests/uipeek" "$HERE/root/tests/"
 cp "$ROOT/lib/font/ttf/"*.ttf "$HERE/root/lib/font/ttf/"
 cp "$HERE/uiserver.rc" "$HERE/root/tests/uiserver"
+# a plumber before wsys (its windows, ui among them, find it): plumbtest... to testport
+cp "$ROOT/tests/ui/plumbrules" "$HERE/root/tests/plumbrules"
 chmod +x "$HERE/root/tests/uiserver"
 
 UFS_EXTRA=$HERE/root MEM=1024 KARGS="vgasize=1024x768x32 monitor=vesa mouseport=ps2" \
@@ -43,7 +45,7 @@ guest=$!
 trap 'kill -TERM -- -$guest 2>/dev/null || kill $guest 2>/dev/null; wait $guest 2>/dev/null || true' EXIT
 M="timeout 300 python3 $ROOT/scripts/guest/mcp.py"
 $M wait 600 >/dev/null
-$M rc 'bind /tests/ui /bin/ui; /tests/wsys -x -i /tests/uiserver >/tmp/wsys.log >[2=1] </dev/null' 240 >"$CLI_DIR/uiserver.out" || true
+$M rc 'bind /tests/ui /bin/ui; plumber -p /tests/plumbrules >/dev/null >[2=1] </dev/null; /tests/wsys -x -i /tests/uiserver >/tmp/wsys.log >[2=1] </dev/null' 240 >"$CLI_DIR/uiserver.out" || true
 out=$($M rc 'cat /tmp/wsys.log' 20) || true
 echo "$out" | grep -v -e '/srv/wsys'
 fail=0

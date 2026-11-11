@@ -32,8 +32,8 @@ use view::{Sel, View};
 use vt100::{MouseProtocolEncoding, MouseProtocolMode};
 
 const SCROLLBACK: usize = 10000;
-/// button 2's menu (rio's, but for cut: what a terminal shows cannot be cut)
-const MENU2: &[&str] = &["snarf", "paste", "send"];
+/// button 2's menu (rio's, in its order, but for cut: what a terminal shows cannot be cut)
+const MENU2: &[&str] = &["paste", "snarf", "plumb", "look", "send"];
 
 enum Ev {
     In(Input),
@@ -90,6 +90,9 @@ struct Term {
     debug: Option<String>,
     theme: desk::theme::Theme, // as the view has its colours
     reverse: bool,
+    menuat: (u16, u16),        // where button 2's menu was opened: plumb and look's word
+    b3at: Option<(u16, u16)>,  // button 3 pressed there: a click plumbs the word (as acme)
+    shell: u32,                // the program on the pty: its directory is plumb's wdir
 }
 
 impl Term {
@@ -251,6 +254,14 @@ impl Term {
                 Some("snarf") => self.snarf(),
                 Some("paste") => self.paste(),
                 Some("send") => self.sendsel(),
+                Some("plumb") => {
+                    let at = self.menuat;
+                    self.plumbsel(at);
+                }
+                Some("look") => {
+                    let at = self.menuat;
+                    self.look(at);
+                }
                 _ => {}
             }
             return;
@@ -259,8 +270,18 @@ impl Term {
             let r = self.view.menurect(MENU2, x - c.x0, y - c.y0, &self.fonts);
             let hi = self.view.menuitem(r, MENU2.len(), x - c.x0, y - c.y0, &self.fonts);
             self.menu = Some((r, hi));
+            self.menuat = (row, col);
             self.view.menu(r, MENU2, hi, &mut self.fonts);
             return;
+        }
+        // button 3, a click (pressed and let go on one cell): the word there plumbed, as acme
+        if pressed & 4 != 0 {
+            self.b3at = Some((row, col));
+        } else if b & 4 == 0 && prev & 4 != 0 {
+            if self.b3at == Some((row, col)) {
+                self.plumbword((row, col));
+            }
+            self.b3at = None;
         }
         // button 1 selects (the snarf buffer only through the menu)
         if pressed & 1 != 0 {
@@ -274,6 +295,106 @@ impl Term {
             self.selecting = false;
             if self.sel.is_some_and(|s| s.a == s.b) {
                 self.sel = None;
+            }
+        }
+    }
+
+    /// row r of the screen as text, and each column's byte in it (a wide
+    /// character's right half where its left half is)
+    fn rowtext(&self, r: u16) -> (String, Vec<usize>) {
+        let s = self.vt.screen();
+        let (mut t, mut at) = (String::new(), vec![]);
+        for c in 0..self.view.cols {
+            at.push(t.len());
+            match s.cell(r, c) {
+                Some(cell) if cell.is_wide_continuation() => {
+                    if let Some(l) = at.len().checked_sub(2) {
+                        at[c as usize] = at[l];
+                    }
+                }
+                Some(cell) if cell.has_contents() => t.push_str(cell.contents()),
+                _ => t.push(' '),
+            }
+        }
+        (t, at)
+    }
+
+    /// the word (what is not blank) at a cell, and the click's place in it
+    fn wordat(&self, (r, c): (u16, u16)) -> Option<(String, usize)> {
+        let (t, at) = self.rowtext(r);
+        let o = *at.get(c as usize)?;
+        let blank = |ch: char| ch.is_whitespace();
+        if t[o..].chars().next().is_none_or(blank) {
+            return None;
+        }
+        let p0 = t[..o].rfind(blank).map(|i| i + t[i..].chars().next().unwrap().len_utf8()).unwrap_or(0);
+        let p1 = t[o..].find(blank).map(|i| o + i).unwrap_or(t.len());
+        Some((t[p0..p1].to_string(), t[p0..o].chars().count()))
+    }
+
+    /// data to the plumber (plumb(6): src, dst, wdir, type, attr, ndata, data), as
+    /// rio does: wdir the directory of the pty's program
+    fn plumb(&self, data: &str, attr: &str) {
+        if data.is_empty() || data.len() > 8192 {
+            return;
+        }
+        let wdir = std::fs::read_to_string(format!("/proc/{}/fd", self.shell))
+            .ok()
+            .and_then(|f| f.lines().next().map(|l| l.trim().to_string()))
+            .unwrap_or_default();
+        let msg = format!("term\n\n{wdir}\ntext\n{attr}\n{}\n{data}", data.len());
+        if let Ok(f) = std::fs::OpenOptions::new().write(true).open("/mnt/plumb/send") {
+            use std::io::Write;
+            let _ = (&f).write_all(msg.as_bytes());
+        }
+    }
+
+    /// button 2's plumb: the selection, else the word where the menu was opened
+    fn plumbsel(&mut self, at: (u16, u16)) {
+        match self.sel {
+            Some(s) => {
+                let t = s.text(self.vt.screen());
+                self.plumb(&t, "");
+            }
+            None => self.plumbword(at),
+        }
+    }
+
+    fn plumbword(&mut self, at: (u16, u16)) {
+        if let Some((w, click)) = self.wordat(at) {
+            self.plumb(&w, &format!("click={click}"));
+        }
+    }
+
+    /// button 2's look: the selection's text (else the word where the menu was
+    /// opened) found again further down the screen, round to the top: selected
+    fn look(&mut self, at: (u16, u16)) {
+        let (needle, from) = match self.sel {
+            Some(s) => {
+                let t = s.text(self.vt.screen());
+                let end = s.a.max(s.b);
+                (t.lines().next().unwrap_or("").to_string(), (end.0, end.1 + 1))
+            }
+            None => match self.wordat(at) {
+                Some((w, _)) => (w, (at.0, at.1 + 1)),
+                None => return,
+            },
+        };
+        if needle.trim().is_empty() {
+            return;
+        }
+        let rows = self.view.rows;
+        for i in 0..=rows {
+            let r = (from.0 + i) % rows;
+            let (t, at) = self.rowtext(r);
+            let start = if i == 0 { at.get(from.1 as usize).copied().unwrap_or(t.len()) } else { 0 };
+            if let Some(o) = t[start..].find(&needle).map(|o| start + o) {
+                // the cells from the byte o to the end of the needle
+                let c0 = at.iter().position(|&x| x == o).unwrap_or(0) as u16;
+                let end = o + needle.len();
+                let c1 = at.iter().rposition(|&x| x < end).unwrap_or(c0 as usize) as u16;
+                self.sel = Some(Sel { a: (r, c0), b: (r, c1) });
+                return;
             }
         }
     }
@@ -351,7 +472,7 @@ fn main() {
     let pty = pty::Pty::open().unwrap_or_else(|e| die("pty", e));
     let vt = vt100::Parser::new_with_callbacks(view.rows, view.cols, SCROLLBACK, Replies::default());
     let debug = std::env::var("TERMDEBUG").is_ok_and(|v| v.contains("screen")).then(|| format!("/tmp/term.{}.screen", std::process::id()));
-    let mut t = Term { draw, fonts, view, vt, pty, sel: None, selecting: false, buttons: 0, menu: None, shift: false, current: true, debug, theme: theme.clone(), reverse };
+    let mut t = Term { draw, fonts, view, vt, pty, sel: None, selecting: false, buttons: 0, menu: None, shift: false, current: true, debug, theme: theme.clone(), reverse, menuat: (0, 0), b3at: None, shell: 0 };
     t.size();
     let _ = p9win::set_label("term");
 
@@ -362,6 +483,7 @@ fn main() {
     })
     .unwrap_or_else(|e| die("input", e));
     let mut child = t.pty.spawn(&args).unwrap_or_else(|e| die("rc", e));
+    t.shell = child.id();
     pty::reader(t.pty.master.clone(), move |o| {
         let _ = tx.send(match o {
             Some(b) => Ev::Out(b),

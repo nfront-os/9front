@@ -82,7 +82,7 @@ echo ok the alternate screen and back
 # button 1 selects (the snarf buffer stays), button 2's menu snarfs, as in rio
 # (term writes the file anew after each picture: read until it has the line)
 fn row { r=`{grep -n '^hello term$' $scr | sed 1q | sed 's/:.*//'}; ~ $#r 1 }
-fn menu2 { # item n of button 2's menu (snarf paste send): held at row 3, let go over it
+fn menu2 { # item n of button 2's menu (paste snarf plumb look send): held at row 3, let go over it
 	mx=`{x 20}; my=`{y 3}
 	iy=`{echo $my+'('$ch+4')*'$1 | hoc}
 	{ m $mx $my 2; m $mx $iy 2; m $mx $iy 0 } >/dev/mousein
@@ -96,23 +96,74 @@ echo -n before >/mnt/wsys/$id/snarf
 sleep 0.5
 snarf
 ~ $"sn before || fail selecting changed the snarf buffer: $"sn
-menu2 0
+menu2 1
 snarf
 ~ $"sn 'hello term' || fail snarf: $"sn, row $r
 echo ok button 1 selected hello term, the menu of button 2 snarfed it
 
 # button 2's paste: the snarf buffer typed
 echo -n 'echo pasted' >/mnt/wsys/$id/snarf
-menu2 1
+menu2 0
 nl
 wait1 on '^pasted$' || fail paste: `{cat $scr}
 echo ok paste of button 2
 
 # button 2's send: the snarf buffer (no selection) typed with a newline
 echo -n 'echo sent' >/mnt/wsys/$id/snarf
-menu2 2
+menu2 4
 wait1 on '^sent$' || fail send: `{cat $scr}
 echo ok send of button 2
+
+# plumbing, as acme's and rio's: the plumber (started before wsys, tests/ui/plumbrules)
+# sends plumbtest... to testport; a click of button 3 on a word plumbs it, so does
+# button 2's plumb with the selection
+fn lineof { # pattern: its row (from 0), as $r (term writes the file anew: until it has it)
+	fn lineof1 { r=`{grep -n $pat $scr | sed 1q | sed 's/:.*//'}; ~ $#r 1 }
+	pat=$1
+	wait1 lineof1 || fail no line $1: `{cat $scr}
+	r=`{echo $r-1 | hoc}
+}
+# (the screen cleared first: on a full one each new line scrolls it, and a row
+# found would move under the click)
+fn clear { key 'awk ''BEGIN{printf "\033[H\033[2J"}'''; nl; sleep 0.5 }
+if(test -e /mnt/plumb/send){
+	clear
+	rm -f /tmp/tplumbed
+	cat /mnt/plumb/testport >/tmp/tplumbed >[2]/dev/null </dev/null &
+	catpid=$apid
+	key 'echo plumbtest77'; nl
+	wait1 on '^plumbtest77$' || fail no plumbtest77
+	lineof '^plumbtest77$'
+	{ m `{x 3} `{y $r} 0; m `{x 3} `{y $r} 4; m `{x 3} `{y $r} 0 } >/dev/mousein
+	wait1 grep -s plumbtest77 /tmp/tplumbed || { echo kill >/proc/$catpid/note; fail plumb by button 3: nothing at the port }
+	grep -s '^term$' /tmp/tplumbed || fail plumb: not from term: `{cat /tmp/tplumbed}
+	echo ok button 3 plumbed the word: `{tr '\012' ' ' </tmp/tplumbed}
+	key 'echo plumbtest78'; nl
+	wait1 on '^plumbtest78$' || fail no plumbtest78
+	lineof '^plumbtest78$'
+	{ m `{x 0} `{y $r} 1; m `{x 10} `{y $r} 1; m `{x 10} `{y $r} 0 } >/dev/mousein
+	sleep 0.3
+	menu2 2
+	wait1 grep -s plumbtest78 /tmp/tplumbed || { echo kill >/proc/$catpid/note; fail plumb by the menu: nothing at the port }
+	echo ok the menu of button 2 plumbed the selection
+	echo kill >/proc/$catpid/note
+}
+if not echo ok no plumber: plumbing not tried
+
+# look: the selection found further on, selected (its cells in the selection's colour)
+clear
+key 'echo lookone lookmore'; nl
+wait1 on '^lookone lookmore$' || fail no look line
+lineof '^lookone lookmore$'
+{ m `{x 0} `{y $r} 1; m `{x 3} `{y $r} 1; m `{x 3} `{y $r} 0 } >/dev/mousein
+sleep 0.3
+menu2 3
+sleep 0.5
+# the top left pixel of lookmore's first cell (column 8)
+lx=`{echo $x0+$cw'*'8+1 | hoc}; ly=`{echo $y0+$ch'*'$r+1 | hoc}
+c=`{/tests/uipeek $lx,$ly | awk '{print $2}'}
+~ $c ffffaa || fail look: lookmore not selected: $c at $lx,$ly
+echo ok look found the selection further on
 
 # the wheel scrolls back; typing comes back to the bottom
 key 'for(i in `{seq 1 60}) echo line$i'; nl

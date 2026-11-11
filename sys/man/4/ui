@@ -56,6 +56,9 @@ without
 .I wsys
 the classic one).
 A node's own look (below) goes over the theme's.
+A click of button 3 on a label or a text box plumbs its text, as in
+.IR acme (1),
+from ui's directory (all of the text: Masonry tells no word or selection in it).
 .SS Files
 .TF nodes/id/children
 .TP

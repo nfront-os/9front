@@ -77,6 +77,44 @@ fn fonts(first: &str) -> Vec<Vec<u8>> {
     v
 }
 
+/// the text of the label or text box at p in the window, if one is there:
+/// searched down from the root through what holds p (Masonry's own search
+/// skips labels, which take no pointer), the deepest
+fn textat(root: &RenderRoot, p: (f64, f64)) -> Option<String> {
+    fn text(w: &masonry::core::WidgetRef<'_, dyn masonry::core::Widget>) -> Option<String> {
+        if let Some(l) = w.downcast::<masonry::widgets::Label>() {
+            Some(l.inner().text().to_string())
+        } else if let Some(a) = w.downcast::<masonry::widgets::TextArea<true>>() {
+            Some(a.inner().text().to_string())
+        } else {
+            w.downcast::<masonry::widgets::TextArea<false>>().map(|a| a.inner().text().to_string())
+        }
+    }
+    fn down(w: masonry::core::WidgetRef<'_, dyn masonry::core::Widget>, pt: masonry::kurbo::Point) -> Option<String> {
+        for c in w.children() {
+            if c.ctx().bounding_box().contains(pt) {
+                if let Some(t) = down(c, pt) {
+                    return Some(t);
+                }
+            }
+        }
+        text(&w)
+    }
+    let t = down(root.get_layer_root(0), masonry::kurbo::Point::new(p.0, p.1))?;
+    let t = t.trim().to_string();
+    (!t.is_empty() && t.len() <= 8192).then_some(t)
+}
+
+/// text to the plumber (plumb(6)), from ui's directory
+fn plumb(data: &str) {
+    let wdir = std::env::current_dir().map(|d| d.to_string_lossy().into_owned()).unwrap_or_default();
+    let msg = format!("ui\n\n{wdir}\ntext\n\n{}\n{data}", data.len());
+    if let Ok(mut f) = std::fs::OpenOptions::new().write(true).open("/mnt/plumb/send") {
+        use std::io::Write;
+        let _ = f.write_all(msg.as_bytes());
+    }
+}
+
 /// the scene's widgets: which node a widget is, which widget a node, the
 /// children a row's, column's, scroll's or box's widget has (sync)
 #[derive(Default)]
@@ -609,6 +647,8 @@ struct App {
     srv: String,
     cpu: bool,   // -p: on the processor
     debug: bool, // $UIDEBUG: the window's events and Masonry's signals on stderr
+    pointer: (f64, f64),             // where the pointer is in the window
+    b3at: Option<(f64, f64)>,        // button 3 pressed there: a click plumbs (as acme)
 }
 
 impl App {
@@ -1041,6 +1081,23 @@ impl ApplicationHandler<UserEvent> for App {
             WinitWindowEvent::Moved(p) => {
                 self.fs.origin = (p.x, p.y);
             }
+            WinitWindowEvent::CursorMoved { position, .. } => {
+                self.pointer = (position.x, position.y);
+            }
+            // a click of button 3 on text plumbs it, as acme: Masonry tells neither a
+            // word nor a selection, so the label's or text box's text, all of it
+            WinitWindowEvent::MouseInput { state, button: winit::event::MouseButton::Right, .. } => {
+                if state.is_pressed() {
+                    self.b3at = Some(self.pointer);
+                } else if let Some(at) = self.b3at.take() {
+                    if (at.0 - self.pointer.0).abs() < 3.0 && (at.1 - self.pointer.1).abs() < 3.0 {
+                        let text = textat(&g.root, at);
+                        if let Some(t) = text {
+                            plumb(&t);
+                        }
+                    }
+                }
+            }
             // the desktop's theme changed (/dev/theme, written): its colours now
             WinitWindowEvent::ThemeChanged(_) => {
                 let palette = look::Palette::from_theme(&desk::theme::current());
@@ -1154,6 +1211,8 @@ fn main() {
         srv: srv.clone(),
         cpu,
         debug: std::env::var_os("UIDEBUG").is_some(),
+        pointer: (0.0, 0.0),
+        b3at: None,
     };
     let r = el.run_app(&mut app);
     if let Err(e) = r {
