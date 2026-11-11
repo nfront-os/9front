@@ -13,6 +13,8 @@ CLI_DIR=${CLI_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/9front-cli}
 RUST_DIR=${RUST_DIR:-$ROOT/../9front-rust}
 RUSTC=${RUSTC:-$RUST_DIR/rust/build/host/stage1/bin/rustc}
 T=x86_64-unknown-plan9
+. "$ROOT/scripts/build/cargostd.sh"
+for d in rust icedtest eframetest eframetestsw; do cargostd "$BUILD/cargo/$d" $T; done
 # the workspace in sys/src/rust (its vendor/): winittest's package
 (cd "$ROOT/sys/src/rust" && env RUSTC="$RUSTC" CARGO_TARGET_DIR="$BUILD/cargo/rust" \
 	CARGO_TARGET_X86_64_UNKNOWN_PLAN9_LINKER="$CROSS/$TRIPLE-gcc" \

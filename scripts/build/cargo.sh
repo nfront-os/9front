@@ -43,14 +43,9 @@ if [ -n "$ws" ]; then
 	dir=$(cd "$dir/$ws" && pwd)
 fi
 # nor does it see a std built again by the same rustc (../9front-rust: a fix
-# in std): what it built with another goes (the target's whole directory)
-tdir=$BUILD/cargo/${name//\//_}
-std=$(ls -l --time-style=+%s "$("$RUSTC" --print sysroot)"/lib/rustlib/$T/lib/libstd-*.rlib 2>/dev/null)
-if [ "$(cat "$tdir/$T.std" 2>/dev/null)" != "$std" ]; then
-	rm -rf "${tdir:?}/$T"
-	mkdir -p "$tdir"
-	printf '%s\n' "$std" > "$tdir/$T.std"
-fi
+# in std): what it built with another goes
+. "$ROOT/scripts/build/cargostd.sh"
+cargostd "$BUILD/cargo/${name//\//_}" $T
 # cargo does not know the C libraries it links (libvulkan.a, APE's, lib9's):
 # a program older than one of them goes (release/p and the deps/p-hash it is
 # a link of: cargo looks at that one), so that cargo links it again

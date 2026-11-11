@@ -61,15 +61,19 @@ r=`{wctl $id}
 echo ok wctl: $r
 
 # rio in a window of wsys, a shell in a window of that rio, typed into
-rm -f /tmp/nested
+rm -f /tmp/nested /tmp/innerup
 echo '#!/bin/rc' >/tmp/inner
 echo 'window -r 20 20 400 300 rc' >>/tmp/inner
+# (window returns when rio made it: typed keys wait in it until rc reads;
+# a fixed sleep instead was too short on a slower guest, 386)
+echo 'touch /tmp/innerup' >>/tmp/inner
 chmod +x /tmp/inner
 window -r 520 100 1000 700 rio -i /tmp/inner
 n=0
-while(! ps | grep -s ' rio$' && test $n -lt 50){ sleep 0.1; n=`{echo $n+1 | hoc} }
+while(! test -e /tmp/innerup && test $n -lt 100){ sleep 0.1; n=`{echo $n+1 | hoc} }
 ps | grep -s ' rio$' || fail no inner rio
-sleep 2
+test -e /tmp/innerup || fail the inner rio made no window
+sleep 0.5
 echo ok rio runs in a window of wsys
 key 'echo nested >/tmp/nested'
 key '

@@ -1,7 +1,7 @@
 #!/bin/bash
 # The crates.io crates of a Rust crate of the tree into its vendor/ (cargo
 # vendor), for a build without network (scripts/build/cargo.sh: --offline).
-# Only those 9front's target builds keep their sources: cargo vendor takes
+# Only those 9front's targets build keep their sources: cargo vendor takes
 # every platform's (Windows, Wayland, Android, ...: hundreds of MB); the
 # others become stubs, their manifest and an empty lib.rs (cargo reads every
 # package of Cargo.lock, builds only those of the target). Crates the
@@ -14,17 +14,21 @@ ROOT=$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)
 [ $# -le 1 ] || { echo "usage: scripts/rust/vendor.sh [dir]" >&2; exit 1; }
 set -- "${1:-$ROOT/sys/src/rust}"
 RUSTC=${RUSTC:-$ROOT/../9front-rust/rust/build/host/stage1/bin/rustc}
-T=${T:-x86_64-unknown-plan9}
+# the targets scripts/build/cargo.sh builds for (amd64, 386, arm64)
+TARGETS=${TARGETS:-x86_64-unknown-plan9 i686-unknown-plan9 aarch64-unknown-plan9}
 cd "$1"
 rm -rf vendor
 mkdir -p .cargo
-# cargo vendor says how to find them (crates.io's and git's): the config
+# cargo vendor says how to find them (crates.io's and git's): the config (on
+# its standard output; not with --quiet, which leaves it out)
 { echo '# the crates come from vendor/ (scripts/rust/vendor.sh), the build needs no network'
-  cargo vendor --versioned-dirs --quiet vendor; } > .cargo/config.toml.new
+  cargo vendor --versioned-dirs vendor 2>/dev/null; } > .cargo/config.toml.new
+grep -q '^replace-with' .cargo/config.toml.new || { echo "vendor.sh: cargo vendor gave no config" >&2; exit 1; }
 mv .cargo/config.toml.new .cargo/config.toml
-# the packages the target builds: name-version
-keep=$(RUSTC=$RUSTC cargo tree --offline --target "$T" -e normal,build --prefix none --format '{p}' |
-	sed -n 's/^\([^ ]*\) v\([^ ]*\).*/\1-\2/p' | sort -u)
+# the packages the targets build: name-version
+keep=$(for T in $TARGETS; do
+	RUSTC=$RUSTC cargo tree --offline --target "$T" -e normal,build --prefix none --format '{p}'
+done | sed -n 's/^\([^ ]*\) v\([^ ]*\).*/\1-\2/p' | sort -u)
 n=0; s=0
 for d in vendor/*/; do
 	c=$(basename "$d")
@@ -66,4 +70,4 @@ PY
 	printf '{"files":{},"package":"%s"}\n' "$pkg" > "$d/.cargo-checksum.json"
 	s=$((s + 1))
 done
-echo "vendor.sh: $n crates for $T in $1/vendor, $s others as stubs ($(du -sh vendor | cut -f1))"
+echo "vendor.sh: $n crates for $TARGETS in $1/vendor, $s others as stubs ($(du -sh vendor | cut -f1))"
