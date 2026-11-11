@@ -17,6 +17,11 @@
  * gpubuffer) and reads a frame when it is presented (ctl present); the
  * write of present returns once wsys has it, and the buffer is free.
  * Without the screen to itself or wsys, or if either refuses, the copy.
+ * When the window's wsys is gone (killed, crashed), present waits for the
+ * window in the next one (plan9win_again, libdraw's wsysagain: made once,
+ * by whoever of the program asks first) and says VK_ERROR_OUT_OF_DATE_KHR:
+ * the app makes a new swapchain there and goes on; if none comes in time
+ * ($wsyswait, 5 minutes) VK_ERROR_SURFACE_LOST_KHR.
  */
 
 #include <stdio.h>
@@ -576,7 +581,9 @@ wsi_plan9_swapchain_acquire_next_image(struct wsi_swapchain *wsi_chain,
  * VK_SUBOPTIMAL_KHR and the app makes a new swapchain.
  */
 static int wsys_overlay = -1;
-static pthread_once_t wsys_events_once = PTHREAD_ONCE_INIT;
+/* the events' reader runs (1): one for the window; it ends with the window's wsys,
+ * and a swapchain in the next one starts another */
+static int wsys_events_on;
 
 static void *
 wsys_events(void *arg)
@@ -585,8 +592,10 @@ wsys_events(void *arg)
    int fd, n;
 
    (void)arg;
-   if ((fd = plan9win_wsysevents()) < 0)
+   if ((fd = plan9win_wsysevents()) < 0) {
+      p_atomic_set(&wsys_events_on, 0);
       return NULL;
+   }
    while ((n = plan9win_wsysread(fd, buf, sizeof buf - 1)) > 0) {
       buf[n] = 0;
       for (char *l = buf; l != NULL && *l; l = strchr(l, '\n') ? strchr(l, '\n') + 1 : NULL) {
@@ -598,6 +607,7 @@ wsys_events(void *arg)
    }
    plan9win_wsysclose(fd);
    wsys_gone();
+   p_atomic_set(&wsys_events_on, 0);
    return NULL;
 }
 
@@ -608,6 +618,8 @@ wsys_events_start(void)
 
    if (pthread_create(&t, NULL, wsys_events, NULL) == 0)
       pthread_detach(t);
+   else
+      p_atomic_set(&wsys_events_on, 0);
 }
 
 /* wsys lets go of the buffers; frames by copy from now on */
@@ -760,6 +772,22 @@ wsi_plan9_swapchain_queue_present(struct wsi_swapchain *wsi_chain,
       mtx_lock(&chain->lock);
       chain->images[image_index].inwsys = false;
       mtx_unlock(&chain->lock);
+      /*
+       * or wsys is gone (killed, crashed): the window in the next one (waits
+       * for it; plan9win_again), then a new swapchain there
+       */
+      int again = plan9win_again();
+      if (chain->stats)
+         fprintf(stderr, "wsi plan9: present refused: plan9win_again %d\n", again);
+      if (again != -1) {
+         if (chain->stats)
+            fprintf(stderr, "wsi plan9: wsys gone, %s\n", again == 0 ?
+                    "the window in the next one: a new swapchain" : "no next one came: surface lost");
+         wsys_gone();
+         plan9_free(chain, image_index);
+         chain->status = again == 0 ? VK_ERROR_OUT_OF_DATE_KHR : VK_ERROR_SURFACE_LOST_KHR;
+         return chain->status;
+      }
       if (chain->overlay) {
          /* images in VRAM, no view: no copy either; the app makes new ones */
          plan9_free(chain, image_index);
@@ -791,7 +819,11 @@ wsi_plan9_swapchain_queue_present(struct wsi_swapchain *wsi_chain,
                     chain->extent.width, chain->extent.height,
                     image->base.row_pitches[0]) < 0) {
       plan9_free(chain, image_index);
-      chain->status = VK_ERROR_SURFACE_LOST_KHR;
+      /* the window's wsys gone: the window in the next one, a new swapchain there */
+      int again = plan9win_again();
+      if (chain->stats)
+         fprintf(stderr, "wsi plan9: copy failed: plan9win_again %d\n", again);
+      chain->status = again == 0 ? VK_ERROR_OUT_OF_DATE_KHR : VK_ERROR_SURFACE_LOST_KHR;
       return chain->status;
    }
    plan9_free(chain, image_index);
@@ -911,7 +943,8 @@ wsi_plan9_surface_create_swapchain(VkIcdSurfaceBase *icd_surface,
                          struct wsi_image *) = chain->base.image_info.create_mem;
    uint32_t (*plain_type)(const struct wsi_device *, uint32_t) = chain->base.image_info.select_blit_dst_memory_type;
    if (wsys >= 0) {
-      pthread_once(&wsys_events_once, wsys_events_start);
+      if (p_atomic_cmpxchg(&wsys_events_on, 0, 1) == 0)
+         wsys_events_start();
       if (p_atomic_read(&wsys_overlay) == 1 && wsi_device->plan9_scanout_device_local) {
          /* on wsys' overlay plane: in VRAM, exportable, the display shows them as they are */
          chain->overlay = true;

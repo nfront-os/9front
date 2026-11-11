@@ -1,0 +1,63 @@
+#!/bin/rc
+# run by tests/sdl/run.sh (not in a wsys): an SDL3 window that outlives its
+# wsys (SDL's plan9 driver: libdraw's wsysagain). sdlagain in a window of
+# wsys A; A killed (every proc, as a crash): its window in wsys B, where it
+# draws on; B killed, the same in C. Prints ok/FAIL lines and "sdlagain:
+# all passed" (sdlagain's own lines too).
+rfork ne
+log=/tmp/sdlagain.log
+fn fail { echo FAIL $*; sed 's/^/log: /' $log; for(p in $wsyses) if(test -e /proc/$p) echo kill >/proc/$p/notepg; exit fail }
+fn wait1 { # cmd...: until it succeeds, 20 s at most
+	n=0
+	while(! $* >[2]/dev/null && test $n -lt 200){ sleep 0.1; n=`{echo $n+1 | hoc} }
+	$* >[2]/dev/null
+}
+fn start { # name: a wsys in the background; $w its pid
+	/tests/wsys >/tmp/wsys$1.log >[2=1] &
+	w=$apid
+	wsyses=($wsyses $w)
+	wait1 test -e /srv/wsys.$user.$w || fail no /srv/wsys.$user.$w: `{cat /tmp/wsys$1.log}
+}
+fn exposed { grep -c '^event exposed' $log }
+wsyses=()
+bind -a '#i' /dev
+bind -a '#m' /dev
+rm -f $log
+echo '#!/bin/rc
+SDL_PLAN9_DEBUG=1
+/tests/sdlagain 40 >>'^$log^' >[2=1]
+echo sdlagain: exit $status >>'^$log >/tmp/runsdl
+chmod +x /tmp/runsdl
+
+start A
+mount /srv/wsys.$user.$w /mnt/wsys
+echo new -r 100 100 420 330 /tmp/runsdl >/mnt/wsys/wctl
+wait1 grep -s '^ok window' $log || fail sdlagain did not start: `{cat $log}
+sleep 2
+echo ok sdlagain in wsys A
+want=`{exposed}	# SDL may say exposed when it shows the window
+for(b in B C){
+	echo kill >/proc/$w/notepg
+	unmount /mnt/wsys >[2]/dev/null
+	wait1 test ! -e /proc/$w || fail wsys $w still there
+	sleep 1
+	grep -s '^sdlagain: exit' $log && fail sdlagain went with its wsys: `{tail -5 $log}
+	echo ok sdlagain outlives its wsys
+	start $b
+	want=`{echo $want+1 | hoc}
+	fn enough { test `{exposed} -ge $want }
+	wait1 enough || fail no window in wsys $b: `{tail -5 $log}
+	mount /srv/wsys.$user.$w /mnt/wsys
+	ls -p /mnt/wsys | grep -s '^[0-9]+$' || fail no window of sdlagain in wsys $b
+	unmount /mnt/wsys
+	echo ok sdlagain made its window in wsys $b
+	sleep 2
+}
+fn ended { grep -s '^sdlagain: exit' $log }
+n=0
+while(! ended && test $n -lt 40){ sleep 1; n=`{echo $n+1 | hoc} }
+ended || fail sdlagain did not end: `{tail -5 $log}
+cat $log
+grep -s '^sdlagain: all passed' $log || fail sdlagain in wsys C
+echo kill >/proc/$w/notepg
+echo sdlagain.rc: all passed

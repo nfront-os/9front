@@ -18,7 +18,8 @@
 
   One window a process (its window of the window system); readers of
   /dev/mouse and /dev/kbd are threads of their own, PumpEvents takes what
-  they read.
+  they read. When the window's wsys is gone the window is made again in the
+  next one (libdraw's wsysagain) and drawn again: the program goes on.
 */
 #include "SDL_internal.h"
 
@@ -56,7 +57,7 @@ enum {
 
 /* what the readers read, for PumpEvents */
 typedef struct Raw {
-    char kind;       /* m mouse, r resize, k K c keyboard, q the end */
+    char kind;       /* m mouse, r resize, k K c keyboard, A a new wsys, q the end */
     int x, y, b;
     char text[64];   /* k K c: UTF-8 */
 } Raw;
@@ -69,6 +70,7 @@ static struct {
     Raw raw[Nraw];
     int head, tail;
     int mousefd, kbdfd;
+    bool readers;                /* started (once a process) */
     int wx, wy, ww, wh;          /* the window's contents on the screen */
     int buttons;
     Uint32 keys[Nkeys];          /* down, as the last k/K said */
@@ -86,18 +88,65 @@ static void push(const Raw *r)
     SDL_UnlockMutex(p9.lock);
 }
 
-/* m x y buttons msec, 49 bytes a message; r: the window changed */
+static int SDLCALL kbdreader(void *arg);
+
+/* SDL_PLAN9_DEBUG=1: what the readers do when the window's files fail */
+static int debug(void)
+{
+    static int d = -1;
+
+    if (d < 0) {
+        const char *e = SDL_getenv("SDL_PLAN9_DEBUG");
+        d = e != NULL && SDL_atoi(e) != 0;
+    }
+    return d;
+}
+
+/* the keyboard's reader, of the window's /dev/kbd now (its own descriptor) */
+static void startkbd(void)
+{
+    if (p9.kbdfd >= 0) {
+        SDL_DetachThread(SDL_CreateThread(kbdreader, "plan9 kbd", (void *)(intptr_t)p9.kbdfd));
+    }
+}
+
+/*
+ * m x y buttons msec, 49 bytes a message; r: the window changed. When the
+ * window's files fail and its wsys is gone, the window in the next one
+ * (p9draw_again): A tells the main thread to reconnect; q the end.
+ */
 static int SDLCALL mousereader(void *arg)
 {
     char buf[64], *p;
     Raw r;
-    int n;
+    int n, fd;
 
     (void)arg;
     for (;;) {
         n = read(p9.mousefd, buf, 49);
         if (n <= 0) {
-            break;
+            int again, rfd = p9.mousefd;
+            char why[128];
+
+            p9draw_errstr(why, sizeof why);
+            again = p9draw_again();
+            fd = again < 0 ? -1 : open("/dev/mouse", O_RDWR);
+            if (debug()) {
+                fprintf(stderr, "sdl plan9: pid %d: mouse read %d on %d (%s), the window again: %d, /dev/mouse %d\n",
+                        (int)getpid(), n, rfd, why, again, fd);
+            }
+            if (fd < 0) {
+                break;
+            }
+            close(p9.mousefd);
+            p9.mousefd = fd;
+            /* the old keyboard's reader closes its own when its read fails */
+            p9.kbdfd = open("/dev/kbd", O_RDONLY);
+            startkbd();
+            SDL_zero(r);
+            r.kind = 'A';
+            push(&r);
+            continue;
         }
         buf[n] = 0;
         SDL_zero(r);
@@ -117,17 +166,18 @@ static int SDLCALL mousereader(void *arg)
     return 0;
 }
 
-/* kbd(3): messages k, K, c and a UTF-8 string each, NUL after each */
+/* kbd(3): messages k, K, c and a UTF-8 string each, NUL after each; arg: the descriptor */
 static int SDLCALL kbdreader(void *arg)
 {
     char buf[512];
     Raw r;
-    int n, i, len;
+    int n, i, len, fd;
 
-    (void)arg;
+    fd = (int)(intptr_t)arg;
     for (;;) {
-        n = read(p9.kbdfd, buf, sizeof buf - 1);
+        n = read(fd, buf, sizeof buf - 1);
         if (n <= 0) {
+            close(fd);  /* its own: no other reader gets its number meanwhile */
             break;
         }
         buf[n] = 0;
@@ -283,6 +333,13 @@ static void PLAN9_PumpEvents(SDL_VideoDevice *_this)
             continue;
         }
         switch (r.kind) {
+        case 'A':
+            /* the window in a new wsys: draw(3) anew, everything drawn again */
+            p9draw_reconnect();
+            p9.ww = p9.wh = -1;
+            relook();
+            SDL_SendWindowEvent(p9.window, SDL_EVENT_WINDOW_EXPOSED, 0, 0);
+            break;
         case 'r':
             relook();
             SDL_FALLTHROUGH;
@@ -375,9 +432,15 @@ static bool PLAN9_CreateWindow(SDL_VideoDevice *_this, SDL_Window *window, SDL_P
     if (window->title) {
         PLAN9_SetWindowTitle(_this, window);
     }
-    SDL_DetachThread(SDL_CreateThread(mousereader, "plan9 mouse", NULL));
-    if (p9.kbdfd >= 0) {
-        SDL_DetachThread(SDL_CreateThread(kbdreader, "plan9 kbd", NULL));
+    /*
+     * the readers once a process: SDL makes the window anew now and then
+     * (destroy, create), and readers of a window before would read on, and
+     * each of them make the window again when its wsys is gone
+     */
+    if (!p9.readers) {
+        p9.readers = true;
+        SDL_DetachThread(SDL_CreateThread(mousereader, "plan9 mouse", NULL));
+        startkbd();
     }
     SDL_SetMouseFocus(window);
     SDL_SetKeyboardFocus(window);

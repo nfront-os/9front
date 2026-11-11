@@ -361,6 +361,8 @@ extern int	_freeimage1(Image*);
 extern int	geninitdraw(char*, void(*)(Display*, char*), char*, char*, char*, int);
 extern int	initdraw(void(*)(Display*, char*), char*, char*);
 extern int	newwindow(char*);
+extern int	wsyslost(void);	/* 9front-ng: the window's wsys gone */
+extern int	wsysagain(char*);	/* 9front-ng: the window again in the next wsys */
 extern Display*	initdisplay(char*, char*, void(*)(Display*, char*));
 extern int	loadimage(Image*, Rectangle, uchar*, int);
 extern int	cloadimage(Image*, Rectangle, uchar*, int);

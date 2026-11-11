@@ -1,0 +1,63 @@
+#!/bin/rc
+# run by tests/gpu/run.sh in a guest with venus (not in a wsys): a Vulkan
+# window that outlives its wsys (Mesa's WSI: plan9win_again, libdraw's
+# wsysagain). vktri (VKTRI_AGAIN=1: a new swapchain on out of date) in a
+# window of wsys A; A killed (every proc, as a crash): the WSI makes the
+# window in wsys B, vktri a new swapchain there and draws on; B killed, the
+# same in C, where vktri checks its triangle's pixels at the end. The log to
+# $1; prints ok/FAIL lines and "wsysagain: all passed".
+rfork ne
+log=$1
+fn fail { echo FAIL $*; for(p in $wsyses) if(test -e /proc/$p) echo kill >/proc/$p/notepg; exit fail }
+fn wait1 { # cmd...: until it succeeds, 20 s at most
+	n=0
+	while(! $* >[2]/dev/null && test $n -lt 200){ sleep 0.1; n=`{echo $n+1 | hoc} }
+	$* >[2]/dev/null
+}
+fn start { # name: a wsys in the background; $w its pid
+	/tests/wsys >/tmp/wsys$1.log >[2=1] &
+	w=$apid
+	wsyses=($wsyses $w)
+	wait1 test -e /srv/wsys.$user.$w || fail no /srv/wsys.$user.$w: `{cat /tmp/wsys$1.log}
+}
+fn agains { grep -c '^ok a new swapchain after out of date' $log }
+wsyses=()
+bind -a '#i' /dev
+bind -a '#m' /dev
+rm -f $log
+echo '#!/bin/rc
+VKTRI_AGAIN=1
+WSI_PLAN9_STATS=1
+/tests/vktri 30 >>'^$log^' >[2=1]
+echo vktri: exit $status >>'^$log >/tmp/runvk
+chmod +x /tmp/runvk
+
+start A
+mount /srv/wsys.$user.$w /mnt/wsys
+echo new -r 100 100 500 400 /tmp/runvk >/mnt/wsys/wctl
+wait1 grep -s 'wsys' $log || fail vktri did not start in wsys A: `{cat $log}
+sleep 3
+echo ok vktri in wsys A
+want=0
+for(b in B C){
+	echo kill >/proc/$w/notepg
+	unmount /mnt/wsys >[2]/dev/null
+	wait1 test ! -e /proc/$w || fail wsys $w still there
+	sleep 1
+	grep -s '^vktri: exit' $log && fail vktri went with its wsys: `{tail -5 $log}
+	echo ok vktri outlives its wsys
+	start $b
+	want=`{echo $want+1 | hoc}
+	fn enough { test `{agains} -ge $want }
+	wait1 enough || fail no new swapchain in wsys $b: `{tail -5 $log}
+	echo ok a new swapchain in wsys $b
+	sleep 3
+}
+fn ended { grep -s '^vktri: exit' $log }
+n=0
+while(! ended && test $n -lt 60){ sleep 1; n=`{echo $n+1 | hoc} }
+ended || fail vktri did not end: `{tail -5 $log}
+grep -s '^vktri: all passed' $log || fail vktri in wsys C: `{grep -e FAIL -e '^vktri' $log}
+echo ok vktri drew its triangle in wsys C
+echo kill >/proc/$w/notepg
+echo wsysagain: all passed

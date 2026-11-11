@@ -2,7 +2,8 @@
 # GLFW on 9front (sys/src/glfw): glfwtest in a window of wsys on a VESA screen
 # without a GPU driver, in a guest of scripts/guest/mcp-guest.sh; the host
 # types into it through QEMU (QMP) while glfwtest -e logs the events.  Its
-# OpenGL and Vulkan (-g) run on the card: tests/gpu/amdglfw.rc.
+# OpenGL and Vulkan (-g) run on the card: tests/gpu/amdglfw.rc. Then
+# glfwagain.rc: a GLFW window that outlives its wsys, killed twice.
 # usage: tests/glfw/run.sh   (needs libglfw3.a built: scripts/glfw/vendor.sh, build.exe)
 set -e
 HERE=$(cd "$(dirname "$0")" && pwd)
@@ -11,6 +12,9 @@ ROOT=$(cd "$HERE/../.." && pwd)
 CLI_DIR=${CLI_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/9front-cli}
 mkdir -p "$HERE/root/tests"
 "$CROSS/$TRIPLE-gcc" -std=gnu11 -O2 -Wall -o "$HERE/root/tests/glfwtest" "$HERE/glfwtest.c" -lglfw3 -ldraw -l9 -lfmt -lutf -lm
+"$CROSS/$TRIPLE-gcc" -std=gnu11 -O2 -Wall -o "$HERE/root/tests/glfwagain" "$HERE/glfwagain.c" -lglfw3 -ldraw -l9 -lfmt -lutf -lm
+cp "$HERE/glfwagain.rc" "$HERE/root/tests/glfwagain.rc"
+chmod +x "$HERE/root/tests/glfwagain.rc"
 cp "$ROOT/amd64/bin/wsys" "$HERE/root/tests/wsys"
 cp "$HERE/glfw.rc" "$HERE/root/tests/glfw"
 chmod +x "$HERE/root/tests/glfw"
@@ -57,6 +61,11 @@ check "keyboard: shift" '^event key down 340 - '
 check "keyboard: char B" '^event char B'
 check "keyboard: B with shift" '^event key down 66 b mods 0x1'
 check "keyboard: return up" '^event key up 257 '
+# a GLFW window that outlives its wsys (libdraw's wsysagain): glfwagain.rc from
+# the console, wsys killed twice
+ag=$($M rc '/tests/glfwagain.rc' 200 2>&1) || true
+echo "$ag" | grep -E '^(ok|FAIL)' | sed 's/^/  /'
+if echo "$ag" | grep -q '^glfwagain.rc: all passed'; then echo "ok a GLFW window outlives its wsys (twice)"; else echo "FAIL a GLFW window outlives its wsys"; fail=1; fi
 kill -TERM -- -$guest 2>/dev/null || kill $guest 2>/dev/null
 wait $guest 2>/dev/null || true
 trap - EXIT

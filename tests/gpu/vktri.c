@@ -8,6 +8,8 @@
  * it. Runs for the seconds given (default 3), then checks the pixels.
  *
  * usage: vktri [seconds]
+ * VKTRI_AGAIN=1: on VK_ERROR_OUT_OF_DATE_KHR a new swapchain and on (a window
+ * that outlives its wsys: tests/gpu/wsysagain.rc), not the end
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -117,9 +119,11 @@ main(int argc, char **argv)
 	VkSurfaceKHR surf;
 	VkSwapchainKHR sc;
 	uint32_t n, i, qf, nimg, frames, apiver, nrebuilt = 0;
+	int again;
 	double secs, t0;
 
 	secs = argc > 1 ? atof(argv[1]) : 3;
+	again = getenv("VKTRI_AGAIN") != NULL;
 
 	/* the global commands, and one through vkGetInstanceProcAddr */
 	PFN_vkEnumerateInstanceVersion EnumerateInstanceVersion =
@@ -377,6 +381,13 @@ main(int argc, char **argv)
 	for(frames = 0; frames == 0 || now() - t0 < secs; frames++){
 		uint32_t idx;
 		VkResult r = vkAcquireNextImageKHR(dev, sc, UINT64_MAX, acquired, VK_NULL_HANDLE, &idx);
+		if(r == VK_ERROR_OUT_OF_DATE_KHR && again){
+			/* VKTRI_AGAIN: a new swapchain, on (its wsys gone: in the next one) */
+			rebuild(dev, &swci, &sc, img, &nimg, view, fb, rp);
+			printf("ok a new swapchain after out of date (frame %u)\n", frames);
+			fflush(stdout);
+			continue;
+		}
 		if(r == VK_ERROR_OUT_OF_DATE_KHR){
 			printf("ok window changed size after %u frames\n", frames);
 			break;
@@ -427,6 +438,14 @@ main(int argc, char **argv)
 			.pImageIndices = &idx,
 		};
 		r = vkQueuePresentKHR(q, &pi);
+		if(r == VK_ERROR_OUT_OF_DATE_KHR && again){
+			CHECK(vkWaitForFences(dev, 1, &fence, VK_TRUE, UINT64_MAX), "fence");
+			vkResetFences(dev, 1, &fence);
+			rebuild(dev, &swci, &sc, img, &nimg, view, fb, rp);
+			printf("ok a new swapchain after out of date (frame %u)\n", frames+1);
+			fflush(stdout);
+			continue;
+		}
 		if(r == VK_ERROR_OUT_OF_DATE_KHR){
 			printf("ok window changed size after %u frames\n", frames+1);
 			break;

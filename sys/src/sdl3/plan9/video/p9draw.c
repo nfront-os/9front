@@ -159,3 +159,40 @@ p9draw_put(const void *pixels, int w, int h, int stride)
 	}
 	return flushimage(disp, 1);
 }
+
+/*
+ * the window's wsys is gone (killed, crashed): the window again in the next
+ * one, where it was (libdraw's wsysagain); 0 then, -1 if it was the window
+ * that went. The mouse's reader asks, the main thread then reconnects.
+ */
+int
+p9draw_again(void)
+{
+	char rect[64];
+
+	if(!wsyslost())
+		return -1;
+	rect[0] = 0;
+	if(win != nil)
+		snprintf(rect, sizeof rect, "%d %d %d %d", win->r.min.x, win->r.min.y, win->r.max.x, win->r.max.y);
+	return wsysagain(rect[0] ? rect : nil);
+}
+
+/* a new connection to draw(3): the old one's devdraw went with its wsys */
+int
+p9draw_reconnect(void)
+{
+	/* its descriptors closed (what it says to the dead devdraw fails: drawerr) */
+	p9draw_close();
+	winname[0] = 0;
+	return p9draw_init();
+}
+
+extern void rerrstr(char*, unsigned int);	/* lib9's (APE's libc.h for it is not ours here) */
+
+/* the system's error string of the last call that failed (APE's errno is only its kind) */
+void
+p9draw_errstr(char *buf, int n)
+{
+	rerrstr(buf, n);
+}

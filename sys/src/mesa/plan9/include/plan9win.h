@@ -28,6 +28,8 @@ extern int plan9win_put(const char *name, const void *pixels, int w, int h, int 
  * as GPU buffers it reads itself (ctl gpubuffer, present)
  */
 extern int plan9win_wsys(const char *name);
+/* the window's wsys gone: the window in the next one (waits for it), draw(3) anew: 0; -1 not gone; -2 none came */
+extern int plan9win_again(void);
 
 /* a request to wsys' ctl; -1 if refused */
 extern int plan9win_wsysctl(int fd, const char *msg);

@@ -105,3 +105,29 @@ _glfwDrawScreenPlan9(int *w, int *h)
 	*w = Dx(disp->image->r);
 	*h = Dy(disp->image->r);
 }
+
+/*
+ * the window's wsys is gone (killed, crashed): the window again in the next
+ * one, where it was (libdraw's wsysagain); 0 then, -1 if it was the window
+ * that went. The mouse's reader asks, the main thread then reconnects.
+ */
+int
+_glfwDrawAgainPlan9(void)
+{
+	char rect[64];
+
+	if(!wsyslost())
+		return -1;
+	rect[0] = 0;
+	if(win != nil)
+		snprintf(rect, sizeof rect, "%d %d %d %d", win->r.min.x, win->r.min.y, win->r.max.x, win->r.max.y);
+	return wsysagain(rect[0] ? rect : nil);
+}
+
+/* a new connection to draw(3): the old one's devdraw went with its wsys */
+int
+_glfwDrawReconnectPlan9(void)
+{
+	_glfwDrawClosePlan9();
+	return _glfwDrawInitPlan9();
+}

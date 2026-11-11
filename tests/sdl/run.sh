@@ -1,7 +1,8 @@
 #!/bin/bash
 # SDL3 on 9front (sys/src/sdl3): sdltest in a window of wsys on a VESA screen
 # without a GPU driver, in a guest of scripts/guest/mcp-guest.sh; the host
-# types into it through QEMU (QMP) while sdltest -e logs the events.
+# types into it through QEMU (QMP) while sdltest -e logs the events. Then
+# sdlagain.rc: an SDL window that outlives its wsys, killed twice.
 # usage: tests/sdl/run.sh   (needs libSDL3.a built: scripts/sdl3/vendor.sh, build.exe)
 set -e
 HERE=$(cd "$(dirname "$0")" && pwd)
@@ -10,6 +11,9 @@ ROOT=$(cd "$HERE/../.." && pwd)
 CLI_DIR=${CLI_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/9front-cli}
 mkdir -p "$HERE/root/tests"
 "$CROSS/$TRIPLE-gcc" -std=gnu11 -O2 -Wall -o "$HERE/root/tests/sdltest" "$HERE/sdltest.c" -lSDL3 -ldraw -l9 -lfmt -lutf -lm
+"$CROSS/$TRIPLE-gcc" -std=gnu11 -O2 -Wall -o "$HERE/root/tests/sdlagain" "$HERE/sdlagain.c" -lSDL3 -ldraw -l9 -lfmt -lutf -lm
+cp "$HERE/sdlagain.rc" "$HERE/root/tests/sdlagain.rc"
+chmod +x "$HERE/root/tests/sdlagain.rc"
 cp "$ROOT/amd64/bin/wsys" "$HERE/root/tests/wsys"
 cp "$HERE/sdl.rc" "$HERE/root/tests/sdl"
 chmod +x "$HERE/root/tests/sdl"
@@ -61,6 +65,11 @@ check "keyboard: shift" '^event key down Left Shift'
 check "keyboard: text B" '^event text B'
 check "keyboard: return up" '^event key up Return'
 check "audio through /dev/audio" '^ok audio: 0.2 s through plan9'
+# an SDL window that outlives its wsys (libdraw's wsysagain): sdlagain.rc from
+# the console, wsys killed twice
+ag=$($M rc '/tests/sdlagain.rc' 200 2>&1) || true
+echo "$ag" | grep -E '^(ok|FAIL|event|signal|sdl plan9|log: )' | sed 's/^/  /'
+if echo "$ag" | grep -q '^sdlagain.rc: all passed'; then echo "ok an SDL window outlives its wsys (twice)"; else echo "FAIL an SDL window outlives its wsys"; fail=1; fi
 # the guest's end writes the WAV file whole: what it played, not silence
 kill -TERM -- -$guest 2>/dev/null || kill $guest 2>/dev/null
 wait $guest 2>/dev/null || true

@@ -232,3 +232,36 @@ plan9win_wsysctl(int fd, const char *msg)
 		return -1;
 	return 0;
 }
+
+/*
+ * the window's wsys gone (killed, crashed): the window again in the next
+ * one (libdraw's wsysagain: once, whoever of the program asks first), our
+ * draw(3) connection anew at the next use; 0, -1 if wsys is not gone,
+ * -2 if no next one came in time ($wsyswait, libdraw's wsysagain)
+ */
+int
+plan9win_again(void)
+{
+	char rect[64];
+
+	if(!wsyslost())
+		return -1;
+	lock(&lk);
+	rect[0] = 0;
+	if(win != nil)
+		snprint(rect, sizeof rect, "%d %d %d %d", win->r.min.x, win->r.min.y, win->r.max.x, win->r.max.y);
+	/* the dead devdraw's: closed (what it says there fails, drawerr) */
+	if(buf != nil)
+		freeimage(buf);
+	if(win != nil)
+		freeimage(win);
+	buf = win = nil;
+	curname[0] = 0;
+	if(disp != nil)
+		closedisplay(disp);
+	disp = nil;
+	unlock(&lk);
+	if(wsysagain(rect[0] ? rect : nil) < 0)
+		return -2;	/* no next wsys in time ($wsyswait) */
+	return 0;
+}

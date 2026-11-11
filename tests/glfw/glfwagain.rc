@@ -1,0 +1,62 @@
+#!/bin/rc
+# run by tests/glfw/run.sh (not in a wsys): a GLFW window that outlives its
+# wsys (GLFW's plan9 platform: libdraw's wsysagain). glfwagain in a window of
+# wsys A; A killed (every proc, as a crash): its window in wsys B, where it
+# is asked to draw (refresh); B killed, the same in C. Prints ok/FAIL lines
+# and "glfwagain.rc: all passed" (glfwagain's own lines too).
+rfork ne
+log=/tmp/glfwagain.log
+fn fail { echo FAIL $*; for(p in $wsyses) if(test -e /proc/$p) echo kill >/proc/$p/notepg; exit fail }
+fn wait1 { # cmd...: until it succeeds, 20 s at most
+	n=0
+	while(! $* >[2]/dev/null && test $n -lt 200){ sleep 0.1; n=`{echo $n+1 | hoc} }
+	$* >[2]/dev/null
+}
+fn start { # name: a wsys in the background; $w its pid
+	/tests/wsys >/tmp/wsys$1.log >[2=1] &
+	w=$apid
+	wsyses=($wsyses $w)
+	wait1 test -e /srv/wsys.$user.$w || fail no /srv/wsys.$user.$w: `{cat /tmp/wsys$1.log}
+}
+fn refreshed { grep -c '^event refresh' $log }
+wsyses=()
+bind -a '#i' /dev
+bind -a '#m' /dev
+rm -f $log
+echo '#!/bin/rc
+/tests/glfwagain 40 >>'^$log^' >[2=1]
+echo glfwagain: exit $status >>'^$log >/tmp/runglfw
+chmod +x /tmp/runglfw
+
+start A
+mount /srv/wsys.$user.$w /mnt/wsys
+echo new -r 100 100 420 330 /tmp/runglfw >/mnt/wsys/wctl
+wait1 grep -s '^ok window' $log || fail glfwagain did not start: `{cat $log}
+sleep 2
+echo ok glfwagain in wsys A
+want=`{refreshed}	# GLFW may ask for one at the start
+for(b in B C){
+	echo kill >/proc/$w/notepg
+	unmount /mnt/wsys >[2]/dev/null
+	wait1 test ! -e /proc/$w || fail wsys $w still there
+	sleep 1
+	grep -s '^glfwagain: exit' $log && fail glfwagain went with its wsys: `{tail -5 $log}
+	echo ok glfwagain outlives its wsys
+	start $b
+	want=`{echo $want+1 | hoc}
+	fn enough { test `{refreshed} -ge $want }
+	wait1 enough || fail no window in wsys $b: `{tail -5 $log}
+	mount /srv/wsys.$user.$w /mnt/wsys
+	ls -p /mnt/wsys | grep -s '^[0-9]+$' || fail no window of glfwagain in wsys $b
+	unmount /mnt/wsys
+	echo ok glfwagain made its window in wsys $b
+	sleep 2
+}
+fn ended { grep -s '^glfwagain: exit' $log }
+n=0
+while(! ended && test $n -lt 40){ sleep 1; n=`{echo $n+1 | hoc} }
+ended || fail glfwagain did not end: `{tail -5 $log}
+cat $log
+grep -s '^glfwagain: all passed' $log || fail glfwagain in wsys C
+echo kill >/proc/$w/notepg
+echo glfwagain.rc: all passed

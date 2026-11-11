@@ -1,6 +1,6 @@
 .TH GRAPHICS 2
 .SH NAME
-Display, Point, Rectangle, Cursor, initdraw, geninitdraw, newwindow, drawerror, initdisplay, closedisplay, getdefont, getwindow, gengetwindow, flushimage, lockdisplay, unlockdisplay, openfont, buildfont, freefont, Pfmt, Rfmt, strtochan, chantostr, chantodepth \- interactive graphics
+Display, Point, Rectangle, Cursor, initdraw, geninitdraw, newwindow, wsyslost, wsysagain, drawerror, initdisplay, closedisplay, getdefont, getwindow, gengetwindow, flushimage, lockdisplay, unlockdisplay, openfont, buildfont, freefont, Pfmt, Rfmt, strtochan, chantostr, chantodepth \- interactive graphics
 .SH SYNOPSIS
 .nf
 .ft L
@@ -26,6 +26,12 @@ int	geninitdraw(char *devdir, void(*errfun)(Display*, char*),
 .PP
 .B
 int	newwindow(char *str)
+.PP
+.B
+int	wsyslost(void)
+.PP
+.B
+int	wsysagain(char *rect)
 .PP
 .B
 void	drawerror(Display *d, char *msg)
@@ -398,6 +404,42 @@ For example,
 .B newwindow("-hide -dy 100")
 will cause the program to run in a newly created, hidden window
 100 pixels high.
+.PP
+Under
+.IR wsys (4)
+a program can outlive its window system.
+When reads of the window's files fail,
+.I wsyslost
+says whether the
+.I wsys
+that
+.B $wsys
+names is gone (its process is no more, or the window's mount hung up);
+if so,
+.I wsysagain
+waits for the user's next
+.I wsys
+and makes the window there, at
+.I rect
+(5"Ix0 y0 x1 y15"P, where it was; nil: where
+.I wsys
+puts it), as
+.I newwindow
+does, and sets
+.BR $wsys .
+The program then opens the window's files and draws again.
+It waits
+.B $wsyswait
+seconds for that
+.I wsys
+(five minutes without it; 0: no end), then returns \-1 and the program
+ends, as under
+.IR rio .
+A
+.I wsys
+that ends in order posts
+.B hangup
+to its windows' processes instead.
 .PP
 .I Initdisplay
 is part of

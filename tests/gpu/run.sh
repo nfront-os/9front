@@ -361,6 +361,15 @@ if [ -r /dev/dri/renderD128 ] && [ -w /dev/dri/renderD128 ] &&
 		check "wsys, GPU: vktri seen where nothing covers it" grep -q '^uncovered: ff0000' "$TMPD/logcomp"
 		check "wsys, GPU: the window over it, not vktri, where it covers it" bash -c "grep '^covered: ' '$TMPD/logcomp' | grep -vq ' \(ff0000\|000066\)\$'"
 		grep -E '^(covered|uncovered): |^[abc]: ok [0-9]+ frames' "$TMPD/logcomp" | sed 's/^/  /'
+		# a Vulkan window outlives its wsys (Mesa's WSI, libdraw's wsysagain):
+		# vktri in wsys A, A killed, its window in B, B killed, in C (wsysagain.rc)
+		cp "$HERE/wsysagain.rc" "$HERE/root/tests/wsysagain"
+		chmod +x "$HERE/root/tests/wsysagain"
+		check "boot with virtio-gpu-gl, vktri in wsys A, B and C" bootwsys "/tests/wsysagain /tmp/wagain.log >/tmp/wagain.out >[2=1]; cat /tmp/wagain.out /tmp/wagain.log"
+		tr -d '\r' < "$TMPD/consolewsys" > "$TMPD/logagain"
+		cp "$TMPD/logagain" "$HERE/console-wsysagain.log"
+		check "wsys gone: vktri goes on in the next wsys, twice, its triangle in the last: all passed" grep -q '^wsysagain: all passed' "$TMPD/logagain"
+		grep -E '^(ok|FAIL) ' "$TMPD/logagain" | sed 's/^/  /'
 	else
 		skip "wsys with GPU buffers" "no vktri or no $objtype/bin/wsys"
 	fi

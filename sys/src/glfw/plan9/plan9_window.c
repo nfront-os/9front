@@ -44,20 +44,51 @@ static void push(const _GLFWeventPlan9* e)
     pthread_mutex_unlock(&_glfw.plan9.lock);
 }
 
-// m x y buttons msec, 49 bytes a message; r: the window changed
+static void* kbdreader(void* arg);
+static void* wctlreader(void* arg);
+
+// the keyboard's and wctl's readers, of the window's files now (their own descriptors)
+static void startreaders(void)
+{
+    pthread_t t;
+
+    if (_glfw.plan9.kbdfd >= 0 &&
+        pthread_create(&t, NULL, kbdreader, (void*) (intptr_t) _glfw.plan9.kbdfd) == 0)
+        pthread_detach(t);
+    if (_glfw.plan9.wctlfd >= 0 &&
+        pthread_create(&t, NULL, wctlreader, (void*) (intptr_t) _glfw.plan9.wctlfd) == 0)
+        pthread_detach(t);
+}
+
+// m x y buttons msec, 49 bytes a message; r: the window changed. When the
+// window's files fail and its wsys is gone, the window in the next one
+// (_glfwDrawAgainPlan9): A tells the main thread to reconnect; q the end.
 static void* mousereader(void* arg)
 {
     _GLFWeventPlan9 e;
     char buf[64];
     char* p;
-    int n;
+    int n, fd;
 
     (void) arg;
     for (;;)
     {
         n = (int) read(_glfw.plan9.mousefd, buf, 49);
         if (n <= 0)
-            break;
+        {
+            if (_glfwDrawAgainPlan9() < 0 || (fd = open("/dev/mouse", O_RDWR)) < 0)
+                break;
+            close(_glfw.plan9.mousefd);
+            _glfw.plan9.mousefd = fd;
+            // the old keyboard's and wctl's readers close theirs when their reads fail
+            _glfw.plan9.kbdfd = open("/dev/kbd", O_RDONLY);
+            _glfw.plan9.wctlfd = open("/dev/wctl", O_RDONLY);
+            startreaders();
+            memset(&e, 0, sizeof(e));
+            e.kind = 'A';
+            push(&e);
+            continue;
+        }
         buf[n] = 0;
         memset(&e, 0, sizeof(e));
         e.kind = buf[0];
@@ -75,19 +106,22 @@ static void* mousereader(void* arg)
     return NULL;
 }
 
-// kbd(3): messages k, K, c and a UTF-8 string each, NUL after each
+// kbd(3): messages k, K, c and a UTF-8 string each, NUL after each; arg: the descriptor
 static void* kbdreader(void* arg)
 {
     _GLFWeventPlan9 e;
     char buf[512];
-    int n, i, len;
+    int n, i, len, fd;
 
-    (void) arg;
+    fd = (int) (intptr_t) arg;
     for (;;)
     {
-        n = (int) read(_glfw.plan9.kbdfd, buf, sizeof(buf) - 1);
+        n = (int) read(fd, buf, sizeof(buf) - 1);
         if (n <= 0)
+        {
+            close(fd);  // its own: no other reader gets its number meanwhile
             break;
+        }
         buf[n] = 0;
         for (i = 0;  i < n;  i += len + 1)
         {
@@ -103,19 +137,22 @@ static void* kbdreader(void* arg)
     return NULL;
 }
 
-// wctl: a line when the window changed (place, current, hidden)
+// wctl: a line when the window changed (place, current, hidden); arg: the descriptor
 static void* wctlreader(void* arg)
 {
     _GLFWeventPlan9 e;
-    int n;
+    int n, fd;
 
-    (void) arg;
+    fd = (int) (intptr_t) arg;
     for (;;)
     {
         memset(&e, 0, sizeof(e));
-        n = (int) read(_glfw.plan9.wctlfd, e.text, sizeof(e.text) - 1);
+        n = (int) read(fd, e.text, sizeof(e.text) - 1);
         if (n <= 0)
+        {
+            close(fd);
             break;
+        }
         e.kind = 'w';
         push(&e);
     }
@@ -340,6 +377,12 @@ static void handle(_GLFWwindow* window, const _GLFWeventPlan9* e)
 
     switch (e->kind)
     {
+        case 'A':
+            // the window in a new wsys: draw(3) anew, everything drawn again
+            _glfwDrawReconnectPlan9();
+            relook(window);
+            _glfwInputWindowDamage(window);
+            break;
         case 'r':
             relook(window);
             // fall through: where the pointer is
@@ -435,10 +478,7 @@ GLFWbool _glfwCreateWindowPlan9(_GLFWwindow* window,
     {
         _glfw.plan9.readers = GLFW_TRUE;
         pthread_create(&_glfw.plan9.mousereader, NULL, mousereader, NULL);
-        if (_glfw.plan9.kbdfd >= 0)
-            pthread_create(&_glfw.plan9.kbdreader, NULL, kbdreader, NULL);
-        if (_glfw.plan9.wctlfd >= 0)
-            pthread_create(&_glfw.plan9.wctlreader, NULL, wctlreader, NULL);
+        startreaders();
     }
     if (wndconfig->focused || window->monitor)
         wctl("current");

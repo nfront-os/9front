@@ -58,6 +58,7 @@ OFILES=\
 	writecolmap.$O\
 	writeimage.$O\
 	writesubfont.$O\
+	wsysagain.$O\
 
 HFILES=\
 	/sys/include/ape/draw.h\

@@ -85,7 +85,7 @@ typedef struct _GLFWlibraryPlan9
     char*           clipboard;
     int             scancodes[GLFW_KEY_LAST + 1];   // a key's rune
     char            keyname[8];
-    pthread_t       mousereader, kbdreader, wctlreader;
+    pthread_t       mousereader;    // keyboard's and wctl's: detached (startreaders)
     GLFWbool        focused, hidden;
 } _GLFWlibraryPlan9;
 
