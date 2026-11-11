@@ -59,5 +59,6 @@ while(! ended && test $n -lt 40){ sleep 1; n=`{echo $n+1 | hoc} }
 ended || fail sdlagain did not end: `{tail -5 $log}
 cat $log
 grep -s '^sdlagain: all passed' $log || fail sdlagain in wsys C
+grep -s '^sdlagain: exit $' $log || fail sdlagain did not end cleanly: `{grep '^sdlagain: exit' $log}
 echo kill >/proc/$w/notepg
 echo sdlagain.rc: all passed

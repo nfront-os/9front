@@ -55,6 +55,7 @@ echo "$out" | grep -E '^(ok|FAIL|sdltest)'
 fail=0
 check() { if echo "$out" | grep -q -- "$2"; then echo "ok $1"; else echo "FAIL $1 (no \"$2\")"; fail=1; fi; }
 check "sdltest" '^sdltest: all passed'
+check "sdltest ended cleanly (no abort: APE's setvbuf, the heap)" '^sdl: exit $'
 check "mouse: motion in window coordinates" '^event motion 196,146'
 check "mouse: button 1" '^event button 1 down at 196,146'
 check "mouse: button 3" '^event button 3 down at 216,156'

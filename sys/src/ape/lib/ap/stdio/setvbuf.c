@@ -14,6 +14,13 @@ int setvbuf(FILE *f, char *buf, int mode, size_t size){
 		f->flags|=LINEBUF;
 	case _IOFBF:
 		if(buf==0){
+			/*
+			 * no buffer and no size: one of the size stdio takes
+			 * (it was malloc(0), a buffer of no bytes, which the
+			 * writes then ran past into the next block)
+			 */
+			if(size==0)
+				size=BUFSIZ;
 			buf=malloc(size);
 			if(buf==0){
 				f->state=ERR;

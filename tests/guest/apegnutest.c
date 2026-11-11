@@ -87,6 +87,33 @@ teststdio(void)
 	check("C99 math (float, long double)", sqrtf(16.0f) == 4.0f && fabsl(-2.0L) == 2.0L, NULL);
 	swprintf(wb, 32, L"%ls-%d", L"ab", 7);
 	check("swprintf", wcscmp(wb, L"ab-7") == 0, NULL);
+
+	/*
+	 * setvbuf with no buffer and size 0: stdio picks one (it was a buffer of
+	 * no bytes the writes ran past, into the block after it: free aborted)
+	 */
+	{
+		FILE *f;
+		char *p;
+		int i;
+
+		if((f = fopen("/tmp/apegnutest.vbuf", "w")) == NULL){
+			check("setvbuf(NULL, 0)", 0, "fopen: %s", strerror(errno));
+			return;
+		}
+		setvbuf(f, NULL, _IOLBF, 0);
+		p = malloc(2);
+		for(i = 0; i < 20; i++)
+			fprintf(f, "a line longer than no buffer at all, number %d\n", i);
+		free(p);
+		fclose(f);
+		f = fopen("/tmp/apegnutest.vbuf", "r");
+		n = f != NULL ? (int)fread(buf, 1, sizeof buf, f) : -1;
+		if(f != NULL)
+			fclose(f);
+		check("setvbuf(NULL, 0): a buffer of stdio's, the heap whole", n == sizeof buf && strncmp(buf, "a line longer", 13) == 0, "%d", n);
+		remove("/tmp/apegnutest.vbuf");
+	}
 }
 
 static void
