@@ -123,6 +123,10 @@ if [ -x "$WLT/wlsys" ]; then
 	for p in "$WLT"/*; do
 		ln -s "$p" "$VIEW/tests/$(basename "$p")"
 	done
+	# the system's wsys, not the copy of the last tests/wayland run; uipeek
+	# (tests/ui) for rc/bin/deskrun
+	[ -x "$ROOT/$A/bin/wsys" ] && ln -sf "$ROOT/$A/bin/wsys" "$VIEW/tests/wsys"
+	[ -x "$ROOT/tests/ui/root/tests/uipeek" ] && ln -s "$ROOT/tests/ui/root/tests/uipeek" "$VIEW/tests/uipeek"
 	PROTOS+=("$ROOT/scripts/guest/boot/wlproto")
 fi
 

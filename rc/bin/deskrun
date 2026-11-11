@@ -1,0 +1,251 @@
+#!/bin/rc
+# deskrun: the desktop of wsys(4) on this machine (the laptop booted from a
+# CD with desktop=wsys), run in one of its windows: the theme (modern
+# written, read back), wbar(1) (the bar along the top of this screen, on
+# top; its windows: a click makes one current, hides it, brings it back; a
+# window maximized stays below it; its menu runs a command), title bars
+# (the bar's colour on the screen, moved by it, a double click maximizes
+# and gives the frame back, x deletes), stats below its title bar, Mod4+Tab
+# never to the bar.  Pixels are read from /mnt/wsys/screen (what wsys
+# composed, with -g too).  The riostart's wbar is replaced by one for the
+# test, then by an ordinary one again; the theme is put back at the end.
+# The log into desk.log on the ESP (FAT) of the USB stick the system booted
+# from, a line at a time (esplog: it survives a hang), else in /tmp.
+# Needs /tests/uipeek (the CD has it, from tests/ui).
+rfork e
+if(! test -e /mnt/wsys/clone && ! ~ $#wsys 0){
+	rfork n
+	mount -c $wsys /mnt/wsys
+}
+if(! test -e /mnt/wsys/clone){
+	echo deskrun: run me in a window of wsys
+	exit wsys
+}
+if(! test -x /tests/uipeek || ! test -x /bin/wbar){
+	echo deskrun: no /tests/uipeek or /bin/wbar: a CD made with tests/ui
+	exit tests
+}
+dir=/tmp
+if(! test -e /srv/gpu.esp && test -d '#σ/usb'){
+	for(d in '#σ/usb'/sdU*/esp)
+		if(! test -e /srv/gpu.esp && test -r $d)
+			dossrv -f $d gpu.esp >/dev/null >[2=1]
+}
+if(test -e /srv/gpu.esp && mount -c /srv/gpu.esp /n/esp)
+	dir=/n/esp
+log=$dir/desk.log
+echo deskrun: the log is $log
+bind -a '#m' /dev
+
+nfail=0
+fn fail { echo FAIL $*; nfail=`{echo $nfail+1 | hoc} }
+fn wait1 { # cmd...: until it succeeds, 10 s at most
+	n=0
+	while(! $* >[2]/dev/null && test $n -lt 100){ sleep 0.1; n=`{echo $n+1 | hoc} }
+	$* >[2]/dev/null
+}
+# mousein keeps the buttons per open file: a press and its release go through one
+fn m { echo A $1 $2 $3; sleep 0.1 }
+fn click { { m $1 $2 0; m $1 $2 1; m $1 $2 0 } >/dev/mousein; sleep 0.7 }
+fn dclick { { m $1 $2 0; m $1 $2 1; m $1 $2 0; m $1 $2 1; m $1 $2 0 } >/dev/mousein; sleep 0.5 }
+fn wctl { dd -if /mnt/wsys/$1/wctl -bs 128 -count 1 -quiet 1 }
+fn frame { w=`{wctl $1}; echo $w(1-4) }
+fn content { c=`{cat /mnt/wsys/$1/ctl}; echo $c(2-5) }
+fn current {
+	for(d in `{ls -p /mnt/wsys | grep '^[0-9]+$'}){
+		w=`{wctl $d}
+		if(~ $w(5) current) echo $d
+	}
+}
+fn wins { ls -p /mnt/wsys | grep '^[0-9]+$' | sort -n }
+fn newwin { # the window made since $before
+	for(d in `{wins}) if(! ~ $d $before) echo $d
+}
+fn gotnew { nw=`{newwin}; ! ~ $#nw 0 }
+# a pixel of /mnt/wsys/screen as rrggbb (image(6): 60 bytes of header)
+fn peek { # x y
+	hdr=`{dd -if /mnt/wsys/screen -bs 60 -count 1 >[2]/dev/null}
+	off=`{echo 60+'('$2-$hdr(3)')*('$hdr(4)-$hdr(2)')*4+('$1-$hdr(2)')*4' | hoc}
+	px=`{dd -if /mnt/wsys/screen -bs 4 -iseek `{echo $off/4 | hoc} -count 1 >[2]/dev/null | xd -1x | sed 1q}
+	echo $px(4)^$px(3)^$px(2)
+}
+fn is { # x y rrggbb...: one of them there
+	p=`{peek $1 $2}
+	px=$1; py=$2
+	shift 2
+	if(~ $p $*) echo ok at $px,$py $p
+	if not fail at $px,$py $p, want $*
+}
+fn items { cat /tmp/wbar.*.items >[2]/dev/null }
+fn spot { items | awk '$1 == "win" && $2 == "'$1'" {print int(($3+$4)/2)}' }
+fn state { items | awk '$1 == "win" && $2 == "'$1'" {print $5}' }
+fn mod4tab {
+	/tests/uipeek -p f868
+	/tests/uipeek -p 9
+	/tests/uipeek -r 9
+	/tests/uipeek -r f868
+	sleep 0.5
+}
+fn bars { # the windows without a border along the top of the screen, all of its width
+	awk '$3 == 0 && $2 == '$sx0' && $4 == '$sx1' && $6 == 0 {print $1}' /mnt/wsys/stack
+}
+fn top { tail -1 /mnt/wsys/stack | awk '{print $1}' }
+fn half { echo 'int(('$1'+'$2')/2)' | hoc }
+
+{
+	echo deskrun on $sysname `{date} wsysflags $wsysflags
+	cat /dev/gpu/0/status >[2]/dev/null | sed 1q
+	hdr=`{dd -if /mnt/wsys/screen -bs 60 -count 1 >[2]/dev/null}
+	sx0=$hdr(2); sy0=$hdr(3); sx1=$hdr(4); sy1=$hdr(5)
+	echo screen $hdr
+	echo stack:
+	cat /mnt/wsys/stack
+	cat /mnt/wsys/theme >/tmp/desktheme
+
+	echo '==== theme'
+	cat /lib/theme/modern >/mnt/wsys/theme || fail writing the modern theme
+	if(grep -s '^title 1' /mnt/wsys/theme) echo ok the modern theme, title 1
+	if not fail the theme read back: `{cat /mnt/wsys/theme}
+	sleep 0.5
+
+	echo '==== wbar'
+	b=`{bars}
+	if(~ $#b 0) fail no bar of riostart: `{cat /mnt/wsys/stack}
+	if not echo ok the bar of riostart: window $b
+	for(n in $b) echo delete >/mnt/wsys/$n/wctl
+	rm -f /tmp/wbar.*.items /tmp/desktouched
+	echo 'touch	touch /tmp/desktouched' >/tmp/deskmenu
+	echo '#!/bin/rc
+WBARDEBUG=items exec wbar -m /tmp/deskmenu >/tmp/deskwbar.err >[2=1]' >/tmp/deskwbar
+	chmod +x /tmp/deskwbar
+	window -r $sx0 $sy0 $sx1 `{echo $sy0+60 | hoc} /tmp/deskwbar
+	fn haveitems { items | grep -s '^clock' }
+	wait1 haveitems || fail no items of wbar: `{cat /tmp/deskwbar.err}
+	b=`{bars}
+	if(~ $#b 1){
+		bl=`{grep '^'$b' ' /mnt/wsys/stack}
+		h=`{echo $bl(5)-$sy0 | hoc}
+		g=$bl(2-5)
+		echo ok the bar: window $b, $"g, $h high
+		~ `{top} $b || fail the bar not on top: `{cat /mnt/wsys/stack}
+	}
+	if not {
+		fail the bar: windows $b
+		h=0
+	}
+
+	echo '==== title bars'
+	# a window in the middle of the screen
+	wx0=`{echo 'int(('$sx0+$sx1')/2)'-300 | hoc}
+	wy0=`{echo 'int(('$sy0+$sy1')/2)'-200 | hoc}
+	wx1=`{echo $wx0+600 | hoc}
+	wy1=`{echo $wy0+400 | hoc}
+	before=`{wins}
+	window -r $wx0 $wy0 $wx1 $wy1
+	wait1 gotnew
+	sleep 1
+	t1=`{newwin}
+	echo -n hello >/mnt/wsys/$t1/label
+	sleep 0.3
+	f=`{frame $t1}
+	c=`{content $t1}
+	echo window $t1 frame $f content $c
+	~ $"f $"wx0' '$"wy0' '$"wx1' '$"wy1 || fail frame $f, want $wx0 $wy0 $wx1 $wy1
+	tb=`{echo $c(1)-$wx0 | hoc}	# the border
+	t=`{echo $c(2)-$wy0-$tb | hoc}
+	if(test $t -gt 10) echo ok a title bar $t high, the border $tb
+	if not fail no title bar: content $c
+	ty=`{echo 'int('$wy0+$tb+$t/2')' | hoc}
+	is `{echo 'int('$wx0'+0.7*600)' | hoc} $ty 2b4c6f
+	is `{half $c(1) $c(3)} `{echo $c(2)+2 | hoc} ffffea
+	# moved by its bar
+	{ m `{half $wx0 $wx1} $ty 0; m `{half $wx0 $wx1} $ty 1; m `{echo 'int(('$wx0+$wx1')/2)'+50 | hoc} `{echo $ty+50 | hoc} 1; m `{echo 'int(('$wx0+$wx1')/2)'+50 | hoc} `{echo $ty+50 | hoc} 0 } >/dev/mousein
+	sleep 0.5
+	f=`{frame $t1}
+	moved=`{echo $wx0+50 | hoc}^' '^`{echo $wy0+50 | hoc}^' '^`{echo $wx1+50 | hoc}^' '^`{echo $wy1+50 | hoc}
+	if(~ $"f $moved) echo ok dragged by its bar to $f
+	if not fail dragged to $f, want $moved
+	# a double click: the screen below the bar, again: back
+	ty=`{echo $ty+50 | hoc}
+	dclick `{echo $wx0+100 | hoc} $ty
+	f=`{frame $t1}
+	ma=`{echo $sy0+$h | hoc}
+	~ $"f $"sx0' '$"ma' '$"sx1' '$"sy1 || fail double click: $f, want $sx0 $ma $sx1 $sy1
+	dclick `{echo $sx0+100 | hoc} `{echo 'int('$ma+$tb+$t/2')' | hoc}
+	f2=`{frame $t1}
+	~ $"f2 $moved || fail double click again: $f2, want $moved
+	if(~ $"f $"sx0' '$"ma' '$"sx1' '$"sy1 && ~ $"f2 $moved) echo ok a double click: $"f, again: $"f2
+	~ `{top} $b || fail the bar not on top after: `{cat /mnt/wsys/stack}
+	# x, the last button: at the end of the bar
+	click `{echo $wx1+50-$tb-3 | hoc} $ty
+	wait1 test ! -d /mnt/wsys/$t1 || fail x did not delete window $t1
+	if(! test -d /mnt/wsys/$t1) echo ok x deleted it
+
+	echo '==== stats'
+	before=`{wins}
+	window -r $wx0 $wy0 $wx1 $wy1 stats -lmisce
+	wait1 gotnew
+	sleep 3
+	s=`{newwin}
+	is `{echo $wx0+$tb+200 | hoc} `{echo 'int('$wy0+$tb+$t/2')' | hoc} 2b4c6f a8a49c
+	echo delete >/mnt/wsys/$s/wctl
+
+	echo '==== wbar: its windows'
+	before=`{wins}
+	window -r `{echo $wx0-100 | hoc} $wy0 `{echo $wx0+200 | hoc} `{echo $wy0+200 | hoc}
+	wait1 gotnew
+	a=`{newwin}
+	before=`{wins}
+	window -r `{echo $wx1-200 | hoc} $wy0 `{echo $wx1+100 | hoc} `{echo $wy0+200 | hoc}
+	wait1 gotnew
+	be=`{newwin}
+	sleep 1
+	echo -n alpha >/mnt/wsys/$a/label
+	echo -n beta >/mnt/wsys/$be/label
+	fn twowins { items | grep -s '^win '$be' .* beta$' && items | grep -s '^win '$a' .* alpha$' }
+	wait1 twowins || fail windows not on the bar: `{items}
+	y=`{echo 'int('$sy0+$h/2')' | hoc}
+	x=`{spot $a}
+	if(~ $#x 1){
+		click $x $y
+		~ `{current} $a || fail a click on alpha: current `{current}
+		click $x $y
+		w=`{wctl $a}
+		~ $w(6) hidden || fail a click on alpha current: $w
+		click $x $y
+		w=`{wctl $a}
+		~ $w(5) current && ~ $w(6) visible || fail a click on alpha hidden: $w
+		echo ok clicks on alpha: current, hidden, back
+	}
+	if not fail no place for alpha: `{items}
+	w=`{wctl $b}
+	~ $w(5) notcurrent || fail the bar took the focus: $w
+	mod4tab
+	c1=`{current}
+	mod4tab
+	c2=`{current}
+	if(~ $#c1 1 && ~ $#c2 1 && ! ~ $c1 $b && ! ~ $c2 $b) echo ok Mod4+Tab twice: to $c1, then $c2, never the bar
+	if not fail Mod4+Tab: to $c1, then $c2, the bar $b
+	x=`{items | awk '$1 == "menu" {print int(($2+$3)/2)}'}
+	click $x $y
+	fn open { items | grep -s '^item 0 ' }
+	wait1 open || fail the menu did not open: `{items}
+	i=`{items | awk '$1 == "item" && $2 == "0" {print int(($3+$4)/2)}'}
+	click `{echo $sx0+40 | hoc} $i
+	wait1 test -e /tmp/desktouched || fail the menu: touch did not run
+	if(test -e /tmp/desktouched) echo ok the menu ran touch
+	echo delete >/mnt/wsys/$a/wctl
+	echo delete >/mnt/wsys/$be/wctl
+
+	echo '==== back'
+	echo delete >/mnt/wsys/$b/wctl
+	sleep 0.5
+	window -r $sx0 $sy0 $sx1 `{echo $sy0+30 | hoc} wbar
+	fn onebar { nb=`{bars}; ~ $#nb 1 }
+	wait1 onebar || fail no bar again
+	cat /tmp/desktheme >/mnt/wsys/theme
+	echo stack:
+	cat /mnt/wsys/stack
+	echo deskrun: done, $nfail failed, `{date}
+} >[2=1] | tee /tmp/desk.out | esplog $log
+grep '^(FAIL|ok|deskrun)' /tmp/desk.out

@@ -762,7 +762,14 @@ in one of its windows checks the composition (two
 .B vktri
 at once, one partly covered) and logs to
 .B comp.log
-on the boot stick's ESP.
+on the boot stick's ESP;
+.B deskrun
+checks the desktop on that screen (the modern theme, title bars,
+.IR wbar (1),
+Mod4+Tab; pixels from
+.BR /mnt/wsys/screen )
+and logs to
+.BR desk.log .
 .PP
 A client in C: see
 .BR /tests/ui/wsystest.c .
