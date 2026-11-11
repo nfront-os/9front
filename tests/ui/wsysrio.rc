@@ -1,4 +1,6 @@
 #!/bin/rc
-# wsys with wsystest, in a rio window
+# wsys with wsystest, in a rio window; then a wsys again that follows the
+# window's changes (wsysresize.rc: rio resizes and moves it)
 /tests/wsys -x -i '/tests/wsystest >$home/wsysrio.log >[2=1]' >$home/wsysrio.out >[2=1]
+/tests/wsys -x -i '/tests/wsysresize >$home/wsysresize.log >[2=1]' >>$home/wsysrio.out >[2=1]
 echo done >>$home/wsysrio.out

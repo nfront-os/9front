@@ -210,6 +210,33 @@ impl Display {
         Ok(d)
     }
 
+    /// the window of /dev/winname again (rio's 'r': it was made anew, moved or
+    /// resized); the old one let go. False: not in a window (the screen), as it was
+    pub fn reattach(&mut self) -> io::Result<bool> {
+        let w = std::fs::read_to_string("/dev/winname").unwrap_or_default();
+        let w = w.trim();
+        if w.is_empty() || self.screen == 0 {
+            return Ok(false);
+        }
+        let id = self.id();
+        let mut m = vec![b'n'];
+        m.extend_from_slice(&id.to_le_bytes());
+        m.push(w.len() as u8);
+        m.extend_from_slice(w.as_bytes());
+        self.cmd(&m)?;
+        self.flush()?;
+        let mut b = [0u8; 12 * 12 + 1];
+        let n = self.conn.ctlread(&mut b)?;
+        let f = info(&b[..n])?;
+        let old = std::mem::replace(&mut self.screen, id);
+        let _ = self.free(old);
+        self.r = Rect::new(int(&f[4]), int(&f[5]), int(&f[6]), int(&f[7]));
+        if !w.starts_with("noborder.") {
+            self.r = self.r.inset(BORDERWIDTH);
+        }
+        Ok(true)
+    }
+
     fn id(&mut self) -> u32 {
         self.next += 1;
         self.next

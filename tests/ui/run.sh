@@ -133,10 +133,12 @@ check "no kernel panic" bash -c "! grep -q '^panic:' '$TMPD/logdesk'"
 # from the serial line: the scripts log to $home, which is on the host (ufsroot).
 cp "$HERE/rioinit.rc" "$HERE/root/tests/rioinit"
 cp "$HERE/wsysrio.rc" "$HERE/root/tests/wsysrio"
-chmod +x "$HERE/root/tests/rioinit" "$HERE/root/tests/wsysrio"
+cp "$HERE/wsysresize.rc" "$HERE/root/tests/wsysresize"
+chmod +x "$HERE/root/tests/rioinit" "$HERE/root/tests/wsysrio" "$HERE/root/tests/wsysresize"
 out=$CLI_DIR/ufsroot/usr/glenda/wsysrio.out
 log=$CLI_DIR/ufsroot/usr/glenda/wsysrio.log
-rm -f "$out" "$log"
+rlog=$CLI_DIR/ufsroot/usr/glenda/wsysresize.log
+rm -f "$out" "$log" "$rlog"
 UFS_EXTRA="$HERE/root" MEM=1024 KARGS="vgasize=1024x768x32 monitor=vesa mouseport=ps2" \
 CMDWAIT=5 WAITFOR='never shown' WAITMAX=300 \
 	"$ROOT/scripts/guest/boot-cli.sh" \
@@ -154,4 +156,7 @@ cp "$log" "$HERE/rio.log" 2>/dev/null
 check "rio: wsys in a window, wsystest: all passed" grep -q '^wsystest: all passed' "$log"
 check "rio: wsys draws inside the window" grep -qE '^ok wsys draws in \[1[0-9] 1[0-9]\]' "$log"
 grep '^FAIL' "$log" 2>/dev/null | sed 's/^/       /'
+cp "$rlog" "$HERE/resize.log" 2>/dev/null
+check "rio: wsys follows its window (smaller: the bar, a window back on it; bigger; moved): all passed" grep -q '^resize: all passed' "$rlog"
+grep '^FAIL' "$rlog" 2>/dev/null | sed 's/^/       /'
 done_tests

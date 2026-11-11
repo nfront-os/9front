@@ -149,7 +149,9 @@ const SEGBASE: usize = p9::window_region().0;
 const SEGSIZE: usize = p9::window_region().1;
 const NSLOT: usize = p9::window_region().2;
 const MAXBUF: u32 = 32; // a window's buffers (a Wayland window's surfaces, two or three each)
-const MINSIZE: i32 = 16; // a window swept smaller stays this big
+const MINSIZE: i32 = 16;
+// devdraw's screen in a window (-d's drawcore): the window may grow to this
+const MAXSCREEN: (i32, i32) = (4096, 2304); // a window swept smaller stays this big
 const CORNER: i32 = 20; // on the border this near a corner grabs both its edges
 const MAXEVENTS: usize = 512;
 const MAXMOUSE: usize = 32;
@@ -165,6 +167,7 @@ enum Ev {
     Msg(Vec<u8>),
     Hangup,
     Mouse { x: i32, y: i32, b: i32, ms: u32 },
+    Resized, // the mouse's r: the window wsys is in was made anew (moved, resized)
     Kbd(Vec<Vec<u8>>), // kbd(3) messages: k, K or c and runes
     ChildExit(String),
     WinExit(u32), // the process wsys started in a window
@@ -647,6 +650,7 @@ struct Wsys {
     pending: Vec<Pending>,
     d: Display,
     core: Option<drawcore::Core>, // -d: devdraw is wsys' own; its screen
+    imgr: Rect, // the image wsys' screen is on, all of it (devdraw's in a window: more than d.r shows); hidden windows go past its corner
     kd: Option<Display>,          // -d without the GPU: the kernel's devdraw, where the screen is copied
     drawpend: Vec<(u16, u32, u32)>, // refresh reads of wsys' devdraw waiting: tag, fid, count
     bg: u32,
@@ -1257,6 +1261,14 @@ impl Wsys {
     fn corepresent(&mut self) {
         let Some(core) = &self.core else { return };
         let rects = core.dirty();
+        self.coreload(rects);
+    }
+
+    /// rectangles of devdraw's screen (wsys' own) to the display: the GPU's
+    /// frames, or the kernel's devdraw's screen (the window wsys is in: what of
+    /// devdraw's screen it shows, d.r, at its place)
+    fn coreload(&mut self, rects: Vec<Rect>) {
+        let Some(core) = &self.core else { return };
         if rects.is_empty() {
             return;
         }
@@ -1268,9 +1280,14 @@ impl Wsys {
         }
         let Some(kd) = self.kd.as_mut() else { return };
         let px = core.seg.bytes();
+        let (shown, dx, dy) = (self.d.r, kd.r.x0 - core.r.x0, kd.r.y0 - core.r.y0);
         let mut res = Ok(());
         for r in rects {
-            res = res.and_then(|_| kd.load_at(kd.screen, &r, px, core.stride, r.x0 - core.r.x0, r.y0 - core.r.y0));
+            let r = r.clip(&shown);
+            if r.empty() {
+                continue;
+            }
+            res = res.and_then(|_| kd.load_at(kd.screen, &r.add(dx, dy), px, core.stride, r.x0 - core.r.x0, r.y0 - core.r.y0));
         }
         if let Err(e) = res.and_then(|_| kd.flush()) {
             eprintln!("wsys: the screen: {e}");
@@ -2506,7 +2523,7 @@ impl Wsys {
         let hidden = w.hidden;
         let res = (|| -> std::io::Result<()> {
             for (l, r) in v {
-                let at = if hidden { (self.d.r.x1, self.d.r.y1 + r.y0 - f.y0) } else { (r.x0, r.y0) };
+                let at = if hidden { (self.imgr.x1, self.imgr.y1 + r.y0 - f.y0) } else { (r.x0, r.y0) };
                 self.d.origin(l, (r.x0, r.y0), at)?;
             }
             self.d.flush()
@@ -2726,6 +2743,109 @@ impl Wsys {
             TitleOp::Delete => self.delwin(n, true),
             TitleOp::Hide => self.hide(n, true),
             TitleOp::Max => self.maximize(n),
+        }
+    }
+
+    /// the window wsys is in was made anew (the mouse's r: rio moved or resized
+    /// it, drawterm's window changed size): wsys' screen is what it shows now
+    fn resized(&mut self) {
+        let old = self.d.r;
+        if self.core.is_some() {
+            // devdraw is wsys' own, as big as MAXSCREEN: the part shown changes
+            let Some(kd) = self.kd.as_mut() else { return };
+            match kd.reattach() {
+                Ok(true) => {}
+                Ok(false) => return, // the screen itself (its size is devdraw's)
+                Err(e) => {
+                    eprintln!("wsys: the window: {e}");
+                    return;
+                }
+            }
+            let (cr, kr) = (self.imgr, kd.r);
+            let shown = Rect::new(cr.x0, cr.y0, cr.x0 + kr.dx().min(cr.dx()), cr.y0 + kr.dy().min(cr.dy()));
+            if shown != old {
+                // what comes into view: the screen's fill where no window is (a
+                // window of its own over it, freed: devdraw restores those below)
+                let fill = self.theme.back << 8 | 0xFF;
+                for strip in [Rect::new(old.x1, shown.y0, shown.x1, shown.y1), Rect::new(shown.x0, old.y1, shown.x1, shown.y1)] {
+                    if !strip.empty() {
+                        if let Ok(l) = self.d.allocwindow(self.scr, strip, fill) {
+                            let _ = self.d.free(l);
+                        }
+                    }
+                }
+                let _ = self.d.flush();
+                self.d.r = shown;
+                self.fitwins();
+            }
+            // all of it again, at the window's place (moved, or only a new image)
+            self.coreload(vec![self.d.r]);
+            return;
+        }
+        // the kernel's devdraw: the windows are layers on the window's image, made
+        // again on a screen on the new one, where they were in the window
+        match self.d.reattach() {
+            Ok(true) => {}
+            Ok(false) => return,
+            Err(e) => {
+                eprintln!("wsys: the window: {e}");
+                return;
+            }
+        }
+        let new = self.d.r;
+        let (img, bg) = (self.d.screen, self.bg);
+        let scr = match self.d.draw(img, &new, bg, 0, 0).and_then(|_| self.d.allocscreen(img, bg)) {
+            Ok(s) => s,
+            Err(e) => {
+                eprintln!("wsys: screen: {e}");
+                return;
+            }
+        };
+        let oldscr = std::mem::replace(&mut self.scr, scr);
+        self.imgr = new;
+        let (dx, dy) = (new.x0 - old.x0, new.y0 - old.y0);
+        for n in self.z.clone() {
+            let r = self.wins[&n].r.add(dx, dy);
+            if let Err(e) = self.reframe(n, r, true) {
+                eprintln!("wsys: window {n}: {e}");
+            }
+            // (made again: its program finds its window anew)
+            let r = self.wins[&n].r;
+            self.event(n, format!("r {} {}", r.dx(), r.dy()));
+        }
+        let _ = self.d.free(oldscr);
+        let _ = self.d.flush();
+        self.fitwins();
+    }
+
+    /// the windows after the screen changed: bars as wide as it, maximized ones
+    /// over it again, others moved back into it when their corner is off it
+    fn fitwins(&mut self) {
+        let s = self.d.r;
+        let ns: Vec<u32> = self.z.clone();
+        for &n in &ns {
+            let w = &self.wins[&n];
+            if w.bar && !w.hidden {
+                let r = w.r;
+                let _ = self.setrect(n, Rect::new(s.x0, r.y0, s.x1, r.y1));
+            }
+        }
+        for &n in &ns {
+            let w = &self.wins[&n];
+            if w.bar || w.hidden {
+                continue;
+            }
+            let (f, b, t) = (w.frame(), w.border, w.title);
+            if w.unmax.is_some() {
+                let _ = self.setrect(n, inner(self.workarea(), b, t));
+                continue;
+            }
+            const KEEP: i32 = 32; // of a window this much stays on the screen
+            let x = f.x0.min(s.x1 - KEEP).max(s.x0);
+            let y = f.y0.min(s.y1 - KEEP).max(s.y0);
+            if (x, y) != (f.x0, f.y0) {
+                let _ = self.setrect(n, inner(f.add(x - f.x0, y - f.y0), b, t));
+            }
         }
     }
 
@@ -4181,8 +4301,15 @@ fn mousereader(fd: i32, tx: mpsc::Sender<Ev>) {
     let f = std::mem::ManuallyDrop::new(Fd(fd));
     let mut b = [0u8; 49];
     while let Ok(n) = f.read(&mut b) {
+        if n >= 1 && b[0] == b'r' {
+            // the window wsys is in (or the screen) was made anew: moved, resized
+            if tx.send(Ev::Resized).is_err() {
+                return;
+            }
+            continue;
+        }
         if n < 49 || b[0] != b'm' {
-            continue; // 'r': the screen was resized
+            continue;
         }
         let v: Vec<i64> = String::from_utf8_lossy(&b[1..n]).split_whitespace().filter_map(|s| s.parse().ok()).collect();
         if v.len() == 4 && tx.send(Ev::Mouse { x: v[0] as i32, y: v[1] as i32, b: v[2] as i32, ms: v[3] as u32 }).is_err() {
@@ -4296,17 +4423,28 @@ fn main() {
     // devdraw is wsys' own (drawcore; -k: the kernel's), on a screen as big as the
     // kernel's; what it draws the GPU composes, or wsys copies it into the kernel's
     // screen (kd). Where it cannot start, the kernel's (-d asked for it: an error)
+    // in a window (rio's, drawterm's through rcpu) the window may change its size:
+    // devdraw's screen as big as MAXSCREEN from the start (its pages made where it
+    // is drawn), wsys' screen the part the window shows (resized: Ev::Resized)
+    let inwin = !std::fs::read_to_string("/dev/winname").unwrap_or_default().starts_with("noborder.screen.");
     let (d, core, kd) = if coredraw != Some(false) {
+        let cr = if inwin {
+            Rect::new(d.r.x0, d.r.y0, d.r.x0 + d.r.dx().max(MAXSCREEN.0), d.r.y0 + d.r.dy().max(MAXSCREEN.1))
+        } else {
+            d.r
+        };
         let started = if d.chan != XRGB32 {
             Err(std::io::Error::other(format!("the screen is {}, not x8r8g8b8", draw::chanstr(d.chan))))
         } else {
-            drawcore::Core::start(d.r, "x8r8g8b8").and_then(|c| Ok((Display::open_core()?, c)))
+            drawcore::Core::start(cr, "x8r8g8b8").and_then(|c| Ok((Display::open_core()?, c)))
         };
         match started {
-            Ok((cd, c)) => {
+            Ok((mut cd, c)) => {
                 if c.r.x0 == 0 && c.r.y0 == 0 && c.stride == c.r.dx() as usize * 4 {
                     comp::corescreen(&c.name);
                 }
+                // wsys' screen: what the window shows of it
+                cd.r = Rect::new(c.r.x0, c.r.y0, c.r.x0 + d.r.dx(), c.r.y0 + d.r.dy());
                 (cd, Some(c), Some(d))
             }
             Err(e) if coredraw == Some(true) => {
@@ -4390,6 +4528,7 @@ fn main() {
         focus: None,
         nextwin: 0,
         pending: vec![],
+        imgr: core.as_ref().map_or(d.r, |c| c.r),
         core,
         kd,
         drawpend: vec![],
@@ -4555,6 +4694,7 @@ fn main() {
         match ev {
             Ev::Msg(m) => ws.handle(&m),
             Ev::Hangup => break,
+            Ev::Resized => ws.resized(),
             Ev::Mouse { x, y, b, ms } => {
                 // WSYSDEBUG=mouse: each mouse message, and what is under it then
                 if std::env::var("WSYSDEBUG").is_ok_and(|v| v.contains("mouse")) {

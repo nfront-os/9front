@@ -121,7 +121,23 @@ makes that an error): the kernel's devdraw, libmemdraw and libmemlayer in its pr
 .RB ( drawfs (4)'s,
 built for APE), on a screen as big as the kernel's in a segment of
 .IR segment (3)
-.RB ( wsys.screen. pid).
+.RB ( wsys.screen. pid);
+in a window (of
+.IR rio ,
+or
+.IR drawterm 's
+through
+.IR rcpu (1))
+as big as 4096 by 2304, of which its screen is the part the window shows.
+When that window changes (moved or resized: the mouse's
+.BR r ),
+.I wsys
+follows: its screen is the window's size, a bar as wide, a maximized
+window over it again, a window whose corner is off it moved back onto it;
+with
+.BR -k ,
+each window is made again on the window's new image (its program hears
+.BR r ).
 Its tree and every window's directory have a directory
 .B draw
 .RB ( new ,

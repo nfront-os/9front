@@ -1,0 +1,83 @@
+#!/bin/rc
+# run by wsys -x -i in a rio window (wsysrio.rc): the window wsys is in made
+# anew by rio (its /dev/wctl is rio's here: wsys' -i command runs in no window
+# of wsys), and wsys follows: smaller (its screen as big as the window, a bar
+# as wide, a window near the right edge moved back onto it), bigger again,
+# moved (the same picture at the new place on the real screen: uipeek).
+# Prints ok/FAIL lines and "resize: all passed".
+nfail=0
+fn ok { echo ok $* }
+fn fail { echo FAIL $*; nfail=`{echo $nfail+1 | hoc} }
+fn wait1 { # cmd...: until it succeeds, 10 s at most
+	n=0
+	while(! $* >[2]/dev/null && test $n -lt 100){ sleep 0.1; n=`{echo $n+1 | hoc} }
+	$* >[2]/dev/null
+}
+# wsys' screen: its rectangle, from its image(6) header
+fn screen {
+	h=`{dd -if /mnt/wsys/screen -bs 60 -count 1 >[2]/dev/null}
+	echo $h(2-5)
+}
+fn frame { # window $1, as stack says
+	s=`{grep '^'$1' ' /mnt/wsys/stack}
+	echo $s(2-5)
+}
+fn colour { /tests/uipeek $1 | awk '{print $2}' }
+fn rio { echo $* >/dev/wctl }
+
+# wsys' background other than rio's (both grey in the classic theme)
+echo 'back #ff00ff' >/mnt/wsys/theme || fail the theme
+s=`{screen}
+echo screen $s
+ok wsys in a rio window: $s
+w0=`{echo $s(3)-$s(1) | hoc}
+h0=`{echo $s(4)-$s(2) | hoc}
+
+# a bar along the top, a window near the right edge
+window -r $s(1) $s(2) $s(3) `{echo $s(2)+20 | hoc}
+wait1 test -d /mnt/wsys/1
+# (as wbar: bar, then as wide as the screen)
+echo bar >/mnt/wsys/1/wctl
+echo resize -r $s(1) $s(2) $s(3) `{echo $s(2)+16 | hoc} >/mnt/wsys/1/wctl
+window -r `{echo $s(3)-250 | hoc} 300 `{echo $s(3)-20 | hoc} 500
+wait1 test -d /mnt/wsys/2
+sleep 1
+b=`{frame 1}
+~ $b(3) $s(3) || fail the bar: $"b, screen $"s
+
+# smaller: 600 by 450 (rio's frame; inside its border 592 by 442)
+rio resize -r 10 10 610 460
+fn small { t=`{screen}; ~ `{echo $t(3)-$t(1) | hoc} 592 }
+wait1 small || fail smaller: the screen `{screen}
+t=`{screen}
+ok smaller: the screen $t
+b=`{frame 1}
+~ $b(1) $t(1) && ~ $b(3) $t(3) || fail smaller: the bar $b, screen $t
+f=`{frame 2}
+if(test $f(1) -lt `{echo $t(3)-31 | hoc} && test $f(1) -ge $t(1)) ok smaller: the window at the edge moved back: $f
+if not fail smaller: window 2 at $f, screen $t
+echo current >/mnt/wsys/2/wctl || fail wsys answers no more
+
+# bigger again: the old size
+rio resize -r 10 10 1010 760
+fn big { t=`{screen}; ~ `{echo $t(3)-$t(1) | hoc} $w0 }
+wait1 big || fail bigger: the screen `{screen}
+t=`{screen}
+b=`{frame 1}
+~ $b(3) $t(3) || fail bigger: the bar $b, screen $t
+~ `{echo $t(4)-$t(2) | hoc} $h0 && ok bigger: the screen $t, the bar $b || fail bigger: $t, want $w0 by $h0
+
+# moved: the same size, the window at another place on the screen; what wsys
+# shows there (its background) at the new place, rio's where it was
+# (rio's window from 10,10 to 20,15: its inside 14..1006 then 24..1016)
+p0=`{colour 500,700}
+rio move -minx 20 -miny 15
+sleep 2
+t=`{screen}
+~ `{echo $t(3)-$t(1) | hoc} $w0 || fail moved: the screen $t
+p1=`{colour 1012,700}
+p2=`{colour 17,700}
+if(~ $p1 $p0 && ! ~ $p2 $p0) ok moved: wsys drawn at the new place $p1, rio there now $p2
+if not fail moved: at 1012,700 $p1 at 17,700 $p2, wsys $p0
+
+if(~ $nfail 0) echo resize: all passed
