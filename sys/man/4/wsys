@@ -4,7 +4,7 @@ wsys \- window system, prototype (processor backend), rio(4)'s files
 .SH SYNOPSIS
 .B wsys
 [
-.B -dgkpOx
+.B -dgkpOxz
 ] [
 .B -f
 .I font
@@ -70,6 +70,20 @@ does;
 uses no overlay plane (see
 .B gpubuffer
 below).
+.B -z
+sends what its own devdraw drew to the screen compressed
+(draw(3)'s
+.BR Y ,
+.IR image (6)'s
+compression); it does so anyway where
+.B /dev/draw
+is a file server's
+.RI ( drawterm 's
+through
+.IR rcpu (1)):
+a window's flat colours and repeated rows come to some sixteenth.
+.B WSYSDEBUG=compress
+says at the end how many bytes of pixels went in how many of messages.
 .PP
 Where it can,
 .I wsys

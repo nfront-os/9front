@@ -39,6 +39,17 @@ unsafe extern "C" {
     fn p9rfork(flags: c_int) -> c_int;
     #[link_name = "__p9_rerrstr"]
     fn p9rerrstr(buf: *mut c_char, n: c_uint);
+    #[link_name = "__p9_stat"]
+    fn p9stat(file: *const c_char, edir: *mut u8, nedir: c_int) -> c_int;
+}
+
+/// the device a file is of (stat(5)'s type: 'i' the kernel's draw, 'M' a
+/// mounted file server, drawterm's through rcpu among them)
+pub fn devtype(file: &str) -> Option<char> {
+    let name = std::ffi::CString::new(file).ok()?;
+    let mut b = [0u8; 512];
+    let n = unsafe { p9stat(name.as_ptr(), b.as_mut_ptr(), b.len() as c_int) };
+    (n >= 4).then(|| char::from_u32(u16::from_le_bytes([b[2], b[3]]) as u32)).flatten()
 }
 
 /// the process's error string as an io::Error

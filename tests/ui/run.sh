@@ -138,14 +138,15 @@ chmod +x "$HERE/root/tests/rioinit" "$HERE/root/tests/wsysrio" "$HERE/root/tests
 out=$CLI_DIR/ufsroot/usr/glenda/wsysrio.out
 log=$CLI_DIR/ufsroot/usr/glenda/wsysrio.log
 rlog=$CLI_DIR/ufsroot/usr/glenda/wsysresize.log
-rm -f "$out" "$log" "$rlog"
+H=$CLI_DIR/ufsroot/usr/glenda
+rm -f "$out" "$log" "$rlog" "$H/wsysrioz.log" "$H/wsysresizez.log" "$H/wsysresizek.log"
 UFS_EXTRA="$HERE/root" MEM=1024 KARGS="vgasize=1024x768x32 monitor=vesa mouseport=ps2" \
-CMDWAIT=5 WAITFOR='never shown' WAITMAX=300 \
+CMDWAIT=5 WAITFOR='never shown' WAITMAX=600 \
 	"$ROOT/scripts/guest/boot-cli.sh" \
 	'aux/realemu' 'aux/vga -m vesa -l 1024x768x32' "bind -a '#i' /dev" "bind -a '#m' /dev" \
 	'rio -i /tests/rioinit' > "$TMPD/consolerio" 2>&1 &
 riopid=$!
-for _ in $(seq 150); do
+for _ in $(seq 300); do
 	grep -q '^done' "$out" 2>/dev/null && break
 	kill -0 $riopid 2>/dev/null || break
 	sleep 2
@@ -159,4 +160,15 @@ grep '^FAIL' "$log" 2>/dev/null | sed 's/^/       /'
 cp "$rlog" "$HERE/resize.log" 2>/dev/null
 check "rio: wsys follows its window (smaller: the bar, a window back on it; bigger; moved): all passed" grep -q '^resize: all passed' "$rlog"
 grep '^FAIL' "$rlog" 2>/dev/null | sed 's/^/       /'
+check "rio, -z (the screen copied compressed, as to drawterm): wsystest: all passed" grep -q '^wsystest: all passed' "$H/wsysrioz.log"
+check "rio, -z: wsys follows its window: all passed" grep -q '^resize: all passed' "$H/wsysresizez.log"
+grep -h '^FAIL' "$H/wsysrioz.log" "$H/wsysresizez.log" 2>/dev/null | sed 's/^/       /'
+# what -z saved: the pixels' bytes and the messages' (WSYSDEBUG=compress), each run
+ratio(){
+	grep '^wsys: compressed' "$out" | awk '{ if ($8 == 0) exit 1; r = $3 / $8; printf "%d into %d: %.1f to 1\n", $3, $8, r; if (r < 4) bad = 1 } END { exit bad }'
+}
+check "rio, -z: compressed 4 to 1 at least" ratio
+ratio | sed 's/^/       /'
+check "rio, -k (the kernel's devdraw): wsys follows its window: all passed" grep -q '^resize: all passed' "$H/wsysresizek.log"
+grep '^FAIL' "$H/wsysresizek.log" 2>/dev/null | sed 's/^/       /'
 done_tests

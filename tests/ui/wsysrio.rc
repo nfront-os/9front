@@ -1,6 +1,11 @@
 #!/bin/rc
 # wsys with wsystest, in a rio window; then a wsys again that follows the
-# window's changes (wsysresize.rc: rio resizes and moves it)
+# window's changes (wsysresize.rc: rio resizes and moves it); the same with
+# its screen copied compressed (-z: as to drawterm), and with the kernel's
+# devdraw (-k: its windows made again on the window's new image)
 /tests/wsys -x -i '/tests/wsystest >$home/wsysrio.log >[2=1]' >$home/wsysrio.out >[2=1]
 /tests/wsys -x -i '/tests/wsysresize >$home/wsysresize.log >[2=1]' >>$home/wsysrio.out >[2=1]
+WSYSDEBUG=compress /tests/wsys -z -x -i '/tests/wsystest >$home/wsysrioz.log >[2=1]' >>$home/wsysrio.out >[2=1]
+WSYSDEBUG=compress /tests/wsys -z -x -i '/tests/wsysresize >$home/wsysresizez.log >[2=1]' >>$home/wsysrio.out >[2=1]
+/tests/wsys -k -x -i '/tests/wsysresize >$home/wsysresizek.log >[2=1]' >>$home/wsysrio.out >[2=1]
 echo done >>$home/wsysrio.out

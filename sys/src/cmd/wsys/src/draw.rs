@@ -139,6 +139,98 @@ pub struct Display {
     pub r: Rect,      // its rectangle, inside rio's border
     next: u32,
     pub opaque: u32,
+    pub raw: u64,  // bytes of pixels cload_at was given
+    pub sent: u64, // and the bytes of its messages
+}
+
+/// image(6)'s compression of one message's rows (cload_at)
+struct Lz {
+    data: Vec<u8>, // the rows so far: copies come from up to NMEM back in it
+    out: Vec<u8>,
+    last: Vec<u32>, // a hash of 3 bytes: where they were last (+1; 0: nowhere)
+}
+
+const NMATCH: usize = 3;
+const NRUN: usize = NMATCH + 31;
+const NMEM: usize = 1024;
+const NDUMP: usize = 128;
+const LZHASH: usize = 1 << 12;
+
+impl Lz {
+    fn new() -> Lz {
+        Lz { data: Vec::new(), out: Vec::new(), last: vec![0; LZHASH] }
+    }
+
+    fn hash(b: &[u8]) -> usize {
+        ((b[0] as usize) << 8 ^ (b[1] as usize) << 4 ^ b[2] as usize) & (LZHASH - 1)
+    }
+
+    /// how many bytes at a and at i are the same, at most max (a < i: the
+    /// copy may overlap where it is going, as the decoder copies byte by byte)
+    fn same(&self, a: usize, i: usize, max: usize) -> usize {
+        let d = &self.data;
+        let mut n = 0;
+        while n < max && d[a + n] == d[i + n] {
+            n += 1;
+        }
+        n
+    }
+
+    fn dump(&mut self, from: usize, to: usize) {
+        let mut p = from;
+        while p < to {
+            let n = (to - p).min(NDUMP);
+            self.out.push(0x80 | (n - 1) as u8);
+            self.out.extend_from_slice(&self.data[p..p + n]);
+            p += n;
+        }
+    }
+
+    fn note(&mut self, i: usize, end: usize) {
+        if i + NMATCH <= end {
+            let h = Self::hash(&self.data[i..]);
+            self.last[h] = i as u32 + 1;
+        }
+    }
+
+    /// a row: no literal or copy goes past its end
+    fn row(&mut self, row: &[u8]) {
+        let start = self.data.len();
+        self.data.extend_from_slice(row);
+        let end = self.data.len();
+        let (mut i, mut lit) = (start, start);
+        while i < end {
+            let max = (end - i).min(NRUN);
+            let mut best = (0, 0); // length, offset
+            if max >= NMATCH {
+                // the pixel before, the row above, what the hash saw last
+                let h = self.last[Self::hash(&self.data[i..])] as usize;
+                for a in [i.checked_sub(4), i.checked_sub(row.len()), h.checked_sub(1)].into_iter().flatten() {
+                    if a < i && i - a <= NMEM {
+                        let n = self.same(a, i, max);
+                        if n > best.0 {
+                            best = (n, i - a);
+                        }
+                    }
+                }
+            }
+            if best.0 >= NMATCH {
+                self.dump(lit, i);
+                let (n, off) = best;
+                self.out.push((((n - NMATCH) << 2) | ((off - 1) >> 8)) as u8);
+                self.out.push(((off - 1) & 0xFF) as u8);
+                for k in i..i + n {
+                    self.note(k, end);
+                }
+                i += n;
+                lit = i;
+            } else {
+                self.note(i, end);
+                i += 1;
+            }
+        }
+        self.dump(lit, end);
+    }
 }
 
 fn info(b: &[u8]) -> io::Result<Vec<String>> {
@@ -184,6 +276,8 @@ impl Display {
             r: Rect::new(int(&f[4]), int(&f[5]), int(&f[6]), int(&f[7])),
             next: 16,
             opaque: 0,
+            raw: 0,
+            sent: 0,
         };
         let w = if winname { std::fs::read_to_string("/dev/winname").ok() } else { None };
         if let Some(w) = w {
@@ -479,6 +573,58 @@ impl Display {
     }
 
     /// 'y': rectangle r of image id from pixels laid out with stride (XRGB32), in
+    /// as load_at, compressed ('Y', image(6)'s compression: what memdraw's
+    /// cloadmemimage reads): literals of up to 128 bytes, copies of 3 to 34
+    /// bytes from up to 1024 back in what the message gave so far, neither
+    /// across a row's end. A message a band of rows (the rows of r's columns,
+    /// at most 1900 pixels wide: a row's worst fits). For a screen far away
+    /// (drawterm): flat colours and repeated rows shrink much
+    pub fn cload_at(&mut self, id: u32, r: &Rect, px: &[u8], stride: usize, sx: i32, sy: i32) -> io::Result<()> {
+        const HEAD: usize = 1 + 4 + 16;
+        const COLS: i32 = 1900;
+        let (dx, dy) = (sx - r.x0, sy - r.y0);
+        let mut x0 = r.x0;
+        while x0 < r.x1 {
+            let x1 = (x0 + COLS).min(r.x1);
+            let bpl = (x1 - x0) as usize * 4;
+            let worst = bpl + bpl.div_ceil(128);
+            let room = MAXMSG - HEAD;
+            let mut y = r.y0;
+            let mut enc = Lz::new();
+            let mut band = y;
+            while y < r.y1 {
+                let o = (y + dy) as usize * stride + (x0 + dx) as usize * 4;
+                // a row more would not fit: the band so far is a message
+                if enc.out.len() + worst > room && y > band {
+                    self.cmsg(id, &Rect::new(x0, band, x1, y), &enc.out)?;
+                    enc = Lz::new();
+                    band = y;
+                }
+                enc.row(&px[o..o + bpl]);
+                y += 1;
+            }
+            if y > band {
+                self.cmsg(id, &Rect::new(x0, band, x1, y), &enc.out)?;
+            }
+            self.raw += (r.y1 - r.y0) as u64 * bpl as u64;
+            x0 = x1;
+        }
+        Ok(())
+    }
+
+    fn cmsg(&mut self, id: u32, r: &Rect, data: &[u8]) -> io::Result<()> {
+        let n = 1 + 4 + 16 + data.len();
+        if self.buf.len() + n > MAXMSG {
+            self.flushbuf()?;
+        }
+        self.buf.push(b'Y');
+        self.buf.extend_from_slice(&id.to_le_bytes());
+        Self::rect(&mut self.buf, r);
+        self.buf.extend_from_slice(data);
+        self.sent += n as u64;
+        Ok(())
+    }
+
     /// messages of at most MAXMSG bytes: bands of rows, or pieces of a row
     /// the pixels for r's top left corner are at (sx, sy) of px. Each message
     /// is made in the buffer of messages itself (no copy of its own: a frame is

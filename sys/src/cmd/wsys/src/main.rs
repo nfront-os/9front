@@ -57,7 +57,7 @@
 // A window lives while its files are open (or the clone fid that made it).
 // Processes wsys starts (-i, wctl's new) get note groups of their own.
 //
-// usage: wsys [-dgkpOx] [-f font] [-t theme] [-s srvname] [-i cmd]
+// usage: wsys [-dgkpOxz] [-f font] [-t theme] [-s srvname] [-i cmd]
 //	-g	the GPU composes the screen (the default, where it can): why not if it cannot,
 //		and what it does
 //	-p	the processor composes the screen
@@ -73,6 +73,9 @@
 //	-i	run cmd (rc) in a name space with /mnt/wsys mounted, $wsys set
 //	-x	exit when cmd exits
 //	-O	no overlay plane: every window's pixels in wsys' screen (tests read them back)
+//	-z	what devdraw (its own) drew goes to the screen compressed ('Y', image(6)'s
+//		compression; the default where /dev/draw is a file server's: drawterm's)
+// WSYSDEBUG=compress: at the end, the bytes of pixels copied and of the messages
 
 #[cfg(feature = "gpu")]
 mod comp;
@@ -650,6 +653,7 @@ struct Wsys {
     pending: Vec<Pending>,
     d: Display,
     core: Option<drawcore::Core>, // -d: devdraw is wsys' own; its screen
+    compress: bool, // -z: devdraw's screen to the kernel's (kd) compressed
     imgr: Rect, // the image wsys' screen is on, all of it (devdraw's in a window: more than d.r shows); hidden windows go past its corner
     kd: Option<Display>,          // -d without the GPU: the kernel's devdraw, where the screen is copied
     drawpend: Vec<(u16, u32, u32)>, // refresh reads of wsys' devdraw waiting: tag, fid, count
@@ -1287,7 +1291,14 @@ impl Wsys {
             if r.empty() {
                 continue;
             }
-            res = res.and_then(|_| kd.load_at(kd.screen, &r.add(dx, dy), px, core.stride, r.x0 - core.r.x0, r.y0 - core.r.y0));
+            let (sx, sy) = (r.x0 - core.r.x0, r.y0 - core.r.y0);
+            res = res.and_then(|_| {
+                if self.compress {
+                    kd.cload_at(kd.screen, &r.add(dx, dy), px, core.stride, sx, sy)
+                } else {
+                    kd.load_at(kd.screen, &r.add(dx, dy), px, core.stride, sx, sy)
+                }
+            });
         }
         if let Err(e) = res.and_then(|_| kd.flush()) {
             eprintln!("wsys: the screen: {e}");
@@ -4361,7 +4372,7 @@ fn kbdreader(tx: mpsc::Sender<Ev>) {
 }
 
 fn usage() -> ! {
-    eprintln!("usage: wsys [-dgkpOx] [-f font] [-t theme] [-s srvname] [-i cmd]");
+    eprintln!("usage: wsys [-dgkpOxz] [-f font] [-t theme] [-s srvname] [-i cmd]");
     std::process::exit(1);
 }
 
@@ -4375,6 +4386,8 @@ fn main() {
     let (mut init, mut exitwith, mut nooverlay, mut gpucomp, mut coredraw) = (None, false, false, None, None);
     let mut fontflag: Option<String> = None;
     let mut themefile: Option<String> = None;
+    // a screen far away (/dev/draw a file server's: drawterm's through rcpu)
+    let mut compress = p9::devtype("/dev/draw/new") == Some('M');
     while let Some(a) = args.next() {
         match a.as_str() {
             "-s" => {
@@ -4388,6 +4401,7 @@ fn main() {
             "-p" => gpucomp = Some(false),
             "-d" => coredraw = Some(true),
             "-k" => coredraw = Some(false),
+            "-z" => compress = true,
             "-f" => fontflag = Some(args.next().unwrap_or_else(|| usage())),
             "-t" => themefile = Some(args.next().unwrap_or_else(|| usage())),
             _ => usage(),
@@ -4529,6 +4543,7 @@ fn main() {
         nextwin: 0,
         pending: vec![],
         imgr: core.as_ref().map_or(d.r, |c| c.r),
+        compress,
         core,
         kd,
         drawpend: vec![],
@@ -4751,6 +4766,9 @@ fn main() {
         ws.compsync();
     }
     let _ = p9::remove(&srvpath);
+    if let Some(kd) = ws.kd.as_ref().filter(|_| std::env::var("WSYSDEBUG").is_ok_and(|v| v.contains("compress"))) {
+        eprintln!("wsys: compressed {} bytes of pixels into {} of messages", kd.raw, kd.sent);
+    }
     if ws.core.is_some() && std::env::var("WSYSDEBUG").is_ok_and(|v| v.contains("draw")) {
         eprint!("{}", drawcore::stats().lines().map(|l| format!("wsys: draw: {l}\n")).collect::<String>());
     }
