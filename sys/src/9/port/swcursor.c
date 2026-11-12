@@ -12,6 +12,7 @@
 #include	"screen.h"
 
 extern Memimage* gscreen;
+extern Cursor cursor;	/* devmouse.c's: the cursor now */
 
 /*
  * Software cursor. 
@@ -21,6 +22,9 @@ static Memimage*	swimg;		/* cursor image */
 static Memimage*	swmask;		/* cursor mask */
 static Memimage*	swimg1;
 static Memimage*	swmask1;
+static Memimage*	swimgn;		/* the cursor image and mask at swsize */
+static Memimage*	swmaskn;
+static int		swsize = 16;	/* as big as this on the screen (cursorsize) */
 
 static Point		swoffset;
 static Rectangle	swrect;		/* screen rectangle in swback */
@@ -103,8 +107,43 @@ swcursorload(Cursor *curs)
 		}
 	}
 	swoffset = curs->offset;
+	if(swsize != 16 && swimgn != nil && swmaskn != nil){
+		/*
+		 * as big as swsize, each pixel the nearest of the 16×16
+		 * (a window system drawing at a scale, wsys' HiDPI)
+		 */
+		ip = byteaddr(swimgn, ZP);
+		mp = byteaddr(swmaskn, ZP);
+		for(i=0; i<swsize; i++)
+			for(j=0; j<swsize; j++){
+				*ip++ = byteaddr(swimg, Pt(j*16/swsize, i*16/swsize))[0];
+				*mp++ = byteaddr(swmask, Pt(j*16/swsize, i*16/swsize))[0];
+			}
+		swoffset = Pt(curs->offset.x*swsize/16, curs->offset.y*swsize/16);
+		memimagedraw(swimg1, swimg1->r, swimgn, ZP, memopaque, ZP, S);
+		memimagedraw(swmask1, swmask1->r, swmaskn, ZP, memopaque, ZP, S);
+		return;
+	}
 	memimagedraw(swimg1, swimg1->r, swimg, ZP, memopaque, ZP, S);
 	memimagedraw(swmask1, swmask1->r, swmask, ZP, memopaque, ZP, S);
+}
+
+/*
+ * the cursor n pixels big (16 to 64; vgactl's cursorsize): its 16×16
+ * scaled, for a window system that draws at a scale; called with
+ * drawlock held and the cursor off.  0: only the size now
+ */
+int
+swcursorsize(int n)
+{
+	if(n == 0)
+		return swsize;
+	if(n < 16 || n > 64)
+		error(Ebadarg);
+	swsize = n;
+	swcursorinit();
+	swcursorload(&cursor);
+	return swsize;
 }
 
 void
@@ -120,13 +159,17 @@ swcursorinit(void)
 		freememimage(swmask1);
 		freememimage(swimg);
 		freememimage(swimg1); 
+		freememimage(swimgn);
+		freememimage(swmaskn);
 	}
-	swback = allocmemimage(Rect(0,0,16,16), gscreen->chan);
+	swback = allocmemimage(Rect(0,0,swsize,swsize), gscreen->chan);
 	swmask = allocmemimage(Rect(0,0,16,16), GREY8);
-	swmask1 = allocmemimage(Rect(0,0,16,16), GREY1);
+	swmask1 = allocmemimage(Rect(0,0,swsize,swsize), GREY1);
 	swimg = allocmemimage(Rect(0,0,16,16), GREY8);
-	swimg1 = allocmemimage(Rect(0,0,16,16), GREY1);
-	if(swback == nil || swmask == nil || swmask1 == nil || swimg == nil || swimg1 == nil){
+	swimg1 = allocmemimage(Rect(0,0,swsize,swsize), GREY1);
+	swimgn = allocmemimage(Rect(0,0,swsize,swsize), GREY8);
+	swmaskn = allocmemimage(Rect(0,0,swsize,swsize), GREY8);
+	if(swback == nil || swmask == nil || swmask1 == nil || swimg == nil || swimg1 == nil || swimgn == nil || swmaskn == nil){
 		print("software cursor: allocmemimage fails\n");
 		return;
 	}

@@ -156,6 +156,17 @@ used by the graphics engine.
 The default setting is
 .BR on .
 .TP
+.BI cursorsize " n"
+draws the software cursor
+.I n
+pixels big (16 to 64; 16 at first): its 16×16 picture scaled, each pixel
+the nearest, and its offset with it, for a monitor with many pixels to
+the inch.
+Hardware cursors stay 16×16.
+Reading
+.B vgactl
+gives the size.
+.TP
 .BI softscreen " mode"
 Depending on whether
 .I mode

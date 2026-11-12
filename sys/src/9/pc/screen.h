@@ -172,3 +172,4 @@ void		swcursoravoid(Rectangle);
 void		swcursordraw(Point);
 void		swcursorload(Cursor *);
 void		swcursorinit(void);
+int		swcursorsize(int);
