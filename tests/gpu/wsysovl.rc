@@ -50,3 +50,30 @@ window -r 100 100 740 580 /tests/wsysvktri /tmp/wvo.log screen
 n=0
 while(! grep -s '^wsysvk: exit' /tmp/wvo.log && test $n -lt 600){ sleep 0.1; n=`{echo $n+1 | hoc} }
 grep 'wsys says|frames|screen at|passed|FAIL|exit' /tmp/wvo.log | sed 's/^/screen: /'
+
+# fullscreen (wctl fullscreen: no border, all of the screen, above the bars):
+# vkcube (it makes its swapchain anew at the new size; vktri's pipeline keeps
+# its first size, it ends on out of date) on the overlay plane as the whole
+# screen, the client's object; unfullscreen: its window's size again
+rm -f /tmp/cube.log
+echo '#!/bin/rc
+WSI_PLAN9_STATS=1 /tests/vkcube --c 400 >/tmp/cube.log >[2=1]
+echo cube: exit $status >>/tmp/cube.log' >/tmp/cube.rc
+chmod +x /tmp/cube.rc
+window -r 100 100 740 580 /tmp/cube.rc
+sleep 2
+w=`{ls -p /mnt/wsys | grep '^[0-9]+$' | sort -n | tail -1}
+grep '^overlay' /dev/gpu/0/status | sed 's/^/full before: /'
+echo fullscreen >/mnt/wsys/$w/wctl
+sleep 2
+c=`{cat /mnt/wsys/$w/ctl}
+echo full: content $c(2-5)
+grep '^overlay' /dev/gpu/0/status | sed 's/^/full: /'
+echo unfullscreen >/mnt/wsys/$w/wctl
+sleep 2
+c=`{cat /mnt/wsys/$w/ctl}
+echo full after: content $c(2-5)
+grep '^overlay' /dev/gpu/0/status | sed 's/^/full after: /'
+n=0
+while(! grep -s '^cube: exit' /tmp/cube.log && test $n -lt 600){ sleep 0.1; n=`{echo $n+1 | hoc} }
+grep 'wsys says|per frame|exit' /tmp/cube.log | sed 's/^/full: /'
