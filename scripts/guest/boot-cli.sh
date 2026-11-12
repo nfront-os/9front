@@ -238,7 +238,13 @@ for _ in $(seq 300); do
 	running || break
 	sleep 0.1
 done
-[ -n "$pts" ] || die "no QEMU serial pty (log: $CLI_DIR/qemu.log)"
+if [ -z "$pts" ]; then
+	# keep what QEMU said (the next boot overwrites qemu.log) and why it stopped
+	cp "$CLI_DIR/qemu.log" "$CLI_DIR/qemu-nopty.log"
+	if running; then why="still running after 30 s"; else wait $qemupid; why="exited with status $?"; fi
+	tail -5 "$CLI_DIR/qemu-nopty.log" | sed 's/^/boot-cli: qemu: /' >&2
+	die "no QEMU serial pty: QEMU $why (log: $CLI_DIR/qemu-nopty.log)"
+fi
 # QEMU gone at once (seen now and then right after another guest): how
 sleep 0.2
 # the pty right after QEMU named it: stty failed now and then (it worked a
