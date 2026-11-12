@@ -2689,7 +2689,9 @@ impl Wsys {
         let mut x = bar.x1;
         let mut v = vec![];
         for (s, op) in TITLEOPS {
-            let wd: i32 = s.chars().map(|c| font.width(&mut self.d, c)).sum::<i32>() + 2 * TITLEPAD;
+            // at least as wide as the bar is high (a square: something to hit, as
+            // the HIG want; x of a proportional font is narrow)
+            let wd: i32 = (s.chars().map(|c| font.width(&mut self.d, c)).sum::<i32>() + 2 * TITLEPAD).max(bar.dy());
             if x - wd < bar.x0 {
                 break;
             }

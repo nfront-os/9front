@@ -61,6 +61,15 @@ cut to fit: the current one on the theme's selection colour, a hidden one paler.
 Button 1 on one makes it current; on the current one, it hides it; on a hidden
 one, it brings it back.
 .TP
+the state of the machine
+before the clock, as
+.IR stats (8)
+reads it: the processors' load
+.RB ( /dev/sysstat :
+what is not idle), the memory in use
+.RB ( /dev/swap ),
+the battery's charge where there is one.
+.TP
 a clock
 at the end: the local time from
 .IR date (1),

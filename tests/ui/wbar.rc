@@ -60,6 +60,10 @@ b=`{grep '^1 ' /mnt/wsys/stack}
 h=$b(5)
 test $h -gt 10 && test $h -lt 60 || fail the bar $h high
 echo ok wbar a bar: 0 0 1024 $h, no border
+# before the clock the state of the machine (/dev/sysstat, /dev/swap)
+fn havesys { items | grep -s '^sys [0-9]+ [0-9]+ cpu [0-9]+%  mem [0-9.]+/[0-9.]+G' }
+wait1 havesys || fail no state of the machine on the bar: `{items}
+echo ok the state of the machine: `{items | grep '^sys' | sed 's/^sys [0-9]+ [0-9]+ //'}
 
 window -r 100 100 400 300
 window -r 500 100 900 400

@@ -14,7 +14,10 @@
 //	-s	its size in pixels (15)
 // WBARDEBUG=items: where things are on the bar, after each picture, in
 // /tmp/wbar.<pid>.items (tests): "menu x0 x1 open|shut", "win n x0 x1 state
-// label", "clock x0 x1 text".
+// label", "clock x0 x1 text", "sys x0 x1 text".
+// Before the clock the state of the machine, as stats(8) reads it: the load of
+// the processors (/dev/sysstat: what is not idle), memory in use (/dev/swap),
+// the battery where there is one (stats' files).
 // The menu is wsys': its window's menu file (wsys(4)) shows it below the bar
 // and says which item was chosen.
 
@@ -55,6 +58,8 @@ struct Bar {
     menux: (i32, i32),
     clock: String,
     minute: u64,
+    sys: String,                       // the state of the machine (sysstate), before the clock
+    sysat: Option<std::time::Instant>, // when it was read
     menu: Vec<(String, String)>,
     open: bool,         // wsys shows the menu
     press: Option<u32>, // button 1 went down on this window's place
@@ -101,6 +106,39 @@ fn clock() -> String {
         .output()
         .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
         .unwrap_or_default()
+}
+
+/// the state of the machine: the load of the processors (what /dev/sysstat
+/// says is not idle, their mean), the memory in use (/dev/swap: the user
+/// pages, in pages of its pagesize), the battery's charge where there is one
+fn sysstate() -> String {
+    let mut out = vec![];
+    if let Ok(s) = std::fs::read_to_string("/dev/sysstat") {
+        let idle: Vec<u64> = s.lines().filter_map(|l| l.split_whitespace().nth(8)?.parse().ok()).collect();
+        if !idle.is_empty() {
+            let busy = 100u64.saturating_sub(idle.iter().sum::<u64>() / idle.len() as u64);
+            out.push(format!("cpu {busy}%"));
+        }
+    }
+    if let Ok(s) = std::fs::read_to_string("/dev/swap") {
+        let field = |name: &str| s.lines().find(|l| l.split_whitespace().nth(1) == Some(name)).and_then(|l| l.split_whitespace().next().map(|v| v.to_string()));
+        let pagesize: u64 = field("pagesize").and_then(|v| v.parse().ok()).unwrap_or(4096);
+        if let Some((used, max)) = field("user").as_deref().and_then(|u| u.split_once('/')) {
+            let (used, max): (u64, u64) = (used.parse().unwrap_or(0), max.parse().unwrap_or(0));
+            let g = |p: u64| p as f64 * pagesize as f64 / (1u64 << 30) as f64;
+            out.push(format!("mem {:.1}/{:.1}G", g(used), g(max)));
+        }
+    }
+    for f in ["/dev/battery", "/mnt/pm/battery", "/mnt/apm/battery", "/shr/usb/battery"] {
+        if let Ok(s) = std::fs::read_to_string(f) {
+            let v: Vec<u64> = s.split_whitespace().filter_map(|x| x.parse().ok()).collect();
+            if v.len() >= 3 && v[2] > 0 {
+                out.push(format!("bat {}%", 100 * v[1] / v[2]));
+                break;
+            }
+        }
+    }
+    out.join("  ")
 }
 
 /// the menu's file: lines "label<tab>command", # a comment
@@ -163,6 +201,17 @@ impl Bar {
         let clock = self.clock.clone();
         self.text.draw(&mut self.px, w, h, cx, ty, &clock, ink, bw);
         dbg += &format!("clock {cx} {bw} {clock}\n");
+        // the state of the machine, before the clock
+        let sw = self.text.width(&self.sys);
+        let sx = cx - 2 * PAD - sw;
+        let sys = self.sys.clone();
+        let cx = if sw > 0 && sx > mw + 4 * PAD {
+            self.text.draw(&mut self.px, w, h, sx, ty, &sys, pale, cx);
+            dbg += &format!("sys {sx} {} {sys}\n", sx + sw);
+            sx
+        } else {
+            cx
+        };
         // the windows, between
         let mut x = mw + PAD;
         self.spots.clear();
@@ -200,6 +249,12 @@ impl Bar {
             let c = clock();
             changed |= c != self.clock;
             self.clock = c;
+        }
+        if self.sysat.is_none_or(|t| t.elapsed() >= Duration::from_secs(2)) {
+            self.sysat = Some(std::time::Instant::now());
+            let st = sysstate();
+            changed |= st != self.sys;
+            self.sys = st;
         }
         changed
     }
@@ -325,7 +380,7 @@ fn main() {
     let h = text.height + 8;
     let debug = std::env::var("WBARDEBUG").is_ok_and(|v| v.contains("items")).then(|| format!("/tmp/wbar.{}.items", std::process::id()));
     let mut bar = Bar {
-        draw, text, theme, own, h, wins: vec![], spots: vec![], menux: (0, 0), clock: String::new(), minute: 0,
+        draw, text, theme, own, h, wins: vec![], spots: vec![], menux: (0, 0), clock: String::new(), minute: 0, sys: String::new(), sysat: None,
         menu: readmenu(&menupath), open: false, press: None, buttons: 0, px: vec![], pw: 0, ph: 0, debug, tx: tx.clone(),
     };
     let _ = p9win::set_label("wbar");
