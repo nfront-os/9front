@@ -1035,9 +1035,10 @@ other sizes are refused (the client copies).
 leaves draw(3)'s screen where it was; then there is no layout and no
 scanout.
 At boot
-.B monitor=i915
-or
+.BR monitor=i915 ,
 .B monitor=amdgpu
+or
+.B monitor=virtiogpu
 in
 .IR plan9.ini (8)
 (or the answer to its question) starts the driver as the screen

@@ -1,6 +1,6 @@
 #!/bin/rc
-# gpustart driver: aux/$driver (i915, amdgpu: gpu(4)) as the screen at
-# boot (screenrc, monitor=i915 or monitor=amdgpu): it makes draw(3)'s
+# gpustart driver: aux/$driver (i915, amdgpu, virtiogpu: gpu(4)) as the screen at
+# boot (screenrc, monitor=i915, amdgpu or virtiogpu): it makes draw(3)'s
 # screen itself (vga type gpu, the outputs' preferred modes; vgasize does
 # not matter).  Its log goes to the boot stick's ESP ($driver^boot.log,
 # a line at a time through esplog: it survives a hang), else nowhere; the stick's FAT is
@@ -8,10 +8,10 @@
 # servers of one FAT would break it).  If the driver has no screen after
 # 60 s, the screen is VESA's, as with monitor=vesa.  plan9.ini's gpuflags
 # are the driver's flags (gpuflags=-v: more in the log).
-#	gpustart i915|amdgpu [driver flags]
+#	gpustart i915|amdgpu|virtiogpu [driver flags]
 rfork e
 if(~ $#* 0){
-	echo usage: gpustart i915^'|'^amdgpu '[flags]' >[1=2]
+	echo usage: gpustart i915^'|'^amdgpu^'|'^virtiogpu '[flags]' >[1=2]
 	exit usage
 }
 d=$1

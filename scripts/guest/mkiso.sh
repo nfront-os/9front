@@ -47,7 +47,11 @@ if [ -n "$PLAN9INI" ]; then
 	grep -qv '^[A-Za-z0-9_*.]*=' "$TMP/extra/mkiso.ini" && die "PLAN9INI: lines name=value"
 	echo "plan9.ini:"; sed 's/^/	/' "$TMP/extra/mkiso.ini"
 fi
-SRC9=$CLI_DIR/src9 DISK=$DSK UFS_EXTRA=$TMP/extra MEM=${MEM:-2048} \
+# MEM: the guest holds the whole image in its ramfs (mkiso.rc) besides the system: the
+# amd64 CD is past 2 GB since wsys links libvulkan.a (2048 MB: "ramfs: Insufficient
+# physical memory"); the 386 CD is smaller, and 9pc uses at most 4 GB
+[ "$objtype" = 386 ] && mem=3072 || mem=6144
+SRC9=$CLI_DIR/src9 DISK=$DSK UFS_EXTRA=$TMP/extra MEM=${MEM:-$mem} \
 WAITFOR='mkiso: (done|failed)' WAITMAX=${WAITMAX:-7200} CMDWAIT=5 \
 	bash "$ROOT/scripts/guest/boot-cli.sh" "mkiso $objtype" > "$CLI_DIR/mkiso.log" 2>&1 || true
 size=$(tr -d '\r' < "$CLI_DIR/mkiso.log" | sed -n 's/^mkiso: done \([0-9][0-9]*\)$/\1/p')

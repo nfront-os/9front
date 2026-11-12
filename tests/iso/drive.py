@@ -8,6 +8,9 @@
 #
 # usage: drive.py iso cd|disk bios|uefi workdir
 #   exit 0 when the marker arrived; the serial log is workdir/serial.log
+#   env: QEMU_EXTRA  more QEMU options (e.g. "-vga none -device virtio-vga")
+#        SHOW        files whose contents go to the serial line with the
+#                    marker (e.g. /dev/vgactl: whose screen it is)
 import json, os, shutil, socket, subprocess, sys, time
 
 iso, media, fw, work = sys.argv[1:5]
@@ -22,6 +25,7 @@ for f in (sock, serial):
 q = ['qemu-system-x86_64', '-m', '1024', '-display', 'none', '-no-reboot',
 	'-cpu', 'qemu64,+rdrand', '-qmp', 'unix:%s,server,nowait' % sock,
 	'-serial', 'file:' + serial, '-netdev', 'user,id=n0', '-device', 'e1000,netdev=n0']
+q += os.environ.get('QEMU_EXTRA', '').split()
 if os.environ.get('KVM', '1') != '0':	# KVM always (KVM=0: emulation)
 	if not os.access('/dev/kvm', os.W_OK):
 		sys.exit('drive: /dev/kvm not writable (KVM=0 to emulate)')
@@ -113,7 +117,9 @@ while time.time() < end and vm.poll() is None and not inkernel():
 while time.time() < end and vm.poll() is None:
 	if rio_up():
 		time.sleep(3)	# riostart's windows
-		type_("{echo %s; ls -d /dev/sd*/data /dev/sd*/esp} >'#t/eia0'\n" % MARK)
+		show = os.environ.get('SHOW', '')
+		show = '; cat ' + show if show else ''
+		type_("{echo %s; ls -d /dev/sd*/data /dev/sd*/esp%s} >'#t/eia0'\n" % (MARK, show))
 		for _ in range(20):
 			time.sleep(1)
 			if marked():
