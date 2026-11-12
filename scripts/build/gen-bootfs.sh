@@ -10,7 +10,7 @@
 #
 # disk/mkfs and mkpaqfs run on Plan 9 only: scripts/guest/proto.py expands the
 # protos, mkpaqfs is 9front's sys/src/cmd/paqfs/mkpaqfs.c built for the
-# host with plan9port (../plan9port). Our binaries carry DWARF (8l
+# host with plan9port (PLAN9PORT). Our binaries carry DWARF (8l
 # writes none), so the image is stripped -- bootmkfile has the strip
 # commented out.
 #

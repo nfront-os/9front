@@ -7,7 +7,7 @@
 #
 # aux/na (sys/src/cmd/aux/na/na.y) is the script assembler; it runs
 # /bin/cpp -+ -N on its input. Both run on the build host: 9front's na
-# and cpp built with plan9port (../plan9port; cpp needs two shims: glibc
+# and cpp built with plan9port (PLAN9PORT; cpp needs two shims: glibc
 # declares a getopt of its own, include.c assigns nil to a uchar), and
 # na runs in a bwrap namespace where /bin/cpp is 9front's cpp.
 #
