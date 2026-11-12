@@ -1,0 +1,54 @@
+/* Public domain. */
+
+#ifndef _LINUX_SIZES_H
+#define _LINUX_SIZES_H
+
+#define SZ_4	4
+#define SZ_16	16
+#define SZ_64	64
+#define SZ_512	512
+
+#define SZ_1K	(1 << 10)
+#define SZ_2K	(2 << 10)
+#define SZ_4K	(4 << 10)
+#define SZ_8K	(8 << 10)
+#define SZ_16K	(16 << 10)
+#define SZ_32K	(32 << 10)
+#define SZ_64K	(64 << 10)
+#define SZ_128K	(128 << 10)
+#define SZ_256K	(256 << 10)
+#define SZ_512K	(512 << 10)
+#define SZ_1M	(1 << 20)
+#define SZ_2M	(2 << 20)
+#define SZ_4M	(4 << 20)
+#define SZ_8M	(8 << 20)
+#define SZ_16M	(16 << 20)
+#define SZ_64M	(64 << 20)
+#define SZ_128M	(128 << 20)
+#define SZ_256M	(256 << 20)
+#define SZ_1G	(1 << 30)
+#define SZ_2G	(2 << 30)
+#define SZ_4G	(4ULL << 30)
+
+/*
+ * 9front: what the Linux code uses and OpenBSD's header lacks, in
+ * OpenBSD's way; SZ_2G unsigned (2 << 30 does not fit an int)
+ */
+#include <linux/const.h>	/* (as before: users may count on it) */
+#define SZ_1	1
+#define SZ_2	2
+#define SZ_8	8
+#define SZ_32	32
+#define SZ_128	128
+#define SZ_256	256
+#define SZ_32M	(32 << 20)
+#define SZ_512M	(512 << 20)
+#undef SZ_2G
+#define SZ_2G	(2U << 30)
+#define SZ_8G	(8ULL << 30)
+#define SZ_16G	(16ULL << 30)
+#define SZ_32G	(32ULL << 30)
+#define SZ_64G	(64ULL << 30)
+#define SZ_1T	(1ULL << 40)
+
+#endif

@@ -1,0 +1,42 @@
+/* SPDX-License-Identifier: MIT */
+/*
+ * LinuxKPI for 9front: linux/media-bus-format.h (ours, not Linux's): the
+ * V4L2 media bus format codes the DRM core and its bridges name (the
+ * output formats of encoders: RGB and YUV, bits per pixel per sample)
+ */
+#ifndef _KPI_LINUX_MEDIA_BUS_FORMAT_H
+#define _KPI_LINUX_MEDIA_BUS_FORMAT_H
+
+#include <linux/kernel.h>
+
+/* the codes the DRM core and the bridges name, by name; the values are V4L2's */
+#define MEDIA_BUS_FMT_FIXED	0x0001
+#define MEDIA_BUS_FMT_RGB101010_1X30	0x1018
+#define MEDIA_BUS_FMT_RGB121212_1X36	0x1019
+#define MEDIA_BUS_FMT_RGB161616_1X48	0x101a
+#define MEDIA_BUS_FMT_RGB565_1X16	0x1017
+#define MEDIA_BUS_FMT_RGB666_1X18	0x1009
+#define MEDIA_BUS_FMT_RGB666_1X24_CPADHI	0x1015
+#define MEDIA_BUS_FMT_RGB888_1X24	0x100a
+#define MEDIA_BUS_FMT_UYVY10_1X20	0x201a
+#define MEDIA_BUS_FMT_UYVY12_1X24	0x2020
+#define MEDIA_BUS_FMT_UYVY8_1X16	0x200f
+#define MEDIA_BUS_FMT_UYYVYY10_0_5X30	0x2027
+#define MEDIA_BUS_FMT_UYYVYY12_0_5X36	0x2028
+#define MEDIA_BUS_FMT_UYYVYY16_0_5X48	0x202b
+#define MEDIA_BUS_FMT_UYYVYY8_0_5X24	0x2026
+#define MEDIA_BUS_FMT_VYUY10_1X20	0x201b
+#define MEDIA_BUS_FMT_VYUY12_1X24	0x2021
+#define MEDIA_BUS_FMT_VYUY8_1X16	0x2010
+#define MEDIA_BUS_FMT_YUV10_1X30	0x2016
+#define MEDIA_BUS_FMT_YUV12_1X36	0x2029
+#define MEDIA_BUS_FMT_YUV16_1X48	0x202a
+#define MEDIA_BUS_FMT_YUV8_1X24	0x2025
+#define MEDIA_BUS_FMT_YUYV10_1X20	0x200d
+#define MEDIA_BUS_FMT_YUYV12_1X24	0x2022
+#define MEDIA_BUS_FMT_YUYV8_1X16	0x2011
+#define MEDIA_BUS_FMT_YVYU10_1X20	0x200e
+#define MEDIA_BUS_FMT_YVYU12_1X24	0x2023
+#define MEDIA_BUS_FMT_YVYU8_1X16	0x2012
+
+#endif

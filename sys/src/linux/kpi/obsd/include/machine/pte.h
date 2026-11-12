@@ -1,0 +1,15 @@
+/* SPDX-License-Identifier: MIT */
+/* LinuxKPI for 9front: OpenBSD kernel API, machine/pte.h: x86 page table bits (the hardware's) */
+#ifndef _OBSD_MACHINE_PTE_H
+#define _OBSD_MACHINE_PTE_H
+#define PG_V	0x0000000000000001UL
+#define PG_RW	0x0000000000000002UL
+#define PG_u	0x0000000000000004UL
+#define PG_WT	0x0000000000000008UL
+#define PG_N	0x0000000000000010UL
+#define PG_U	0x0000000000000020UL
+#define PG_M	0x0000000000000040UL
+#define PG_PAT	0x0000000000000080UL
+#define PG_G	0x0000000000000100UL
+#define PG_NX	0x8000000000000000UL
+#endif
