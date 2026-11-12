@@ -192,7 +192,7 @@ file, opened by the hostowner for reading, yields a line
 for each fault waiting for a page.
 .IP
 .EX
-	va Iaddr lenP phys IphyssegP pager IqueueP
+	va \fIaddr len\fP phys \fIphysseg\fP pager \fIqueue\fP
 .EE
 .PP
 makes a segment of

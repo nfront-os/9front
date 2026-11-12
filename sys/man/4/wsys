@@ -167,7 +167,7 @@ each window is made again on the window's new image (its program hears
 Its tree and every window's directory have a directory
 .B draw
 .RB ( new ,
-.IB n /colormapR,
+.IB n /colormap\fR,
 .BR ctl ,
 .BR data ,
 .BR refresh ,
@@ -303,7 +303,7 @@ With the theme's
 each window but a popup has a title bar between the top of its border and
 its content, as high as the font and 4 more, in the border's colour: its
 label (else
-.BI window " n1)"
+.BI window " n\f1)"
 and at its end the buttons
 .BR min ,
 .B max
@@ -529,7 +529,7 @@ as big when it is one of
 .IR truetypefs (4)
 .RI ( name .ttf. n [ a ]),
 for the default (none, vga's) Go Mono as big, antialiased
-.RB ( Go-Mono.ttf. "InPa" ;
+.RB ( Go-Mono.ttf. "\fIn\fPa" ;
 .I wsys
 starts a truetypefs where
 .B /n/ttf
@@ -733,13 +733,13 @@ detaches buffer
 .I b
 (a GPU buffer: lets go of it).
 .TP
-.BR present " IbP [Ix0 y0 x1 y1P]"
+.BR present " \fIb\fP [\fIx0 y0 x1 y1\fP]"
 the pixels of the rectangle (in the buffer's coordinates, which are the
 window's; all of the buffer that fits without one) go to the screen.
 When
 .I wsys
 is done with the buffer it sends the event
-.BI b " bR:"
+.BI b " b\fR:"
 the client may write it again.
 With two or more buffers the client draws the next picture meanwhile.
 A buffer the display shows (composed on the GPU,

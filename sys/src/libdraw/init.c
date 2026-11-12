@@ -110,10 +110,6 @@ initdraw(void(*error)(Display*, char*), char *fontname, char *label)
 }
 
 /*
- * Attach, or possibly reattach, to window.
- * If reattaching, maintain value of screen pointer.
- */
-/*
  * the window system's dots per inch: its window's dpi file (wsys(4)),
  * read again with each window (it changes with the scale); else DefaultDPI
  */
@@ -140,6 +136,10 @@ readdpi(Display *d)
 		d->dpi = n;
 }
 
+/*
+ * Attach, or possibly reattach, to window.
+ * If reattaching, maintain value of screen pointer.
+ */
 int
 gengetwindow(Display *d, char *winname, Image **winp, Screen **scrp, int ref)
 {

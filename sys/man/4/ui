@@ -310,7 +310,7 @@ and
 (colours,
 .BI # rrggbb
 or
-.BI # rrggbbaaR),
+.BI # rrggbbaa\fR),
 .BR borderwidth ,
 .B radius
 (of the corners) and
