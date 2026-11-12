@@ -4,7 +4,7 @@
 rfork e
 tests=($*)
 if(~ $#tests 0)
-	tests=(libctest threadtest authtest mptest paktest segtest segpager segshared apetest apegnutest)
+	tests=(libctest threadtest authtest mptest paktest segtest segpager segshared apetest ape9test apegnutest)
 failed=()
 for(t in $tests){
 	echo '==' $t

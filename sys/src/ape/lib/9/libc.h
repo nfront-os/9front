@@ -24,6 +24,10 @@
 
 #define	nelem(x)	(sizeof(x)/sizeof((x)[0]))
 
+/* Plan 9's getenv (getenv.c: /env read now, a copy the caller frees) */
+#define getenv _getenv9
+extern	char*	_getenv9(char*);
+
 typedef
 struct Qid
 {

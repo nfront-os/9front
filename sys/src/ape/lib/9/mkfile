@@ -30,6 +30,7 @@ OFILES=\
 	u64.$O\
 	unmount.$O\
 	fd2path.$O\
+	getenv.$O\
 
 </sys/src/cmd/mksyslib
 

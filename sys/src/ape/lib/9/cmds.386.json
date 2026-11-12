@@ -39,7 +39,8 @@
 			"../../../libc/port/u32.c",
 			"../../../libc/port/u64.c",
 			"unmount.c",
-			"fd2path.c"
+			"fd2path.c",
+			"getenv.c"
 		]
 	}
 ]
