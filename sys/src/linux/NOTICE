@@ -2,8 +2,8 @@ sys/src/linux/vendor holds files of Linux 7.3.1, unchanged but for the
 backports in patches/, each under its own notice; they follow, each
 once, with the files it covers.  Our own files
 (kpi/, replace/, the programs using them) are MIT; the LinuxKPI is derived
-from OpenBSD's (ISC, BSD, public domain: their notices are in the files,
-and all of them in openbsd/NOTICE).
+from OpenBSD's and FreeBSD's (ISC, BSD, public domain: their notices are in the files,
+and all of them in openbsd/NOTICE and freebsd/NOTICE).
 
 ==== drivers/dma-buf/dma-resv.c
 // SPDX-License-Identifier: MIT

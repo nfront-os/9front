@@ -1,0 +1,2 @@
+584f44221f45c5c26ec2a2888a3815c6f34bfad0  FreeBSD src, 2026-10-29: sys/compat/linuxkpi (the LinuxKPI template besides OpenBSD's, for the GPL cleanup)
+c16de0f9fa84f70b9551f69fde837a7f3a73c0e9  drm-kmod, tag drm_v6.14: only its BSD parts (linuxkpi/bsd, its own versions of GPL drm files)
