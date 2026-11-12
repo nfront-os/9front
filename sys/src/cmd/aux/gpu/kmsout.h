@@ -39,7 +39,7 @@ int	kmsout_screen(unsigned long long maxbytes, unsigned int *w, unsigned int *h,
 const char	*kmsout_set(char *name, char *spec, unsigned long long maxbytes, unsigned int *w, unsigned int *h, unsigned int *pitch, unsigned long long *baroff);
 void	kmsout_free(char *s);	/* a string of kmsout's */
 /* the mouse cursor (vga hwgc gpu): its image (cursor.h's clr and set, 32 bytes each, the offset), where it is */
-int	kmsout_cursor_image(unsigned char *clr, unsigned char *set, int ox, int oy);
+int	kmsout_cursor_image(unsigned char *clr, unsigned char *set, int ox, int oy, int size);
 void	kmsout_cursor_move(int x, int y, int on);
 /* until a monitor may have come or gone (DRM's hotplug event after the one *seen): 0 or -EINTR */
 int	kmsout_hotplug_wait(unsigned int *seen);

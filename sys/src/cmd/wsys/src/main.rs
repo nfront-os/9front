@@ -748,6 +748,20 @@ impl Wsys {
         self.theme.scalesize(n)
     }
 
+    /// the kernel's (software) cursor as big as the scale makes 16 pixels
+    /// (vga(3)'s cursorsize), on this machine's own screen only
+    fn cursorsize(&self) {
+        if !self.ownscreen {
+            return;
+        }
+        let n = self.sz(16).clamp(16, 64);
+        if let Err(e) = std::fs::write("#v/vgactl", format!("cursorsize {n}")) {
+            if self.theme.scale != 1.0 {
+                eprintln!("wsys: #v/vgactl: cursorsize {n}: {e}");
+            }
+        }
+    }
+
     fn send(&self, m: Vec<u8>) {
         if let Err(e) = self.srv.write1(&m) {
             eprintln!("wsys: srv write: {e}");
@@ -2652,6 +2666,7 @@ impl Wsys {
         }
         self.theme = t;
         // another font (the scale's, the theme's)
+        self.cursorsize();
         let fname = textfont(&self.fontflag, &self.theme);
         if fname != self.fontname {
             match font::Font::open(&fname) {
@@ -4855,6 +4870,7 @@ fn main() {
             std::process::exit(1);
         }
     }
+    ws.cursorsize();
     // the GPU composes the screen (unless -p), if wsys has it all (not in a window:
     // the frames would go into the window wsys draws into) and Vulkan can show it;
     // -g says why not and what it does
@@ -4992,6 +5008,10 @@ fn main() {
     }
     if ws.core.is_some() && wsysdebug("draw") {
         eprint!("{}", drawcore::stats().lines().map(|l| format!("wsys: draw: {l}\n")).collect::<String>());
+    }
+    // the kernel's cursor as big as at scale 1 again (for whoever draws next: rio)
+    if ws.ownscreen && ws.theme.scale != 1.0 {
+        let _ = std::fs::write("#v/vgactl", "cursorsize 16");
     }
     // the windows let go of their clients' segments; their processes hang up
     let ids: Vec<u32> = ws.wins.keys().copied().collect();

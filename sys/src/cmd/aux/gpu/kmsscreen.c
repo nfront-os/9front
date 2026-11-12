@@ -459,7 +459,7 @@ hexbytes(char *s, uchar *b, int n)
 }
 
 /*
- * the cursor from the kernel (#G/n/cursor: x y on gen ox oy clrset) onto
+ * the cursor from the kernel (#G/n/cursor: x y on gen ox oy clrset size) onto
  * the display; if the display cannot show it, devdraw draws it again
  */
 static void
@@ -483,13 +483,14 @@ cursorproc(void*)
 			break;
 		}
 		buf[n] = 0;
-		if(tokenize(buf, f, nelem(f)) != 7)
+		n = tokenize(buf, f, nelem(f));
+		if(n != 7 && n != 8)
 			continue;
 		gen = atoi(f[3]);
 		if(gen != lastgen){
 			if(hexbytes(f[6], clr, 32) < 0 || hexbytes(f[6]+64, set, 32) < 0)
 				continue;
-			if((r = kmsout_cursor_image(clr, set, atoi(f[4]), atoi(f[5]))) < 0){
+			if((r = kmsout_cursor_image(clr, set, atoi(f[4]), atoi(f[5]), n == 8 ? atoi(f[7]) : 16)) < 0){
 				fprint(2, "%s: cursor: the display's: error %d: soft\n", drv, -r);
 				break;
 			}

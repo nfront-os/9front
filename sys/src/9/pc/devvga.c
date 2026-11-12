@@ -38,6 +38,7 @@ enum {
 	CMtextmode,
 	CMtype,
 	CMsoftscreen,
+	CMcursorsize,
 	CMpcidev,
 	CMtilt,
 };
@@ -54,6 +55,7 @@ static Cmdtab vgactlmsg[] = {
 	CMtextmode,	"textmode",	1,
 	CMtype,		"type",		2,
 	CMsoftscreen,	"softscreen",	2,
+	CMcursorsize,	"cursorsize",	2,
 	CMpcidev,	"pcidev",	2,
 	CMtilt,		"tilt",		2,
 };
@@ -166,6 +168,7 @@ vgaread(Chan* c, void* a, long n, vlong off)
 		p = seprint(p, e, "addr p 0x%.8llux v %#p size %#ux\n",
 			scr->paddr, scr->vaddr, scr->apsize);
 		p = seprint(p, e, "softscreen %s\n", scr->softscreen ? "on" : "off");
+		p = seprint(p, e, "cursorsize %d\n", swcursorsize(0));
 		USED(p);
 		n = readstr(offset, a, n, s);
 		poperror();
@@ -195,6 +198,24 @@ vgactl(VGAscr *scr, Cmdbuf *cb)
 
 	ct = lookupcmd(cb, vgactlmsg, nelem(vgactlmsg));
 	switch(ct->index){
+	case CMcursorsize:
+		/* the software cursor n pixels big (a window system's scale) */
+		if(scr->gscreen == nil)
+			error(Enoscreen);
+		qlock(&drawlock);
+		if(waserror()){
+			qunlock(&drawlock);
+			nexterror();
+		}
+		cursoroff();
+		i = swcursorsize(strtol(cb->f[1], nil, 0));
+		if(scr->cur != nil && scr->cur->size != nil)
+			scr->cur->size(scr, i);
+		cursoron();
+		poperror();
+		qunlock(&drawlock);
+		return;
+
 	case CMhwgc:
 		if(scr->gscreen == nil)
 			error(Enoscreen);

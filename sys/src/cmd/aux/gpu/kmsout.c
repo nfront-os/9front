@@ -107,6 +107,7 @@ static DEFINE_MUTEX(curlock);		/* the cursor; never with kmslock after it */
 static u32 cur_handle;			/* a dumb buffer, ARGB8888 */
 static bool cur_on, cur_loaded;
 static int cur_x, cur_y, cur_ox, cur_oy;
+static int cur_size = 16;		/* the picture's side in the object (scaled from 16 x 16) */
 static void	curset(void);
 static DECLARE_WAIT_QUEUE_HEAD(hotplugq);
 static atomic_t hotplugs;
@@ -466,8 +467,8 @@ kmsout_mode(char *name)
 
 /*
  * what the display's cursor plane of the output's CRTC holds (DRM's
- * state, what the driver programmed): " cursor fb N at x y", " cursor
- * off"; kmalloc'd
+ * state, what the driver programmed): " cursor fb N WxH image S at x y"
+ * (S: the picture's side in it, scaled), " cursor off"; kmalloc'd
  */
 static char *
 curstate(struct out *o)
@@ -482,7 +483,7 @@ curstate(struct out *o)
 	drm_modeset_lock(&crtc->cursor->mutex, NULL);
 	ps = crtc->cursor->state;
 	if (ps && ps->fb && ps->crtc == crtc)
-		s = kasprintf(GFP_KERNEL, " cursor fb %u %ux%u at %d %d", ps->fb->base.id, ps->crtc_w, ps->crtc_h, ps->crtc_x, ps->crtc_y);
+		s = kasprintf(GFP_KERNEL, " cursor fb %u %ux%u image %d at %d %d", ps->fb->base.id, ps->crtc_w, ps->crtc_h, cur_size, ps->crtc_x, ps->crtc_y);
 	else
 		s = kstrdup(" cursor off", GFP_KERNEL);
 	drm_modeset_unlock(&crtc->cursor->mutex);
@@ -931,17 +932,17 @@ curset(void)
 
 /*
  * the cursor's image: Plan 9's (cursor.h: 16 x 16, a bit each of clr,
- * white, and set, black, over it), offset (ox oy) from the mouse's
+ * white, and set, black, over it), drawn size pixels big (scaled), offset (ox oy) from the mouse's
  * point; 0 or the error
  */
 int
-kmsout_cursor_image(unsigned char *clr, unsigned char *set, int ox, int oy)
+kmsout_cursor_image(unsigned char *clr, unsigned char *set, int ox, int oy, int size)
 {
 	struct drm_mode_create_dumb cd = { .width = Curw, .height = Curw, .bpp = 32 };
 	struct drm_gem_object *obj;
 	struct iosys_map map;
 	u32 *px;
-	int x, y, r, b;
+	int x, y, sx, sy, r, b;
 
 	if (!kms)
 		return -ENODEV;
@@ -962,14 +963,21 @@ kmsout_cursor_image(unsigned char *clr, unsigned char *set, int ox, int oy)
 		r = -ENOMEM;
 		goto out;
 	}
-	for (y = 0; y < 16; y++)
-		for (x = 0; x < 16; x++) {
-			b = 0x80 >> (x & 7);
-			if (set[y * 2 + x / 8] & b)
+	/* size pixels big (a window system's scale): each the nearest of the 16 x 16 */
+	if (size < 16 || size > Curw)
+		size = 16;
+	for (y = 0; y < size; y++)
+		for (x = 0; x < size; x++) {
+			sx = x * 16 / size;
+			sy = y * 16 / size;
+			b = 0x80 >> (sx & 7);
+			if (set[sy * 2 + sx / 8] & b)
 				px[y * Curw + x] = 0xff000000;
-			else if (clr[y * 2 + x / 8] & b)
+			else if (clr[sy * 2 + sx / 8] & b)
 				px[y * Curw + x] = 0xffffffff;
 		}
+	ox = ox * size / 16;
+	oy = oy * size / 16;
 	obj = drm_gem_object_lookup(kms->private_data, cur_handle);
 	r = obj ? drm_gem_vmap(obj, &map) : -ENOENT;
 	if (r == 0) {
@@ -983,6 +991,7 @@ kmsout_cursor_image(unsigned char *clr, unsigned char *set, int ox, int oy)
 		goto out;
 	cur_ox = ox;
 	cur_oy = oy;
+	cur_size = size;
 	cur_loaded = true;
 	curset();	/* the display reads it again */
 out:

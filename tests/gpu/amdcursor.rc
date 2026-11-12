@@ -15,5 +15,13 @@ for(p in '100 100' '960 540' '1800 100' '1800 1000' '100 1000' '1919 1079' '0 0'
 	echo moved to $p: `{grep '^output .* connected' /dev/gpu/0/status | sed 's/^output ([^ ]+) connected/\1/'}
 }
 grep hwgc /dev/vgactl
+# HiDPI: the cursor 32 pixels big (vgactl cursorsize, as wsys -S 2 sets it):
+# the driver draws it scaled on its cursor plane; then 16 again
+echo cursorsize 32 >/dev/vgactl
+sleep 1
+echo size 32: `{grep '^cursorsize' /dev/vgactl} `{grep '^output .* connected' /dev/gpu/0/status | sed 's/^output ([^ ]+) connected/\1/'}
+echo cursorsize 16 >/dev/vgactl
+sleep 1
+echo size 16: `{grep '^cursorsize' /dev/vgactl} `{grep '^output .* connected' /dev/gpu/0/status | sed 's/^output ([^ ]+) connected/\1/'}
 grep 'cursor|WARN|error|fault' /tmp/amd.log
 echo TESTEND

@@ -76,6 +76,7 @@ struct VGAcur {
 	void	(*disable)(VGAscr*);
 	void	(*load)(VGAscr*, Cursor*);
 	int	(*move)(VGAscr*, Point);
+	void	(*size)(VGAscr*, int);	/* n pixels big (vgactl cursorsize); nil: 16 only */
 };
 
 /*
@@ -172,3 +173,4 @@ void		swcursoravoid(Rectangle);
 void		swcursordraw(Point);
 void		swcursorload(Cursor *);
 void		swcursorinit(void);
+int		swcursorsize(int);

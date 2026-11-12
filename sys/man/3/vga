@@ -156,6 +156,21 @@ used by the graphics engine.
 The default setting is
 .BR on .
 .TP
+.BI cursorsize " n"
+draws the software cursor
+.I n
+pixels big (16 to 64; 16 at first): its 16×16 picture scaled, each pixel
+the nearest, and its offset with it.
+A window system that draws at a scale (such as
+.IR wsys (4)'s
+.BR scale )
+sets it.
+So does
+.BR "hwgc gpu"
+(the GPU drivers of
+.IR gpu (4),
+up to 64: their cursor plane); the other hardware cursors stay 16×16.
+.TP
 .BI softscreen " mode"
 Depending on whether
 .I mode

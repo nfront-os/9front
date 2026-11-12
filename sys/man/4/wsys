@@ -507,7 +507,13 @@ else 1.
 .B -S
 gives it at the start.
 At another scale than 1 the borders, title bars, scroll bars, menus and
-corners are as many times as big
+corners are as many times as big, and so is the cursor on the machine's own
+screen
+.RI ( vga (3)'s
+.BR cursorsize ;
+16 again when
+.I wsys
+ends)
 (the rounding of
 .IR graphics (2)'s
 .IR scalesize ), and so is the font of the text windows, which the programs

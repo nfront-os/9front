@@ -11,10 +11,11 @@
  *			since this open file's last read (each reader its
  *			own: the driver's copy to the card, a compositor's)
  *	#G/N/cursor	read blocks until the cursor (vga hwgc gpu)
- *			changed; returns "x y on gen ox oy clrset":
+ *			changed; returns "x y on gen ox oy clrset size":
  *			the point it is at, shown or not, its image's
  *			generation, offset and 64 bytes clr and set
- *			(cursor.h), hex
+ *			(cursor.h), hex, and how many pixels big it is
+ *			drawn (16: as it is; more: scaled, the offset too)
  *
  * The memory BARs are physical segments gpuNbarM, the
  * framebuffer is gpuNfb (see segattach(2)).  Interrupts are MSI
@@ -79,6 +80,7 @@ struct Gpu
 	Rendez	curr;
 	int	curchanged;
 	int	curgen;		/* one more each image */
+	int	cursize;	/* drawn this many pixels big (0: 16; vgactl cursorsize) */
 	int	curon;
 	int	curx, cury;
 	int	curox, curoy;	/* the image's offset from the point */
@@ -408,7 +410,7 @@ gpuread(Chan *c, void *a, long n, vlong off)
 		{
 			char cbuf[256], *p, *e;
 			uchar clr[32], set[32];
-			int x, y, ox, oy, on, gen, i;
+			int x, y, ox, oy, on, gen, i, size;
 
 			sleep(&g->curr, curchanged, g);
 			ilock(&g->curlock);
@@ -418,6 +420,7 @@ gpuread(Chan *c, void *a, long n, vlong off)
 			oy = g->curoy;
 			on = g->curon;
 			gen = g->curgen;
+			size = g->cursize ? g->cursize : 16;
 			memmove(clr, g->curclr, sizeof clr);
 			memmove(set, g->curset, sizeof set);
 			g->curchanged = 0;
@@ -428,7 +431,7 @@ gpuread(Chan *c, void *a, long n, vlong off)
 				p = seprint(p, e, "%.2ux", clr[i]);
 			for(i = 0; i < sizeof set; i++)
 				p = seprint(p, e, "%.2ux", set[i]);
-			seprint(p, e, "\n");
+			seprint(p, e, " %d\n", size);
 			return readstr(0, a, n, cbuf);
 		}
 	}
@@ -633,6 +636,19 @@ gpucurload(uchar *clr, uchar *set, int ox, int oy)
 	memmove(g->curset, set, sizeof g->curset);
 	g->curox = ox;
 	g->curoy = oy;
+	g->curgen++;
+	curunlock(g);
+}
+
+/* drawn n pixels big (16 to 64): a window system's scale */
+void
+gpucursize(int n)
+{
+	Gpu *g;
+
+	if((g = curlock()) == nil)
+		return;
+	g->cursize = n;
 	g->curgen++;
 	curunlock(g);
 }

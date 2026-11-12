@@ -29,6 +29,7 @@ extern int gpufb(uvlong*, void**, ulong*);
 extern void gpudirty(int, int, int, int);
 extern void gpucurload(uchar*, uchar*, int, int);
 extern void gpucurmove(int, int);
+extern void gpucursize(int);
 extern void gpucuron(int);
 
 /*
@@ -101,6 +102,7 @@ static void
 gpucurenable(VGAscr*)
 {
 	gpucurload(cursor.clr, cursor.set, cursor.offset.x, cursor.offset.y);
+	gpucursize(swcursorsize(0));	/* as big as the soft one (vgactl cursorsize) */
 	gpucuron(1);
 }
 
@@ -123,10 +125,17 @@ gpucurmove1(VGAscr*, Point p)
 	return 0;
 }
 
+static void
+gpucursize1(VGAscr*, int n)
+{
+	gpucursize(n);
+}
+
 VGAcur vgagpucur = {
 	"gpu",
 	gpucurenable,
 	gpucurdisable,
 	gpucurload1,
 	gpucurmove1,
+	gpucursize1,
 };
