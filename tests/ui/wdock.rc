@@ -1,0 +1,107 @@
+#!/bin/rc
+# wdock(1) in wsys, run by wsys -x -i (the modern theme: title bars): wdock's
+# window a bar along the bottom (no border, all of the screen's width, never
+# current), its starters in the middle; button 1 on a starter without windows
+# runs its command, on one with a window makes it current, on its current one
+# hides it (the only one) or goes to the next; button 2 runs it again; a
+# window maximized stays above the dock.
+# Prints ok/FAIL lines and "wdock: all passed".
+fn fail { echo FAIL $*; exit fail }
+fn wait1 { # cmd...: until it succeeds, 10 s at most
+	n=0
+	while(! $* >[2]/dev/null && test $n -lt 100){ sleep 0.1; n=`{echo $n+1 | hoc} }
+	$* >[2]/dev/null
+}
+# mousein keeps the buttons per open file: a press and its release go through one
+fn m { echo A $1 $2 $3; sleep 0.1 }
+fn click { { m $1 $2 0; m $1 $2 1; m $1 $2 0 } >/dev/mousein; sleep 0.7 }
+fn click2 { { m $1 $2 0; m $1 $2 2; m $1 $2 0 } >/dev/mousein; sleep 0.7 }
+fn dclick { { m $1 $2 0; m $1 $2 1; m $1 $2 0; m $1 $2 1; m $1 $2 0 } >/dev/mousein; sleep 0.3 }
+fn wctl { dd -if /mnt/wsys/$1/wctl -bs 128 -count 1 -quiet 1 }
+fn items { cat /tmp/wdock.*.items }
+fn item { items | awk '$1 == "item" && $7 == "'$1'"' }	# label: item i x0 x1 nwin state label
+fn spot { s=`{item $1}; echo `{echo '('$s(3)+$s(4)')/2' | hoc} }
+fn nwin { s=`{item $1}; echo $s(5) }
+fn state { s=`{item $1}; echo $s(6) }
+fn labelled { # label: the windows with it
+	for(d in `{ls -p /mnt/wsys | grep '^[0-9]+$'})
+		if(~ `{cat /mnt/wsys/$d/label} $1) echo $d
+}
+
+cat /lib/theme/modern >/mnt/wsys/theme || fail writing the theme
+# starters that make windows with labels of their own
+echo '#!/bin/rc
+echo -n alpha >/dev/label; exec sleep 600' >/tmp/alpha
+echo '#!/bin/rc
+echo -n beta >/dev/label; exec sleep 600' >/tmp/beta
+chmod +x /tmp/alpha /tmp/beta
+echo '# a test
+alpha	window -r 100 100 400 300 /tmp/alpha
+beta	window -r 500 100 900 400 /tmp/beta	bet' >/tmp/dock
+echo '#!/bin/rc
+WDOCKDEBUG=items exec /tests/wdock -d /tmp/dock >/tmp/wdock.err >[2=1]' >/tmp/rundock
+chmod +x /tmp/rundock
+rm -f /tmp/wdock.*.items
+
+window -r 0 700 1024 768 /tmp/rundock
+wait1 test -d /mnt/wsys/1 || fail no window for wdock
+fn haveitems { items | grep -s '^item 1 ' }
+wait1 haveitems || fail no items of wdock: `{cat /tmp/wdock.err}
+fn atbottom { b=`{grep '^1 ' /mnt/wsys/stack}; ~ $b(2) 0 && ~ $b(4) 1024 && ~ $b(5) 768 && ~ $b(6) 0 }
+wait1 atbottom || fail the dock: `{grep '^1 ' /mnt/wsys/stack}
+b=`{grep '^1 ' /mnt/wsys/stack}
+h=`{echo 768-$b(3) | hoc}
+test $h -gt 10 && test $h -lt 60 || fail the dock $h high
+echo ok wdock a bar along the bottom: $b(2-5), no border
+a=`{item alpha}; c=`{item beta}
+d=`{echo 1024-$c(4)-$a(3) | hoc}	# the room right of them less that left
+test $d -lt 4 && test $d -gt -4 || fail not in the middle: `{items}
+~ `{nwin alpha} 0 && ~ `{nwin beta} 0 || fail windows before any ran: `{items}
+echo ok the starters in the middle, no windows yet
+
+y=`{echo 768-$h/2 | hoc}
+click `{spot alpha} $y
+fn alpha1 { ~ `{nwin alpha} 1 }
+wait1 alpha1 || fail button 1 did not run alpha: `{items}
+a1=`{labelled alpha}
+~ `{state alpha} current || fail alpha not current: `{items}
+echo ok button 1 ran alpha: window $a1
+click `{spot beta} $y
+fn beta1 { ~ `{nwin beta} 1 }
+wait1 beta1 || fail button 1 did not run beta: `{items}
+b1=`{labelled beta}
+echo ok button 1 ran beta: window $b1 (its word bet)
+
+click `{spot alpha} $y
+w=`{wctl $a1}
+~ $w(5) current || fail button 1 on alpha: $w
+~ `{state alpha} current || fail alpha not lit: `{items}
+click `{spot alpha} $y
+w=`{wctl $a1}
+~ $w(6) hidden || fail button 1 on alpha current: $w
+click `{spot alpha} $y
+w=`{wctl $a1}
+~ $w(5) current && ~ $w(6) visible || fail button 1 on alpha hidden: $w
+echo ok button 1: current, hidden, back
+w=`{wctl 1}
+~ $w(5) notcurrent || fail the dock took the focus: $w
+
+click2 `{spot alpha} $y
+fn alpha2 { ~ `{nwin alpha} 2 }
+wait1 alpha2 || fail button 2 did not run alpha again: `{items}
+a=`{labelled alpha}
+c1=`{for(i in $a) { w=`{wctl $i}; ~ $w(5) current && echo $i }}
+click `{spot alpha} $y
+c2=`{for(i in $a) { w=`{wctl $i}; ~ $w(5) current && echo $i }}
+~ $#c1 1 && ~ $#c2 1 && ! ~ $c1 $c2 || fail button 1 on alpha with two: $c1 then $c2
+echo ok button 2 ran another alpha, button 1 goes from one to the other: $c1 $c2
+
+# beta maximized by a double click on its title bar: above the dock
+click `{spot beta} $y
+dclick 700 114
+w=`{wctl $b1}
+f=$w(1-4)
+~ $"f '0 0 1024 '`{echo 768-$h | hoc} || fail maximized: $f, want 0 0 1024 `{echo 768-$h | hoc}
+echo ok maximized above the dock
+~ `{tail -1 /mnt/wsys/stack | awk '{print $1}'} 1 || fail the dock not on top: `{cat /mnt/wsys/stack}
+echo wdock: all passed

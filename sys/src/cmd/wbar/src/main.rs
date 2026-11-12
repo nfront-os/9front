@@ -21,8 +21,8 @@
 // The menu is wsys': its window's menu file (wsys(4)) shows it below the bar
 // and says which item was chosen.
 
-mod text;
-
+use desk::text;
+use desk::wins::{self, Win};
 use p9win::draw::{Draw, Rect};
 use p9win::{Input, Inputs};
 use std::io::Read;
@@ -37,14 +37,6 @@ enum Ev {
     In(Input),
     Tick,
     Chosen(i32), // the menu's item, -1 none
-}
-
-#[derive(Clone, PartialEq)]
-struct Win {
-    n: u32,
-    label: String,
-    current: bool,
-    hidden: bool,
 }
 
 struct Bar {
@@ -69,34 +61,6 @@ struct Bar {
     ph: usize,
     debug: Option<String>,
     tx: mpsc::Sender<Ev>,
-}
-
-/// one read of a file (wctl: a second read would wait for a change)
-fn read1(path: &str) -> Option<String> {
-    let mut f = std::fs::File::open(path).ok()?;
-    let mut b = [0u8; 512];
-    let n = f.read(&mut b).ok()?;
-    Some(String::from_utf8_lossy(&b[..n]).into_owned())
-}
-
-/// the windows of /dev/wsys, by number
-fn windows(own: u32) -> Vec<Win> {
-    let mut v = vec![];
-    let Ok(d) = std::fs::read_dir("/dev/wsys") else { return v };
-    for e in d.flatten() {
-        let Ok(n) = e.file_name().to_string_lossy().parse::<u32>() else { continue };
-        if n == own {
-            continue;
-        }
-        let Some(w) = read1(&format!("/dev/wsys/{n}/wctl")) else { continue };
-        let f: Vec<&str> = w.split_whitespace().collect();
-        let label = read1(&format!("/dev/wsys/{n}/label")).unwrap_or_default();
-        let label = label.trim();
-        let label = if label.is_empty() { format!("window {n}") } else { label.to_string() };
-        v.push(Win { n, label, current: f.get(4) == Some(&"current"), hidden: f.get(5) == Some(&"hidden") });
-    }
-    v.sort_by_key(|w| w.n);
-    v
 }
 
 /// the clock's text, from date(1) (the local time zone): weekday, day, month, hours:minutes
@@ -150,18 +114,6 @@ fn readmenu(path: &str) -> Vec<(String, String)> {
         .map(|(a, b)| (a.trim().to_string(), b.trim().to_string()))
         .filter(|(a, b)| !a.is_empty() && !b.is_empty())
         .collect()
-}
-
-/// cmd run by rc, in wbar's name space, not waited for here
-fn run(cmd: &str) {
-    match std::process::Command::new("rc").args(["-c", cmd]).spawn() {
-        Ok(mut c) => {
-            std::thread::spawn(move || {
-                let _ = c.wait();
-            });
-        }
-        Err(e) => eprintln!("wbar: rc: {e}"),
-    }
 }
 
 impl Bar {
@@ -240,7 +192,7 @@ impl Bar {
 
     /// the windows and the clock again; true if they changed
     fn update(&mut self) -> bool {
-        let wins = windows(self.own);
+        let wins = wins::list(self.own);
         let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs() / 60);
         let mut changed = wins != self.wins;
         self.wins = wins;
@@ -298,7 +250,7 @@ impl Bar {
         self.open = false;
         self.picture();
         if let Some((_, cmd)) = usize::try_from(i).ok().and_then(|i| self.menu.get(i)) {
-            run(&cmd.clone());
+            wins::run(&cmd.clone(), "wbar");
         }
     }
 
@@ -337,11 +289,7 @@ impl Bar {
         } else {
             &["current"]
         };
-        for m in msgs {
-            if let Err(e) = std::fs::write(format!("/dev/wsys/{n}/wctl"), m) {
-                eprintln!("wbar: window {n}: {m}: {e}");
-            }
-        }
+        wins::wctl(n, msgs, "wbar");
         if self.update() {
             self.picture();
         }
@@ -376,7 +324,7 @@ fn main() {
     let text = text::Text::open(&fontpath, size).unwrap_or_else(|e| die("font", e));
     let draw = Draw::open().unwrap_or_else(|e| die("draw", e));
     let (tx, rx) = mpsc::channel();
-    let own = read1("/dev/winid").and_then(|s| s.trim().parse().ok()).unwrap_or(0);
+    let own = wins::own();
     let h = text.height + 8;
     let debug = std::env::var("WBARDEBUG").is_ok_and(|v| v.contains("items")).then(|| format!("/tmp/wbar.{}.items", std::process::id()));
     let mut bar = Bar {

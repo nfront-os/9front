@@ -1,0 +1,139 @@
+.TH WDOCK 1
+.SH NAME
+wdock \- the desktop's dock in wsys
+.SH SYNOPSIS
+.B wdock
+[
+.B -d
+.I dock
+] [
+.B -f
+.I font.ttf
+] [
+.B -s
+.I size
+]
+.SH DESCRIPTION
+.I Wdock
+runs in a window of
+.IR wsys (4)
+and makes it a bar along the bottom of the screen
+(the
+.B bar
+message to
+.BR /dev/wctl ,
+as
+.IR wbar (1)
+along the top:
+no border, above the other windows, the mouse but never the keyboard's focus;
+a window maximized stays above it).
+In its middle are starters, as many as fit: each a label and a command,
+the lines of
+.I dock
+(default
+.BR $home/lib/wdock/dock ,
+else
+.BR /lib/wdock/dock ):
+a label, a tab, the command, perhaps a tab and a word;
+lines starting with
+.B #
+are comments.
+A starter's windows are those of
+.B /dev/wsys
+whose label starts with its word (without one, its label);
+a dash below the label marks each of them (three at most),
+the label is on the theme's selection colour when one of them is current,
+paler when all of them are hidden.
+.TP
+Button 1
+on a starter without windows runs its command with
+.IR rc (1)
+in
+.IR wdock 's
+name space (its
+.B /dev
+is its window's,
+.IR window (1)
+makes a new window);
+on one with windows brings one up (current, on top, back when hidden);
+on one whose window is current goes to the next of them,
+or hides it when it is the only one.
+.TP
+Button 2
+runs the command again: another one.
+.PP
+The colours are the theme's
+.RB ( /dev/theme ,
+.IR wsys (4)):
+.B window
+behind,
+.B text
+for the labels,
+.B border
+for a line along the top and the dashes,
+.B select
+for the current one.
+The font is
+.IR font.ttf ,
+else the theme's
+.BR uifont ,
+else
+.BR /lib/font/ttf/Go-Regular.ttf ,
+.I size
+pixels (15).
+When
+.I wsys
+says the window changed (the screen's size, the theme),
+it goes to the bottom of the screen again and reads the theme again.
+It looks at the windows twice a second.
+.PP
+.I Riostart
+does not start it;
+a line of one's own
+.B riostart
+does, after
+.IR wbar :
+.IP
+.EX
+window -r 0 700 1024 768 wdock
+.EE
+.SH EXAMPLES
+A dock of one's own: a terminal, acme (its windows' label
+.BR acme ),
+.IR stats (8):
+.IP
+.EX
+term	window term
+acme	window -r 40 40 1000 700 acme
+stats	window -r 0 30 161 147 stats -lmisce
+.EE
+.SH FILES
+.TF /lib/wdock/dock
+.TP
+.B /lib/wdock/dock
+the starters by default
+.SH SOURCE
+.B /sys/src/cmd/wdock
+.SH SEE ALSO
+.IR wbar (1),
+.IR wsys (4),
+.IR winwatch (1),
+.IR window (1)
+.SH BUGS
+Under
+.IR rio (1),
+which knows no bars, it is an ordinary window.
+.br
+A window is a starter's by its label only: one that changes its label
+(a shell's
+.IR term (1)
+when a program sets the title) leaves it;
+a window without a label (a shell of
+.IR window (1))
+is no starter's.
+.br
+.B WDOCKDEBUG=items
+writes where its window and the starters are, with their windows' number and
+state, to
+.BI /tmp/wdock. pid .items
+after each picture (for tests).

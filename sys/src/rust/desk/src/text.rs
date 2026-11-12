@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 //
-// wbar's text: a proportional TrueType font (the theme's uifont, else Go
+// The bars' text (wbar, wdock): a proportional TrueType font (the theme's uifont, else Go
 // Regular) rasterised by ab_glyph into coverage maps, once per character (a
 // cache), drawn into 0x00RRGGBB pixels.
 

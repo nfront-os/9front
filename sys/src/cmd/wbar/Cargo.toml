@@ -12,5 +12,4 @@ workspace = "../../rust"
 
 [dependencies]
 p9win = { path = "../../rust/plan9/p9win" }
-desk = { path = "../../rust/desk" }
-ab_glyph = "0.2"
+desk = { path = "../../rust/desk", features = ["text"] }

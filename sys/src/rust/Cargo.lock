@@ -487,6 +487,9 @@ checksum = "9e9de72ce2ad1f90dc62fa25f0f430ef85eb4b0d8fa0be4f30373bc40a21d28e"
 [[package]]
 name = "desk"
 version = "0.1.0"
+dependencies = [
+ "ab_glyph",
+]
 
 [[package]]
 name = "dispatch"
@@ -3639,7 +3642,14 @@ dependencies = [
 name = "wbar"
 version = "0.1.0"
 dependencies = [
- "ab_glyph",
+ "desk",
+ "p9win",
+]
+
+[[package]]
+name = "wdock"
+version = "0.1.0"
+dependencies = [
  "desk",
  "p9win",
 ]

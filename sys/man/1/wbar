@@ -120,6 +120,7 @@ the menu by default
 .SH SOURCE
 .B /sys/src/cmd/wbar
 .SH SEE ALSO
+.IR wdock (1),
 .IR wsys (4),
 .IR winwatch (1),
 .IR window (1),

@@ -386,6 +386,7 @@
 			"bash scripts/build/cargo.sh sys/src/cmd/ui ui",
 			"bash scripts/build/cargo.sh sys/src/cmd/uidemo uicount uitodo uitick",
 			"bash scripts/build/cargo.sh sys/src/cmd/wbar wbar",
+			"bash scripts/build/cargo.sh sys/src/cmd/wdock wdock",
 			"bash scripts/build/cargo.sh sys/src/cmd/wsys wsys"
 		]
 	},

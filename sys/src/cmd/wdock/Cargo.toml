@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: MIT
+# wdock: the desktop's dock in wsys(4), wdock(1): starters from a file along
+# the bottom of the screen, each with its windows (/dev/wsys); draw(3) through
+# p9win, the theme's colours and font (desk's text). Part of the workspace in
+# sys/src/rust (its vendor/).
+[package]
+name = "wdock"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+publish = false
+workspace = "../../rust"
+
+[dependencies]
+p9win = { path = "../../rust/plan9/p9win" }
+desk = { path = "../../rust/desk", features = ["text"] }

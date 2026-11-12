@@ -1,0 +1,7 @@
+# wdock's starters (wdock(1)): a label, a tab, a command for rc (run in
+# wdock's name space: /dev is wsys' window's, window(1) makes a new window);
+# perhaps a tab and the start of the labels of the windows that are its own
+# (else the label itself)
+term	window term	term
+acme	window -r 40 40 1000 700 acme	acme
+stats	window -r 0 30 161 147 stats -lmisce	stats

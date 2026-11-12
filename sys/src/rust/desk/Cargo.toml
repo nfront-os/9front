@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: MIT
 # desk: what the desktop's programs share (../9front-ui PLAN stage 7): the
-# theme (wsys(4)'s file theme, /lib/theme/*). Only std. Part of the workspace.
+# theme (wsys(4)'s file theme, /lib/theme/*), the windows of /dev/wsys; with
+# the feature text a proportional TrueType font (ab_glyph) for wbar and wdock.
+# Part of the workspace.
 [package]
 name = "desk"
 version = "0.1.0"
@@ -8,3 +10,9 @@ edition = "2024"
 license = "MIT"
 publish = false
 workspace = ".."
+
+[features]
+text = ["dep:ab_glyph"]
+
+[dependencies]
+ab_glyph = { version = "0.2", optional = true }
