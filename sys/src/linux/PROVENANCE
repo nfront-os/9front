@@ -1,0 +1,13 @@
+# provenance.py: files of ours that may hold more than 8 lines that only
+# state facts of an interface also written in a GPL Linux file (names of
+# numbers, members, prototypes, plain attribute macros).  Never for text
+# (code, comments) and only where the selection is what the code uses
+# and the arrangement our own (provenance.py checks the order).
+# path	number	why
+kpi/include/linux/compiler_types.h	9	gcc attributes under Linux's names, e.g. __packed as __attribute__((__packed__)): there is one way to write them; only the used ones, grouped by purpose
+kpi/include/linux/media-bus-format.h	28	the V4L2 media bus format codes the DRM core and the bridges use, numbers of the interface, sorted by name
+kpi/include/linux/pci.h	48	our own header: the configuration registers, capabilities and IDs the drivers read (numbers of the PCI specification, only the used ones), struct pci_dev's members and the prototypes they call
+replace/include/drm/drm_device.h	30	our own header: the members of struct drm_device the drivers and the DRM core use, grouped by purpose, switch_power_state's values, the wedge recovery bits
+kpi/include/linux/i2c.h	27	our own header: the I2C message flags and adapter functionality bits (numbers of the I2C interface) the drivers and kpi/linux/i2c.c use, a few prototypes
+kpi/include/linux/mm.h	15	the VM_* flags of a mapping (numbers of the interface the drivers set and test), vm_munmap's prototype
+replace/include/drm/drm_mipi_dsi.h	21	our own header: the prototypes of the DSI peripheral API i915 calls, DCS power mode bits, the compression types

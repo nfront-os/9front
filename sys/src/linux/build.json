@@ -55,6 +55,7 @@
 			"kpi/linux/cpu.c",
 			"kpi/linux/device.c",
 			"kpi/linux/dma.c",
+			"kpi/linux/dma_fence.c",
 			"kpi/linux/dmabuf.c",
 			"kpi/linux/dmi.c",
 			"kpi/linux/drm_linux.c",
