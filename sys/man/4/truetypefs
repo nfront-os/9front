@@ -29,6 +29,13 @@ For example,
 is a
 .IR font (6)
 file generated for GNU Unifont at a size of 16.
+A size followed by
+.B a
+.RB ( /n/ttf/unifont.ttf.16a/font )
+gives antialiased subfonts (grey,
+.BR k8 :
+each glyph rasterised at four times the size, a pixel the share of its
+4×4 pixels there that are set); without it they are one bit deep.
 
 .SH EXAMPLES
 Use size 16 GNU Unifont for
