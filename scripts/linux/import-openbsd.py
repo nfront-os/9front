@@ -12,10 +12,12 @@ unchanged, under OpenBSD's paths; a file whose notice is not permissive
 copies live in kpi/; `diff -r` against this tree shows the adaptation.
 Writes openbsd/NOTICE (each distinct notice once, with its files)."""
 import os, re, shutil, subprocess, sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'lib'))
+import paths as nfpaths	# the distribution's paths.env
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 D = os.path.normpath(os.path.join(HERE, '../../sys/src/linux'))
-OB = os.path.expanduser(sys.argv[1] if len(sys.argv) > 1 else '~/Devel/openbsd')
+OB = os.path.expanduser(sys.argv[1] if len(sys.argv) > 1 else nfpaths.get('OPENBSD_SRC'))
 COMMIT = open(os.path.join(D, 'OPENBSD')).read().split()[0]
 
 DRM = 'sys/dev/pci/drm/'

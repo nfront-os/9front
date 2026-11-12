@@ -13,8 +13,9 @@ under MIT/BSD (alone or as the other choice of a dual licence), vendor/,
 and the templates openbsd/ and freebsd/.  Lines of an interface (a call,
 a field) found in a permissive file do not count; text that only the GPL
 files have does.  The Linux trees compared: every --linux TREE, by default
-~/Devel/linux-7.3.1 (vendor/'s version) and ~/Devel/linux-6.6 (the first
-LinuxKPI's) where present; all of each, not only the file of the same name.
+the distribution's LINUX (vendor/'s version, linux-7.3.1) and LINUX_OLD (the
+first LinuxKPI's, linux-6.6), both required; all of each, not only the file
+of the same name.
 
 --strict: a line of the BSD templates (openbsd/, freebsd/) is no
 permissive source where a GPL-only Linux file has it too (a template
@@ -33,6 +34,8 @@ import hashlib, os, pickle, re, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 D = os.path.normpath(os.path.join(HERE, '../../sys/src/linux'))
+sys.path.insert(0, os.path.join(HERE, '..', 'lib'))
+import paths as nfpaths	# LINUX, LINUX_OLD (the distribution's paths.env)
 MIN = 25
 LIMIT = 2
 FACTLIMIT = 8	# a near copy of an interface, member by member, counts too
@@ -236,11 +239,16 @@ def main():
 		elif a == '--linux': trees.append(os.path.expanduser(args.pop(0)))
 		else: args_paths.append(a)
 	if not trees:
-		trees = [t for t in (os.path.expanduser('~/Devel/linux-7.3.1'),
-			os.path.expanduser('~/Devel/linux-6.6')) if os.path.isdir(t)]
-	if not trees:
-		print('provenance.py: no Linux tree (--linux)', file=sys.stderr)
-		sys.exit(2)
+		# both: vendor/'s version and the first LinuxKPI's
+		trees = [nfpaths.get('LINUX'), nfpaths.get('LINUX_OLD')]
+	missing = [t for t in trees if not t or not os.path.isdir(t)]
+	if missing:
+		ver = open(os.path.join(D, 'VERSION')).read().split()[0]
+		sys.exit('provenance.py: no GPL check without the Linux trees to compare with: missing %s.\n'
+			'  Unpack the sources there (LINUX: %s, as sys/src/linux/VERSION; LINUX_OLD: linux-6.6,\n'
+			'  the first LinuxKPI\'s), from https://cdn.kernel.org/pub/linux/kernel/ (check sha256sums.asc),\n'
+			'  or name them: LINUX=... LINUX_OLD=... in dist/paths.env or the environment, or --linux TREE.'
+			% (', '.join(t or '(not set)' for t in missing), ver))
 
 	gpl, free, bsd, paths = index(trees)
 	if strict:

@@ -32,21 +32,15 @@ manifests(){
 check "manifests match scripts/gen/gen{libc,libs,cmds,build,kernel}.py (amd64, 386, arm64)" manifests
 
 # 1b. the LinuxKPI's manifests are what scripts/linux/genbuild.py writes
-#     (it reads Linux's GPL Makefiles from the Linux tree: skipped without it)
-if [ -d "${LINUX:-$HOME/Devel/$(cut -d' ' -f1 sys/src/linux/VERSION)}" ]; then
-	check "manifests match scripts/linux/genbuild.py" python3 scripts/linux/genbuild.py -n
-else
-	skip "manifests match scripts/linux/genbuild.py" "no Linux tree for the GPL Makefiles"
-fi
+#     (it reads Linux's GPL Makefiles from the Linux tree, LINUX of paths.env:
+#     without it the check fails and says so)
+check "manifests match scripts/linux/genbuild.py" python3 scripts/linux/genbuild.py -n
 
 # 1c. no GPL text of Linux in our LinuxKPI (kpi/, replace/): scripts/linux/provenance.py
-#     against ~/Devel/linux-7.3.1 and ~/Devel/linux-6.6 (skipped without them)
-if [ -d "$HOME/Devel/linux-7.3.1" ]; then
-	check "LinuxKPI holds no GPL text of Linux (scripts/linux/provenance.py --check)" \
-		python3 scripts/linux/provenance.py --check
-else
-	skip "LinuxKPI GPL check" "no ~/Devel/linux-7.3.1"
-fi
+#     against LINUX and LINUX_OLD of paths.env (linux-7.3.1, linux-6.6): without
+#     them the check fails and says what is missing
+check "LinuxKPI holds no GPL text of Linux (scripts/linux/provenance.py --check)" \
+	python3 scripts/linux/provenance.py --check
 
 # 2. no 32-bit ulong compared against the 64-bit ~0UL (scripts/fix/fixulongmax.py)
 ulongmax(){
@@ -145,7 +139,7 @@ check "GAS ports: no 6a/8a assembly in them" gasonly
 #    there, the build would go on without the step's output.
 #    plan9port's rc has no -n: each file becomes a function's body
 rcsyntax(){
-	local p9p=${PLAN9PORT:-$ROOT/../plan9port} bad=0 f
+	local p9p=$PLAN9PORT bad=0 f
 	[ -x "$p9p/bin/rc" ] || { echo "no $p9p/bin/rc"; return 1; }
 	for f in scripts/build/rc/*.rc scripts/guest/boot/*.rc tests/hw/*.rc tests/hw/cat/*.rc tests/hw/termrc; do
 		{ echo 'fn __syntax {'; cat "$f"; echo; echo '}'; } |

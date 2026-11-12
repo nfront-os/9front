@@ -12,11 +12,13 @@ Copied unchanged, under the source's paths (freebsd/..., drm-kmod/...); a
 file whose notice is not permissive is left out and listed.  Writes
 freebsd/NOTICE (each distinct notice once, with its files)."""
 import os, re, shutil, subprocess, sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'lib'))
+import paths as nfpaths	# the distribution's paths.env
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 D = os.path.normpath(os.path.join(HERE, '../../sys/src/linux'))
-TREES = [os.path.expanduser(sys.argv[1] if len(sys.argv) > 1 else '~/Devel/freebsd-src'),
-	os.path.expanduser(sys.argv[2] if len(sys.argv) > 2 else '~/Devel/drm-kmod')]
+TREES = [os.path.expanduser(sys.argv[1] if len(sys.argv) > 1 else nfpaths.get('FREEBSD_SRC')),
+	os.path.expanduser(sys.argv[2] if len(sys.argv) > 2 else nfpaths.get('DRMKMOD_SRC'))]
 COMMITS = [l.split()[0] for l in open(os.path.join(D, 'FREEBSD')) if l.strip()]
 NAMES = ['freebsd', 'drm-kmod']
 WANT = [

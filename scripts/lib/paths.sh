@@ -18,6 +18,7 @@ __nfront_paths(){
 			k=${line%%=*}
 			v=${line#*=}
 			case "$v" in /*) ;; *) v=$top/$v;; esac
+			v=$(realpath -m "$v")
 			[ -z "${!k}" ] && export "$k=$v"
 		done < "$f"
 	fi
@@ -25,6 +26,7 @@ __nfront_paths(){
 	top=$(cd "$ROOT/.." && pwd)
 	: "${GCC_DIR:=$top/9front-gcc}" "${RUST_DIR:=$top/9front-rust}" "${GO_DIR:=$top/9front-go}"
 	: "${MCP_DIR:=$top/9front-mcp}" "${DISTFILES:=$top/9front-ui/src}" "${TREE_GCC:=$top/9front-gccwt}"
-	export GCC_DIR RUST_DIR GO_DIR MCP_DIR DISTFILES TREE_GCC
+	: "${PLAN9PORT:=$top/plan9port}"
+	export GCC_DIR RUST_DIR GO_DIR MCP_DIR DISTFILES TREE_GCC PLAN9PORT
 }
 __nfront_paths

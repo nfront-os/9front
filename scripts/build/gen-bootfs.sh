@@ -19,7 +19,8 @@
 set -e
 ROOT=${PLAN9:-$(git -C "$(dirname "$0")" rev-parse --show-toplevel)}
 CLI_DIR=${CLI_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/9front-cli}
-P9P=${PLAN9PORT:-$ROOT/../plan9port}
+. "$ROOT/scripts/lib/paths.sh"	# PLAN9PORT (the distribution's paths.env)
+P9P=$PLAN9PORT
 CONF=${1:-pc64}
 KDIR=$ROOT/sys/src/9/${2:-$CONF}
 # objtype as the kernel's mkfile sets it

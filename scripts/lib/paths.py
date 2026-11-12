@@ -7,7 +7,8 @@ import os
 
 ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '../..'))
 DEFAULTS = {'GCC_DIR': '9front-gcc', 'RUST_DIR': '9front-rust', 'GO_DIR': '9front-go',
-	'MCP_DIR': '9front-mcp', 'DISTFILES': '9front-ui/src', 'TREE_GCC': '9front-gccwt'}
+	'MCP_DIR': '9front-mcp', 'DISTFILES': '9front-ui/src', 'TREE_GCC': '9front-gccwt',
+	'PLAN9PORT': 'plan9port'}
 
 def _load():
 	vals = {}
@@ -19,7 +20,7 @@ def _load():
 				line = line.strip()
 				if line and not line.startswith('#') and '=' in line:
 					k, v = line.split('=', 1)
-					vals[k] = v if v.startswith('/') else os.path.join(top, v)
+					vals[k] = os.path.normpath(v if v.startswith('/') else os.path.join(top, v))
 			break
 	top = os.path.normpath(os.path.join(ROOT, '..'))
 	for k, v in DEFAULTS.items():

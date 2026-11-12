@@ -7,6 +7,8 @@ replace/include/<header> for each, with a no-op for each trace_X the
 vendor code calls (and trace_X_enabled), so a new Linux version needs
 only a rerun."""
 import os, re, glob, sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'lib'))
+import paths as nfpaths	# the distribution's paths.env
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 D = os.path.normpath(os.path.join(HERE, '../../sys/src/linux'))
@@ -19,7 +21,7 @@ HEADERS = {
 	'drm_trace.h': 'drivers/gpu/drm/drm_trace.h',
 	'intel_uncore_trace.h': 'drivers/gpu/drm/i915/intel_uncore_trace.h',	# Linux 6.10 on
 }
-LX = os.path.expanduser(sys.argv[1] if len(sys.argv) > 1 else '~/Devel/linux-7.3.1')
+LX = os.path.expanduser(sys.argv[1] if len(sys.argv) > 1 else nfpaths.get('LINUX'))
 
 names, funcs = set(), set()
 for f in glob.glob(os.path.join(D, 'vendor/**/*.[ch]'), recursive=True):

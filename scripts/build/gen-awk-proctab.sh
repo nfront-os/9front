@@ -5,7 +5,8 @@
 # with plan9port's 9c/9l.
 set -e
 ROOT=${PLAN9:-$(git -C "$(dirname "$0")" rev-parse --show-toplevel)}
-P9P=${PLAN9PORT:-$ROOT/../plan9port}
+. "$ROOT/scripts/lib/paths.sh"	# PLAN9PORT (the distribution's paths.env)
+P9P=$PLAN9PORT
 AWK=$ROOT/sys/src/cmd/awk
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT

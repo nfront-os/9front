@@ -129,7 +129,7 @@ def evaluate(path, cfg, v=None, tree=None, d=None):
 def makefile(tree, d):
 	"""d's Makefile: vendor/'s, or, where import.py refused it (GPL:
 	listed in REJECTED next to vendor/), the Linux tree's it came from
-	($LINUX, else ~/Devel/<VERSION>); None for a directory not imported"""
+	(LINUX of the distribution's paths.env); None for a directory not imported"""
 	mk = os.path.join(tree, d, 'Makefile')
 	if os.path.exists(mk):
 		return mk
@@ -141,10 +141,15 @@ def makefile(tree, d):
 	rel = os.path.join(d, 'Makefile')
 	if rel not in refused:
 		return None
-	lx = os.environ.get('LINUX') or os.path.expanduser('~/Devel/' + open(os.path.join(top, 'VERSION')).read().split()[0])
+	sys.path.insert(0, os.path.join(HERE, '..', 'lib'))
+	import paths	# LINUX (the distribution's paths.env)
+	lx = paths.get('LINUX')
 	mk = os.path.join(lx, rel)
 	if not os.path.exists(mk):
-		sys.exit('kbuild.py: %s is GPL, not in vendor/: needs the Linux tree (LINUX=, now %s)' % (rel, lx))
+		ver = open(os.path.join(top, 'VERSION')).read().split()[0]
+		sys.exit('kbuild.py: %s is GPL and not in vendor/: it is read from the Linux tree, missing: %s.\n'
+			'  Unpack %s there (https://cdn.kernel.org/pub/linux/kernel/, check sha256sums.asc),\n'
+			'  or name it: LINUX=... in dist/paths.env or the environment.' % (rel, mk, ver))
 	return mk
 
 def objects(tree, d, cfg):

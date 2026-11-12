@@ -8,8 +8,10 @@ the code uses a new name, or for a new Linux tree (default
 ~/Devel/linux-6.6).  linux.h stands in for the kernel's own headers
 (SHIM below)."""
 import re,os,sys,glob
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'lib'))
+import paths as nfpaths	# the distribution's paths.env
 D=os.path.join(os.path.dirname(os.path.abspath(__file__)),'../../sys/src/cmd/aux/gpu/intel')
-LX=os.path.expanduser(sys.argv[1] if len(sys.argv)>1 else '~/Devel/linux-6.6')
+LX=os.path.expanduser(sys.argv[1] if len(sys.argv)>1 else nfpaths.get('LINUX_OLD'))
 # Linux header -> our excerpt, from UPSTREAM's * lines (in its order:
 # the priority for a name defined twice)
 SRC=[]

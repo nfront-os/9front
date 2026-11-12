@@ -6,7 +6,8 @@
 # absolute 9front paths point into this tree.
 set -e
 ROOT=$(git -C "$(dirname "$0")" rev-parse --show-toplevel)
-P9P=${PLAN9PORT:-$ROOT/../plan9port}
+. "$ROOT/scripts/lib/paths.sh"	# PLAN9PORT (the distribution's paths.env)
+P9P=$PLAN9PORT
 S=$ROOT/scripts
 cd "$ROOT/sys/src/$1"
 p9() { PLAN9=$P9P PATH=$P9P/bin:$PATH "$@"; }

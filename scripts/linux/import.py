@@ -12,10 +12,12 @@ reason) are applied to them, in order.  A file that ACCEPTED names (with
 the reason) is taken whatever its notice: the owner's decision, listed in
 NOTICE with it."""
 import glob, os, re, shutil, subprocess, sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'lib'))
+import paths as nfpaths	# the distribution's paths.env
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 D = os.path.normpath(os.path.join(HERE, '../../sys/src/linux'))
-LX = os.path.expanduser(sys.argv[1] if len(sys.argv) > 1 else '~/Devel/linux-6.6')
+LX = os.path.expanduser(sys.argv[1] if len(sys.argv) > 1 else nfpaths.get('LINUX'))
 
 OK = re.compile(r'SPDX-License-Identifier:[^\n]*\b(MIT|BSD|X11)\b|Permission is hereby granted|Permission to use, copy, modify')
 

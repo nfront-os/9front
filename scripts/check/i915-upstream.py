@@ -14,9 +14,11 @@
 TREE defaults to ~/Devel/linux-6.6.  UPSTREAM is in
 sys/src/cmd/aux/gpu/intel; see there for the procedure."""
 import os, re, subprocess, sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'lib'))
+import paths as nfpaths	# the distribution's paths.env
 
 D = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../sys/src/cmd/aux/gpu/intel')
-DEF = os.path.expanduser('~/Devel/linux-6.6')
+DEF = nfpaths.get('LINUX_OLD')
 MARK = '==== Linux files the code follows now, with their notices'
 
 def upstream():
