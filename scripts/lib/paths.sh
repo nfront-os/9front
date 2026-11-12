@@ -12,7 +12,7 @@ __nfront_paths(){
 		f=
 	done
 	if [ -n "$f" ]; then
-		top=$(cd "$(dirname "$f")/.." && pwd)
+		top=$(cd -P "$(dirname "$f")/.." && pwd -P)	# physical: through a symlink of the old layout too
 		while IFS= read -r line; do
 			case "$line" in ''|'#'*) continue;; esac
 			k=${line%%=*}

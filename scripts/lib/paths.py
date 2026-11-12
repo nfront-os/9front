@@ -14,7 +14,7 @@ def _load():
 	for f in (os.environ.get('NFRONT_PATHS'), os.path.join(ROOT, '../dist/paths.env'),
 	    os.path.join(ROOT, '../9front-distribution/paths.env')):
 		if f and os.path.isfile(f):
-			top = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(f)), '..'))
+			top = os.path.dirname(os.path.dirname(os.path.realpath(f)))	# physical: through a symlink too
 			for line in open(f):
 				line = line.strip()
 				if line and not line.startswith('#') and '=' in line:
