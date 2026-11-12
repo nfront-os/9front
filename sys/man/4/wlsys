@@ -66,7 +66,32 @@ It offers
 and, when there is a GPU
 .RB ( /dev/gpu/0 ),
 .B zwp_linux_dmabuf_v1
-(version 3).
+(version 3),
+.B wp_viewporter
+and
+.BR wp_fractional_scale_v1 .
+.PP
+At
+.IR wsys 's
+scale (its theme's
+.BR scale ,
+read again when
+.I wsys
+says a window changed) clients are told it as each output's scale
+(rounded) and as a surface's preferred fractional scale.
+.I Wsys
+shows a buffer at its pixels, it does not resample: a window is as big as
+its buffer, and a surface's tree has its root's scale, the buffer's pixels
+per surface unit (the buffer over the viewport's destination, else
+.BR buffer_scale ,
+else 1).
+By it the pointer's place, a configure's size, positions, input regions
+and damage go between surface units and the window's pixels.
+A client that takes fractional scales draws at
+.IR wsys 's
+exactly; one that knows only the outputs' scale draws at it rounded; one
+that knows none draws at 1: sharp, but small.
+.PP
 Each xdg toplevel with a buffer is a window of
 .IR wsys ,
 made through its
@@ -363,8 +388,10 @@ Wayland windows; popups do not follow a parent
 that moves (the click on its border dismisses them); dma-bufs without feedback
 (version 4), modifiers or fences
 .RB ( linux-drm-syncobj :
-Mesa's Wayland WSI waits for its blit before it commits); scale and
-transform are taken as 1 and normal.
+Mesa's Wayland WSI waits for its blit before it commits); transform is
+taken as normal; a viewport's source rectangle other than all of the
+buffer is not cropped (nothing is resampled); a client without a scale is
+not enlarged.
 Built by the system's build only with ../9front-gcc's compiler (build step
 .BR ape ),
 as Mesa, SDL3 and GLFW.

@@ -168,10 +168,20 @@ outside(int v, int len, int lo, int hi)
 static void
 popupplace(Surface *s)
 {
-	Pos *p;
+	Pos *p, q;
+	double sc;
 	int x, y, fx, fy, ox, oy, sx0, sy0, sx1, sy1;
 
-	p = &s->pos;
+	/* the rules in the window's pixels: the parent's surface units by its scale (scale.c) */
+	q = s->pos;
+	if(s->parent != NULL){
+		sc = scaleof(s->parent);
+		q.w = q.w * sc + 0.5; q.h = q.h * sc + 0.5;
+		q.ax = q.ax * sc + 0.5; q.ay = q.ay * sc + 0.5;
+		q.aw = q.aw * sc + 0.5; q.ah = q.ah * sc + 0.5;
+		q.ox = q.ox * sc + 0.5; q.oy = q.oy * sc + 0.5;
+	}
+	p = &q;
 	place(p, p->anchor, p->gravity, p->ox, p->oy, &x, &y);
 	if(parentorigin(s, &ox, &oy) < 0){
 		s->popx = x;
@@ -414,6 +424,7 @@ configure(Surface *s)
 {
 	struct wl_array states;
 	uint32_t *st;
+	double sc;
 	int w, h;
 
 	if(s->xdgsurf == NULL)
@@ -421,7 +432,9 @@ configure(Surface *s)
 	if(s->popup != NULL){
 		if(s->dismissed)
 			return;
-		xdg_popup_send_configure(s->popup, s->popx, s->popy, s->pos.w, s->pos.h);
+		/* its place in the parent's surface units (popx, popy: the window's pixels) */
+		sc = s->parent != NULL ? scaleof(s->parent) : 1;
+		xdg_popup_send_configure(s->popup, s->popx / sc, s->popy / sc, s->pos.w, s->pos.h);
 		s->serial = wl_display_next_serial(display);
 		xdg_surface_send_configure(s->xdgsurf, s->serial);
 		dprint("popup configure %d %d %d %d serial %u\n", s->popx, s->popy, s->pos.w, s->pos.h, s->serial);
@@ -432,8 +445,10 @@ configure(Surface *s)
 	wl_array_init(&states);
 	w = h = 0;	/* the client's choice */
 	if(s->win != NULL){
-		w = s->win->w;
-		h = s->win->h;
+		/* the window's pixels in the units of the scale it draws at next (scale.c) */
+		sc = wantscale(s);
+		w = s->win->w / sc + 0.5;
+		h = s->win->h / sc + 0.5;
 		if(s->activated && (st = wl_array_add(&states, sizeof *st)) != NULL)
 			*st = XDG_TOPLEVEL_STATE_ACTIVATED;
 	}
@@ -646,8 +661,9 @@ xdggeometry(struct wl_client *c, struct wl_resource *r, int32_t x, int32_t y, in
 	(void)c; (void)w; (void)h;
 	if((s = wl_resource_get_user_data(r)) == NULL)
 		return;
-	s->gx = x;
-	s->gy = y;
+	/* in the window's pixels (scale.c) */
+	s->gx = topx(s, x);
+	s->gy = topx(s, y);
 }
 
 static void

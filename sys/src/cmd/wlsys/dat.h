@@ -168,6 +168,13 @@ struct Surface {
 	uint32_t	acked;	/* and acknowledged */
 	char	*title;
 	Win	*win;
+
+	/* its scale (scale.c): buffer_scale, the viewport's destination, pending and applied */
+	int	pscale, bscale;
+	int	pvw, pvh, vw, vh;	/* -1: none */
+	Rect	psdamage;	/* damage in surface units, made the buffer's at the commit */
+	struct wl_resource	*viewport;	/* its wp_viewport */
+	struct wl_resource	*frac;	/* its wp_fractional_scale_v1 */
 };
 
 /* a window of wsys for a toplevel */
@@ -281,6 +288,22 @@ int	iconrect(Surface*, int, int, Rect*);
 
 /* deco.c */
 void	decoinit(void);
+
+/* scale.c */
+extern double wscale;
+void	scaleinit(void);
+double	readscale(void);
+int	outscale(void);
+double	scaleof(Surface*);
+double	wantscale(Surface*);
+int	topx(Surface*, double);
+void	scalecommit(Surface*);
+void	scalegone(Surface*);
+void	scalecheck(void);
+
+/* wlsys.c */
+void	rectadd(Rect*, int, int, int, int);
+void	outputscale(void);
 
 /* keymap.c */
 int	mkkeymap(char*, char**);

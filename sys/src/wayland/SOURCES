@@ -20,3 +20,5 @@ protocol protocol/wayland.xml
 protocol stable/xdg-shell/xdg-shell.xml
 protocol unstable/linux-dmabuf/linux-dmabuf-unstable-v1.xml
 protocol unstable/xdg-decoration/xdg-decoration-unstable-v1.xml
+protocol stable/viewporter/viewporter.xml
+protocol staging/fractional-scale/fractional-scale-v1.xml

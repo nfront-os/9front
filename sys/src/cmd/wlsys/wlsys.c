@@ -194,7 +194,7 @@ ssurface(struct wl_resource *r)
 	return wl_resource_get_user_data(r);
 }
 
-static void
+void
 rectadd(Rect *d, int x0, int y0, int x1, int y1)
 {
 	if(x0 >= x1 || y0 >= y1)
@@ -241,7 +241,18 @@ surfattach(struct wl_client *c, struct wl_resource *r, struct wl_resource *buf, 
 	}
 }
 
-/* damage: the surface's coordinates are its buffer's (no scale, no transform) */
+/* damage_buffer: in the buffer's pixels */
+static void
+surfdamagebuf(struct wl_client *c, struct wl_resource *r, int32_t x, int32_t y, int32_t w, int32_t h)
+{
+	Surface *s;
+
+	(void)c;
+	s = ssurface(r);
+	rectadd(&s->pdamage, x, y, clampadd(x, w), clampadd(y, h));
+}
+
+/* damage: in surface units, the buffer's at the commit (its scale then: scale.c) */
 static void
 surfdamage(struct wl_client *c, struct wl_resource *r, int32_t x, int32_t y, int32_t w, int32_t h)
 {
@@ -249,7 +260,7 @@ surfdamage(struct wl_client *c, struct wl_resource *r, int32_t x, int32_t y, int
 
 	(void)c;
 	s = ssurface(r);
-	rectadd(&s->pdamage, x, y, clampadd(x, w), clampadd(y, h));
+	rectadd(&s->psdamage, x, y, clampadd(x, w), clampadd(y, h));
 }
 
 static void
@@ -300,6 +311,7 @@ surfcommit(struct wl_client *c, struct wl_resource *r)
 
 	(void)c;
 	s = ssurface(r);
+	scalecommit(s);
 	attached = s->pattached;
 	if(s->role == Rsub && subcommit(s)){
 		/* synchronized: kept for the parent's commit */
@@ -326,8 +338,8 @@ surfcommit(struct wl_client *c, struct wl_resource *r)
 	}
 	if(s->role == Rdndicon){
 		/* a drag's icon: moved by attach's offset, shown while the drag lasts */
-		s->ix += s->pdx;
-		s->iy += s->pdy;
+		s->ix += topx(s, s->pdx);
+		s->iy += topx(s, s->pdy);
 		if(changed && s->buf != NULL){
 			Rect r;
 
@@ -360,6 +372,18 @@ surfint(struct wl_client *c, struct wl_resource *r, int32_t v)
 	(void)c; (void)r; (void)v;
 }
 
+/* buffer_scale: the buffer's pixels per surface unit, from the next commit */
+static void
+surfbufscale(struct wl_client *c, struct wl_resource *r, int32_t v)
+{
+	(void)c;
+	if(v < 1){
+		wl_resource_post_error(r, WL_SURFACE_ERROR_INVALID_SCALE, "buffer scale %d", v);
+		return;
+	}
+	ssurface(r)->pscale = v;
+}
+
 static void
 surfoffset(struct wl_client *c, struct wl_resource *r, int32_t x, int32_t y)
 {
@@ -380,8 +404,8 @@ static const struct wl_surface_interface surfaceimpl = {
 	surfinput,	/* set_input_region */
 	surfcommit,
 	surfint,	/* set_buffer_transform */
-	surfint,	/* set_buffer_scale */
-	surfdamage,	/* damage_buffer */
+	surfbufscale,	/* set_buffer_scale */
+	surfdamagebuf,	/* damage_buffer */
 	surfoffset,
 	NULL,		/* get_release: version 7, not offered */
 };
@@ -409,6 +433,7 @@ surfdestroyres(struct wl_resource *r)
 	Frame *f, *t;
 
 	s = ssurface(r);
+	scalegone(s);
 	popupforget(s);
 	dragsurfacegone(s);
 	subgone(s);
@@ -461,6 +486,8 @@ compcreatesurface(struct wl_client *c, struct wl_resource *r, uint32_t id)
 		return;
 	}
 	wl_list_init(&s->pframes);
+	s->pscale = s->bscale = 1;
+	s->pvw = s->pvh = s->vw = s->vh = -1;
 	subnew(s);
 	wl_list_insert(&surfaces, &s->link);
 	wl_resource_set_implementation(s->res, &surfaceimpl, s, surfdestroyres);
@@ -532,13 +559,27 @@ outbind(struct wl_client *c, void *data, uint32_t version, uint32_t id)
 	wl_output_send_geometry(r, 0, 0, 0, 0, WL_OUTPUT_SUBPIXEL_UNKNOWN, "9front", "wsys", WL_OUTPUT_TRANSFORM_NORMAL);
 	wl_output_send_mode(r, WL_OUTPUT_MODE_CURRENT | WL_OUTPUT_MODE_PREFERRED, screenw, screenh, 60000);
 	if(version >= WL_OUTPUT_SCALE_SINCE_VERSION)
-		wl_output_send_scale(r, 1);
+		wl_output_send_scale(r, outscale());
 	if(version >= WL_OUTPUT_NAME_SINCE_VERSION)
 		wl_output_send_name(r, "wsys");
 	if(version >= WL_OUTPUT_DESCRIPTION_SINCE_VERSION)
 		wl_output_send_description(r, "the screen of wsys");
 	if(version >= WL_OUTPUT_DONE_SINCE_VERSION)
 		wl_output_send_done(r);
+}
+
+/* wsys' scale changed: the outputs' (integer) scale again */
+void
+outputscale(void)
+{
+	struct wl_resource *r;
+
+	wl_resource_for_each(r, &outputs)
+		if(wl_resource_get_version(r) >= WL_OUTPUT_SCALE_SINCE_VERSION){
+			wl_output_send_scale(r, outscale());
+			if(wl_resource_get_version(r) >= WL_OUTPUT_DONE_SINCE_VERSION)
+				wl_output_send_done(r);
+		}
 }
 
 /* ---- main ---- */
@@ -654,7 +695,8 @@ main(int argc, char **argv)
 	datainit();
 	xdginit();
 	decoinit();
-	dprint("%s, screen %dx%d\n", name, screenw, screenh);
+	scaleinit();
+	dprint("%s, screen %dx%d, scale %g\n", name, screenw, screenh, wscale);
 
 	pid = -1;
 	if(argv[0] != NULL)

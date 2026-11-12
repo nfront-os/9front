@@ -214,7 +214,7 @@ enter(Surface *s, int x, int y)
 				wl_data_offer_send_source_actions(o, srcactions());
 		}
 		drag.offers[drag.noffer++] = o;
-		wl_data_device_send_enter(d, serial, s->res, wl_fixed_from_int(x), wl_fixed_from_int(y), o);
+		wl_data_device_send_enter(d, serial, s->res, wl_fixed_from_double(x / scaleof(s)), wl_fixed_from_double(y / scaleof(s)), o);
 	}
 	dprint("drag: over a surface at %d %d\n", x, y);
 }
@@ -295,7 +295,7 @@ target(void)
 
 		wl_resource_for_each(d, datadevices())
 			if(wl_resource_get_client(d) == wl_resource_get_client(t->res))
-				wl_data_device_send_motion(d, msec(), wl_fixed_from_int(x), wl_fixed_from_int(y));
+				wl_data_device_send_motion(d, msec(), wl_fixed_from_double(x / scaleof(t)), wl_fixed_from_double(y / scaleof(t)));
 	}
 }
 

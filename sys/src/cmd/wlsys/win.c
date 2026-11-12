@@ -136,6 +136,8 @@ event(Win *w, char *l)
 			pointer(w, x, y, b, ms);
 		break;
 	case 'r':
+		/* wsys says so for another theme too: its scale may have changed (scale.c) */
+		scalecheck();
 		if(sscanf(l+1, "%d %d", &x, &y) != 2 || (x == w->w && y == w->h))
 			break;
 		w->w = x;

@@ -28,6 +28,8 @@ bash "$ROOT/scripts/wayland/build.sh" "$HERE/root/tests"
 "$CROSS/$TRIPLE-gcc" -std=gnu11 -O2 -Wall -Wno-unused-parameter -o "$HERE/root/tests/wlclient" "$HERE/wlclient.c" \
 	-lwayland-client -lffi
 "$CROSS/$TRIPLE-gcc" -std=gnu11 -O2 -Wall -o "$HERE/root/tests/wlwatch" "$HERE/wlwatch.c"
+"$CROSS/$TRIPLE-gcc" -std=gnu11 -O2 -Wall -Wno-unused-parameter -o "$HERE/root/tests/wlscale" "$HERE/wlscale.c" \
+	-lwayland-client -lffi -lm
 # the libraries for foot (scripts/ape/vendor.sh: freetype, pixman, expat, xkbcommon, fontconfig, fcft), if built
 if [ -e "$ROOT/amd64/lib.gcc/ape/libfcft.a" ]; then
 	"$CROSS/$TRIPLE-gcc" -std=gnu11 -O2 -Wall -I"$ROOT/sys/include/ape/freetype2" -I"$ROOT/sys/include/ape/pixman-1" \
@@ -36,7 +38,7 @@ fi
 # weston's examples (scripts/wayland/weston.sh: simple-shm, simple-egl)
 bash "$ROOT/scripts/wayland/weston.sh" build "$HERE/root/tests" >/dev/null
 cp "$HERE/wlweston.rc" "$HERE/root/tests/wlweston.rc"
-for f in restartA.rc wsysrestart.rc restartdesk.rc restartwin.rc inwin.rc wlnest.rc wlnestwin.rc wlfoot.rc; do
+for f in restartA.rc wsysrestart.rc restartdesk.rc restartwin.rc inwin.rc wlnest.rc wlnestwin.rc wlfoot.rc wlscale.rc; do
 	cp "$HERE/$f" "$HERE/root/tests/$f"
 	chmod +x "$HERE/root/tests/$f"
 done
@@ -88,6 +90,9 @@ if [ "${VKONLY:-0}" = 0 ]; then
 	# screen not at 0 0, the snarf buffer the outer one's
 	wn=$($M rc "bind -a '#i' /dev; bind -a '#m' /dev; /tests/wsys -x -i /tests/wlnest.rc >/tmp/wsysO.log >[2=1]; cat /tmp/wlnest.log" 300) || true
 	echo "$wn" | grep -E '^(FAIL|wlclient:)' | sed 's/^/nest: /'
+	# HiDPI: a client that knows fractional scales under wsys -S 2, then 1.5
+	sc=$($M rc "bind -a '#i' /dev; bind -a '#m' /dev; /tests/wsys -S 2 -x -i /tests/wlscale.rc >/tmp/wsysS.log >[2=1]; cat /tmp/wsysS.log" 200) || true
+	echo "$sc" | grep -E '^(ok|FAIL|wlscale:)' | sed 's/^/scale: /'
 	stop
 	trap - EXIT
 	echo "$out" | grep -q '^wltest: all passed' || { echo "FAIL wltest"; fail=1; }
@@ -106,6 +111,8 @@ if [ "${VKONLY:-0}" = 0 ]; then
 	echo "$wn" | grep -q '^wlclient: all passed' && echo "ok wlclient under a wsys in a window of wsys" ||
 		{ echo "FAIL wlclient under a wsys in a window of wsys"; fail=1; }
 	weston "$wl" shm simple-shm
+	echo "$sc" | grep -q '^wlscale: all passed' && echo "ok HiDPI: fractional scale 2 and 1.5 (viewporter, buffer pixel for pixel, the pointer in surface units)" ||
+		{ echo "FAIL HiDPI under wlsys"; echo "$sc" | grep -E 'FAIL|wlscale:|wsys:' | head -5; fail=1; }
 	echo "$wl" | grep -q '^inwin: wlwatch simple-shm: all passed' &&
 		echo "ok wlsys started in a window of wsys (it mounts \$wsys)" ||
 		{ echo "FAIL wlsys started in a window of wsys"; echo "$wl" | grep '^inwin:' | head -5; fail=1; }

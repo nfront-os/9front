@@ -103,8 +103,9 @@ subapply(Surface *s)
 		if(l == &s->self)
 			continue;
 		c = wl_container_of(l, c, slink);
-		c->sx = c->psx;
-		c->sy = c->psy;
+		/* in the window's pixels: the tree's surface units by its scale (scale.c) */
+		c->sx = topx(s, c->psx);
+		c->sy = topx(s, c->psy);
 		if(c->cached){
 			c->cached = 0;
 			if(c->cinputset){
@@ -191,7 +192,7 @@ pick1(Surface *s, int sx, int sy, int x, int y, int *px, int *py)
 			continue;
 		}
 		if(s->buf != NULL && x >= sx && y >= sy && x < sx + s->buf->w && y < sy + s->buf->h &&
-		   regin(s->input, x - sx, y - sy)){
+		   regin(s->input, (x - sx) / scaleof(s), (y - sy) / scaleof(s))){
 			*px = x - sx;
 			*py = y - sy;
 			return s;

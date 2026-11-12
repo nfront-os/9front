@@ -1,0 +1,64 @@
+#!/bin/rc
+# HiDPI under wlsys (../9front-ui PLAN stage 8), run by wsys -S 2 -x -i
+# (tests/wayland/run.sh): wlscale, a client that knows fractional scales,
+# is told 240/120 (wp_fractional_scale_v1) and the outputs' scale 2; its
+# buffer twice its logical size (a viewport's destination) is its window in
+# wsys, pixel for pixel; the pointer at 100 60 in the window is 50 30 in
+# its surface units; scale 1.5 written to wsys' theme: told 180/120, it
+# draws again, the window keeps its pixels (the logical size grows).
+# Prints ok/FAIL lines and "wlscale: all passed".
+nfail=0
+fn ok { echo ok $* }
+fn fail { echo FAIL $*; nfail=`{echo $nfail+1 | hoc} }
+fn wait1 { # cmd...: until it succeeds, 10 s at most
+	n=0
+	while(! $* >[2]/dev/null && test $n -lt 100){ sleep 0.1; n=`{echo $n+1 | hoc} }
+	$* >[2]/dev/null
+}
+fn win { # the window labelled wlscale
+	for(i in `{ls -p /mnt/wsys | grep '^[0-9]+$'})
+		if(~ `{cat /mnt/wsys/$i/label} wlscale) echo $i
+}
+fn content { c=`{cat /mnt/wsys/$1/ctl}; echo $c(2-5) }
+rm -f /tmp/wlscale.^(state pointer stop)
+/tests/wlsys -d /tests/wlscale >/tmp/wlscale.log >[2=1] &
+fn drawn { test -s /tmp/wlscale.state && ~ $#w 1 || { w=`{win}; false } }
+w=()
+wait1 drawn
+s=`{cat /tmp/wlscale.state}
+# preferred P output S logical w h buffer bw bh
+if(~ $s(2) 240 && ~ $s(4) 2) ok told the scale: preferred $s(2)/120, the outputs $s(4)
+if not fail told: $s
+w=`{win}
+c=`{content $w}
+dx=`{echo $c(3)-$c(1) | hoc}
+dy=`{echo $c(4)-$c(2) | hoc}
+if(~ $dx $s(9) && ~ $dy $s(10) && ~ $s(9) `{echo 2'*'$s(6) | hoc}) ok its window $dx x $dy: the buffer, twice the logical $s(6) x $s(7)
+if not fail window $w content $c, state $s
+
+# the pointer at 100 60 in the window: 50 30 in surface units
+x=`{echo $c(1)+100 | hoc}
+y=`{echo $c(2)+60 | hoc}
+{ echo A $x $y 0; sleep 0.2; echo A `{echo $x+2 | hoc} $y 0; sleep 0.2; echo A $x $y 0 } >/dev/mousein
+sleep 0.5
+p=`{cat /tmp/wlscale.pointer}
+if(~ $"p '50 30') ok the pointer in surface units: $p
+if not fail the pointer: $p
+
+# another scale, at once
+echo 'scale 1.5' >/mnt/wsys/theme
+fn again { t=`{cat /tmp/wlscale.state}; ~ $t(2) 180 }
+wait1 again
+t=`{cat /tmp/wlscale.state}
+want=`{echo 'int('$t(6)'*1.5+0.5)' | hoc}	# (rounded as the client does)
+if(~ $t(2) 180 && ~ $t(9) $want) ok scale 1.5: told $t(2)/120, buffer $t(9) x $t(10) for $t(6) x $t(7)
+if not fail scale 1.5: $t
+sleep 0.5
+c=`{content $w}
+dx=`{echo $c(3)-$c(1) | hoc}
+if(~ $dx $t(9)) ok its window $dx wide: the buffer
+if not fail after scale 1.5: window $c, state $t
+touch /tmp/wlscale.stop
+wait
+grep -s 'missing globals' /tmp/wlscale.log && fail `{grep 'missing' /tmp/wlscale.log}
+if(~ $nfail 0) echo wlscale: all passed

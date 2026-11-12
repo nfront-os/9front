@@ -87,7 +87,7 @@ penter(Win *w, Surface *s, int x, int y)
 	pbuttons = 0;
 	serial = wl_display_next_serial(display);
 	eachres(r, &pointers, w){
-		wl_pointer_send_enter(r, serial, s->res, wl_fixed_from_int(x), wl_fixed_from_int(y));
+		wl_pointer_send_enter(r, serial, s->res, wl_fixed_from_double(x / scaleof(s)), wl_fixed_from_double(y / scaleof(s)));
 		pframe(r);
 	}
 }
@@ -161,7 +161,7 @@ pointer(Win *w, int x, int y, int b, uint32_t ms)
 		px = x;
 		py = y;
 		eachres(r, &pointers, w)
-			wl_pointer_send_motion(r, ms, wl_fixed_from_int(x), wl_fixed_from_int(y));
+			wl_pointer_send_motion(r, ms, wl_fixed_from_double(x / scaleof(s)), wl_fixed_from_double(y / scaleof(s)));
 	}
 	old = pbuttons;
 	for(i = 0; i < 3; i++)
