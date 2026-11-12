@@ -57,7 +57,7 @@ it runs
 .I cmd
 with
 .IR rc (1)
-in a name space of its own with the tree on
+in a name space and an environment of its own with the tree on
 .B /mnt/wsys
 and
 .B $wsys
@@ -245,7 +245,13 @@ messages
 .BR hide ,
 .BR unhide ,
 .BR scroll ,
-.BR noscroll )
+.BR noscroll ),
+.B fullscreen
+(the window all of the screen, without border or title bar, above the bars
+while it is on top; another window made current goes over it, the bars over
+both again; it stays the screen's size when the screen changes),
+.B unfullscreen
+(its frame, border and title bar as before)
 and
 .BR bar :
 the window becomes a bar
@@ -274,7 +280,7 @@ item under it, or none off them.
 .PP
 A process
 .I wsys
-starts in a new window gets a name space with the window's files on
+starts in a new window gets a name space and an environment of its own with the window's files on
 .B /dev
 and
 .BR /mnt/wsys ,

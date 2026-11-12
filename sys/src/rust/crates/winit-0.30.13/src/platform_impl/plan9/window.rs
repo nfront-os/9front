@@ -73,16 +73,19 @@ impl Window {
         let mut restore = None;
         let mut fullscreen = false;
         if attrs.fullscreen.is_some() {
-            // the whole screen, the border outside it
-            restore = Some(draw.content().inset(-b));
             fullscreen = true;
-            wctl(&format!(
-                "resize -r {} {} {} {}",
-                screen.x0 - b,
-                screen.y0 - b,
-                screen.x1 + b,
-                screen.y1 + b
-            ));
+            // wsys' fullscreen (no border, no title bar, above its bars), else
+            // rio's way: the whole screen, the border outside it
+            if p9win::wctl("fullscreen").is_err() {
+                restore = Some(draw.content().inset(-b));
+                wctl(&format!(
+                    "resize -r {} {} {} {}",
+                    screen.x0 - b,
+                    screen.y0 - b,
+                    screen.x1 + b,
+                    screen.y1 + b
+                ));
+            }
         } else {
             if let Some(size) = attrs.inner_size {
                 let (w, h): (u32, u32) = size.to_physical::<u32>(1.0).into();
@@ -317,15 +320,22 @@ impl Window {
     #[inline]
     pub(crate) fn set_fullscreen(&self, monitor: Option<Fullscreen>) {
         let mut restore = self.st.restore.lock().unwrap();
+        let full = self.st.fullscreen.load(Ordering::Relaxed);
         if monitor.is_some() {
-            let (s, b) = (self.screen(), self.border());
-            if restore.is_none() {
-                *restore = Some(self.content().inset(-b));
+            // wsys' fullscreen, else rio's way: the border outside the screen
+            if !full && p9win::wctl("fullscreen").is_err() {
+                let (s, b) = (self.screen(), self.border());
+                if restore.is_none() {
+                    *restore = Some(self.content().inset(-b));
+                }
+                wctl(&format!("resize -r {} {} {} {}", s.x0 - b, s.y0 - b, s.x1 + b, s.y1 + b));
             }
-            wctl(&format!("resize -r {} {} {} {}", s.x0 - b, s.y0 - b, s.x1 + b, s.y1 + b));
             self.st.fullscreen.store(true, Ordering::Relaxed);
         } else if let Some(r) = restore.take() {
             wctl(&format!("resize -r {} {} {} {}", r.x0, r.y0, r.x1, r.y1));
+            self.st.fullscreen.store(false, Ordering::Relaxed);
+        } else if full {
+            wctl("unfullscreen");
             self.st.fullscreen.store(false, Ordering::Relaxed);
         }
         drop(restore);

@@ -288,6 +288,41 @@ int main(int argc, char **argv)
     }
     OK("events pumped for 0.5 s: %d", n);
 
+    /* fullscreen (wsys' wctl fullscreen): the screen's size, then back */
+    if (!SDL_SetWindowFullscreen(win, true)) {
+        FAIL("SDL_SetWindowFullscreen: %s", SDL_GetError());
+    } else {
+        int fw = 0, fh = 0;
+
+        for (t0 = SDL_GetTicks(); SDL_GetTicks() - t0 < 3000; SDL_Delay(20)) {
+            while (SDL_PollEvent(&ev)) {
+            }
+            SDL_GetWindowSize(win, &fw, &fh);
+            if (fw != w || fh != h) {
+                break;
+            }
+        }
+        if (fw == 1024 && fh == 768) {
+            OK("fullscreen %dx%d", fw, fh);
+        } else {
+            FAIL("fullscreen %dx%d, want 1024x768", fw, fh);
+        }
+        SDL_SetWindowFullscreen(win, false);
+        for (t0 = SDL_GetTicks(); SDL_GetTicks() - t0 < 3000; SDL_Delay(20)) {
+            while (SDL_PollEvent(&ev)) {
+            }
+            SDL_GetWindowSize(win, &fw, &fh);
+            if (fw == w && fh == h) {
+                break;
+            }
+        }
+        if (fw == w && fh == h) {
+            OK("fullscreen left: %dx%d again", fw, fh);
+        } else {
+            FAIL("fullscreen left: %dx%d, want %dx%d", fw, fh, w, h);
+        }
+    }
+
     /* a tone, if there is a sound card */
     if (access("/dev/audio", F_OK) == 0 && SDL_InitSubSystem(SDL_INIT_AUDIO)) {
         SDL_AudioSpec spec = { SDL_AUDIO_S16, 1, 22050 };

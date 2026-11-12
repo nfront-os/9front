@@ -395,6 +395,31 @@ static void wctlsize(int w, int h)
     close(fd);
 }
 
+/*
+ * fullscreen: wsys' wctl fullscreen (all of the screen, no border or title
+ * bar, above its bars) and unfullscreen (the frame back); rio has neither
+ * (its window stays as it is). The new size comes as a resize ('r').
+ */
+static SDL_FullscreenResult PLAN9_SetWindowFullscreen(SDL_VideoDevice *_this, SDL_Window *window, SDL_VideoDisplay *display, SDL_FullscreenOp fullscreen)
+{
+    const char *msg = fullscreen == SDL_FULLSCREEN_OP_LEAVE ? "unfullscreen" : "fullscreen";
+    int fd, n;
+
+    (void)_this;
+    (void)window;
+    (void)display;
+    if ((fd = open("/dev/wctl", O_WRONLY)) < 0) {
+        return SDL_FULLSCREEN_FAILED;
+    }
+    n = write(fd, msg, SDL_strlen(msg));
+    close(fd);
+    if (n != (int)SDL_strlen(msg)) {
+        return SDL_FULLSCREEN_FAILED;
+    }
+    relook();
+    return SDL_FULLSCREEN_SUCCEEDED;
+}
+
 static void PLAN9_SetWindowTitle(SDL_VideoDevice *_this, SDL_Window *window)
 {
     const char *t = window->title ? window->title : "";
@@ -422,6 +447,8 @@ static bool PLAN9_CreateWindow(SDL_VideoDevice *_this, SDL_Window *window, SDL_P
     }
     if (!(window->flags & SDL_WINDOW_FULLSCREEN)) {
         wctlsize(window->w, window->h);
+    } else {
+        PLAN9_SetWindowFullscreen(_this, window, NULL, SDL_FULLSCREEN_OP_ENTER);
     }
     p9.window = window;
     relook();
@@ -624,6 +651,7 @@ static SDL_VideoDevice *PLAN9_CreateDevice(void)
     device->CreateSDLWindow = PLAN9_CreateWindow;
     device->SetWindowTitle = PLAN9_SetWindowTitle;
     device->SetWindowSize = PLAN9_SetWindowSize;
+    device->SetWindowFullscreen = PLAN9_SetWindowFullscreen;
     device->DestroyWindow = PLAN9_DestroyWindow;
     device->CreateWindowFramebuffer = PLAN9_CreateWindowFramebuffer;
     device->UpdateWindowFramebuffer = PLAN9_UpdateWindowFramebuffer;

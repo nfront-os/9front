@@ -1,0 +1,58 @@
+#!/bin/rc
+# wctl's fullscreen and unfullscreen, run by wsys -x -i (the modern theme:
+# title bars): a window all of the screen, without border or title bar,
+# above the bar along the top; another window made current goes over it and
+# the bar over both again; unfullscreen gives the window its frame, border
+# and title bar back. Prints ok/FAIL lines and "full: all passed".
+nfail=0
+fn ok { echo ok $* }
+fn fail { echo FAIL $*; nfail=`{echo $nfail+1 | hoc} }
+fn wait1 { # cmd...: until it succeeds, 10 s at most
+	n=0
+	while(! $* >[2]/dev/null && test $n -lt 100){ sleep 0.1; n=`{echo $n+1 | hoc} }
+	$* >[2]/dev/null
+}
+fn line { grep '^'$1' ' /mnt/wsys/stack }	# n x0 y0 x1 y1 border hidden
+fn top { tail -1 /mnt/wsys/stack | awk '{print $1}' }
+fn content { c=`{cat /mnt/wsys/$1/ctl}; echo $c(2-5) }
+
+cat /lib/theme/modern >/mnt/wsys/theme || fail writing the theme
+# a bar along the top (as wbar makes its window)
+window -r 0 0 1024 40
+wait1 test -d /mnt/wsys/1
+echo bar >/mnt/wsys/1/wctl
+echo resize -r 0 0 1024 24 >/mnt/wsys/1/wctl
+window -r 100 100 500 400
+window -r 600 300 900 600
+wait1 test -d /mnt/wsys/3 || fail no windows
+sleep 1
+f2=`{line 2}
+~ `{top} 1 || fail the bar not on top: `{cat /mnt/wsys/stack}
+
+echo fullscreen >/mnt/wsys/2/wctl || fail fullscreen refused
+sleep 0.5
+l=`{line 2}
+c=`{content 2}
+if(~ $"l '2 0 0 1024 768 0 0' && ~ $"c '0 0 1024 768') ok fullscreen: $l, its content $c
+if not fail fullscreen: $l, content $c
+if(~ `{top} 2) ok above the bar
+if not fail fullscreen not on top: `{cat /mnt/wsys/stack}
+
+# another window current: it goes over, the bar over both again
+echo current >/mnt/wsys/3/wctl
+echo top >/mnt/wsys/3/wctl
+sleep 0.5
+s=`{awk '{print $1}' /mnt/wsys/stack}
+if(~ $"s '2 3 1') ok another window over it, the bar on top again: $s
+if not fail after window 3 on top: $s
+
+echo unfullscreen >/mnt/wsys/2/wctl || fail unfullscreen refused
+sleep 0.5
+l=`{line 2}
+c=`{content 2}
+if(~ $"l $"f2) ok unfullscreen: its frame again: $l
+if not fail unfullscreen: $l, before $f2
+if(test $c(2) -gt `{echo $l(3)+4 | hoc}) ok the title bar back: content $c
+if not fail no title bar after unfullscreen: content $c
+~ `{top} 1 || fail the bar not on top at the end: `{cat /mnt/wsys/stack}
+if(~ $nfail 0) echo full: all passed

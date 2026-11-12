@@ -333,6 +333,7 @@ struct Win {
     unmax: Option<Rect>, // maximized from this frame (the title bar's max, a double click)
     bar: bool,           // wctl's bar: on top of the others, the mouse without the focus (wbar)
     menuout: Option<i32>, // its menu's item chosen (-1: none), for a read of menu
+    full: Option<(Rect, i32, i32)>, // wctl's fullscreen: the frame, border and title bar it had
     mapped: bool, // made by clone: off the screen (hidden) until its first present
     nofocus: bool, // a popup that leaves the focus where it is (a tooltip)
     slot: usize,
@@ -1598,7 +1599,7 @@ impl Wsys {
         self.nextwin = n;
         self.slots[slot] = true;
         self.wins.insert(n, Win {
-            r, border: BORDER, title: t, unmax: None, bar: false, menuout: None, tlayer: None, mapped: text, nofocus: false, slot, bufs: HashMap::new(), img, layer, name, refs: 0, pinned: false, pid: o.pid,
+            r, border: BORDER, title: t, unmax: None, bar: false, menuout: None, full: None, tlayer: None, mapped: text, nofocus: false, slot, bufs: HashMap::new(), img, layer, name, refs: 0, pinned: false, pid: o.pid,
             label: String::new(), wdir: o.cd.clone().unwrap_or_default(), text: String::new(), partial: vec![],
             events: VecDeque::new(), raw: false, line: String::new(), cons: VecDeque::new(), eof: false,
             kbd: VecDeque::new(), kbdopen: 0, mouseopen: 0, mouse: VecDeque::new(), resized: false,
@@ -1707,7 +1708,8 @@ impl Wsys {
             self.z.insert(0, n);
         }
         let mut l = self.wins[&n].layers();
-        if top && !self.wins[&n].bar {
+        // (a window in fullscreen on top: the bars below it)
+        if top && !self.wins[&n].bar && self.wins[&n].full.is_none() {
             // the bars above it again
             let bars: Vec<u32> = self.z.iter().copied().filter(|i| self.wins[i].bar).collect();
             self.z.retain(|i| !self.wins[i].bar);
@@ -1782,6 +1784,29 @@ impl Wsys {
                 self.setscrolling(n, cmd == "scroll");
                 Ok(())
             }
+            "fullscreen" => {
+                // all of the screen, without border or title bar; on top, above
+                // the bars too (restack), until another window goes over it
+                let w = self.wins.get_mut(&n).unwrap();
+                if w.bar || w.full.is_some() {
+                    return Ok(());
+                }
+                w.full = Some((w.frame(), w.border, w.title));
+                w.unmax = None;
+                (w.border, w.title) = (0, 0);
+                let s = self.d.r;
+                self.reframe(n, s, true)?;
+                self.restack(n, true);
+                Ok(())
+            }
+            "unfullscreen" => {
+                let w = self.wins.get_mut(&n).unwrap();
+                let Some((f, b, t)) = w.full.take() else { return Ok(()) };
+                (w.border, w.title) = (b, t);
+                self.reframe(n, inner(f, b, t), true)?;
+                self.restack(n, true);
+                Ok(())
+            }
             "bar" => {
                 // a bar (wbar): no border or title bar, above the other windows,
                 // the mouse while over it but never the focus, not in Mod4+Tab;
@@ -1806,13 +1831,14 @@ impl Wsys {
     }
 
     /// wctl's new: a window, and cmd (default rc -i) run in it in a name space
-    /// of its own with the window's files on /dev and /mnt/wsys
+    /// and an environment of its own (as rio: no rc rewriting a shared
+    /// /env while another reads it) with the window's files on /dev and /mnt/wsys
     fn spawn(&mut self, o: Opts) -> Result<(), String> {
         let n = self.newwin(&o, true)?;
         self.wins.get_mut(&n).unwrap().pinned = true;
         let cmd = if o.cmd.is_empty() { "rc -i".to_string() } else { o.cmd.join(" ") };
         let mut script = format!(
-            "rfork ns; mount {srv} /mnt/wsys {n} || exit mount; bind -b /mnt/wsys /dev; wsys={srv}; ",
+            "rfork ens; mount {srv} /mnt/wsys {n} || exit mount; bind -b /mnt/wsys /dev; wsys={srv}; ",
             srv = rcquote(&self.srvpath)
         );
         if let Some(d) = &o.cd {
@@ -2863,6 +2889,10 @@ impl Wsys {
                 continue;
             }
             let (f, b, t) = (w.frame(), w.border, w.title);
+            if w.full.is_some() {
+                let _ = self.setrect(n, s);
+                continue;
+            }
             if w.unmax.is_some() {
                 let _ = self.setrect(n, inner(self.workarea(), b, t));
                 continue;
@@ -2982,7 +3012,8 @@ impl Wsys {
         // on top of the windows; bars (wbar) are above all of them, but only
         // one over it would hide part of it
         let top = self.z.iter().rev().copied().find(|i| !self.wins[i].bar && !self.wins[i].hidden);
-        let underbar = self.z.iter().any(|i| *i != n && self.wins[i].bar && !self.wins[i].hidden && !self.wins[i].frame().clip(&w.frame()).empty());
+        let underbar = self.z.iter().skip_while(|i| **i != n).skip(1)
+            .any(|i| self.wins[i].bar && !self.wins[i].hidden && !self.wins[i].frame().clip(&w.frame()).empty());
         let why = [
             (self.nooverlay, "-O"),
             (self.gpu.as_ref().and_then(|g| g.overlay_ctl()).is_none(), "the driver has no overlay"),
@@ -4705,7 +4736,7 @@ fn main() {
 
     if let Some(cmd) = init {
         let tx = tx.clone();
-        let script = format!("rfork ns; mount -c {srvpath} /mnt/wsys || exit mount; wsys={srvpath}; {cmd}");
+        let script = format!("rfork ens; mount -c {srvpath} /mnt/wsys || exit mount; wsys={srvpath}; {cmd}");
         thread::spawn(move || {
             let st = std::process::Command::new("/bin/rc").arg("-c").arg(&script).status();
             let s = match st {
