@@ -1,0 +1,209 @@
+From 2af74acf062a8597acd3b6c7525adb79df142367 Mon Sep 17 00:00:00 2001
+From: Stefan Hertenberger <erde74@gmail.com>
+Date: Thu, 12 Nov 2026 09:40:11 +0100
+Subject: [PATCH 26/27] truetypefs: antialiased subfonts (size "Na")
+
+A font named with an a after its size (/n/ttf/unifont.ttf.16a/font)
+has its subfonts in grey, k8, the glyphs' coverage: each glyph
+rasterised at four times the size (ttfscale), each pixel the share of
+its 4x4 pixels there that are set; the advance and the line as at the
+size.  libttf makes one bit deep bitmaps only, and draw(3) takes a k8
+subfont as the mask it draws text through, so the text's edges are
+smooth.  Without the a, the subfonts are one bit deep as before.
+
+Used at 26 and more pixels (a window system drawing at a scale of 2),
+where one bit glyphs look jagged.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ sys/man/4/truetypefs     |   7 +++
+ sys/src/cmd/truetypefs.c | 120 ++++++++++++++++++++++++++++++++++++++-
+ 2 files changed, 125 insertions(+), 2 deletions(-)
+
+diff --git a/sys/man/4/truetypefs b/sys/man/4/truetypefs
+index b738ccbd7..7c467b6d7 100644
+--- a/sys/man/4/truetypefs
++++ b/sys/man/4/truetypefs
+@@ -29,6 +29,13 @@ For example,
+ is a
+ .IR font (6)
+ file generated for GNU Unifont at a size of 16.
++A size followed by
++.B a
++.RB ( /n/ttf/unifont.ttf.16a/font )
++gives antialiased subfonts (grey,
++.BR k8 :
++each glyph rasterised at four times the size, a pixel the share of its
++4×4 pixels there that are set); without it they are one bit deep.
+ 
+ .SH EXAMPLES
+ Use size 16 GNU Unifont for
+diff --git a/sys/src/cmd/truetypefs.c b/sys/src/cmd/truetypefs.c
+index 91264f2c2..54c7bc5af 100644
+--- a/sys/src/cmd/truetypefs.c
++++ b/sys/src/cmd/truetypefs.c
+@@ -23,6 +23,7 @@ struct TFont {
+ 	char *fontfile;
+ 	int nfontfile;
+ 	TTFont *ttf;
++	TTFont *ttf4;	/* antialiased (size "Na"): the glyphs four times as big */
+ 	char *name9p;
+ 	char *name;
+ 	int size;
+@@ -148,6 +149,107 @@ blit(uchar *t, int x, int y, int tstride, uchar *s, int w, int h)
+ 	}
+ }
+ 
++/* glyph g's pixel at column c, row r: 0 or 1 (outside: 0) */
++static int
++bit(TTGlyph *g, int c, int r)
++{
++	if(c < 0 || r < 0 || c >= g->width || r >= g->height)
++		return 0;
++	return g->bit[r * g->stride + (c >> 3)] >> 7 - (c & 7) & 1;
++}
++
++static int
++floordiv(int a, int b)
++{
++	return a >= 0 ? a / b : -((-a + b - 1) / b);
++}
++
++/*
++ * an antialiased subfont (k8, the glyph's coverage as grey): each glyph
++ * rasterised at four times the size, each pixel the share of its 4×4
++ * pixels there that are set; the advance and the line as at the size
++ */
++static void
++compilesubaa(TFont *f, TSubfont *s)
++{
++	int n, i, w, x, h, g, sz, X0, X1, xx, yy, dx, dy, c, H, k;
++	char *d, *p;
++	uchar *img;
++	TTGlyph **gs, **g4;
++	TTFont *t;
++
++	t = f->ttf;
++	n = s->end - s->start + 1;
++	gs = emalloc9p(sizeof(TTGlyph *) * n);
++	g4 = emalloc9p(sizeof(TTGlyph *) * n);
++	h = t->ascentpx + t->descentpx;
++	w = 0;
++	for(i = 0; i < n; i++){
++		if(s->start + i == 0)
++			g = 0;
++		else
++			g = ttffindchar(t, s->start + i);
++		if((gs[i] = ttfgetglyph(t, g, 1)) == nil && g != 0){
++			g = 0;
++			gs[i] = ttfgetglyph(t, 0, 1);
++		}
++		assert(gs[i] != nil);
++		g4[i] = ttfgetglyph(f->ttf4, g, 1);
++		assert(g4[i] != nil);
++		w += floordiv(g4[i]->xminpx + g4[i]->width + 3, 4) - floordiv(g4[i]->xminpx, 4);
++	}
++	sz = 5 * 12 + w * h + 3 * 12 + (n + 1) * 6;
++	d = emalloc(sz);
++	p = d + sprint(d, "%11s %11d %11d %11d %11d ", "k8", 0, 0, w, h);
++	img = (uchar*)p;
++	x = 0;
++	for(i = 0; i < n; i++){
++		X0 = floordiv(g4[i]->xminpx, 4);
++		X1 = floordiv(g4[i]->xminpx + g4[i]->width + 3, 4);
++		for(yy = 0; yy < h; yy++){
++			/* the pixel's top, above the baseline, at four times the size */
++			H = 4 * (t->ascentpx - yy);
++			for(xx = X0; xx < X1; xx++){
++				k = 0;
++				for(dy = 0; dy < 4; dy++)
++					for(dx = 0; dx < 4; dx++){
++						c = 4 * xx + dx - g4[i]->xminpx;
++						k += bit(g4[i], c, g4[i]->ymaxpx - H + dy);
++					}
++				img[yy * w + x + xx - X0] = k == 16 ? 255 : k * 16;
++			}
++		}
++		x += X1 - X0;
++	}
++	p += w * h;
++	p += sprint(p, "%11d %11d %11d ", n, h, t->ascentpx);
++	x = 0;
++	for(i = 0; i < n; i++){
++		X0 = floordiv(g4[i]->xminpx, 4);
++		X1 = floordiv(g4[i]->xminpx + g4[i]->width + 3, 4);
++		*p++ = x;
++		*p++ = x >> 8;
++		*p++ = 0;
++		*p++ = h;
++		*p++ = X0;
++		if(gs[i]->advanceWidthpx != 0)
++			*p++ = gs[i]->advanceWidthpx;
++		else
++			*p++ = gs[i]->width;
++		x += X1 - X0;
++	}
++	*p++ = x;
++	*p = x >> 8;
++	s->data = d;
++	s->ndata = sz;
++	for(i = 0; i < n; i++){
++		ttfputglyph(gs[i]);
++		ttfputglyph(g4[i]);
++	}
++	free(gs);
++	free(g4);
++}
++
+ static void
+ compilesub(TFont *f, TSubfont *s)
+ {
+@@ -156,6 +258,10 @@ compilesub(TFont *f, TSubfont *s)
+ 	TTGlyph **gs;
+ 	TTFont *t;
+ 	
++	if(f->ttf4 != nil){
++		compilesubaa(f, s);
++		return;
++	}
+ 	t = f->ttf;
+ 	n = s->end - s->start + 1;
+ 	gs = emalloc9p(sizeof(TTGlyph *) * n);
+@@ -210,7 +316,7 @@ tryfont(char *name)
+ 	TTFont *ttf;
+ 	TFont *f;
+ 	char *d, *buf, *p;
+-	int sz;
++	int sz, aa;
+ 	
+ 	for(f = fontl.next; f != &fontl; f = f->next)
+ 		if(strcmp(f->name9p, name) == 0)
+@@ -222,7 +328,11 @@ tryfont(char *name)
+ 		return nil;
+ 	}
+ 	sz = strtol(d + 1, &p, 10);
+-	if(d[1] == 0 || *p != 0)
++	/* "Na": antialiased */
++	aa = *p == 'a';
++	if(aa)
++		p++;
++	if(d[1] == 0 || *p != 0 || sz <= 0)
+ 		goto inval;
+ 	buf = estrdup9p(name);
+ 	buf[d - name] = 0;
+@@ -237,6 +347,12 @@ tryfont(char *name)
+ 	}
+ 	f = emalloc(sizeof(TFont));
+ 	f->ttf = ttf;
++	if(aa && (f->ttf4 = ttfscale(ttf, 4 * sz, 0)) == nil){
++		ttfclose(ttf);
++		free(buf);
++		free(f);
++		return nil;
++	}
+ 	f->name9p = strdup(name);
+ 	f->name = buf;
+ 	f->size = sz;
+-- 
+2.56.0
+

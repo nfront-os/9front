@@ -1,7 +1,7 @@
 From a84e75604d85d24dd13f76e4926b46c90a697736 Mon Sep 17 00:00:00 2001
 From: Stefan Hertenberger <erde74@gmail.com>
 Date: Tue, 3 Nov 2026 18:04:57 +0100
-Subject: [PATCH 18/25] ext4srv: set the read count before returning on a read
+Subject: [PATCH 18/27] ext4srv: set the read count before returning on a read
  of 0 bytes
 
 ext4_fread returned early for size 0 without setting *rcnt; rread's n

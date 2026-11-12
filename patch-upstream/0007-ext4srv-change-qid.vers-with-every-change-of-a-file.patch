@@ -1,7 +1,7 @@
 From b4a97b05a61874dae2412163d1117e72f1e6a6b5 Mon Sep 17 00:00:00 2001
 From: Stefan Hertenberger <erde74@gmail.com>
 Date: Sat, 31 Oct 2026 10:36:04 +0100
-Subject: [PATCH 07/25] ext4srv: change qid.vers with every change of a file
+Subject: [PATCH 07/27] ext4srv: change qid.vers with every change of a file
 
 qid.vers was the inode's generation, which a write never changes (and
 0 for a file just created). The kernel keeps the text of a program by

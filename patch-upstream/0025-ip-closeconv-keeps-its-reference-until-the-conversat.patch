@@ -1,7 +1,7 @@
 From 7fba8067f4d7d0f78c5bd43ce58be35509d73afa Mon Sep 17 00:00:00 2001
 From: Stefan Hertenberger <erde74@gmail.com>
 Date: Wed, 11 Nov 2026 08:34:24 +0100
-Subject: [PATCH 25/25] ip: closeconv keeps its reference until the
+Subject: [PATCH 25/27] ip: closeconv keeps its reference until the
  conversation is Idle
 
 tcpclose can drop the conversation's lock (tcpoutput does, around

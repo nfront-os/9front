@@ -1,7 +1,7 @@
 From 17f1d70d2bac0a4b772c6020220d45105a82c1ea Mon Sep 17 00:00:00 2001
 From: Stefan Hertenberger <erde74@gmail.com>
 Date: Thu, 5 Nov 2026 12:34:07 +0100
-Subject: [PATCH 24/25] dist: room for the ESP past the ISO
+Subject: [PATCH 24/27] dist: room for the ESP past the ISO
 
 %.iso appends 2 MB to the ISO image and puts the ESP into the last
 whole cylinder of fdisk's geometry ('a p1 $-1 $'). A cylinder can be

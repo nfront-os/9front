@@ -1,7 +1,7 @@
 From 2609b421dee47bc9a9d2f0750279d4ddb9c46ca9 Mon Sep 17 00:00:00 2001
 From: Stefan Hertenberger <erde74@gmail.com>
 Date: Wed, 4 Nov 2026 00:58:04 +0100
-Subject: [PATCH 22/25] ape: lib9p's "file not found" is ENOENT
+Subject: [PATCH 22/27] ape: lib9p's "file not found" is ENOENT
 
 lib9p answers a walk to a missing file with "file not found" (srv.c),
 which APE's errno map did not know: errno was EPLAN9 for a missing file

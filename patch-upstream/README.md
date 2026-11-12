@@ -1,7 +1,9 @@
 # Patches for upstream 9front
 
 Fixes made on the `gcc` branch (the gcc port of 9front) that are not about
-gcc: they apply to 9front as it is, built with its own compilers. Each one
+gcc: they apply to 9front as it is, built with its own compilers.  Two
+more (0026, 0027) come from the `ui` branch's HiDPI work and are useful
+on 9front by themselves. Each one
 is a patch for [9front](https://github.com/9front/9front) branch `front`,
 in `git format-patch` form, one change per patch, without the port's
 `/* GCC port: ... */` markers.
@@ -25,8 +27,8 @@ taken or declined them.
 On Unix: `git am patch-upstream/0*.patch` on a checkout of `front`.
 On 9front: `git/import` takes the files as they are.
 
-All 25 apply as a series (on `f5df6bc0a` and on `origin/front` at
-`82ddeb288`, 2026-11-10). Each applies alone too, except:
+All 27 apply as a series (on `f5df6bc0a`, on `origin/front` at
+`82ddeb288`, 2026-11-10, and at `00d3043a2`, 2026-11-12). Each applies alone too, except:
 
 - 0009 needs 0007 (context: `vbump` in `rwstat`),
 - 0010 needs 0007 and 0009,
@@ -86,6 +88,8 @@ made with an AI assistant); drop it if 9front does not want it.
 | 0023 | fault: SG_FAULT segments let reads and writes through | bug fix |
 | 0024 | dist: the CD's ESP can overlap the end of the ISO | bug fix (data) |
 | 0025 | ip: a closing conversation is given out again, its new connect hangs | bug fix |
+| 0026 | truetypefs: antialiased subfonts (size `Na`) | feature |
+| 0027 | vga: `cursorsize`, the software cursor scaled | feature |
 
 ### 0001 ip/tcp: don't hang up a reused conversation through a stale bypass pointer
 
@@ -400,7 +404,39 @@ conversation the previous owner's `closeconv()` ended after the
 dialer's connect had begun. Shown by: the same program with 12, 24 and
 50 dialing procs runs to the end, repeatedly.
 
+### 0026 truetypefs: antialiased subfonts (size "Na")
+
+A size followed by `a` (`/n/ttf/Go-Mono.ttf.26a/font`) gives grey (`k8`)
+subfonts: each glyph rasterised at four times the size, a pixel the
+share of its 4×4 pixels there that are set; without the `a` the
+subfonts are one bit deep as before.  Found by: the `ui` branch's
+HiDPI (fonts of 26 and more pixels for a scale of 2 looked jagged one
+bit deep).  Shown by: the `ui` branch's tests/ui `hidpi.rc` (wsys -S 2
+gives its text windows and programs `Go-Mono.ttf.26a`, 31 pixels high,
+drawn through it).  Compiled with `6c -FTVw` and `8c -FTVw` against
+the `upstream` branch's headers in a 9front guest; no errors, no
+warnings.
+
+### 0027 vga: cursorsize, the software cursor scaled for a monitor with many pixels to the inch
+
+vgactl's `cursorsize n` (16 to 64) draws the software cursor `n` pixels
+big, its 16×16 picture scaled (nearest) and its offset with it; reading
+vgactl gives the size; hardware cursors stay 16×16.  Shown by: the `ui`
+branch's tests/ui `hidpi.rc` (VESA, software cursor: 32, 24, 16 read
+back at scales 2, 1.5, 1).  `devvga.c` (pc, and pc64 from `../pc`) and
+`port/swcursor.c` compiled with `8c -FTVw` (pc) and `6c -FTVw` (pc64)
+against the `upstream` branch's headers; no errors, no warnings.  Not
+done: a kernel built by 9front's compilers booted with it.  (The `ui`
+branch also passes the size to its GPU drivers' cursor planes; that
+part needs its devgpu and is not here.)
+
 ## Not included
+
+- The rest of the `ui` branch's HiDPI: libdraw's `display->dpi` and
+  `scalesize`, and acme, samterm, the menus, page, vt, vnc and
+  image/histogram sizing their fixed pixels by it.  Without a window
+  system that serves a `dpi` file (rio serves none) it changes
+  nothing; it belongs with a rio that draws at a scale.
 
 - TCP half close (ctl `shutdown`, the gcc branch's `tcpshutdown`): a new
   interface added for the Rust port (`shutdown(Write)`), not a fix.
