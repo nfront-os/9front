@@ -126,10 +126,31 @@ def evaluate(path, cfg, v=None, tree=None, d=None):
 			v[name] = val.strip()
 	return v
 
+def makefile(tree, d):
+	"""d's Makefile: vendor/'s, or, where import.py refused it (GPL:
+	listed in REJECTED next to vendor/), the Linux tree's it came from
+	($LINUX, else ~/Devel/<VERSION>); None for a directory not imported"""
+	mk = os.path.join(tree, d, 'Makefile')
+	if os.path.exists(mk):
+		return mk
+	top = os.path.dirname(os.path.abspath(tree))
+	try:
+		refused = {l.split('\t')[0] for l in open(os.path.join(top, 'REJECTED')) if not l.startswith('#')}
+	except OSError:
+		refused = set()
+	rel = os.path.join(d, 'Makefile')
+	if rel not in refused:
+		return None
+	lx = os.environ.get('LINUX') or os.path.expanduser('~/Devel/' + open(os.path.join(top, 'VERSION')).read().split()[0])
+	mk = os.path.join(lx, rel)
+	if not os.path.exists(mk):
+		sys.exit('kbuild.py: %s is GPL, not in vendor/: needs the Linux tree (LINUX=, now %s)' % (rel, lx))
+	return mk
+
 def objects(tree, d, cfg):
 	"""the .c files the Makefile in d builds (y and m alike)"""
-	mk = os.path.join(tree, d, 'Makefile')
-	if not os.path.exists(mk):	# a directory not imported: nothing of it is built
+	mk = makefile(tree, d)
+	if mk is None:	# a directory not imported: nothing of it is built
 		return []
 	v = evaluate(mk, cfg, tree=os.path.abspath(tree), d=d)
 	out = []
@@ -155,8 +176,8 @@ def objects(tree, d, cfg):
 def includes(tree, d, cfg):
 	"""the -I directories of d's Makefile (ccflags-y, subdir-ccflags-y and
 	what it includes): amdgpu's for all of amd/"""
-	mk = os.path.join(tree, d, 'Makefile')
-	if not os.path.exists(mk):
+	mk = makefile(tree, d)
+	if mk is None:
 		return []
 	v = evaluate(mk, cfg, tree=os.path.abspath(tree), d=d)
 	out = []
@@ -170,8 +191,8 @@ def includes(tree, d, cfg):
 def defines(tree, d, cfg):
 	"""the -D definitions of d's Makefile (ccflags-y, subdir-ccflags-y):
 	i915's -DI915, which its display code (shared with xe) tests"""
-	mk = os.path.join(tree, d, 'Makefile')
-	if not os.path.exists(mk):
+	mk = makefile(tree, d)
+	if mk is None:
 		return []
 	v = evaluate(mk, cfg, tree=os.path.abspath(tree), d=d)
 	out = []

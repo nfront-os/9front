@@ -1,4 +1,5 @@
 # files IMPORT names that import.py left out: their notice is not MIT-like
+drivers/gpu/drm/Makefile	GPL-2.0
 drivers/gpu/drm/amd/acp/Kconfig	no notice
 drivers/gpu/drm/amd/amdgpu/Kconfig	no notice
 drivers/gpu/drm/amd/amdgpu/amdgpu_atpx_handler.c	GPL-2.0-only
@@ -6,6 +7,7 @@ drivers/gpu/drm/amd/amdgpu/amdgpu_vkms.c	GPL-2.0+
 drivers/gpu/drm/amd/amdgpu/amdgpu_vkms.h	GPL-2.0+
 drivers/gpu/drm/amd/amdkfd/Kconfig	no notice
 drivers/gpu/drm/amd/display/Kconfig	no notice
+drivers/gpu/drm/amd/display/amdgpu_dm/tests/Makefile	GPL-2.0
 drivers/gpu/drm/amd/display/dc/dce/dmub_abm_cacp.c	no notice
 drivers/gpu/drm/amd/display/dc/dce/dmub_abm_cacp.h	no notice
 drivers/gpu/drm/amd/display/modules/inc/mod_power.h	no notice
@@ -33,6 +35,7 @@ drivers/gpu/drm/drm_sysfs.c	GPL-2.0-only
 drivers/gpu/drm/drm_trace.h	GPL-2.0
 drivers/gpu/drm/drm_trace_points.c	no notice
 drivers/gpu/drm/drm_writeback.c	GPL-2.0
+drivers/gpu/drm/i915/Makefile	GPL-2.0
 drivers/gpu/drm/i915/display/intel_acpi.c	GPL-2.0
 drivers/gpu/drm/i915/display/intel_display_trace.c	GPL-2.0
 drivers/gpu/drm/i915/display/intel_display_trace.h	GPL-2.0
@@ -51,6 +54,7 @@ drivers/gpu/drm/i915/selftests/i915_mock_selftests.h	GPL-2.0
 drivers/gpu/drm/i915/selftests/i915_perf_selftests.h	GPL-2.0
 drivers/gpu/drm/i915/selftests/lib_sw_fence.h	GPL-2.0-only
 drivers/gpu/drm/i915/selftests/mock_gem_device.h	GPL-2.0
+drivers/gpu/drm/ttm/Makefile	GPL-2.0
 include/drm/bridge/analogix_dp.h	GPL-2.0-or-later
 include/drm/bridge/aux-bridge.h	GPL-2.0+
 include/drm/bridge/dw_dp.h	GPL-2.0-or-later

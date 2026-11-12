@@ -65,7 +65,11 @@ def main():
 	for f in wanted():
 		t = open(os.path.join(LX, f), errors='replace').read()
 		if os.path.basename(f) == 'Makefile':
-			ok, n = True, None
+			# a Makefile's notice: its leading # comment.  GPL ones stay in
+			# the Linux tree (REJECTED); kbuild.py reads them from there
+			n = '\n'.join(l for l in t.split('\n')[:40] if l.startswith('#'))
+			ok = not re.search(r'GPL|General Public', n) or bool(OK.search(n))
+			n = None if ok else n
 		else:
 			n = notice(t)
 			ok = bool(OK.search(n))

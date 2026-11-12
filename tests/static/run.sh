@@ -32,7 +32,12 @@ manifests(){
 check "manifests match scripts/gen/gen{libc,libs,cmds,build,kernel}.py (amd64, 386, arm64)" manifests
 
 # 1b. the LinuxKPI's manifests are what scripts/linux/genbuild.py writes
-check "manifests match scripts/linux/genbuild.py" python3 scripts/linux/genbuild.py -n
+#     (it reads Linux's GPL Makefiles from the Linux tree: skipped without it)
+if [ -d "${LINUX:-$HOME/Devel/$(cut -d' ' -f1 sys/src/linux/VERSION)}" ]; then
+	check "manifests match scripts/linux/genbuild.py" python3 scripts/linux/genbuild.py -n
+else
+	skip "manifests match scripts/linux/genbuild.py" "no Linux tree for the GPL Makefiles"
+fi
 
 # 1c. no GPL text of Linux in our LinuxKPI (kpi/, replace/): scripts/linux/provenance.py
 #     against ~/Devel/linux-7.3.1 and ~/Devel/linux-6.6 (skipped without them)
