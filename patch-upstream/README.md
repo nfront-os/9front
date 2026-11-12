@@ -2,7 +2,7 @@
 
 Fixes made on the `gcc` branch (the gcc port of 9front) that are not about
 gcc: they apply to 9front as it is, built with its own compilers.  Two
-more (0026, 0027) come from the `ui` branch's HiDPI work and are useful
+more (0026, 0027) come from the `main` branch's (then `ui`) HiDPI work and are useful
 on 9front by themselves. Each one
 is a patch for [9front](https://github.com/9front/9front) branch `front`,
 in `git format-patch` form, one change per patch, without the port's
@@ -409,9 +409,9 @@ dialer's connect had begun. Shown by: the same program with 12, 24 and
 A size followed by `a` (`/n/ttf/Go-Mono.ttf.26a/font`) gives grey (`k8`)
 subfonts: each glyph rasterised at four times the size, a pixel the
 share of its 4×4 pixels there that are set; without the `a` the
-subfonts are one bit deep as before.  Found by: the `ui` branch's
+subfonts are one bit deep as before.  Found by: the `main` branch's (then `ui`)
 HiDPI (fonts of 26 and more pixels for a scale of 2 looked jagged one
-bit deep).  Shown by: the `ui` branch's tests/ui `hidpi.rc` (wsys -S 2
+bit deep).  Shown by: the `main` branch's (then `ui`) tests/ui `hidpi.rc` (wsys -S 2
 gives its text windows and programs `Go-Mono.ttf.26a`, 31 pixels high,
 drawn through it).  Compiled with `6c -FTVw` and `8c -FTVw` against
 the `upstream` branch's headers in a 9front guest; no errors, no
@@ -432,7 +432,7 @@ part needs its devgpu and is not here.)
 
 ## Not included
 
-- The rest of the `ui` branch's HiDPI: libdraw's `display->dpi` and
+- The rest of the `main` branch's (then `ui`) HiDPI: libdraw's `display->dpi` and
   `scalesize`, and acme, samterm, the menus, page, vt, vnc and
   image/histogram sizing their fixed pixels by it.  Without a window
   system that serves a `dpi` file (rio serves none) it changes

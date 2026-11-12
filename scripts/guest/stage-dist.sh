@@ -80,7 +80,7 @@ for f in "$ROOT"/$A/*; do ln -s "$f" "$VIEW/.$A/$(basename "$f")"; done
 rm "$VIEW/$A"; mv "$VIEW/.$A" "$VIEW/$A"
 # the native toolchain (../9front-gcc: build.sh native) as /$objtype/gnu
 GCC_OUT=${GCC_OUT:-$GCC_DIR/out/$A}
-# uiproto: the desktop's files of the ui branch (TrueType fonts, themes, wbar's menu)
+# uiproto: the desktop's files of the main branch (TrueType fonts, themes, wbar's menu)
 PROTOS=("$ROOT/scripts/guest/boot/gccproto" "$ROOT/scripts/guest/boot/uiproto")
 if [ -d "$GCC_OUT/$A/gnu" ]; then
 	ln -s "$GCC_OUT/$A/gnu" "$VIEW/$A/gnu"
