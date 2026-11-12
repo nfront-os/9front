@@ -34,6 +34,15 @@ check "manifests match scripts/gen/gen{libc,libs,cmds,build,kernel}.py (amd64, 3
 # 1b. the LinuxKPI's manifests are what scripts/linux/genbuild.py writes
 check "manifests match scripts/linux/genbuild.py" python3 scripts/linux/genbuild.py -n
 
+# 1c. no GPL text of Linux in our LinuxKPI (kpi/, replace/): scripts/linux/provenance.py
+#     against ~/Devel/linux-7.3.1 and ~/Devel/linux-6.6 (skipped without them)
+if [ -d "$HOME/Devel/linux-7.3.1" ]; then
+	check "LinuxKPI holds no GPL text of Linux (scripts/linux/provenance.py --check)" \
+		python3 scripts/linux/provenance.py --check
+else
+	skip "LinuxKPI GPL check" "no ~/Devel/linux-7.3.1"
+fi
+
 # 2. no 32-bit ulong compared against the 64-bit ~0UL (scripts/fix/fixulongmax.py)
 ulongmax(){
 	! grep -rnP "[!=]=\s*~0UL\b(?!L)|~0UL\s*[!=]=" sys/src/9/port sys/src/9/pc sys/src/9/ip \

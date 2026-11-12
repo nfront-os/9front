@@ -30,7 +30,7 @@ file system of the guest: in `PATH` or `~/go/bin/ufs`).
 
 | category | what it tests | needs | time |
 |---|---|---|---|
-| `static` | source checks: manifests match their generators, no `ulong == ~0UL`, no unreviewed casts, member paths as in 9front, struct layouts of file/wire formats as kencc's (`scripts/check/cmp-struct-layout.sh`), GAS ports beside 9front's `.s`, the rc build steps parse (plan9port rc) | nothing | seconds |
+| `static` | source checks: manifests match their generators, no GPL text of Linux in the LinuxKPI (`scripts/linux/provenance.py --check`, with ~/Devel/linux-7.3.1 and -6.6), no `ulong == ~0UL`, no unreviewed casts, member paths as in 9front, struct layouts of file/wire formats as kencc's (`scripts/check/cmp-struct-layout.sh`), GAS ports beside 9front's `.s`, the rc build steps parse (plan9port rc) | nothing | seconds |
 | `asm` | the GAS ports of 9front's assembly (libc amd64, libmp and libsec amd64/386, lib387) as host unit tests, against glibc or the portable C | gcc | seconds |
 | `syscall` | the generated amd64 system call stubs (`scripts/build/gen-9syscall.sh`), whatever objtype | gcc | seconds |
 | `build` | the build's results: libraries, programs, kernel; kernel without endless busy-waits (`scripts/check/find-spinloops.sh`) | a build | seconds |
