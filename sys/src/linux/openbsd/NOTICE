@@ -44,6 +44,10 @@ notices in the derived files.
 ==== sys/dev/pci/drm/include/drm/intel/intel-gtt.h
 ==== sys/dev/pci/drm/include/generated/autoconf.h
 ==== sys/dev/pci/drm/include/generated/utsrelease.h
+==== sys/dev/pci/drm/include/kunit/static_stub.h
+==== sys/dev/pci/drm/include/kunit/test-bug.h
+==== sys/dev/pci/drm/include/kunit/test.h
+==== sys/dev/pci/drm/include/kunit/visibility.h
 ==== sys/dev/pci/drm/include/linux/acpi.h
 ==== sys/dev/pci/drm/include/linux/acpi_amd_wbrf.h
 ==== sys/dev/pci/drm/include/linux/aer.h

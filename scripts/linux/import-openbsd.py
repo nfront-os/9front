@@ -23,7 +23,7 @@ DRM = 'sys/dev/pci/drm/'
 # it carries: those we have from Linux itself, in vendor/)
 WANT = [
 	DRM + 'include/linux/', DRM + 'include/asm/', DRM + 'include/acpi/',
-	DRM + 'include/generated/', DRM + 'include/media/', DRM + 'include/video/',
+	DRM + 'include/generated/', DRM + 'include/media/', DRM + 'include/video/', DRM + 'include/kunit/',
 	DRM + 'include/xen/', DRM + 'include/trace/',
 	DRM + 'drm_linux.c', DRM + 'linux_list_sort.c', DRM + 'linux_radix.c',
 	DRM + 'linux_sort.c', DRM + 'linux_sort_r.c', DRM + 'files.drm',
