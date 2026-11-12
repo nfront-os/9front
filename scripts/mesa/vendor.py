@@ -49,6 +49,9 @@ conflicts = []
 PUBLIC = ('include/vulkan/', 'include/vk_video/', 'include/EGL/', 'include/GL/',
 	'include/GLES2/', 'include/GLES3/', 'include/KHR/')	# go to /sys/include/ape
 PLAN9_HEADERS = ('include/drm-uapi/amdgpu_drm.h',)	# plan9/drm's, under vendor/
+# Mesa's headers that are GPL (Linux's uapi, with the syscall note): ours,
+# BSD, from plan9/ in their place (vendor/ path -> our file under plan9/)
+REPLACED = {'include/drm-uapi/dma-buf.h': 'uapi/dma-buf.h'}
 # generated with the pointer's size (meson's sizeof_pointer): one copy per objtype
 ARCHDEP = ('src/mesa/glapi/glapi/gen/marshal_generated', 'src/mesa/glapi/glapi/gen/unmarshal_table.c')
 ARCHDIR = os.path.join(VENDOR, OBJTYPE)
@@ -192,7 +195,8 @@ def main():
 		if t is None or t.startswith(P9 + '/'):
 			continue
 		placed[f] = t
-		copy(os.path.join(MESA, f), t)
+		ours = REPLACED.get(os.path.relpath(t, VENDOR))
+		copy(os.path.join(P9, ours) if ours else os.path.join(MESA, f), t)
 	# what plan9/drm (built here, not by meson) reads besides: amdgpu9.c's uapi
 	for rel in PLAN9_HEADERS:
 		copy(os.path.join(SRC, rel), os.path.join(VENDOR, rel))
