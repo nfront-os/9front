@@ -113,7 +113,7 @@ i915live(){
 	cp "$HERE/i915live.rc" "$HERE/root/tests/i915live"
 	MEM=1024 CMDWAIT=300 UFS_EXTRA="$HERE/root" \
 		"$ROOT/scripts/guest/boot-cli.sh" 'rc /tests/i915live' > "$TMPD/i915live" 2>&1
-	tr -d '\r' < "$CLI_DIR/console.log" | grep -q '^i915live: 33 ok, 4 failed: gt_engines gt_contexts gt_lrc gem (3 runs)$' ||
+	tr -d '\r' < "$CLI_DIR/console.log" | grep -q '^i915live: 33 ok, 4 failed: gt_contexts gt_engines gem gt_lrc (3 runs)$' ||
 		{ tr -d '\r' < "$CLI_DIR/console.log" | grep '^i915live:'; return 1; }
 }
 check "i915live: the live selftests in as few runs as failures allow" i915live

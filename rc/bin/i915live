@@ -24,12 +24,11 @@ if(~ $1 -n){
 	shift
 }
 # as replace/drivers/gpu/drm/i915/selftests/i915_live_selftests.h
-all=(sanitycheck uncore workarounds gt_engines gt_timelines gt_contexts \
-	gt_lrc gt_mocs gt_pm gt_heartbeat gt_tlb requests migrate active \
-	objects mman dmabuf vma coherency gtt gem evict hugepages \
-	gem_contexts client gem_migrate reset memory_region hangcheck \
-	execlists ring_submission perf slpc guc guc_multi_lrc guc_hang \
-	late_gt_pm)
+all=(sanitycheck active client coherency dmabuf evict execlists gem \
+	gem_contexts gem_migrate gt_contexts gt_engines gt_heartbeat gt_lrc \
+	gt_mocs gt_pm gt_timelines gt_tlb gtt guc guc_hang guc_multi_lrc \
+	hangcheck hugepages memory_region migrate mman objects perf requests \
+	reset ring_submission slpc uncore vma workarounds late_gt_pm)
 notported=(gt_engines gt_contexts)
 # seconds without output that count as a hang
 if(~ $#quietmax 0)

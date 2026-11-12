@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""provenance.py [-v] [--check] [--linux TREE]... [PATH...]: lines of our
+"""provenance.py [-v] [--check] [--strict] [--linux TREE]... [PATH...]: lines of our
 LinuxKPI that are Linux's GPL text.
 
 Our own files (default: every .c and .h under sys/src/linux/kpi and
@@ -15,6 +15,10 @@ a field) found in a permissive file do not count; text that only the GPL
 files have does.  The Linux trees compared: every --linux TREE, by default
 ~/Devel/linux-7.3.1 (vendor/'s version) and ~/Devel/linux-6.6 (the first
 LinuxKPI's) where present; all of each, not only the file of the same name.
+
+--strict: a line of the BSD templates (openbsd/, freebsd/) is no
+permissive source where a GPL-only Linux file has it too (a template
+that took Linux's text would carry it through).
 
 Prints the files with any such line, most first, as text+code+facts:
 text (any other line, and lines of code that stand in a row as in the
@@ -75,6 +79,21 @@ FACT = [re.compile(x) for x in (
 	r'^\w+ = (0x[0-9a-fA-F]+|\d+|\w+|BIT\(\d+\)|\(?\d+ ?<< ?\d+\)?),?$',
 	r'^(const |unsigned |signed |struct |enum |union |volatile |__\w+ )*\w+( __\w+)?[ *]+\w+(\[\w*\])?(:\d+)?;$',
 	r'^\w+,$',
+	r'^((const |struct |unsigned |enum |static |inline )*\w+ \**)?\w+\((void|((const |struct |unsigned |enum )*\w+ \**\w+(, )?)*)\)$',	# a function's head
+	r'^\w+\(\w+, \w+\)$',	# an entry of an X-macro table (name, function)
+	r'^\w+\(\w+\),$',	# an entry of a table of tests (SUBTEST(f),)
+	r'^(const )?(struct |enum |unsigned )?\w+ \**\(\*\w+\)\([^()]*\);$',
+	r'^\**\w+\(((const |struct |unsigned |enum )*\w+ \**\w+, )*(const |struct |unsigned |enum )*\w+ \**\w+,$',
+	r'^((const |struct |unsigned |enum )*\w+ \**\w+, )*(const |struct |unsigned |enum )*\w+ \**\w+\)( \{)?$',
+	r'^(static )?(const )?struct \w+ \**\w+(\[\])? = (\{|\w+;)$',
+	r'^typedef (signed |unsigned |long |short |const |struct |union |enum )*\w+ \**\w+;$',
+	r'^#\s*define \w+ \(?\w+\)?$',
+	r'^#\s*define \w+ \(?\w+( \| \w+)+\)?$',
+	r'^\w+ = \w+( \| \w+)+,?$',
+	r'^#\s*define \w+ \(\(?-\w+ - 1\)?\)$',
+	r'^#\s*define \w+ \(\(\w+\)\(?-\w+ - 1\)?\)$',
+	r'^#\s*define \w+ \(?\(\w+\)~?\(?\w+\)?\)?$',
+	r'^#\s*define \w+ \(\d+U?L*L? << \d+\)$',
 	r'^#\s*include [<"][\w/.-]+[>"]$',
 	r'^(typedef )?(struct|enum|union) \w+ \{$',
 	r'^(static |inline |const |unsigned |struct |enum )*\w+ ?\**$',
@@ -85,8 +104,12 @@ FACT = [re.compile(x) for x in (
 # Alone it is no copy (anyone writes it so), two in a row that stand in a
 # row in the Linux file too are (a function taken line by line)
 CODE = [re.compile(x) for x in (
-	r'^(return )?!?\w+\(([\w &>.*-]+(, ?)?)*\)\)?;$',
-	r'^(if|while) \(!?\w+\(([\w &>.*-]+(, ?)?)*\)\)( \{)?$',
+	r'^[\w>.*-]+ = \w+\((?:[\w &>.*()-]+(?:, ?[\w &>.*()-]+)*)?\);$',
+	r'^for \(\w+ = \w+; \w+ < [\w>.-]+; \w+\+\+\)( \{)?$',
+	r'^\.\w+ = &?\w+,$',
+	r'^#\s*define \w+\([\w, ]*\) !?\(?\w+\([\w, !()]*\)\)?$',
+	r'^(return )?!?\w+\((?:[\w &>.*-]+(?:, ?[\w &>.*-]+)*)?\)\)?;$',
+	r'^(if|while) \(!?\w+\((?:[\w &>.*-]+(?:, ?[\w &>.*-]+)*)?\)\)( \{)?$',
 	r'^[\w>.-]+ [|&]?= [\w|&]+( [|&] )?(BIT\(\w+\)|[\w>.-]+)?;$',
 	r'^\w+\([\w>.-]+, [\w>.-]+\);$',
 	r'^BIT\(\w+\)\);$',
@@ -187,25 +210,29 @@ def index(trees):
 						gpl.setdefault(l, rel)
 				else:
 					free.update(lines)
-	for d in ('vendor', 'openbsd', 'freebsd'):
+	for p in sources(os.path.join(D, 'vendor')):
+		free.update(norm(read(p)))
+	bsd = set()	# the BSD templates' lines (--strict credits them only where Linux's GPL files lack them)
+	for d in ('openbsd', 'freebsd'):
 		for p in sources(os.path.join(D, d)):
-			free.update(norm(read(p)))
+			bsd.update(norm(read(p)))
 
 	os.makedirs(os.path.dirname(cache), exist_ok=True)
 	with open(cache + '.tmp', 'wb') as f:
-		pickle.dump((gpl, free, paths), f, protocol=pickle.HIGHEST_PROTOCOL)
+		pickle.dump((gpl, free, bsd, paths), f, protocol=pickle.HIGHEST_PROTOCOL)
 	os.replace(cache + '.tmp', cache)
-	return gpl, free, paths
+	return gpl, free, bsd, paths
 
 def main():
 	args = sys.argv[1:]
-	verbose = check = False
+	verbose = check = strict = False
 	trees = []
 	args_paths = []
 	while args:
 		a = args.pop(0)
 		if a == '-v': verbose = True
 		elif a == '--check': check = True
+		elif a == '--strict': strict = True
 		elif a == '--linux': trees.append(os.path.expanduser(args.pop(0)))
 		else: args_paths.append(a)
 	if not trees:
@@ -215,7 +242,11 @@ def main():
 		print('provenance.py: no Linux tree (--linux)', file=sys.stderr)
 		sys.exit(2)
 
-	gpl, free, paths = index(trees)
+	gpl, free, bsd, paths = index(trees)
+	if strict:
+		free |= bsd - set(gpl)
+	else:
+		free |= bsd
 
 	linux = paths
 	paths = args_paths

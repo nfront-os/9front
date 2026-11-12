@@ -11,3 +11,5 @@ replace/include/drm/drm_device.h	30	our own header: the members of struct drm_de
 kpi/include/linux/i2c.h	27	our own header: the I2C message flags and adapter functionality bits (numbers of the I2C interface) the drivers and kpi/linux/i2c.c use, a few prototypes
 kpi/include/linux/mm.h	15	the VM_* flags of a mapping (numbers of the interface the drivers set and test), vm_munmap's prototype
 replace/include/drm/drm_mipi_dsi.h	21	our own header: the prototypes of the DSI peripheral API i915 calls, DCS power mode bits, the compression types
+replace/drivers/gpu/drm/i915/selftests/i915_live_selftests.h	37	the table of the live selftests the vendored MIT selftest sources define: (name, function) pairs; our order (sanity check first, late_gt_pm last as Linux asks, the others by name)
+replace/drivers/gpu/drm/i915/selftests/i915_mock_selftests.h	18	the table of the mock selftests (name, function); our order (sanity check first, the others by name)
