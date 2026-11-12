@@ -129,8 +129,11 @@ if [ "${VKONLY:-0}" = 0 ]; then
 	fi
 fi
 
-# GPU buffers: wlvk on venus (Mesa's dma-buf fds, wsys' gpubuffer)
-if [ "${NOVK:-0}" = 0 ]; then
+# GPU buffers: wlvk on venus (Mesa's dma-buf fds, wsys' gpubuffer), if the host
+# can render (as tests/gpu: no render node while its GPU is vfio-pci's)
+if [ "${NOVK:-0}" = 0 ] && ! { [ -r /dev/dri/renderD128 ] && [ -w /dev/dri/renderD128 ]; }; then
+	echo "skip GPU buffers (venus): the host has no render node /dev/dri/renderD128"
+elif [ "${NOVK:-0}" = 0 ]; then
 	CC=$CROSS/$TRIPLE-gcc ARCH=amd64 "$ROOT/sys/src/cmd/build/build.exe" -D "$ROOT/sys/src/mesa/build.json" \
 		>"$CLI_DIR/wayland-libvulkan.log" 2>&1 || { tail -20 "$CLI_DIR/wayland-libvulkan.log"; exit 1; }
 	"$CROSS/$TRIPLE-gcc" -std=gnu11 -O2 -Wall -Wno-unused-parameter -c -o "$CLI_DIR/wlvk.o" "$HERE/wlvk.c"
