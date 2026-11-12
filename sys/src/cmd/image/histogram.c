@@ -376,7 +376,7 @@ winmove(Display *d, Point p)
 int
 winresize(Display *d, Point sz)
 {
-	return winctl(d, "resize -dx %d -dy %d", sz.x+2*Borderwidth, sz.y+2*Borderwidth);
+	return winctl(d, "resize -dx %d -dy %d", sz.x+2*scalesize(d, Borderwidth), sz.y+2*scalesize(d, Borderwidth));
 }
 
 int

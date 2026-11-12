@@ -35,7 +35,7 @@ adjustwin(Vnc *v, int force)
 	if(force) {
 		fd = open("/dev/wctl", OWRITE);
 		if(fd >= 0){
-			fprint(fd, "resize -dx %d -dy %d", d.x+2*Borderwidth, d.y+2*Borderwidth);
+			fprint(fd, "resize -dx %d -dy %d", d.x+2*scalesize(display, Borderwidth), d.y+2*scalesize(display, Borderwidth));
 			close(fd);
 		}
 	}

@@ -12,6 +12,7 @@
 #include <draw.h>
 #include <fcntl.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -52,9 +53,21 @@ p9draw_close(void)
 }
 
 int
+p9draw_border(void)
+{
+	return winborder;
+}
+
+int
+p9draw_dpi(void)
+{
+	return disp != nil && disp->dpi > 0 ? disp->dpi : DefaultDPI;
+}
+
+int
 p9draw_attach(void)
 {
-	char name[128];
+	char name[128], dpi[16];
 	int fd, n;
 
 	if(disp == nil)
@@ -73,9 +86,22 @@ p9draw_attach(void)
 	if(n <= 0)
 		return -1;
 	name[n] = 0;
-	/* rio's windows have a border; devdraw's screen (noborder.screen.N) has none */
+	/*
+	 * rio's windows have a border; devdraw's screen (noborder.screen.N) has
+	 * none; at the window system's scale (wsys' dpi) scalesize(2)'s
+	 */
+	disp->dpi = DefaultDPI;
+	if((fd = open("/dev/dpi", O_RDONLY)) >= 0){
+		n = read(fd, dpi, sizeof dpi - 1);
+		close(fd);
+		if(n > 0){
+			dpi[n] = 0;
+			if(atoi(dpi) > 0)
+				disp->dpi = atoi(dpi);
+		}
+	}
 	if(strncmp(name, "noborder.", 9) != 0)
-		winborder = Borderwidth;
+		winborder = scalesize(disp, Borderwidth);
 	if(win != nil && strcmp(winname, name) == 0)
 		return 0;
 	if(win != nil)

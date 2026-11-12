@@ -57,6 +57,9 @@ struct Dock {
     buttons: u32,
     px: Vec<u32>,
     debug: Option<String>,
+    dpi: i32,         // the window system's (p9win::dpi): what sizes are scaled by
+    fontpath: String, // the font, its size at 96 dpi
+    size: f32,
 }
 
 /// the dock's file: lines "label<tab>command[<tab>word]", # a comment
@@ -97,18 +100,22 @@ impl Dock {
                 }
             }
         };
+        // sizes at the window system's scale (libdraw's scalesize)
+        let dpi = self.dpi;
+        let k = move |n: i32| p9win::draw::scalesize(dpi, n);
+        let (pad, gap, mark, line) = (k(PAD), k(GAP), k(MARK), k(2));
         let (bw, bh) = (w as i32, h as i32);
         fill(&mut self.px, Rect::new(0, 0, bw, bh), t.window);
-        fill(&mut self.px, Rect::new(0, 0, bw, 2), t.border);
-        let ty = 2 + (bh - 2 - MARK - 2 - self.text.height) / 2;
+        fill(&mut self.px, Rect::new(0, 0, bw, line), t.border);
+        let ty = line + (bh - 2 * line - mark - self.text.height) / 2;
         let mut dbg = format!("dock {} {} {} {}\n", c.x0, c.y0, c.x1, c.y1);
         // the starters in the middle, as many as fit
-        let widths: Vec<i32> = (0..self.starters.len()).map(|i| self.text.width(&self.starters[i].label.clone()) + 2 * PAD).collect();
+        let widths: Vec<i32> = (0..self.starters.len()).map(|i| self.text.width(&self.starters[i].label.clone()) + 2 * pad).collect();
         let mut n = widths.len();
-        while n > 0 && widths[..n].iter().sum::<i32>() + GAP * (n as i32 - 1) > bw {
+        while n > 0 && widths[..n].iter().sum::<i32>() + gap * (n as i32 - 1) > bw {
             n -= 1;
         }
-        let total = widths[..n].iter().sum::<i32>() + GAP * (n as i32 - 1).max(0);
+        let total = widths[..n].iter().sum::<i32>() + gap * (n as i32 - 1).max(0);
         let mut x = (bw - total) / 2;
         self.spots.clear();
         for i in 0..n {
@@ -116,25 +123,25 @@ impl Dock {
             let mine: Vec<Win> = self.mine(i).into_iter().cloned().collect();
             let current = mine.iter().any(|w| w.current);
             if current {
-                fill(&mut self.px, Rect::new(x, 4, x + iw, bh - 2), t.select);
+                fill(&mut self.px, Rect::new(x, 2 * line, x + iw, bh - line), t.select);
             }
             let label = self.starters[i].label.clone();
             let ink = if !mine.is_empty() && mine.iter().all(|w| w.hidden) { text::mix(t.window, t.text, 110) } else { t.text };
-            self.text.draw(&mut self.px, w, h, x + PAD, ty, &label, ink, x + iw);
+            self.text.draw(&mut self.px, w, h, x + pad, ty, &label, ink, x + iw);
             if !mine.is_empty() {
                 // the mark: one dash per window, three at most
-                let k = mine.len().min(3) as i32;
-                let (dw, dg) = (8, 4);
-                let mx = x + (iw - (k * dw + (k - 1) * dg)) / 2;
-                for j in 0..k {
+                let nd = mine.len().min(3) as i32;
+                let (dw, dg, up) = (k(8), k(4), k(1));
+                let mx = x + (iw - (nd * dw + (nd - 1) * dg)) / 2;
+                for j in 0..nd {
                     let x0 = mx + j * (dw + dg);
-                    fill(&mut self.px, Rect::new(x0, bh - 2 - MARK - 1, x0 + dw, bh - 3), t.border);
+                    fill(&mut self.px, Rect::new(x0, bh - line - mark - up, x0 + dw, bh - line - up), t.border);
                 }
             }
             self.spots.push((i, x, x + iw));
             let state = if current { "current" } else if mine.is_empty() { "none" } else { "open" };
             dbg += &format!("item {i} {x} {} {} {state} {label}\n", x + iw, mine.len());
-            x += iw + GAP;
+            x += iw + gap;
         }
         let _ = self.draw.put(&self.px, w, h, &[]);
         if let Some(p) = &self.debug {
@@ -148,6 +155,20 @@ impl Dock {
         let changed = wins != self.wins;
         self.wins = wins;
         changed
+    }
+
+    /// another scale (the window system's dpi): the font and the dock's height anew
+    fn rescale(&mut self) {
+        let dpi = p9win::dpi();
+        if dpi == self.dpi {
+            return;
+        }
+        match text::Text::open(&self.fontpath, self.size * dpi as f32 / 96.0) {
+            Ok(t) => self.text = t,
+            Err(e) => eprintln!("wdock: font: {e}"),
+        }
+        self.dpi = dpi;
+        self.h = height(&self.text, dpi);
     }
 
     /// the window along the bottom of the screen, the screen's width
@@ -199,6 +220,12 @@ impl Dock {
     }
 }
 
+/// the dock's height: the text, its line along the top, room around, the marks
+fn height(text: &text::Text, dpi: i32) -> i32 {
+    let k = |n| p9win::draw::scalesize(dpi, n);
+    text.height + k(2) + 2 * k(6) + k(MARK)
+}
+
 /// window w current, on top, back if hidden
 fn up(w: &Win) {
     if w.hidden {
@@ -238,12 +265,13 @@ fn main() {
         eprintln!("wdock: {dockpath}: no starters");
         std::process::exit(1);
     }
-    let text = text::Text::open(&fontpath, size).unwrap_or_else(|e| die("font", e));
+    let dpi = p9win::dpi();
+    let text = text::Text::open(&fontpath, size * dpi as f32 / 96.0).unwrap_or_else(|e| die("font", e));
     let draw = Draw::open().unwrap_or_else(|e| die("draw", e));
     let (tx, rx) = mpsc::channel();
-    let h = text.height + 2 + 2 * 6 + MARK;
+    let h = height(&text, dpi);
     let debug = std::env::var("WDOCKDEBUG").is_ok_and(|v| v.contains("items")).then(|| format!("/tmp/wdock.{}.items", std::process::id()));
-    let mut dock = Dock { draw, text, theme, own: wins::own(), h, starters, wins: vec![], spots: vec![], press: None, buttons: 0, px: vec![], debug };
+    let mut dock = Dock { draw, text, theme, own: wins::own(), h, starters, wins: vec![], spots: vec![], press: None, buttons: 0, px: vec![], debug, dpi, fontpath, size };
     let _ = p9win::set_label("wdock");
     let _ = p9win::wctl("bar");
     dock.place();
@@ -276,7 +304,8 @@ fn main() {
                     if let Err(e) = dock.draw.attach() {
                         die("attach", e);
                     }
-                    // the screen changed (back to its bottom), or the theme
+                    // the screen changed (back to its bottom), the theme, the scale
+                    dock.rescale();
                     dock.place();
                     dock.theme = desk::theme::current();
                     dock.picture();

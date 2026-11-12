@@ -181,6 +181,12 @@ static void relook(_GLFWwindow* window)
 
     _glfwDrawAttachPlan9();
     _glfwDrawRectPlan9(&x, &y, &w, &h, &_glfw.plan9.border);
+    // another scale (wsys' dpi): the program is told
+    if (_glfwDrawDpiPlan9() != _glfw.plan9.dpi)
+    {
+        _glfw.plan9.dpi = _glfwDrawDpiPlan9();
+        _glfwInputWindowContentScale(window, _glfw.plan9.dpi / 96.f, _glfw.plan9.dpi / 96.f);
+    }
     if (x != window->plan9.xpos || y != window->plan9.ypos)
     {
         window->plan9.xpos = x;
@@ -608,13 +614,14 @@ void _glfwGetWindowFrameSizePlan9(_GLFWwindow* window,
         *bottom = b;
 }
 
+// the window system's scale (wsys' dpi/96; 1 under rio)
 void _glfwGetWindowContentScalePlan9(_GLFWwindow* window, float* xscale, float* yscale)
 {
     (void) window;
     if (xscale)
-        *xscale = 1.f;
+        *xscale = _glfwDrawDpiPlan9() / 96.f;
     if (yscale)
-        *yscale = 1.f;
+        *yscale = _glfwDrawDpiPlan9() / 96.f;
 }
 
 void _glfwIconifyWindowPlan9(_GLFWwindow* window)

@@ -87,12 +87,13 @@ impl Window {
                 ));
             }
         } else {
+            // logical sizes at the window system's scale (wsys' dpi)
             if let Some(size) = attrs.inner_size {
-                let (w, h): (u32, u32) = size.to_physical::<u32>(1.0).into();
+                let (w, h): (u32, u32) = size.to_physical::<u32>(p9win::scale()).into();
                 wctl(&format!("resize -dx {} -dy {}", w as i32 + 2 * b, h as i32 + 2 * b));
             }
             if let Some(pos) = attrs.position {
-                let (x, y): (i32, i32) = pos.to_physical::<i32>(1.0).into();
+                let (x, y): (i32, i32) = pos.to_physical::<i32>(p9win::scale()).into();
                 wctl(&format!("move -minx {x} -miny {y}"));
             }
         }
@@ -117,6 +118,7 @@ impl Window {
             invisible: AtomicBool::new(false),
             restore: Mutex::new(restore),
             fullscreen: AtomicBool::new(fullscreen),
+            scale: Mutex::new(p9win::scale()),
         });
         *shared.win.lock().unwrap() = Some(st.clone());
         let w = Window { shared: shared.clone(), st };
@@ -181,7 +183,7 @@ impl Window {
 
     #[inline]
     pub fn scale_factor(&self) -> f64 {
-        1.0
+        *self.st.scale.lock().unwrap()
     }
 
     #[inline]
@@ -209,7 +211,7 @@ impl Window {
 
     #[inline]
     pub fn set_outer_position(&self, position: Position) {
-        let (x, y): (i32, i32) = position.to_physical::<i32>(1.0).into();
+        let (x, y): (i32, i32) = position.to_physical::<i32>(self.scale_factor()).into();
         wctl(&format!("move -minx {x} -miny {y}"));
         self.st.relook();
     }
@@ -222,7 +224,7 @@ impl Window {
 
     #[inline]
     pub fn request_inner_size(&self, size: Size) -> Option<PhysicalSize<u32>> {
-        let (w, h): (u32, u32) = size.to_physical::<u32>(1.0).into();
+        let (w, h): (u32, u32) = size.to_physical::<u32>(self.scale_factor()).into();
         let b = self.border();
         wctl(&format!("resize -dx {} -dy {}", w as i32 + 2 * b, h as i32 + 2 * b));
         // the window system's answer comes as a resize the event loop sees
@@ -402,7 +404,7 @@ impl Window {
 
     #[inline]
     pub fn set_cursor_position(&self, position: Position) -> Result<(), error::ExternalError> {
-        let (x, y): (i32, i32) = position.to_physical::<i32>(1.0).into();
+        let (x, y): (i32, i32) = position.to_physical::<i32>(self.scale_factor()).into();
         let c = self.content();
         self.st
             .inputs

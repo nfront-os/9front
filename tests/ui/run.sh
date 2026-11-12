@@ -50,6 +50,7 @@ cp "$HERE/wbar.rc" "$HERE/root/tests/wbartest"
 cp "$HERE/full.rc" "$HERE/root/tests/fulltest"
 cp "$ROOT/$objtype/bin/wbar" "$HERE/root/tests/wbar"
 cp "$HERE/wdock.rc" "$HERE/root/tests/wdocktest"
+cp "$HERE/hidpi.rc" "$HERE/root/tests/hidpitest"
 cp "$ROOT/$objtype/bin/wdock" "$HERE/root/tests/wdock"
 cp "$HERE/rio4.rc" "$HERE/root/tests/rio4"
 cp "$HERE/text.rc" "$HERE/root/tests/text"
@@ -58,7 +59,7 @@ cp "$HERE/menu3.rc" "$HERE/root/tests/menu3"
 cp "$HERE/scroll.rc" "$HERE/root/tests/scroll"
 cp "$HERE/hold.rc" "$HERE/root/tests/hold"
 cp "$HERE/plumbrules" "$HERE/root/tests/plumbrules"
-chmod +x "$HERE/root/tests/termtest" "$HERE/root/tests/termrestart" "$HERE/root/tests/themetest" "$HERE/root/tests/desktest" "$HERE/root/tests/titletest" "$HERE/root/tests/wbartest" "$HERE/root/tests/fulltest" "$HERE/root/tests/wdocktest" "$HERE/root/tests/rio4" "$HERE/root/tests/text" "$HERE/root/tests/sel" "$HERE/root/tests/menu3" "$HERE/root/tests/scroll" "$HERE/root/tests/hold"
+chmod +x "$HERE/root/tests/termtest" "$HERE/root/tests/termrestart" "$HERE/root/tests/themetest" "$HERE/root/tests/desktest" "$HERE/root/tests/titletest" "$HERE/root/tests/wbartest" "$HERE/root/tests/fulltest" "$HERE/root/tests/wdocktest" "$HERE/root/tests/hidpitest" "$HERE/root/tests/rio4" "$HERE/root/tests/text" "$HERE/root/tests/sel" "$HERE/root/tests/menu3" "$HERE/root/tests/scroll" "$HERE/root/tests/hold"
 
 # WSYSFLAGS: more flags for wsys (-d: its own devdraw)
 boot(){
@@ -81,6 +82,7 @@ boot(){
 		"/tests/wsys ${WSYSFLAGS:-} -x -i /tests/wbartest >/tmp/wbartest.log >[2=1]; cat /tmp/wbartest.log" \
 		"/tests/wsys ${WSYSFLAGS:-} -x -i /tests/fulltest >/tmp/fulltest.log >[2=1]; cat /tmp/fulltest.log" \
 		"/tests/wsys ${WSYSFLAGS:-} -x -i /tests/wdocktest >/tmp/wdocktest.log >[2=1]; cat /tmp/wdocktest.log" \
+		"/tests/wsys ${WSYSFLAGS:-} -S 2 -x -i /tests/hidpitest >/tmp/hidpitest.log >[2=1]; cat /tmp/hidpitest.log" \
 		> "$TMPD/console" 2>&1
 	tr -d '\r' < "$TMPD/console" > "$TMPD/log"
 }
@@ -106,6 +108,7 @@ check "desk: wsys/ in a window, winwatch, Mod4+Tab and back, Tab without Mod4: a
 check "title bars: frame and content, moved by the bar, double click and max, min, x, title 0 and 1: all passed" bash -c "grep -q '^title: all passed' '$TMPD/log' || { grep -E '^(ok|FAIL) ' '$TMPD/log' | tail -5; false; }"
 check "wbar: a bar on top, its windows (current, hide, back), maximized below it, Mod4+Tab passes it, its menu: all passed" bash -c "grep -q '^wbar: all passed' '$TMPD/log' || { grep -E '^(ok|FAIL) ' '$TMPD/log' | tail -5; false; }"
 check "wdock: a bar along the bottom, its starters in the middle (button 1 runs, current, hides, back, the next; button 2 another), maximized above it: all passed" bash -c "grep -q '^wdock: all passed' '$TMPD/log' || { grep -E '^(ok|FAIL) ' '$TMPD/log' | tail -5; false; }"
+check "hidpi: wsys -S 2 (dpi 192, borders, title bar, a draw(3) program's dpi, border and font, term), scale 1.5, 1, auto at once: all passed" bash -c "grep -q '^hidpi: all passed' '$TMPD/log' || { grep -E '^(ok|FAIL) ' '$TMPD/log' | tail -5; false; }"
 check "fullscreen: all of the screen, above the bar, another window over it, unfullscreen gives the frame back: all passed" bash -c "grep -q '^full: all passed' '$TMPD/log' || { grep -E '^(ok|FAIL) ' '$TMPD/log' | tail -5; false; }"
 check "wsys posted /srv/wsys.glenda.pid on the 1024x768 screen" grep -qE '^wsys: /srv/wsys.glenda.[0-9]+ 0 0 1024 768' "$TMPD/log"
 check "no kernel panic" bash -c "! grep -q '^panic:' '$TMPD/log'"

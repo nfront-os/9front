@@ -982,7 +982,7 @@ pub struct InnerSizeWriter {
 }
 
 impl InnerSizeWriter {
-    #[cfg(not(any(orbital_platform, plan9_platform)))] // 9front: plan9 too
+    #[cfg(not(orbital_platform))] // 9front: plan9 has a scale too (wsys' dpi)
     pub(crate) fn new(new_inner_size: Weak<Mutex<PhysicalSize<u32>>>) -> Self {
         Self { new_inner_size }
     }

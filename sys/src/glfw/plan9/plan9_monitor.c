@@ -55,9 +55,9 @@ void _glfwGetMonitorContentScalePlan9(_GLFWmonitor* monitor, float* xscale, floa
 {
     (void) monitor;
     if (xscale)
-        *xscale = 1.f;
+        *xscale = _glfwDrawDpiPlan9() / 96.f;
     if (yscale)
-        *yscale = 1.f;
+        *yscale = _glfwDrawDpiPlan9() / 96.f;
 }
 
 void _glfwGetMonitorWorkareaPlan9(_GLFWmonitor* monitor,

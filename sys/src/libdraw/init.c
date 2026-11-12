@@ -113,6 +113,33 @@ initdraw(void(*error)(Display*, char*), char *fontname, char *label)
  * Attach, or possibly reattach, to window.
  * If reattaching, maintain value of screen pointer.
  */
+/*
+ * the window system's dots per inch: its window's dpi file (wsys(4)),
+ * read again with each window (it changes with the scale); else DefaultDPI
+ */
+static void
+readdpi(Display *d)
+{
+	char buf[64];
+	int fd, n;
+
+	d->dpi = DefaultDPI;
+	if(d->windir == nil)
+		return;
+	snprint(buf, sizeof buf, "%s/dpi", d->windir);
+	fd = open(buf, OREAD|OCEXEC);
+	if(fd < 0)
+		return;
+	n = read(fd, buf, sizeof buf - 1);
+	close(fd);
+	if(n <= 0)
+		return;
+	buf[n] = 0;
+	n = atoi(buf);
+	if(n > 0)
+		d->dpi = n;
+}
+
 int
 gengetwindow(Display *d, char *winname, Image **winp, Screen **scrp, int ref)
 {
@@ -166,8 +193,9 @@ retry:
 		return -1;
 	}
 	r = image->r;
+	readdpi(d);
 	if(strncmp(buf, "noborder", 8) != 0)
-		r = insetrect(r, Borderwidth);
+		r = insetrect(r, scalesize(d, Borderwidth));
 	*winp = _allocwindow(*winp, *scrp, r, ref, DWhite);
 	if(*winp == nil){
 		freescreen(*scrp);
@@ -179,6 +207,18 @@ retry:
 	}
 	d->screenimage = *winp;
 	return 1;
+}
+
+/*
+ * n pixels at DefaultDPI, at the window system's dpi (rounded): the
+ * window's border, a scroll bar's width, a gap
+ */
+int
+scalesize(Display *d, int n)
+{
+	if(d == nil || d->dpi <= 0)
+		return n;
+	return (n*d->dpi + DefaultDPI/2) / DefaultDPI;
 }
 
 int
@@ -293,6 +333,7 @@ initdisplay(char *dev, char *win, void(*error)(Display*, char*))
 	disp->bufp = disp->buf;
 	disp->error = error;
 	disp->windir = t;
+	disp->dpi = DefaultDPI;
 	disp->devdir = strdup(dev);
 	wlock(&disp->usrlock);
 	disp->white = allocimage(disp, Rect(0, 0, 1, 1), GREY1, 1, DWhite);

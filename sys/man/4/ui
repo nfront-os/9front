@@ -348,6 +348,14 @@ not more often than 60 times a second (through
 .IR draw (3)
 nothing else paces it).
 A step of the wheel scrolls 120 pixels, given out over a few frames, quickly first.
+.PP
+All sizes are logical pixels: at the window system's scale
+.RI ( wsys (4)'s
+.BR scale ,
+winit's scale factor) the window draws as many times as big, and is told
+when it changes;
+.BI nodes/ id /rect
+gives the window's pixels.
 The widget with the keyboard's focus has a ring of the theme's focus colour around it.
 .PP
 The user's changes go into the tree as well: a text box's

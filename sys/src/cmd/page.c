@@ -177,8 +177,8 @@ resizewin(Point size)
 
 	if((wctl = open("/dev/wctl", OWRITE)) < 0)
 		return;
-	/* add rio border */
-	size = addpt(size, Pt(Borderwidth*2, Borderwidth*2));
+	/* add rio border (as big as the window system's scale makes it) */
+	size = addpt(size, Pt(scalesize(display, Borderwidth)*2, scalesize(display, Borderwidth)*2));
 	if(display->image != nil){
 		Point dsize = subpt(display->image->r.max, display->image->r.min);
 		if(size.x > dsize.x)

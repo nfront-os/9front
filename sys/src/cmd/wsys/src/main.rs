@@ -57,7 +57,7 @@
 // A window lives while its files are open (or the clone fid that made it).
 // Processes wsys starts (-i, wctl's new) get note groups of their own.
 //
-// usage: wsys [-dgkpOxz] [-f font] [-t theme] [-s srvname] [-i cmd]
+// usage: wsys [-dgkpOxz] [-f font] [-t theme] [-S scale] [-s srvname] [-i cmd]
 //	-g	the GPU composes the screen (the default, where it can): why not if it cannot,
 //		and what it does
 //	-p	the processor composes the screen
@@ -68,6 +68,8 @@
 //	-t	the theme, a file of lines "name value" (theme.rs; /lib/theme/classic, the
 //		default, and modern); the file theme (root and windows: /dev/theme) has it,
 //		and lines written there change it at once
+//	-S	the scale (1 = 96 dpi; 1.5, 2 ...: what is drawn as big as at that many
+//		times 96 dpi), not the theme's; default found (the monitor's EDID)
 //	-s	post as /srv/srvname (default wsys.$user.$pid, and wsys.$user: the newest
 //		wsys of the user, where programs that outlive one find the next)
 //	-i	run cmd (rc) in a name space with /mnt/wsys mounted, $wsys set
@@ -164,7 +166,11 @@ const TEXTSHOWN: usize = 64 << 10; // of a text window's text, laid out to show 
 // a text window as rio's: the scroll bar inside the border, then a gap, then the text
 const SCROLLWID: i32 = 12;
 const SCROLLGAP: i32 = 4;
+const MENUBORDER: i32 = 2; // a menu's frame
+const MENUPAD: i32 = 8; // left of a program's menu's items, each side of wsys' own
 const DEFFONT: &str = "/lib/font/bit/vga/unicode.font";
+const TTFFONT: &str = "Go-Mono.ttf"; // at a scale other than 1, from truetypefs(4):
+const TTFSIZE: i32 = 13; // as high as vga's (16) at scale 1
 
 enum Ev {
     Tick, // every 50 ms: a scroll button held repeats
@@ -212,9 +218,10 @@ enum F {
     Screen,
     Theme,
     Menu,
+    Dpi,
 }
 
-const WINFILES: [(F, &str, u32); 18] = [
+const WINFILES: [(F, &str, u32); 19] = [
     (F::Ctl, "ctl", 0o666),
     (F::Event, "event", 0o444),
     (F::Cons, "cons", 0o666),
@@ -233,6 +240,7 @@ const WINFILES: [(F, &str, u32); 18] = [
     (F::Screen, "screen", 0o444),
     (F::Theme, "theme", 0o666),
     (F::Menu, "menu", 0o666),
+    (F::Dpi, "dpi", 0o444),
 ];
 
 /// the files of a client of wsys' devdraw, as #i's
@@ -676,6 +684,9 @@ struct Wsys {
     cursorfd: Option<Fd>, // to set the cursor of the focused window
     tx: mpsc::Sender<Ev>,
     font: Option<font::Font>, // of the text windows
+    fontname: String,         // its file
+    fontflag: Option<String>, // -f
+    ownscreen: bool,          // the screen of this machine itself (not a window's, not far away)
     black: u32,
     pale: u32,    // a selection's background
     menuhi: u32,  // a menu's item under the mouse
@@ -732,6 +743,11 @@ fn mousemsg(c: char, x: i32, y: i32, b: i32, ms: u32) -> Vec<u8> {
 }
 
 impl Wsys {
+    /// n pixels at 96 dpi at the theme's scale (libdraw's scalesize(2))
+    fn sz(&self, n: i32) -> i32 {
+        self.theme.scalesize(n)
+    }
+
     fn send(&self, m: Vec<u8>) {
         if let Err(e) = self.srv.write1(&m) {
             eprintln!("wsys: srv write: {e}");
@@ -997,7 +1013,7 @@ impl Wsys {
                     }
                     Kind::Screen | Kind::Stack | Kind::RootWinname if writing => return e("permission denied"),
                     Kind::RootWctl if reading => return e("permission denied"),
-                    Kind::File(_, F::Event | F::Winid | F::Winname | F::Window | F::Screen) if writing => return e("permission denied"),
+                    Kind::File(_, F::Event | F::Winid | F::Winname | F::Window | F::Screen | F::Dpi) if writing => return e("permission denied"),
                     Kind::File(_, F::Consctl) if reading => return e("permission denied"),
                     Kind::Clone => match self.newwin(&Opts::default(), false) {
                         Ok(n) => {
@@ -1114,6 +1130,8 @@ impl Wsys {
                     Kind::File(n, F::Cursor) => text(&self.wins[&n].cursor),
                     Kind::File(n, F::Winname) => text(self.wins[&n].name.as_bytes()),
                     Kind::File(n, F::Winid) => text(format!("{n:11} ").as_bytes()),
+                    // the theme's scale as dots per inch (libdraw's display->dpi, scalesize(2))
+                    Kind::File(_, F::Dpi) => text(format!("{}\n", self.theme.dpi()).as_bytes()),
                     Kind::File(_, F::Snarf) => {
                         if offset == 0 {
                             self.getsnarf();
@@ -1574,16 +1592,17 @@ impl Wsys {
         let slot = self.slots.iter().skip(1).position(|&u| !u).map(|i| i + 1).ok_or("too many windows")?;
         let n = self.nextwin + 1;
         let s = self.d.r;
-        let off = 40 + 30 * ((n as i32 - 1) % 10);
+        let off = self.sz(40 + 30 * ((n as i32 - 1) % 10));
         let t = self.titleh();
-        let auto = outer(Rect::new(s.x0 + off, s.y0 + off, s.x0 + off + 400, s.y0 + off + 300), BORDER, t);
+        let bw = self.sz(BORDER);
+        let auto = outer(Rect::new(s.x0 + off, s.y0 + off, s.x0 + off + self.sz(400), s.y0 + off + self.sz(300)), bw, t);
         let f = place(auto, o, false);
-        let r = inner(f, BORDER, t).clip(&inner(s, BORDER, t));
+        let r = inner(f, bw, t).clip(&inner(s, bw, t));
         if r.dx() < 1 || r.dy() < 1 {
             return Err("window outside the screen".into());
         }
         let img = self.image(r.dx(), r.dy())?;
-        let layer = match self.d.allocwindow(self.scr, r.inset(-BORDER), 0xFFFF_FFFF) {
+        let layer = match self.d.allocwindow(self.scr, r.inset(-bw), 0xFFFF_FFFF) {
             Ok(l) => l,
             Err(e) => {
                 let _ = self.d.free(img);
@@ -1599,7 +1618,7 @@ impl Wsys {
         self.nextwin = n;
         self.slots[slot] = true;
         self.wins.insert(n, Win {
-            r, border: BORDER, title: t, unmax: None, bar: false, menuout: None, full: None, tlayer: None, mapped: text, nofocus: false, slot, bufs: HashMap::new(), img, layer, name, refs: 0, pinned: false, pid: o.pid,
+            r, border: bw, title: t, unmax: None, bar: false, menuout: None, full: None, tlayer: None, mapped: text, nofocus: false, slot, bufs: HashMap::new(), img, layer, name, refs: 0, pinned: false, pid: o.pid,
             label: String::new(), wdir: o.cd.clone().unwrap_or_default(), text: String::new(), partial: vec![],
             events: VecDeque::new(), raw: false, line: String::new(), cons: VecDeque::new(), eof: false,
             kbd: VecDeque::new(), kbdopen: 0, mouseopen: 0, mouse: VecDeque::new(), resized: false,
@@ -1843,6 +1862,12 @@ impl Wsys {
         );
         if let Some(d) = &o.cd {
             script += &format!("cd {} >[2]/dev/null; ", rcquote(d));
+        }
+        // at a scale other than 1 the draw(3) programs' font as big as wsys' own
+        // (they know no scale; libdraw's display->dpi, scalesize(2), for the
+        // rest), unless it is $font as it was (a bitmap font of one's own)
+        if self.theme.scale != 1.0 && std::env::var("font").ok().as_deref() != Some(self.fontname.as_str()) {
+            script += &format!("font={}; ", rcquote(&self.fontname));
         }
         script += &format!("exec {cmd} </dev/cons >/dev/cons >[2]/dev/cons");
         let child = std::process::Command::new("/bin/rc").arg("-c").arg(&script).spawn();
@@ -2306,7 +2331,7 @@ impl Wsys {
             over.push(m.r);
         }
         if let Some(r) = self.sweepr {
-            let f = outer(r, BORDER, self.titleh());
+            let f = outer(r, self.sz(BORDER), self.titleh());
             over.extend([
                 Rect::new(f.x0, f.y0, f.x1, r.y0),
                 Rect::new(f.x0, r.y1, f.x1, f.y1),
@@ -2579,7 +2604,7 @@ impl Wsys {
                 self.d.free(l)?;
             }
             if let Some(r) = r {
-                let f = outer(r, BORDER, self.titleh());
+                let f = outer(r, self.sz(BORDER), self.titleh());
                 let col = self.theme.border << 8 | 0xFF;
                 for side in [
                     Rect::new(f.x0, f.y0, f.x1, r.y0),
@@ -2619,7 +2644,24 @@ impl Wsys {
             (self.holdcol, t.hold),
             (self.paleholdcol, t.holdinactive),
         ];
+        // "scale auto": as found when wsys started (the screen has not changed)
+        if t.scaleauto && !self.theme.scaleauto {
+            t.scale = autoscale(self.ownscreen, self.d.r.dx());
+        } else if t.scaleauto {
+            t.scale = self.theme.scale;
+        }
         self.theme = t;
+        // another font (the scale's, the theme's)
+        let fname = textfont(&self.fontflag, &self.theme);
+        if fname != self.fontname {
+            match font::Font::open(&fname) {
+                Ok(f) => {
+                    self.font = Some(f);
+                    self.fontname = fname;
+                }
+                Err(e) => eprintln!("wsys: font {fname}: {e}"),
+            }
+        }
         let res = (|| -> std::io::Result<()> {
             let one = Rect::new(0, 0, 1, 1);
             for (img, rgb) in pairs {
@@ -2636,21 +2678,22 @@ impl Wsys {
         if let Err(e) = res {
             return Err(format!("theme: draw: {e}"));
         }
-        // title bars on or off: each window keeps its frame, its content
-        // grows or shrinks by the bar (a new size for its program)
-        let t = self.titleh();
+        // title bars on or off, another scale (border, bar): each window keeps
+        // its frame, its content grows or shrinks (a new size for its program)
+        let (t, b) = (self.titleh(), self.sz(BORDER));
         let ids: Vec<u32> = self.wins.keys().copied().collect();
         for &n in &ids {
             let w = &self.wins[&n];
-            if w.border == 0 || w.title == t {
+            if w.border == 0 || (w.title == t && w.border == b) {
                 continue;
             }
-            let (f, b) = (w.frame(), w.border);
+            let f = w.frame();
             let r = inner(f, b, t);
             if r.dx() < 1 || r.dy() < 1 {
                 continue; // too small for a bar: as it was
             }
-            self.wins.get_mut(&n).unwrap().title = t;
+            let w = self.wins.get_mut(&n).unwrap();
+            (w.title, w.border) = (t, b);
             if let Err(e) = self.reframe(n, r, true) {
                 eprintln!("wsys: theme: window {n}: {e}");
             }
@@ -2699,7 +2742,7 @@ impl Wsys {
     /// a title bar's height now (the theme's title 1, wsys' font): none without
     fn titleh(&self) -> i32 {
         match &self.font {
-            Some(f) if self.theme.title => f.height + 4,
+            Some(f) if self.theme.title => f.height + self.sz(4),
             _ => 0,
         }
     }
@@ -2714,10 +2757,11 @@ impl Wsys {
         }
         let mut x = bar.x1;
         let mut v = vec![];
+        let pad = self.theme.scalesize(TITLEPAD);
         for (s, op) in TITLEOPS {
             // at least as wide as the bar is high (a square: something to hit, as
             // the HIG want; x of a proportional font is narrow)
-            let wd: i32 = (s.chars().map(|c| font.width(&mut self.d, c)).sum::<i32>() + 2 * TITLEPAD).max(bar.dy());
+            let wd: i32 = (s.chars().map(|c| font.width(&mut self.d, c)).sum::<i32>() + 2 * pad).max(bar.dy());
             if x - wd < bar.x0 {
                 break;
             }
@@ -2747,12 +2791,13 @@ impl Wsys {
         };
         let ink = if current { self.white } else { self.black };
         let buttons = self.titlebuttons(n);
-        let end = buttons.last().map_or(bar.x1, |b| b.1.x0) - TITLEPAD;
+        let pad = self.sz(TITLEPAD);
+        let end = buttons.last().map_or(bar.x1, |b| b.1.x0) - pad;
         let mut items: Vec<(i32, i32, String)> = buttons.iter().map(|(op, r)| {
             let s = TITLEOPS.iter().find(|t| t.1 == *op).unwrap().0;
-            (r.x0 + TITLEPAD, r.x1, s.to_string())
+            (r.x0 + pad, r.x1, s.to_string())
         }).collect();
-        items.push((bar.x0 + TITLEPAD, end, label));
+        items.push((bar.x0 + pad, end, label));
         let (font, d) = (self.font.as_mut().unwrap(), &mut self.d);
         let y = bar.y0 + (bar.dy() - font.height) / 2;
         let res = (|| -> std::io::Result<()> {
@@ -2917,7 +2962,7 @@ impl Wsys {
                 s.y1 = s.y1.min(f.y0);
             }
         }
-        if s.dy() < MINSIZE { self.d.r } else { s }
+        if s.dy() < self.sz(MINSIZE) { self.d.r } else { s }
     }
 
     /// window n over the whole screen, or back to the frame it had
@@ -3235,9 +3280,10 @@ impl Wsys {
         let ink = if w.hold { self.holdcol } else { black };
         let want = w.want;
         let tabstop = self.tabstop;
+        let (sw, sg) = (self.sz(SCROLLWID), self.sz(SCROLLGAP));
         let (font, d) = (self.font.as_mut().unwrap(), &mut self.d);
-        let scrollr = Rect::new(r.x0, r.y0, r.x0 + SCROLLWID, r.y1);
-        let inner = Rect::new(r.x0 + SCROLLWID + SCROLLGAP, r.y0, r.x1, r.y1);
+        let scrollr = Rect::new(r.x0, r.y0, r.x0 + sw, r.y1);
+        let inner = Rect::new(r.x0 + sw + sg, r.y0, r.x1, r.y1);
         let (maxw, h) = (inner.dx().max(1), font.height.max(1));
         let tab = (tabstop * font.width(d, '0')).max(1);
         // lay out: lines of (rune, x, width, offset)
@@ -3549,9 +3595,10 @@ impl Wsys {
                         DragKind::Move
                     } else {
                         let f = self.wins[&n].frame();
+                        let corner = self.sz(CORNER);
                         let portion = |v: i32, lo: i32, hi: i32| {
                             let (v, hi) = (v - lo, hi - lo);
-                            if v < hi / 2 { if v < CORNER { 0 } else { 1 } } else if v > hi - CORNER { 2 } else { 1 }
+                            if v < hi / 2 { if v < corner { 0 } else { 1 } } else if v > hi - corner { 2 } else { 1 }
                         };
                         let (i, j) = (portion(x, f.x0, f.x1), portion(y, f.y0, f.y1));
                         DragKind::Sweep { left: i == 0, right: i == 2, top: j == 0, bottom: j == 2 }
@@ -3688,11 +3735,12 @@ impl Wsys {
                     if right { o.x1 + dx } else { o.x1 },
                     if bottom { o.y1 + dy } else { o.y1 },
                 );
-                if r.dx() < MINSIZE {
-                    if left { r.x0 = r.x1 - MINSIZE } else { r.x1 = r.x0 + MINSIZE }
+                let min = self.sz(MINSIZE);
+                if r.dx() < min {
+                    if left { r.x0 = r.x1 - min } else { r.x1 = r.x0 + min }
                 }
-                if r.dy() < MINSIZE {
-                    if top { r.y0 = r.y1 - MINSIZE } else { r.y1 = r.y0 + MINSIZE }
+                if r.dy() < min {
+                    if top { r.y0 = r.y1 - min } else { r.y1 = r.y0 + min }
                 }
                 g.cur = r;
                 if b == 0 {
@@ -3709,11 +3757,12 @@ impl Wsys {
                 // the frame from the press to the mouse; its content shown as the outline
                 let f = Rect::new(g.x0.min(x), g.y0.min(y), g.x0.max(x), g.y0.max(y));
                 let t = self.titleh();
-                let big = f.dx() >= MINSIZE + 2 * BORDER && f.dy() >= MINSIZE + 2 * BORDER + t;
+                let (min, bw) = (self.sz(MINSIZE), self.sz(BORDER));
+                let big = f.dx() >= min + 2 * bw && f.dy() >= min + 2 * bw + t;
                 if b != 0 {
                     g.cur = f;
                     self.drag = Some(g);
-                    self.outline(if big { Some(inner(f, BORDER, t)) } else { None });
+                    self.outline(if big { Some(inner(f, bw, t)) } else { None });
                     return;
                 }
                 self.drag = None;
@@ -3730,7 +3779,7 @@ impl Wsys {
                         }
                     }
                     Some(n) => {
-                        let (b, t) = self.wins.get(&n).map_or((BORDER, t), |w| (w.border, w.title));
+                        let (b, t) = self.wins.get(&n).map_or((bw, t), |w| (w.border, w.title));
                         if let Some(w) = self.wins.get_mut(&n) {
                             w.unmax = None;
                         }
@@ -4205,11 +4254,12 @@ impl Wsys {
         let Some(m) = &self.menu else { return };
         let (l, r, items, cur, left) = (m.layer, m.r, m.items.clone(), m.cur, m.client.is_some());
         let (white, black, hi, border) = (self.white, self.black, self.menuhi, self.cfocus);
+        let (mb, pad) = (self.sz(MENUBORDER), self.sz(MENUPAD));
         let (font, d) = (self.font.as_mut().unwrap(), &mut self.d);
         let h = font.height;
         let res = (|| -> std::io::Result<()> {
             d.draw(l, &r, border, 0, 0)?;
-            let inner = r.inset(2);
+            let inner = r.inset(mb);
             d.draw(l, &inner, white, 0, 0)?;
             for (i, it) in items.iter().enumerate() {
                 let y = inner.y0 + i as i32 * h;
@@ -4218,7 +4268,7 @@ impl Wsys {
                     d.draw(l, &row, hi, 0, 0)?;
                 }
                 let tw: i32 = it.chars().map(|c| font.width(d, c)).sum();
-                let mut x = if left { inner.x0 + 8 } else { inner.x0 + (inner.dx() - tw) / 2 };
+                let mut x = if left { inner.x0 + pad } else { inner.x0 + (inner.dx() - tw) / 2 };
                 for c in it.chars() {
                     if let Some(g) = font.glyph(d, c) {
                         let dst = Rect::new(0, 0, g.src.dx(), g.src.dy()).add(x + g.dx, y + g.dy + g.src.y0);
@@ -4236,13 +4286,14 @@ impl Wsys {
 
     /// button b's menu at x, y for window n: the first item under the mouse
     fn openmenu(&mut self, n: Option<u32>, b: i32, items: Vec<String>, hidden: Vec<u32>, x: i32, y: i32) {
+        let (mb, pad) = (self.sz(MENUBORDER), self.sz(MENUPAD));
         let Some(font) = self.font.as_mut() else { return };
         let h = font.height;
         let d = &mut self.d;
-        let wd = items.iter().map(|it| it.chars().map(|c| font.width(d, c)).sum::<i32>()).max().unwrap_or(0) + 16 + 4;
-        let ht = items.len() as i32 * h + 4;
+        let wd = items.iter().map(|it| it.chars().map(|c| font.width(d, c)).sum::<i32>()).max().unwrap_or(0) + 2 * pad + 2 * mb;
+        let ht = items.len() as i32 * h + 2 * mb;
         let s = self.d.r;
-        let mut r = Rect::new(x - wd / 2, y - h / 2 - 2, x - wd / 2 + wd, y - h / 2 - 2 + ht);
+        let mut r = Rect::new(x - wd / 2, y - h / 2 - mb, x - wd / 2 + wd, y - h / 2 - mb + ht);
         let (dx, dy) = ((s.x0 - r.x0).max(0) + (s.x1 - r.x1).min(0), (s.y0 - r.y0).max(0) + (s.y1 - r.y1).min(0));
         r = r.add(dx, dy);
         let Ok(layer) = self.d.allocwindow(self.scr, r, 0xFFFF_FFFF) else { return };
@@ -4263,12 +4314,13 @@ impl Wsys {
         if at.len() != 2 || items.is_empty() {
             return Err("bad menu: x y, then an item a line".into());
         }
+        let (mb, pad) = (self.sz(MENUBORDER), self.sz(MENUPAD));
         let Some(font) = self.font.as_mut() else { return Err("no font".into()) };
         let h = font.height;
         let d = &mut self.d;
-        let wd = items.iter().map(|it| it.chars().map(|c| font.width(d, c)).sum::<i32>()).max().unwrap_or(0) + 16 + 4;
+        let wd = items.iter().map(|it| it.chars().map(|c| font.width(d, c)).sum::<i32>()).max().unwrap_or(0) + 2 * pad + 2 * mb;
         let s = self.d.r;
-        let mut r = Rect::new(at[0], at[1], at[0] + wd, at[1] + items.len() as i32 * h + 4);
+        let mut r = Rect::new(at[0], at[1], at[0] + wd, at[1] + items.len() as i32 * h + 2 * mb);
         let (dx, dy) = ((s.x0 - r.x0).max(0) + (s.x1 - r.x1).min(0), (s.y0 - r.y0).max(0) + (s.y1 - r.y1).min(0));
         r = r.add(dx, dy);
         let layer = self.d.allocwindow(self.scr, r, 0xFFFF_FFFF).map_err(|e| e.to_string())?;
@@ -4318,8 +4370,9 @@ impl Wsys {
 
     fn menumove(&mut self, x: i32, y: i32) {
         let h = self.font.as_ref().map(|f| f.height).unwrap_or(1).max(1);
+        let mb = self.sz(MENUBORDER);
         let Some(m) = &mut self.menu else { return };
-        let inner = m.r.inset(2);
+        let inner = m.r.inset(mb);
         let cur = if inner.contains(x, y) { Some(((y - inner.y0) / h) as usize).filter(|&i| i < m.items.len()) } else { None };
         if cur != m.cur || m.cur.is_none() {
             m.cur = cur;
@@ -4424,8 +4477,100 @@ fn wsysdebug(word: &str) -> bool {
     std::env::var("WSYSDEBUG").is_ok_and(|v| v.split(|c: char| c == ',' || c.is_whitespace()).any(|w| w == word))
 }
 
+/// the scale found: in a window of a wsys (/dev/dpi), its; on a screen of
+/// this machine's own, the EDID of the output that shows it (gpu(4): the
+/// first whose mode is as wide as the screen); else 1
+fn autoscale(ownscreen: bool, width: i32) -> f64 {
+    if let Some(dpi) = std::fs::read_to_string("/dev/dpi").ok().and_then(|s| s.trim().parse::<f64>().ok()).filter(|&d| d > 0.0) {
+        return dpi / 96.0;
+    }
+    if !ownscreen {
+        return 1.0;
+    }
+    let Ok(gpus) = std::fs::read_dir("/dev/gpu") else { return 1.0 };
+    for g in gpus.flatten() {
+        let Ok(outs) = std::fs::read_dir(g.path().join("outputs")) else { continue };
+        for o in outs.flatten() {
+            let mode = std::fs::read_to_string(o.path().join("mode")).unwrap_or_default();
+            let w: i32 = mode.trim().split('x').next().and_then(|v| v.parse().ok()).unwrap_or(0);
+            if w != width {
+                continue;
+            }
+            if let Some(mm) = std::fs::read(o.path().join("edid")).ok().and_then(|e| edidmm(&e)) {
+                let s = theme::autoscale(w, mm);
+                if wsysdebug("scale") {
+                    eprintln!("wsys: scale: {} {w} pixels across {mm} mm: {s}", o.path().display());
+                }
+                return s;
+            }
+        }
+    }
+    1.0
+}
+
+/// an EDID's width in mm: the first detailed timing's, else the
+/// basic block's centimetres
+fn edidmm(e: &[u8]) -> Option<i32> {
+    if e.len() < 128 || e[..8] != [0, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0] {
+        return None;
+    }
+    let dt = &e[54..72];
+    if dt[0] != 0 || dt[1] != 0 {
+        let mm = dt[12] as i32 | ((dt[14] as i32 & 0xf0) << 4);
+        if mm > 0 {
+            return Some(mm);
+        }
+    }
+    (e[21] > 0).then(|| e[21] as i32 * 10)
+}
+
+/// the text windows' font, and the draw(3) programs' at a scale other than 1:
+/// -f, the theme's font as they are; else $font: at scale 1 as it is; at
+/// another, one of truetypefs(4) (Name.ttf.N[a]) as big, the default (none,
+/// vga's) Go Mono as big, antialiased (truetypefs started where /n/ttf has
+/// none); a bitmap font of one's own choice as it is (said once: it cannot
+/// grow)
+fn textfont(flag: &Option<String>, t: &theme::Theme) -> String {
+    if let Some(f) = flag {
+        return f.clone();
+    }
+    if !t.font.is_empty() {
+        return t.font.clone();
+    }
+    let env = std::env::var("font").ok().filter(|f| !f.is_empty()).unwrap_or(DEFFONT.to_string());
+    if t.scale == 1.0 {
+        return env;
+    }
+    // truetypefs' Name.ttf.N[a]/font: the same face, N as big
+    let ttf = env.strip_prefix("/n/ttf/").and_then(|r| r.strip_suffix("/font")).and_then(|r| {
+        let (name, size) = r.rsplit_once('.')?;
+        let (n, aa) = match size.strip_suffix('a') { Some(n) => (n, "a"), None => (size, "") };
+        Some((name.to_string(), n.parse::<i32>().ok()?, aa))
+    });
+    let want = match ttf {
+        Some((name, n, aa)) => format!("/n/ttf/{name}.{}{aa}/font", t.scalesize(n)),
+        None if env == DEFFONT => format!("/n/ttf/{TTFFONT}.{}a/font", t.scalesize(TTFSIZE)),
+        None => {
+            static SAID: std::sync::Once = std::sync::Once::new();
+            SAID.call_once(|| eprintln!("wsys: $font {env} is a bitmap font: at scale {} as it is (name one of truetypefs(4) to have it grow)", t.scale));
+            return env;
+        }
+    };
+    if !std::path::Path::new("/n/ttf").join(TTFFONT).exists() {
+        // it mounts itself on /n/ttf in this name space, then serves in the background
+        if let Err(e) = std::process::Command::new("/bin/truetypefs").status() {
+            eprintln!("wsys: truetypefs: {e}");
+        }
+    }
+    if std::path::Path::new(&want).exists() {
+        return want;
+    }
+    eprintln!("wsys: no {want}: {env}");
+    env
+}
+
 fn usage() -> ! {
-    eprintln!("usage: wsys [-dgkpOxz] [-f font] [-t theme] [-s srvname] [-i cmd]");
+    eprintln!("usage: wsys [-dgkpOxz] [-f font] [-t theme] [-S scale] [-s srvname] [-i cmd]");
     std::process::exit(1);
 }
 
@@ -4439,6 +4584,7 @@ fn main() {
     let (mut init, mut exitwith, mut nooverlay, mut gpucomp, mut coredraw) = (None, false, false, None, None);
     let mut fontflag: Option<String> = None;
     let mut themefile: Option<String> = None;
+    let mut scaleflag: Option<f64> = None;
     // a screen far away: /dev/draw the terminal's of a cpu session (drawterm's
     // through rcpu: /mnt/term). Not any file server's: in a window of wsys,
     // /dev/draw is that wsys' (nested, on the same machine)
@@ -4460,6 +4606,7 @@ fn main() {
             "-z" => compress = true,
             "-f" => fontflag = Some(args.next().unwrap_or_else(|| usage())),
             "-t" => themefile = Some(args.next().unwrap_or_else(|| usage())),
+            "-S" => scaleflag = Some(args.next().and_then(|v| v.parse().ok()).filter(|s: &f64| (0.5..=8.0).contains(s)).unwrap_or_else(|| usage())),
             _ => usage(),
         }
     }
@@ -4474,11 +4621,9 @@ fn main() {
             }
         }
     }
-    // the font: -f, the theme's, $font, vga's
-    let fontname = fontflag
-        .or_else(|| Some(theme.font.clone()).filter(|f| !f.is_empty()))
-        .or_else(|| std::env::var("font").ok().filter(|f| !f.is_empty()))
-        .unwrap_or(DEFFONT.to_string());
+    if let Some(s) = scaleflag {
+        (theme.scaleauto, theme.scale) = (false, s);
+    }
     // a note group of wsys' own (as rio): it goes as a whole at the end
     if let Err(e) = p9::rfork(p9::RFNOTEG) {
         eprintln!("wsys: rfork: {e}");
@@ -4537,6 +4682,15 @@ fn main() {
     } else {
         (d, None, None)
     };
+
+    // the scale (../9front-ui PLAN stage 8): -S, the theme's, else found: in a
+    // window of a wsys its dpi, on this machine's own screen the monitor's EDID
+    if theme.scaleauto {
+        theme.scale = autoscale(ownscreen, d.r.dx());
+    }
+    // the font: -f, the theme's, at a scale other than 1 Go Mono of truetypefs(4)
+    // as big, else $font, vga's
+    let fontname = textfont(&fontflag, &theme);
 
     // the connection: one end posted in /srv, wsys serves the other
     let (p0, p1) = p9::pipe().unwrap_or_else(|e| {
@@ -4629,6 +4783,9 @@ fn main() {
         cursorfd: Fd::open("/dev/cursor", OWRITE).ok(),
         tx: tx.clone(),
         font: font::Font::open(&fontname).inspect_err(|e| eprintln!("wsys: font {fontname}: {e}")).ok(),
+        fontname: fontname.clone(),
+        fontflag,
+        ownscreen,
         black: 0,
         pale: 0,
         menuhi: 0,

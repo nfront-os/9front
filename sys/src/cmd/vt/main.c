@@ -943,8 +943,8 @@ setdim(int ht, int wid)
 
 	fd = open("/dev/wctl", ORDWR);
 	if(fd >= 0){
-		ht = (ymax+1) * ftsize.y + 2*INSET + 2*Borderwidth;
-		wid = (xmax+1) * ftsize.x + ftsize.x + 2*INSET + 2*Borderwidth;
+		ht = (ymax+1) * ftsize.y + 2*INSET + 2*scalesize(display, Borderwidth);
+		wid = (xmax+1) * ftsize.x + ftsize.x + 2*INSET + 2*scalesize(display, Borderwidth);
 		if((n = read(fd, tmp, sizeof(tmp)-1)) < 0)
 			n = 0;
 		tmp[n] = 0;

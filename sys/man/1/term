@@ -66,7 +66,11 @@ characters it lacks come from the other fonts in
 .BR /lib/font/ttf ,
 or are shown as an empty box.
 .B -s
-sets the height of a line in pixels (16).
+sets the height of a line in pixels (16) at 96 dots per inch;
+at the window system's scale
+.RI ( wsys (4)'s
+.BR scale )
+the font and the margins are as many times as big.
 The colours are the desktop's theme
 .RB ( /dev/theme ,
 .IR wsys (4):

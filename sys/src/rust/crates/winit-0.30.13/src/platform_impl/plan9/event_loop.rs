@@ -15,6 +15,7 @@ use p9win::keys as k;
 use p9win::{Input, Inputs};
 use smol_str::SmolStr;
 
+use crate::dpi::PhysicalSize;
 use crate::error::EventLoopError;
 use crate::event::{self, Modifiers, StartCause};
 use crate::event_loop::{self, ControlFlow, DeviceEvents};
@@ -86,6 +87,8 @@ pub(super) struct WinState {
     /// before maximizing or fullscreen: the window's rectangle (with its border)
     pub restore: Mutex<Option<Rect>>,
     pub fullscreen: AtomicBool,
+    /// the window system's scale (p9win::scale: its dpi/96), as last looked at
+    pub scale: Mutex<f64>,
 }
 
 impl WinState {
@@ -112,6 +115,7 @@ impl WinState {
         }
         let c = d.content();
         *self.content.lock().unwrap() = c;
+        *self.scale.lock().unwrap() = p9win::scale();
         c
     }
 }
@@ -228,6 +232,7 @@ struct State {
     inside: bool,
     content: Rect,
     theme: Option<String>, // the desktop's theme as last read (/dev/theme)
+    scale: f64,            // the scale the program was told
 }
 
 impl State {
@@ -352,6 +357,17 @@ impl<T: 'static> EventLoop<T> {
         let c = win.relook();
         let old = st.content;
         st.content = c;
+        // another scale (wsys' theme): the program sizes what it draws anew; the
+        // size it asks for is not taken (the window system's says it)
+        let scale = *win.scale.lock().unwrap();
+        if scale != st.scale {
+            st.scale = scale;
+            let size = Arc::new(Mutex::new(PhysicalSize::new(c.dx().max(0) as u32, c.dy().max(0) as u32)));
+            window_event(h, event::WindowEvent::ScaleFactorChanged {
+                scale_factor: scale,
+                inner_size_writer: event::InnerSizeWriter::new(Arc::downgrade(&size)),
+            });
+        }
         if c.dx() != old.dx() || c.dy() != old.dy() {
             window_event(h, event::WindowEvent::Resized(
                 (c.dx().max(0) as u32, c.dy().max(0) as u32).into(),
@@ -611,6 +627,7 @@ impl<T: 'static> EventLoop<T> {
                 // the first size and place
                 *st = State::default();
                 st.content = *win.content.lock().unwrap();
+                st.scale = *win.scale.lock().unwrap();
                 let c = st.content;
                 window_event(&mut h, event::WindowEvent::Resized(
                     (c.dx().max(0) as u32, c.dy().max(0) as u32).into(),

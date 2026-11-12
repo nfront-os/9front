@@ -61,6 +61,9 @@ struct Bar {
     ph: usize,
     debug: Option<String>,
     tx: mpsc::Sender<Ev>,
+    dpi: i32,         // the window system's (p9win::dpi): what sizes are scaled by
+    fontpath: String, // the font, its size at 96 dpi
+    size: f32,
 }
 
 /// the clock's text, from date(1) (the local time zone): weekday, day, month, hours:minutes
@@ -134,30 +137,34 @@ impl Bar {
                 }
             }
         };
+        // sizes at the window system's scale (libdraw's scalesize)
+        let dpi = self.dpi;
+        let k = move |n: i32| p9win::draw::scalesize(dpi, n);
+        let (pad, line) = (k(PAD), k(2));
         let (bw, bh) = (w as i32, self.h);
         fill(&mut self.px, Rect::new(0, 0, bw, h as i32), t.window);
-        fill(&mut self.px, Rect::new(0, bh - 2, bw, bh), t.border);
-        let ty = (bh - 2 - self.text.height) / 2;
+        fill(&mut self.px, Rect::new(0, bh - line, bw, bh), t.border);
+        let ty = (bh - line - self.text.height) / 2;
         let mut dbg = String::new();
         // the menu's place
-        let mw = self.text.width(MENU) + 2 * PAD;
+        let mw = self.text.width(MENU) + 2 * pad;
         self.menux = (0, mw);
         if self.open {
-            fill(&mut self.px, Rect::new(0, 0, mw, bh - 2), t.menuhigh);
+            fill(&mut self.px, Rect::new(0, 0, mw, bh - line), t.menuhigh);
         }
-        self.text.draw(&mut self.px, w, h, PAD, ty, MENU, ink, mw);
+        self.text.draw(&mut self.px, w, h, pad, ty, MENU, ink, mw);
         dbg += &format!("menu 0 {mw} {}\n", if self.open { "open" } else { "shut" });
         // the clock
         let cw = self.text.width(&self.clock);
-        let cx = bw - cw - PAD;
+        let cx = bw - cw - pad;
         let clock = self.clock.clone();
         self.text.draw(&mut self.px, w, h, cx, ty, &clock, ink, bw);
         dbg += &format!("clock {cx} {bw} {clock}\n");
         // the state of the machine, before the clock
         let sw = self.text.width(&self.sys);
-        let sx = cx - 2 * PAD - sw;
+        let sx = cx - 2 * pad - sw;
         let sys = self.sys.clone();
-        let cx = if sw > 0 && sx > mw + 4 * PAD {
+        let cx = if sw > 0 && sx > mw + 4 * pad {
             self.text.draw(&mut self.px, w, h, sx, ty, &sys, pale, cx);
             dbg += &format!("sys {sx} {} {sys}\n", sx + sw);
             sx
@@ -165,24 +172,24 @@ impl Bar {
             cx
         };
         // the windows, between
-        let mut x = mw + PAD;
+        let mut x = mw + pad;
         self.spots.clear();
         let wins = self.wins.clone();
         for win in &wins {
-            let room = (cx - PAD - x).min(MAXITEM);
-            if room < 3 * PAD {
+            let room = (cx - pad - x).min(k(MAXITEM));
+            if room < 3 * pad {
                 break;
             }
-            let label = self.text.fit(&win.label, room - 2 * PAD);
-            let iw = self.text.width(&label) + 2 * PAD;
+            let label = self.text.fit(&win.label, room - 2 * pad);
+            let iw = self.text.width(&label) + 2 * pad;
             if win.current {
-                fill(&mut self.px, Rect::new(x, 2, x + iw, bh - 4), t.select);
+                fill(&mut self.px, Rect::new(x, line, x + iw, bh - 2 * line), t.select);
             }
-            self.text.draw(&mut self.px, w, h, x + PAD, ty, &label, if win.hidden { pale } else { ink }, x + iw);
+            self.text.draw(&mut self.px, w, h, x + pad, ty, &label, if win.hidden { pale } else { ink }, x + iw);
             self.spots.push((win.n, x, x + iw));
             let state = if win.current { "current" } else if win.hidden { "hidden" } else { "visible" };
             dbg += &format!("win {} {} {} {} {}\n", win.n, x, x + iw, state, win.label);
-            x += iw + 2;
+            x += iw + line;
         }
         let _ = self.draw.put(&self.px, w, h, &[]);
         if let Some(p) = &self.debug {
@@ -209,6 +216,21 @@ impl Bar {
             self.sys = st;
         }
         changed
+    }
+
+    /// another scale (the window system's dpi): the font and the bar's height anew
+    fn rescale(&mut self) {
+        let dpi = p9win::dpi();
+        if dpi == self.dpi {
+            return;
+        }
+        match text::Text::open(&self.fontpath, self.size * dpi as f32 / 96.0) {
+            Ok(t) => self.text = t,
+            Err(e) => eprintln!("wbar: font: {e}"),
+        }
+        self.dpi = dpi;
+        self.h = self.text.height + p9win::draw::scalesize(dpi, 8);
+        self.resize();
     }
 
     /// the window: the screen's width, the bar's height
@@ -321,15 +343,17 @@ fn main() {
         eprintln!("wbar: {what}: {e}");
         std::process::exit(1);
     };
-    let text = text::Text::open(&fontpath, size).unwrap_or_else(|e| die("font", e));
+    let dpi = p9win::dpi();
+    let text = text::Text::open(&fontpath, size * dpi as f32 / 96.0).unwrap_or_else(|e| die("font", e));
     let draw = Draw::open().unwrap_or_else(|e| die("draw", e));
     let (tx, rx) = mpsc::channel();
     let own = wins::own();
-    let h = text.height + 8;
+    let h = text.height + p9win::draw::scalesize(dpi, 8);
     let debug = std::env::var("WBARDEBUG").is_ok_and(|v| v.contains("items")).then(|| format!("/tmp/wbar.{}.items", std::process::id()));
     let mut bar = Bar {
         draw, text, theme, own, h, wins: vec![], spots: vec![], menux: (0, 0), clock: String::new(), minute: 0, sys: String::new(), sysat: None,
         menu: readmenu(&menupath), open: false, press: None, buttons: 0, px: vec![], pw: 0, ph: 0, debug, tx: tx.clone(),
+        dpi, fontpath, size,
     };
     let _ = p9win::set_label("wbar");
     // a bar along the top of the screen (rio has no bars: there it is a window)
@@ -370,6 +394,7 @@ fn main() {
                     if th != bar.theme {
                         bar.theme = th;
                     }
+                    bar.rescale();
                     bar.picture();
                 }
                 bar.mouse(x, y, buttons);

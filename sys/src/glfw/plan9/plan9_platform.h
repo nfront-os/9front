@@ -82,6 +82,7 @@ typedef struct _GLFWlibraryPlan9
     uint32_t        keys[_GLFW_PLAN9_KEYS];     // down, as the last k/K said
     int             nkeys;
     int             border;     // a window system's border around the contents
+    int             dpi;        // its dots per inch (wsys' scale ×96): the content scale
     char*           clipboard;
     int             scancodes[GLFW_KEY_LAST + 1];   // a key's rune
     char            keyname[8];

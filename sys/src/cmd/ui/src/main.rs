@@ -1287,7 +1287,7 @@ impl App {
                 delta: winit::event::MouseScrollDelta::PixelDelta(winit::dpi::PhysicalPosition::new(px, py)),
                 phase: winit::event::TouchPhase::Moved,
             };
-            if let Some(WindowEventTranslation::Pointer(p)) = g.reducer.reduce(1.0, &ev) {
+            if let Some(WindowEventTranslation::Pointer(p)) = g.reducer.reduce(g.root.scale_factor(), &ev) {
                 g.root.handle_pointer_event(p);
             }
         }
@@ -1308,18 +1308,21 @@ impl App {
             .collect();
         let Some(root) = layers.root_layer() else { return };
         let VisualLayerKind::Scene(base) = &root.kind else { return };
-        let frame = PreparedFrame::new(w.get(), h.get(), 1.0, g.background, base, &overlays);
+        let scale = g.root.scale_factor();
+        let frame = PreparedFrame::new(w.get(), h.get(), scale, g.background, base, &overlays);
         g.painter.paint(frame);
         self.fs.frames += 1;
         // something moving: another frame, a FRAME after this one began
         let moving = !self.anims.is_empty() || g.root.needs_anim() || self.wheel != (0.0, 0.0);
         self.lastframe = moving.then_some(now);
-        // where each node is now, for nodes/id/rect
+        // where each node is now, for nodes/id/rect: in the window's pixels
+        // (Masonry's are logical: times the scale)
         self.fs.rects.clear();
         for (id, wid) in &self.ids.widget {
             if let Some(w) = g.root.get_widget(*wid) {
                 let b = w.ctx().bounding_box();
-                self.fs.rects.insert(id.clone(), [b.x0 as i32, b.y0 as i32, b.x1 as i32, b.y1 as i32]);
+                let px = |v: f64| (v * scale).round() as i32;
+                self.fs.rects.insert(id.clone(), [px(b.x0), px(b.y0), px(b.x1), px(b.y1)]);
             }
         }
         if moving {
@@ -1370,7 +1373,7 @@ impl ApplicationHandler<UserEvent> for App {
                 use_system_fonts: false,
                 size_policy: WindowSizePolicy::User,
                 size,
-                scale_factor: 1.0,
+                scale_factor: window.scale_factor(),
                 test_font: first.map(|b| Blob::new(Arc::new(b))),
             },
         );
@@ -1416,13 +1419,16 @@ impl ApplicationHandler<UserEvent> for App {
         let Some(g) = self.gui.as_mut() else { return };
         // the wheel's steps (lines) given to the widgets a part each frame (redraw)
         if let WinitWindowEvent::MouseWheel { delta: winit::event::MouseScrollDelta::LineDelta(x, y), .. } = event {
-            self.wheel.0 += x as f64 * WHEELLINE;
-            self.wheel.1 += y as f64 * WHEELLINE;
+            // a line in physical pixels at the window system's scale (Masonry's
+            // portal takes pixels as physical)
+            let line = WHEELLINE * g.root.scale_factor();
+            self.wheel.0 += x as f64 * line;
+            self.wheel.1 += y as f64 * line;
             self.another();
             self.signals(el);
             return;
         }
-        if let Some(t) = g.reducer.reduce(1.0, &event) {
+        if let Some(t) = g.reducer.reduce(g.root.scale_factor(), &event) {
             match t {
                 WindowEventTranslation::Keyboard(k) => {
                     if self.debug {
@@ -1445,6 +1451,10 @@ impl ApplicationHandler<UserEvent> for App {
             }
         }
         match event {
+            WinitWindowEvent::ScaleFactorChanged { scale_factor, .. } => {
+                g.root.handle_window_event(WindowEvent::Rescale(scale_factor));
+                g.window.request_redraw();
+            }
             WinitWindowEvent::Resized(s) => {
                 g.root.handle_window_event(WindowEvent::Resize(PhysicalSize::new(s.width, s.height)));
                 self.fs.size = (s.width, s.height);
@@ -1463,7 +1473,9 @@ impl ApplicationHandler<UserEvent> for App {
                     self.b3at = Some(self.pointer);
                 } else if let Some(at) = self.b3at.take() {
                     if (at.0 - self.pointer.0).abs() < 3.0 && (at.1 - self.pointer.1).abs() < 3.0 {
-                        let text = textat(&g.root, at);
+                        // the pointer's physical pixels, Masonry's logical
+                        let sc = g.root.scale_factor();
+                        let text = textat(&g.root, (at.0 / sc, at.1 / sc));
                         if let Some(t) = text {
                             plumb(&t);
                         }

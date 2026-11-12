@@ -60,6 +60,10 @@ pub struct View {
     extra: Vec<Rect>, // drawn on besides the cells (the menu, where it was)
     fg: u32,
     bg: u32,
+    pub margin: i32, // around the cells; and the menu's, at the window system's scale
+    menupad: i32,
+    menugap: i32,
+    menuline: i32,
 }
 
 /// a selection: from (row, col) to (row, col), the end's cell included
@@ -91,7 +95,9 @@ impl View {
         let mut v = View {
             w: 0, h: 0, px: vec![], rows: 0, cols: 0, prev: vec![], fresh: true, extra: vec![], fg, bg,
             sel: t.select, mborder: t.border, mhigh: t.menuhigh,
+            margin: MARGIN, menupad: MENUPAD, menugap: 4, menuline: 1,
         };
+        v.setdpi(p9win::dpi());
         v.resize(w, h, f);
         v
     }
@@ -102,12 +108,19 @@ impl View {
         (self.sel, self.mborder, self.mhigh) = (t.select, t.border, t.menuhigh);
     }
 
+    /// sizes at the window system's dpi (libdraw's scalesize): the margins,
+    /// the menu's; resize after it
+    pub fn setdpi(&mut self, dpi: i32) {
+        let k = |n| p9win::draw::scalesize(dpi, n);
+        (self.margin, self.menupad, self.menugap, self.menuline) = (k(MARGIN), k(MENUPAD), k(4), k(1));
+    }
+
     /// the window's new size: everything drawn again
     pub fn resize(&mut self, w: usize, h: usize, f: &Fonts) {
         self.w = w.max(1);
         self.h = h.max(1);
-        self.cols = ((self.w as i32 - 2 * MARGIN) / f.cw).clamp(1, 1000) as u16;
-        self.rows = ((self.h as i32 - 2 * MARGIN) / f.ch).clamp(1, 1000) as u16;
+        self.cols = ((self.w as i32 - 2 * self.margin) / f.cw).clamp(1, 1000) as u16;
+        self.rows = ((self.h as i32 - 2 * self.margin) / f.ch).clamp(1, 1000) as u16;
         self.px = vec![self.bg; self.w * self.h];
         self.prev = vec![None; self.rows as usize * self.cols as usize];
         self.fresh = true;
@@ -115,8 +128,8 @@ impl View {
 
     /// the cell at x y in the window's contents, clamped to the grid
     pub fn cell(&self, x: i32, y: i32, f: &Fonts) -> (u16, u16) {
-        let c = ((x - MARGIN) / f.cw).clamp(0, self.cols as i32 - 1);
-        let r = ((y - MARGIN) / f.ch).clamp(0, self.rows as i32 - 1);
+        let c = ((x - self.margin) / f.cw).clamp(0, self.cols as i32 - 1);
+        let r = ((y - self.margin) / f.ch).clamp(0, self.rows as i32 - 1);
         (r as u16, c as u16)
     }
 
@@ -179,7 +192,7 @@ impl View {
                 }
                 if l.cells > 0 {
                     let cells = l.cells.min((self.cols - c) as u8) as i32;
-                    let (x, y) = (MARGIN + c as i32 * f.cw, MARGIN + r as i32 * f.ch);
+                    let (x, y) = (self.margin + c as i32 * f.cw, self.margin + r as i32 * f.ch);
                     self.paint(&l, x, y, cells, f);
                     x0 = x0.min(x);
                     x1 = x1.max(x + cells * f.cw);
@@ -191,7 +204,7 @@ impl View {
                 self.prev[i] = Some(l);
             }
             if x0 < x1 {
-                let y = MARGIN + r as i32 * f.ch;
+                let y = self.margin + r as i32 * f.ch;
                 damage.push(Rect::new(x0, y, x1, y + f.ch));
             }
         }
@@ -223,11 +236,11 @@ impl View {
     /// the menu's rectangle for items, its first item's middle at x y, inside the window
     pub fn menurect(&self, items: &[&str], x: i32, y: i32, f: &Fonts) -> Rect {
         let n = items.iter().map(|s| s.chars().count()).max().unwrap_or(1) as i32;
-        let w = n * f.cw + 2 * (MENUPAD + 4);
-        let ih = f.ch + 2 * MENUPAD;
-        let h = items.len() as i32 * ih + 2 * MENUPAD;
+        let w = n * f.cw + 2 * (self.menupad + self.menugap);
+        let ih = f.ch + 2 * self.menupad;
+        let h = items.len() as i32 * ih + 2 * self.menupad;
         let x0 = (x - w / 2).clamp(0, (self.w as i32 - w).max(0));
-        let y0 = (y - MENUPAD - ih / 2).clamp(0, (self.h as i32 - h).max(0));
+        let y0 = (y - self.menupad - ih / 2).clamp(0, (self.h as i32 - h).max(0));
         Rect::new(x0, y0, x0 + w, y0 + h)
     }
 
@@ -236,7 +249,7 @@ impl View {
         if !r.contains(x, y) {
             return None;
         }
-        let i = ((y - r.y0 - MENUPAD) / (f.ch + 2 * MENUPAD)).max(0) as usize;
+        let i = ((y - r.y0 - self.menupad) / (f.ch + 2 * self.menupad)).max(0) as usize;
         (i < n).then_some(i)
     }
 
@@ -250,14 +263,15 @@ impl View {
             }
         };
         let (mborder, mback, mhigh, mtext) = (self.mborder, self.bg, self.mhigh, self.fg);
+        let (mp, ml) = (self.menupad, self.menuline);
         fill(self, r, mborder);
-        fill(self, r.inset(1), mback);
-        let ih = f.ch + 2 * MENUPAD;
+        fill(self, r.inset(ml), mback);
+        let ih = f.ch + 2 * mp;
         for (i, s) in items.iter().enumerate() {
-            let iy = r.y0 + MENUPAD + i as i32 * ih;
+            let iy = r.y0 + mp + i as i32 * ih;
             let lit = hi == Some(i);
             if lit {
-                fill(self, Rect::new(r.x0 + MENUPAD, iy, r.x1 - MENUPAD, iy + ih), mhigh);
+                fill(self, Rect::new(r.x0 + mp, iy, r.x1 - mp, iy + ih), mhigh);
             }
             // centred, as rio's
             let tx = r.x0 + (r.dx() - s.chars().count() as i32 * f.cw) / 2;
@@ -266,7 +280,7 @@ impl View {
             let cw = f.cw;
             for (k, ch) in s.chars().enumerate() {
                 let Some(g) = f.glyph(ch, 0, 1) else { continue };
-                let (gx0, gy0) = (tx + k as i32 * cw + g.x, iy + MENUPAD + g.y);
+                let (gx0, gy0) = (tx + k as i32 * cw + g.x, iy + mp + g.y);
                 for gy in 0..g.h {
                     for gx in 0..g.w {
                         let (px, py) = (gx0 + gx as i32, gy0 + gy as i32);

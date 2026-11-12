@@ -13,3 +13,4 @@ int	_glfwDrawReconnectPlan9(void);	/* draw(3) anew after _glfwDrawAgainPlan9 */
 /* the window's contents on the screen, and the border around them */
 void	_glfwDrawRectPlan9(int *x, int *y, int *w, int *h, int *border);
 void	_glfwDrawScreenPlan9(int *w, int *h);	/* the whole screen */
+int	_glfwDrawDpiPlan9(void);	/* the window system's dots per inch (wsys' scale ×96), as of the last attach */

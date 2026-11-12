@@ -1,0 +1,97 @@
+#!/bin/rc
+# HiDPI (../9front-ui PLAN stage 8), run by wsys -S 2 -x -i: the theme says
+# scale 2, a window's dpi file 192; its border 8, a title bar as high as the
+# font (Go Mono of truetypefs, 26 pixels, antialiased) and 8; a draw(3) program (dpitest)
+# finds display->dpi 192, scalesize's border 8 (its content where wsys has
+# it) and a font as big ($font); term's cells as big; then the scale written
+# to the theme at once: 1.5 (borders 6, the window's frame kept), 1 (4, the
+# font of scale 1), auto (1 on a screen without an EDID).
+# Prints ok/FAIL lines and "hidpi: all passed".
+nfail=0
+fn ok { echo ok $* }
+fn fail { echo FAIL $*; nfail=`{echo $nfail+1 | hoc} }
+fn wait1 { # cmd...: until it succeeds, 10 s at most
+	n=0
+	while(! $* >[2]/dev/null && test $n -lt 100){ sleep 0.1; n=`{echo $n+1 | hoc} }
+	$* >[2]/dev/null
+}
+fn line { grep '^'$1' ' /mnt/wsys/stack }	# n x0 y0 x1 y1 border hidden
+fn content { c=`{cat /mnt/wsys/$1/ctl}; echo $c(2-5) }
+fn scale { grep '^scale ' /mnt/wsys/theme }
+fn dpitest { # window: dpitest's line in it
+	rm -f /tmp/dpi.out
+	echo '#!/bin/rc
+/tests/dpitest >/tmp/dpi.out >[2=1]; sleep 600' >/tmp/rundpi
+	chmod +x /tmp/rundpi
+	window -r 100 100 700 500 /tmp/rundpi
+	wait1 test -s /tmp/dpi.out
+	cat /tmp/dpi.out
+}
+
+s=`{scale}
+if(~ $"s 'scale 2') ok the theme: $s
+if not fail the theme: $s
+cat /lib/theme/modern >/mnt/wsys/theme || fail writing the theme
+d=`{dpitest}
+w=`{ls -p /mnt/wsys | grep '^[0-9]+$' | sort -n | tail -1}
+dp=`{cat /mnt/wsys/$w/dpi}
+if(~ $dp 192) ok window $w: dpi $dp
+if not fail window $w: dpi $dp
+l=`{line $w}
+c=`{content $w}
+if(~ $l(6) 8) ok its border 8: $l
+if not fail its border: $l
+t=`{echo $c(2)-$l(3)-8 | hoc}
+if(test $t -ge 39 && test $t -le 44) ok a title bar $t high
+if not fail the title bar $t high: frame $l content $c
+# dpitest: dpi 192 border 8 screen x0 y0 x1 y1 font h name
+if(~ $d(2) 192 && ~ $d(4) 8) ok dpitest: display.dpi $d(2), scalesize border $d(4)
+if not fail dpitest: $d
+ds=$d(6-9)
+if(~ $"ds $"c) ok the dpitest screen where wsys has its content: $c
+if not fail the dpitest screen $d(6-9), the content of wsys $c
+if(test $d(11) -ge 30 && ~ $d(12) /n/ttf/Go-Mono.ttf.26a/font) ok its font $d(12), $d(11) high
+if not fail its font: $d(11) $d(12)
+
+# term: cells at scale 2 (Go Mono 32 pixels: twice 16)
+echo '#!/bin/rc
+TERMDEBUG=screen exec /tests/term' >/tmp/runterm
+chmod +x /tmp/runterm
+rm -f /tmp/term.*.geom
+window -r 50 550 650 750 /tmp/runterm
+fn geom { test -s /tmp/term.*.geom }
+wait1 geom
+g=`{cat /tmp/term.*.geom}
+if(test $#g -eq 6 && test $g(4) -ge 30 && test $g(3) -ge 15) ok term: cells $g(3)x$g(4)
+if not fail term: $g
+
+# the scale written: 1.5, at once; the frame kept, the border 6
+f=`{line $w}
+echo 'scale 1.5' >/mnt/wsys/theme || fail writing scale 1.5
+sleep 1
+s=`{scale}
+dp=`{cat /mnt/wsys/$w/dpi}
+l=`{line $w}
+if(~ $"s 'scale 1.5' && ~ $dp 144) ok scale 1.5: dpi $dp
+if not fail scale 1.5: $s, dpi $dp
+lf=$l(2-5)
+ff=$f(2-5)
+if(~ $l(6) 6 && ~ $"lf $"ff) ok border 6, the frame kept: $l
+if not fail after scale 1.5: $l, before $f
+fn termsmaller { h=`{cat /tmp/term.*.geom}; test $h(4) -lt $g(4) }
+wait1 termsmaller
+h=`{cat /tmp/term.*.geom}
+if(test $h(4) -lt $g(4)) ok term follows: cells $h(3)x$h(4)
+if not fail term after scale 1.5: $h, before $g
+
+echo 'scale 1' >/mnt/wsys/theme || fail writing scale 1
+sleep 1
+d=`{dpitest}
+if(~ $d(2) 96 && ~ $d(4) 4) ok scale 1: dpitest dpi $d(2), border $d(4), font $d(11)
+if not fail scale 1: dpitest $d
+echo 'scale auto' >/mnt/wsys/theme || fail writing scale auto
+sleep 1
+s=`{scale}
+if(~ $"s 'scale auto 1') ok scale auto on a screen without an EDID: $s
+if not fail scale auto: $s
+if(~ $nfail 0) echo hidpi: all passed

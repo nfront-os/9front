@@ -52,7 +52,6 @@ enum {
     Kshift = KF | 0x16, Kctl = KF | 0x17, Kend = KF | 0x18, Kscroll = KF | 0x19,
     Kbs = 0x08, Kdel = 0x7f, Kesc = 0x1b,
     Kbreak = Spec | 0x61, Kcaps = Spec | 0x64, Knum = Spec | 0x65, Kaltgr = Spec | 0x67, Kmod4 = Spec | 0x68,
-    Borderwidth = 4,        /* rio's and wsys' */
 };
 
 /* what the readers read, for PumpEvents */
@@ -76,6 +75,8 @@ static struct {
     Uint32 keys[Nkeys];          /* down, as the last k/K said */
     int nkeys;
     void *fb;
+    SDL_DisplayID display;
+    int dpi;                     /* the window system's (wsys' scale ×96): the content scale */
 } p9 = { .mousefd = -1, .kbdfd = -1 };
 
 static void push(const Raw *r)
@@ -302,6 +303,11 @@ static void relook(void)
 
     p9draw_attach();
     p9draw_rect(&x, &y, &w, &h);
+    /* another scale (wsys' dpi): the display's content scale, SDL tells the program */
+    if (p9draw_dpi() != p9.dpi) {
+        p9.dpi = p9draw_dpi();
+        SDL_SetDisplayContentScale(SDL_GetVideoDisplay(p9.display), p9.dpi / 96.0f);
+    }
     p9.wx = x;
     p9.wy = y;
     if (p9.window && (w != p9.ww || h != p9.wh)) {
@@ -390,7 +396,7 @@ static void wctlsize(int w, int h)
     if ((fd = open("/dev/wctl", O_WRONLY)) < 0) {
         return;
     }
-    SDL_snprintf(msg, sizeof msg, "resize -dx %d -dy %d", w + 2 * Borderwidth, h + 2 * Borderwidth);
+    SDL_snprintf(msg, sizeof msg, "resize -dx %d -dy %d", w + 2 * p9draw_border(), h + 2 * p9draw_border());
     write(fd, msg, SDL_strlen(msg));
     close(fd);
 }
@@ -612,9 +618,12 @@ static bool PLAN9_VideoInit(SDL_VideoDevice *_this)
     mode.format = SDL_PIXELFORMAT_XRGB8888;
     mode.w = w;
     mode.h = h;
-    if (SDL_AddBasicVideoDisplay(&mode) == 0) {
+    if ((p9.display = SDL_AddBasicVideoDisplay(&mode)) == 0) {
         return false;
     }
+    /* the window system's scale (wsys' dpi) as the display's content scale */
+    p9.dpi = p9draw_dpi();
+    SDL_SetDisplayContentScale(SDL_GetVideoDisplay(p9.display), p9.dpi / 96.0f);
     SDL_AddKeyboard(SDL_DEFAULT_KEYBOARD_ID, "plan9 kbd");
     SDL_AddMouse(SDL_DEFAULT_MOUSE_ID, "plan9 mouse");
     PLAN9_InitMouse();

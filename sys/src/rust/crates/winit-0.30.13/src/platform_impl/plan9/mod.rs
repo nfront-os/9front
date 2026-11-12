@@ -108,7 +108,7 @@ impl MonitorHandle {
     }
 
     pub fn scale_factor(&self) -> f64 {
-        1.0
+        p9win::scale()
     }
 
     pub fn refresh_rate_millihertz(&self) -> Option<u32> {

@@ -14,6 +14,10 @@ wsys \- window system, prototype (processor backend), rio(4)'s files
 .I theme
 ]
 [
+.B -S
+.I scale
+]
+[
 .B -s
 .I srvname
 ]
@@ -455,6 +459,8 @@ and
 (a window holding, Esc),
 .B title
 (0 or 1: title bars, above),
+.B scale
+(below),
 .B font
 (wsys' own, a
 .IR font (6)
@@ -476,6 +482,62 @@ holds the default (rio's colours),
 paper, ink and slate blue;
 .B -t
 starts with a theme file.
+.IP
+.B scale
+is the factor the desktop is drawn at, 1 at 96 dots per inch:
+.B "scale 1.5"
+or
+.B "scale 2"
+for a monitor with more pixels to the inch;
+.B "scale auto"
+(the default) lets
+.I wsys
+find it, and reads back as
+.B "scale auto"
+.I s
+with what it found:
+in a window of another
+.IR wsys ,
+that one's;
+on the screen of the machine itself, from the EDID of the output that shows it
+.RI ( gpu (4):
+its width in millimetres; 1 below 120 dots per inch, else the dots per inch
+over 96, down to a quarter);
+else 1.
+.B -S
+gives it at the start.
+At another scale than 1 the borders, title bars, scroll bars, menus and
+corners are as many times as big
+(the rounding of
+.IR graphics (2)'s
+.IR scalesize ), and so is the font of the text windows, which the programs
+of new windows get as
+.BR $font :
+unless
+.B -f
+or the theme's
+.B font
+says one (taken as it is),
+.B $font
+as big when it is one of
+.IR truetypefs (4)
+.RI ( name .ttf. n [ a ]),
+for the default (none, vga's) Go Mono as big, antialiased
+.RB ( Go-Mono.ttf. "InPa" ;
+.I wsys
+starts a truetypefs where
+.B /n/ttf
+has none); a bitmap font of one's own stays as it is (it cannot grow;
+.I wsys
+says so).
+Programs that know the scale (libdraw's
+.BR display->dpi ,
+p9win's and winit's scale factor:
+.IR ui (4),
+.IR term (1),
+.IR wbar (1),
+.IR wdock (1))
+draw as big at the window's pixels; written, they are told as a resize.
 .TP
 .B stack
 Reading gives the windows, bottom to top, a line each:
@@ -510,6 +572,11 @@ draws (as
 its header has the rectangle), with what the overlay plane shows over it
 (a window's buffer in VRAM through gpu(4)'s
 .BR readback ).
+.TP
+.IB n /dpi
+The scale as dots per inch, round(96×scale), for
+.IR graphics (2)'s
+.BR display->dpi .
 .TP
 .IB n /cons ", " consctl ", " cursor ", " kbd ", " label ", " mouse ", " screen ", " snarf ", " text ", " wctl ", " wdir ", " window ", " winid ", " winname
 as in

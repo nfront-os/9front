@@ -1,6 +1,6 @@
 .TH GRAPHICS 2
 .SH NAME
-Display, Point, Rectangle, Cursor, initdraw, geninitdraw, newwindow, wsyslost, wsysagain, drawerror, initdisplay, closedisplay, getdefont, getwindow, gengetwindow, flushimage, lockdisplay, unlockdisplay, openfont, buildfont, freefont, Pfmt, Rfmt, strtochan, chantostr, chantodepth \- interactive graphics
+Display, Point, Rectangle, Cursor, initdraw, geninitdraw, newwindow, wsyslost, wsysagain, scalesize, drawerror, initdisplay, closedisplay, getdefont, getwindow, gengetwindow, flushimage, lockdisplay, unlockdisplay, openfont, buildfont, freefont, Pfmt, Rfmt, strtochan, chantostr, chantodepth \- interactive graphics
 .SH SYNOPSIS
 .nf
 .ft L
@@ -62,6 +62,9 @@ void	runlockdisplay(Display *d)
 .PP
 .B
 int	getwindow(Display *d, int ref)
+.PP
+.B
+int	scalesize(Display *d, int n)
 .PP
 .B
 int	gengetwindow(Display *d, char *winname,
@@ -130,6 +133,7 @@ struct Display
 	Font		*defaultfont;
 	Subfont	*defaultsubfont;
 	...
+	int	dpi;
 };
 .EE
 .PP
@@ -404,6 +408,40 @@ For example,
 .B newwindow("-hide -dy 100")
 will cause the program to run in a newly created, hidden window
 100 pixels high.
+.PP
+A window system may draw at another scale than 1
+.RI ( wsys (4)'s
+.BR scale :
+a monitor with more pixels to the inch).
+.I Getwindow
+reads its window's
+.B dpi
+file into
+.BR display->dpi
+.RB ( DefaultDPI ,
+96, without one, as under
+.IR rio );
+.I scalesize
+gives what is
+.I n
+pixels at
+.B DefaultDPI
+at that many dots per inch,
+.BI ( n *dpi+48)/961;
+the window's border
+.RB ( Borderwidth )
+is that big, and a program sizes what it draws in fixed pixels
+(a scroll bar, a gap) by it.
+Its font is
+.BR $font ,
+which
+.I wsys
+sets as big as the scale.
+This is plan9port's
+.IR scalesize ,
+but its
+.B DefaultDPI
+is 133 and its scale a monitor's own.
 .PP
 Under
 .IR wsys (4)

@@ -80,7 +80,12 @@ else the theme's
 else
 .BR /lib/font/ttf/Go-Regular.ttf ,
 .I size
-pixels (15).
+pixels (15) at 96 dots per inch, at the window system's scale
+.RI ( wsys (4)'s
+.BR scale ,
+its window's
+.BR dpi )
+as many times as big, as are the bar's sizes.
 When
 .I wsys
 says the window changed (the screen's size, the theme),

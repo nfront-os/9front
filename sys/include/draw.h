@@ -62,6 +62,7 @@ enum
 	Displaybufsize	= 8000,
 	ICOSSCALE	= 1024,
 	Borderwidth =	4,
+	DefaultDPI =	96,	/* scalesize(2): a window system's at scale 1 */
 };
 
 enum
@@ -210,6 +211,7 @@ struct Display
 	Subfont		*defaultsubfont;
 	Image		*windows;
 	Image		*screenimage;
+	int		dpi;	/* the window system's (its window's dpi file), else DefaultDPI */
 };
 
 struct Image
@@ -360,6 +362,7 @@ extern Display*	initdisplay(char*, char*, void(*)(Display*, char*));
 extern int	loadimage(Image*, Rectangle, uchar*, int);
 extern int	cloadimage(Image*, Rectangle, uchar*, int);
 extern int	getwindow(Display*, int);
+extern int	scalesize(Display*, int);
 extern int	gengetwindow(Display*, char*, Image**, Screen**, int);
 extern Image*	readimage(Display*, int, int);
 extern Image*	creadimage(Display*, int, int);

@@ -92,6 +92,9 @@ struct Term {
     reverse: bool,
     menuat: (u16, u16),        // where button 2's menu was opened: plumb and look's word
     b3at: Option<(u16, u16)>,  // button 3 pressed there: a click plumbs the word (as acme)
+    dpi: i32,                  // the window system's (p9win::dpi): the font's size, the margins
+    fontpath: String,          // the font, its size at 96 dpi
+    fontsize: f32,
     shell: u32,                // the program on the pty: its directory is plumb's wdir
 }
 
@@ -112,7 +115,7 @@ impl Term {
         self.sel = None;
         if let Some(path) = &self.debug {
             // where the cells are on the screen: the first one's top left, a cell's size, how many
-            let g = format!("{} {} {} {} {} {}\n", c.x0 + view::MARGIN, c.y0 + view::MARGIN, self.fonts.cw, self.fonts.ch, rows, cols);
+            let g = format!("{} {} {} {} {} {}\n", c.x0 + self.view.margin, c.y0 + self.view.margin, self.fonts.cw, self.fonts.ch, rows, cols);
             let _ = std::fs::write(path.replace(".screen", ".geom"), g);
         }
     }
@@ -465,14 +468,15 @@ fn main() {
     if let Err(e) = pty::ownns() {
         die("rfork", e);
     }
-    let fonts = font::Fonts::open(&fontpath, size).unwrap_or_else(|e| die("font", e));
+    let dpi = p9win::dpi();
+    let fonts = font::Fonts::open(&fontpath, size * dpi as f32 / 96.0).unwrap_or_else(|e| die("font", e));
     let draw = Draw::open().unwrap_or_else(|e| die("draw", e));
     let c = draw.content();
     let view = View::new(c.dx().max(1) as usize, c.dy().max(1) as usize, &fonts, &theme, reverse);
     let pty = pty::Pty::open().unwrap_or_else(|e| die("pty", e));
     let vt = vt100::Parser::new_with_callbacks(view.rows, view.cols, SCROLLBACK, Replies::default());
     let debug = std::env::var("TERMDEBUG").is_ok_and(|v| v.contains("screen")).then(|| format!("/tmp/term.{}.screen", std::process::id()));
-    let mut t = Term { draw, fonts, view, vt, pty, sel: None, selecting: false, buttons: 0, menu: None, shift: false, current: true, debug, theme: theme.clone(), reverse, menuat: (0, 0), b3at: None, shell: 0 };
+    let mut t = Term { draw, fonts, view, vt, pty, sel: None, selecting: false, buttons: 0, menu: None, shift: false, current: true, debug, theme: theme.clone(), reverse, menuat: (0, 0), b3at: None, shell: 0, dpi, fontpath, fontsize: size };
     t.size();
     let _ = p9win::set_label("term");
 
@@ -529,6 +533,16 @@ fn main() {
                         if th != t.theme {
                             t.view.colours(&th, t.reverse);
                             t.theme = th;
+                        }
+                        // another scale: the font as big, the margins
+                        let dpi = p9win::dpi();
+                        if dpi != t.dpi {
+                            match font::Fonts::open(&t.fontpath, t.fontsize * dpi as f32 / 96.0) {
+                                Ok(f) => t.fonts = f,
+                                Err(e) => eprintln!("term: font: {e}"),
+                            }
+                            t.dpi = dpi;
+                            t.view.setdpi(dpi);
                         }
                         t.size();
                     }

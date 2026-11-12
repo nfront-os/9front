@@ -17,7 +17,8 @@
 		"SourceFilesCmd": [
 			"wsystest.c",
 			"drawtest.c",
-			"uipeek.c"
+			"uipeek.c",
+			"dpitest.c"
 		]
 	}
 ]

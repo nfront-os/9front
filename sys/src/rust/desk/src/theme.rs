@@ -4,6 +4,11 @@
 // a line "name value" each (one starting with # a comment), as /lib/theme/* and the file
 // theme hold them (wsys(4)); colours #rrggbb. What a line does not name stays.
 // classic is wsys' own (rio's colours); ui and term read the same file.
+// scale (../9front-ui PLAN stage 8): the desktop's factor, 1 = 96 dpi;
+// "scale auto" lets wsys find it (the monitor's EDID), "scale auto 1.5" is
+// what it found, "scale 1.5" a factor given. Programs size what they draw
+// by it: scalesize(n) = (n·dpi + 48)/96, dpi = round(96·scale), the same
+// formula libdraw's scalesize(2) has (/dev/dpi).
 
 use std::fmt::Write;
 
@@ -23,6 +28,8 @@ pub struct Theme {
     pub font: String,        // wsys' font (font(6)); empty: -f, $font or vga's
     pub uifont: String,      // ui's font (TrueType); empty: its own choice
     pub monofont: String,    // term's (TrueType); empty: Go Mono
+    pub scale: f64,          // the factor (1: 96 dpi)
+    pub scaleauto: bool,     // wsys finds it (scale above: what it found)
 }
 
 impl Default for Theme {
@@ -55,7 +62,19 @@ impl Theme {
             font: String::new(),
             uifont: String::new(),
             monofont: String::new(),
+            scale: 1.0,
+            scaleauto: true,
         }
+    }
+
+    /// the dots per inch the factor makes: round(96·scale)
+    pub fn dpi(&self) -> i32 {
+        dpi(self.scale)
+    }
+
+    /// n pixels at 96 dpi, at this theme's (libdraw's scalesize)
+    pub fn scalesize(&self, n: i32) -> i32 {
+        scalesize(self.dpi(), n)
     }
 
     /// the lines of text applied to this theme; the first line it does not know
@@ -87,6 +106,16 @@ impl Theme {
                 "font" => t.font = value,
                 "uifont" => t.uifont = value,
                 "monofont" => t.monofont = value,
+                "scale" => {
+                    let mut f = value.split_whitespace();
+                    let num = |v: &str| v.parse::<f64>().ok().filter(|s| (0.5..=8.0).contains(s));
+                    match (f.next(), f.next(), f.next()) {
+                        (Some("auto"), None, None) => t.scaleauto = true,
+                        (Some("auto"), Some(v), None) => (t.scaleauto, t.scale) = (true, num(v).ok_or_else(bad)?),
+                        (Some(v), None, None) => (t.scaleauto, t.scale) = (false, num(v).ok_or_else(bad)?),
+                        _ => return Err(bad()),
+                    }
+                }
                 _ => return Err(format!("theme: line {}: unknown {name}", i + 1)),
             }
         }
@@ -112,6 +141,7 @@ impl Theme {
             let _ = writeln!(s, "{n} #{v:06x}");
         }
         let _ = writeln!(s, "title {}", self.title as u8);
+        let _ = writeln!(s, "scale {}{}", if self.scaleauto { "auto " } else { "" }, self.scale);
         for (n, v) in [("font", &self.font), ("uifont", &self.uifont), ("monofont", &self.monofont)] {
             if !v.is_empty() {
                 let _ = writeln!(s, "{n} {v}");
@@ -119,6 +149,26 @@ impl Theme {
         }
         s
     }
+}
+
+/// the dots per inch of a factor: round(96·scale)
+pub fn dpi(scale: f64) -> i32 {
+    (96.0 * scale).round() as i32
+}
+
+/// n pixels at 96 dpi at dpi (libdraw's scalesize(2): rounded)
+pub fn scalesize(dpi: i32, n: i32) -> i32 {
+    if dpi <= 0 { n } else { (n * dpi + 48) / 96 }
+}
+
+/// the factor for a screen of px pixels across mm millimetres (an EDID's):
+/// 1 below 120 dpi, else dpi/96 down to a quarter
+pub fn autoscale(px: i32, mm: i32) -> f64 {
+    if px <= 0 || mm <= 0 {
+        return 1.0;
+    }
+    let dpi = px as f64 * 25.4 / mm as f64;
+    if dpi < 120.0 { 1.0 } else { ((dpi / 96.0 * 4.0).floor() / 4.0).max(1.0) }
 }
 
 /// the theme of the window system the program runs in (its /dev/theme: wsys');
