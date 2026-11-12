@@ -5,15 +5,17 @@
 
 enum
 {
-	Margin = 4,		/* outside to text */
-	Border = 2,		/* outside to selection boxes */
-	Blackborder = 2,	/* width of outlining border */
-	Vspacing = 2,		/* extra spacing between lines of text */
 	Maxunscroll = 25,	/* maximum #entries before scrolling turns on */
 	Nscroll = 20,		/* number entries in scrolling part */
-	Scrollwid = 14,		/* width of scroll bar */
-	Gap = 4,			/* between text and scroll bar */
 };
+
+/* in pixels at the window system's scale (scalesize, graphics(2)) */
+#define	Margin	scalesize(display, 4)	/* outside to text */
+#define	Border	scalesize(display, 2)	/* outside to selection boxes */
+#define	Blackborder	scalesize(display, 2)	/* width of outlining border */
+#define	Vspacing	scalesize(display, 2)	/* extra spacing between lines of text */
+#define	Scrollwid	scalesize(display, 14)	/* width of scroll bar */
+#define	Gap	scalesize(display, 4)	/* between text and scroll bar */
 
 static	Image	*menutxt;
 static	Image	*back;

@@ -472,11 +472,13 @@ enum
 	BUFSIZE = Maxblock+IOHDRSZ,	/* size from fbufalloc() */
 	RBUFSIZE = BUFSIZE/sizeof(Rune),
 	EVENTSIZE = 256,
-	Scrollwid = 12,	/* width of scroll bar */
-	Scrollgap = 4,	/* gap right of scroll bar */
-	Margin = 4,	/* margin around text */
-	Border = 2,	/* line between rows, cols, windows */
 };
+
+/* in pixels at the window system's scale (graphics(2)'s scalesize) */
+#define	Scrollwid	scalesize(display, 12)	/* width of scroll bar */
+#define	Scrollgap	scalesize(display, 4)	/* gap right of scroll bar */
+#define	Margin	scalesize(display, 4)	/* margin around text */
+#define	Border	scalesize(display, 2)	/* line between rows, cols, windows */
 
 #define	QID(w,q)	((w<<8)|(q))
 #define	WIN(q)	((((ulong)(q).path)>>8) & 0xFFFFFF)

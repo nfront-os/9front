@@ -42,9 +42,10 @@ void	flstart(Rectangle);
 void	flupfront(Flayer*);
 Flayer	*flwhich(Point);
 
-#define	FLMARGIN	4
-#define	FLSCROLLWID	12
-#define	FLGAP		4
+/* in pixels at the window system's scale (graphics(2)'s scalesize) */
+#define	FLMARGIN	scalesize(display, 4)
+#define	FLSCROLLWID	scalesize(display, 12)
+#define	FLGAP		scalesize(display, 4)
 
 extern	Image	*maincols[NCOL];
 extern	Image	*cmdcols[NCOL];
