@@ -99,8 +99,8 @@ def main():
 			'backports in patches/, each under its own notice; they follow, each\n'
 			'once, with the files it covers.  Our own files\n'
 			'(kpi/, replace/, the programs using them) are MIT; the LinuxKPI is derived\n'
-			'from OpenBSD\'s (ISC, BSD, public domain: their notices are in the files,\n'
-			'and all of them in openbsd/NOTICE).\n\n' % ver)
+			'from OpenBSD\'s and FreeBSD\'s (ISC, BSD, public domain: their notices are in the files,\n'
+			'and all of them in openbsd/NOTICE and freebsd/NOTICE).\n\n' % ver)
 		for n, fs in sorted(notices.items(), key=lambda x: x[1][0]):
 			o.write('==== ' + '\n==== '.join(fs) + '\n' + n + '\n\n')
 	print('%d files of linux-%s, %d rejected, %d notices, %d patches' % (len(taken), ver, len(rejected), len(notices), len(patches)))
