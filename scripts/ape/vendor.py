@@ -4,14 +4,14 @@ A library for APE into the tree from its release, as sys/src/<lib>/VENDOR.json
 describes it (the libraries scripts/build/ape.sh builds with ../9front-gcc's
 cross compiler):
 
-	name, version, url, sha256, tar (the archive, from the tree's root:
-	../9front-ui/src/...), top (its directory), key (who signed it), keep
+	name, version, url, sha256, tar (the archive: $DISTFILES/..., the
+	distribution's archives, scripts/lib/paths.py), top (its directory), key (who signed it), keep
 	(files to keep beside the sources: licences), libraries (each: name,
 	library, objtag, cflags, sources: files of the release), headers (each:
 	from, a file or directory of the release or of plan9/, to, a directory
 	from the root: sys/include/ape/..., exclude: subdirectories not), gen (commands that make files of
 	the release in it before anything is copied: [dir, argv...], dir from
-	its top; $ROOT is the tree's root)
+	its top; $ROOT is the tree's root, $DISTFILES the archives' directory)
 
 sys/src/<lib>/plan9/ holds what 9front needs instead (configuration
 headers): it comes before the release's directories in each library's
@@ -28,10 +28,13 @@ import hashlib, json, os, shutil, subprocess, sys, tarfile
 root = os.path.abspath(sys.argv[1])
 lib = sys.argv[2]
 here = os.path.join(root, 'sys/src', lib)
+sys.path.insert(0, os.path.join(root, 'scripts', 'lib'))
+import paths
+env = dict(os.environ, ROOT=root, DISTFILES=paths.get('DISTFILES'))
 cc, work = os.environ['CC'], os.environ['WORK']
 spec = json.load(open(os.path.join(here, 'VENDOR.json')))
 
-tar = os.path.normpath(os.path.join(root, spec['tar']))
+tar = paths.archive(root, spec['tar'])
 if hashlib.sha256(open(tar, 'rb').read()).hexdigest() != spec['sha256']:
 	sys.exit('vendor.py: %s: not the sha256 of VENDOR.json' % tar)
 os.makedirs(work, exist_ok=True)
@@ -40,7 +43,7 @@ shutil.rmtree(tree, ignore_errors=True)
 with tarfile.open(tar) as f:
 	f.extractall(work, filter='data')
 for g in spec.get('gen', []):
-	subprocess.run(g[1:], cwd=os.path.join(tree, g[0]), check=True, env=dict(os.environ, ROOT=root))
+	subprocess.run(g[1:], cwd=os.path.join(tree, g[0]), check=True, env=env)
 
 plan9 = os.path.join(here, 'plan9')
 

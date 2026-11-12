@@ -1,4 +1,4 @@
 version 3.5.1
 url https://github.com/glfw/glfw/releases/download/3.5.1/glfw-3.5.1.zip
 sha256 ea79bc5feffc254c87291980c2d0bce9acebb68c4983b79f961dcd2cb8a611a0
-zip ../9front-ui/src/glfw-3.5.1.zip
+zip $DISTFILES/glfw-3.5.1.zip

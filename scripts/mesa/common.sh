@@ -1,5 +1,6 @@
 # shared settings of scripts/mesa/*.sh (sourced)
 ROOT=$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)
+. "$ROOT/scripts/lib/paths.sh"	# GCC_DIR, RUST_DIR, GO_DIR, MCP_DIR, DISTFILES (the distribution's paths.env)
 MESA=$ROOT/sys/src/mesa
 field(){ awk -v k="$1" '$1 == k { print $2 }' "$MESA/VERSION"; }
 MESA_VERSION=$(field version)
@@ -21,7 +22,6 @@ arm64)	TRIPLE=aarch64-pc-plan9 CPU=aarch64 ;;
 *)	echo "mesa: objtype=$objtype not supported" >&2; exit 1 ;;
 esac
 # the cross compilers of ../9front-gcc
-GCC_DIR=${GCC_DIR:-$ROOT/../9front-gcc}
 GCC_CROSS=$GCC_DIR/build/$objtype/cross/bin
 BUILD=$WORK/build-$objtype
 # their sysroot is a view of one tree (../9front-gcc/sysroot.sh, the PLAN9 of its last

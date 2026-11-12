@@ -8,7 +8,7 @@
 IMG=${ISO:-$CLI_DIR/9front.$objtype.iso}
 [ -f "$IMG" ] || { skip "go" "no CD $IMG, run GO_OUT=... objtype=$objtype scripts/guest/mkiso.sh or set ISO"; done_tests; exit; }
 # the test data's checksum in 9front-go's tree, if there (the CD's must be the same)
-F=${GO_OUT:-$ROOT/../9front-go/out/$objtype}/$objtype/go/src/debug/elf/testdata/go-relocation-test-gcc441-x86-64.obj
+F=${GO_OUT:-$GO_DIR/out/$objtype}/$objtype/go/src/debug/elf/testdata/go-relocation-test-gcc441-x86-64.obj
 sha=$( [ -f "$F" ] && sha1sum "$F" | cut -d' ' -f1 )
 
 python3 "$ROOT/tests/go/go.py" "$IMG" "$TMPD/vm" $objtype $sha > "$TMPD/results" 2>&1

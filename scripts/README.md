@@ -4,6 +4,13 @@ Helpers of the gcc port. Run them from the tree root; most take
 `objtype=386|amd64|arm64` from the environment (default amd64).
 The build itself is `CC=gcc ARCH=amd64 sys/src/cmd/build/build.exe`.
 
+## lib/ — where nfront's other parts are
+
+| File | What |
+|---|---|
+| `paths.sh` | sourced after `ROOT=`: exports `GCC_DIR`, `RUST_DIR`, `GO_DIR`, `MCP_DIR`, `DISTFILES` (the releases' archives), `TREE_GCC`, ... from the distribution's `paths.env` (`$NFRONT_PATHS`, else `../dist/paths.env`, else `../9front-distribution/paths.env`); the environment wins; without the file the old `../9front-*` defaults |
+| `paths.py` | the same for Python: `paths.get('GCC_DIR')`; `paths.archive(root, name)` resolves `$DISTFILES/x` of a VERSION or VENDOR.json |
+
 ## gen/ — manifest generators
 
 They read 9front's mkfiles and write the checked-in JSON manifests.

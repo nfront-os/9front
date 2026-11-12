@@ -4,7 +4,7 @@
 	"url": "https://codeberg.org/dnkl/fcft/archive/3.3.3.tar.gz",
 	"sha256": "b0c0f4a599f43723736c8565b8b84337c4195077f07f1bb8bb3252bb13a2306a",
 	"key": "none: Codeberg's archive of the tag 3.3.3 (the project signs no tarballs)",
-	"tar": "../9front-ui/src/fcft-3.3.3.tar.gz",
+	"tar": "$DISTFILES/fcft-3.3.3.tar.gz",
 	"top": "fcft",
 	"keep": ["LICENSE", "README.md", "unicode/license.txt"],
 	"gen": [

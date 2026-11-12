@@ -1,0 +1,30 @@
+# scripts/lib/paths.sh: where nfront's other parts are (the toolchains,
+# the other worktrees, the archives).  Sourced by the scripts after they
+# set ROOT (the tree); sets each variable of the distribution's paths.env
+# that the environment does not set already, as an absolute path.
+# paths.env: $NFRONT_PATHS, else ROOT/../dist/paths.env (the umbrella's
+# layout), else ROOT/../9front-distribution/paths.env (the old one);
+# without it the old defaults (../9front-gcc, ...).
+__nfront_paths(){
+	local f top line k v
+	for f in "$NFRONT_PATHS" "$ROOT/../dist/paths.env" "$ROOT/../9front-distribution/paths.env"; do
+		[ -n "$f" ] && [ -f "$f" ] && break
+		f=
+	done
+	if [ -n "$f" ]; then
+		top=$(cd "$(dirname "$f")/.." && pwd)
+		while IFS= read -r line; do
+			case "$line" in ''|'#'*) continue;; esac
+			k=${line%%=*}
+			v=${line#*=}
+			case "$v" in /*) ;; *) v=$top/$v;; esac
+			[ -z "${!k}" ] && export "$k=$v"
+		done < "$f"
+	fi
+	# the defaults of the old layout, for what paths.env does not name
+	top=$(cd "$ROOT/.." && pwd)
+	: "${GCC_DIR:=$top/9front-gcc}" "${RUST_DIR:=$top/9front-rust}" "${GO_DIR:=$top/9front-go}"
+	: "${MCP_DIR:=$top/9front-mcp}" "${DISTFILES:=$top/9front-ui/src}" "${TREE_GCC:=$top/9front-gccwt}"
+	export GCC_DIR RUST_DIR GO_DIR MCP_DIR DISTFILES TREE_GCC
+}
+__nfront_paths

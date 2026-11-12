@@ -16,9 +16,10 @@
 #         QEMU_EXTRA, SMP, MEM, ... as boot-cli.sh (QEMU_EXTRA gets the NIC added)
 set -e
 ROOT=$(git -C "$(dirname "$0")" rev-parse --show-toplevel)
+. "$ROOT/scripts/lib/paths.sh"	# GCC_DIR, RUST_DIR, GO_DIR, MCP_DIR, DISTFILES (the distribution's paths.env)
 CLI_DIR=${CLI_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/9front-cli}
-MCP_SRC=${MCP_SRC:-$ROOT/../9front-mcp}
-GO=${GO:-$ROOT/../9front-go/go/bin/go}
+MCP_SRC=${MCP_SRC:-$MCP_DIR}
+GO=${GO:-$GO_DIR/go/bin/go}
 PORT=${PORT:-18091}
 TOKEN=${MCPTOKEN:-mcpguest}
 A=${objtype:-amd64}

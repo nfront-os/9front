@@ -4,7 +4,7 @@
 	"url": "https://www.freedesktop.org/software/fontconfig/release/fontconfig-2.18.3.tar.xz",
 	"sha256": "4f7b554a38cdf78c033f666c8871f3749e14a094f65a07f630c91ed0b43d35e3",
 	"key": "none: the release's sha256sum file on freedesktop.org (checked 2026-11-09)",
-	"tar": "../9front-ui/src/fontconfig-2.18.3.tar.xz",
+	"tar": "$DISTFILES/fontconfig-2.18.3.tar.xz",
 	"top": "fontconfig-2.18.3",
 	"keep": ["COPYING", "README.md", "AUTHORS"],
 	"gen": [

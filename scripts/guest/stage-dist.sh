@@ -31,6 +31,7 @@
 # usage: [objtype=386] scripts/guest/stage-dist.sh dir
 set -e
 ROOT=${PLAN9:-$(git -C "$(dirname "$0")" rev-parse --show-toplevel)}
+. "$ROOT/scripts/lib/paths.sh"	# GCC_DIR, RUST_DIR, GO_DIR, MCP_DIR, DISTFILES (the distribution's paths.env)
 OUT=${1:?usage: stage-dist.sh dir}
 DIST=$ROOT/sys/lib/dist
 VIEW=$(mktemp -d)
@@ -78,7 +79,7 @@ mkdir -p "$VIEW/.$A"
 for f in "$ROOT"/$A/*; do ln -s "$f" "$VIEW/.$A/$(basename "$f")"; done
 rm "$VIEW/$A"; mv "$VIEW/.$A" "$VIEW/$A"
 # the native toolchain (../9front-gcc: build.sh native) as /$objtype/gnu
-GCC_OUT=${GCC_OUT:-$ROOT/../9front-gcc/out/$A}
+GCC_OUT=${GCC_OUT:-$GCC_DIR/out/$A}
 # uiproto: the desktop's files of the ui branch (TrueType fonts, themes, wbar's menu)
 PROTOS=("$ROOT/scripts/guest/boot/gccproto" "$ROOT/scripts/guest/boot/uiproto")
 if [ -d "$GCC_OUT/$A/gnu" ]; then

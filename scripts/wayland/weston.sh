@@ -56,7 +56,8 @@ build(){
 	# wayland-protocols' XML (the release of sys/src/wayland/VERSION, checked)
 	WP=$BUILD/wayland-protocols-$(wlv protocols)
 	if [ ! -d "$WP" ]; then
-		t=$ROOT/$(wlv protocols-tar)
+		t=$(wlv protocols-tar)
+		t=${t/#\$DISTFILES/$DISTFILES}	# the distribution's archives (scripts/lib/paths.sh)
 		echo "$(wlv protocols-sha256)  $t" | sha256sum -c --quiet
 		tar xJf "$t" -C "$BUILD"
 	fi

@@ -11,9 +11,10 @@
 # env: RUSTC (../9front-rust's stage-1 rustc: it knows the plan9 target)
 set -e
 ROOT=$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)
+. "$ROOT/scripts/lib/paths.sh"	# GCC_DIR, RUST_DIR, GO_DIR, MCP_DIR, DISTFILES (the distribution's paths.env)
 [ $# -le 1 ] || { echo "usage: scripts/rust/vendor.sh [dir]" >&2; exit 1; }
 set -- "${1:-$ROOT/sys/src/rust}"
-RUSTC=${RUSTC:-$ROOT/../9front-rust/rust/build/host/stage1/bin/rustc}
+RUSTC=${RUSTC:-$RUST_DIR/rust/build/host/stage1/bin/rustc}
 # the targets scripts/build/cargo.sh builds for (amd64, 386, arm64)
 TARGETS=${TARGETS:-x86_64-unknown-plan9 i686-unknown-plan9 aarch64-unknown-plan9}
 cd "$1"

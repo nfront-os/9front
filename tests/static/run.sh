@@ -159,7 +159,7 @@ check "rc scripts (scripts/build/rc, scripts/guest/boot, tests/hw) parse" rcsynt
 #    whose patches are their master (scripts/rust/crates.sh); without
 #    ../9front-rust there is nothing to compare with
 rustcrates(){
-	local r=${RUST_DIR:-$ROOT/../9front-rust}
+	local r=$RUST_DIR
 	[ -d "$r/crates" ] || { echo "no $r/crates: not compared"; return 0; }
 	bash scripts/rust/crates.sh -n
 }

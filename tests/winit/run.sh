@@ -8,9 +8,9 @@
 set -e
 HERE=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(cd "$HERE/../.." && pwd)
+. "$ROOT/scripts/lib/paths.sh"	# GCC_DIR, RUST_DIR, GO_DIR, MCP_DIR, DISTFILES (the distribution's paths.env)
 . "$ROOT/scripts/mesa/common.sh"
 CLI_DIR=${CLI_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/9front-cli}
-RUST_DIR=${RUST_DIR:-$ROOT/../9front-rust}
 RUSTC=${RUSTC:-$RUST_DIR/rust/build/host/stage1/bin/rustc}
 T=x86_64-unknown-plan9
 . "$ROOT/scripts/build/cargostd.sh"

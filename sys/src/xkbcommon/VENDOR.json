@@ -4,7 +4,7 @@
 	"url": "https://github.com/xkbcommon/libxkbcommon/archive/refs/tags/xkbcommon-1.13.2.tar.gz",
 	"sha256": "acc4d5f7c3cbba5f9f8d08d8bdbeede84ecede46792f47929aa9321873385528",
 	"key": "none: GitHub's archive of the tag xkbcommon-1.13.2 (xkbcommon.org's signed tarball not reachable 2026-11-09)",
-	"tar": "../9front-ui/src/libxkbcommon-1.13.2.tar.gz",
+	"tar": "$DISTFILES/libxkbcommon-1.13.2.tar.gz",
 	"top": "libxkbcommon-xkbcommon-1.13.2",
 	"keep": ["LICENSE", "README.md"],
 	"gen": [["src/xkbcomp", "bison", "--defines=parser.h", "-o", "parser.c", "-p", "_xkbcommon_", "parser.y"]],

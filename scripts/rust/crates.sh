@@ -11,7 +11,7 @@
 # env: RUST_DIR (../9front-rust)
 set -e
 ROOT=$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)
-RUST_DIR=${RUST_DIR:-$ROOT/../9front-rust}
+. "$ROOT/scripts/lib/paths.sh"	# GCC_DIR, RUST_DIR, GO_DIR, MCP_DIR, DISTFILES (the distribution's paths.env)
 D=$ROOT/sys/src/rust
 check=
 [ "$1" = -n ] && check=1

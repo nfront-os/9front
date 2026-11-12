@@ -11,9 +11,11 @@ scripts/build/check-install.py expects the programs.
 
 usage: scripts/gen/apeprogs.py	lists the programs: path source
 """
-import os
+import os, sys
 
 ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..'))
+sys.path.insert(0, os.path.join(ROOT, 'scripts', 'lib'))
+import paths	# GCC_DIR, RUST_DIR, ... (the distribution's paths.env)
 
 # the architectures ape.sh builds for (scripts/mesa/common.sh: its sysroot view)
 OBJTYPES = ['amd64']
@@ -35,8 +37,8 @@ LINKS = {
 TRIPLES = {'amd64': 'x86_64-pc-plan9', '386': 'i686-pc-plan9'}
 
 def cross(objtype):
-	"""is there ../9front-gcc's cross compiler for objtype?"""
-	d = os.environ.get('GCC_DIR') or os.path.join(ROOT, '..', '9front-gcc')
+	"""is there the cross compiler of 9front-gcc (GCC_DIR) for objtype?"""
+	d = paths.get('GCC_DIR')
 	t = TRIPLES.get(objtype)
 	return t is not None and os.access(os.path.join(d, 'build', objtype, 'cross', 'bin', t + '-gcc'), os.X_OK)
 

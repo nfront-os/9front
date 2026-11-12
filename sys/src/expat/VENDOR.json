@@ -4,7 +4,7 @@
 	"url": "https://github.com/libexpat/libexpat/releases/download/R_2_10_0/expat-2.10.0.tar.gz",
 	"sha256": "5466a341f9c692ef7a958a6881311be597f8e1ce345984cf78414f54793dea4c",
 	"key": "CB8DE70A90CFBF6C3BF5CC5696262ACFFBD3AEC6 Sebastian Pipping <sping@gentoo.org> (the .asc checked 2026-11-09)",
-	"tar": "../9front-ui/src/expat-2.10.0.tar.gz",
+	"tar": "$DISTFILES/expat-2.10.0.tar.gz",
 	"top": "expat-2.10.0",
 	"keep": ["COPYING", "README.md", "AUTHORS"],
 	"libraries": [{

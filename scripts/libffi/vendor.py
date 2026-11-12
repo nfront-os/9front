@@ -3,11 +3,13 @@
 import hashlib, json, os, shutil, subprocess, sys, tarfile
 
 root = os.path.abspath(sys.argv[1])
+sys.path.insert(0, os.path.join(root, 'scripts', 'lib'))
+import paths	# DISTFILES: where the releases' archives are
 ffi = os.path.join(root, 'sys/src/libffi')
 cc, work = os.environ['CC'], os.environ['WORK']
 
 ver = dict(l.split(None, 1) for l in open(os.path.join(ffi, 'VERSION')).read().splitlines() if l.strip())
-tgz = os.path.normpath(os.path.join(root, ver['tar']))
+tgz = paths.archive(root, ver['tar'])
 if hashlib.sha256(open(tgz, 'rb').read()).hexdigest() != ver['sha256']:
     sys.exit('vendor.py: %s: not the sha256 of VERSION' % tgz)
 tree = os.path.join(work, 'libffi-' + ver['version'])

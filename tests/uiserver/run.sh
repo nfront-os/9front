@@ -10,9 +10,9 @@
 set -e
 HERE=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(cd "$HERE/../.." && pwd)
+. "$ROOT/scripts/lib/paths.sh"	# GCC_DIR, RUST_DIR, GO_DIR, MCP_DIR, DISTFILES (the distribution's paths.env)
 . "$ROOT/scripts/mesa/common.sh"
 CLI_DIR=${CLI_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/9front-cli}
-RUST_DIR=${RUST_DIR:-$ROOT/../9front-rust}
 RUSTC=${RUSTC:-$RUST_DIR/rust/build/host/stage1/bin/rustc}
 T=x86_64-unknown-plan9
 . "$ROOT/scripts/build/cargostd.sh"
@@ -28,7 +28,7 @@ for p in ui uitodo uitick uicount; do
 done
 # the client in Go, with ../9front-go when it is there (a build cache of its
 # own: the toolchain is rebuilt under the same version)
-GO=${GO:-$ROOT/../9front-go/go/bin/go}
+GO=${GO:-$GO_DIR/go/bin/go}
 rm -f "$HERE/root/tests/gocount"
 if [ -x "$GO" ]; then
 	(cd "$ROOT/sys/src/libui/go" && GOOS=plan9 GOARCH=amd64 CGO_ENABLED=0 GOCACHE="$BUILD/gocache" \

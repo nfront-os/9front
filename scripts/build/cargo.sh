@@ -18,13 +18,13 @@ feat=()
 [ "$1" = -n ] && { feat=(--no-default-features); shift; }
 [ $# -ge 2 ] || { echo "usage: scripts/build/cargo.sh [-n] dir prog..." >&2; exit 1; }
 ROOT=$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)
+. "$ROOT/scripts/lib/paths.sh"	# GCC_DIR, RUST_DIR, GO_DIR, MCP_DIR, DISTFILES (the distribution's paths.env)
 case ${objtype:=amd64} in
 amd64)	T=x86_64-unknown-plan9 ;;
 386)	T=i686-unknown-plan9 ;;
 arm64)	T=aarch64-unknown-plan9 ;;
 *)	echo "cargo.sh: objtype=$objtype: no Rust target here; $* not built" >&2; exit 0 ;;
 esac
-RUST_DIR=${RUST_DIR:-$ROOT/../9front-rust}
 RUSTC=${RUSTC:-$RUST_DIR/rust/build/host/stage1/bin/rustc}
 if [ ! -x "$RUSTC" ] || ! command -v cargo >/dev/null; then
 	echo "cargo.sh: no Rust toolchain (stage-1 rustc $RUSTC, cargo): $* not built" >&2

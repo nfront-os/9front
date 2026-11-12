@@ -3,12 +3,14 @@
 import hashlib, json, os, shutil, subprocess, sys, tarfile
 
 root = os.path.abspath(sys.argv[1])
+sys.path.insert(0, os.path.join(root, 'scripts', 'lib'))
+import paths	# DISTFILES: where the releases' archives are
 wl = os.path.join(root, 'sys/src/wayland')
 cc, work = os.environ['CC'], os.environ['WORK']
 ver = dict(l.split(None, 1) for l in open(os.path.join(wl, 'VERSION')).read().splitlines() if l.strip())
 
 def unpack(tarkey, shakey, name):
-    t = os.path.normpath(os.path.join(root, ver[tarkey]))
+    t = paths.archive(root, ver[tarkey])
     if hashlib.sha256(open(t, 'rb').read()).hexdigest() != ver[shakey]:
         sys.exit('vendor.py: %s: not the sha256 of VERSION' % t)
     d = os.path.join(work, name)

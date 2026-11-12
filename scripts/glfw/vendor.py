@@ -3,11 +3,13 @@
 import hashlib, json, os, shutil, subprocess, sys, zipfile
 
 root = os.path.abspath(sys.argv[1])
+sys.path.insert(0, os.path.join(root, 'scripts', 'lib'))
+import paths	# DISTFILES: where the releases' archives are
 glfw = os.path.join(root, 'sys/src/glfw')
 cc, work = os.environ['CC'], os.environ['WORK']
 
 ver = dict(l.split(None, 1) for l in open(os.path.join(glfw, 'VERSION')).read().splitlines() if l.strip())
-zipped = os.path.normpath(os.path.join(root, ver['zip']))
+zipped = paths.archive(root, ver['zip'])
 if hashlib.sha256(open(zipped, 'rb').read()).hexdigest() != ver['sha256']:
     sys.exit('vendor.py: %s: not the sha256 of VERSION' % zipped)
 

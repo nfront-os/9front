@@ -3,11 +3,13 @@
 import hashlib, json, os, shutil, subprocess, sys, tarfile
 
 root = os.path.abspath(sys.argv[1])
+sys.path.insert(0, os.path.join(root, 'scripts', 'lib'))
+import paths	# DISTFILES: where the releases' archives are
 sdl = os.path.join(root, 'sys/src/sdl3')
 cc, work = os.environ['CC'], os.environ['WORK']
 
 ver = dict(l.split(None, 1) for l in open(os.path.join(sdl, 'VERSION')).read().splitlines() if l.strip())
-tarball = os.path.normpath(os.path.join(root, ver['tarball']))
+tarball = paths.archive(root, ver['tarball'])
 if hashlib.sha256(open(tarball, 'rb').read()).hexdigest() != ver['sha256']:
     sys.exit('vendor.py: %s: not the sha256 of VERSION' % tarball)
 

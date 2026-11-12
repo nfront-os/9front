@@ -53,7 +53,6 @@ fi
 # stage-1 rustc for x86_64-unknown-plan9 and linked by the cross gcc above (the view of this
 # tree: libp9, APE, libvulkan.a); the crates are in rsvk/vendor (no network). Skipped
 # without that rustc.
-RUST_DIR=${RUST_DIR:-$ROOT/../9front-rust}
 RUSTC=${RUSTC:-$RUST_DIR/rust/build/host/stage1/bin/rustc}
 if [ "$objtype" = amd64 ] && [ -x "$RUSTC" ] && command -v cargo >/dev/null; then
 	for s in tri.vert tri.frag; do
