@@ -1,0 +1,34 @@
+From e8b0537e9a167987780b9fb1a2922a2a3b3b2de5 Mon Sep 17 00:00:00 2001
+From: Stefan Hertenberger <erde74@gmail.com>
+Date: Fri, 13 Nov 2026 18:37:44 +0100
+Subject: [PATCH 31/31] dossrv: a long name's checksum into the field at offset
+ 13
+
+putnamesect wrote the checksum of a VFAT long name's slot as
+ds.reserved[1], past Dosdir's reserved[1]; the byte at offset 13,
+where the slot keeps the checksum, is ctimetenth.  The same byte as
+before, written through the field that is there.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ sys/src/cmd/dossrv/dossubs.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/sys/src/cmd/dossrv/dossubs.c b/sys/src/cmd/dossrv/dossubs.c
+index 1787faa92..40e20eb41 100644
+--- a/sys/src/cmd/dossrv/dossubs.c
++++ b/sys/src/cmd/dossrv/dossubs.c
+@@ -1270,8 +1270,8 @@ putnamesect(uchar *slot, Rune *longname, int curslot, int first, int sum)
+ 
+ 	memset(&ds, 0xff, sizeof ds);
+ 	ds.attr = 0xf;
+-	ds.reserved[0] = 0;
+-	ds.reserved[1] = sum;
++	ds.reserved[0] = 0;	/* a long name's slot: its type, 0 */
++	ds.ctimetenth = sum;	/* and the short name's checksum at offset 13 */
+ 	ds.start[0] = 0;
+ 	ds.start[1] = 0;
+ 	if(first)
+-- 
+2.56.0
+

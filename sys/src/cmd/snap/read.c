@@ -196,7 +196,7 @@ Proc*
 readsnap(Biobuf *b)
 {
 	char *q;
-	char buf[12];
+	char buf[13];	/* GCC port branch: 12 bytes and their NUL (buf[12] = 0 below; patch-upstream 0029) */
 	long pid;
 	Proc *p, *plist;
 	int i, n;

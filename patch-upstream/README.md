@@ -26,7 +26,8 @@ On Unix: `git am patch-upstream/0*.patch` on a checkout of `front`.
 On 9front: `git/import` takes the files as they are.
 
 All 25 apply as a series (on `f5df6bc0a` and on `origin/front` at
-`82ddeb288`, 2026-11-10). Each applies alone too, except:
+`82ddeb288`, 2026-11-10), and 0028 to 0031 on them (the main branch
+has 0026 and 0027 as well). Each applies alone too, except:
 
 - 0009 needs 0007 (context: `vbump` in `rwstat`),
 - 0010 needs 0007 and 0009,
@@ -87,6 +88,9 @@ made with an AI assistant); drop it if 9front does not want it.
 | 0024 | dist: the CD's ESP can overlap the end of the ISO | bug fix (data) |
 | 0025 | ip: a closing conversation is given out again, its new connect hangs | bug fix |
 | 0028 | aux/vga/mga4xx: register 0x14 of the attribute controller written past attribute[] | bug fix (found by gcc -O2) |
+| 0029 | snap: a memory section's count ended one past its buffer | bug fix (found by gcc -O2) |
+| 0030 | cwfs: readln put the NUL past the buffer on a long line | bug fix (found by gcc -O2) |
+| 0031 | dossrv: a long name's checksum written past reserved[] | bug fix (found by gcc -O2) |
 
 ### 0001 ip/tcp: don't hang up a reused conversation through a stale bypass pointer
 

@@ -1,0 +1,30 @@
+From 75cb6dc53eb9e23af8ccd6488f845f721ab9f0b3 Mon Sep 17 00:00:00 2001
+From: Stefan Hertenberger <erde74@gmail.com>
+Date: Fri, 13 Nov 2026 18:37:43 +0100
+Subject: [PATCH 29/31] snap: room for the NUL after a memory section's 12-byte
+ count
+
+readsnap reads the count into buf with Bread(b, buf, 12) and ends it
+with buf[12] = 0, one past char buf[12].
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ sys/src/cmd/snap/read.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/sys/src/cmd/snap/read.c b/sys/src/cmd/snap/read.c
+index ad3188008..aa3e4594f 100644
+--- a/sys/src/cmd/snap/read.c
++++ b/sys/src/cmd/snap/read.c
+@@ -196,7 +196,7 @@ Proc*
+ readsnap(Biobuf *b)
+ {
+ 	char *q;
+-	char buf[12];
++	char buf[13];	/* 12 bytes and their NUL */
+ 	long pid;
+ 	Proc *p, *plist;
+ 	int i, n;
+-- 
+2.56.0
+

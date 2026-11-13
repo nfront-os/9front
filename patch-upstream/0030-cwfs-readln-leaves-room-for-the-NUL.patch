@@ -1,0 +1,30 @@
+From 06e9eff10539d348311934875ebc66d9b30b0b99 Mon Sep 17 00:00:00 2001
+From: Stefan Hertenberger <erde74@gmail.com>
+Date: Fri, 13 Nov 2026 18:37:44 +0100
+Subject: [PATCH 30/31] cwfs: readln leaves room for the NUL
+
+readln stored up to len characters and then the NUL after them: a line
+of sizeof buf (4096) characters or more in the users file put the NUL
+one past the static buf.  It stores len-1 now.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ sys/src/cmd/cwfs/uidgid.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/sys/src/cmd/cwfs/uidgid.c b/sys/src/cmd/cwfs/uidgid.c
+index 88ae3b571..0dc772588 100644
+--- a/sys/src/cmd/cwfs/uidgid.c
++++ b/sys/src/cmd/cwfs/uidgid.c
+@@ -570,7 +570,7 @@ readln(char *p, int len)
+ 	int n, c;
+ 
+ 	n = 0;
+-	while(len--) {
++	while(--len > 0) {	/* room for the NUL */
+ 		c = fchar();
+ 		if(c == -1 || c == '\n')
+ 			break;
+-- 
+2.56.0
+
