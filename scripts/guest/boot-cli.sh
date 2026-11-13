@@ -241,7 +241,20 @@ done
 if [ -z "$pts" ]; then
 	# keep what QEMU said (the next boot overwrites qemu.log) and why it stopped
 	cp "$CLI_DIR/qemu.log" "$CLI_DIR/qemu-nopty.log"
-	if running; then why="still running after 30 s"; else wait $qemupid; why="exited with status $?"; fi
+	if running; then
+		why="still running after 30 s"
+		# where it hangs: each thread's name, state and kernel wait channel, its
+		# open files (/proc; gdb cannot attach with yama's ptrace_scope 1)
+		{
+			echo "== boot-cli: QEMU $qemupid hangs before its serial line"
+			for t in /proc/$qemupid/task/*; do
+				echo "thread ${t##*/} $(cat "$t/comm" 2>/dev/null) state $(awk '{print $3}' "$t/stat" 2>/dev/null) wchan $(cat "$t/wchan" 2>/dev/null)"
+			done
+			ls -l /proc/$qemupid/fd 2>/dev/null | awk 'NR > 1 {print "fd", $(NF-2), $NF}'
+			pgrep -a qemu-system | grep -v "^$qemupid " | sed 's/^/other QEMU: /'
+			pgrep -a virgl_render | sed 's/^/render server: /'
+		} >> "$CLI_DIR/qemu-nopty.log" 2>&1
+	else wait $qemupid; why="exited with status $?"; fi
 	tail -5 "$CLI_DIR/qemu-nopty.log" | sed 's/^/boot-cli: qemu: /' >&2
 	die "no QEMU serial pty: QEMU $why (log: $CLI_DIR/qemu-nopty.log)"
 fi
