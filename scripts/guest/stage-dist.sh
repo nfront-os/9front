@@ -179,6 +179,20 @@ for p in "${omit[@]}"; do
 	echo "/$p" >> "$OUT.omitted"
 	rm -rf "${OUT:?}/$p"
 done
+# the CA roots, with Rust or Go: /sys/lib/tls/ca.pem, where Go's crypto/x509 and our
+# crates (rustls-native-certs, curl-sys) look; cargo and go reach crates.io and the
+# module proxy over https with them. Mozilla's list as curl extracts it (MPL-2.0):
+# like firmware a file of its own, not in the tree (DISTFILES, dist/distfiles.list)
+if [ -n "$RUST_OUT" ] || [ -n "$GO_OUT" ]; then
+	ca=$(ls "$DISTFILES"/cacert-*.pem 2>/dev/null | sort | tail -1)
+	if [ -n "$ca" ]; then
+		mkdir -p "$OUT/sys/lib/tls"
+		install -m 644 "$ca" "$OUT/sys/lib/tls/ca.pem"
+		echo "stage-dist: CA roots $(basename "$ca") as /sys/lib/tls/ca.pem" >&2
+	else
+		echo "stage-dist: no CA roots ($DISTFILES/cacert-*.pem, dist/bin/fetch): cargo and go cannot reach https" >&2
+	fi
+fi
 # for the guest's disk/mkfs (scripts/guest/boot/mkdisk.rc); no proto lists it,
 # so it stays off the disk
 cat /dev/null "${PROTOS[@]}" > "$OUT/gccproto"

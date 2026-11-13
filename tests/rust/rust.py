@@ -73,6 +73,19 @@ try:
 	out = run('cargo test --offline --lib', 'ctest-done', 600)
 	result('test t::adds ... ok' in out and 'test result: ok' in out, 'cargo test')
 
+	# a crate from crates.io over https: the CD's CA roots (/sys/lib/tls/ca.pem,
+	# stage-dist.sh) and QEMU's user network (DHCP, its DNS)
+	out = run('test -s /sys/lib/tls/ca.pem && echo has-ca', 'ca-done', 10)
+	if 'has-ca\n' not in out.replace('\r', ''):
+		result(False, 'CA roots /sys/lib/tls/ca.pem on the CD')
+	else:
+		vm.serial('test -e /net/ipifc/0/ctl || ip/ipconfig; test -e /net/dns || ndb/dns -r', 15)
+		vm.serial('cd /tmp; cargo new --vcs none --bin dep && cd dep', 5)
+		vm.serial("echo 'itoa = \"1\"' >> Cargo.toml", 1)
+		lines('src/main.rs', 'fn main() { let mut b = itoa::Buffer::new(); println!("itoa says {}", b.format(4242)); }')
+		out = run('cargo run', 'dep-done', 900)
+		result('itoa says 4242' in out, 'cargo: a crate from crates.io over https (CA roots), builds and runs')
+
 	vm.serial('cd /tmp', 1)
 	lines('fmt.rs', 'fn main(){let x=1;println!("{}",x);}')
 	out = run('rustfmt --edition 2024 fmt.rs && cat fmt.rs', 'fmt-done', 120)

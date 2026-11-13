@@ -65,6 +65,21 @@ try:
 		out = run('CGO_ENABLED=1 go build -o cgo cgo.go && ./cgo', 'cgo-done', 900)
 		result('cgo says 42' in out, 'cgo: go build with the CD\'s gcc, the program runs')
 
+	# a module from the module proxy over https: the CD's CA roots (/sys/lib/tls/ca.pem,
+	# stage-dist.sh, read by crypto/x509) and QEMU's user network (DHCP, its DNS)
+	out = run('test -s /sys/lib/tls/ca.pem && echo has-ca', 'ca-done', 10)
+	if 'has-ca\n' not in out.replace('\r', ''):
+		result(False, 'CA roots /sys/lib/tls/ca.pem on the CD')
+	else:
+		vm.serial('test -e /net/ipifc/0/ctl || ip/ipconfig; test -e /net/dns || ndb/dns -r', 15)
+		vm.serial('mkdir /tmp/mod && cd /tmp/mod; GOPATH=/tmp/gopath; go mod init example.com/m', 10)
+		vm.serial("echo 'package main' > m.go", 1)
+		vm.serial("echo 'import (\"fmt\"; \"rsc.io/quote\")' >> m.go", 1)
+		vm.serial("echo 'func main(){ fmt.Println(\"quote says\", quote.Hello()) }' >> m.go", 1)
+		out = run('go mod tidy && go run .', 'mod-done', 900)
+		result('quote says Hello, world.' in out, 'go: a module from the proxy over https (CA roots), builds and runs')
+		vm.serial('cd /tmp', 1)
+
 	if want:
 		out = run('sha1sum %s' % TESTDATA, 'sha-done', 30)
 		result(want in out, "Go's ELF test data unchanged (not stripped)")
