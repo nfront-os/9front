@@ -5,7 +5,8 @@
 # such as awk's maketab parse). Arguments are passed to yacc unchanged.
 set -e
 ROOT=$(git -C "$(dirname "$0")" rev-parse --show-toplevel)
-P9P=${PLAN9PORT:-$ROOT/../plan9port}
+. "$ROOT/scripts/lib/paths.sh"	# PLAN9PORT (the distribution's paths.env)
+P9P=$PLAN9PORT
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 mkdir "$TMP/lib"

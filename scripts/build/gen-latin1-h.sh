@@ -5,7 +5,8 @@
 # plan9port's 9c/9l (not the Plan 9 target gcc toolchain).
 set -e
 ROOT=${PLAN9:-$(git rev-parse --show-toplevel)}
-P9P=${PLAN9PORT:-$ROOT/../plan9port}
+. "$ROOT/scripts/lib/paths.sh"	# PLAN9PORT (the distribution's paths.env)
+P9P=$PLAN9PORT
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 cd "$TMP"
