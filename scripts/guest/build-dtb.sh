@@ -8,7 +8,8 @@
 #   board: icicle (PolarFire SoC Icicle Kit, sys/src/9/riscv64/pf)
 #   needs: curl, cpp, dtc
 set -e
-CLI_DIR=${CLI_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/9front-cli}
+ROOT=${PLAN9:-$(git -C "$(dirname "$0")" rev-parse --show-toplevel)}
+. "$ROOT/scripts/lib/paths.sh"	# CLI_DIR, CACHE (dist/paths.env: nfront/cache/cli)
 LINUX=${LINUX:-v6.12}
 die(){ echo "build-dtb: $*" >&2; exit 1; }
 case $1 in

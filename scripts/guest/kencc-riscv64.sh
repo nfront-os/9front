@@ -16,13 +16,15 @@
 #   no cmd: the guest stays up (HOLD=1); type lines with
 #           CLI_DIR=$CLI_DIR scripts/guest/guest-cmd.sh 'cmd'
 #   cmd:    typed at the prompt after the setup, then the guest exits
-#   env:  CLI_DIR  work dir (default ~/.cache/9front-riscv-cli)
+#   env:  CLI_DIR  work dir (default CACHE/riscv-cli of dist/paths.env, nfront/cache/riscv-cli)
 #         KEEP=1   reuse the copy of an earlier run (mk goes on from there)
 #         SMP MEM  guest CPUs (4) and memory (2048)
 #   needs the amd64 build first: CC=gcc ARCH=amd64 sys/src/cmd/build/build.exe
 set -e
 ROOT=${PLAN9:-$(git -C "$(dirname "$0")" rev-parse --show-toplevel)}
-export CLI_DIR=${CLI_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/9front-riscv-cli}
+cli=$CLI_DIR	# its own work dir, not the guests' CLI_DIR paths.sh sets
+. "$ROOT/scripts/lib/paths.sh"	# CACHE (dist/paths.env: nfront/cache)
+export CLI_DIR=${cli:-$CACHE/riscv-cli}
 mkdir -p "$CLI_DIR"
 
 S=$CLI_DIR/src
