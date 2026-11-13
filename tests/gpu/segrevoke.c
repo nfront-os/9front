@@ -294,7 +294,8 @@ main(void)
 		s = segattach(0, al, (void*)(va + 0x600000), 0x2000);
 		if(s == (void*)-1)
 			exits("attach");
-		if(s[1024] == 0)
+		/* volatile: both ways end alike, so gcc -O2 dropped a plain read */
+		if(((volatile ulong*)s)[1024] == 0)
 			exits("hole read");
 		exits("hole read");
 	default:

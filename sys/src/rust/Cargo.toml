@@ -20,5 +20,10 @@ wgpu-hal = { path = "crates/wgpu-hal-28.0.1" }
 [patch."https://github.com/linebender/xilem"]
 masonry_imaging = { path = "xilem/masonry_imaging-0.4.0" }
 
+# optimized as a release (cargo --release: opt-level 3) and across crates
+# (thin LTO, one code unit per crate); the debug information stays for
+# addr2line and gdb, the CD's copies are stripped (stage-dist.sh)
 [profile.release]
 debug = true
+lto = "thin"
+codegen-units = 1

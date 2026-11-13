@@ -187,7 +187,9 @@ if [ "$MCP" = 1 ]; then
 	go=${GO:-$GO_DIR/go/bin/go}
 	[ -x "$go" ] || { echo "stage-dist: MCP=1: no Go ($go: toolchain/go scripts/build.sh)" >&2; exit 1; }
 	[ -f "$MCP_DIR/main.go" ] || { echo "stage-dist: MCP=1: no MCP server in $MCP_DIR (dist/bin/repos mcp)" >&2; exit 1; }
-	(cd "$MCP_DIR" && GOOS=plan9 GOARCH=$A CGO_ENABLED=0 "$go" build -trimpath -o "$OUT/$A/bin/9front-mcp" .)
+	# -s -w: without Go's symbol table and DWARF (Go optimizes always; the
+	# strip below takes ELF only, Go's plan9 programs are a.out)
+	(cd "$MCP_DIR" && GOOS=plan9 GOARCH=$A CGO_ENABLED=0 "$go" build -trimpath "-ldflags=-s -w" -o "$OUT/$A/bin/9front-mcp" .)
 	mkdir -p "$OUT/sys/lib/mcp"
 	install -m 644 "$MCP_DIR/deny.example" "$OUT/sys/lib/mcp/deny"
 	echo "stage-dist: the MCP server as /$A/bin/9front-mcp" >&2

@@ -1054,8 +1054,9 @@ addrname(uchar *entry, Dir *dir, char *name, ulong start)
 		putname(shortname, d);
 
 		sum = 0;
+		slot = d->name;	/* GCC port: the 11 bytes of name and ext through a pointer: gcc -O2 takes d->name[i] past name[8] as undefined and may end the loop at 8 */
 		for(i = 0; i < 11; i++)
-			sum = (((sum&1)<<7) | ((sum&0xfe)>>1)) + d->name[i];
+			sum = (((sum&1)<<7) | ((sum&0xfe)>>1)) + slot[i];
 		sum &= 0xFF;
 
 		len = 0;

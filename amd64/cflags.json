@@ -24,7 +24,10 @@
 			"-gdwarf-2",
 			"-ggdb",
 			"-mcmodel=small",
-			"-O0",
+			"-O2",
+			"-fno-strict-aliasing",
+			"-fwrapv",
+			"-fno-delete-null-pointer-checks",
 			"-static"
 		],
 		"Oflags": [

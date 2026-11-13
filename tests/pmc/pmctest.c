@@ -59,7 +59,8 @@ check(int c, char *name, char *fmt, ...)
 	fail(name, "%s", buf);
 }
 
-static uvlong sink;
+/* volatile: a store nobody reads, and gcc -O2 dropped it and the loop with it */
+static volatile uvlong sink;
 
 static void
 spin(uvlong n)
