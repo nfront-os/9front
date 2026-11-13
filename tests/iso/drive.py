@@ -38,10 +38,13 @@ if fw == 'uefi':
 		'-drive', 'if=pflash,format=raw,file=' + vars]
 if media == 'cd':
 	q += ['-drive', 'file=%s,format=raw,if=ide,index=2,media=cdrom,readonly=on' % iso]
-else:	# the hybrid image as a disk (USB stick); QEMU writes to it, so a copy
-	disk = os.path.join(work, 'disk.img')
-	shutil.copy(iso, disk)
-	q += ['-drive', 'file=%s,format=raw,if=ide,index=0' % disk]
+else:	# the hybrid image as a disk (USB stick); QEMU writes to it: into a qcow2 overlay,
+	# the image stays as it is (a copy of a CD past 2 GB per run filled the tmpfs of
+	# tests/run.sh's work directory: the full profile's, disk with uefi after bios)
+	disk = os.path.join(work, 'disk.qcow2')
+	subprocess.run(['qemu-img', 'create', '-q', '-f', 'qcow2', '-F', 'raw',
+		'-b', os.path.abspath(iso), disk], check=True)
+	q += ['-drive', 'file=%s,format=qcow2,if=ide,index=0' % disk]
 vm = subprocess.Popen(q, stdout=subprocess.DEVNULL, stderr=open(os.path.join(work, 'qemu.log'), 'w'))
 
 def qmp():
