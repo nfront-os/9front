@@ -61,7 +61,10 @@ check "alias and phys segments revoked (segment(3)): freed objects stay visible 
 # node by _ADR through aux/acpi (the one interpreter: the driver starts
 # it, a second aux/acpi mounts it instead of starting another)
 kpitest(){
-	SMP=4 MEM=2048 WAITMAX=500 QEMU_EXTRA="-vga none -device virtio-gpu-pci -smbios type=1,manufacturer=9front,product=gputest -smbios type=0,vendor=testbios,version=1.2" \
+	# UFS_EXTRA as in every boot here, though unused: one root for all of
+	# them, which gen-ufs-root.sh keeps up to date (without it the tests'
+	# GBs were deleted from the root and written again by the next boot)
+	SMP=4 MEM=2048 WAITMAX=500 UFS_EXTRA="$HERE/root" QEMU_EXTRA="-vga none -device virtio-gpu-pci -smbios type=1,manufacturer=9front,product=gputest -smbios type=0,vendor=testbios,version=1.2" \
 		"$ROOT/scripts/guest/boot-cli.sh" 'aux/i915 -T' 'aux/acpi' 'ls /dev/aml /dev/pmctl' > "$TMPD/kpitest" 2>&1
 	tr -d '\r' < "$CLI_DIR/console.log" > "$TMPD/kpitest.log"
 	grep -q "dma-buf selftests: ok" "$CLI_DIR/console.log" && return
@@ -78,7 +81,7 @@ check "one AML interpreter: a second aux/acpi mounts the first" bash -c "grep -q
 
 # i915's mock selftests (no GPU: a mock device): GEM, GTT, vma, requests, ...
 mocktest(){
-	MEM=4096 CMDWAIT=3300 QEMU_EXTRA="-vga none -device virtio-gpu-pci" \
+	MEM=4096 CMDWAIT=3300 UFS_EXTRA="$HERE/root" QEMU_EXTRA="-vga none -device virtio-gpu-pci" \
 		"$ROOT/scripts/guest/boot-cli.sh" 'aux/i915 -M' > "$TMPD/mocktest" 2>&1
 	grep -q "mock selftests: ok" "$CLI_DIR/console.log" || { grep -E 'failed|<3>|mock selftests' "$CLI_DIR/console.log"; return 1; }
 }

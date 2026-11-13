@@ -147,8 +147,7 @@ else
 port_open && die "port $UFS_PORT is in use (old ufs still running?)"
 
 # root file system
-bash "$ROOT/scripts/guest/gen-ufs-root.sh" "$CLI_DIR/ufsroot" > /dev/null
-[ -z "$UFS_EXTRA" ] || cp -r "$UFS_EXTRA"/. "$CLI_DIR/ufsroot/"
+bash "$ROOT/scripts/guest/gen-ufs-root.sh" "$CLI_DIR/ufsroot" ${UFS_EXTRA:+"$UFS_EXTRA"} > /dev/null
 
 if [ $objtype = arm64 ]; then
 	# 9front's arm64 qemu boot (sys/lib/dist/mkfile, %.arm64.qcow2):
