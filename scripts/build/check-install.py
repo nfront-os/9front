@@ -19,11 +19,14 @@ files those rules install, scripts/build/mkinstall.py) and the kernel.
 $objtype (scripts/gen/arch.py) selects the architecture.
 Targets in scripts/gen/cmds-broken.txt (.386.txt, ...) are reported as broken, not missing.
 
-usage: scripts/build/check-install.py [-r] [-d dist] [-i iso]
+usage: scripts/build/check-install.py [-r] [-d dist [-x omitted]] [-i iso]
        scripts/build/check-install.py -l	list the expected files
 	-r	remove stale files
 	-d	also check the distribution tree staged by scripts/guest/stage-dist.sh
 		(all but the programs' local archives, /sys/src/.../lib*.a6)
+	-x	paths the distribution leaves out (its profile, scripts/guest/profiles;
+		stage-dist.sh writes them, a directory stands for all in it): not
+		missing there
 	-i	also check the files of a CD image (scripts/guest/mkiso.sh; xorriso
 		lists them)
 exit status 1 if anything is missing (or stale without -r)
@@ -108,6 +111,13 @@ def main():
 	remove = '-r' in args
 	dist = args[args.index('-d') + 1] if '-d' in args else None
 	iso = isofiles(args[args.index('-i') + 1]) if '-i' in args else None
+	omitted = []
+	if '-x' in args:
+		with open(args[args.index('-x') + 1]) as f:
+			omitted = [l.strip().rstrip('/') for l in f if l.strip()]
+	def left_out(p):
+		return any(p == o or p.startswith(o + '/') for o in omitted)
+	nomit = 0
 	exp = expected()
 	rust = rustprogs()
 	haverust = rustcrates.rustc()
@@ -116,8 +126,10 @@ def main():
 	for p, name in sorted(exp.items()):
 		# program-local archives are intermediates (the release's mk clean)
 		local = p.startswith('/sys/src/')
-		where = [('tree', g.ROOT)] + ([('dist', dist)] if dist and not local else [])
-		if iso is not None and not local:
+		out = left_out(p)
+		nomit += out
+		where = [('tree', g.ROOT)] + ([('dist', dist)] if dist and not local and not out else [])
+		if iso is not None and not local and not out:
 			where.append(('iso', None))
 		for what, root in where:
 			if not (p in iso if root is None else os.path.exists(root + p)):
@@ -161,6 +173,8 @@ def main():
 					print('stale   %s' % p)
 					bad = 1
 	n = len(exp)
+	if omitted:
+		print('%d of them left out by the profile' % nomit)
 	print('%d files expected%s' % (n, ', ok' if not bad else ''))
 	sys.exit(bad)
 

@@ -28,7 +28,14 @@
 # binaries carry DWARF (8l writes none) and are stripped. The guest's install script
 # (scripts/guest/boot/mkdisk.rc) reads the result as /n/src9.
 #
-# usage: [objtype=386] scripts/guest/stage-dist.sh dir
+# PROFILE (scripts/guest/profiles: minimal, gpu, ui, full; default full) leaves the
+# files of the groups it does not keep off; DEV (a list of gcc, rust, go, e.g.
+# DEV=gcc,rust; DEV= none) says which languages come along: gcc as /$objtype/gnu with
+# /$objtype/lib.gcc, Rust from RUST_OUT (default its out/$objtype), Go from GO_OUT
+# (likewise); Rust links with gcc, so rust takes gcc along. Without DEV, as before:
+# gcc if it is built, Rust and Go if RUST_OUT, GO_OUT are set.
+#
+# usage: [objtype=386] [PROFILE=p] [DEV=list] scripts/guest/stage-dist.sh dir
 set -e
 ROOT=${PLAN9:-$(git -C "$(dirname "$0")" rev-parse --show-toplevel)}
 . "$ROOT/scripts/lib/paths.sh"	# GCC_DIR, RUST_DIR, GO_DIR, MCP_DIR, DISTFILES (the distribution's paths.env)
@@ -74,17 +81,44 @@ done
 # the build's install step makes (scripts/build/elf2aout.py)
 A=${objtype:-amd64}
 case $A in amd64) K=9pc64 ;; 386) K=9pc ;; *) echo "stage-dist: objtype=$A unknown" >&2; exit 1 ;; esac
+# the profile: the groups it keeps, the paths of the others (omit)
+PROFILE=${PROFILE:-full}
+PROFILES=$ROOT/scripts/guest/profiles
+keep=$(awk -v p="$PROFILE" '$1 == "profile" && $2 == p { f = 1; for(i = 3; i <= NF; i++) print $i } END { exit !f }' "$PROFILES") ||
+	{ echo "stage-dist: no profile $PROFILE (scripts/guest/profiles: $(awk '$1 == "profile" { printf " %s", $2 }' "$PROFILES"))" >&2; exit 1; }
+has(){ case " "$keep" " in *" $1 "*) return 0;; esac; return 1; }
+keep=$(echo $keep)
+mapfile -t omit < <(awk -v keep=" $keep " '/^[a-z]/ && $1 != "profile" && index(keep, " " $1 " ") == 0 { print $2 }' "$PROFILES" | sed "s/\$objtype/$A/")
+# the languages: DEV given, exactly those; else as before
+if [ -n "${DEV+set}" ]; then
+	dev=" $(echo "$DEV" | tr , ' ') "
+	for l in $dev; do case $l in gcc|rust|go) ;; all) dev=" gcc rust go " ;; *) echo "stage-dist: DEV: no language $l (gcc, rust, go)" >&2; exit 1 ;; esac; done
+	case $dev in *" rust "*) case $dev in *" gcc "*) ;; *) dev="$dev gcc "; echo "stage-dist: rust links with gcc, gcc comes along" >&2 ;; esac ;; esac
+	case $dev in *" rust "*) RUST_OUT=${RUST_OUT:-$RUST_DIR/out/$A} ;; *) RUST_OUT= ;; esac
+	case $dev in *" go "*) GO_OUT=${GO_OUT:-$GO_DIR/out/$A} ;; *) GO_OUT= ;; esac
+fi
+lang(){ [ -z "${DEV+set}" ] || case $dev in *" $1 "*) return 0;; *) return 1;; esac; }
+langs="as built"
+[ -z "${DEV+set}" ] || { langs=$(echo $dev); langs=${langs:-none}; }
+echo "stage-dist: profile $PROFILE (groups: ${keep:-none}), languages: $langs" >&2
 [ -s "$ROOT/$A/$K" ] || { echo "stage-dist: no $A/$K, run CC=gcc ARCH=$A sys/src/cmd/build/build.exe" >&2; exit 1; }
 mkdir -p "$VIEW/.$A"
 for f in "$ROOT"/$A/*; do ln -s "$f" "$VIEW/.$A/$(basename "$f")"; done
 rm "$VIEW/$A"; mv "$VIEW/.$A" "$VIEW/$A"
 # the native toolchain (../9front-gcc: build.sh native) as /$objtype/gnu
 GCC_OUT=${GCC_OUT:-$GCC_DIR/out/$A}
-# uiproto: the desktop's files of the main branch (TrueType fonts, themes, wbar's menu)
-PROTOS=("$ROOT/scripts/guest/boot/gccproto" "$ROOT/scripts/guest/boot/uiproto")
-if [ -d "$GCC_OUT/$A/gnu" ]; then
+# gccproto: /$objtype/lib.gcc, gcc's archives (with gcc); uiproto: the desktop's files
+# of the main branch (TrueType fonts, themes, wbar's menu; the ui group)
+PROTOS=()
+lang gcc && PROTOS+=("$ROOT/scripts/guest/boot/gccproto") || omit+=("$A/lib.gcc")
+has ui && PROTOS+=("$ROOT/scripts/guest/boot/uiproto")
+if ! lang gcc; then
+	:
+elif [ -d "$GCC_OUT/$A/gnu" ]; then
 	ln -s "$GCC_OUT/$A/gnu" "$VIEW/$A/gnu"
 	PROTOS+=("$ROOT/scripts/guest/boot/gnuproto")
+elif [ -n "${DEV+set}" ]; then
+	echo "stage-dist: no $GCC_OUT/$A/gnu (DEV has gcc): build it, toolchain/gcc build.sh native" >&2; exit 1
 else
 	echo "stage-dist: no $GCC_OUT/$A/gnu, the distribution has no gcc" >&2
 fi
@@ -107,7 +141,7 @@ fi
 # the Vulkan programs tests/gpu/build-vktest.sh built (vulkaninfo, vkcube,
 # vktri; statically linked with Mesa's drivers) and drawspeed as /$objtype/vk
 VK=$ROOT/tests/gpu/root/tests
-if [ -x "$VK/vulkaninfo" ]; then
+if has gpu && [ -x "$VK/vulkaninfo" ]; then
 	mkdir -p "$VIEW/$A/vk"
 	for p in vulkaninfo vkcube vktri drawspeed; do
 		[ -x "$VK/$p" ] && ln -s "$VK/$p" "$VIEW/$A/vk/$p"
@@ -118,7 +152,7 @@ fi
 # weston's examples, the Wayland tests) as /tests, for rc/bin/wlrun on a
 # machine booted from the CD
 WLT=$ROOT/tests/wayland/root/tests
-if [ -x "$WLT/wlsys" ]; then
+if has ui && [ -x "$WLT/wlsys" ]; then
 	rm -f "$VIEW/tests"
 	mkdir "$VIEW/tests"
 	for p in "$WLT"/*; do
@@ -139,9 +173,15 @@ python3 "$ROOT/scripts/guest/proto.py" -s "$VIEW" -d "$OUT" \
 	"$ROOT/sys/lib/sysconfig/proto/distproto" "$ROOT/sys/lib/sysconfig/proto/9bootproto" \
 	"${PROTOS[@]}" \
 	2> "$OUT.warnings" || { cat "$OUT.warnings"; exit 1; }
+# the profile's omitted groups (scripts/guest/profiles), for check-install -x too
+: > "$OUT.omitted"
+for p in "${omit[@]}"; do
+	echo "/$p" >> "$OUT.omitted"
+	rm -rf "${OUT:?}/$p"
+done
 # for the guest's disk/mkfs (scripts/guest/boot/mkdisk.rc); no proto lists it,
 # so it stays off the disk
-cat "${PROTOS[@]}" > "$OUT/gccproto"
+cat /dev/null "${PROTOS[@]}" > "$OUT/gccproto"
 # not in /$objtype/go: its programs are a.out, its ELF files are test data of Go's std
 # (debug/elf, runtime/pprof), which strip would change
 find "$OUT" -path "$OUT/$A/go" -prune -o -type f -perm -u+x -exec sh -c 'file -b "$1" | grep -q ^ELF && strip "$1"' _ {} \;
@@ -153,6 +193,6 @@ for f in "$OUT"/$A/lib.gcc/ape/libvulkan.a "$OUT"/$A/lib.gcc/libamdgpu.a "$OUT"/
 done
 echo "$(grep -c . "$OUT.warnings") proto warnings ($OUT.warnings)"
 # everything mk install installs made it into the distribution
-python3 "$ROOT/scripts/build/check-install.py" -d "$OUT" | grep -v '^broken' | tail -20
+python3 "$ROOT/scripts/build/check-install.py" -d "$OUT" -x "$OUT.omitted" | grep -v '^broken' | tail -20
 [ "${PIPESTATUS[0]}" = 0 ] || { echo "stage-dist: distribution incomplete" >&2; exit 1; }
 du -sh "$OUT"

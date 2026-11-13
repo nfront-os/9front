@@ -13,8 +13,8 @@ case terminal
 	echo -n 'res 3' > '#m/mousectl'
 	prompt=('term% ' '	')
 	fn term%{ $* }
-	# ui branch: desktop=wsys (plan9.ini) starts wsys(4), the window
-	# system of ../9front-ui, instead of rio, with the options in
+	# nfront: desktop=wsys (plan9.ini) starts wsys(4), the window
+	# system of the ui framework, instead of rio, with the options in
 	# wsysflags (-p: the processor composes, not the GPU); riostart serves both
 	# (with wsysflags, what wsys says goes to wsysboot.log on the boot
 	# stick's ESP, if gpustart served it: a line at a time, esplog)

@@ -1,0 +1,103 @@
+# The CD's installation profiles (scripts/guest/stage-dist.sh, PROFILE=; dist/bin/mkcd).
+# Every profile is the main branch's build; a profile names the groups it
+# keeps, the files of the other groups stay off the CD (and so off the system
+# installed from it). The base system (9front, built with gcc) is always there.
+#
+#	profile NAME GROUP...
+#	GROUP PATH		relative to the root, $objtype the architecture; a
+#				directory: all of it
+#
+# The languages (gcc, Rust, Go: DEV=) are an option of every profile, not a group.
+
+profile	minimal
+profile	gpu	gpu
+profile	ui	ui
+profile	full	gpu ui
+
+# gpu: the GPU stack: gpu(4)'s drivers (the LinuxKPI with Linux's DRM drivers),
+# Mesa's Vulkan, the Vulkan programs. Without it the screen is VESA's
+gpu	$objtype/bin/aux/amdgpu
+gpu	$objtype/bin/aux/i915
+gpu	$objtype/bin/aux/i915stk
+gpu	$objtype/bin/aux/intelgpu
+gpu	$objtype/bin/aux/intelprobe
+gpu	$objtype/bin/aux/inteltest
+gpu	$objtype/bin/aux/virtiogpu
+gpu	$objtype/lib.gcc/libamdgpu.a
+gpu	$objtype/lib.gcc/libamdgpuaux.a
+gpu	$objtype/lib.gcc/libi915.a
+gpu	$objtype/lib.gcc/libkpi.a
+gpu	$objtype/lib.gcc/libkpi9.a
+gpu	$objtype/lib.gcc/libkpitest.a
+gpu	$objtype/lib.gcc/liblinux.a
+gpu	$objtype/lib.gcc/ape/libvulkan.a
+gpu	$objtype/vk
+gpu	rc/bin/gpustart
+gpu	rc/bin/gpuoutputs
+gpu	rc/bin/i915live
+gpu	rc/bin/i915run
+gpu	rc/bin/intelrun
+gpu	rc/bin/comprun
+# the sources only the gpu group's parts are built from (with the cross gcc on Linux)
+gpu	sys/src/linux
+gpu	sys/src/mesa
+gpu	sys/src/vktools
+
+# ui: the desktop: wsys(4), the ui framework and its programs, term, foot,
+# Wayland (wlsys) and the libraries of APE's ports, the TrueType fonts and themes.
+# Without it the desktop is rio. wsys of amd64 has Mesa linked in: it runs
+# without the gpu group (on the processor)
+ui	$objtype/bin/drawfs
+ui	$objtype/bin/foot
+ui	$objtype/bin/term
+ui	$objtype/bin/ui
+ui	$objtype/bin/uicount
+ui	$objtype/bin/uitick
+ui	$objtype/bin/uitodo
+ui	$objtype/bin/wbar
+ui	$objtype/bin/wdock
+ui	$objtype/bin/wlsys
+ui	$objtype/bin/wsys
+ui	$objtype/bin/ape/ptyfs
+ui	$objtype/lib.gcc/libui.a
+ui	$objtype/lib.gcc/ape/libdevdraw.a
+ui	$objtype/lib.gcc/ape/libexpat.a
+ui	$objtype/lib.gcc/ape/libfcft.a
+ui	$objtype/lib.gcc/ape/libffi.a
+ui	$objtype/lib.gcc/ape/libfontconfig.a
+ui	$objtype/lib.gcc/ape/libfoot.a
+ui	$objtype/lib.gcc/ape/libfreetype.a
+ui	$objtype/lib.gcc/ape/libglfw3.a
+ui	$objtype/lib.gcc/ape/libmemdraw.a
+ui	$objtype/lib.gcc/ape/libmemlayer.a
+ui	$objtype/lib.gcc/ape/libpixman-1.a
+ui	$objtype/lib.gcc/ape/libSDL3.a
+ui	$objtype/lib.gcc/ape/libwayland-client.a
+ui	$objtype/lib.gcc/ape/libwayland-cursor.a
+ui	$objtype/lib.gcc/ape/libwayland-egl.a
+ui	$objtype/lib.gcc/ape/libwayland-server.a
+ui	$objtype/lib.gcc/ape/libxkbcommon.a
+ui	lib/font/ttf
+ui	lib/fontconfig
+ui	lib/theme
+ui	lib/wbar
+ui	lib/wdock
+ui	tests
+ui	rc/bin/deskrun
+ui	rc/bin/wlrun
+# the sources only the ui group's parts are built from (APE's ports with the cross gcc,
+# the crates Rust's programs use)
+ui	sys/src/rust
+ui	sys/src/freetype
+ui	sys/src/fontconfig
+ui	sys/src/fcft
+ui	sys/src/foot
+ui	sys/src/pixman
+ui	sys/src/expat
+ui	sys/src/xkbcommon
+ui	sys/src/wayland
+ui	sys/src/weston
+ui	sys/src/sdl3
+ui	sys/src/glfw
+ui	sys/src/libffi
+ui	sys/src/tllist
