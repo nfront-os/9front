@@ -200,7 +200,7 @@ typedef struct {
 	ulong	maxpclk;
 
 	uchar	graphics[9];	
-	uchar	attribute[0x14];	
+	uchar	attribute[0x15];	/* GCC port branch: registers 0x00-0x14, as the loops in init and load write and read them (was 0x14: one past it; patch-upstream 0028) */
 	uchar	sequencer[5];
 	uchar	crtc[0x19];
 	uchar	crtcext[9];

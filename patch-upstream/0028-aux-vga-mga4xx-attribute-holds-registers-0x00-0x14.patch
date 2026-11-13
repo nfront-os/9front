@@ -1,0 +1,31 @@
+From 7bc54455d0d76c57f5417cbad52fd90d002d90c1 Mon Sep 17 00:00:00 2001
+From: Stefan Hertenberger <erde74@gmail.com>
+Date: Fri, 13 Nov 2026 18:29:41 +0100
+Subject: [PATCH] aux/vga/mga4xx: attribute[] holds registers 0x00-0x14
+
+init and load run i from 0 to 0x14 (i < 0x15) over the attribute
+controller's registers, writing and reading mga->attribute[i]; the
+array had 0x14 entries, so register 0x14 went one byte past it, into
+the next field of the struct.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ sys/src/cmd/aux/vga/mga4xx.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/sys/src/cmd/aux/vga/mga4xx.c b/sys/src/cmd/aux/vga/mga4xx.c
+index bb2d59b2f..3bdf06cfd 100644
+--- a/sys/src/cmd/aux/vga/mga4xx.c
++++ b/sys/src/cmd/aux/vga/mga4xx.c
+@@ -200,7 +200,7 @@ typedef struct {
+ 	ulong	maxpclk;
+ 
+ 	uchar	graphics[9];	
+-	uchar	attribute[0x14];	
++	uchar	attribute[0x15];	/* registers 0x00-0x14, as the loops in init and load write and read them */
+ 	uchar	sequencer[5];
+ 	uchar	crtc[0x19];
+ 	uchar	crtcext[9];
+-- 
+2.56.0
+

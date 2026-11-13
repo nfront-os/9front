@@ -86,6 +86,7 @@ made with an AI assistant); drop it if 9front does not want it.
 | 0023 | fault: SG_FAULT segments let reads and writes through | bug fix |
 | 0024 | dist: the CD's ESP can overlap the end of the ISO | bug fix (data) |
 | 0025 | ip: a closing conversation is given out again, its new connect hangs | bug fix |
+| 0028 | aux/vga/mga4xx: register 0x14 of the attribute controller written past attribute[] | bug fix (found by gcc -O2) |
 
 ### 0001 ip/tcp: don't hang up a reused conversation through a stale bypass pointer
 
