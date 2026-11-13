@@ -27,7 +27,7 @@ taken or declined them.
 On Unix: `git am patch-upstream/0*.patch` on a checkout of `front`.
 On 9front: `git/import` takes the files as they are.
 
-All 27 apply as a series (on `f5df6bc0a`, on `origin/front` at
+All 28 apply as a series (on `f5df6bc0a`, on `origin/front` at
 `82ddeb288`, 2026-11-10, and at `00d3043a2`, 2026-11-12). Each applies alone too, except:
 
 - 0009 needs 0007 (context: `vbump` in `rwstat`),
@@ -90,6 +90,7 @@ made with an AI assistant); drop it if 9front does not want it.
 | 0025 | ip: a closing conversation is given out again, its new connect hangs | bug fix |
 | 0026 | truetypefs: antialiased subfonts (size `Na`) | feature |
 | 0027 | vga: `cursorsize`, the software cursor scaled | feature |
+| 0028 | aux/vga/mga4xx: register 0x14 of the attribute controller written past attribute[] | bug fix (found by gcc -O2) |
 
 ### 0001 ip/tcp: don't hang up a reused conversation through a stale bypass pointer
 
@@ -429,6 +430,17 @@ against the `upstream` branch's headers; no errors, no warnings.  Not
 done: a kernel built by 9front's compilers booted with it.  (The `ui`
 branch also passes the size to its GPU drivers' cursor planes; that
 part needs its devgpu and is not here.)
+
+### 0028 aux/vga/mga4xx: attribute[] holds registers 0x00-0x14
+
+`init` and `load` run over the attribute controller's registers 0x00 to
+0x14 (`i < 0x15`), writing and reading `mga->attribute[i]`, but the array
+had 0x14 entries: register 0x14 went one byte past it, into the next
+field of the `Mga` struct.  Found by gcc's `-Waggressive-loop-optimizations`
+when the gcc branch's userland went to `-O2` (gcc may then end such a
+loop early).  The file is the same on `front`; the patch touches nothing
+else of the series.  Built with gcc -O2 on the main branch (aux/vga);
+not done: compiled with 9front's own compilers, run on a Matrox card.
 
 ## Not included
 
