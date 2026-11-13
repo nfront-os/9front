@@ -18,8 +18,13 @@ if [ -z "$ISO" ]; then
 	check "scripts/guest/mkiso.sh builds the CD" bash "$ROOT/scripts/guest/mkiso.sh" "$IMG" || { done_tests; exit; }
 fi
 check "ISO 9660 with El Torito boot record" bash -c "file '$IMG' | grep -q 'ISO 9660.*bootable'"
+# a profile's CD names what the profile left out (/sys/lib/dist/omitted,
+# stage-dist.sh): not missing there; a CD without it (older) is checked whole
+omitx=
+xorriso -osirrox on -indev "$IMG" -extract /sys/lib/dist/omitted "$TMPD/omitted" >/dev/null 2>&1 &&
+	omitx="-x $TMPD/omitted"
 check "the CD holds everything mk install installs (scripts/build/check-install.py)" \
-	bash -c "python3 '$ROOT/scripts/build/check-install.py' -i '$IMG' > '$TMPD/check-install' || { grep -v '^ok' '$TMPD/check-install' | head; false; }"
+	bash -c "python3 '$ROOT/scripts/build/check-install.py' -i '$IMG' $omitx > '$TMPD/check-install' || { grep -v '^ok' '$TMPD/check-install' | head; false; }"
 check "hybrid MBR: active ESP partition" python3 -c "
 import sys
 m = open('$IMG', 'rb').read(512)

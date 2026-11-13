@@ -180,6 +180,10 @@ for p in "${omit[@]}"; do
 	echo "/$p" >> "$OUT.omitted"
 	rm -rf "${OUT:?}/$p"
 done
+# and on the CD: what its profile left out (tests/iso checks a CD against
+# it, whatever profile made it)
+mkdir -p "$OUT/sys/lib/dist"
+cp "$OUT.omitted" "$OUT/sys/lib/dist/omitted"
 # the MCP server (MCP=1; MCP_DIR, tools/mcp): an agent on another machine works on the
 # installed system over HTTP (tools/mcp/README.md). Built here with nfront's Go (GO_DIR)
 # for objtype, with its example deny list as /sys/lib/mcp/deny (its README's -deny)

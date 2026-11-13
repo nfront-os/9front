@@ -52,7 +52,7 @@
 static int nok, nfail;
 
 static void
-check(char *name, int ok, char *fmt, ...)
+check1(char *name, int ok, char *fmt, ...)
 {
 	char buf[256];
 	va_list arg;
@@ -71,6 +71,13 @@ check(char *name, int ok, char *fmt, ...)
 	}
 	printf("FAIL %s: %s\n", name, buf);
 }
+
+/*
+ * The condition first, then the message's arguments: C leaves the order of
+ * a call's arguments open, and gcc evaluated strerror(errno) before the
+ * call that sets errno (a stale errno in the message)
+ */
+#define check(name, cond, ...) do { int ok_ = (cond); check1(name, ok_, __VA_ARGS__); } while(0)
 
 static void
 teststdio(void)
