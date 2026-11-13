@@ -15,7 +15,8 @@
 #		riscv64: riscv64-linux-gnu-)
 #   needs: curl, make, gcc, bison, flex, python3 (host side of u-boot's build)
 set -e
-CLI_DIR=${CLI_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/9front-cli}
+ROOT=${PLAN9:-$(git -C "$(dirname "$0")" rev-parse --show-toplevel)}
+. "$ROOT/scripts/lib/paths.sh"	# CLI_DIR, CACHE (dist/paths.env: nfront/cache/cli)
 UBOOT=${UBOOT:-2026.07}
 case ${objtype:-arm64} in
 arm64)	CROSS=${CROSS:-aarch64-linux-musl-} CONFIG=qemu_arm64_defconfig D=$CLI_DIR/uboot ;;

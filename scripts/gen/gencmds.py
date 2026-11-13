@@ -249,7 +249,9 @@ def variables(text):
 EVAL = {
 	'cmd/gs':	['OFILES'],	# `{sed 's#^./obj/(.*)\.o .*#obj/\1.$O#' src/ld.tr | sort}
 }
-P9P = os.environ.get('PLAN9PORT', os.path.join(ROOT, '..', 'plan9port'))
+sys.path.insert(0, os.path.join(ROOT, 'scripts', 'lib'))
+import paths
+P9P = paths.get('PLAN9PORT')
 
 def evalvars(text, v, d):
 	out = {}

@@ -131,7 +131,7 @@ check "GAS ports: no 6a/8a assembly in them" gasonly
 #    there, the build would go on without the step's output.
 #    plan9port's rc has no -n: each file becomes a function's body
 rcsyntax(){
-	local p9p=${PLAN9PORT:-$ROOT/../plan9port} bad=0 f
+	local p9p=$PLAN9PORT bad=0 f
 	[ -x "$p9p/bin/rc" ] || { echo "no $p9p/bin/rc"; return 1; }
 	for f in scripts/build/rc/*.rc scripts/guest/boot/*.rc tests/hw/*.rc tests/hw/cat/*.rc tests/hw/termrc; do
 		{ echo 'fn __syntax {'; cat "$f"; echo; echo '}'; } |

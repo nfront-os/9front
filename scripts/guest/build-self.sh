@@ -26,16 +26,16 @@
 #                 build tool and the manifests renewed), e.g. after a fix
 set -e
 ROOT=${PLAN9:-$(git -C "$(dirname "$0")" rev-parse --show-toplevel)}
-CLI_DIR=${CLI_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/9front-cli}
+. "$ROOT/scripts/lib/paths.sh"	# GCC_DIR, RUST_DIR, GO_DIR, MCP_DIR, DISTFILES (the distribution's paths.env)
 A=${objtype:-amd64}
 case $A in
 amd64)	mem=4096 ;;
 386)	mem=3072 ;;	# 9pc: below the PCI hole
 *)	echo "build-self: objtype=$A: no native gcc" >&2; exit 1 ;;
 esac
-GCC_OUT=${GCC_OUT:-$ROOT/../9front-gcc/out/$A}
+GCC_OUT=${GCC_OUT:-$GCC_DIR/out/$A}
 die(){ echo "build-self: $*" >&2; exit 1; }
-[ -x "$GCC_OUT/$A/gnu/bin/gcc" ] || die "no $GCC_OUT/$A/gnu/bin/gcc (../9front-gcc: build.sh native)"
+[ -x "$GCC_OUT/$A/gnu/bin/gcc" ] || die "no $GCC_OUT/$A/gnu/bin/gcc (GCC_DIR: toolchain/gcc, build.sh native)"
 [ -s "$ROOT/$A/lib.gcc/libc.a" ] || die "no $A/lib.gcc/libc.a, run CC=gcc ARCH=$A sys/src/cmd/build/build.exe"
 
 S=$CLI_DIR/self.$A

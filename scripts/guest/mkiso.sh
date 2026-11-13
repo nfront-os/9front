@@ -18,7 +18,7 @@
 #        and scripts/build-boot.sh.
 set -e
 ROOT=${PLAN9:-$(git -C "$(dirname "$0")" rev-parse --show-toplevel)}
-CLI_DIR=${CLI_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/9front-cli}
+. "$ROOT/scripts/lib/paths.sh"	# CLI_DIR, CACHE (dist/paths.env: nfront/cache/cli)
 export objtype=${objtype:-amd64}
 OUT=${1:-$CLI_DIR/9front.$objtype.iso}
 TMP=$(mktemp -d)

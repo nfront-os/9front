@@ -7,15 +7,16 @@
 #
 # aux/na (sys/src/cmd/aux/na/na.y) is the script assembler; it runs
 # /bin/cpp -+ -N on its input. Both run on the build host: 9front's na
-# and cpp built with plan9port (../plan9port; cpp needs two shims: glibc
+# and cpp built with plan9port (PLAN9PORT; cpp needs two shims: glibc
 # declares a getopt of its own, include.c assigns nil to a uchar), and
 # na runs in a bwrap namespace where /bin/cpp is 9front's cpp.
 #
 # usage: scripts/build/gen-sd53c8xx-i.sh
 set -e
 ROOT=${PLAN9:-$(git -C "$(dirname "$0")" rev-parse --show-toplevel)}
-CLI_DIR=${CLI_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/9front-cli}
-P9P=${PLAN9PORT:-$ROOT/../plan9port}
+. "$ROOT/scripts/lib/paths.sh"	# CLI_DIR, CACHE (dist/paths.env: nfront/cache/cli)
+. "$ROOT/scripts/lib/paths.sh"	# PLAN9PORT (the distribution's paths.env)
+P9P=$PLAN9PORT
 HOST=$CLI_DIR/host
 NA=$ROOT/sys/src/cmd/aux/na
 CPP=$ROOT/sys/src/cmd/cpp

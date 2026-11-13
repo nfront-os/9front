@@ -14,6 +14,7 @@
 # usage: objtype=386|amd64|arm64|riscv64 scripts/build/prep-objtype.sh   (build.exe sets objtype)
 set -e
 ROOT=${PLAN9:-$(git -C "$(dirname "$0")" rev-parse --show-toplevel)}
+. "$ROOT/scripts/lib/paths.sh"	# GCC_DIR, RUST_DIR, GO_DIR, MCP_DIR, DISTFILES (the distribution's paths.env)
 objtype=${objtype:?objtype not set}
 cd "$ROOT"
 mkdir -p $objtype/bin/aux $objtype/lib.gcc
@@ -22,12 +23,12 @@ mkdir -p $objtype/bin/aux $objtype/lib.gcc
 copy(){ cmp -s "$1" "$2" || cp "$1" "$2"; }
 case $objtype in
 386)
-	GCC_OUT=${GCC_OUT:-$ROOT/../9front-gcc/out/386}
+	GCC_OUT=${GCC_OUT:-$GCC_DIR/out/386}
 	lib=$(ls "$GCC_OUT"/386/gnu/lib/gcc/i686-pc-plan9/*/libgcc.a 2>/dev/null | tail -1)
 	if [ -z "$lib" ]; then
 		lib=$(gcc -m32 -print-libgcc-file-name)
 		echo "prep-objtype.sh: warning: no $GCC_OUT/386/gnu/lib/gcc/i686-pc-plan9/*/libgcc.a" \
-			"(../9front-gcc, objtype=386 build.sh cross native); the host's $lib" \
+			"(GCC_DIR: toolchain/gcc, objtype=386 build.sh cross native); the host's $lib" \
 			"needs SSE2 and cmov (not a Pentium)" >&2
 	fi
 	copy "$lib" 386/lib.gcc/libgcc.a

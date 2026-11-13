@@ -2,11 +2,12 @@
 # Generated sources of single commands, as the rules of their mkfiles
 # make them; run as a Pre step in the command's directory:
 #	gen-src.sh <dir below sys/src>
-# The rc/awk/sed recipes run with plan9port's tools (../plan9port),
+# The rc/awk/sed recipes run with plan9port's tools (PLAN9PORT),
 # absolute 9front paths point into this tree.
 set -e
 ROOT=$(git -C "$(dirname "$0")" rev-parse --show-toplevel)
-P9P=${PLAN9PORT:-$ROOT/../plan9port}
+. "$ROOT/scripts/lib/paths.sh"	# PLAN9PORT (the distribution's paths.env)
+P9P=$PLAN9PORT
 S=$ROOT/scripts
 cd "$ROOT/sys/src/$1"
 p9() { PLAN9=$P9P PATH=$P9P/bin:$PATH "$@"; }

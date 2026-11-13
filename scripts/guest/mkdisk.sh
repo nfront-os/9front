@@ -16,7 +16,7 @@
 #        (CC=gcc ARCH=amd64 sys/src/cmd/build/build.exe) and scripts/build-boot.sh.
 set -e
 ROOT=${PLAN9:-$(git -C "$(dirname "$0")" rev-parse --show-toplevel)}
-CLI_DIR=${CLI_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/9front-cli}
+. "$ROOT/scripts/lib/paths.sh"	# CLI_DIR, CACHE (dist/paths.env: nfront/cache/cli)
 A=${objtype:-amd64}
 OUT=${1:-$CLI_DIR/9front.$A.img}
 MB=3770	# the mkfile's size for amd64 (and arm64) disks
