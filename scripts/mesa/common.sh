@@ -10,7 +10,7 @@ MESA_KEY=$(field key)
 # work directory: downloads, the source tree (a git repository, tag
 # pristine = the tarball), the venv with meson and Mesa's python
 # modules, the build directories
-WORK=${MESA_WORK:-${XDG_CACHE_HOME:-$HOME/.cache}/9front-gpu}
+WORK=${MESA_WORK:-$CACHE/mesa}
 SRC=$WORK/src/mesa-$MESA_VERSION
 VENV=$WORK/venv
 objtype=${objtype:-amd64}

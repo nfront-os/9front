@@ -3,9 +3,10 @@
 # (HOLD=1) and print what the console shows until rc prompts again.
 #
 # usage: scripts/guest/guest-cmd.sh 'cmd'
-#   env:  CLI_DIR     boot-cli's work dir (default ${XDG_CACHE_HOME:-~/.cache}/9front-cli)
+#   env:  CLI_DIR     boot-cli's work dir (default: CLI_DIR of dist/paths.env, nfront/cache/cli)
 #         PROMPTWAIT  seconds at most to wait for the prompt (300)
-CLI_DIR=${CLI_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/9front-cli}
+ROOT=${PLAN9:-$(git -C "$(dirname "$0")" rev-parse --show-toplevel)}
+. "$ROOT/scripts/lib/paths.sh"	# CLI_DIR, CACHE (dist/paths.env: nfront/cache/cli)
 pts=$(cat "$CLI_DIR/pts" 2>/dev/null)
 [ -n "$pts" ] && [ -w "$pts" ] || { echo "guest-cmd: no running guest (HOLD=1 scripts/guest/boot-cli.sh)" >&2; exit 1; }
 log=$CLI_DIR/console.log

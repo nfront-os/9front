@@ -17,7 +17,6 @@
 set -e
 ROOT=$(git -C "$(dirname "$0")" rev-parse --show-toplevel)
 . "$ROOT/scripts/lib/paths.sh"	# GCC_DIR, RUST_DIR, GO_DIR, MCP_DIR, DISTFILES (the distribution's paths.env)
-CLI_DIR=${CLI_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/9front-cli}
 MCP_SRC=${MCP_SRC:-$MCP_DIR}
 GO=${GO:-$GO_DIR/go/bin/go}
 PORT=${PORT:-18091}

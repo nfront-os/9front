@@ -27,7 +27,6 @@
 set -e
 ROOT=${PLAN9:-$(git -C "$(dirname "$0")" rev-parse --show-toplevel)}
 . "$ROOT/scripts/lib/paths.sh"	# GCC_DIR, RUST_DIR, GO_DIR, MCP_DIR, DISTFILES (the distribution's paths.env)
-CLI_DIR=${CLI_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/9front-cli}
 A=${objtype:-amd64}
 case $A in
 amd64)	mem=4096 ;;

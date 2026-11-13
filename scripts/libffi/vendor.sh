@@ -8,5 +8,5 @@
 #   CC=$CROSS/x86_64-pc-plan9-gcc ARCH=amd64 sys/src/cmd/build/build.exe sys/src/libffi/build.json
 set -e
 . "$(dirname "$0")/../mesa/common.sh"	# CROSS, TRIPLE: ../9front-gcc's cross gcc with the tree as sysroot
-CC=$CROSS/$TRIPLE-gcc WORK=${LIBFFI_WORK:-${XDG_CACHE_HOME:-$HOME/.cache}/9front-libffi} \
+CC=$CROSS/$TRIPLE-gcc WORK=${LIBFFI_WORK:-$CACHE/libffi} \
 	python3 "$(dirname "$0")/vendor.py" "$ROOT"

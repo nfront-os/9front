@@ -6,5 +6,5 @@
 set -e
 [ $# -eq 1 ] || { echo "usage: scripts/ape/vendor.sh lib" >&2; exit 1; }
 . "$(dirname "$0")/../mesa/common.sh"	# CROSS, TRIPLE: the cross gcc with the tree as sysroot
-CC=$CROSS/$TRIPLE-gcc WORK=${APE_WORK:-${XDG_CACHE_HOME:-$HOME/.cache}/9front-ape} \
+CC=$CROSS/$TRIPLE-gcc WORK=${APE_WORK:-$CACHE/ape} \
 	python3 "$(dirname "$0")/vendor.py" "$ROOT" "$1"

@@ -4,7 +4,8 @@
 # that the environment does not set already, as an absolute path.
 # paths.env: $NFRONT_PATHS, else ROOT/../dist/paths.env (the umbrella's
 # layout), else ROOT/../9front-distribution/paths.env (the old one);
-# without it the old defaults (../9front-gcc, ...).
+# without it the old defaults (../9front-gcc, ...; the caches in
+# $XDG_CACHE_HOME/nfront).
 __nfront_paths(){
 	local f top line k v
 	for f in "$NFRONT_PATHS" "$ROOT/../dist/paths.env" "$ROOT/../9front-distribution/paths.env"; do
@@ -27,6 +28,8 @@ __nfront_paths(){
 	: "${GCC_DIR:=$top/9front-gcc}" "${RUST_DIR:=$top/9front-rust}" "${GO_DIR:=$top/9front-go}"
 	: "${MCP_DIR:=$top/9front-mcp}" "${DISTFILES:=$top/9front-ui/src}" "${TREE_GCC:=$top/9front-gccwt}"
 	: "${PLAN9PORT:=$top/plan9port}"
-	export GCC_DIR RUST_DIR GO_DIR MCP_DIR DISTFILES TREE_GCC PLAN9PORT
+	: "${CACHE:=${XDG_CACHE_HOME:-$HOME/.cache}/nfront}"
+	: "${CLI_DIR:=$CACHE/cli}"
+	export GCC_DIR RUST_DIR GO_DIR MCP_DIR DISTFILES TREE_GCC PLAN9PORT CACHE CLI_DIR
 }
 __nfront_paths

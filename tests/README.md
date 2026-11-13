@@ -56,7 +56,7 @@ file system of the guest: in `PATH` or `~/go/bin/ufs`).
 
 Options (environment):
 
-- `ISO=file.iso` — `iso` tests this CD instead of building one; `rio` and `usb` use it, else the last CD `scripts/guest/mkiso.sh` made (`~/.cache/9front-cli/9front.$objtype.iso`). `objtype=386 ISO=~/.cache/9front-cli/9front.386.iso bash tests/run.sh iso`
+- `ISO=file.iso` — `iso` tests this CD instead of building one; `rio` and `usb` use it, else the last CD `scripts/guest/mkiso.sh` made (`~/Devel/nfront/cache/cli/9front.$objtype.iso`). `objtype=386 ISO=~/Devel/nfront/cache/cli/9front.386.iso bash tests/run.sh iso`
 - `USB_CTLRS="xhci ehci"` — `usb` tests only these controllers.
 - `CPU`, `SMP`, `MEM` — QEMU's `-cpu`, `-smp`, `-m` for `rio` and `usb` (e.g. `CPU=n270 SMP=2` for an Atom netbook).
 - `DISKIMG=file.img` — `disk` boots this image instead of building one.

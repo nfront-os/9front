@@ -290,7 +290,7 @@ if [ -r /dev/dri/renderD128 ] && [ -w /dev/dri/renderD128 ] &&
 		# for from here; one not done in 300 s is looked at while it hangs
 		# (ps, the logs' last lines), then the guest goes
 		bootwsys(){ # [wsys' options and -i script; its log in $TMPD/consolewsys]
-			local cli=${CLI_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/9front-cli} g n ok=0
+			local cli=$CLI_DIR g n ok=0
 			local cmd=${1:-/tests/wsys ${WSYSFLAGS:-} -p -x -i /tests/wsysvk}
 			local m="python3 $ROOT/scripts/guest/mcp.py"
 			CPU=host MEM=1024 UFS_EXTRA="$HERE/root" \

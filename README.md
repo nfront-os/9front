@@ -57,7 +57,7 @@ scripts/guest/mkiso.sh
 This stages the distribution tree, boots it in a QEMU guest and makes
 the CD there (hybrid ISO: BIOS/El Torito + UEFI, also boots from disk or
 USB). The result is written to
-`~/.cache/9front-cli/9front.amd64.iso` (override the output as the first
+`~/Devel/nfront/cache/cli/9front.amd64.iso` (override the output as the first
 argument). For the 386 image: `objtype=386 scripts/guest/mkiso.sh`.
 
 That's it — burn or `dd` the ISO and boot it.

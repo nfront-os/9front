@@ -35,7 +35,7 @@ lim=$(ulimit -l)
 [ "$lim" = unlimited ] || { echo "vfio-test: memlock $lim KB: VFIO pins all guest memory (sudo scripts/guest/vfio-gpu.sh bind PID of this shell's parent)" >&2; exit 1; }
 
 # the firmware into the root the guest gets (boot-cli.sh: UFS_EXTRA)
-CLI_DIR=${CLI_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/9front-cli}
+. "$ROOT/scripts/lib/paths.sh"	# CLI_DIR, CACHE (dist/paths.env: nfront/cache/cli)
 FWDIR=${FWDIR:-/usr/lib/firmware/amdgpu}
 FW=${FW:-gc_11_0_ psp_13_0_ smu_13_0_ dcn_3_2 sdma_6_0_ vcn_4_0_}
 X=$CLI_DIR/vfio-extra

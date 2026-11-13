@@ -183,7 +183,7 @@ def inorder(lines, gpl, top, linux):
 
 def index(trees):
 	"""the lines of the GPL-only Linux files (line -> file), those of the
-	permissive sources, the GPL files' paths; cached in ~/.cache by the
+	permissive sources, the GPL files' paths; cached in CACHE/provenance (dist/paths.env) by the
 	trees, the permissive files' times and this script"""
 	h = hashlib.sha256(open(os.path.abspath(__file__), 'rb').read())
 	for t in trees:
@@ -192,7 +192,7 @@ def index(trees):
 		for p in sources(os.path.join(D, d)):
 			st = os.stat(p)
 			h.update(('%s %d %d' % (p, st.st_mtime_ns, st.st_size)).encode())
-	cache = os.path.expanduser('~/.cache/9front-provenance/%s.pickle' % h.hexdigest()[:16])
+	cache = os.path.join(nfpaths.get('CACHE'), 'provenance', '%s.pickle' % h.hexdigest()[:16])
 	try:
 		with open(cache, 'rb') as f:
 			return pickle.load(f)

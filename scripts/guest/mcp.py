@@ -13,8 +13,9 @@ import json, os, sys, time, urllib.error, urllib.request
 
 URL = os.environ.get("MCPURL", "http://127.0.0.1:%s/mcp" % os.environ.get("PORT", "18091"))
 TOKEN = os.environ.get("MCPTOKEN", "mcpguest")
-CLI_DIR = os.environ.get("CLI_DIR") or os.path.join(
-    os.environ.get("XDG_CACHE_HOME") or os.path.expanduser("~/.cache"), "9front-cli")
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "lib"))
+import paths
+CLI_DIR = paths.get("CLI_DIR")	# dist/paths.env: nfront/cache/cli
 SID = os.path.join(CLI_DIR, "mcp.sid")
 
 

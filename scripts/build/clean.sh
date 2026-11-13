@@ -15,10 +15,10 @@
 #
 # usage: scripts/build/clean.sh [-i]
 #   env:  CLI_DIR   where the log goes
-#                   (default ${XDG_CACHE_HOME:-~/.cache}/9front-cli)
+#                   (default: CLI_DIR of dist/paths.env, nfront/cache/cli)
 set -e
 ROOT=${PLAN9:-$(git -C "$(dirname "$0")" rev-parse --show-toplevel)}
-CLI_DIR=${CLI_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/9front-cli}
+. "$ROOT/scripts/lib/paths.sh"	# CLI_DIR, CACHE (dist/paths.env: nfront/cache/cli)
 die(){ echo "clean: $*" >&2; exit 1; }
 installed=
 case $* in

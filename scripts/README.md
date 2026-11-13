@@ -121,14 +121,14 @@ Called by `build.exe` (Pre/Post steps); rarely run by hand.
 |---|---|
 | `qemu-ctl.py` | keys, screendumps, monitor commands, and an rc on the serial line of a guest. `scripts/debug/qemu-ctl.py DIR ser 'ps -a'` |
 | `thread-dump.py` | libthread procs and threads of a guest process with stacks. `scripts/debug/thread-dump.py DIR 307 amd64/bin/rio` |
-| `shot2png.py` | the picture `tests/gpu/screenshot` prints in a guest (a passed-through GPU's screen, which QEMU cannot dump), out of a console log, as a PNG. `scripts/debug/shot2png.py ~/.cache/9front-cli/console.log shot.png` |
+| `shot2png.py` | the picture `tests/gpu/screenshot` prints in a guest (a passed-through GPU's screen, which QEMU cannot dump), out of a console log, as a PNG. `scripts/debug/shot2png.py ~/Devel/nfront/cache/cli/console.log shot.png` |
 | `vncshot.py` | one frame from QEMU's VNC server as PNG, and colours at points: what the host shows, also with a GL display (virtio-gpu-gl), where QMP's screendump has no surface; `boot-cli.sh` uses it with `VNC=1`. `scripts/debug/vncshot.py SOCK out.png 200,450` |
 
 ## mesa/ — Mesa (venus Vulkan) for the gpu branch
 
 Host-side tools for `sys/src/mesa` (release in `VERSION`, signing key in
 `keys/`, new files in `overlay/`, changes as `patches/`, what APE lacks in
-`plan9/`). Work directory `$MESA_WORK` (default `~/.cache/9front-gpu`);
+`plan9/`). Work directory `$MESA_WORK` (default `$CACHE/mesa`, `nfront/cache/mesa`);
 cross compilers from `../9front-gcc`.
 
 | script | what it does |

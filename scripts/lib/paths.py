@@ -25,6 +25,9 @@ def _load():
 	top = os.path.normpath(os.path.join(ROOT, '..'))
 	for k, v in DEFAULTS.items():
 		vals.setdefault(k, os.path.join(top, v))
+	cache = os.environ.get('XDG_CACHE_HOME') or os.path.expanduser('~/.cache')
+	vals.setdefault('CACHE', os.path.join(cache, 'nfront'))
+	vals.setdefault('CLI_DIR', os.path.join(os.environ.get('CACHE') or vals['CACHE'], 'cli'))
 	return vals
 
 _vals = _load()
