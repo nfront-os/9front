@@ -52,6 +52,7 @@ file system of the guest: in `PATH` or `~/go/bin/ufs`).
 | `usb` | a USB stick on xHCI, EHCI and UHCI: root hub in `#u`, the stick as `/dev/sdU*`, sector 0 read back (`USB_CTLRS=ohci`: fails in QEMU with 9front's own release too) | a CD | ~1 min per controller |
 | `gcc` | the native gcc and binutils on the CD (`/$objtype/gnu`, built in `../9front-gcc`): `gcc --version`, a POSIX program over APE and a native Plan 9 program (`/sys/src/cmd/echo.c`, libc from `/$objtype/lib.gcc`) compiled, linked and run, and `gccmk` builds hoc from its mkfile | a CD with the toolchain | ~2 min |
 | `go` | Go on the CD (`/$objtype/go`, built in `../9front-go`, `GO_OUT` for `mkiso.sh`): `go version`, GOROOT found without `$GOROOT`, `go run` (std compiled on the CD) and `go build` of a program with goroutines, Go's ELF test data not stripped by `stage-dist.sh`; skipped for a CD without Go | a CD with Go | ~3 min |
+| `rust` | Rust on the CD (`/$objtype/rust`, built in `toolchain/rust`; `dist/bin/mkcd -dev rust`, or `RUST_OUT` for `mkiso.sh`): `rustc --version`, a program with threads, a channel and files built by rustc and run (linked with the CD's gcc), `cargo new`, `build`, `run`, `test` offline, `rustfmt`, `rustdoc`, `cargo clippy` finding a lint; skipped for a CD without Rust | a CD with Rust | ~5 min |
 
 Options (environment):
 
