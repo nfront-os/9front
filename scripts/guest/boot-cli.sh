@@ -99,8 +99,24 @@ cmds=("$@")
 command -v $QEMU >/dev/null || die "$QEMU missing"
 mkdir -p "$CLI_DIR"
 pids=()
-cleanup(){ [ ${#pids[@]} -gt 0 ] && kill "${pids[@]}" 2>/dev/null; wait 2>/dev/null; return 0; }
+# QEMU with an EGL display (-display egl-headless: tests/gpu, tests/wayland)
+# crashes whenever it ends normally, up to 11.1.3: egl_cleanup closes the
+# render node and only then unbinds the context (SIGSEGV in the host's
+# Mesa; fixed upstream by baca2517 "ui/egl: fix render node cleanup
+# order"). Each crash dumps the whole guest into systemd-coredump, and
+# those dumps' IO held the next QEMU before its serial line past 30 s
+# ("no QEMU serial pty" in the venus boots, back to back in the suite).
+# Such a QEMU runs in a session of its own, out of reach of a kill of
+# our process group, and goes by SIGKILL, which skips qemu_cleanup; it
+# has no disk to lose writes on.
+egl=
+case " $QEMU_EXTRA " in *" egl-headless"*) egl=1;; esac
+# (|| true: set -e, and QEMU may be gone already)
+stopqemu(){ [ -z "$qemupid" ] || kill ${egl:+-KILL} $qemupid 2>/dev/null || true; }
+cleanup(){ stopqemu; [ ${#pids[@]} -gt 0 ] && kill "${pids[@]}" 2>/dev/null; wait 2>/dev/null; return 0; }
 trap cleanup EXIT
+# bash runs the EXIT trap on these only when they are trapped
+trap 'exit 129' HUP; trap 'exit 130' INT; trap 'exit 143' TERM
 
 fw=()
 if [ "${UEFI:-0}" != 0 ]; then
@@ -225,7 +241,7 @@ fi
 qmp=()
 [ -z "$SCREENSHOT" ] || { rm -f "$CLI_DIR/qmp.sock"; qmp=(-qmp "unix:$CLI_DIR/qmp.sock,server,nowait"); }
 [ "$VNC" != 1 ] || { rm -f "$CLI_DIR/vnc.sock"; qmp+=(-vnc "unix:$CLI_DIR/vnc.sock"); }
-"${qemu[@]}" -serial pty "${qmp[@]}" $QEMU_EXTRA > "$CLI_DIR/qemu.log" 2>&1 &
+${egl:+setsid} "${qemu[@]}" -serial pty "${qmp[@]}" $QEMU_EXTRA > "$CLI_DIR/qemu.log" 2>&1 &
 pids+=($!)
 qemupid=$!
 # the guest powered itself off (fshalt, scram): nothing more to wait for
@@ -269,7 +285,7 @@ for _ in $(seq 30); do
 	sleep 0.1
 done
 if [ $ttyok = 0 ]; then
-	running && { echo "boot-cli: stty on $pts failed: QEMU stopped" >&2; kill $qemupid 2>/dev/null; }
+	running && { echo "boot-cli: stty on $pts failed: QEMU stopped" >&2; stopqemu; }
 	wait $qemupid 2>/dev/null
 	st=$?
 	echo "boot-cli: QEMU ended at the start (status $st); its log:" >&2
