@@ -133,7 +133,7 @@ def main():
 				print('missing tree %s (%s)' % (p, name))
 				bad = 1
 			else:
-				print('norust  %s (%s: no Rust toolchain, ../9front-rust)' % (p, name))
+				print('norust  %s (%s: no Rust toolchain, RUST_DIR: toolchain/rust)' % (p, name))
 	exp.update(rust)
 	ape = apeprogs_()
 	havecross = apeprogs.cross(A)
@@ -143,7 +143,7 @@ def main():
 				print('missing tree %s (%s)' % (p, name))
 				bad = 1
 			else:
-				print('nocross %s (%s: no cross compiler, ../9front-gcc)' % (p, name))
+				print('nocross %s (%s: no cross compiler, GCC_DIR: toolchain/gcc)' % (p, name))
 	exp.update(ape)
 	# stale: what no rule installs in the program directories (the kernel
 	# build's ELF amd64/bin/9pc64 is for boot-cli.sh's multiboot)

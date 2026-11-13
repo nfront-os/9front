@@ -18,7 +18,7 @@ check=
 ex=(--exclude=target --exclude=.cargo-ok --exclude=Cargo.lock)
 fail=0
 copy() { # from to
-	[ -d "$1" ] || { echo "crates.sh: no $1 (../9front-rust: scripts/crates-patch.sh apply)" >&2; exit 1; }
+	[ -d "$1" ] || { echo "crates.sh: no $1 (RUST_DIR: toolchain/rust, scripts/crates-patch.sh init)" >&2; exit 1; }
 	if [ -n "$check" ]; then
 		diff -rq "${ex[@]}" "$1" "$2" >/dev/null 2>&1 || { echo "differs: ${2#$ROOT/}"; fail=1; }
 		return

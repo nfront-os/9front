@@ -13,7 +13,7 @@ set -e
 ROOT=$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)
 objtype=${objtype:-amd64}
 if ! python3 -c "import sys; sys.path.insert(0, '$ROOT/scripts/gen'); import apeprogs; sys.exit(not apeprogs.cross('$objtype'))"; then
-	echo "ape: no cross compiler of ../9front-gcc for $objtype: Mesa, libwayland, SDL3, GLFW, wlsys not built"
+	echo "ape: no cross compiler of nfront's gcc (GCC_DIR, toolchain/gcc) for $objtype: Mesa, libwayland, SDL3, GLFW, wlsys not built"
 	exit 0
 fi
 . "$ROOT/scripts/mesa/common.sh"

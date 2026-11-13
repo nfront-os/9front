@@ -28,7 +28,7 @@ case $objtype in
 	if [ -z "$lib" ]; then
 		lib=$(gcc -m32 -print-libgcc-file-name)
 		echo "prep-objtype.sh: warning: no $GCC_OUT/386/gnu/lib/gcc/i686-pc-plan9/*/libgcc.a" \
-			"(../9front-gcc, objtype=386 build.sh cross native); the host's $lib" \
+			"(GCC_DIR: toolchain/gcc, objtype=386 build.sh cross native); the host's $lib" \
 			"needs SSE2 and cmov (not a Pentium)" >&2
 	fi
 	copy "$lib" 386/lib.gcc/libgcc.a

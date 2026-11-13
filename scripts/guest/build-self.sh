@@ -36,7 +36,7 @@ amd64)	mem=4096 ;;
 esac
 GCC_OUT=${GCC_OUT:-$GCC_DIR/out/$A}
 die(){ echo "build-self: $*" >&2; exit 1; }
-[ -x "$GCC_OUT/$A/gnu/bin/gcc" ] || die "no $GCC_OUT/$A/gnu/bin/gcc (../9front-gcc: build.sh native)"
+[ -x "$GCC_OUT/$A/gnu/bin/gcc" ] || die "no $GCC_OUT/$A/gnu/bin/gcc (GCC_DIR: toolchain/gcc, build.sh native)"
 [ -s "$ROOT/$A/lib.gcc/libc.a" ] || die "no $A/lib.gcc/libc.a, run CC=gcc ARCH=$A sys/src/cmd/build/build.exe"
 
 S=$CLI_DIR/self.$A
