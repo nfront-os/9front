@@ -19,7 +19,7 @@
 #   env MNT="dir:/path ...": directories seen at /path while linking,
 #   for the objects' #pragma lib /amd64/lib/... (needs bwrap)
 #   paths are relative to the tree root
-#   env:  P9P   plan9port tree (default ../plan9port beside the tree)
+#   env:  P9P   plan9port tree (default PLAN9PORT of paths.env)
 #         OUT   work dir (default /tmp/cmp-lp64)
 #   needs: gcc with -m32 (multilib), setarch
 #
@@ -33,7 +33,8 @@
 # the brk-grown hunk.
 set -e
 ROOT=$(git -C "$(dirname "$0")" rev-parse --show-toplevel)
-P9P=${P9P:-$(cd "$ROOT/.." && pwd)/plan9port}
+. "$ROOT/scripts/lib/paths.sh"
+P9P=${P9P:-$PLAN9PORT}
 OUT=${OUT:-/tmp/cmp-lp64}
 TOOL=$1
 shift || true

@@ -1,6 +1,6 @@
 # shared helpers for tests/*/run.sh (sourced)
 ROOT=$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)
-CLI_DIR=${CLI_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/9front-cli}
+. "$ROOT/scripts/lib/paths.sh"	# GCC_DIR, RUST_DIR, GO_DIR, MCP_DIR, DISTFILES (the distribution's paths.env)
 # the architecture under test (scripts/gen/arch.py): objtype, O, TOOLPREFIX,
 # KERNEL (its configuration: pc64, pc, qemu), QEMU, SUFFIX (manifests);
 # KBIN the ELF kernel the build leaves in /$objtype/bin

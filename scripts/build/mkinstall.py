@@ -9,7 +9,7 @@ cropmarks: cropmarks.rc) -- by running the mkfile's own recipes.
 scripts/gen/gencmds.py finds the targets and their rules (installfiles);
 each recipe runs as mk runs it, with rc -e and the mkfile's variables,
 $target, $prereq and $stem in the environment, in the source directory.
-rc and the Plan 9 tools are plan9port's (../plan9port, as gen-src.sh);
+rc and the Plan 9 tools are plan9port's (PLAN9PORT, as gen-src.sh);
 the recipes' absolute paths (/$objtype/bin/git, /sys/lib/postscript)
 are 9front paths, so they run in a bwrap namespace whose / holds the
 tree's top-level directories (the host's /usr for the tools). Local
@@ -25,7 +25,9 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'gen'))
 import gencmds as g
 
-P9P = os.environ.get('PLAN9PORT', os.path.join(g.ROOT, '..', 'plan9port'))
+sys.path.insert(0, os.path.join(g.ROOT, 'scripts', 'lib'))
+import paths
+P9P = paths.get('PLAN9PORT')
 P9P = os.path.abspath(P9P)
 # host directories the tools need; the tree's lib (fonts) is not one a
 # recipe installs into and would hide the host's
