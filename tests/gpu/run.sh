@@ -32,15 +32,19 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 buildtests(){ (cd "$HERE" && env PLAN9="$ROOT" ARCH=$objtype CC=gcc "$BUILDEXE" build.json); }
 check "build tests/gpu" buildtests || { done_tests; exit; }
 # the Vulkan tests need ../9front-gcc's cross compiler: build.exe builds
-# libvulkan.a from the tree's Mesa (sys/src/mesa/build.json, a minute once)
-rm -f "$HERE/root/tests/vktest" "$HERE/root/tests/vkdraw" "$HERE/root/tests/vktri" \
+# libvulkan.a from the tree's Mesa (sys/src/mesa/build.json, a minute once).
+# Their programs stay from run to run (build-vktest.sh replaces a changed
+# one only: the guest's root is kept by rsync); gone when they could not
+# be built, so that no stale one runs
+novk(){ rm -f "$HERE/root/tests/vktest" "$HERE/root/tests/vkdraw" "$HERE/root/tests/vktri" \
 	"$HERE/root/tests/vkcube" "$HERE/root/tests/vulkaninfo" "$HERE/root/tests/vkspeed" \
-	"$HERE/root/tests/rsvk"
+	"$HERE/root/tests/rsvk"; }
 cross=$(. "$ROOT/scripts/mesa/common.sh"; echo "$CROSS/$TRIPLE-gcc")
 cross_strip=${cross%-gcc}-strip
 if [ -x "$cross" ]; then
-	check "build libvulkan.a (build.exe, sys/src/mesa) and the Vulkan tests" bash "$HERE/build-vktest.sh"
+	check "build libvulkan.a (build.exe, sys/src/mesa) and the Vulkan tests" bash "$HERE/build-vktest.sh" || novk
 else
+	novk
 	skip "Vulkan tests" "no cross compiler $cross (../9front-gcc)"
 fi
 
@@ -276,14 +280,15 @@ if [ -r /dev/dri/renderD128 ] && [ -w /dev/dri/renderD128 ] &&
 	# frames over as GPU buffers (gpu(4) export, wsys' gpubuffer; Mesa's
 	# plan9 WSI), then again by copy for comparison (wsysvk.rc)
 	if [ -x "$HERE/root/tests/vktri" ] && [ -x "$ROOT/$objtype/bin/wsys" ]; then
-		cp "$ROOT/$objtype/bin/wsys" "$HERE/root/tests/wsys"
+		bash "$HERE/putstripped.sh" "$cross_strip" "$ROOT/$objtype/bin/wsys" "$HERE/root/tests/wsys"
 		cp "$HERE/wsysvk.rc" "$HERE/root/tests/wsysvk"
 		# ui (ui(4), Rust: build.exe's step rust) with its fonts
-		rm -f "$HERE/root/tests/ui"
 		if [ -x "$ROOT/$objtype/bin/ui" ]; then
-			"$cross_strip" -o "$HERE/root/tests/ui" "$ROOT/$objtype/bin/ui"
+			bash "$HERE/putstripped.sh" "$cross_strip" "$ROOT/$objtype/bin/ui" "$HERE/root/tests/ui"
 			mkdir -p "$HERE/root/lib/font/ttf"
-			cp "$ROOT/lib/font/ttf/"*.ttf "$HERE/root/lib/font/ttf/"
+			cp -p "$ROOT/lib/font/ttf/"*.ttf "$HERE/root/lib/font/ttf/"
+		else
+			rm -f "$HERE/root/tests/ui"
 		fi
 		cp "$HERE/wsysvktri.rc" "$HERE/root/tests/wsysvktri"
 		cp "$HERE/wsysovl.rc" "$HERE/root/tests/wsysovl"

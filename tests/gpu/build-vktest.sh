@@ -7,6 +7,10 @@
 # vktest and vkdraw call the driver's vk_icdGetInstanceProcAddr, the others
 # are ordinary Vulkan programs; vktri's shaders are compiled with glslc.
 # The OpenGL tests (gltest, gldesk, glwin: zink, EGL) link the same library.
+# Each program is linked into $BUILD/tests (with its debug information:
+# addr2line, gdb) and goes stripped into root/tests, replaced there only
+# when it changed (putstripped.sh: the guest's root is kept up to date by
+# rsync, an unchanged program is not copied again).
 set -e
 . "$(dirname "$0")/../../scripts/mesa/common.sh"
 HERE=$(cd "$(dirname "$0")" && pwd)
@@ -15,6 +19,7 @@ O=$BUILD/tests
 CC=$CROSS/$TRIPLE-gcc ARCH=$objtype "$ROOT/sys/src/cmd/build/build.exe" -D "$ROOT/sys/src/mesa/build.json" \
 	> "$O/libvulkan.log" 2>&1 || { tail -20 "$O/libvulkan.log"; exit 1; }
 libs="-Wl,--gc-sections -lvulkan -ldraw -l9 -lfmt -lutf"
+put(){ bash "$HERE/putstripped.sh" "$CROSS/$TRIPLE-strip" "$1" "$HERE/root/tests/${2:-${1##*/}}"; }
 "$CROSS/$TRIPLE-gcc" -std=c11 -O2 -Wall -c -o "$O/btassert.o" "$HERE/btassert.c"
 "$CROSS/$TRIPLE-gcc" -std=c11 -O2 -Wall -D_PLAN9_SOURCE -I"$ROOT/sys/src/ape/lib/9" \
 	-c -o "$O/screenpeek.o" "$HERE/screenpeek.c"
@@ -28,26 +33,31 @@ for p in vktest vkdraw vktri vkspeed vkshare radvtest vktimeline gltest gldesk g
 	vktest)		extra=$O/btassert.o ;;
 	esac
 	"$CROSS/$TRIPLE-gcc" -std=gnu11 -O2 -Wall -I"$O" -c -o "$O/$p.o" "$HERE/$p.c"
-	"$CROSS/$TRIPLE-g++" -o "$HERE/root/tests/$p" "$O/$p.o" $extra $libs
+	"$CROSS/$TRIPLE-g++" -o "$O/$p" "$O/$p.o" $extra $libs
+	put "$O/$p"
 done
 # sdlvk: SDL3's Vulkan renderer (tests/sdl/sdlvk.c), if libSDL3.a is built
 # (sys/src/sdl3); SDL refers to Vulkan weakly: -u pulls the loader in
 if [ -f "$ROOT/$objtype/lib.gcc/ape/libSDL3.a" ]; then
 	"$CROSS/$TRIPLE-gcc" -std=gnu11 -O2 -Wall -c -o "$O/sdlvk.o" "$ROOT/tests/sdl/sdlvk.c"
-	"$CROSS/$TRIPLE-g++" -o "$HERE/root/tests/sdlvk" "$O/sdlvk.o" -Wl,-u,vkGetInstanceProcAddr -lSDL3 $libs -lm
+	"$CROSS/$TRIPLE-g++" -o "$O/sdlvk" "$O/sdlvk.o" -Wl,-u,vkGetInstanceProcAddr -lSDL3 $libs -lm
+	put "$O/sdlvk"
 	# sdlgl: SDL3's OpenGL (EGL's plan9 platform); SDL refers to EGL weakly too
 	"$CROSS/$TRIPLE-gcc" -std=gnu11 -O2 -Wall -c -o "$O/sdlgl.o" "$ROOT/tests/sdl/sdlgl.c"
-	"$CROSS/$TRIPLE-g++" -o "$HERE/root/tests/sdlgl" "$O/sdlgl.o" -Wl,-u,eglGetDisplay -lSDL3 $libs -lm
+	"$CROSS/$TRIPLE-g++" -o "$O/sdlgl" "$O/sdlgl.o" -Wl,-u,eglGetDisplay -lSDL3 $libs -lm
+	put "$O/sdlgl"
 	# sdlgpu: SDL3's GPU API (SDL_gpu on Vulkan)
 	"$CROSS/$TRIPLE-gcc" -std=gnu11 -O2 -Wall -c -o "$O/sdlgpu.o" "$ROOT/tests/sdl/sdlgpu.c"
-	"$CROSS/$TRIPLE-g++" -o "$HERE/root/tests/sdlgpu" "$O/sdlgpu.o" -Wl,-u,vkGetInstanceProcAddr -lSDL3 $libs -lm
+	"$CROSS/$TRIPLE-g++" -o "$O/sdlgpu" "$O/sdlgpu.o" -Wl,-u,vkGetInstanceProcAddr -lSDL3 $libs -lm
+	put "$O/sdlgpu"
 fi
 # glfwtest: GLFW (tests/glfw/glfwtest.c, sys/src/glfw), with -g its OpenGL and Vulkan;
 # GLFW refers to EGL and Vulkan weakly (plan9_module.c): -u pulls them in
 if [ -f "$ROOT/$objtype/lib.gcc/ape/libglfw3.a" ]; then
 	"$CROSS/$TRIPLE-gcc" -std=gnu11 -O2 -Wall -c -o "$O/glfwtest.o" "$ROOT/tests/glfw/glfwtest.c"
-	"$CROSS/$TRIPLE-g++" -o "$HERE/root/tests/glfwtest" "$O/glfwtest.o" \
+	"$CROSS/$TRIPLE-g++" -o "$O/glfwtest" "$O/glfwtest.o" \
 		-Wl,-u,eglGetDisplay -Wl,-u,vkGetInstanceProcAddr -lglfw3 $libs -lm
+	put "$O/glfwtest"
 fi
 # rsvk: vktri in Rust (ash, ../9front-ui stage 1b), built by cargo with ../9front-rust's
 # stage-1 rustc for x86_64-unknown-plan9 and linked by the cross gcc above (the view of this
@@ -65,7 +75,7 @@ if [ "$objtype" = amd64 ] && [ -x "$RUSTC" ] && command -v cargo >/dev/null; the
 	 CARGO_TARGET_X86_64_UNKNOWN_PLAN9_LINKER="$CROSS/$TRIPLE-gcc" \
 	 RUSTFLAGS="-L $O -l screenpeek -l draw -l 9 -l fmt -l utf -l stdc++ -C link-arg=-Wl,--gc-sections" \
 	 cargo build --offline --release --target $T)
-	cp "$O/rsvk/$T/release/rsvk" "$HERE/root/tests/rsvk"
+	put "$O/rsvk/$T/release/rsvk"
 	# eframetest: eframe on wgpu's Vulkan, ../9front-rust's (tests/crates/eframetest:
 	# crates.io's crates, its patched winit and wgpu-*: cargo-plan9.toml)
 	if [ -d "$RUST_DIR/tests/crates/eframetest" ]; then
@@ -74,14 +84,15 @@ if [ "$objtype" = amd64 ] && [ -x "$RUSTC" ] && command -v cargo >/dev/null; the
 		 CARGO_TARGET_X86_64_UNKNOWN_PLAN9_LINKER="$CROSS/$TRIPLE-gcc" \
 		 RUSTFLAGS="-l draw -l 9 -l fmt -l utf -l stdc++ -C link-arg=-Wl,--gc-sections" \
 		 cargo --config "$RUST_DIR/cargo-plan9.toml" build --release --target $T --quiet)
-		"$CROSS/$TRIPLE-strip" -o "$HERE/root/tests/eframetest" "$BUILD/cargo/eframetest/$T/release/eframetest"
+		put "$BUILD/cargo/eframetest/$T/release/eframetest"
 	fi
 else
 	echo "rsvk: not built (objtype=$objtype, or no stage-1 rustc $RUSTC or cargo)" >&2
 fi
 # Khronos' vkcube and vulkaninfo, ported (scripts/mesa/vktools.sh)
 "$ROOT/scripts/mesa/vktools.sh" build
-cp "$BUILD/vktools/vkcube" "$BUILD/vktools/vulkaninfo" "$HERE/root/tests/"
+put "$BUILD/vktools/vkcube"
+put "$BUILD/vktools/vulkaninfo"
 ls -la "$HERE/root/tests/vktest" "$HERE/root/tests/vkdraw" "$HERE/root/tests/vktri" \
 	"$HERE/root/tests/vkspeed" "$HERE/root/tests/radvtest" "$HERE/root/tests/vkcube" "$HERE/root/tests/vulkaninfo" \
 	"$HERE/root/tests/gltest" "$HERE/root/tests/gldesk" "$HERE/root/tests/glwin"

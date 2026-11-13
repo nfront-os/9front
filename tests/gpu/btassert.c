@@ -2,7 +2,8 @@
  * SPDX-License-Identifier: MIT
  *
  * APE's _assert with a backtrace (libgcc's unwinder), for debugging
- * tests/gpu/vktest: resolve the addresses with addr2line -e vktest.
+ * tests/gpu/vktest: resolve the addresses with addr2line -e vktest, the
+ * unstripped one of the build ($BUILD/tests, build-vktest.sh).
  */
 #include <stdio.h>
 #include <stdlib.h>
