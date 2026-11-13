@@ -574,7 +574,7 @@ readln(char *p, int len)
 	int n, c;
 
 	n = 0;
-	while(len--) {
+	while(--len > 0) {	/* GCC port branch: room for the NUL (patch-upstream 0030) */
 		c = fchar();
 		if(c == -1 || c == '\n')
 			break;

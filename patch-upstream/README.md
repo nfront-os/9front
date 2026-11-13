@@ -27,8 +27,9 @@ taken or declined them.
 On Unix: `git am patch-upstream/0*.patch` on a checkout of `front`.
 On 9front: `git/import` takes the files as they are.
 
-All 28 apply as a series (on `f5df6bc0a`, on `origin/front` at
-`82ddeb288`, 2026-11-10, and at `00d3043a2`, 2026-11-12). Each applies alone too, except:
+All 31 apply as a series (on `f5df6bc0a`, on `origin/front` at
+`82ddeb288`, 2026-11-10, at `00d3043a2`, 2026-11-12, and at `eb49f1f87`,
+2026-11-12). Each applies alone too, except:
 
 - 0009 needs 0007 (context: `vbump` in `rwstat`),
 - 0010 needs 0007 and 0009,
@@ -91,6 +92,9 @@ made with an AI assistant); drop it if 9front does not want it.
 | 0026 | truetypefs: antialiased subfonts (size `Na`) | feature |
 | 0027 | vga: `cursorsize`, the software cursor scaled | feature |
 | 0028 | aux/vga/mga4xx: register 0x14 of the attribute controller written past attribute[] | bug fix (found by gcc -O2) |
+| 0029 | snap: a memory section's count ended one past its buffer | bug fix (found by gcc -O2) |
+| 0030 | cwfs: readln put the NUL past the buffer on a long line | bug fix (found by gcc -O2) |
+| 0031 | dossrv: a long name's checksum written past reserved[] | bug fix (found by gcc -O2) |
 
 ### 0001 ip/tcp: don't hang up a reused conversation through a stale bypass pointer
 
@@ -441,6 +445,30 @@ when the gcc branch's userland went to `-O2` (gcc may then end such a
 loop early).  The file is the same on `front`; the patch touches nothing
 else of the series.  Built with gcc -O2 on the main branch (aux/vga);
 not done: compiled with 9front's own compilers, run on a Matrox card.
+
+### 0029 snap: room for the NUL after a memory section's 12-byte count
+
+`readsnap` reads a memory section's segment count with
+`Bread(b, buf, 12)` and ends it with `buf[12] = 0`, one past `char
+buf[12]`.  The buffer is 13 bytes now.
+
+### 0030 cwfs: readln leaves room for the NUL
+
+`readln` stored up to `len` characters and then the NUL after them: a
+line of 4096 characters or more in the users file put the NUL one past
+the static `buf`.  It stores `len-1` now (`while(--len > 0)`).
+
+### 0031 dossrv: a long name's checksum into the field at offset 13
+
+`putnamesect` wrote the checksum of a VFAT long name's slot as
+`ds.reserved[1]`, past `Dosdir`'s one-byte `reserved`; offset 13, where
+the slot keeps the checksum, is `ctimetenth`.  The same byte as before,
+written through the field that is there.
+
+0029 to 0031 were found by gcc's `-Wstringop-overflow` when the main
+branch's userland went to `-O2`; built there with gcc -O2 (snap, cwfs,
+dossrv), dossrv run by the CD's boot (9fat).  Not done: compiled with
+9front's own compilers.
 
 ## Not included
 
