@@ -5,9 +5,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 @AGENTS.md
 
 ## Branches
-- `front`: mirror of upstream `github.com/9front/9front`, branch `front`. Treat as pristine 9front source; update it by fast-forward to `origin/front`, then rebase `gcc` onto it.
-- `upstream`: fixes for 9front itself found on `gcc` (not about gcc), one commit each on `origin/front`, exported to `patch-upstream/` (README.md there). A new one goes on `gcc` and on `upstream`.
-- `gcc` (work branch): the gcc port. Keep diffs against `front` minimal and reviewable. After a rebase, regenerate the manifests (upstream mkfile changes add sources) and run `tests/static`.
+- `front`: mirror of upstream `github.com/9front/9front`, branch `front`. Treat as pristine 9front source; update it by fast-forward to `origin/front`, then merge it into `gcc` (and `gcc` into `main`, `nix`, `riscv`): merges since 2026-11-13, no rebase or force push of these public branches (`dist/docs/upstream.md`).
+- `upstream`: fixes for 9front itself found on `gcc` (not about gcc), one commit each on `origin/front`, exported to `patch-upstream/` (README.md there). A new one goes on `gcc` and on `upstream`. The only branch that is rebased (onto the new `front`).
+- `gcc` (work branch): the gcc port. Keep diffs against `front` minimal and reviewable. After merging `front`, regenerate the manifests (upstream mkfile changes add sources) and run `tests/static`.
 - `main` (this worktree, `~/Devel/nfront/tree`; was `ui`): nfront, the distribution: `gcc` plus the GPU stack (gpu(4), the LinuxKPI with Linux's DRM drivers, Mesa), wsys and the ui framework. 9front code may change here where the distribution needs it. `nix`, `riscv`: ports on `gcc`. Work happens on `main`; the other branches are refs in this repository, with a worktree beside this one (`tree-gcc`, `tree-nix`, `tree-riscv`, `tree-upstream`) only when needed (`dist/bin/repos --worktrees=gcc,...`; a rebase in a worktree made for the while, `dist/docs/upstream.md`). Never switch this worktree to another branch: its working tree holds main's build.
 
 ## nfront: where the other parts are

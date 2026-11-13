@@ -33,9 +33,10 @@
 # DEV=gcc,rust; DEV= none) says which languages come along: gcc as /$objtype/gnu with
 # /$objtype/lib.gcc, Rust from RUST_OUT (default its out/$objtype), Go from GO_OUT
 # (likewise); Rust links with gcc, so rust takes gcc along. Without DEV, as before:
-# gcc if it is built, Rust and Go if RUST_OUT, GO_OUT are set.
+# gcc if it is built, Rust and Go if RUST_OUT, GO_OUT are set. MCP=1: the MCP server
+# (MCP_DIR, tools/mcp) as /$objtype/bin/9front-mcp, built with nfront's Go.
 #
-# usage: [objtype=386] [PROFILE=p] [DEV=list] scripts/guest/stage-dist.sh dir
+# usage: [objtype=386] [PROFILE=p] [DEV=list] [MCP=1] scripts/guest/stage-dist.sh dir
 set -e
 ROOT=${PLAN9:-$(git -C "$(dirname "$0")" rev-parse --show-toplevel)}
 . "$ROOT/scripts/lib/paths.sh"	# GCC_DIR, RUST_DIR, GO_DIR, MCP_DIR, DISTFILES (the distribution's paths.env)
@@ -179,6 +180,18 @@ for p in "${omit[@]}"; do
 	echo "/$p" >> "$OUT.omitted"
 	rm -rf "${OUT:?}/$p"
 done
+# the MCP server (MCP=1; MCP_DIR, tools/mcp): an agent on another machine works on the
+# installed system over HTTP (tools/mcp/README.md). Built here with nfront's Go (GO_DIR)
+# for objtype, with its example deny list as /sys/lib/mcp/deny (its README's -deny)
+if [ "$MCP" = 1 ]; then
+	go=${GO:-$GO_DIR/go/bin/go}
+	[ -x "$go" ] || { echo "stage-dist: MCP=1: no Go ($go: toolchain/go scripts/build.sh)" >&2; exit 1; }
+	[ -f "$MCP_DIR/main.go" ] || { echo "stage-dist: MCP=1: no MCP server in $MCP_DIR (dist/bin/repos mcp)" >&2; exit 1; }
+	(cd "$MCP_DIR" && GOOS=plan9 GOARCH=$A CGO_ENABLED=0 "$go" build -trimpath -o "$OUT/$A/bin/9front-mcp" .)
+	mkdir -p "$OUT/sys/lib/mcp"
+	install -m 644 "$MCP_DIR/deny.example" "$OUT/sys/lib/mcp/deny"
+	echo "stage-dist: the MCP server as /$A/bin/9front-mcp" >&2
+fi
 # the CA roots, with Rust or Go: /sys/lib/tls/ca.pem, where Go's crypto/x509 and our
 # crates (rustls-native-certs, curl-sys) look; cargo and go reach crates.io and the
 # module proxy over https with them. Mozilla's list as curl extracts it (MPL-2.0):

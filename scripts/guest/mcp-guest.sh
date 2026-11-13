@@ -1,5 +1,5 @@
 #!/bin/bash
-# A guest (scripts/guest/boot-cli.sh, HOLD=1) that runs ../9front-mcp's server,
+# A guest (scripts/guest/boot-cli.sh, HOLD=1) that runs the MCP server (MCP_DIR, tools/mcp),
 # reached from the host over HTTP: a second NIC whose QEMU user network
 # forwards 127.0.0.1:$PORT to the guest's port 8090. scripts/guest/mcp.py then
 # runs commands there and reads files: one HTTP request each, much faster than
@@ -11,8 +11,8 @@
 #   are typed before the server starts (e.g. aux/virtiogpu).
 #   env:  PORT        host port (18091)
 #         MCPTOKEN    the token (mcpguest)
-#         MCP_SRC     the server's source (../9front-mcp)
-#         GO          a Go that builds plan9/amd64 (../9front-go/go/bin/go)
+#         MCP_SRC     the server's source (MCP_DIR of dist/paths.env, tools/mcp)
+#         GO          a Go that builds plan9/amd64 (GO_DIR's go/bin/go, toolchain/go)
 #         QEMU_EXTRA, SMP, MEM, ... as boot-cli.sh (QEMU_EXTRA gets the NIC added)
 set -e
 ROOT=$(git -C "$(dirname "$0")" rev-parse --show-toplevel)

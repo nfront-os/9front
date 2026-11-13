@@ -32,13 +32,15 @@
 #   rust     Rust on the CD (/$objtype/rust, toolchain/rust, mkcd -dev rust): rustc,
 #            cargo build/run/test offline, rustfmt, rustdoc, clippy (same CD;
 #            skipped without Rust)
+#   mcp      the MCP server on the CD (mkcd -mcp): initialize, rc through it, its
+#            deny list (same CD; skipped without it)
 #   hw       the hardware test stick (tests/hw) in QEMU: boots from USB,
 #            runs the configurations with resets, HANG after a power-off
 #            (makes the stick image, minutes)
 #
 # usage: tests/run.sh [category...]     (default: all, in the order above)
 cd "$(dirname "$0")"
-cats=${*:-static asm syscall build guest boot pmc gpu gui ui draw disk iso rio usb gcc go rust hw}
+cats=${*:-static asm syscall build guest boot pmc gpu gui ui draw disk iso rio usb gcc go rust mcp hw}
 failed=()
 for c in $cats; do
 	[ -x "$c/run.sh" ] || { echo "unknown category $c"; exit 2; }
