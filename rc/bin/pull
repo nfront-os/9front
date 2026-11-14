@@ -1,0 +1,62 @@
+#!/bin/rc
+# pull [-nSv] [-c path]... [-s path]... [replica]: bring the system up to
+# date from nfront's update server: replica/pull with the replica the CD
+# installed (/dist/replica/nfront: HTTP, replica/httpfs with the signed
+# index). On gefs, a snapshot of main first, the way back
+# (pull.YYYYMMDD.hhmmss; 9fs dump: /n/dump/pull.*); -S without it.
+# -n, -v, -c, -s as replica/pull's (replica(1)).
+rfork en
+
+fn usage {
+	echo 'usage: pull [-nSv] [-c path]... [-s path]... [replica]' >[1=2]
+	exit usage
+}
+
+opt=()
+snap=1
+while(~ $1 -*){
+	switch($1){
+	case -n
+		opt=($opt $1)
+		snap=()
+	case -v
+		opt=($opt $1)
+	case -c -s
+		if(~ $#* 1)
+			usage
+		opt=($opt $1 $2)
+		shift
+	case -S
+		snap=()
+	case *
+		usage
+	}
+	shift
+}
+switch($#*){
+case 0
+	replica=/dist/replica/nfront
+case 1
+	replica=$1
+case *
+	usage
+}
+if(! test -x $replica){
+	echo 'pull: no '^$replica^': this system has no update server' >[1=2]
+	exit noreplica
+}
+
+# gefs: the root file system's adm snapshot has a ctl file
+if(~ $#snap 1 && mount -c /srv/boot /n/pull.adm adm >[2]/dev/null){
+	if(test -e /n/pull.adm/ctl){
+		tag=pull.`{date -f 'YYYYMMDD.hhmmss'}
+		if(! echo snap main $tag >/n/pull.adm/ctl){
+			unmount /n/pull.adm
+			echo 'pull: no snapshot of main (the adm group may make one); -S: pull without' >[1=2]
+			exit nosnap
+		}
+		echo 'pull: snapshot '^$tag^' (9fs dump: /n/dump/'^$tag^')'
+	}
+	unmount /n/pull.adm
+}
+exec replica/pull $opt $replica

@@ -30,8 +30,10 @@ command -v rsync >/dev/null || { echo "gen-ufs-root.sh: rsync missing" >&2; exit
 OUT=$DEST.stage
 # cp's arguments, as links (-f: a later source replaces a file, its link
 # only); copied where linking fails (another file system), the links
-# removed first, not written through (they are the tree's files)
-put(){ cp -alf "$@" 2>/dev/null || cp -r --remove-destination "$@"; }
+# removed first, not written through (they are the tree's files); with
+# their times, as a link has them (tests/replica: an installed system's
+# files have the replica's times)
+put(){ cp -alf "$@" 2>/dev/null || cp -r --preserve=mode,timestamps --remove-destination "$@"; }
 
 rm -rf "$OUT"
 mkdir -p "$OUT"/$A/bin "$OUT"/rc "$OUT"/lib "$OUT"/adm/timezone \

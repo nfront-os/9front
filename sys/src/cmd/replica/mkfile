@@ -10,6 +10,7 @@ SCRIPTS=\
 TARG=\
 	applychanges\
 	applylog\
+	httpfs\
 	compactdb\
 	updatedb\
 

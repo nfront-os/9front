@@ -1,0 +1,98 @@
+#!/bin/rc
+# tests/replica's guest side: replica/pull over HTTP (replica/httpfs) from
+# the publications the host serves at $u (run.sh writes u=... first).
+# Each step prints STEP name, what pull says, STATUS; SUMS lines give the
+# client tree's files (sha1, path) and modes for run.sh to compare.
+rfork en
+ramfs	# /tmp: applylog spools each file there
+cfg=/tests/replica/cfg
+fn sums {
+	@{
+		cd $2
+		ifs='
+' {
+			for(f in `{walk -f . | sort})
+				echo SUMS $1 `{sha1sum $f | awk '{print $1}'} $f
+		}
+		walk -e xUGp . | sort | sed 's/^/MODE '^$1^' /'
+	}
+}
+fn step {
+	name=$1
+	shift
+	echo STEP $name
+	$* >[2=1]
+	echo STATUS $name $status
+}
+# the clients' file system: gefs on the scratch disk, as the installer
+# makes it (rc/bin/inst/mountgefs: its users, sys with glenda)
+gefs -r glenda -f /dev/sdC0/data
+gefs -n gtest -SA -f /dev/sdC0/data
+mount -c /srv/gtest /n/g %main
+mount -c /srv/gtest /n/gadm adm
+echo '-1:adm:adm:glenda
+0:none::
+2:glenda:glenda:
+10000:sys::glenda' >/n/gadm/users
+echo users >/n/gadm/ctl
+# a client: root, db and log in /n/g/$1; testroot, testdb, testlog for cfg
+fn client {
+	mkdir -p /n/g/$1/root
+	testroot=/n/g/$1/root
+	testdb=/n/g/$1/db
+	testlog=/n/g/$1/log
+}
+# installed from the CD: the stage of version 1 with the client db and log
+# the publisher wrote into it (publish.py -c), copied as the installer's
+# copydist does (disk/mkfs -U: with the times, the owners of version 1's proto)
+fn installed {
+	client $1
+	disk/mkfs -U -s /tests/replica/stage1 -d $testroot /tests/replica/proto1
+	rm -rf $testroot/dist
+	cp /tests/replica/stage1/dist/replica/client/nfront.db $testdb
+	cp /tests/replica/stage1/dist/replica/client/nfront.log $testlog
+}
+
+# A: a new client (empty db) takes version 1, then 2
+client a
+touch $testdb
+testurl=$u/pub1
+step A1 replica/pull -v $cfg
+sums A1 $testroot
+testurl=$u/pub2
+step A2 replica/pull -v $cfg
+sums A2 $testroot
+# D: version 3's object of lib/x was altered on the server: refused, lib/x stays
+testurl=$u/pub3
+step D replica/pull -v $cfg
+sums D $testroot
+# E: an index not as signed: no mount, nothing changes
+testurl=$u/pub4
+step E replica/pull -v $cfg
+sums E $testroot
+
+# B: a system installed from version 1's CD takes version 2
+installed b
+testurl=$u/pub2
+step B replica/pull -v $cfg
+sums B $testroot
+
+# C: the same with lib/x changed by its user: kept, a conflict
+installed c
+echo local >>$testroot/lib/x
+testurl=$u/pub2
+step C replica/pull -v $cfg
+sums C $testroot
+# F: pull(1) on gefs: a snapshot of main first (the way back), then version 2;
+# the root file system's /srv/boot is the test's gefs here
+installed f
+testurl=$u/pub2
+bind /srv/gtest /srv/boot
+step F pull -v $cfg
+unmount /srv/boot
+sums F $testroot
+mount -c /srv/gtest /n/gdump dump
+tag=`{ls /n/gdump | sed 's,.*/,,' | grep '^pull\.'}
+echo SNAP $tag
+sums F0 /n/gdump/$tag/f/root
+echo REPLICA-DONE

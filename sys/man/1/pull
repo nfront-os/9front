@@ -1,0 +1,176 @@
+.TH PULL 1
+.SH NAME
+pull, replica/httpfs \- update the system from its update server
+.SH SYNOPSIS
+.B pull
+[
+.B -nSv
+]
+[
+.B -c
+.I path
+]...
+[
+.B -s
+.I path
+]...
+[
+.I replica
+]
+.br
+.B replica/httpfs
+[
+.B -D
+]
+[
+.B -m
+.I mtpt
+]
+[
+.B -s
+.I srvname
+]
+[
+.B -w
+.I webmtpt
+]
+.B -k
+.I pubkey
+.I url
+.SH DESCRIPTION
+.I Pull
+brings the installed system up to date from nfront's update server:
+it runs
+.I replica/pull
+(see
+.IR replica (1))
+with the replica the install CD put in
+.BR /dist/replica/nfront ,
+or with
+.IR replica .
+The CD's replica names the server's URL, its public key
+.RB ( /dist/replica/nfront.pub )
+and the client's db and log
+.RB ( /dist/replica/client ),
+as of the CD: the installed system starts up to date.
+Files the system configures
+.RB ( /adm ,
+.BR /cfg ,
+.BR /cron ,
+.BR /lib/ndb ,
+.BR /mail ,
+.BR /sys/log ,
+.BR /usr )
+are not replicated.
+A file changed on the installed system is not overwritten:
+.I replica/pull
+reports a conflict and leaves it;
+.B -c
+.I path
+keeps the client's version,
+.B -s
+.I path
+takes the server's.
+.B -n
+shows what would change,
+.B -v
+says what changes.
+.PP
+On a
+.IR gefs (4)
+root file system,
+.I pull
+first takes a snapshot of
+.BR main ,
+named
+.BI pull. YYYYMMDD.hhmmss\fR,
+the way back: the files as they were are in
+.BI /n/dump/pull. YYYYMMDD.hhmmss
+after
+.B 9fs
+.BR dump .
+Taking it needs a member of the
+.B adm
+group; without it
+.I pull
+stops, and
+.B -S
+pulls without a snapshot.
+Other file systems have no snapshot: what
+.I pull
+replaces is gone.
+.PP
+.I Replica/httpfs
+serves a replica's server tree published over HTTP, read-only, at
+.I mtpt
+(default
+.BR /n/replica ),
+for a replica's
+.B servermount
+function.
+At
+.I url
+it reads
+.BR index ,
+the tree's files with their mode, owner, group, time, length and SHA-256,
+and
+.BR index.sig ,
+the index's RSA signature (PKCS #1 v1.5, SHA-256),
+and checks the signature with the PEM
+.B RSA PUBLIC KEY
+in
+.IR pubkey ;
+it does not start when it does not verify.
+A file's contents come from
+.IB url /obj/ xx / sha256
+as it is read, through
+.IR webfs (4)
+at
+.I webmtpt
+(default
+.BR /mnt/web );
+the read that would end a file checks the SHA-256 of all of it and fails
+when it differs from the index, so
+.I replica/applylog
+(which spools a file before it installs it) installs only files the
+signed index names.
+.I Webfs
+does not check TLS certificates: the signature is what makes the server
+trustworthy, over HTTP as over HTTPS.
+.B -s
+posts the server as
+.BI /srv/ srvname\fR;
+.B -D
+traces 9P.
+.SH FILES
+.TF /dist/replica/client/nfront.db
+.TP
+.B /dist/replica/nfront
+the replica: URL, key, client db and log
+.TP
+.B /dist/replica/nfront.pub
+the update server's public key
+.TP
+.B /dist/replica/client/nfront.db
+what the system has of the replica
+.TP
+.B /dist/replica/client/nfront.log
+the server's log as far as the system has it
+.SH SOURCE
+.B /rc/bin/pull
+.br
+.B /sys/src/cmd/replica/httpfs.c
+.br
+the server side, on the build host:
+.B scripts/replica/publish.py
+of nfront's tree
+.SH SEE ALSO
+.IR replica (1),
+.IR replica (8),
+.IR gefs (4),
+.IR gefs (8),
+.IR webfs (4)
+.SH BUGS
+The index carries no expiry: a server, or one between, can keep handing
+out an older signed index, which holds a system back but cannot give it
+files the publisher did not sign.

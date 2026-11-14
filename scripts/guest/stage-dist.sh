@@ -36,7 +36,15 @@
 # gcc if it is built, Rust and Go if RUST_OUT, GO_OUT are set. MCP=1: the MCP server
 # (MCP_DIR, tools/mcp) as /$objtype/bin/9front-mcp, built with nfront's Go.
 #
-# usage: [objtype=386] [PROFILE=p] [DEV=list] [MCP=1] scripts/guest/stage-dist.sh dir
+# REPLICA_DIR (with REPLICA_KEY, REPLICA_URL): the stage is published there for
+# pull(1), updates over HTTP (scripts/replica/publish.py; REPLICA_DIR is what a web
+# server serves as REPLICA_URL, REPLICA_KEY the private key that signs its index,
+# kept outside nfront), and the CD gets the client: /dist/replica (the URL, the
+# public key, the replica's db and log as of this CD). dir.list: each path's
+# mode and owners as the CD has them (scripts/guest/proto.py -l).
+#
+# usage: [objtype=386] [PROFILE=p] [DEV=list] [MCP=1] [REPLICA_DIR=d REPLICA_KEY=k REPLICA_URL=u]
+#        scripts/guest/stage-dist.sh dir
 set -e
 ROOT=${PLAN9:-$(git -C "$(dirname "$0")" rev-parse --show-toplevel)}
 . "$ROOT/scripts/lib/paths.sh"	# GCC_DIR, RUST_DIR, GO_DIR, MCP_DIR, DISTFILES (the distribution's paths.env)
@@ -169,7 +177,7 @@ fi
 rm -rf "$OUT"
 mkdir -p "$OUT"
 export objtype=$A
-python3 "$ROOT/scripts/guest/proto.py" -s "$VIEW" -d "$OUT" \
+python3 "$ROOT/scripts/guest/proto.py" -s "$VIEW" -d "$OUT" -l "$OUT.list" \
 	-e tmp -e lib/firmware -e n -e mnt \
 	"$ROOT/sys/lib/sysconfig/proto/distproto" "$ROOT/sys/lib/sysconfig/proto/9bootproto" \
 	"${PROTOS[@]}" \
@@ -224,6 +232,13 @@ find "$OUT" -path "$OUT/$A/go" -prune -o -type f -perm -u+x -exec sh -c 'file -b
 for f in "$OUT"/$A/lib.gcc/ape/libvulkan.a "$OUT"/$A/lib.gcc/libamdgpu.a "$OUT"/$A/lib.gcc/liblinux.a "$OUT"/$A/lib.gcc/libkpi*.a; do
 	[ -f "$f" ] && strip -g "$f"
 done
+# the replica, last: what it publishes is the CD's tree as it is now
+if [ -n "$REPLICA_DIR" ]; then
+	[ -n "$REPLICA_KEY" ] && [ -n "$REPLICA_URL" ] || { echo "stage-dist: REPLICA_DIR needs REPLICA_KEY and REPLICA_URL" >&2; exit 1; }
+	python3 "$ROOT/scripts/replica/publish.py" -k "$REPLICA_KEY" -c "$REPLICA_URL" "$OUT" "$OUT.list" "$REPLICA_DIR"
+	cat "$ROOT/scripts/guest/boot/replicaproto" >> "$OUT/gccproto"
+	echo "stage-dist: published in $REPLICA_DIR for $REPLICA_URL (pull(1))" >&2
+fi
 echo "$(grep -c . "$OUT.warnings") proto warnings ($OUT.warnings)"
 # everything mk install installs made it into the distribution
 python3 "$ROOT/scripts/build/check-install.py" -d "$OUT" -x "$OUT.omitted" | grep -v '^broken' | tail -20

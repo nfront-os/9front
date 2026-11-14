@@ -1,0 +1,7 @@
+dist	d775
+	replica	d775
+		nfront	775
+		nfront.pub	664
+		client	d775
+			nfront.db	664
+			nfront.log	664

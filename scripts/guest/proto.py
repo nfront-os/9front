@@ -23,13 +23,21 @@ directories: a missing source with a directory mode (d775) is created
 empty, and so is -e path (tmp, lib/firmware in the boot protos, which
 give no mode).
 
-usage: scripts/guest/proto.py [-s srcroot] -d dest [-e emptydir]... proto...
+-l list writes what mkfs would give each entry on Plan 9, one line per
+path: path, mode (octal, with DMDIR 0x80000000, DMAPPEND, DMEXCL), uid,
+gid -- the proto's fields, else its uid=, gid=, mode= options over the
+source's permissions, as libdisk's copyfile does; an owner neither names
+is sys (scripts/replica/publish.py: the replica's db).
+
+usage: scripts/guest/proto.py [-s srcroot] -d dest [-l list] [-e emptydir]... proto...
 """
 import os
 import re
 import shutil
 import stat
 import sys
+
+DMDIR, DMAPPEND, DMEXCL, DMTMP = 0x80000000, 0x40000000, 0x20000000, 0x04000000
 
 
 def warn(msg):
@@ -41,6 +49,87 @@ class Proto:
 		self.src = src
 		self.dest = dest
 		self.empty = set(os.path.normpath(e).lstrip('/') for e in empty)
+		self.meta = {}	# path: (mode, uid, gid), for -l
+
+	@staticmethod
+	def parsemode(spec, mask, mode):
+		# libdisk's parsemode: a mode= option over the options above it
+		s = spec
+		op, setall = '', False
+		m = 0
+		k = DMAPPEND | DMEXCL | DMTMP
+		i = 0
+		if s[:1] in '01234567' and s:
+			k, m, op, s = 0o666, int(s, 8), '=', '!'
+		while i < len(s) and not op:
+			c = s[i]
+			i += 1
+			if c == 'a':
+				k |= 0o666
+			elif c == 'u':
+				k |= 0o600
+			elif c == 'g':
+				k |= 0o60
+			elif c == 'o':
+				k |= 0o6
+			elif c in '-+=':
+				op = c
+			else:
+				return None
+		if s == spec and i == 0:
+			k |= 0o666
+		for c in s[i:]:
+			if c == 'r':
+				m |= 0o444
+			elif c == 'w':
+				m |= 0o222
+			elif c == 'x':
+				m |= 0o111
+			elif c == 'a':
+				m |= DMAPPEND
+			elif c == 'l':
+				m |= DMEXCL
+			elif c == 't':
+				m |= DMTMP
+			elif c == '!':
+				setall = True
+			else:
+				return None
+		if op in '+-':
+			k &= m
+		if op == '-':
+			m = ~m
+		if setall:
+			mask = 0
+		mask |= k
+		return mask, (mode & ~k) | (m & k)
+
+	@staticmethod
+	def fullmode(spec):
+		# a field's mode: [d][a][l]ooo
+		m = re.match(r'^(d?)(a?)(l?)([0-7]{3})$', spec or '')
+		if not m:
+			return None
+		return (DMDIR if m.group(1) else 0) | (DMAPPEND if m.group(2) else 0) | \
+			(DMEXCL if m.group(3) else 0) | int(m.group(4), 8)
+
+	def record(self, new, old, fmode, uid, gid, o):
+		# what libdisk's copyfile gives the entry
+		if fmode is None:
+			try:
+				st = os.stat(old)
+				mode = stat.S_IMODE(st.st_mode) & 0o777
+				if stat.S_ISDIR(st.st_mode):
+					mode |= DMDIR
+			except OSError:
+				mode = DMDIR | 0o775
+			if 'mask' in o:
+				mode = (mode & ~o['mask']) | (o['mmode'] & o['mask'])
+		else:
+			mode = fmode
+		uid = uid if uid not in (None, '-', '') else o.get('uid') or 'sys'
+		gid = gid if gid not in (None, '-', '') else o.get('gid') or 'sys'
+		self.meta[new] = (mode, uid, gid)
 
 	def lines(self, path):
 		for no, raw in enumerate(open(path), 1):
@@ -92,18 +181,31 @@ class Proto:
 		if mode is not None:
 			os.chmod(dst, mode | stat.S_IRWXU)
 
-	def tree(self, old, new, rec, skip):
+	def tree(self, old, new, rec, skip, o=None, uid=None, gid=None, fmode=None):
+		o = o if o is not None else {}
 		for name in sorted(os.listdir(old)):
 			if skip is not None and skip.search(name):
 				continue
-			o = os.path.join(old, name)
+			src = os.path.join(old, name)
 			n = os.path.join(new, name)
-			if os.path.isdir(o):
+			# permonly: the + line's mode only sets the permission bits
+			m = None
+			if fmode is not None:
+				try:
+					st = os.stat(src)
+					m = (stat.S_IMODE(st.st_mode) & 0o777 & ~0o666) | (fmode & 0o666)
+					if stat.S_ISDIR(st.st_mode):
+						m |= DMDIR
+				except OSError:
+					pass
+			if os.path.isdir(src):
 				if rec:
 					os.makedirs(os.path.join(self.dest, n), exist_ok=True)
-					self.tree(o, n, rec, skip)
+					self.record(n, src, m, uid, gid, o)
+					self.tree(src, n, rec, skip, o, uid, gid, fmode)
 			else:
-				self.copyfile(o, n, None)
+				self.copyfile(src, n, None)
+				self.record(n, src, m, uid, gid, o)
 
 	def run(self, path):
 		# stack of (indent, new path, old path); options per level
@@ -120,8 +222,14 @@ class Proto:
 					continue
 				if k == 'skip':
 					opts[-1][1]['skip'] = re.compile(v)
-				elif k in ('uid', 'gid', 'mode'):
+				elif k in ('uid', 'gid'):
 					opts[-1][1][k] = v
+				elif k == 'mode':
+					r = self.parsemode(v, opts[-1][1].get('mask', 0), opts[-1][1].get('mmode', 0))
+					if r is None:
+						warn('%s: bad mode specification %s' % (where, v))
+					else:
+						opts[-1][1]['mask'], opts[-1][1]['mmode'] = r
 				else:
 					warn('%s: bad option %s=%s' % (where, k, v))
 				continue
@@ -143,7 +251,9 @@ class Proto:
 			skip = opts[-1][1].get('skip')
 			if elem in ('+', '*'):
 				if os.path.isdir(parent_old):
-					self.tree(parent_old, parent_new, elem == '+', skip)
+					self.tree(parent_old, parent_new, elem == '+', skip, opts[-1][1],
+						fields[1] if len(fields) > 1 else None, fields[2] if len(fields) > 2 else None,
+						self.fullmode(fields[0]) if fields else None)
 				continue
 			new = os.path.normpath(os.path.join(parent_new, elem)).lstrip('/')
 			if len(f) > 4 and f[4] != '-':
@@ -156,22 +266,28 @@ class Proto:
 				# a directory by its mode (d775): git keeps no empty ones
 				if new in self.empty or (len(f) > 1 and self.word(f[1]).startswith('d')):
 					os.makedirs(os.path.join(self.dest, new), exist_ok=True)
+					self.record(new, old, self.fullmode(fields[0]) if fields else None,
+						fields[1] if len(fields) > 1 else None, fields[2] if len(fields) > 2 else None, opts[-1][1])
 				else:
 					warn("%s: can't stat file %s" % (where, old))
 					stack[-1] = (indent, None, None)
 				continue
 			self.copyfile(old, new, mode)
+			self.record(new, old, self.fullmode(fields[0]) if fields else None,
+				fields[1] if len(fields) > 1 else None, fields[2] if len(fields) > 2 else None, opts[-1][1])
 
 
 def main():
 	args = sys.argv[1:]
-	src, dest, empty, protos = '/', None, [], []
+	src, dest, empty, protos, listing = '/', None, [], [], None
 	while args:
 		a = args.pop(0)
 		if a == '-s':
 			src = args.pop(0)
 		elif a == '-d':
 			dest = args.pop(0)
+		elif a == '-l':
+			listing = args.pop(0)
 		elif a == '-e':
 			empty.append(args.pop(0))
 		else:
@@ -181,6 +297,13 @@ def main():
 	p = Proto(src, dest, empty)
 	for path in protos:
 		p.run(path)
+	if listing:
+		with open(listing, 'w') as f:
+			for n in sorted(p.meta):
+				if n in ('', '.'):
+					continue
+				m, u, g = p.meta[n]
+				f.write('%s\t%o\t%s\t%s\n' % (n, m, u, g))
 
 
 if __name__ == '__main__':
