@@ -10,8 +10,9 @@ The publication directory is served as it is by any HTTP server; it holds
 	sums		path sha256, beside db
 	log		replica's log: time gen verb path - mode uid gid mtime length
 	obj/xx/sha256	every file's contents (and the log's), by SHA-256: written
-			before the index names them, kept after (an old index
-			still finds its files)
+			before the index names them; kept while this index or the
+			one before names them (a client in the middle of a pull
+			still finds its files), then removed
 	index		the tree httpfs serves: log, root and root/path, each
 			path mode uid gid mtime length sha256 (a directory: sha256 -)
 	index.sig	index's RSA signature (PKCS #1 v1.5, SHA-256; openssl)
@@ -282,14 +283,25 @@ def main():
 	for p, m in sorted(newdb.items()):
 		idx.append('%s %o %s %s %d %d %s\n' % (q('root/' + p), m[0], q(m[1]), q(m[2]), m[3], m[4],
 			'-' if m[0] & DMDIR else newsums[p]))
+	# the objects to keep: the new index's and the previous one's
+	keep = set(l.split()[-1] for l in idx)
+	oldidx = os.path.join(pub, 'index')
+	if os.path.exists(oldidx):
+		keep |= set(tok(l)[-1] for l in open(oldidx) if len(tok(l)) == 7)
 	tmp = os.path.join(pub, 'index.tmp')
 	with open(tmp, 'w') as f:
 		f.writelines(idx)
 	subprocess.run(['openssl', 'dgst', '-sha256', '-sign', key, '-out', tmp + '.sig', tmp], check=True)
 	os.rename(tmp + '.sig', os.path.join(pub, 'index.sig'))
 	os.rename(tmp, os.path.join(pub, 'index'))
-	print('publish: %s: %d added, %d changed, %d metadata, %d removed; %d entries' %
-		(pub, nadd, nchg, nmeta, ndel, len(newdb)))
+	nrm = 0
+	for d in os.listdir(os.path.join(pub, 'obj')):
+		for o in os.listdir(os.path.join(pub, 'obj', d)):
+			if o not in keep:
+				os.remove(os.path.join(pub, 'obj', d, o))
+				nrm += 1
+	print('publish: %s: %d added, %d changed, %d metadata, %d removed; %d entries; %d old objects removed' %
+		(pub, nadd, nchg, nmeta, ndel, len(newdb), nrm))
 
 	if url:
 		# the client: the CD installs it with the system

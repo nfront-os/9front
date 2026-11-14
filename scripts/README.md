@@ -97,7 +97,7 @@ Called by `build.exe` (Pre/Post steps); rarely run by hand.
 
 | File | What |
 |---|---|
-| `publish.py` | a staged tree as a replica replica/httpfs serves to replica/pull: db, log, objects by SHA-256, the index signed with RSA (openssl); `-c URL` puts the client side into the stage (`/dist/replica`), `-g key.pem` makes a key. `scripts/replica/publish.py -k key.pem -c URL stage stage.list pubdir` |
+| `publish.py` | a staged tree as a replica replica/httpfs serves to replica/pull: db, log, objects by SHA-256, the index signed with RSA (openssl); `-c URL` puts the client side into the stage (`/dist/replica`), `-g key.pem` makes a key; objects neither the new nor the previous index names are removed. `dist/bin/mkcd` runs it for every CD. `scripts/replica/publish.py -k key.pem -c URL stage stage.list pubdir` |
 
 ## check/ — gcc vs. 9front's compilers
 

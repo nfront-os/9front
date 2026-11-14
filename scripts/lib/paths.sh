@@ -30,6 +30,7 @@ __nfront_paths(){
 	: "${PLAN9PORT:=$top/plan9port}"
 	: "${CACHE:=${XDG_CACHE_HOME:-$HOME/.cache}/nfront}"
 	: "${CLI_DIR:=$CACHE/cli}"
-	export GCC_DIR RUST_DIR GO_DIR MCP_DIR DISTFILES TREE_GCC PLAN9PORT CACHE CLI_DIR
+	: "${REPLICA_ROOT:=$CACHE/replica}"
+	export GCC_DIR RUST_DIR GO_DIR MCP_DIR DISTFILES TREE_GCC PLAN9PORT CACHE CLI_DIR REPLICA_ROOT
 }
 __nfront_paths
