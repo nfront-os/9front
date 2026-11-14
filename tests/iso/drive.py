@@ -71,7 +71,8 @@ cmd({'execute': 'qmp_capabilities'})
 KEYS = {' ': 'spc', '-': 'minus', '/': 'slash', '.': 'dot', '\n': 'ret', "'": 'apostrophe',
 	';': 'semicolon', '=': 'equal', ',': 'comma', '#': ('shift', '3'), '>': ('shift', 'dot'),
 	'|': ('shift', 'backslash'), '*': ('shift', '8'), '{': ('shift', 'bracket_left'),
-	'}': ('shift', 'bracket_right'), '!': ('shift', '1'), '$': ('shift', '4')}
+	'}': ('shift', 'bracket_right'), '!': ('shift', '1'), '$': ('shift', '4'),
+	'(': ('shift', '9'), ')': ('shift', '0')}
 def type_(text):
 	for ch in text:
 		k = KEYS.get(ch, ch)
@@ -122,7 +123,8 @@ while time.time() < end and vm.poll() is None:
 		time.sleep(3)	# riostart's windows
 		show = os.environ.get('SHOW', '')
 		show = '; cat ' + show if show else ''
-		type_("{echo %s; ls -d /dev/sd*/data /dev/sd*/esp%s} >'#t/eia0'\n" % (MARK, show))
+		# and which window system runs: the desktop wsys or rio (tests/iso/run.sh)
+		type_("{echo %s; ls -d /dev/sd*/data /dev/sd*/esp; if(ps | grep -s ' wsys$') echo desktop wsys; if not echo desktop rio%s} >'#t/eia0'\n" % (MARK, show))
 		for _ in range(20):
 			time.sleep(1)
 			if marked():

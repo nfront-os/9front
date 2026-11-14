@@ -13,12 +13,16 @@ case terminal
 	echo -n 'res 3' > '#m/mousectl'
 	prompt=('term% ' '	')
 	fn term%{ $* }
-	# nfront: desktop=wsys (plan9.ini) starts wsys(4), the window
-	# system of the ui framework, instead of rio, with the options in
+	# nfront: desktop=wsys (plan9.ini; the default where wsys is installed)
+	# starts wsys(4), the window system of the ui framework, instead of
+	# rio (desktop=rio), with the options in
 	# wsysflags (-p: the processor composes, not the GPU); riostart serves both
 	# (with wsysflags, what wsys says goes to wsysboot.log on the boot
 	# stick's ESP, if gpustart served it: a line at a time, esplog)
 	# (a chain of if not: each refers to the if just before it)
+	# the default: wsys where it is installed (the profiles ui and full)
+	if(~ $#desktop 0 && test -x /bin/wsys)
+		desktop=wsys
 	if(~ $desktop wsys && test -x /bin/wsys && ! ~ $#wsysflags 0 && test -e /srv/gpu.esp && mount -c /srv/gpu.esp /n/esp >[2]/dev/null){
 		echo '# wsys' $wsysflags `{date} >>/n/esp/wsysboot.log
 		wsys $wsysflags -i riostart >[2=1] | esplog /n/esp/wsysboot.log

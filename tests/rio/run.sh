@@ -1,6 +1,8 @@
 #!/bin/bash
 # rio: mouse and keyboard in rio on the install CD (tests/rio/rio.py):
-# select in a window, type, New + sweep, type into the new window.
+# select in a window, type, New + sweep, type into the new window. On a
+# CD whose desktop is wsys (ui, full) the same steps test wsys; the checks
+# say which (rio itself: a minimal or gpu CD).
 # Uses ISO, else the last CD scripts/guest/mkiso.sh made.
 . "$(dirname "$0")/../lib.sh"
 IMG=${ISO:-$CLI_DIR/9front.$objtype.iso}
@@ -9,6 +11,7 @@ IMG=${ISO:-$CLI_DIR/9front.$objtype.iso}
 python3 "$ROOT/tests/rio/rio.py" "$IMG" "$TMPD/vm" $objtype > "$TMPD/results" 2>&1
 while read -r r name; do
 	case $r in
+	\#)	echo "  $name" ;;	# a note (the desktop)
 	ok)	pass "$name" ;;
 	fail)	fail "$name" ;;
 	*)	fail "rio.py: $r $name" ;;

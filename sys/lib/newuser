@@ -29,7 +29,13 @@ case terminal
 	echo -n 'res 3' > '#m/mousectl'
 	prompt=('term% ' '	')
 	fn term%{ $x^* }
-	rio
+	# nfront: wsys where it is installed, desktop=rio (plan9.ini) chooses rio
+	if(~ $x^#desktop 0 && test -x /bin/wsys)
+		desktop=wsys
+	if(~ $x^desktop wsys && test -x /bin/wsys)
+		wsys $x^wsysflags
+	if not
+		rio
 case cpu
 	bind /mnt/term/dev/cons /dev/cons
 	bind -q /mnt/term/dev/consctl /dev/consctl

@@ -31,6 +31,9 @@ m = open('$IMG', 'rb').read(512)
 e = m[446:462]
 sys.exit(not (m[510:512] == b'\x55\xaa' and e[0] == 0x80 and e[4] == 0xef))"
 
+# the desktop: wsys where the CD has it (the profiles ui and full), else rio
+want=rio
+xorriso -indev "$IMG" -find /$objtype/bin/wsys 2>/dev/null | grep -q "/$objtype/bin/wsys" && want=wsys
 for media in cd disk; do
 	for fw in bios uefi; do
 		if [ $fw = uefi ] && [ ! -f "$OVMF_CODE" ]; then
@@ -39,8 +42,8 @@ for media in cd disk; do
 		fi
 		dev=/dev/sdD0/data
 		[ $media = disk ] && dev=/dev/sdC0/data
-		check "boot as $media with $fw up to rio, root $dev" bash -c \
-			"OVMF_CODE='$OVMF_CODE' python3 '$ROOT/tests/iso/drive.py' '$IMG' $media $fw '$TMPD/$media-$fw' | grep -q '^$dev\$'"
+		check "boot as $media with $fw up to the desktop ($want), root $dev" bash -c \
+			"OVMF_CODE='$OVMF_CODE' python3 '$ROOT/tests/iso/drive.py' '$IMG' $media $fw '$TMPD/$media-$fw' > '$TMPD/$media-$fw.out'; grep -q '^$dev\$' '$TMPD/$media-$fw.out' && grep -q '^desktop $want\$' '$TMPD/$media-$fw.out' || { tail -5 '$TMPD/$media-$fw.out'; false; }"
 	done
 done
 done_tests

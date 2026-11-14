@@ -8,6 +8,10 @@ it is checked. A click that rio's frselect never saw end (readmouse()
 received into the wrong place) left rio hung here: no keyboard, New
 stuck in the sweep cursor.
 
+The desktop is rio, or wsys where the CD has it (the profiles ui and
+full: their default); each check names which one ran, so rio itself is
+tested on a CD without wsys (minimal, gpu) or with desktop=rio.
+
 usage: tests/rio/rio.py iso workdir objtype
    prints one line per check: ok|fail <name>
 """
@@ -26,15 +30,18 @@ def typed(marker):
 	return marker in vm.read(8)
 
 try:
-	if not result(vm.boot(), 'boot to rio, serial rc'):
+	if not result(vm.boot(), 'boot to the desktop, serial rc'):
 		sys.exit(0)
+	# which window system runs: its process by name (both draw rio's grey)
+	desk = 'wsys' if 'desk-wsys' in vm.serial("if(ps | grep -s ' wsys$') echo desk-^wsys", 4) else 'rio'
+	print('# desktop: %s' % desk, flush=True)
 	vm.move(-3000, -3000, step=100)	# top left corner (clamped)
 	vm.move(300, 250)		# into the first window
 	vm.button('left', True)
 	vm.move(120, 0, step=2, pause=0.01)	# select by dragging
 	vm.button('left', False)
 	time.sleep(0.5)
-	result(typed('rio-after-select'), 'type after selecting in a window')
+	result(typed('rio-after-select'), '%s: type after selecting in a window' % desk)
 
 	vm.move(100, 300)		# below the window: rio's background
 	vm.button('right', True)
@@ -47,16 +54,16 @@ try:
 	vm.button('right', False)
 	time.sleep(3)
 	vm.shot('new')
-	result(typed('rio-new-window'), 'New: sweep a window, type into it')
+	result(typed('rio-new-window'), '%s: New, sweep a window, type into it' % desk)
 
 	vm.button('left', True)
 	vm.move(-40, 0, step=1, pause=0.01)
 	vm.button('left', False)
 	time.sleep(0.5)
-	result(typed('rio-select-new'), 'type after selecting in the new window')
+	result(typed('rio-select-new'), '%s: type after selecting in the new window' % desk)
 
-	ps = vm.serial('ps | grep -c rio', 4)
-	result(any(l.strip().isdigit() and int(l.strip()) > 0 for l in ps.split('\n')), 'rio still running')
+	ps = vm.serial("ps | grep -s ' %s$' && echo still-^up" % desk, 4)
+	result('still-up' in ps, '%s still running' % desk)
 	vm.shot('final')
 finally:
 	vm.close()
