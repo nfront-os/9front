@@ -1229,8 +1229,9 @@ impl Wsys {
                         // m x y: the pointer goes there
                         let v: Vec<i32> = s[1..].split_whitespace().filter_map(|x| x.parse().ok()).collect();
                         if s.starts_with('m') && v.len() >= 2 {
+                            let (dx, dy) = self.shift();
                             if let Some(fd) = &self.mousefd {
-                                let _ = fd.write(format!("m{} {}", v[0], v[1]).as_bytes());
+                                let _ = fd.write(format!("m{} {}", v[0] + dx, v[1] + dy).as_bytes());
                             }
                         }
                         ok
@@ -1300,6 +1301,16 @@ impl Wsys {
         let Some(core) = &self.core else { return };
         let rects = core.dirty();
         self.coreload(rects);
+    }
+
+    /// where wsys' screen is on the display: devdraw's (wsys' own) stays where
+    /// the window was when wsys started, the window it is in may have moved
+    /// since (coreload copies it there); /dev/mouse counts the display's points
+    fn shift(&self) -> (i32, i32) {
+        match (&self.core, &self.kd, &self.comp) {
+            (Some(core), Some(kd), None) => (kd.r.x0 - core.r.x0, kd.r.y0 - core.r.y0),
+            _ => (0, 0),
+        }
     }
 
     /// rectangles of devdraw's screen (wsys' own) to the display: the GPU's
@@ -4948,6 +4959,9 @@ fn main() {
             Ev::Hangup => break,
             Ev::Resized => ws.resized(),
             Ev::Mouse { x, y, b, ms } => {
+                // the display's point, on wsys' screen
+                let (dx, dy) = ws.shift();
+                let (x, y) = (x - dx, y - dy);
                 // WSYSDEBUG=mouse: each mouse message, and what is under it then
                 if wsysdebug("mouse") {
                     let hit = ws.z.iter().rev().copied().find(|n| !ws.wins[n].hidden && ws.wins[n].frame().contains(x, y));

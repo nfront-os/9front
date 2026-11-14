@@ -80,4 +80,23 @@ p2=`{colour 17,700}
 if(~ $p1 $p0 && ! ~ $p2 $p0) ok moved: wsys drawn at the new place $p1, rio there now $p2
 if not fail moved: at 1012,700 $p1 at 17,700 $p2, wsys $p0
 
+# the mouse after the move: a point of the display (from rio's /dev/mouse) is
+# the point of wsys' screen that is shown there (the window's inside from 24,19
+# now; -d's screen stays where the window was, -k's moved with it)
+window -r `{echo $t(1)+100 | hoc} `{echo $t(2)+300 | hoc} `{echo $t(1)+300 | hoc} `{echo $t(2)+500 | hoc}
+wait1 test -d /mnt/wsys/3
+echo current >/mnt/wsys/3/wctl
+sleep 1
+rm -f /tmp/wsysmouse
+dd -if /mnt/wsys/3/mouse -bs 49 -count 1 >/tmp/wsysmouse >[2]/dev/null &
+sleep 1
+echo A 224 419 0 >/dev/mousein
+fn gotmouse { test -s /tmp/wsysmouse }
+wait1 gotmouse
+m=`{cat /tmp/wsysmouse}
+x=`{echo $t(1)+200 | hoc}
+y=`{echo $t(2)+400 | hoc}
+if(~ $m(2) $x && ~ $m(3) $y) ok moved: the mouse at 224,419 is $x,$y on the screen of wsys
+if not fail moved: the mouse at 224,419 came as $"m, want $x $y
+
 if(~ $nfail 0) echo resize: all passed
